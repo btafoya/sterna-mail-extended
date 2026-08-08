@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
@@ -382,7 +384,13 @@ fun <T> SettingChoiceDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(Modifier.selectableGroup()) {
+            // Measured on the ten-entry language picker (Moto G, 720×1280): the bottom options came
+            // out as bare radio circles, no label, and tapping them did nothing. A DEAD tap is the
+            // discriminating fact — a clipped row still takes taps, so those rows were MEASURED
+            // short, not clipped. Working hypothesis for why, same as SenderRuleDialogFitTest's:
+            // Material's `text` slot hands down a finite maxHeight, which a non-scrolling Column
+            // spends row by row until the last ones are measured at ~0.
+            Column(Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
                 options.forEach { option ->
                     Row(
                         modifier = Modifier
