@@ -2630,7 +2630,17 @@ internal fun DetailScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(title) },
+                title = {
+                    // The title carried no end inset and ran to the physical edge of the screen
+                    // (#146); 16dp mirrors the inset the platform lays at the start. No maxLines,
+                    // no overflow, no softWrap = false, and the argument is drawn whole:
+                    // this title is the account address whenever the name field is empty, and an
+                    // ellipsis on an address is unreadable — a long title wraps.
+                    Text(
+                        title,
+                        modifier = Modifier.padding(end = 16.dp),
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_back))
