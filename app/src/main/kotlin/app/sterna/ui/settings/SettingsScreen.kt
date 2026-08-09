@@ -693,75 +693,86 @@ private fun textSizeLabel(context: Context, size: MessageTextSize): String = whe
 @Composable
 private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val pushAll by viewModel.pushAllAccounts.collectAsStateWithLifecycle()
-    val deliveryMode by viewModel.deliveryMode.collectAsStateWithLifecycle()
-    val notifContent by viewModel.notificationContent.collectAsStateWithLifecycle()
-    val quietEnabled by viewModel.quietHoursEnabled.collectAsStateWithLifecycle()
-    val quietStart by viewModel.quietHoursStart.collectAsStateWithLifecycle()
-    val quietEnd by viewModel.quietHoursEnd.collectAsStateWithLifecycle()
+    val notifSettings by viewModel.notificationSettings.collectAsStateWithLifecycle()
+    // Hoisted above the branch on purpose, so that the call site stays the same one whichever arm
+    // of the `if` the screen opens on: remembered state is keyed by position in the composition,
+    // and a key that moves with the branch is a key nobody can reason about.
+    val scroll = rememberScrollState()
     DetailScaffold(title = stringResource(R.string.settings_notifications_screen_title), onBack = onBack) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
-        ) {
-            SettingsSection(stringResource(R.string.settings_delivery_section)) {
-                DeliveryModeOption(
-                    title = stringResource(R.string.settings_delivery_instant),
-                    subtitle = stringResource(R.string.settings_delivery_instant_desc),
-                    selected = deliveryMode == DeliveryMode.INSTANT,
-                    onClick = { viewModel.setDeliveryMode(DeliveryMode.INSTANT) },
-                )
-                DeliveryModeOption(
-                    title = stringResource(R.string.settings_delivery_saver),
-                    subtitle = stringResource(R.string.settings_delivery_saver_desc),
-                    selected = deliveryMode == DeliveryMode.BATTERY_SAVER,
-                    onClick = { viewModel.setDeliveryMode(DeliveryMode.BATTERY_SAVER) },
-                )
+        val state = notifSettings
+        if (state == null) {
+            // Nothing stored has been read yet (#57). Showing the radios now would show the
+            // defaults over the reader's choice AND accept a tap that writes them. A spinner
+            // filling the viewport, never an empty Box: the screen slides in opaque, and an empty
+            // frame would show the bare window background for the length of the transition.
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
-            SettingsSection(stringResource(R.string.settings_new_mail_section)) {
-                SettingSwitch(
-                    title = stringResource(R.string.settings_push_all_title),
-                    subtitle = stringResource(R.string.settings_push_all_subtitle),
-                    checked = pushAll,
-                    onCheckedChange = viewModel::setPushAllAccounts,
-                )
-            }
-            SettingsSection(stringResource(R.string.settings_notif_content_section)) {
-                DeliveryModeOption(
-                    title = stringResource(R.string.settings_notif_content_full),
-                    subtitle = stringResource(R.string.settings_notif_content_full_desc),
-                    selected = notifContent == NotificationContent.SENDER_AND_SUBJECT,
-                    onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_AND_SUBJECT) },
-                )
-                DeliveryModeOption(
-                    title = stringResource(R.string.settings_notif_content_sender),
-                    subtitle = stringResource(R.string.settings_notif_content_sender_desc),
-                    selected = notifContent == NotificationContent.SENDER_ONLY,
-                    onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_ONLY) },
-                )
-                DeliveryModeOption(
-                    title = stringResource(R.string.settings_notif_content_none),
-                    subtitle = stringResource(R.string.settings_notif_content_none_desc),
-                    selected = notifContent == NotificationContent.NONE,
-                    onClick = { viewModel.setNotificationContent(NotificationContent.NONE) },
-                )
-            }
-            SettingsSection(stringResource(R.string.settings_quiet_hours_section)) {
-                SettingSwitch(
-                    title = stringResource(R.string.settings_quiet_hours_title),
-                    subtitle = stringResource(R.string.settings_quiet_hours_subtitle),
-                    checked = quietEnabled,
-                    onCheckedChange = viewModel::setQuietHoursEnabled,
-                )
-                if (quietEnabled) {
-                    TimePickerRow(
-                        label = stringResource(R.string.settings_quiet_hours_start),
-                        minutes = quietStart,
-                        onChange = viewModel::setQuietHoursStart,
+        } else {
+            Column(
+                Modifier.fillMaxSize().padding(padding).verticalScroll(scroll),
+            ) {
+                SettingsSection(stringResource(R.string.settings_delivery_section)) {
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_delivery_instant),
+                        subtitle = stringResource(R.string.settings_delivery_instant_desc),
+                        selected = state.deliveryMode == DeliveryMode.INSTANT,
+                        onClick = { viewModel.setDeliveryMode(DeliveryMode.INSTANT) },
                     )
-                    TimePickerRow(
-                        label = stringResource(R.string.settings_quiet_hours_end),
-                        minutes = quietEnd,
-                        onChange = viewModel::setQuietHoursEnd,
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_delivery_saver),
+                        subtitle = stringResource(R.string.settings_delivery_saver_desc),
+                        selected = state.deliveryMode == DeliveryMode.BATTERY_SAVER,
+                        onClick = { viewModel.setDeliveryMode(DeliveryMode.BATTERY_SAVER) },
                     )
+                }
+                SettingsSection(stringResource(R.string.settings_new_mail_section)) {
+                    SettingSwitch(
+                        title = stringResource(R.string.settings_push_all_title),
+                        subtitle = stringResource(R.string.settings_push_all_subtitle),
+                        checked = pushAll,
+                        onCheckedChange = viewModel::setPushAllAccounts,
+                    )
+                }
+                SettingsSection(stringResource(R.string.settings_notif_content_section)) {
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_notif_content_full),
+                        subtitle = stringResource(R.string.settings_notif_content_full_desc),
+                        selected = state.notificationContent == NotificationContent.SENDER_AND_SUBJECT,
+                        onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_AND_SUBJECT) },
+                    )
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_notif_content_sender),
+                        subtitle = stringResource(R.string.settings_notif_content_sender_desc),
+                        selected = state.notificationContent == NotificationContent.SENDER_ONLY,
+                        onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_ONLY) },
+                    )
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_notif_content_none),
+                        subtitle = stringResource(R.string.settings_notif_content_none_desc),
+                        selected = state.notificationContent == NotificationContent.NONE,
+                        onClick = { viewModel.setNotificationContent(NotificationContent.NONE) },
+                    )
+                }
+                SettingsSection(stringResource(R.string.settings_quiet_hours_section)) {
+                    SettingSwitch(
+                        title = stringResource(R.string.settings_quiet_hours_title),
+                        subtitle = stringResource(R.string.settings_quiet_hours_subtitle),
+                        checked = state.quietHoursEnabled,
+                        onCheckedChange = viewModel::setQuietHoursEnabled,
+                    )
+                    if (state.quietHoursEnabled) {
+                        TimePickerRow(
+                            label = stringResource(R.string.settings_quiet_hours_start),
+                            minutes = state.quietHoursStart,
+                            onChange = viewModel::setQuietHoursStart,
+                        )
+                        TimePickerRow(
+                            label = stringResource(R.string.settings_quiet_hours_end),
+                            minutes = state.quietHoursEnd,
+                            onChange = viewModel::setQuietHoursEnd,
+                        )
+                    }
                 }
             }
         }

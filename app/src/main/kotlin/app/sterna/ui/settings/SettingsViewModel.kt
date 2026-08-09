@@ -15,7 +15,6 @@ import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
 import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
 import app.sterna.core.data.settings.SettingsBackup
 import app.sterna.core.data.settings.SettingsBackupCodec
-import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.settings.SwipeAction
 import app.sterna.core.data.settings.ThemeMode
 import app.sterna.core.data.settings.DeliveryMode
@@ -26,6 +25,7 @@ import app.sterna.security.canAuthenticate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -165,11 +165,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { settings.setImageAllowed(sender, allowed) }
     }
 
-    /** New-mail delivery: Instant / Battery saver (issue #17, the ONE outcome setting). */
-    val deliveryMode = settings.deliveryMode.stateIn(
+    /**
+     * Everything the notifications screen shows — delivery mode (#17), notification content (#25)
+     * and quiet hours — as ONE value, `null` until DataStore has answered for all five.
+     *
+     * Five separate `stateIn`s, each seeded with the repository's default, meant the screen was
+     * composed from defaults and corrected a frame later; the reader saw the wrong radio selected
+     * on every visit, and a tap landing in that frame wrote the default over the stored choice
+     * (#57). See [NotificationSettingsState] for the gate itself.
+     */
+    val notificationSettings: StateFlow<NotificationSettingsState?> = notificationSettingsState(
+        deliveryMode = settings.deliveryMode,
+        notificationContent = settings.notificationContent,
+        quietHoursEnabled = settings.quietHoursEnabled,
+        quietHoursStart = settings.quietHoursStart,
+        quietHoursEnd = settings.quietHoursEnd,
+    ).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = DeliveryMode.INSTANT,
+        initialValue = null,
     )
 
     fun setDeliveryMode(mode: DeliveryMode) {
@@ -179,13 +193,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             PushController.apply(getApplication(), userInitiated = true)
         }
     }
-
-    /** What a new-mail notification reveals: sender + subject / sender only / neither (#25). */
-    val notificationContent = settings.notificationContent.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = NotificationContent.SENDER_AND_SUBJECT,
-    )
 
     fun setNotificationContent(mode: NotificationContent) {
         viewModelScope.launch { settings.setNotificationContent(mode) }
@@ -204,24 +211,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // Reconnect push with the new scope.
         PushController.apply(getApplication(), userInitiated = true)
     }
-
-    val quietHoursEnabled = settings.quietHoursEnabled.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = false,
-    )
-
-    val quietHoursStart = settings.quietHoursStart.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = SettingsRepository.DEFAULT_QUIET_START,
-    )
-
-    val quietHoursEnd = settings.quietHoursEnd.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = SettingsRepository.DEFAULT_QUIET_END,
-    )
 
     fun setQuietHoursEnabled(value: Boolean) {
         viewModelScope.launch { settings.setQuietHoursEnabled(value) }
