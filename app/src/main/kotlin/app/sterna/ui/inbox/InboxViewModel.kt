@@ -1696,6 +1696,11 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * included: asking the cache and then walking the ANSWER dropped every hit with no row in the
      * local `emails` table, so from a search this acted on part of the selection and said nothing
      * about the rest (bench, 2026-08-08).
+     *
+     * This path's op is the snooze, which is a local write plus a worker: a message with no row in
+     * that same `emails` table cannot be snoozed at all, so [planSelectionSnooze] refuses it, leaves
+     * it untouched, and it is counted as an attempt AND a failure — never written half-way and
+     * announced as a success.
      */
     private fun bulk(
         clearAfter: Boolean = true,
@@ -1710,10 +1715,15 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 cached = repo.cachedEmailsByIds(keys),
                 displayed = searchState.value.results,
             )
-            // A key nothing resolves is an attempt that failed: it was never written, and it is
-            // counted as one — or a selection nothing at all resolved for lands on "nothing
-            // failed" and says nothing.
-            var failed = resolved.unresolved.size
+            // A message with no local row cannot be snoozed: SnoozeWorker looks it up in that very
+            // table at the due date, so the reminder would never ring and the "Snoozed" entry
+            // would be deleted on the way. Refused rather than half-written — see
+            // [planSelectionSnooze].
+            val plan = planSelectionSnooze(resolved.targets)
+            // A key nothing resolves, and a row the plan refused, are attempts that failed: neither
+            // was written, and both are counted as such — or a selection nothing at all could be
+            // written for lands on "nothing failed" and says nothing.
+            var failed = resolved.unresolved.size + plan.refused.size
             // For a reversible bulk op (move to Trash/Archive/folder), capture each message the op
             // wrote so the whole batch can be moved back — the same Undo a swipe of one message
             // already offers, so bulk and swipe behave the same (Codeberg #23). Whether an Undo
@@ -1725,7 +1735,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             // mask left standing here was the one thing keeping the message off the screen, and
             // it kept it off for good, past the due date the chip had already counted it back in.
             hidingThreadMembers(keys) {
-                resolved.targets.forEach { target ->
+                plan.snooze.forEach { target ->
                     val email = target.email
                     val credentials = credentialsFor(email)
                     if (credentials == null) { failed++; return@forEach }
@@ -1899,7 +1909,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun archiveSelected() = bulkBatched(undoLabel = getApplication<Application>().getString(R.string.status_message_archived)) { c, ids -> repo.archiveAll(c, ids) }
 
-    /** Move the selection to [targetMailboxId] (used for unarchive → Inbox and move-to-folder). */
+    /**
+     * Move the selection to [targetMailboxId] (used for unarchive → Inbox and move-to-folder).
+     *
+     * The messages another account's folder cannot take are set aside, counted, and announced
+     * once — by the delegate when there is something left to move, here when there is not.
+     */
     fun moveSelectedTo(targetMailboxId: String) {
         val keys = _selectedKeys.value
         viewModelScope.launch {
@@ -1912,16 +1927,24 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             val moveAccountId = selectionAccount(keys) ?: store.currentId()
             val (movable, skipped) = keys.partition { it.accountId == moveAccountId }
             clearSelection()
-            if (skipped.isNotEmpty()) {
-                _message.value = getApplication<Application>().getString(R.string.status_move_other_account)
-            }
             if (movable.isNotEmpty()) {
                 // Undoable like archive and delete: moving from the reader offers it (#73), and the
                 // same gesture in the list must not be the one you cannot take back.
+                // The set-aside messages travel with the delegation — they were attempts, and they
+                // were not moved — so the ONE message that comes out counts the whole selection
+                // instead of a second toast racing the first on the same StateFlow.
                 bulkBatched(
                     undoLabel = getApplication<Application>().getString(R.string.status_message_moved),
                     keys = movable.toMutableSet(),
+                    attemptedBefore = skipped.size,
+                    failedBefore = skipped.size,
                 ) { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId) }
+            } else if (skipped.isNotEmpty()) {
+                // Nothing movable: delegating an empty batch just to speak would drop the sync
+                // cursors and re-query the whole folder for an action that wrote nothing. Say it
+                // here instead, and say the specific sentence — in THIS case it is exactly true,
+                // every message was another account's.
+                _message.value = getApplication<Application>().getString(R.string.status_move_other_account)
             }
         }
     }

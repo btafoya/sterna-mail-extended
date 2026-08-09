@@ -9,10 +9,11 @@ import java.io.File
  * [SelectionTargetsWiringTest]: it reads `InboxViewModel.kt` as text, proves nothing about what
  * happens on screen, and would still pass if the code it points at were broken inside.
  *
- * It exists because the three decisions it guards are executed elsewhere — [SelectionTargetsTest],
- * [SelectionUndoTest], [SelectionDeletePlanTest], [BulkOutcomeTest] — while the PLUG that carries
- * the selection into them lives in an `AndroidViewModel` no JVM test here can instantiate (no
- * Robolectric, no instrumented tests). Any of the three bulk paths can go back to walking
+ * It exists because the decisions it guards are executed elsewhere — [SelectionTargetsTest],
+ * [SelectionUndoTest], [SelectionDeletePlanTest], [SelectionSnoozePlanTest], [BulkOutcomeTest] —
+ * while the PLUG that carries the selection into them lives in an `AndroidViewModel` no JVM test
+ * here can instantiate (no Robolectric, no instrumented tests). Any of the bulk paths can go back
+ * to walking
  * `repo.cachedEmailsByIds(keys)` in one line — the 2026-08-08 bench report: from a search, archive
  * / move / spam / trash / snooze / delete act on the messages that happen to have a cached row and
  * skip the rest with no action, no counted failure and nothing said — and every executable test
@@ -103,25 +104,54 @@ class BulkSelectionWiringTest {
     }
 
     /**
-     * And each path must then work on the resolved targets, unfiltered. The snooze had no such
-     * rule until an audit found the one-line mutation that survived the whole suite:
-     * `resolved.targets.filter { it.folderTrusted }.forEach` snoozes the cached rows only, and the
-     * skipped ones are not `unresolved`, so `failed` stays 0, `bulkOutcome` says NONE and NOTHING
-     * is told — the 2026-08-08 report restored word for word.
+     * The snooze MAY set a target aside — a row with no local `emails` row cannot be snoozed at
+     * all: `SnoozeWorker` resolves the message back through that very table, so the reminder is
+     * written, the worker fires, nothing is found, nothing rings, and the `snoozed` row is deleted
+     * on the way, taking the message out of "Snoozed" too. What it may never do is set one aside in
+     * SILENCE: a refused row is not `unresolved`, so a partition that does not reach `failed`
+     * leaves `bulkOutcome` on NONE and the screen says the snooze worked — the 2026-08-08 report
+     * restored word for word.
      *
-     * `folderTrusted` has no business in this body at all: nothing here reads a row's folder (the
-     * Undo decision does, elsewhere), so the flag can only serve to drop messages.
+     * So the guard is no longer "never filter", it is "never set aside without counting", and the
+     * three lines that make it are pinned WHOLE, as one rule: the line that partitions, the line
+     * that walks the snoozeable part ONLY, and the line that counts the refused part as failures.
+     * Deleting the count while keeping the partition is exactly the silent drop and reddens here.
+     *
+     * The trust test itself is not made in this body — [SelectionSnoozePlanTest] executes it — so a
+     * raw `folderTrusted` read here would be a partition no executable test watches.
      */
-    @Test fun `the snooze acts on all the targets`() {
+    @Test fun `the snooze never sets a target aside in silence`() {
         val body = body(INBOX_VIEW_MODEL, "bulk")
+        val call = callArguments(body, "planSelectionSnooze").singleOrNull()
+        checkNotNull(call) {
+            "bulk() must partition through planSelectionSnooze(...) — the decision " +
+                "SelectionSnoozePlanTest runs. Body was:\n$body"
+        }
         assertEquals(
-            "bulk() must walk every resolved target, unfiltered. Body was:\n$body",
-            listOf("resolved.targets.forEach { target ->"),
+            "planSelectionSnooze(...) must be handed the WHOLE resolution, whole. " +
+                "Arguments were:\n$call",
+            listOf("resolved.targets"),
+            arguments(call),
+        )
+        assertEquals(
+            "the resolved targets may go nowhere but into that plan: a second walk over " +
+                "resolved.targets is the unfiltered write coming back. Body was:\n$body",
+            listOf("val plan = planSelectionSnooze(resolved.targets)"),
             codeLinesNaming(body, "resolved.targets"),
         )
         assertEquals(
-            "bulk() must not read folderTrusted: nothing here reads a row's folder, so the flag " +
-                "can only serve to drop messages. Body was:\n$body",
+            "every line the plan touches, whole: it is partitioned, the refused part is COUNTED " +
+                "as failures, and only the snoozeable part is written. Body was:\n$body",
+            listOf(
+                "val plan = planSelectionSnooze(resolved.targets)",
+                "var failed = resolved.unresolved.size + plan.refused.size",
+                "plan.snooze.forEach { target ->",
+            ),
+            codeLinesNaming(body, "plan"),
+        )
+        assertEquals(
+            "bulk() must not read folderTrusted itself: the trust decision belongs to " +
+                "planSelectionSnooze, which a JVM test executes. Body was:\n$body",
             emptyList<String>(),
             codeLinesNaming(body, "folderTrusted"),
         )
@@ -272,15 +302,17 @@ class BulkSelectionWiringTest {
     // -- D. saying what was not done, once, over the whole selection ----------------------------
 
     /**
-     * `attempted` is the WHOLE selection and `failed` counts the keys nothing resolved for, on
-     * BOTH sides — otherwise a selection that reached none of its messages lands on
-     * `failed <= 0 -> NONE` and says nothing at all, which is the report itself.
+     * `attempted` is the WHOLE selection and `failed` counts everything the snooze did not write —
+     * the keys nothing resolved for AND the rows the plan refused — on BOTH sides, otherwise a
+     * selection that reached none of its messages lands on `failed <= 0 -> NONE` and says nothing
+     * at all, which is the report itself.
      */
     @Test fun `the snooze counts the lost keys on both sides`() {
         val body = body(INBOX_VIEW_MODEL, "bulk")
         assertEquals(
-            "the unresolved keys must be counted as failures, not merely reported. Body was:\n$body",
-            listOf("var failed = resolved.unresolved.size"),
+            "the unresolved keys and the refused rows must both be counted as failures, not " +
+                "merely reported. Body was:\n$body",
+            listOf("var failed = resolved.unresolved.size + plan.refused.size"),
             codeLinesNaming(body, "resolved.unresolved"),
         )
         assertEquals(
@@ -354,6 +386,131 @@ class BulkSelectionWiringTest {
                 "WHOLE selection. Body was:\n$body",
             expectedOutcomeBranches,
             codeLinesNaming(body, "BulkOutcome."),
+        )
+    }
+
+    /**
+     * A unified selection spanning two accounts, moved to a folder of account A: the account-B
+     * messages cannot go there (a mailbox id of A means nothing in B) so they are set aside. They
+     * used to be announced on the spot, and the delegate then wrote a SECOND message on the same
+     * `StateFlow` — one whose count knew nothing about them. Two announcements chasing each other
+     * (or one truncated and replaced, the race is not decided), and a count that was wrong: the
+     * delegate's verdict was taken over the movable subset alone, so a move that left half the
+     * selection where it was could land on "nothing failed" and say nothing about that half. The
+     * move itself was never mute — it spoke, and its count was the lie.
+     *
+     * So the set-aside part now travels with the delegation, as attempts AND as failures, and this
+     * body writes no message of its own while it delegates. Nothing is delegated when nothing is
+     * movable — an empty batch would still drop the sync cursors and re-query the whole folder for
+     * an action that wrote nothing — and only then does the move speak for itself.
+     */
+    @Test fun `the move hands what it set aside to the delegate, on both sides`() {
+        val body = body(INBOX_VIEW_MODEL, "moveSelectedTo")
+        val call = callArguments(body, "bulkBatched").singleOrNull()
+        checkNotNull(call) {
+            "moveSelectedTo() must delegate to bulkBatched(...) exactly once. Body was:\n$body"
+        }
+        assertEquals(
+            "bulkBatched(...) must be handed exactly these arguments, whole: the movable part " +
+                "only, and the set-aside part counted BOTH as attempts and as failures — dropping " +
+                "either counter is a move that left half the selection in place and said it " +
+                "worked. Arguments were:\n$call",
+            listOf(
+                "undoLabel = getApplication<Application>().getString(R.string.status_message_moved)",
+                "keys = movable.toMutableSet()",
+                "attemptedBefore = skipped.size",
+                "failedBefore = skipped.size",
+            ),
+            arguments(call),
+        )
+        assertEquals(
+            "every line naming the set-aside part, whole and in order. Body was:\n$body",
+            listOf(
+                "val (movable, skipped) = keys.partition { it.accountId == moveAccountId }",
+                "attemptedBefore = skipped.size,",
+                "failedBefore = skipped.size,",
+                "} else if (skipped.isNotEmpty()) {",
+            ),
+            codeLinesNaming(body, "skipped"),
+        )
+        assertEquals(
+            "the delegate runs only when there is something to move, and this body speaks only " +
+                "when there is not. Body was:\n$body",
+            listOf("if (movable.isNotEmpty()) {", "} else if (skipped.isNotEmpty()) {"),
+            codeLinesNaming(body, "isNotEmpty()"),
+        )
+        assertEquals(
+            "and the batch it hands over is the move itself — the trailing lambda sits OUTSIDE " +
+                "the parentheses, so the argument list above never sees it, and swapping the repo " +
+                "call there sends the selection to another folder entirely. Body was:\n$body",
+            listOf(") { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId) }"),
+            codeLinesNaming(body, "repo."),
+        )
+    }
+
+    /**
+     * ONE announcement leaves this body, and only on the leg that delegated nothing: pinned as
+     * every `_message.value` line of the body, and as the ORDER of the two strings it reads — the
+     * other-account sentence BELOW the delegation's Undo label. Putting it back above the
+     * delegation, or writing `_message.value` a second time, reddens here.
+     *
+     * ⚠ Those two rules see LITERAL writes only. `_message` can also be written from a helper —
+     * [InboxViewModel.reportActionFailed] does, 1 700 lines above — so the last two rules close
+     * that door the only way a text lint can: no helper of that kind may be named here, and the
+     * one statement between the partition and the delegation is pinned whole, so a second message
+     * cannot be smuggled onto it either.
+     */
+    @Test fun `the move announces the other account once, and only when it delegated nothing`() {
+        val body = body(INBOX_VIEW_MODEL, "moveSelectedTo")
+        assertEquals(
+            "moveSelectedTo() must write exactly this one message. Body was:\n$body",
+            listOf(
+                "_message.value = getApplication<Application>()" +
+                    ".getString(R.string.status_move_other_account)",
+            ),
+            codeLinesNaming(body, "_message.value"),
+        )
+        assertEquals(
+            "and it must come AFTER the delegation, never before it. Body was:\n$body",
+            listOf(
+                "undoLabel = getApplication<Application>().getString(R.string.status_message_moved),",
+                "_message.value = getApplication<Application>()" +
+                    ".getString(R.string.status_move_other_account)",
+            ),
+            codeLinesNaming(body, "R.string."),
+        )
+        assertEquals(
+            "no message-writing helper may be called here: reportActionFailed() writes _message " +
+                "without the literal this rule reads, and one call of it beside the delegation is " +
+                "the two racing announcements, back. Body was:\n$body",
+            emptyList<String>(),
+            codeLinesNaming(body, "reportActionFailed"),
+        )
+        assertEquals(
+            "and the one statement standing between the partition and the delegation is pinned " +
+                "whole — it clears the selection, and it does nothing else. Body was:\n$body",
+            listOf("clearSelection()"),
+            codeLinesNaming(body, "clearSelection"),
+        )
+    }
+
+    /**
+     * And the guard deciding who is movable stays written: without the fallback and the partition,
+     * a mailbox id of the selection's account is sent into a sibling account, where an IMAP server
+     * with a same-named Archive accepts it silently. [SelectionAccountTest] executes the resolution
+     * itself; this only says it is still the one being called.
+     */
+    @Test fun `the move still resolves one account and partitions on it`() {
+        val body = body(INBOX_VIEW_MODEL, "moveSelectedTo")
+        assertEquals(
+            "the target account is the selection's, falling back to the active one. Body was:\n$body",
+            listOf("val moveAccountId = selectionAccount(keys) ?: store.currentId()"),
+            codeLinesNaming(body, "selectionAccount("),
+        )
+        assertEquals(
+            "and only that account's messages are movable. Body was:\n$body",
+            listOf("val (movable, skipped) = keys.partition { it.accountId == moveAccountId }"),
+            codeLinesNaming(body, ".partition"),
         )
     }
 

@@ -9,10 +9,12 @@ import app.sterna.core.jmap.model.Email
  *
  * [folderTrusted] is false for a row that was only ever drawn on screen. Such a row can come from
  * the search index, whose `mailboxId` was frozen at crawl time and may be empty or long out of
- * date — and two decisions read that field: the Undo entry, which would move the message back into
- * a stale folder AND strip every other folder it belongs to with no way back, and the destroy leg
- * of a delete. A caller holding an untrusted row must therefore look the folder up itself, or drop
- * the part of the action that needs one; a non-empty [Email.mailboxId] is not evidence of anything.
+ * date — and three decisions read that field: the Undo entry, which would move the message back
+ * into a stale folder AND strip every other folder it belongs to with no way back; the destroy leg
+ * of a delete; and the snooze, which needs the local row the flag stands for (see
+ * [planSelectionSnooze]). A caller holding an untrusted row must therefore look the folder up
+ * itself, or drop the part of the action that needs one; a non-empty [Email.mailboxId] is not
+ * evidence of anything.
  */
 internal data class SelectionTarget(val email: Email, val folderTrusted: Boolean)
 
