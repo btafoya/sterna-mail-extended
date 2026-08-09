@@ -824,6 +824,9 @@
     <string name="welcome_next">Volgende</string>
     <string name="welcome_get_started">Aan de slag</string>
     <string name="welcome_skip">Overslaan</string>
+
+    <string name="accounts_unreadable_title">Je accounts konden niet worden gelezen</string>
+    <string name="accounts_unreadable_body">Sterna Mail kon de op dit apparaat opgeslagen accounts niet lezen. Er is niets verwijderd: ze staan er nog en er wordt niets overheen geschreven. Sterna Mail bijwerken naar de nieuwste versie kan ze terughalen.</string>
     <string name="compose_contacts_priming_title">Voorstellen uit je contacten?</string>
     <string name="compose_contacts_priming_body">Ontvangers aanvullen uit de contacten van dit apparaat. Sterna Mail leest ze alleen op het apparaat en uploadt ze nooit.</string>
     <string name="compose_contacts_priming_enable">Inschakelen</string>

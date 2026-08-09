@@ -1,0 +1,157 @@
+package app.sterna.core.data.account
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+/**
+ * ⚠ WHAT THIS FILE IS WORTH, first, because it is easy to over-read. It proves the SHAPE of
+ * `AccountStore.kt`, not its behaviour: it reads the shipped source and compares whole lines. It
+ * exists only because nothing in this module can build an `AccountStore` (it needs a `Context` and
+ * the Keystore, and there is no Robolectric here). The behaviour is proved next door, by
+ * [AccountBlobGateTest], which EXECUTES the decision. Neither file is enough alone: the gate can be
+ * perfect and wired to nothing, and the wiring can be perfect around a gate that never refuses.
+ *
+ * What it caught. A counter-expertise found two rewrites that restored the permanent account loss
+ * with every behavioural test still green:
+ *
+ *  1. `AccountBlobGate { emptyList() }` — a decoder that cannot fail. The gate then never refuses
+ *     anything, and `accounts()` reads empty on EVERY install, not only broken ones. The gate's own
+ *     tests build their own gate and never see the store's.
+ *  2. moving the `putString` out of the guarded lambda. That one is now impossible rather than
+ *     merely detected: the bytes to store are produced inside [AccountBlobGate.writeGuarded] and
+ *     exist nowhere else, so taking the write outside means re-encoding the list by hand — a new
+ *     statement, which the block below also shows.
+ *
+ * ⛔ Whole trimmed lines, compared as a CONTIGUOUS block, never `contains` and never one line in
+ * isolation: a fragment check is blind to anything appended to the line (bitten twice on
+ * 2026-08-04), and a per-line check is blind to a statement moved one line down.
+ */
+class AccountStoreGateWiringTest {
+
+    @Test fun `the gate is built with this store's own parser and writer`() {
+        assertEquals(
+            "AccountStore no longer hands AccountBlobGate its real Json codec. A decoder that " +
+                "cannot fail is a gate that never refuses AND an account list that reads empty on " +
+                "every install — the original data loss, on every device instead of broken ones.",
+            listOf(
+                "private val gate = AccountBlobGate(",
+                "decode = { json.decodeFromString<List<StoredAccount>>(it) },",
+                "encode = { json.encodeToString(it) },",
+                ")",
+            ),
+            accountStoreBlock("private val gate = AccountBlobGate(", 4),
+        )
+    }
+
+    @Test fun `accounts() decodes through the gate, so the flag is never stale`() {
+        assertEquals(
+            "accounts() no longer decodes through AccountBlobGate — whatever flag saveAccounts " +
+                "guards on is then stale, or never set at all.",
+            listOf(
+                "fun accounts(): List<StoredAccount> {",
+                "migrateIfNeeded()",
+                "return gate.read(prefs.getString(KEY_ACCOUNTS, null))",
+                "}",
+            ),
+            accountStoreBlock("fun accounts(): List<StoredAccount> {", 4),
+        )
+    }
+
+    @Test fun `accountsUnreadable re-reads storage before it answers`() {
+        // The startup screen (RootState.AccountsUnreadable) is drawn from this one boolean, so a
+        // stale answer is a user held on an alert screen after the fixing update — or, the other
+        // way round, invited to add an account the store will refuse to save. Returning
+        // `gate.blobUnreadable` WITHOUT the read above it is exactly that: the flag then describes
+        // whichever call happened to touch the store last.
+        assertEquals(
+            "accountsUnreadable() no longer re-reads the blob before reporting, so the startup " +
+                "routing runs on a flag left over from an earlier moment.",
+            listOf(
+                "fun accountsUnreadable(): Boolean {",
+                "accounts()",
+                "return gate.blobUnreadable",
+                "}",
+            ),
+            accountStoreBlock("fun accountsUnreadable(): Boolean {", 4),
+        )
+    }
+
+    @Test fun `saveAccounts writes nothing outside the guarded lambda`() {
+        assertEquals(
+            "saveAccounts changed shape. The blob may now be written outside " +
+                "AccountBlobGate.writeGuarded, or the list published to the UI without having been " +
+                "stored — either way the unreadable list is overwritten and the accounts are gone.",
+            listOf(
+                "private fun saveAccounts(list: List<StoredAccount>) {",
+                "val written = gate.writeGuarded(list) { encoded ->",
+                "prefs.edit().putString(KEY_ACCOUNTS, encoded).apply()",
+                "}",
+                "if (written) live.publish(list) else Log.e(TAG, REFUSED_WRITE)",
+                "}",
+            ),
+            accountStoreBlock("private fun saveAccounts(", 6),
+        )
+    }
+
+    @Test fun `clear lifts the refusal, since it empties the file outside saveAccounts`() {
+        assertEquals(
+            "clear() no longer lifts the gate. It wipes the whole prefs file without going through " +
+                "saveAccounts, so an install reset from an unreadable state would refuse to store " +
+                "an account for ever.",
+            listOf(
+                "fun clear() {",
+                "prefs.edit().clear().apply()",
+                "KeystoreCrypto.deleteKey()",
+                "gate.onStorageWiped()",
+                "live.publish(emptyList())",
+                "}",
+            ),
+            accountStoreBlock("fun clear() {", 6),
+        )
+    }
+
+    @Test fun `remove reads the list before it destroys the password`() {
+        // The one mutator that destroyed something irreversible before reading anything. On an
+        // unreadable blob every id looks unknown, so the guard is what stops the encrypted password
+        // of a real account from being deleted while the gate is busy protecting its record.
+        assertEquals(
+            "remove(id) no longer bails out on an id the readable list does not contain, or it " +
+                "deletes the password before looking. On an unreadable blob that destroys the " +
+                "account's only secret, and no write-refusal can bring it back.",
+            listOf(
+                "fun remove(id: String) {",
+                "val list = accounts()",
+                "if (list.none { it.id == id }) return",
+                "prefs.edit().remove(passwordKey(id)).apply()",
+                "val remaining = list.filterNot { it.id == id }",
+                "saveAccounts(remaining)",
+                "if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {",
+                "prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()",
+                "}",
+                "}",
+            ),
+            accountStoreBlock("fun remove(id: String) {", 10),
+        )
+    }
+
+    /**
+     * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
+     * [prefix], trimmed. Comments and blank lines are dropped first — a mutation cannot hide in a
+     * comment, and pinning prose would make this file fail on every reword. A prefix that matches
+     * anything other than exactly one line returns a message instead, so an assertion can never
+     * pass by matching nothing.
+     */
+    private fun accountStoreBlock(prefix: String, count: Int): List<String> {
+        val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"
+        val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+            .firstOrNull { java.io.File(it, path).isFile }
+            ?: error("cannot locate the repo root from ${java.io.File("").absolutePath}")
+        val code = java.io.File(root, path).readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*") }
+        val starts = code.indices.filter { code[it].startsWith(prefix) }
+        val start = starts.singleOrNull()
+            ?: return listOf("«${starts.size} code lines start with `$prefix`»")
+        return code.subList(start, minOf(start + count, code.size))
+    }
+}

@@ -829,6 +829,9 @@
     <string name="welcome_next">Suivant</string>
     <string name="welcome_get_started">Commencer</string>
     <string name="welcome_skip">Ignorer</string>
+
+    <string name="accounts_unreadable_title">Vos comptes n\'ont pas pu être lus</string>
+    <string name="accounts_unreadable_body">Sterna Mail n\'a pas pu lire les comptes enregistrés sur cet appareil. Rien n\'a été supprimé : ils sont toujours là et rien ne sera écrit par-dessus. Mettre à jour Sterna Mail vers la dernière version peut les retrouver.</string>
     <string name="compose_contacts_priming_title">Suggérer depuis vos contacts ?</string>
     <string name="compose_contacts_priming_body">Compléter les destinataires depuis les contacts de cet appareil. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais.</string>
     <string name="compose_contacts_priming_enable">Activer</string>

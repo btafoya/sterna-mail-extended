@@ -852,6 +852,10 @@
     <string name="welcome_next">Next</string>
     <string name="welcome_get_started">Get started</string>
     <string name="welcome_skip">Skip</string>
+
+    <!-- Startup: the stored account list could not be read (nothing was deleted; no action offered) -->
+    <string name="accounts_unreadable_title">Your accounts could not be read</string>
+    <string name="accounts_unreadable_body">Sterna Mail could not read the accounts saved on this device. Nothing has been deleted: they are still there, and nothing will be written over them. Updating Sterna Mail to the latest version may bring them back.</string>
     <string name="compose_contacts_priming_title">Suggest from your contacts?</string>
     <string name="compose_contacts_priming_body">Autocomplete recipients from this device\'s contacts. Sterna Mail reads them on-device only, never uploads them.</string>
     <string name="compose_contacts_priming_enable">Enable</string>

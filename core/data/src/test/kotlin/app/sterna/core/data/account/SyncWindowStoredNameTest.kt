@@ -1,7 +1,9 @@
 package app.sterna.core.data.account
 
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,11 +14,14 @@ import org.junit.Test
  * one go: rename one entry and every account carrying it stops decoding, which takes the accounts
  * that did NOT carry it down with the same exception.
  *
- * ⛔ And the exception never reaches anyone. `AccountStore.accounts()` decodes inside
- * `runCatching { … }.getOrDefault(emptyList())`, so the observable result of a renamed constant is
- * not a crash but **an empty account list** — after which the first setter to run writes that empty
- * list back over the real one (`saveAccounts`). Silent, and then permanent. That shape is executed
- * below rather than described, because it is the whole reason this file exists.
+ * ⛔ And the exception never reaches anyone. `AccountStore.accounts()` answers a decode failure with
+ * **an empty account list**, because its constructor and 62 call sites take a list and nothing else,
+ * so the observable result of a renamed constant is not a crash: it is a device that shows no
+ * accounts. What no longer follows is the permanent part — [AccountBlobGate] remembers that the
+ * empty came from a failure and `saveAccounts` writes nothing while it does, so the records survive
+ * until a build that knows the name reads them. Renaming still blanks the screen and still costs a
+ * corrective release. That shape is executed below rather than described, because it is the whole
+ * reason this file exists.
  *
  * ⭐ This volet WITHDRAWS four members from the settings picker (50 / 200 / 500 / "Everything") and
  * offers three new ones. Withdrawing them from the PICKER is all it does: every one of the four is
@@ -109,8 +114,8 @@ class SyncWindowStoredNameTest {
         )
     }
 
-    @Test fun `a name this build does not know reads back as NO ACCOUNTS, not as an error`() {
-        // The consequence of a rename, executed on the shipped expression. `SyncWindow` has no
+    @Test fun `a name this build does not know reads back as NO ACCOUNTS, and freezes every write`() {
+        // The consequence of a rename, executed on the shipped decision. `SyncWindow` has no
         // entry called PAST_YEAR_2, exactly as a renamed ALL would have none called ALL — and the
         // record next to it is a perfectly good account that goes down with it.
         val stored = """[{"id":"a1","server":"s","username":"u","syncWindow":"PAST_YEAR_2"},""" +
@@ -119,27 +124,22 @@ class SyncWindowStoredNameTest {
         val decoded = runCatching { json.decodeFromString<List<StoredAccount>>(stored) }
         assertTrue("kotlinx now accepts an unknown constant — this whole file's premise is gone", decoded.isFailure)
 
-        // `AccountStore.accounts()`, verbatim in shape: the failure is swallowed and answered with
-        // an empty list. Nothing above it can tell that apart from a device with no accounts, and
-        // the next `saveAccounts` makes it true.
-        assertEquals(emptyList<StoredAccount>(), decoded.getOrDefault(emptyList()))
-        assertEquals(
-            "AccountStore.accounts() no longer swallows the decode failure — if it now surfaces it, " +
-                "say so in SyncWindow's KDoc, which is written against this line",
-            "return runCatching { json.decodeFromString<List<StoredAccount>>(raw) }.getOrDefault(emptyList())",
-            accountStoreLine("return runCatching { json.decodeFromString<List<StoredAccount>>(raw) }"),
+        // What `AccountStore.accounts()` runs, run here on that blob. The answer is STILL an empty
+        // list — nothing above it can tell that apart from a device with no accounts — but the
+        // store now knows why, and refuses to write, so the records above survive on disk and come
+        // back with a build that knows the name. See AccountBlobGateTest for the rest.
+        val gate = AccountBlobGate(
+            decode = { json.decodeFromString<List<StoredAccount>>(it) },
+            encode = { json.encodeToString(ListSerializer(StoredAccount.serializer()), it) },
         )
-    }
-
-    /** The one line of `AccountStore.kt` starting with [prefix], trimmed — read from the shipped
-     *  source, because nothing in this module can build an `AccountStore` (it needs a `Context`). */
-    private fun accountStoreLine(prefix: String): String {
-        val path = "core/data/src/main/kotlin/app/sterna/core/data/account/AccountStore.kt"
-        val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }
-            .firstOrNull { java.io.File(it, path).isFile }
-            ?: error("cannot locate the repo root from ${java.io.File("").absolutePath}")
-        val hits = java.io.File(root, path).readLines().map { it.trim() }.filter { it.startsWith(prefix) }
-        return hits.singleOrNull() ?: "«${hits.size} lines start with `$prefix`»"
+        assertEquals(emptyList<StoredAccount>(), gate.read(stored))
+        var wrote = false
+        assertFalse(
+            "a rename is silently PERMANENT again: the empty list would be persisted over the two " +
+                "real accounts by the first setter the user touches",
+            gate.writeGuarded(emptyList()) { wrote = true },
+        )
+        assertFalse("the guarded write ran anyway", wrote)
     }
 
     @Test fun `every window round-trips under its own name`() {

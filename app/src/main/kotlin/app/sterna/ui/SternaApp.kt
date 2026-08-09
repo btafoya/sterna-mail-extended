@@ -79,10 +79,18 @@ import kotlinx.coroutines.launch
  */
 const val FORCE_ONBOARDING_PREVIEW = false
 
-/** Top-level route: no account, or signed in to a specific account. */
+/** Top-level route: no account, an account list that could not be read, or a signed-in account. */
 sealed interface RootState {
     data object Loading : RootState
     data object NeedAccount : RootState
+
+    /**
+     * The stored account list did not decode. DISTINCT from [NeedAccount] on purpose: the store
+     * refuses to write over a list it could not read, so the "add an account" flow behind
+     * [NeedAccount] cannot save anything here — the account would appear to be added and be gone at
+     * the next launch. See [AccountsUnreadableScreen].
+     */
+    data object AccountsUnreadable : RootState
     data class Authenticated(val accountId: String) : RootState
 }
 
@@ -119,14 +127,12 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
         // connect flow (which resumes the per-account password prompts) instead of a broken inbox.
         val current = accountStore.currentId()?.takeIf { accountStore.credentials(it) != null }
             ?: accountStore.accounts().firstOrNull { accountStore.credentials(it.id) != null }?.id
-        if (current != null) {
-            if (accountStore.currentId() != current) accountStore.setCurrent(current)
-            PushController.apply(getApplication(), userInitiated = true)
-            _state.value = RootState.Authenticated(current)
-        } else {
-            PushController.apply(getApplication(), userInitiated = true)
-            _state.value = RootState.NeedAccount
-        }
+        if (current != null && accountStore.currentId() != current) accountStore.setCurrent(current)
+        PushController.apply(getApplication(), userInitiated = true)
+        // The verdict itself is [RootRoute.resolve] — two booleans, no Android — because nothing
+        // here can be built in a unit test. `accountsUnreadable()` re-reads storage on the spot, so
+        // the alert never outlives the failure: the launch after the fixing update routes normally.
+        _state.value = RootRoute.resolve(current, accountStore.accountsUnreadable())
     }
 
     fun switchAccount(id: String) {
@@ -181,6 +187,10 @@ fun SternaApp(
                 false -> WelcomeScreen(onDone = viewModel::markWelcomeSeen)
                 true -> ConnectScreen(onConnected = viewModel::refresh, firstRun = true)
             }
+            // The account list is there and unreadable: say so, and ask for nothing. Deliberately
+            // NOT gated on hasSeenWelcome — this is not a first run, and the privacy welcome would
+            // only delay the one message that matters.
+            RootState.AccountsUnreadable -> AccountsUnreadableScreen()
             // No key(accountId) here: switching account updates currentAccountId in place so
             // the inbox re-points (InboxScreen reacts via onAccountChanged) WITHOUT recreating
             // the screen — which lets the drawer's account carousel stay open across a switch.

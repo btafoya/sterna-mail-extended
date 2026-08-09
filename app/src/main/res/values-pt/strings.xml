@@ -831,6 +831,9 @@
     <string name="welcome_next">Avançar</string>
     <string name="welcome_get_started">Começar</string>
     <string name="welcome_skip">Pular</string>
+
+    <string name="accounts_unreadable_title">Não foi possível ler suas contas</string>
+    <string name="accounts_unreadable_body">O Sterna Mail não conseguiu ler as contas salvas neste aparelho. Nada foi excluído: elas continuam lá e nada será gravado por cima. Atualizar o Sterna Mail para a versão mais recente pode recuperá-las.</string>
     <string name="compose_contacts_priming_title">Sugerir a partir dos seus contatos?</string>
     <string name="compose_contacts_priming_body">Autocompletar destinatários a partir dos contatos deste aparelho. O Sterna Mail os lê apenas no aparelho e nunca os envia.</string>
     <string name="compose_contacts_priming_enable">Ativar</string>

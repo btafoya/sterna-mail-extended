@@ -2052,7 +2052,18 @@ class MailRepository(
                 // ever. Nothing re-points the list either, unless the account signed out happened
                 // to be the current one. Skipping the account lets the pass finish normally, and
                 // the spinner falls with it.
-                android.util.Log.i("MailRepository", "unified refresh: ${credentials.id} signed out mid-walk, skipped", gone)
+                //
+                // ⚠ Same two-faced exception as in `FetchAndNotify`: the guards read the store with
+                // `accounts()`, which answers an UNREADABLE blob with an empty list, so this fires
+                // with nobody having signed anything out. [accountGoneCause] decides what to claim,
+                // from a fresh `accountsUnreadable()` read; this line keeps what is its own — that
+                // this is a WALK over the accounts ("mid-walk", as it has always read here), and
+                // that the account was skipped rather than the pass abandoned.
+                android.util.Log.i(
+                    "MailRepository",
+                    "unified refresh: ${accountGoneCause(credentials.id, accountStore.accountsUnreadable(), passKind = "walk")}, skipped",
+                    gone,
+                )
             } catch (c: CancellationException) {
                 // A superseding refresh (or the VM being cleared) cancelled us: propagate cleanly so
                 // the caller does NOT record a false success. runCatching used to swallow this too,

@@ -821,6 +821,9 @@
     <string name="welcome_next">Weiter</string>
     <string name="welcome_get_started">Los geht\'s</string>
     <string name="welcome_skip">Überspringen</string>
+
+    <string name="accounts_unreadable_title">Deine Konten konnten nicht gelesen werden</string>
+    <string name="accounts_unreadable_body">Sterna Mail konnte die auf diesem Gerät gespeicherten Konten nicht lesen. Es wurde nichts gelöscht: Sie sind weiterhin vorhanden und werden nicht überschrieben. Eine Aktualisierung von Sterna Mail auf die neueste Version kann sie zurückholen.</string>
     <string name="compose_contacts_priming_title">Aus deinen Kontakten vorschlagen?</string>
     <string name="compose_contacts_priming_body">Empfänger aus den Kontakten dieses Geräts vervollständigen. Sterna Mail liest sie nur auf dem Gerät und lädt sie nie hoch.</string>
     <string name="compose_contacts_priming_enable">Aktivieren</string>

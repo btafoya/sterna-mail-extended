@@ -6,6 +6,7 @@ import app.sterna.container
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.mail.AccountGoneException
+import app.sterna.core.data.mail.accountGoneCause
 import kotlinx.coroutines.flow.first
 
 /**
@@ -36,9 +37,11 @@ object FetchAndNotify {
         includeExtras: Boolean = true,
         resetBaselines: Boolean = false,
     ) {
+        // Outside the `try` because the catch below needs the store too: the line it prints has to
+        // say WHY the account was not found, and only the store knows.
+        val container = (context.applicationContext as Application).container
+        val store = container.accountStore
         try {
-            val container = (context.applicationContext as Application).container
-            val store = container.accountStore
             val extras = if (includeExtras) store.watchedFolders(credentials.id) else emptySet()
             val refreshes = container.mailRepository.refreshAccountFolders(
                 credentials,
@@ -110,7 +113,23 @@ object FetchAndNotify {
             // ⛔ It must stay the FIRST arm: AccountGoneException IS a CancellationException, so
             // any arm above naming that type (or Throwable) takes it first and this one becomes
             // unreachable without a word.
-            android.util.Log.i("FetchAndNotify", "background pass: ${credentials.id} signed out mid-pass, dropped", gone)
+            //
+            // ⚠ WHAT the line claims is not this catch's to decide, because the exception carries
+            // two different facts: `AccountStore.accounts()` answers an UNREADABLE blob with an
+            // empty list too, so the guard fires with nobody having signed anything out. This line
+            // used to assert "signed out" in both cases, which turned a storage failure into a
+            // deliberate gesture in the logcat a reporter sends us. [accountGoneCause] answers,
+            // from a FRESH `accountsUnreadable()` read — the blob is re-read on every call, so what
+            // is printed is the state at the moment of the failure, not one captured earlier.
+            //
+            // Deliberately still Log.i, unreadable case included: the user-facing signal for that
+            // state is the startup screen, not this log, and a second decision here (which level?)
+            // is one more thing that can drift away from the sentence it accompanies.
+            android.util.Log.i(
+                "FetchAndNotify",
+                "background pass: ${accountGoneCause(credentials.id, store.accountsUnreadable(), passKind = "pass")}, dropped",
+                gone,
+            )
         }
     }
 

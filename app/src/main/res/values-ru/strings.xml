@@ -836,6 +836,9 @@
     <string name="welcome_next">Далее</string>
     <string name="welcome_get_started">Начать</string>
     <string name="welcome_skip">Пропустить</string>
+
+    <string name="accounts_unreadable_title">Не удалось прочитать ваши учётные записи</string>
+    <string name="accounts_unreadable_body">Sterna Mail не смогла прочитать учётные записи, сохранённые на этом устройстве. Ничего не удалено: они на месте, и поверх них ничего не будет записано. Обновление Sterna Mail до последней версии может вернуть их.</string>
     <string name="compose_contacts_priming_title">Подсказывать из ваших контактов?</string>
     <string name="compose_contacts_priming_body">Автодополнять получателей из контактов этого устройства. Sterna Mail читает их только на устройстве и никогда не отправляет.</string>
     <string name="compose_contacts_priming_enable">Включить</string>

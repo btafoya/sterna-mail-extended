@@ -83,6 +83,54 @@ class TranslationParityTest {
     }
 
     /**
+     * The startup screen shown when the stored account list will not decode. It is the one screen
+     * a user meets while her accounts are invisible, so a language that falls back to English there
+     * leaves her reading a stranger's alphabet about her own mail having gone missing.
+     *
+     * Named keys rather than the general parity rule above: that rule compares whatever is in
+     * `values/`, so it would go green on a screen whose strings were never added at all.
+     */
+    @Test
+    fun `the nine languages all carry the unreadable-accounts screen`() {
+        val files = listOf(File(res, "values/strings.xml")) + translations()
+        val missing = files.associate { it.parentFile.name to (UNREADABLE_ENGLISH.keys - keysOf(it)) }
+            .filterValues { it.isNotEmpty() }
+        assertEquals("the unreadable-accounts screen is unwritten in", emptyMap<String, Set<String>>(), missing)
+    }
+
+    /**
+     * WHAT THAT SCREEN PROMISES, pinned whole, because getting it wrong is worse than not having
+     * the screen. The accounts are still on the device, untouched — the whole point of the write
+     * refusal behind this — so the text must not say, or suggest, that anything was deleted.
+     *
+     * And the last sentence is deliberately "MAY bring them back", not "brings them back". The gate
+     * raises its flag on ANY decode failure, not only on the enum name a newer build would know: a
+     * truncated blob or a damaged prefs file lands here too, and no update fixes those. Promising
+     * the recovery unconditionally would be the displayed state lying about the real one.
+     *
+     * Whole-value equality on purpose: `contains` is blind to anything a reword APPENDS, and this
+     * text is a promise made to someone who has just been told her mail is missing.
+     *
+     * Not checked here, and stated as debt: that the eight translations say the same three things.
+     * Their KEYS are held by the rule above and their FALLBACK to English by
+     * [no language leaves the account switch in English]'s sibling rules, but nothing reads their
+     * meaning.
+     */
+    @Test
+    fun `the unreadable-accounts screen says nothing was deleted, and asks for nothing`() {
+        val actual = valuesOf(File(res, "values/strings.xml")).filterKeys { it in UNREADABLE_ENGLISH }
+        assertEquals(
+            "the text of the unreadable-accounts screen changed. It owes three statements and no " +
+                "fourth: the accounts could not be read, NOTHING was deleted, and an update " +
+                "brings them back. It must never say they are gone, never promise a fix without " +
+                "one, and never offer an action — the only action that would 'unblock' it is " +
+                "wiping the accounts it exists to protect.",
+            UNREADABLE_ENGLISH,
+            actual,
+        )
+    }
+
+    /**
      * PARITY OF KEYS IS NOT PARITY OF MEANING, AND THIS SWITCH IS WHERE THAT BITES.
      *
      * `notificationsEnabled` reads like a display setting and is not one: five of the six places
@@ -317,6 +365,14 @@ class TranslationParityTest {
             "values-pl" to "w tle",
             "values-pt" to "em segundo plano",
             "values-ru" to "фоновом режиме",
+        )
+
+        /** The two labels of the unreadable-accounts startup screen, in English, whole. */
+        val UNREADABLE_ENGLISH = mapOf(
+            "accounts_unreadable_title" to "Your accounts could not be read",
+            "accounts_unreadable_body" to "Sterna Mail could not read the accounts saved on this " +
+                "device. Nothing has been deleted: they are still there, and nothing will be " +
+                "written over them. Updating Sterna Mail to the latest version may bring them back.",
         )
 
         /** The four labels of the per-account switch, in English, whole. */

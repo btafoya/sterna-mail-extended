@@ -52,9 +52,10 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
     // -- retired from the picker, ALIVE in the format --------------------------------------------
     // ⛔ Nothing below may be removed or renamed, and the reason is the same one written out under
     // [ALL]: these names are on disk, in the account records of every install that ever chose them,
-    // and an unknown name does not fail loudly — it empties the account list, which the next write
-    // then makes permanent. They are not offered any more ([syncWindowChoices]); they still decode,
-    // still carry their number, and still show their label if an account is on one.
+    // and an unknown name does not fail loudly — it empties the account list on screen, and the app
+    // then refuses every write until a build that knows the name reads it again ([AccountBlobGate]).
+    // They are not offered any more ([syncWindowChoices]); they still decode, still carry their
+    // number, and still show their label if an account is on one.
     COUNT_50(limit = 50, maxAgeDays = null),
     COUNT_200(limit = 200, maxAgeDays = null),
     COUNT_500(limit = 500, maxAgeDays = null),
@@ -68,12 +69,17 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
      * ⛔ The NAME may not change, and it may not be deleted either, whatever happens to the number:
      * the reason is worse than a crash. `SyncWindow` is serialized by constant name into every
      * account record ([StoredAccount.syncWindow]). kotlinx does throw on a name it does not know —
-     * for the whole account list at once, not just for the records that carried it — but
-     * `AccountStore.accounts()` decodes inside `runCatching { … }.getOrDefault(emptyList())`, so
-     * nothing surfaces. What the user sees is not an error: it is **no accounts**. And the first
-     * write after that — `saveAccounts` is the choke point every setter goes through — persists
-     * that empty list over the real one. Renaming or dropping this entry silently and permanently
-     * deletes every account of every install that ever chose it.
+     * for the whole account list at once, not just for the records that carried it — and
+     * `AccountStore.accounts()` still answers that with an empty list, because its own constructor
+     * and 62 call sites take a list and nothing else. So what the user sees is not an error: it is
+     * **no accounts**, on an install that has several.
+     *
+     * What is no longer true is that the loss is permanent. [AccountBlobGate] records on every read
+     * whether the empty came from an absent blob or from a decode failure, and `saveAccounts` — the
+     * choke point every setter goes through — writes nothing in the second case, so the records stay
+     * on disk untouched and reappear as soon as a build that knows the name is installed. Renaming
+     * or dropping this entry still blanks the account screen of every install that ever chose it,
+     * and still costs a corrective release; it no longer deletes their accounts.
      *
      * Why the value comes back down. Caching a whole mailbox buys exactly two things: reading old
      * mail offline, and scrolling far back without a round trip. It does NOT buy fast search —

@@ -833,6 +833,9 @@
     <string name="welcome_next">Dalej</string>
     <string name="welcome_get_started">Zaczynamy</string>
     <string name="welcome_skip">Pomiń</string>
+
+    <string name="accounts_unreadable_title">Nie udało się odczytać Twoich kont</string>
+    <string name="accounts_unreadable_body">Sterna Mail nie mogła odczytać kont zapisanych na tym urządzeniu. Nic nie zostało usunięte: nadal tam są i nic nie zostanie na nich nadpisane. Aktualizacja Sterna Mail do najnowszej wersji może je przywrócić.</string>
     <string name="compose_contacts_priming_title">Sugerować z Twoich kontaktów?</string>
     <string name="compose_contacts_priming_body">Uzupełniaj odbiorców z kontaktów tego urządzenia. Sterna Mail odczytuje je tylko na urządzeniu i nigdy ich nie przesyła.</string>
     <string name="compose_contacts_priming_enable">Włącz</string>

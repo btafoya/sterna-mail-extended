@@ -33,15 +33,33 @@ class SignedOutAccountLeavesNoPushErrorTest {
     @Test fun `the pass drops a signed-out account instead of reporting it as a failure`() {
         // Pinned as a block: the arm has to SWALLOW. A `throw gone` or a `Result`-shaped rethrow
         // slipped between the two lines puts the error entry and the two retries straight back.
+        //
+        // ⚠ And WHAT the line claims is not decided here. The guard throws when the pass's id is
+        // not in `AccountStore.accounts()`, which answers an UNREADABLE blob with an empty list —
+        // so this arm also fires when nobody signed anything out, and it used to assert a sign-out
+        // in that case too. The choice is [app.sterna.core.data.mail.accountGoneCause], EXECUTED by
+        // `AccountGoneCauseTest`; what is pinned here is that this call site asks it, and with
+        // WHICH ARGUMENTS — a fresh `store.accountsUnreadable()`, not a constant, not a flag read
+        // before the pass started. A hard-coded `false` compiles and puts the lie straight back.
+        // `passKind` is this site's own word: the shared sentence decides WHICH claim is true, not
+        // what the caller was running.
         assertEquals(
             "the AccountGoneException arm of FetchAndNotify.run is no longer, line for line, what " +
-                "this was written against.",
+                "this was written against. Either it no longer asks accountGoneCause what " +
+                "happened (and AccountGoneCauseTest then proves nothing about the app), or it no " +
+                "longer reads accountsUnreadable() afresh, or it is back to claiming a sign-out " +
+                "for account data it merely failed to read.",
             listOf(
                 "} catch (gone: AccountGoneException) {",
-                "android.util.Log.i(\"FetchAndNotify\", \"background pass: \${credentials.id} signed out mid-pass, dropped\", gone)",
+                "android.util.Log.i(",
+                "\"FetchAndNotify\",",
+                "\"background pass: \${accountGoneCause(credentials.id, store.accountsUnreadable(), " +
+                    "passKind = \"pass\")}, dropped\",",
+                "gone,",
+                ")",
                 "}",
             ),
-            block(ARM, 3),
+            block(ARM, 7),
         )
     }
 

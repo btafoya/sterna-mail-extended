@@ -258,15 +258,30 @@ class SignedOutAccountWiringTest {
         // signed out), so the spinner turns for ever over a sync that no longer exists. Pinned as
         // a whole block: a `throw gone` or a `failures += gone` slipped in here would put back the
         // spinner or raise the offline banner for a deliberate gesture.
+        //
+        // ⚠ And WHAT the line claims is delegated to [accountGoneCause], executed by
+        // [AccountGoneCauseTest]: the guards read the store with `accounts()`, which answers an
+        // unreadable blob with an empty list, so this arm also fires when nobody signed anything
+        // out. The arguments are pinned, not just the call: a hard-coded `false` would put the lie
+        // straight back, and `passKind` is this line's OWN word — this pass is a walk over the
+        // accounts, it has read "mid-walk" since #121, and a shared sentence must not flatten it
+        // into the push path's "mid-pass".
         assertEquals(
             "the AccountGoneException arm of refreshAllInboxes is no longer, line for line, what " +
-                "this was written against — and it must stay ABOVE the cancellation catch.",
+                "this was written against — it must stay ABOVE the cancellation catch, it must " +
+                "ask accountGoneCause what happened from a fresh accountsUnreadable() read, and " +
+                "it must keep calling its own pass a WALK.",
             listOf(
                 "} catch (gone: AccountGoneException) {",
-                "android.util.Log.i(\"MailRepository\", \"unified refresh: \${credentials.id} signed out mid-walk, skipped\", gone)",
+                "android.util.Log.i(",
+                "\"MailRepository\",",
+                "\"unified refresh: \${accountGoneCause(credentials.id, accountStore.accountsUnreadable(), " +
+                    "passKind = \"walk\")}, skipped\",",
+                "gone,",
+                ")",
                 "} catch (c: CancellationException) {",
             ),
-            block("refreshAllInboxes", "} catch (gone: AccountGoneException) {", 3),
+            block("refreshAllInboxes", "} catch (gone: AccountGoneException) {", 7),
         )
     }
 

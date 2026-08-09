@@ -2,6 +2,7 @@ package app.sterna.core.data.account
 
 import android.content.Context
 import android.util.Base64
+import android.util.Log
 import app.sterna.core.data.crypto.KeystoreCrypto
 import app.sterna.core.jmap.JmapException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,8 +20,16 @@ data class MailEndpoint(
     val security: ConnectionSecurity,
 )
 
-/** How an account authenticates. API_TOKEN is a server-generated Bearer token
- *  (e.g. a Fastmail API token), stored encrypted in the password slot; JMAP-only. */
+/**
+ * How an account authenticates. API_TOKEN is a server-generated Bearer token
+ * (e.g. a Fastmail API token), stored encrypted in the password slot; JMAP-only.
+ *
+ * ⛔ These three names ARE the stored format: they go by name into every account record
+ * ([StoredAccount.authType]), the account list is one blob, and a name this build cannot resolve
+ * stops the WHOLE list from decoding — no accounts on screen, and no write until a build that knows
+ * the name is installed ([AccountBlobGate], mechanism in full under [SyncWindow.ALL]). Never rename,
+ * never remove; retire from the UI instead. Pinned by `StoredAccountReferenceRecordTest`.
+ */
 enum class AuthType { BASIC, OAUTH, API_TOKEN }
 
 /**
@@ -233,6 +242,15 @@ class AccountStore(context: Context) {
         .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
 
+    // Tells an empty account list apart from a list that would not decode, and blocks writes in the
+    // second case. Declared before [live] because the seeding read below already goes through it.
+    // It is handed THIS store's parser and writer: a gate given anything else — a decoder that
+    // never fails, say — is a gate that never refuses, and no test of the gate alone can see that.
+    private val gate = AccountBlobGate(
+        decode = { json.decodeFromString<List<StoredAccount>>(it) },
+        encode = { json.encodeToString(it) },
+    )
+
     // Seeded from storage at construction (which also runs the legacy single-account migration),
     // then kept current by [saveAccounts] — the single choke point every list mutator goes through.
     private val live = AccountsState(accounts())
@@ -252,13 +270,41 @@ class AccountStore(context: Context) {
      */
     val accountsFlow: StateFlow<List<StoredAccount>> get() = live.flow
 
+    /**
+     * The stored accounts, or an empty list — including when the blob could not be decoded, because
+     * this is called from the constructor and from 62 sites that all handle a list and nothing else.
+     * What changed is that the empty is no longer anonymous: [AccountBlobGate.read] records, on
+     * every single call, whether this empty means "nothing stored" or "I could not read it", and
+     * [saveAccounts] refuses to write over the second kind.
+     */
     fun accounts(): List<StoredAccount> {
         migrateIfNeeded()
-        val raw = prefs.getString(KEY_ACCOUNTS, null) ?: return emptyList()
-        return runCatching { json.decodeFromString<List<StoredAccount>>(raw) }.getOrDefault(emptyList())
+        return gate.read(prefs.getString(KEY_ACCOUNTS, null))
     }
 
     fun hasAccount(): Boolean = accounts().isNotEmpty()
+
+    /**
+     * Whether the stored account list could not be read — the ONE thing [accounts] cannot say,
+     * since it answers both cases with an empty list. Public because the startup routing lives in
+     * the `app` module, and the gate is `internal` to this one.
+     *
+     * Why the UI needs it. With the write refusal in place, an unreadable blob leaves the user on
+     * "Add an account": she adds one, it appears to work, and it is gone at the next launch —
+     * because storing it would have replaced her real accounts. The startup screen has to say what
+     * happened instead of inviting a gesture that cannot land.
+     *
+     * The answer is READ AFRESH, never a flag left over from an earlier moment: [accounts]
+     * recomputes it on every call ([AccountBlobGate.read]), so this reads storage first and then
+     * reports. Nothing re-asks it while a screen is up — there is no observer and no `onResume`
+     * path, and none is wanted here; the verdict is taken when `RootViewModel` is built. Installing
+     * a build that can decode the blob kills the process, so that build's first launch reads a
+     * readable blob and routes normally, with nothing to repair by hand.
+     */
+    fun accountsUnreadable(): Boolean {
+        accounts()
+        return gate.blobUnreadable
+    }
 
     fun currentId(): String? {
         val list = accounts()
@@ -573,8 +619,15 @@ class AccountStore(context: Context) {
     /** Remove an account; if it was current, fall back to another (or none). */
     @Synchronized
     fun remove(id: String) {
+        // Read BEFORE destroying anything. On an unreadable blob the list reads empty, so an id
+        // that really is stored looks unknown — and the encrypted password is the account's only
+        // copy of its secret, which no later write-refusal can bring back. Its two neighbours
+        // ([removeCascading], [convertToBasicAuth]) already bail out on an unknown id, which is why
+        // they never had this hole; this makes the same guard explicit here.
+        val list = accounts()
+        if (list.none { it.id == id }) return
         prefs.edit().remove(passwordKey(id)).apply()
-        val remaining = accounts().filterNot { it.id == id }
+        val remaining = list.filterNot { it.id == id }
         saveAccounts(remaining)
         if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
             prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()
@@ -587,6 +640,9 @@ class AccountStore(context: Context) {
     fun clear() {
         prefs.edit().clear().apply()
         KeystoreCrypto.deleteKey()
+        // The file is legitimately gone, so there is no unreadable blob left to protect: lift the
+        // refusal, or a reset from that state could never store an account again.
+        gate.onStorageWiped()
         // Not a [saveAccounts] path (the whole file goes), so publish the emptied list by hand.
         live.publish(emptyList())
     }
@@ -936,9 +992,21 @@ class AccountStore(context: Context) {
 
     // ---- internals ----
 
+    /**
+     * The one place the account blob is written. It goes through [AccountBlobGate.writeGuarded], so
+     * a list computed from an empty read that was really a decode failure is NOT persisted: that
+     * write is what turned an unreadable blob into permanent account loss. The bytes come from the
+     * gate, so there is nothing to store outside the guarded lambda.
+     *
+     * It does not throw when it refuses. A throw would be fifteen new crash paths through the UI
+     * for something the user cannot act on; the refusal costs the setting change that triggered it
+     * and keeps every account.
+     */
     private fun saveAccounts(list: List<StoredAccount>) {
-        prefs.edit().putString(KEY_ACCOUNTS, json.encodeToString(list)).apply()
-        live.publish(list)
+        val written = gate.writeGuarded(list) { encoded ->
+            prefs.edit().putString(KEY_ACCOUNTS, encoded).apply()
+        }
+        if (written) live.publish(list) else Log.e(TAG, REFUSED_WRITE)
     }
 
     private fun writePassword(id: String, password: String) {
@@ -1003,6 +1071,10 @@ class AccountStore(context: Context) {
     }
 
     private companion object {
+        const val TAG = "AccountStore"
+        const val REFUSED_WRITE =
+            "refusing to write the account list: it did not decode on the last read, so storing " +
+                "this one would replace the real accounts for good. Nothing was changed."
         const val PREFS_NAME = "sterna_account"
         const val KEY_ACCOUNTS = "accounts"
         const val KEY_CURRENT = "current"
