@@ -181,4 +181,165 @@ class OAuthClientTest {
             assertFalse("the error carried the payload: $text", text.contains("SECRET-DC"))
         }
     }
+
+    // ---- A 3xx on one of the three POSTs must not send the secret to the host it names ----
+    //
+    // OkHttp follows a 307/308 by re-issuing the SAME method with the SAME body (verified against
+    // okhttp 4.12: on a 307 the second server receives
+    // `grant_type=refresh_token&refresh_token=SECRET-RT` verbatim), and a 301/302/303 by turning
+    // the POST into a bodyless GET whose answer the caller then parses as a token grant. The first
+    // hands the redirect target the long-lived refresh token outright; the second lets it choose
+    // the access token the app will use.
+    //
+    // ⚠ Every test below goes through `client`, i.e. the PUBLIC OAuthClient() constructor. The
+    // internal constructor takes an injected client, so a test that hands in its own would only
+    // assert OkHttp's behaviour and would stay green with production wired to the shared,
+    // redirect-following client. The wiring IS the fix, so the public constructor is the only
+    // entry point these may use.
+
+    private fun startSecondServer(): MockWebServer = MockWebServer().apply { start() }
+
+    @Test fun refresh_doesNotReplayTheRefreshTokenToARedirectTarget() {
+        val second = startSecondServer()
+        try {
+            // Armed on purpose: if the flag falls, the redirect lands here and this body comes
+            // back to the caller as a perfectly valid-looking grant. The test can tell the
+            // difference because the second server is able to answer.
+            second.enqueue(
+                MockResponse().setBody("""{"access_token":"EVIL-AT","refresh_token":"EVIL-RT"}"""),
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(307).setHeader("Location", second.url("/steal").toString()),
+            )
+
+            val outcome = runCatching {
+                runBlocking { client.refresh(server.url("/auth/token").toString(), "SECRET-RT", "sterna") }
+            }
+
+            assertEquals("the refresh token must not be replayed to the redirect target", 0, second.requestCount)
+            val failure = outcome.exceptionOrNull()
+            assertTrue("expected the 307 to surface as a JmapException, got $outcome", failure is JmapException)
+            // The status is what the calling layer reads off the exception, so pin the field.
+            assertEquals(307, (failure as JmapException).httpCode)
+            assertEquals("the endpoint we asked for was hit once, and only it", 1, server.requestCount)
+            assertTrue(
+                "the token still went to the endpoint the caller named",
+                server.takeRequest().body.readUtf8().contains("refresh_token=SECRET-RT"),
+            )
+        } finally {
+            second.shutdown()
+        }
+    }
+
+    @Test fun refresh_refusesEvery3xx_notOnlyTheOnesThatKeepTheBody() {
+        val second = startSecondServer()
+        try {
+            listOf(301, 302, 303, 307, 308).forEach { code ->
+                second.enqueue(MockResponse().setBody("""{"access_token":"EVIL-AT"}"""))
+                server.enqueue(
+                    MockResponse().setResponseCode(code)
+                        .setHeader("Location", second.url("/steal/$code").toString()),
+                )
+
+                val outcome = runCatching {
+                    runBlocking { client.refresh(server.url("/auth/token").toString(), "SECRET-RT", "sterna") }
+                }
+
+                val failure = outcome.exceptionOrNull()
+                assertTrue("HTTP $code was followed: $outcome", failure is JmapException)
+                assertEquals("HTTP $code", code, (failure as JmapException).httpCode)
+            }
+            assertEquals("nothing may reach the redirect target, for any 3xx", 0, second.requestCount)
+        } finally {
+            second.shutdown()
+        }
+    }
+
+    @Test fun pollDeviceToken_doesNotReplayTheDeviceCodeToARedirectTarget() = runBlocking {
+        val second = startSecondServer()
+        try {
+            second.enqueue(
+                MockResponse().setBody("""{"access_token":"EVIL-AT","refresh_token":"EVIL-RT"}"""),
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(307).setHeader("Location", second.url("/steal").toString()),
+            )
+
+            // This path swallows throwables (runCatching) and answers with a result, so pin both
+            // the result the connect screen gets and the silence of the redirect target.
+            val result = client.pollDeviceToken(metadata(), "SECRET-DC", "sterna")
+
+            assertEquals("the device code must not be replayed to the redirect target", 0, second.requestCount)
+            assertEquals(DeviceTokenResult.Failed("http_307"), result)
+        } finally {
+            second.shutdown()
+        }
+    }
+
+    @Test fun startDeviceAuthorization_doesNotReplayTheRequestToARedirectTarget() {
+        val second = startSecondServer()
+        try {
+            second.enqueue(
+                MockResponse().setBody(
+                    """{"device_code":"EVIL-DC","user_code":"UC","verification_uri":"https://evil.example/d"}""",
+                ),
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(307).setHeader("Location", second.url("/steal").toString()),
+            )
+
+            val outcome = runCatching {
+                runBlocking { client.startDeviceAuthorization(metadata(), "sterna", "scope-a offline_access") }
+            }
+
+            assertEquals("the device-authorization POST must not be replayed", 0, second.requestCount)
+            val failure = outcome.exceptionOrNull()
+            assertTrue("expected the 307 to surface as a JmapException, got $outcome", failure is JmapException)
+            assertEquals(307, (failure as JmapException).httpCode)
+        } finally {
+            second.shutdown()
+        }
+    }
+
+    // ---- The witness that the cut stopped at the POSTs ----
+    //
+    // Discovery is a GET carrying no secret, and a deployment whose
+    // /.well-known/oauth-authorization-server sits behind a proxy or a vhost answers a 3xx there.
+    // Refusing it would not look like a redirect to anyone: ConnectViewModel swallows the failure
+    // and shows connect_oauth_unsupported, i.e. "your server does not support this" (#54, #137).
+    // So this one MUST stay followed, and this test is what fails if the fix overreaches.
+
+    @Test fun discoverMetadata_stillFollowsARedirect() = runBlocking {
+        val second = startSecondServer()
+        try {
+            second.enqueue(
+                MockResponse().setHeader("Content-Type", "application/json").setBody(
+                    """{"issuer":"https://idp.example","token_endpoint":"https://idp.example/token",
+                       "device_authorization_endpoint":"https://idp.example/device"}""",
+                ),
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(307).setHeader(
+                    "Location",
+                    second.url("/.well-known/oauth-authorization-server").toString(),
+                ),
+            )
+
+            val metadata = client.discoverMetadata(server.url("/").toString())
+
+            assertEquals("the discovery redirect must still be followed", 1, second.requestCount)
+            assertEquals("https://idp.example/token", metadata?.tokenEndpoint)
+            assertTrue("the metadata behind the redirect must be the one we use", metadata?.supportsDeviceFlow == true)
+        } finally {
+            second.shutdown()
+        }
+    }
+
+    // ---- The flags, read off the object the factory builds ----
+
+    @Test fun defaultOAuthHttpClient_followsNoRedirectAtAll() {
+        val built = defaultOAuthHttpClient()
+        assertFalse("a 3xx on a token POST must never be followed", built.followRedirects)
+        assertFalse("and never across a scheme change either", built.followSslRedirects)
+    }
 }

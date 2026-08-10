@@ -11,6 +11,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 /** OAuth 2.0 authorization-server metadata (RFC 8414), trimmed to what we use. */
 @Serializable
@@ -74,17 +75,46 @@ sealed interface DeviceTokenResult {
 }
 
 /**
+ * The client the three OAuth POSTs use — built here, and NOT the shared JMAP one.
+ *
+ * These POSTs go to URLs that are already resolved (the token and device endpoints come from the
+ * metadata just fetched) or hard-coded (`OAuthProvider`'s Microsoft endpoints), so they have no
+ * discovery hop left to make: a 3xx on one of them can only be a redirect that makes a secret
+ * leave for another host. OkHttp replays the POST body verbatim on a 307/308 — and for [refresh]
+ * that body is the long-lived refresh token, on a path walked at every sync — and turns a
+ * 301/302/303 into a bodyless GET whose answer the caller then parses as a token grant, which lets
+ * the redirect target choose the access token the app will use. `followSslRedirects(false)`: nor
+ * down to cleartext either.
+ *
+ * ⚠ Discovery is deliberately NOT covered by this. `discoverMetadata` keeps the shared
+ * `JmapClient.defaultHttpClient()` and keeps following 3xx: it is a GET carrying no secret, and a
+ * server behind a proxy or a vhost answers a redirect there (#54, #137).
+ *
+ * Timeouts match `JmapClient.defaultHttpClient()` — these are sync calls, not a gesture the reader
+ * is watching.
+ */
+internal fun defaultOAuthHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    .connectTimeout(20, TimeUnit.SECONDS)
+    .readTimeout(30, TimeUnit.SECONDS)
+    .followRedirects(false)
+    .followSslRedirects(false)
+    .build()
+
+/**
  * Minimal OAuth 2.0 client for the Device Authorization Grant (RFC 8628) plus
  * refresh-token grants — the flow used to sign a mobile app into a JMAP server
  * (e.g. Stalwart) without ever handling the password. Pure JVM, unit-testable
  * with MockWebServer.
  */
 class OAuthClient internal constructor(
-    private val httpClient: OkHttpClient,
+    /** Metadata discovery only: follows 3xx, on purpose. See [defaultOAuthHttpClient]. */
+    private val discoveryHttpClient: OkHttpClient,
+    /** The three POSTs that carry a secret. One field, so none of them can be forgotten. */
+    private val tokenHttpClient: OkHttpClient,
     private val json: Json,
 ) {
-    /** Public constructor for app code — shares the JMAP default client + JSON. */
-    constructor() : this(JmapClient.defaultHttpClient(), JmapClient.DefaultJson)
+    /** Public constructor for app code — shared client for discovery, dedicated one for the POSTs. */
+    constructor() : this(JmapClient.defaultHttpClient(), defaultOAuthHttpClient(), JmapClient.DefaultJson)
 
     /** Fetch the server's OAuth metadata, or null if it advertises none. */
     suspend fun discoverMetadata(host: String): OAuthMetadata? = withContext(Dispatchers.IO) {
@@ -94,7 +124,7 @@ class OAuthClient internal constructor(
             .get()
             .build()
         runCatching {
-            httpClient.newCall(request).execute().use { response ->
+            discoveryHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
                 json.decodeFromString<OAuthMetadata>(response.body?.string().orEmpty())
             }
@@ -114,7 +144,7 @@ class OAuthClient internal constructor(
             .add("scope", scope)
             .build()
         val request = Request.Builder().url(endpoint).post(form).header("Accept", "application/json").build()
-        httpClient.newCall(request).execute().use { response ->
+        tokenHttpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 throw JmapException("Device authorization failed: HTTP ${response.code}", httpCode = response.code)
@@ -136,7 +166,7 @@ class OAuthClient internal constructor(
             .build()
         val request = Request.Builder().url(metadata.tokenEndpoint).post(form).header("Accept", "application/json").build()
         runCatching {
-            httpClient.newCall(request).execute().use { response ->
+            tokenHttpClient.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 if (response.isSuccessful) {
                     DeviceTokenResult.Success(decodeGuarded(body, "token", OAuthTokens.serializer()))
@@ -168,7 +198,7 @@ class OAuthClient internal constructor(
             .add("client_id", clientId)
             .build()
         val request = Request.Builder().url(tokenEndpoint).post(form).header("Accept", "application/json").build()
-        httpClient.newCall(request).execute().use { response ->
+        tokenHttpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 throw JmapException("Token refresh failed: HTTP ${response.code}", httpCode = response.code)
