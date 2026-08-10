@@ -116,6 +116,15 @@ private const val SERVER_SEARCH_LIMIT = 200
 /** The actions bound to the two swipe directions (from Settings → Reading). */
 data class SwipeConfig(val right: SwipeAction, val left: SwipeAction)
 
+/** What [InboxViewModel.swipeConfig] carries before DataStore has answered: nothing bound to
+ *  either direction. A swipe landing in that window is a gesture the reader loses, never an action
+ *  they did not ask for — and `NONE` is a value they can pick themselves ("None"), so the rows
+ *  already handle it. It is deliberately NOT the repository's defaults: seeded with those, this was
+ *  a second copy of `SettingsRepository`'s swipe defaults, free to drift from them, and it told the
+ *  reader who turned swiping off that the left one still deletes. "Not read yet", not "probably
+ *  this". */
+internal val SWIPE_CONFIG_UNLOADED = SwipeConfig(SwipeAction.NONE, SwipeAction.NONE)
+
 /** One message that can be moved back to its original mailbox by an Undo. [mailboxId] is the
  *  SOURCE folder to restore to; [destMailboxId] is where the forward action put it (Trash /
  *  Archive / target), so the undo can reverse the drawer-count nudge (null = it was destroyed). */
@@ -191,7 +200,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = SwipeConfig(SwipeAction.TOGGLE_READ, SwipeAction.DELETE),
+            initialValue = SWIPE_CONFIG_UNLOADED,
         )
 
     /** A just-performed swipe action that can be undone (move the message back). */

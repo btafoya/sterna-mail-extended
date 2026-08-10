@@ -354,6 +354,12 @@ sealed interface HeadersState {
 private fun Email.markRead(): Email =
     if (isSeen) this else copy(keywords = keywords + ("\$seen" to true))
 
+/** What [MessageViewModel.confirmLinks] carries before DataStore has answered: ask. The reader can
+ *  dismiss a confirmation they did not want, but cannot un-open a page — seeded `false`, a link
+ *  tapped in the reader's first frames was fetched straight away, silently, from a setting that had
+ *  not been read yet. The safe side of this one is the one that costs a tap. */
+internal const val CONFIRM_LINKS_UNLOADED = true
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class MessageViewModel(application: Application) : AndroidViewModel(application) {
     private val store = application.container.accountStore
@@ -372,7 +378,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     val confirmLinks = settings.confirmLinks.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = false,
+        initialValue = CONFIRM_LINKS_UNLOADED,
     )
 
     /** Sender addresses whose remote images load automatically. */
