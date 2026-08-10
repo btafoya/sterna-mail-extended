@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import app.sterna.MainActivity
@@ -194,13 +195,29 @@ object Notifications {
     /**
      * A one-off notification that a scheduled/queued message couldn't be sent after retries, so a
      * permanent failure isn't dropped silently. Tapping it opens the app.
+     *
+     * [body] is text the app is holding on the user's behalf and cannot deliver on its own — today,
+     * a quick reply typed into a notification whose message has nobody to answer. Tapping then
+     * opens the COMPOSER carrying that text, through the very `mailto:` route an external link
+     * already uses (#15), so giving the text back costs no new screen and no new string.
+     * Deliberately no `to=` beside the body: the recipient is precisely what is missing here, and
+     * MailTo.parse hands back an address with an empty body when both are given.
      */
-    fun notifySendFailed(context: Context, subject: String) {
+    fun notifySendFailed(context: Context, subject: String, body: String = "") {
         ensureChannels(context)
+        // Keyed on the body as well, or a second salvaged text would land on the first one's id
+        // and replace it — losing exactly what this is here to save. Unchanged, to the character,
+        // when there is no body: the send-failure notifications keep their old identity.
+        val key = if (body.isBlank()) "sendfail:$subject" else "sendfail:$subject:$body"
+        val target = if (body.isBlank()) {
+            Intent(context, MainActivity::class.java)
+        } else {
+            Intent(Intent.ACTION_VIEW, draftUri(subject, body), context, MainActivity::class.java)
+        }
         val open = PendingIntent.getActivity(
             context,
-            "sendfail".hashCode(),
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            if (body.isBlank()) "sendfail".hashCode() else key.hashCode(),
+            target.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val text = subject.ifBlank { context.getString(R.string.message_no_subject) }
@@ -209,13 +226,22 @@ object Notifications {
             .setContentTitle(context.getString(R.string.notif_send_failed_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setAutoCancel(true)
+            // Auto-cancel only when there is nothing to lose. The mailto: above is consumed by the
+            // NavHost's LaunchedEffect, which is composed only under a signed-in state, so a
+            // hand-back raised for a signed-out account (the very case that produced it) opens
+            // nothing on tap — and an auto-cancelled notification would then be the second and
+            // final loss of the text. Persisting, it can still be tapped once a session is open.
+            .setAutoCancel(body.isBlank())
             .setContentIntent(open)
             .setCategory(NotificationCompat.CATEGORY_ERROR)
             .build()
         context.getSystemService(NotificationManager::class.java)
-            .notify(("sendfail:$subject").hashCode(), notification)
+            .notify(key.hashCode(), notification)
     }
+
+    /** A recipient-less `mailto:`, carrying a subject and a body for the composer to prefill. */
+    private fun draftUri(subject: String, body: String): Uri =
+        Uri.parse("mailto:?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")
 
     /** The ongoing notification required for the foreground service. */
     fun serviceNotification(context: Context): Notification =
