@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStream
+import java.net.InetSocketAddress
 import java.net.Socket
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -109,127 +110,209 @@ data class OutgoingMessage(
     val pgpEntity: String? = null,
 )
 
+/**
+ * How long to wait for the TCP connection, and for the answer to one command of the dialogue.
+ *
+ * The values JMAP submission already uses (`JmapClient.defaultHttpClient()`: `connectTimeout(20,
+ * SECONDS)` / `readTimeout(30, SECONDS)`). One convention for the whole app, and no setting: there
+ * is no user-facing timeout and there will not be one.
+ */
+internal const val SMTP_CONNECT_TIMEOUT_MS = 20_000
+internal const val SMTP_COMMAND_TIMEOUT_MS = 30_000
+
+/**
+ * `0` is the socket's own default and means "block, with no deadline of ours" — the regime kept by
+ * the ONE read of a submission that is legitimately long: the 250 that answers the dot ending the
+ * body, behind which the server queues, signs (DKIM) and scans the message. Minutes are normal
+ * there, and cutting a send the server went on to accept would leave `OutboxWorker` to retry it —
+ * the message would go out TWICE, which nothing later can take back.
+ */
+internal const val SMTP_BLOCKING_READ = 0
+
 /** Minimal SMTP submission client (EHLO, optional STARTTLS, AUTH, MAIL/RCPT/DATA). */
 class SmtpClient {
-    suspend fun send(config: MailServerConfig, message: OutgoingMessage) = withContext(Dispatchers.IO) {
-        val plain = Socket(config.host, config.port)
-        var socket: Socket = if (config.security == MailSecurity.TLS) {
-            (tlsFactory.createSocket(plain, config.host, config.port, true) as SSLSocket)
-                .verifyingHostname().apply { startHandshake() }
-        } else {
-            plain
-        }
-        var reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
-        var out: OutputStream = socket.outputStream
+    /**
+     * Submit [message] through [config]'s server.
+     *
+     * [connectTimeoutMs] bounds the TCP connect (name resolution is not covered by it — no socket
+     * option is). [commandTimeoutMs] bounds every read of the dialogue — greeting, EHLO, STARTTLS,
+     * the EHLO after it, each step of AUTH, MAIL FROM, RCPT TO, DATA — and both TLS handshakes,
+     * armed before them. Without either, a server that accepted the connection and then went quiet
+     * left this blocked on a read for good: an outbox row stuck on "sending", with no error, nothing
+     * to cancel and nothing to edit.
+     *
+     * ⛔ Neither bounds a WRITE: Java exposes no write timeout, and `soTimeout` is a read option. The
+     * body — up to 200 MB of MIME with attachments — is therefore neither threatened nor protected
+     * by these, and no value here should be chosen with it in mind. The read that FOLLOWS it is
+     * unbounded on purpose, see [SMTP_BLOCKING_READ].
+     *
+     * Parameters with the shipped values as defaults, as `ImapClient.openSession` already does, so a
+     * test can shorten them. ⛔ Not fields: this client is one injected instance shared by every
+     * account, and a field would mix two of them.
+     */
+    suspend fun send(
+        config: MailServerConfig,
+        message: OutgoingMessage,
+        connectTimeoutMs: Int = SMTP_CONNECT_TIMEOUT_MS,
+        commandTimeoutMs: Int = SMTP_COMMAND_TIMEOUT_MS,
+    ) = withContext(Dispatchers.IO) {
+        val connectTimeout = connectTimeoutMs.coerceAtLeast(0)
+        val commandTimeout = commandTimeoutMs.coerceAtLeast(0)
+        val plain = Socket()
+        // ⛔ What the finally closes, and STARTTLS reassigns it. Every way out of the dialogue has to
+        // close the connection: the close used to be reachable only after a successful send, so a
+        // rejected recipient leaked its socket — and so would every timeout added above.
+        var socket: Socket = plain
+        try {
+            plain.connect(InetSocketAddress(config.host, config.port), connectTimeout)
+            // ⚠ Armed BEFORE the handshake, and it has to be: startHandshake() READS from this
+            // socket, so a server that accepts and then says nothing hangs it exactly as it hangs a
+            // command read, and a bound set afterwards would never cover it.
+            plain.soTimeout = commandTimeout
+            if (config.security == MailSecurity.TLS) {
+                val secure = (tlsFactory.createSocket(plain, config.host, config.port, true) as SSLSocket)
+                    .verifyingHostname()
+                secure.soTimeout = commandTimeout
+                secure.startHandshake()
+                socket = secure
+            }
+            var reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
+            var out: OutputStream = socket.outputStream
 
-        /**
-         * The lines of the response [read] last returned, continuations included — the EHLO
-         * capabilities, which [read] itself throws away. Local to this send: a field would mix
-         * the capabilities of two accounts sharing one client.
-         */
-        val lastResponse = mutableListOf<String>()
+            /**
+             * The lines of the response [read] last returned, continuations included — the EHLO
+             * capabilities, which [read] itself throws away. Local to this send: a field would mix
+             * the capabilities of two accounts sharing one client.
+             */
+            val lastResponse = mutableListOf<String>()
 
-        fun read(): String {
-            lastResponse.clear()
-            var line = reader.readLine() ?: throw SmtpException("Connection closed")
-            lastResponse += line
-            // Skip continuation lines ("250-..."), keep reading until "250 ...".
-            // ⚠ The RETURN VALUE is the final line and nothing else: `expect` below compares a
-            // prefix on it, fifteen times per send. The accumulator only observes.
-            while (line.length >= 4 && line[3] == '-') {
-                line = reader.readLine() ?: break
+            fun read(): String {
+                lastResponse.clear()
+                var line = reader.readLine() ?: throw SmtpException("Connection closed")
                 lastResponse += line
+                // Skip continuation lines ("250-..."), keep reading until "250 ...".
+                // ⚠ The RETURN VALUE is the final line and nothing else: `expect` below compares a
+                // prefix on it, fifteen times per send. The accumulator only observes.
+                while (line.length >= 4 && line[3] == '-') {
+                    // ⛔ A response that stops between two of its lines is NOT a response: the final
+                    // line never arrived, so the server never finished saying anything. Handing the
+                    // last continuation back instead would pass `expect`'s prefix test — a cut EHLO
+                    // would read as a success, its capabilities taken from a partial list, and the
+                    // failure would surface far later on a step that is not the cause. The first line
+                    // has always thrown here; so do the ones after it.
+                    line = reader.readLine() ?: throw SmtpException("Connection closed mid-response")
+                    lastResponse += line
+                }
+                return line
             }
-            return line
-        }
 
-        fun expect(prefix: String, what: String) {
-            val resp = read()
-            if (!resp.startsWith(prefix)) throw SmtpException("$what: $resp")
-        }
+            fun expect(prefix: String, what: String) {
+                val resp = read()
+                if (!resp.startsWith(prefix)) throw SmtpException("$what: $resp")
+            }
 
-        fun write(line: String) {
-            out.write((line + "\r\n").toByteArray(Charsets.UTF_8))
-            out.flush()
-        }
+            fun write(line: String) {
+                out.write((line + "\r\n").toByteArray(Charsets.UTF_8))
+                out.flush()
+            }
 
-        // Greeting + EHLO
-        expect("220", "greeting")
-        write("EHLO ${localHost()}")
-        expect("250", "EHLO")
-        var advertisedAuth = advertisedAuthMechanisms(lastResponse)
-
-        if (config.security == MailSecurity.STARTTLS) {
-            write("STARTTLS")
-            expect("220", "STARTTLS")
-            socket = (tlsFactory.createSocket(socket, config.host, config.port, true) as SSLSocket)
-                .verifyingHostname().apply { startHandshake() }
-            reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
-            out = socket.outputStream
+            // Greeting + EHLO
+            expect("220", "greeting")
             write("EHLO ${localHost()}")
-            expect("250", "EHLO (TLS)")
-            // RFC 3207: what was advertised in the clear is void. Only this EHLO counts, and it is
-            // exactly where a server that offered no AUTH before encryption finally lists one.
-            advertisedAuth = advertisedAuthMechanisms(lastResponse)
-        }
+            expect("250", "EHLO")
+            var advertisedAuth = advertisedAuthMechanisms(lastResponse)
 
-        // AUTH: XOAUTH2 (OAuth bearer) when a token is present, else the best password mechanism
-        // the server actually offers (Codeberg #145 — inventati.org refuses LOGIN outright).
-        if (config.accessToken != null) {
-            write("AUTH XOAUTH2 ${xoauth2Payload(config.username, config.accessToken)}")
-            val resp = read()
-            if (!resp.startsWith("235")) {
-                // A rejected token comes back as "334 <base64 error>"; reply with an empty
-                // line so the server can finish (with its 535), then report the failure.
-                if (resp.startsWith("334")) { write(""); read() }
-                throw SmtpException("AUTH XOAUTH2: $resp")
+            if (config.security == MailSecurity.STARTTLS) {
+                write("STARTTLS")
+                expect("220", "STARTTLS")
+                val secure = (tlsFactory.createSocket(socket, config.host, config.port, true) as SSLSocket)
+                    .verifyingHostname()
+                // The upgrade replaces the socket, and a socket option does not travel: this one is
+                // armed on the new one, before its handshake, like the implicit-TLS one above.
+                secure.soTimeout = commandTimeout
+                secure.startHandshake()
+                socket = secure
+                reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
+                out = socket.outputStream
+                write("EHLO ${localHost()}")
+                expect("250", "EHLO (TLS)")
+                // RFC 3207: what was advertised in the clear is void. Only this EHLO counts, and it is
+                // exactly where a server that offered no AUTH before encryption finally lists one.
+                advertisedAuth = advertisedAuthMechanisms(lastResponse)
             }
-        } else {
-            when (chooseAuthMechanism(advertisedAuth)) {
-                SmtpAuthMechanism.PLAIN -> {
-                    // One command, initial response included; the server answers 235 or refuses.
-                    write("AUTH PLAIN ${saslPlainPayload(config.username, config.password)}")
-                    expect("235", "AUTH PLAIN")
+
+            // AUTH: XOAUTH2 (OAuth bearer) when a token is present, else the best password mechanism
+            // the server actually offers (Codeberg #145 — inventati.org refuses LOGIN outright).
+            if (config.accessToken != null) {
+                write("AUTH XOAUTH2 ${xoauth2Payload(config.username, config.accessToken)}")
+                val resp = read()
+                if (!resp.startsWith("235")) {
+                    // A rejected token comes back as "334 <base64 error>"; reply with an empty
+                    // line so the server can finish (with its 535), then report the failure.
+                    if (resp.startsWith("334")) { write(""); read() }
+                    throw SmtpException("AUTH XOAUTH2: $resp")
                 }
-                SmtpAuthMechanism.LOGIN -> {
-                    write("AUTH LOGIN")
-                    expect("334", "AUTH")
-                    write(base64(config.username))
-                    expect("334", "AUTH user")
-                    write(base64(config.password))
-                    expect("235", "AUTH password")
+            } else {
+                when (chooseAuthMechanism(advertisedAuth)) {
+                    SmtpAuthMechanism.PLAIN -> {
+                        // One command, initial response included; the server answers 235 or refuses.
+                        write("AUTH PLAIN ${saslPlainPayload(config.username, config.password)}")
+                        expect("235", "AUTH PLAIN")
+                    }
+                    SmtpAuthMechanism.LOGIN -> {
+                        write("AUTH LOGIN")
+                        expect("334", "AUTH")
+                        write(base64(config.username))
+                        expect("334", "AUTH user")
+                        write(base64(config.password))
+                        expect("235", "AUTH password")
+                    }
+                    // ⛔ The offered list, never the command: an exception is stored in the outbox and
+                    // shown on screen, so a base64 credential in it would leak twice over.
+                    null -> throw SmtpException(
+                        "AUTH: no supported mechanism, server offers ${advertisedAuth.joinToString(" ")}",
+                    )
                 }
-                // ⛔ The offered list, never the command: an exception is stored in the outbox and
-                // shown on screen, so a base64 credential in it would leak twice over.
-                null -> throw SmtpException(
-                    "AUTH: no supported mechanism, server offers ${advertisedAuth.joinToString(" ")}",
-                )
             }
-        }
 
-        // Envelope
-        write("MAIL FROM:<${OutgoingMime.envelopeAddress(message.from)}>")
-        expect("250", "MAIL FROM")
-        (message.to + message.cc + message.bcc).forEach { recipient ->
-            write("RCPT TO:<${OutgoingMime.envelopeAddress(recipient)}>")
-            expect("250", "RCPT TO")
-        }
+            // Envelope
+            write("MAIL FROM:<${OutgoingMime.envelopeAddress(message.from)}>")
+            expect("250", "MAIL FROM")
+            (message.to + message.cc + message.bcc).forEach { recipient ->
+                write("RCPT TO:<${OutgoingMime.envelopeAddress(recipient)}>")
+                expect("250", "RCPT TO")
+            }
 
-        // Data
-        write("DATA")
-        expect("354", "DATA")
-        val mime = buildMime(message)
-        mime.split("\r\n").forEach { line ->
-            // Dot-stuffing: a line starting with '.' must be doubled.
-            out.write(((if (line.startsWith(".")) ".$line" else line) + "\r\n").toByteArray(Charsets.UTF_8))
-        }
-        out.write(".\r\n".toByteArray(Charsets.UTF_8))
-        out.flush()
-        expect("250", "message body")
+            // Data
+            write("DATA")
+            expect("354", "DATA")
+            val mime = buildMime(message)
+            mime.split("\r\n").forEach { line ->
+                // Dot-stuffing: a line starting with '.' must be doubled.
+                out.write(((if (line.startsWith(".")) ".$line" else line) + "\r\n").toByteArray(Charsets.UTF_8))
+            }
+            out.write(".\r\n".toByteArray(Charsets.UTF_8))
+            out.flush()
+            // ⭐ The regime changes here, and here only: what answers the body is the server's
+            // queue, its DKIM signing and its virus scan. Minutes are normal, a short bound would
+            // fail sends the server accepted, and OutboxWorker would send them a second time.
+            //
+            // ⚠ BOTH sockets, not just the current one. `plain` was armed right after the connect
+            // and the TLS socket layered on top of it was armed again: what is armed twice is
+            // disarmed twice. Whether `SSLSocket.setSoTimeout` reaches the socket it wraps is an
+            // implementation question, and betting on it costs, when the bet is lost, exactly what
+            // this whole change exists to prevent — a 30 s bound left standing on the 250 that
+            // answers the body over TLS, the send cut, OutboxWorker retrying, the message sent
+            // TWICE. A line of code is cheaper than the hypothesis.
+            plain.soTimeout = SMTP_BLOCKING_READ
+            socket.soTimeout = SMTP_BLOCKING_READ
+            expect("250", "message body")
 
-        runCatching { write("QUIT") }
-        runCatching { socket.close() }
-        Unit
+            runCatching { write("QUIT") }
+            Unit
+        } finally {
+            runCatching { socket.close() }
+        }
     }
 
     private fun buildMime(m: OutgoingMessage): String = OutgoingMime.build(m)

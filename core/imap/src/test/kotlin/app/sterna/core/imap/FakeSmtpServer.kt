@@ -24,10 +24,38 @@ internal class FakeSmtpServer(
     private val multiline: Boolean = false,
     /**
      * Full override for one command: a non-null result is written verbatim (one entry per line,
-     * CRLF added) instead of the canned reply. Not for `DATA` — the dot-terminated body mode is
-     * driven by the canned path.
+     * CRLF added) instead of the canned reply. Not for `DATA` itself — the dot-terminated body mode
+     * is driven by the canned path — but it IS consulted for [END_OF_DATA], the dot that ends the
+     * body, whose reply is the one read a submission may legitimately wait minutes for.
+     *
+     * An empty list answers nothing at all and leaves the connection open: the server that accepts
+     * and then goes quiet mid-dialogue. A `Thread.sleep` in here delays a reply (the shape
+     * `AllUidsTest` already uses on the IMAP side).
      */
     private val respond: (String) -> List<String>? = { null },
+    /**
+     * The greeting, called once the connection is accepted. `null` (the default) writes the canned
+     * `220`; a lambda returning `null` accepts the connection and then says **nothing at all**,
+     * holding it open — the mute server, which no other hook here can express ([cutAfter] closes,
+     * and [respond] is only reached once a command has been read). A `Thread.sleep` in it delays
+     * the greeting instead of withholding it.
+     */
+    private val greeting: (() -> List<String>?)? = null,
+    /**
+     * Write these lines and then **stop answering, for good** — the one thing [respond] cannot do.
+     * Returning `listOf("250-x")` from [respond] leaves the connection open and silent, which the
+     * client now ends by timing out (`SmtpTimeoutTest`) rather than by seeing an EOF: a cut and a
+     * silence are different failures, and this hook is the one that produces a cut.
+     *
+     * Called with the line that triggered the reply: a command as written by the client, or
+     * [END_OF_DATA] for the dot that terminates the message body. An empty list cuts before a
+     * single byte of the response is written.
+     *
+     * The cut is a half-close (`shutdownOutput`): the client gets its EOF, and whatever it writes
+     * afterwards is still received and recorded in [commands] — that is the witness of a client
+     * that carried on talking to a server that had already gone. Wait for it with [awaitDone].
+     */
+    private val cutAfter: (String) -> List<String>? = { null },
 ) : Closeable {
 
     private val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
@@ -51,11 +79,19 @@ internal class FakeSmtpServer(
         password = PASSWORD,
     )
 
+    /**
+     * The accepted connection, so [close] can end it. Interrupting the serving thread does NOT
+     * unblock a socket read, and the mute path spends its whole life in one.
+     */
+    @Volatile
+    private var accepted: java.net.Socket? = null
+
     private val thread = Thread(::serve, "fake-smtp").apply { isDaemon = true; start() }
 
     private fun serve() {
         runCatching {
             server.accept().use { socket ->
+                accepted = socket
                 val reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
                 // ISO-8859-1 so a scripted reply goes out byte for byte, as in FakeImapServer.
                 val writer = OutputStreamWriter(socket.outputStream, Charsets.ISO_8859_1)
@@ -63,7 +99,38 @@ internal class FakeSmtpServer(
                     lines.forEach { writer.write("$it\r\n") }
                     writer.flush()
                 }
-                reply(canned("220", "fake ESMTP ready"))
+
+                /**
+                 * Honour [cutAfter] for [trigger]: write the partial response, half-close, then keep
+                 * recording whatever the client still writes until it goes quiet ([QUIET_MS]) or
+                 * closes. Returns true when the session was cut and the serve loop must end.
+                 */
+                fun cut(trigger: String): Boolean {
+                    val partial = cutAfter(trigger) ?: return false
+                    reply(partial)
+                    runCatching { socket.shutdownOutput() }
+                    runCatching { socket.soTimeout = QUIET_MS }
+                    while (true) {
+                        val after = runCatching { reader.readLine() }.getOrNull() ?: break
+                        commands.add(after)
+                    }
+                    return true
+                }
+
+                if (cut(GREETING)) return@use
+                val scriptedGreeting = greeting
+                val hello = if (scriptedGreeting == null) canned("220", "fake ESMTP ready") else scriptedGreeting()
+                if (hello == null) {
+                    // Accepted and mute: hold the connection open, saying nothing, until the client
+                    // gives up on its own and closes — which is the whole point of the case.
+                    runCatching { socket.soTimeout = MUTE_HOLD_MS }
+                    while (true) {
+                        val after = runCatching { reader.readLine() }.getOrNull() ?: break
+                        commands.add(after)
+                    }
+                    return@use
+                }
+                reply(hello)
                 var loginStep = 0 // 1 = awaiting the base64 user, 2 = awaiting the base64 password
                 var inData = false
                 val body = StringBuilder()
@@ -72,14 +139,20 @@ internal class FakeSmtpServer(
                     if (inData) {
                         if (line == ".") {
                             inData = false
+                            // A cut here queues nothing: the server never got to confirm.
+                            if (cut(END_OF_DATA)) break
                             delivered = body.toString()
-                            reply(canned("250", "2.0.0 queued as FAKE1"))
+                            // Scriptable like any command, so a test can make the acknowledgement
+                            // slow: the server queueing, signing and scanning the message is the
+                            // one wait a submission must survive.
+                            reply(respond(END_OF_DATA) ?: canned("250", "2.0.0 queued as FAKE1"))
                         } else {
                             body.append(line).append("\r\n")
                         }
                         continue
                     }
                     commands.add(line)
+                    if (cut(line)) break
                     val scripted = respond(line)
                     if (scripted != null) {
                         reply(scripted)
@@ -132,8 +205,26 @@ internal class FakeSmtpServer(
      */
     fun issued(): List<String> = commands.toList().filterNot { it.equals("QUIT", ignoreCase = true) }
 
+    /**
+     * Block until the served connection is finished. After a cut this is what makes [issued]
+     * race-free: the client may write one more command between the EOF and the exception surfacing,
+     * and a test that asserted before the server had read it would call that silence a pass.
+     *
+     * A join that merely EXPIRES would hand the test a list still being mutated, silently: fail.
+     */
+    fun awaitDone(timeoutMs: Long = 10_000) {
+        thread.join(timeoutMs)
+        check(!thread.isAlive) {
+            "the fake server was still serving after ${timeoutMs}ms — the assertions below would " +
+                "have read a list still being written; commands so far: ${commands.toList()}"
+        }
+    }
+
     override fun close() {
         runCatching { server.close() }
+        // The accepted socket too: closing the LISTENING socket leaves an established connection
+        // untouched, and the serving thread of a mute session is parked on a read of it.
+        runCatching { accepted?.close() }
         thread.interrupt()
     }
 
@@ -146,6 +237,18 @@ internal class FakeSmtpServer(
          */
         const val USER = "tester@example.org"
         const val PASSWORD = "correct-horse-battery-staple-correct-horse-battery-staple-0123456789"
+
+        /** [cutAfter] trigger for the server greeting, which no command of the client precedes. */
+        const val GREETING = "<greeting>"
+
+        /** [cutAfter] trigger for the reply to the dot that ends the DATA body. */
+        const val END_OF_DATA = "."
+
+        /** How long a cut connection keeps listening for a client that has not noticed yet. */
+        private const val QUIET_MS = 1_500
+
+        /** How long a mute server holds a connection open before letting go of it. */
+        private const val MUTE_HOLD_MS = 30_000
     }
 }
 

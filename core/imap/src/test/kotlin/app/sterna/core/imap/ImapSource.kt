@@ -54,6 +54,37 @@ internal object ImapSource {
         error("Unbalanced braces in $fileName.$functionName")
     }
 
+    /**
+     * The declaration of `fun [functionName]` in [fileName] — from the `fun` keyword to the closing
+     * parenthesis of its parameter list, trimmed line by line. Defaults live there and nowhere else,
+     * so a rule about a DEFAULT VALUE cannot be stated by [functionBody].
+     */
+    fun functionSignature(fileName: String, functionName: String): List<String> {
+        val text = source(fileName)
+        val declaration = declarationOf(text, fileName, functionName)
+        val close = matchingParen(text, declaration.range.last)
+        check(close > 0) { "Unbalanced parentheses in $fileName.$functionName" }
+        return text.substring(declaration.range.first, close + 1).lines().map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    private fun declarationOf(text: String, fileName: String, functionName: String): MatchResult =
+        Regex("""\bfun\s+(<[^>()]*>\s*)?$functionName\s*\(""").find(text)
+            ?: error("$fileName has no function named '$functionName' — did it get renamed?")
+
+    /** Index of the `)` that closes the `(` at [open], or -1. */
+    private fun matchingParen(text: String, open: Int): Int {
+        var depth = 0
+        var i = open
+        while (i < text.length) {
+            when (text[i]) {
+                '(' -> depth++
+                ')' -> if (--depth == 0) return i
+            }
+            i++
+        }
+        return -1
+    }
+
     /** [relative] resolved from the test's working directory (Gradle runs a module's tests with the
      *  module directory as CWD, so both the repo root and `core/imap` must work). */
     private fun locate(relative: String): File {
