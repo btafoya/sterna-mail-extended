@@ -187,6 +187,7 @@ import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.EmailListItem
 import app.sterna.ui.components.EmptyArt
 import app.sterna.ui.components.EmptyState
+import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.TernRefreshIndicator
 import app.sterna.ui.components.Monogram
 import app.sterna.ui.components.accountColorOf
@@ -1641,7 +1642,7 @@ fun InboxScreen(
                                     }
                                 }
                             }
-                        SearchDisplay.SPINNER -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        SearchDisplay.SPINNER -> LoadingRing(Modifier.align(Alignment.Center))
                         // Found nothing, but didn't get to the end (a leg failed, or its cap):
                         // that has NOT proven there is nothing. Saying "no results, try other
                         // words" would send the user rewording a query that never fully ran.
@@ -1724,7 +1725,7 @@ fun InboxScreen(
                     ui.refreshing -> Unit
                     // No tern for a paging refresh (it isn't the pull gesture's state), so here
                     // the centred indicator is the only thing saying anything, and it stays.
-                    refreshLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    refreshLoading -> LoadingRing(Modifier.align(Alignment.Center))
                     notice == RefreshNotice.OFFLINE -> PullableCenter {
                         EmptyState(
                             art = EmptyArt.OFFLINE,

@@ -16,7 +16,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
 import app.sterna.core.data.mail.SenderVolume
 import app.sterna.ui.components.ContactAvatar
+import app.sterna.ui.components.LoadingRing
 
 /**
  * "Mail by sender": for the current account, how many messages this phone holds from each
@@ -130,7 +130,7 @@ fun MailBySenderScreen(
 
             SenderScreenBody.LOADING ->
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    LoadingRing()
                 }
 
             SenderScreenBody.FAILED ->

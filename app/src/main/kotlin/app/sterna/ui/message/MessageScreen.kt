@@ -147,6 +147,7 @@ import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.inbox.mailboxDisplayName
 import app.sterna.ui.inbox.mailboxPathLabel
 import app.sterna.ui.components.Monogram
+import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.isOutgoingFolder
 import app.sterna.ui.rememberLeaveOnce
 import app.sterna.ui.sender.trashFilePath
@@ -435,7 +436,7 @@ private fun MessagePager(
                 if (entry == null) {
                     // Paged item for this page hasn't loaded yet (near the growing end). No
                     // toolbar here — the fixed one above stays in place.
-                    Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+                    Box(Modifier.fillMaxSize(), Alignment.Center) { LoadingRing() }
                 } else {
                     MessagePage(
                         emailId = entry.first,
@@ -589,7 +590,7 @@ private fun MessageLoadingScaffold(onBack: () -> Unit) {
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) {
-            CircularProgressIndicator()
+            LoadingRing()
         }
     }
 }
@@ -1093,7 +1094,7 @@ private fun MessageHeadersSheet(
                 is HeadersState.Loading -> Box(
                     Modifier.fillMaxWidth().padding(32.dp),
                     contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator() }
+                ) { LoadingRing() }
                 is HeadersState.Error -> Text(
                     stringResource(R.string.message_headers_error, state.message),
                     color = MaterialTheme.colorScheme.error,
@@ -1200,7 +1201,7 @@ private fun MessageContent(
 
     Box(Modifier.fillMaxSize()) {
         when (val s = state) {
-            is MessageState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+            is MessageState.Loading -> LoadingRing(Modifier.align(Alignment.Center))
             is MessageState.Error -> Column(
                 modifier = Modifier.align(Alignment.Center).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1467,7 +1468,7 @@ private fun ConversationBody(
                 Modifier.fillMaxWidth().heightIn(min = 80.dp).padding(24.dp).align(Alignment.Center),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                LoadingRing(Modifier.size(24.dp), strokeWidth = 2.dp)
             }
         }
         // No visible Reply/Forward bar here: it is rendered once, fixed, by MessagePager (#62),

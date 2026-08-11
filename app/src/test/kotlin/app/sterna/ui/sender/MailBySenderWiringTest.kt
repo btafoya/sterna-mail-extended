@@ -543,10 +543,18 @@ class MailBySenderWiringTest {
             "the screen must render `when (screenBody(state))` rather than re-deciding",
             "when (screenBody(state))" in code(SCREEN),
         )
-        assertTrue(
-            "the LOADING body must be a CircularProgressIndicator — the same thing the Filters " +
-                "screen shows while it reads. Branch was:\n${bodyBranch("LOADING")}",
-            "CircularProgressIndicator(" in bodyBranch("LOADING"),
+        // Whole lines, by equality, not a `contains`: a fragment check is blind to anything
+        // appended to the line it matches.
+        assertEquals(
+            "the LOADING body must be a centred LoadingRing — the same thing the Filters screen " +
+                "shows while it reads. Not a raw CircularProgressIndicator: with the system " +
+                "animations off, Material 3's indeterminate arc blinks around the circle (#63).",
+            listOf(
+                "Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {",
+                "LoadingRing()",
+                "}",
+            ),
+            bodyBranch("LOADING").lines().map { it.trim() }.filter { it.isNotEmpty() },
         )
         assertTrue(
             "the FAILED body must name the failure (settings_vacation_load_error) and offer the " +

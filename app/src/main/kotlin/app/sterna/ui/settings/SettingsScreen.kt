@@ -144,6 +144,7 @@ import app.sterna.ui.rememberMotionEnabled
 import app.sterna.R
 import app.sterna.ui.connect.ConnectScreen
 import app.sterna.ui.components.AppPasswordHelpLink
+import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.PendingImportAccountsSection
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.mail.OAuthProvider
@@ -706,7 +707,7 @@ private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit
             // filling the viewport, never an empty Box: the screen slides in opaque, and an empty
             // frame would show the bare window background for the length of the transition.
             Box(Modifier.fillMaxSize().padding(padding)) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
+                LoadingRing(Modifier.align(Alignment.Center))
             }
         } else {
             Column(
@@ -2414,7 +2415,7 @@ private fun VacationScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.loading -> LoadingRing(Modifier.align(Alignment.Center))
                 state.noAccount -> VacationNote(stringResource(R.string.settings_vacation_no_account))
                 !state.supported -> VacationNote(stringResource(R.string.settings_vacation_unsupported))
                 state.errorKind == VacationError.LOAD -> VacationNote(

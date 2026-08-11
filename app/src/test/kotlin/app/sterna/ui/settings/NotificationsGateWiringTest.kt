@@ -82,7 +82,7 @@ class NotificationsGateWiringTest {
                 "val state = notifSettings",
                 "if (state == null) {",
                 "Box(Modifier.fillMaxSize().padding(padding)) {",
-                "CircularProgressIndicator(Modifier.align(Alignment.Center))",
+                "LoadingRing(Modifier.align(Alignment.Center))",
                 "}",
                 "} else {",
                 "Column(",

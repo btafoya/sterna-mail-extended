@@ -17,7 +17,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +45,7 @@ import app.sterna.container
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.push.PushController
 import app.sterna.security.LockScreen
+import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.compose.ComposeScreen
 import app.sterna.ui.compose.IncognitoKeyboard
 import app.sterna.ui.connect.ConnectScreen
@@ -176,14 +176,14 @@ fun SternaApp(
     Box(Modifier.fillMaxSize()) {
         when (val s = state) {
             RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                CircularProgressIndicator()
+                LoadingRing()
             }
             // First genuine launch (no account yet): show the privacy welcome once, then the
             // connect flow. While the flag is still loading (null) show a brief spinner so we
             // neither flash the connect screen on first launch nor the welcome for a returning
             // (signed-out) user who has already seen it.
             RootState.NeedAccount -> when (hasSeenWelcome) {
-                null -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+                null -> Box(Modifier.fillMaxSize(), Alignment.Center) { LoadingRing() }
                 false -> WelcomeScreen(onDone = viewModel::markWelcomeSeen)
                 true -> ConnectScreen(onConnected = viewModel::refresh, firstRun = true)
             }

@@ -29,7 +29,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -84,6 +83,7 @@ import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.ui.components.EmailListItem
 import app.sterna.ui.components.EmptyArt
 import app.sterna.ui.components.EmptyState
+import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.accountColorOf
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -330,7 +330,7 @@ fun SearchScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.align(Alignment.Center),
                             )
-                            is SearchState.Searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                            is SearchState.Searching -> LoadingRing(Modifier.align(Alignment.Center))
                             is SearchState.Error -> Text(
                                 stringResource(R.string.search_failed, s.message),
                                 color = MaterialTheme.colorScheme.error,
@@ -364,7 +364,7 @@ fun SearchScreen(
                                 // Unreachable here (loading is always false: one pass, and Results
                                 // replaces Searching) — spelled out rather than left to an else, so
                                 // adding a case to the enum has to be answered here too.
-                                SearchDisplay.SPINNER -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                                SearchDisplay.SPINNER -> LoadingRing(Modifier.align(Alignment.Center))
                                 SearchDisplay.RESULTS -> LazyColumn(Modifier.fillMaxSize()) {
                                     items(s.emails, key = ::searchResultKey) { email ->
                                         // Which account a hit belongs to matters here more than anywhere:

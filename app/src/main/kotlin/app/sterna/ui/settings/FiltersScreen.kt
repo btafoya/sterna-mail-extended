@@ -47,6 +47,7 @@ import app.sterna.core.data.filter.RuleField
 import app.sterna.core.data.filter.RuleMatch
 import app.sterna.core.data.filter.foreignScriptNotice
 import app.sterna.core.data.filter.showsNoRulesNote
+import app.sterna.ui.components.LoadingRing
 
 /**
  * Server-side filter rules (JMAP Sieve) for the current account. Rules are
@@ -105,7 +106,7 @@ fun FiltersScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.loading -> LoadingRing(Modifier.align(Alignment.Center))
                 state.noAccount -> FiltersNote(stringResource(R.string.settings_vacation_no_account))
                 !state.supported -> FiltersNote(stringResource(R.string.settings_filters_unsupported))
                 state.errorKind == FiltersError.LOAD -> FiltersNote(

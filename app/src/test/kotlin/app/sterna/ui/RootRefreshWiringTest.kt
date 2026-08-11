@@ -62,10 +62,10 @@ class RootRefreshWiringTest {
                 "and the one message she is owed — nothing was deleted — is not on screen.",
             listOf(
                 "RootState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {",
-                "CircularProgressIndicator()",
+                "LoadingRing()",
                 "}",
                 "RootState.NeedAccount -> when (hasSeenWelcome) {",
-                "null -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }",
+                "null -> Box(Modifier.fillMaxSize(), Alignment.Center) { LoadingRing() }",
                 "false -> WelcomeScreen(onDone = viewModel::markWelcomeSeen)",
                 "true -> ConnectScreen(onConnected = viewModel::refresh, firstRun = true)",
                 "}",

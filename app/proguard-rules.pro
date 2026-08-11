@@ -75,3 +75,14 @@
 # IncognitoKeyboardKt$INCOGNITO_INTERCEPTOR$1 and a nested $1 of it. The rule above keeps the
 # facade and would have left those two to be merged, renamed or inlined on their own.
 -keep class app.sterna.ui.compose.IncognitoKeyboardKt$** { *; }
+
+# Same family again, pre-emptive (#63). LoadingRing is a small, non-inline @Composable whose body
+# is "read a setting, call one of two indicators" — the exact shape R8 inlined above, and it is now
+# the ONLY centred loading indicator on fifteen screens. Inlined away, a minified build would show
+# an empty screen wherever it used to say "loading".
+-keep class app.sterna.ui.components.LoadingRingKt { *; }
+# And its anonymous classes, same reason as IncognitoKeyboard above: the resting branch is a Box
+# whose content lambda and `progress = { rest }` compile to LoadingRingKt$LoadingRing$… — that
+# lambda IS the ring. The facade rule would leave them to be merged, renamed or inlined on their
+# own, and a minified build would then paint an empty screen on all fifteen loading states.
+-keep class app.sterna.ui.components.LoadingRingKt$** { *; }
