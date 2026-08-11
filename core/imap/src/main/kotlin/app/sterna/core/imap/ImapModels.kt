@@ -64,6 +64,16 @@ data class ImapMessage(
     val fromName: String?,
     val fromEmail: String?,
     val to: List<ImapAddress>,
+    /**
+     * Envelope `Reply-To` (index 4): the addresses the SENDER named as the place to answer.
+     *
+     * Empty when the header is absent, which is the common case and means "answer the From".
+     * When it is not empty it is not a preference: a list, a ticketing alias or a `no-reply@`
+     * sender said in the message itself that the From address is not read. Persisted like the
+     * recipients ([ImapMessage.to]) so an offline reply and the notification quick reply — both
+     * of which only ever see the cache row — address it too.
+     */
+    val replyTo: List<ImapAddress> = emptyList(),
     /** Epoch millis from the envelope date (0 if unparseable). */
     val dateMillis: Long,
     val seen: Boolean,

@@ -224,9 +224,12 @@ class JmapClient internal constructor(
                             put("path", "/ids")
                         }
                         putJsonArray("properties") {
+                            // `replyTo`: this page's rows are CACHED (`emailDao.upsertAll`), and
+                            // that upsert replaces the whole row — omitting it here would wipe the
+                            // Reply-To another fetch stored. See [EMAIL_BODY_PROPERTIES].
                             listOf(
                                 "id", "threadId", "subject", "preview",
-                                "receivedAt", "from", "to", "hasAttachment", "keywords",
+                                "receivedAt", "from", "replyTo", "to", "hasAttachment", "keywords",
                             ).forEach { add(it) }
                         }
                     }
@@ -575,9 +578,12 @@ class JmapClient internal constructor(
                             put("accountId", accountId)
                             putJsonArray("ids") { batch.forEach { add(it) } }
                             putJsonArray("properties") {
+                                // `replyTo`: the delta sync writes these rows straight into the
+                                // cache, and the `@Upsert` replaces the row whole — see
+                                // [EMAIL_BODY_PROPERTIES].
                                 listOf(
                                     "id", "threadId", "subject", "preview",
-                                    "receivedAt", "from", "to", "hasAttachment", "keywords",
+                                    "receivedAt", "from", "replyTo", "to", "hasAttachment", "keywords",
                                 ).forEach { add(it) }
                             }
                         }
@@ -1066,8 +1072,11 @@ class JmapClient internal constructor(
                             putJsonArray("ids") { batch.forEach { add(it) } }
                             putJsonArray("properties") {
                                 listOf(
+                                    // `replyTo`: thread members are cached too
+                                    // ([MailRepository.fetchThreadMembers]) — see
+                                    // [EMAIL_BODY_PROPERTIES] for why every such path must ask.
                                     "id", "threadId", "subject", "preview", "receivedAt",
-                                    "from", "to", "hasAttachment", "keywords", "mailboxIds",
+                                    "from", "replyTo", "to", "hasAttachment", "keywords", "mailboxIds",
                                 ).forEach { add(it) }
                             }
                         }
@@ -2449,10 +2458,30 @@ class JmapClient internal constructor(
          * and [getEmailsWithBody] (prefetching many). One list for the two, so a body served from
          * the cache can never be poorer than the same body fetched on open — the kind of
          * difference that shows up as a field that is there on some messages and not others.
+         *
+         * `replyTo` is here because this list feeds the BODY cache (`email_bodies`, which stores
+         * the whole serialised [Email]) and the live open — not the `emails` row. The three
+         * list-view property sets ask for it for the harder reason: `EmailDao.upsertAll` is an
+         * `@Upsert` and replaces the whole row, so a list fetch that omitted the property would
+         * ERASE what another path wrote, silently and only after the next sync. See
+         * [ReplyToOnTheWireTest], which names which paths write which table.
+         *
+         * ⛔ No fallback for a server that refuses it, deliberately: `replyTo` is a mandatory
+         * property of RFC 8621 §4.1.2, unlike the `header:` forms below. If one ever did refuse
+         * it, the whole `Email/get` would fail and no message would open — the pattern to copy is
+         * [withUnsubscribeHeaderFallback], and it would need its own per-URL memo.
+         *
+         * ⚠ Adding it narrowed an assumption that guard makes. [withUnsubscribeHeaderFallback]
+         * reads any property rejection on THIS payload as "the two unsubscribe headers", because
+         * they used to be the only optional thing in it. A server refusing `replyTo` would now be
+         * misread: the retry drops the headers, keeps `replyTo`, fails again, and the unsubscribe
+         * banner stays off for that server for the life of the process. Left as is — the message
+         * would not open at all in that case, which is the larger problem, and the property is
+         * mandatory. Recorded so the next reader does not have to rediscover it.
          */
         internal val EMAIL_BODY_PROPERTIES = listOf(
             "id", "blobId", "threadId", "subject", "preview", "receivedAt",
-            "from", "to", "cc", "bcc", "messageId", "inReplyTo", "references",
+            "from", "replyTo", "to", "cc", "bcc", "messageId", "inReplyTo", "references",
             "hasAttachment", "keywords",
             "htmlBody", "textBody", "attachments", "bodyValues",
         )

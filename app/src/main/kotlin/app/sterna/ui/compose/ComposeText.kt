@@ -924,19 +924,47 @@ internal fun htmlBodyWithSignature(
 // reply/reply-all can be addressed correctly even offline from the cached row of a mail that was
 // never opened (the quoted body is added separately, and skipped when the body isn't available).
 
-/** The lone recipient of a plain reply: the original's sender (its first From address). */
+/**
+ * Who an answer to [o] is addressed to, as a LIST: the original's `Reply-To` when it sets one —
+ * ALL of its addresses, in order — and only otherwise its sender (the first From address), as it
+ * has always been. `Reply-To` (RFC 5322 §3.6.2) is the sender naming another mailbox for answers:
+ * a mailing list, a `support@` behind a `no-reply@`, a ticketing alias. Answering the From instead
+ * writes to the address the sender deliberately set aside, often one nobody reads.
+ *
+ * ⛔ Never both: the From is precisely what a `Reply-To` displaces (K-9 and Thunderbird do the
+ * same). A `Reply-To` holding nothing but blanks is no `Reply-To`, and falls back to the From
+ * rather than leaving a reply with no recipient at all.
+ *
+ * A list, not a joined string, because `Reply-To` may carry several addresses and [replyAllRecipients]
+ * deduplicates entry by entry: a single "a@x, b@x" entry would count as ONE address there and slip
+ * past the case-insensitive dedup, putting an address already in To or Cc back in.
+ *
+ * Blanks dropped, duplicates collapsed case-insensitively, spelling kept as the original has it.
+ */
+internal fun replyRecipients(o: Email): List<String> {
+    val named = if (o.replyTo.any { it.email.isNotBlank() }) {
+        o.replyTo.map { it.email }
+    } else {
+        listOfNotNull(o.from.firstOrNull()?.email)
+    }
+    return named.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+}
+
+/** The recipient field of a plain reply: [replyRecipients], joined for the To field. */
 internal fun replyRecipient(o: Email): String =
-    o.from.firstOrNull()?.email.orEmpty()
+    replyRecipients(o).joinToString(", ")
 
 /**
- * The recipients of a reply-all: the sender plus everyone on the original's To and Cc, minus your
- * OWN addresses and blanks/duplicates, joined for the recipient field. [selves] is every address the
- * account can send as (login + all its identities), not just the login: an account with aliases used
- * to reply to its own other alias (B5). Compared case-insensitively, on the bare address.
+ * The recipients of a reply-all: whoever the reply is addressed to ([replyRecipients] — the
+ * `Reply-To` when there is one, the sender otherwise, never both) plus everyone on the original's
+ * To and Cc, minus your OWN addresses and blanks/duplicates, joined for the recipient field.
+ * [selves] is every address the account can send as (login + all its identities), not just the
+ * login: an account with aliases used to reply to its own other alias (B5). Compared
+ * case-insensitively, on the bare address.
  */
 internal fun replyAllRecipients(o: Email, selves: Collection<String>): String {
     val mine = selves.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
-    val all = (listOf(replyRecipient(o)) + o.to.map { it.email } + o.cc.map { it.email })
+    val all = (replyRecipients(o) + o.to.map { it.email } + o.cc.map { it.email })
         .map { it.trim() }
         .filter { it.isNotEmpty() && it.lowercase() !in mine }
         .distinctBy { it.lowercase() }

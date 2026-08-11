@@ -329,3 +329,28 @@ val MIGRATION_18_19 = object : Migration(18, 19) {
         db.execSQL(MAILBOX_UIDVALIDITY_CREATE_SQL)
     }
 }
+
+/**
+ * Additive 19→20: `emails` gains `replyToJson`, the message's `Reply-To:` addresses
+ * ([EmailRecipients], see [EmailEntity.replyToJson]).
+ *
+ * A sender that sets `Reply-To` is naming another mailbox to answer — a list, a `support@` behind
+ * a `no-reply@`, a ticketing alias. Answering the `From` instead posts the reply to an address the
+ * sender set aside, and it looks sent. The address therefore has to survive in the cache, so an
+ * offline reply and the notification's quick reply see it too.
+ *
+ * A plain `ALTER TABLE … ADD COLUMN`, on the model of [MIGRATION_16_17], layered on top rather
+ * than folded into a released migration (rewriting one in place fails Room's identity check on the
+ * next launch). Nullable with no default, so every existing row keeps its data and reads back as
+ * "no Reply-To" — the pre-v20 behaviour. No backfill: the header is not held locally, so an old
+ * row gains it at its next sync.
+ *
+ * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * `fallbackToDestructiveMigration()`, so an unhandled schema bump wipes the whole database —
+ * the outbox included, i.e. mail written and never sent.
+ */
+val MIGRATION_19_20 = object : Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `emails` ADD COLUMN `replyToJson` TEXT")
+    }
+}

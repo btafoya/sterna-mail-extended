@@ -72,6 +72,10 @@ internal fun Email.toEntity(accountId: String, mailboxId: String): EmailEntity {
         // what lands here is the message's real recipient set — empty included (a draft with no
         // addressee yet), which is exactly what the row should then show.
         recipientsJson = EmailRecipients.encode(to),
+        // Persisted since v20: where the sender says an answer must go when that is not the From
+        // (a list, a support@ behind a no-reply@). Empty for almost every message, which stores
+        // nothing and reads back as "answer the sender".
+        replyToJson = EmailRecipients.encode(replyTo),
     )
 }
 
@@ -89,6 +93,9 @@ internal fun EmailEntity.toEmail(): Email = Email(
         emptyList()
     },
     to = EmailRecipients.decode(recipientsJson),
+    // Persisted since v20: a row cached before the column existed, or a message with no
+    // Reply-To at all, is NULL and decodes to an empty list — "no instruction, answer the sender".
+    replyTo = EmailRecipients.decode(replyToJson),
     hasAttachment = hasAttachment,
     keywords = buildMap {
         if (seen) put("\$seen", true)

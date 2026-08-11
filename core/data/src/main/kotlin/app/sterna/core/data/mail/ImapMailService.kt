@@ -702,30 +702,6 @@ class ImapMailService(
     suspend fun fetchSource(credentials: AccountCredentials, mailboxId: String, uid: Long): String =
         onMailbox(credentials, mailboxId) { session, _ -> session.fetchSource(uid) }
 
-    private fun ImapMessage.toEntity(accountId: String, mailboxId: String): EmailEntity {
-        val id = emailId(accountId, mailboxId, uid)
-        return EmailEntity(
-            id = id,
-            accountId = accountId,
-            mailboxId = mailboxId,
-            threadId = null,
-            subject = subject,
-            preview = null,
-            receivedAt = if (dateMillis > 0) Instant.ofEpochMilli(dateMillis).toString() else null,
-            fromName = fromName,
-            fromEmail = fromEmail,
-            seen = seen,
-            flagged = flagged,
-            hasAttachment = hasAttachment,
-            sortKey = dateMillis,
-            // Envelope recipients, persisted since schema v17 so Sent/Drafts rows can show
-            // "To: …" from the cold cache (Codeberg #59/#63) — like the JMAP path in EmailMapper.
-            recipientsJson = EmailRecipients.encode(
-                to.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
-            ),
-        )
-    }
-
     private suspend fun config(endpoint: MailEndpoint, credentials: AccountCredentials) = MailServerConfig(
         host = endpoint.host,
         port = endpoint.port,
@@ -787,6 +763,52 @@ class ImapMailService(
             return if (parts.size >= 4) parts.subList(2, parts.size - 1).joinToString(":") else null
         }
     }
+}
+
+/**
+ * ⭐ The ONE place an IMAP message becomes a cache row — the row the list, the offline reply and
+ * the notification quick reply all read, and the only thing left of a message after process death.
+ *
+ * A file-level function rather than a private method, and for one reason: the repository path that
+ * uses it needs Room and an Android context, so nothing inside [ImapMailService] can be reached
+ * from a JVM test. WHICH envelope fields survive into the row is a decision — it was already
+ * possible to carry an address all the way to this line and drop it here (`replyToJson` did
+ * exactly that until this was extracted) — and a decision no test can execute is a decision
+ * nobody checks. It maps values only: no session, no I/O, nothing to mock.
+ *
+ * It does NOT go through [EmailMapper.toEntity]: that one starts from a JMAP [Email], which this
+ * side never has. The two therefore have to agree column by column, and this is the copy that a
+ * new column is forgotten in.
+ */
+internal fun ImapMessage.toEntity(accountId: String, mailboxId: String): EmailEntity {
+    val id = ImapMailService.emailId(accountId, mailboxId, uid)
+    return EmailEntity(
+        id = id,
+        accountId = accountId,
+        mailboxId = mailboxId,
+        threadId = null,
+        subject = subject,
+        preview = null,
+        receivedAt = if (dateMillis > 0) Instant.ofEpochMilli(dateMillis).toString() else null,
+        fromName = fromName,
+        fromEmail = fromEmail,
+        seen = seen,
+        flagged = flagged,
+        hasAttachment = hasAttachment,
+        sortKey = dateMillis,
+        // Envelope recipients, persisted since schema v17 so Sent/Drafts rows can show
+        // "To: …" from the cold cache (Codeberg #59/#63) — like the JMAP path in EmailMapper.
+        recipientsJson = EmailRecipients.encode(
+            to.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
+        ),
+        // Envelope Reply-To, same codec and same column shape as the recipients above (schema
+        // v20). Without this line the address stops at [ImapMessage] and the row keeps the
+        // pre-v20 answer — "reply to the From" — for every reader that only has the row: the
+        // list, an offline reply, and the notification quick reply.
+        replyToJson = EmailRecipients.encode(
+            replyTo.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
+        ),
+    )
 }
 
 /**

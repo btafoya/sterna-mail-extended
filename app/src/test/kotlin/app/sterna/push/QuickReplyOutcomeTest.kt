@@ -73,6 +73,36 @@ class QuickReplyOutcomeTest {
         )
     }
 
+    // --- A Reply-To on the cached row sends the quick reply where the sender asked ---
+    //
+    // Executed, against literals: the notification's Reply field is the one place the user cannot
+    // see the recipient before sending, so answering the set-aside From here is invisible.
+
+    @Test fun `a quick reply goes to the Reply-To when the sender set one`() {
+        val o = original.copy(replyTo = listOf(EmailAddress(email = "support@example.com")))
+        assertEquals(
+            QuickReplyOutcome.Send("support@example.com", "Re: Sprint notes", "on my way"),
+            quickReplyOutcome("on my way", o),
+        )
+    }
+
+    @Test fun `a quick reply without a Reply-To still goes to the sender`() {
+        assertEquals(
+            QuickReplyOutcome.Send("alice@example.com", "Re: Sprint notes", "on my way"),
+            quickReplyOutcome("on my way", original.copy(replyTo = emptyList())),
+        )
+    }
+
+    @Test fun `a Reply-To answers even when the message has no sender at all`() {
+        // Daemon mail with a Reply-To and no From: there IS somewhere to answer, so the text is
+        // queued rather than handed back.
+        val o = original.copy(from = emptyList(), replyTo = listOf(EmailAddress(email = "ops@example.com")))
+        assertEquals(
+            QuickReplyOutcome.Send("ops@example.com", "Re: Sprint notes", "ack"),
+            quickReplyOutcome("ack", o),
+        )
+    }
+
     // --- No recipient: the text comes back, and the notification must not be taken down ---
 
     @Test fun `an uncached message hands the text back`() {

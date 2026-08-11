@@ -669,6 +669,130 @@ class ComposeTextTest {
         )
     }
 
+    // --- Reply-To: the sender named another mailbox for answers, and it wins over the From ---
+    //
+    // Every expectation below is a literal, and the two functions are EXECUTED: inverting the
+    // shipped priority (From first, Reply-To second) or re-adding the From beside the Reply-To
+    // turns these red. The harm they hold: a reply that looks sent, addressed to the very mailbox
+    // the sender set aside — a `no-reply@`, a list's posting alias behind a bounce address.
+
+    /** The same original, with the sender pointing answers at a support address. */
+    private val originalWithReplyTo = originalToReply.copy(
+        replyTo = listOf(EmailAddress(name = "Support", email = "support@example.com")),
+    )
+
+    @Test fun replyGoesToTheReplyToNotTheSender() {
+        assertEquals(listOf("support@example.com"), replyRecipients(originalWithReplyTo))
+        assertEquals("support@example.com", replyRecipient(originalWithReplyTo))
+    }
+
+    @Test fun replyWithoutAReplyToStillGoesToTheSender() {
+        // Non-regression: an empty Reply-To (an IMAP row cached before v20, a mail without the
+        // header) addresses exactly as it did before.
+        assertEquals(listOf("alice@example.com"), replyRecipients(originalToReply))
+        assertEquals("alice@example.com", replyRecipient(originalToReply))
+    }
+
+    @Test fun replyToWithSeveralAddressesKeepsThemAllInOrder() {
+        val o = originalToReply.copy(
+            replyTo = listOf(
+                EmailAddress(email = "support@example.com"),
+                EmailAddress(email = "list@example.org"),
+            ),
+        )
+        assertEquals(listOf("support@example.com", "list@example.org"), replyRecipients(o))
+        assertEquals("support@example.com, list@example.org", replyRecipient(o))
+    }
+
+    @Test fun replyToRepeatedIsOneRecipient() {
+        // Same address twice, and once more in the From's spelling: one entry, case ignored.
+        val o = originalToReply.copy(
+            replyTo = listOf(
+                EmailAddress(email = "Alice@Example.com"),
+                EmailAddress(email = "alice@example.com"),
+            ),
+        )
+        assertEquals(listOf("Alice@Example.com"), replyRecipients(o))
+        assertEquals("Alice@Example.com", replyRecipient(o))
+    }
+
+    @Test fun replyToEqualToTheSenderAppearsOnce() {
+        val o = originalToReply.copy(replyTo = listOf(EmailAddress(email = "ALICE@example.com")))
+        assertEquals("ALICE@example.com", replyRecipient(o))
+        assertEquals(
+            "ALICE@example.com, bob@example.com, carol@example.com",
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyToOfBlanksIsNoReplyToAtAll() {
+        // A header that parsed to nothing must not leave the reply with no recipient: the From
+        // takes over, exactly as when the header is absent.
+        val o = originalToReply.copy(replyTo = listOf(EmailAddress(email = "   ")))
+        assertEquals(listOf("alice@example.com"), replyRecipients(o))
+        assertEquals("alice@example.com", replyRecipient(o))
+    }
+
+    @Test fun replyToBlanksAreDroppedBesideARealAddress() {
+        val o = originalToReply.copy(
+            replyTo = listOf(EmailAddress(email = " "), EmailAddress(email = " support@example.com ")),
+        )
+        assertEquals(listOf("support@example.com"), replyRecipients(o))
+    }
+
+    @Test fun replyAllUsesTheReplyToAndDropsTheSender() {
+        // ⛔ alice@example.com — the From — must NOT be here: the sender displaced it.
+        assertEquals(
+            "support@example.com, bob@example.com, carol@example.com",
+            replyAllRecipients(originalWithReplyTo, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllWithoutAReplyToIsExactlyWhatItWas() {
+        assertEquals(
+            "alice@example.com, bob@example.com, carol@example.com",
+            replyAllRecipients(originalToReply, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllWithSeveralReplyToAddressesKeepsThemSeparate() {
+        val o = originalToReply.copy(
+            replyTo = listOf(
+                EmailAddress(email = "support@example.com"),
+                EmailAddress(email = "list@example.org"),
+            ),
+        )
+        assertEquals(
+            "support@example.com, list@example.org, bob@example.com, carol@example.com",
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllCollapsesAReplyToAlreadyOnTheOriginal() {
+        // The list's posting address is both the Reply-To and a To/Cc entry: one occurrence. Joined
+        // into one string it would slip past the dedup and be written twice.
+        val o = originalToReply.copy(
+            replyTo = listOf(
+                EmailAddress(email = "BOB@example.com"),
+                EmailAddress(email = "Carol@Example.com"),
+            ),
+        )
+        assertEquals(
+            "BOB@example.com, Carol@Example.com",
+            replyAllRecipients(o, setOf("me@example.com")),
+        )
+    }
+
+    @Test fun replyAllDropsAReplyToThatIsOneOfYourOwnAddresses() {
+        // Your own alias named as the Reply-To is filtered like any other self address (B5) — and
+        // the From does not come back to fill the hole.
+        val o = originalToReply.copy(replyTo = listOf(EmailAddress(email = "Alias@Example.com")))
+        assertEquals(
+            "bob@example.com, carol@example.com",
+            replyAllRecipients(o, setOf("me@example.com", "alias@example.com")),
+        )
+    }
+
     // --- Which of your addresses received the mail, and the identity it makes you reply as (#81) ---
 
     private fun identity(address: String, name: String = "") =

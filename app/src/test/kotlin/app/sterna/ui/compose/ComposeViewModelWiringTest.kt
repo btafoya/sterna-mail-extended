@@ -1,5 +1,6 @@
 package app.sterna.ui.compose
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -93,13 +94,44 @@ class ComposeViewModelWiringTest {
         )
     }
 
+    /**
+     * ⭐ Who a reply is addressed to is decided in ONE place, [replyRecipient] /
+     * [replyAllRecipients], and this class must keep asking it.
+     *
+     * The notification path is pinned this way already (`QuickReplyWiringTest`), the composer's
+     * two were not — and they are the ones the button in the reader goes through. Inlining
+     * `original.from.firstOrNull()?.email.orEmpty()` back here is a one-line edit that reads as a
+     * harmless simplification, leaves every pure-function test green, and quietly restores the
+     * defect: a sender who set `Reply-To` gets the answer at the address they set aside.
+     *
+     * The WHOLE line is compared, never `contains`: a mutation that lengthens it — adding the
+     * From beside the Reply-To, say — slips straight through a substring check.
+     */
+    @Test fun `the composer asks the one function who a reply answers`() {
+        val body = bodyOf("buildPrefill")
+        assertEquals(
+            "buildPrefill must address replies through ComposeText's replyRecipient/" +
+                "replyAllRecipients and nothing else. Reading `original.from` here is the defect: " +
+                "Reply-To names where the sender wants the answer, and answering the From posts " +
+                "it to an address they deliberately set aside. Body was:\n$body",
+            listOf(
+                "to = replyAllRecipients(original, selves),",
+                "to = replyRecipient(original),",
+            ),
+            body.lines().map { it.trim() }.filter { it.startsWith("to = ") && it != "to = \"\"," },
+        )
+    }
+
     // -- reading the source ---------------------------------------------------------------------
 
     /** The body of `fun prepare(`, braces balanced, comments cut. */
-    private fun prepareBody(): String {
+    private fun prepareBody(): String = bodyOf("prepare")
+
+    /** The body of `fun [name](` in `ComposeViewModel.kt`, braces balanced, comments cut. */
+    private fun bodyOf(name: String): String {
         val code = codeLines(COMPOSE_VIEW_MODEL).joinToString("\n")
-        val at = code.indexOf("fun prepare(")
-        check(at >= 0) { "ComposeViewModel.kt declares no 'prepare(' — did it get renamed?" }
+        val at = code.indexOf("fun $name(")
+        check(at >= 0) { "ComposeViewModel.kt declares no '$name(' — did it get renamed?" }
         val start = code.indexOf('{', code.indexOf(')', at)) + 1
         var depth = 1
         var i = start

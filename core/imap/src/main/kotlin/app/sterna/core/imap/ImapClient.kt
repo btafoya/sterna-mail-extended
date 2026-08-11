@@ -913,6 +913,21 @@ class ImapSession(private var socket: Socket) : Closeable {
             val email = if (box != null && host != null) "$box@$host" else null
             if (email == null && name == null) null else ImapAddress(name = name, email = email)
         }
+        // Envelope "reply-to" (index 4): where the SENDER said to answer. Read exactly like the
+        // recipients above, decodeHeaderBytes included — this address is not displayed and
+        // forgotten, it is the one a reply is addressed to, so a mangled one sends mail nowhere.
+        //
+        // ⛔ Index 4, between sender (3) and to (5). Taking its neighbour would answer the copied
+        // parties instead, and the address the sender designated would hear nothing.
+        @Suppress("UNCHECKED_CAST")
+        val replyToAddrs = ((envelope?.getOrNull(4) as? List<Any?>).orEmpty()).mapNotNull { entry ->
+            val addr = entry as? List<Any?> ?: return@mapNotNull null
+            val name = decodeWords(addr.getOrNull(0) as? String)
+            val box = (addr.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
+            val host = (addr.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
+            val email = if (box != null && host != null) "$box@$host" else null
+            if (email == null && name == null) null else ImapAddress(name = name, email = email)
+        }
         val messageId = envelope?.getOrNull(9) as? String
         val inReplyTo = envelope?.getOrNull(8) as? String
 
@@ -922,6 +937,7 @@ class ImapSession(private var socket: Socket) : Closeable {
             fromName = fromName,
             fromEmail = fromEmail,
             to = toAddrs,
+            replyTo = replyToAddrs,
             dateMillis = dateMillis,
             seen = flags.any { it.equals("\\Seen", true) },
             flagged = flags.any { it.equals("\\Flagged", true) },

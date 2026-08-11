@@ -108,10 +108,20 @@ internal fun fetchResponse(
         } else {
             """("text" "plain" ("charset" "utf-8") NIL NIL "7bit" 12 1)"""
         }
+        // DISTINCT addresses in five of the envelope's six address slots — from (2), sender (3),
+        // reply-to (4), to (5) and cc (6); only bcc (7) stays NIL, as a server sends it. They used
+        // to be `from` and `to` with NIL either side, and that is a fixture no assertion can be
+        // wrong against: reading index 4, index 6 or nothing at all all produced the same empty
+        // list. A reader that takes the wrong slot — above OR below — now returns somebody else's
+        // address, and slot 3 is the one that matters: on a mailing list it holds the bounce
+        // address, which is where a fallback would quietly send every reply.
         "* $uid FETCH (UID $uid FLAGS ($flagList) INTERNALDATE \"01-Jun-2026 10:00:00 +0000\" " +
             "ENVELOPE (\"Mon, 1 Jun 2026 10:00:0${uid % 10} +0000\" \"Message $uid\" " +
-            "((\"Alex Rivera\" NIL \"alex.rivera\" \"masto.top\")) NIL NIL " +
-            "((\"Team\" NIL \"team\" \"masto.top\")) NIL NIL NIL \"<$uid@masto.top>\") " +
+            "((\"Alex Rivera\" NIL \"alex.rivera\" \"masto.top\")) " +
+            "((\"Bounces\" NIL \"bounces\" \"masto.top\")) " +
+            "((\"Support\" NIL \"support\" \"masto.top\")) " +
+            "((\"Team\" NIL \"team\" \"masto.top\")) " +
+            "((\"Copy Cat\" NIL \"copy\" \"masto.top\")) NIL NIL \"<$uid@masto.top>\") " +
             "BODYSTRUCTURE $structure)\r\n"
     }
     return body + "$tag OK fetch completed\r\n"

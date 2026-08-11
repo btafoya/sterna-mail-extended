@@ -46,4 +46,18 @@ data class EmailEntity(
      * backfill — the addresses aren't held locally, so old rows gain them at their next sync.
      */
     val recipientsJson: String? = null,
+    /**
+     * The message's `Reply-To:` addresses, JSON-encoded by [EmailRecipients] (added in schema v20).
+     *
+     * When a sender sets `Reply-To` it is saying "answer somewhere else than my `From`" — a
+     * mailing list, a `no-reply@` doubled by a `support@`, a ticketing alias. The address has to
+     * survive in the cache, otherwise a reply composed offline, or from the notification's quick
+     * reply, has nothing but the sender to fall back on and goes to a mailbox nobody reads.
+     *
+     * Null on rows cached before v20 and on the (vast) majority of messages, which carry no
+     * `Reply-To` at all: both decode to an empty list, i.e. "no instruction, answer the sender".
+     * There is no backfill — the header is not held locally, so an old row gains it at its next
+     * sync, exactly as [recipientsJson] did in v17.
+     */
+    val replyToJson: String? = null,
 )

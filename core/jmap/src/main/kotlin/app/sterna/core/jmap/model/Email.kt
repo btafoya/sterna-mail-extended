@@ -79,6 +79,20 @@ data class Email(
     val preview: String? = null,
     val receivedAt: String? = null,
     val from: List<EmailAddress> = emptyList(),
+    /**
+     * `Reply-To` (RFC 5322 §3.6.2) — where the sender says an answer must go, when that is not
+     * [from]: a mailing list, a `no-reply@` doubled by a `support@`, a ticketing or forwarding
+     * alias. Ignoring it means answering an address the sender deliberately set aside, often a
+     * mailbox nobody reads, while the reply looks sent.
+     *
+     * Asked of the server by every fetch whose result is cached (`JmapClient`'s
+     * `EMAIL_BODY_PROPERTIES` and the three list property sets — the cache's `@Upsert` replaces
+     * the whole row, so a path that omits it erases what the others wrote). Empty by default and
+     * `DefaultJson` is `ignoreUnknownKeys = true`, so a response without the property — an IMAP
+     * account, or a message that carries no `Reply-To` — simply leaves the list empty instead of
+     * failing to deserialise.
+     */
+    val replyTo: List<EmailAddress> = emptyList(),
     val to: List<EmailAddress> = emptyList(),
     val cc: List<EmailAddress> = emptyList(),
     /** Populated by the single-message fetch only (needed to reopen a draft for editing, #63). */
