@@ -193,6 +193,7 @@ import app.sterna.ui.components.accountColorOf
 import app.sterna.ui.components.verticalScrollbar
 import app.sterna.ui.isOutgoingFolder
 import app.sterna.ui.rememberMotionEnabled
+import app.sterna.ui.showsDraftBadge
 import app.sterna.ui.showsRecipients
 import app.sterna.ui.showsRecipientsInThread
 import app.sterna.ui.search.SearchCount
@@ -1395,6 +1396,20 @@ fun InboxScreen(
                         unified = ui.unified,
                         selfAuthored = isSelfAuthored(email.from, sendAsIdentities(email, accounts)),
                     ),
+                    // "(Draft)" by the keyword OR by the row's own folder. The keyword alone left
+                    // the Drafts folder unmarked after the app was killed (it is memoised, not
+                    // stored, and the sync that follows is a delta), and unmarked forever on IMAP.
+                    // The search list of this very screen is served by this same renderer, and it
+                    // already showed the chip on the keyword alone. So its branch keeps exactly
+                    // that: whether a search hit should ALSO be chipped by its folder is another
+                    // decision, out of this branch's scope — but a plain `false` here would REMOVE
+                    // a chip that was there, which is not "unchanged".
+                    showDraftBadge = if (fromSearch) email.isDraft else showsDraftBadge(
+                        isDraft = email.isDraft,
+                        accountId = email.accountId,
+                        mailboxId = email.mailboxId,
+                        roles = folderRoles,
+                    ),
                     // A collapsed conversation acts on the whole thread; a flat row on its one message.
                     onSwipe = { action ->
                         if (expandable) performThreadSwipe(action, email, viewModel, ui)
@@ -1483,6 +1498,16 @@ fun InboxScreen(
                                 mailboxId = child.mailboxId,
                                 roles = folderRoles,
                                 selfAuthored = isSelfAuthored(child.from, sendAsIdentities(child, accounts)),
+                            )
+                        },
+                        // Same shape, same reason: a child is judged by the folder IT is filed in,
+                        // and the role map only exists in this scope.
+                        showDraftBadgeFor = { child ->
+                            showsDraftBadge(
+                                isDraft = child.isDraft,
+                                accountId = child.accountId,
+                                mailboxId = child.mailboxId,
+                                roles = folderRoles,
                             )
                         },
                         highlightId = highlightId,
@@ -1843,6 +1868,9 @@ private fun SwipeableEmailRow(
     unarchiveContext: Boolean,
     trashContext: Boolean,
     showRecipients: Boolean,
+    /** No default: both call sites hold the folder-role map and must answer with it, or a row
+     *  loses its "(Draft)" after process death and never has one on IMAP. */
+    showDraftBadge: Boolean,
     onSwipe: (SwipeAction) -> Unit,
     onClick: () -> Unit,
     // Nullable so inline conversation children can omit long-press selection and the star.
@@ -2177,6 +2205,7 @@ private fun SwipeableEmailRow(
                 highlighted = highlighted,
                 onHighlightShown = onHighlightShown,
                 showRecipients = showRecipients,
+                showDraftBadge = showDraftBadge,
             )
         }
     }
@@ -2375,6 +2404,9 @@ private fun ThreadChildren(
     trashContext: Boolean,
     /** Decided per child so a self reply in an incoming conversation shows "To: …" (Codeberg #69). */
     showRecipientsFor: (Email) -> Boolean,
+    /** Decided per child too: the "(Draft)" chip reads the child's own folder, not the one on
+     *  screen — an unfolded conversation spans the viewed folder(s) plus Sent. */
+    showDraftBadgeFor: (Email) -> Boolean,
     highlightId: String?,
     selectionActive: Boolean,
     selectedKeys: Set<EmailKey>,
@@ -2410,6 +2442,7 @@ private fun ThreadChildren(
                             unarchiveContext = unarchiveContext,
                             trashContext = trashContext,
                             showRecipients = showRecipientsFor(child),
+                            showDraftBadge = showDraftBadgeFor(child),
                             onSwipe = { action -> onSwipeChild(action, child) },
                             // Children join multi-select like top-level rows: long-press enters
                             // selection on this one message, a tap in selection mode toggles it.

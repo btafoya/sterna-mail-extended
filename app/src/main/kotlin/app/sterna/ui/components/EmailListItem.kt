@@ -183,6 +183,11 @@ fun EmailListItem(
     // instead (Codeberg #59). Falls back to the sender while a cached row carries no
     // recipients (e.g. offline before the folder's first refresh).
     showRecipients: Boolean = false,
+    // Whether to mark the row "(Draft)". The `$draft` keyword is kept in memory only, so it is
+    // gone after process death and never set at all on IMAP; the caller that holds the folder-role
+    // map answers with the message's own folder as well (see showsDraftBadge). The default is the
+    // keyword alone — exactly today's behaviour for the call site that has no role map (search).
+    showDraftBadge: Boolean = email.isDraft,
 ) {
     val senderName = email.from.firstOrNull()?.display() ?: stringResource(R.string.message_unknown_sender)
     val recipient = if (showRecipients) email.to.firstOrNull() else null
@@ -285,7 +290,7 @@ fun EmailListItem(
                 )
                 // A trashed draft now shows its recipient like a sent mail (#69, 1.3.11), so mark
                 // it "(Draft)" wherever it surfaces (Trash especially) to keep the two apart.
-                if (email.isDraft) {
+                if (showDraftBadge) {
                     Spacer(Modifier.width(6.dp))
                     DraftLabel(fill = chipBackground)
                 }

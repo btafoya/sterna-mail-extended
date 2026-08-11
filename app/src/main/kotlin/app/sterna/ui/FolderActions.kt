@@ -102,6 +102,38 @@ internal fun showsRecipientsInThread(
 )
 
 /**
+ * Whether a list row carries the "(Draft)" chip — two terms, because one of them is not always
+ * there and the other is not always enough.
+ *
+ * [isDraft] is the `$draft` keyword. It answers for a draft that has LEFT the Drafts folder — one
+ * dragged to the Trash, which since 1.3.11 reads "To: …" like a sent mail and would otherwise be
+ * indistinguishable from one (#69). But the keyword is not in the row schema: it is remembered in
+ * memory, and only for rows a live fetch has just mapped. Kill the process and it is gone, and the
+ * sync that follows resumes from its saved cursor, so an unchanged row is never re-mapped and
+ * pulling to refresh brings nothing back. On the IMAP side it is never recorded at all — those rows
+ * are built without going through the mapper.
+ *
+ * The message's OWN folder is what covers both holes: it is cached, it survives process death, and
+ * it is the same on IMAP as on JMAP. So a row sitting in a folder of role `drafts` says so
+ * immediately, over the whole cache, with no resynchronisation — which is the only reason the chip
+ * exists on an IMAP account at all.
+ *
+ * Resolved through [messageFolderRole], i.e. account-qualified (#31/#121): servers number folders
+ * per account, and a bare folder id would borrow a sibling account's role and chip its Inbox.
+ * Trimmed and lower-cased like every role test in this file — the JMAP side hands the role through
+ * as the server spells it, so a server answering `"Drafts"` would leave the defect untouched.
+ *
+ * A folder with no known role — not synced yet, no account or no folder on the row — falls to the
+ * keyword alone, which is exactly the behaviour that was there before.
+ */
+internal fun showsDraftBadge(
+    isDraft: Boolean,
+    accountId: String?,
+    mailboxId: String?,
+    roles: Map<Pair<String, String>, String>,
+): Boolean = isDraft || messageFolderRole(accountId, mailboxId, roles)?.trim()?.lowercase() == "drafts"
+
+/**
  * The role of the folder a message is actually filed in, or null when that cannot be said: no
  * account on the row, no folder on the row, or a folder the cache does not know a role for.
  * Account-qualified, because servers number folders per account (issue #31/#121) and a bare

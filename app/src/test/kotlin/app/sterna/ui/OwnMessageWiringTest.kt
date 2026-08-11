@@ -21,6 +21,10 @@ import java.io.File
  * The rules pin arguments, not just names: `showsRecipients(role, unified = false, ...)` written
  * on the list's top-level row would put the unified inbox — the screen the app opens on — straight
  * back where the report found it.
+ *
+ * The "(Draft)" chip is wired the same way, from the same rows, through the same folder-role map,
+ * and is pinned here rather than in a file of its own: what would be copied over there is the
+ * source parser below, not the rules, and two copies of it drift.
  */
 class OwnMessageWiringTest {
 
@@ -130,19 +134,127 @@ class OwnMessageWiringTest {
         )
     }
 
+    // -- the "(Draft)" chip: the same two rows, the same role map -------------------------------
+
+    @Test fun `the list's top-level row asks for the draft chip through the shared function`() {
+        val body = body(INBOX_SCREEN, "emailRow")
+        assertEquals(
+            "showsDraftBadge must be called exactly twice in the row renderer: once for the " +
+                "top-level row, once for the children of an unfolded conversation. One call is a " +
+                "surface left showing no '(Draft)' after a restart, or none in an IMAP account.",
+            2, Regex("""showsDraftBadge\(""").findAll(body).count(),
+        )
+        assertEquals(
+            "the top-level row's showDraftBadge must be exactly this, whole — TWO branches, and " +
+                "both of them load-bearing in opposite directions. The search branch keeps the " +
+                "keyword alone, which is what this renderer already did for the Inbox's own " +
+                "search list before this branch existed: a plain 'false' there REMOVES a chip " +
+                "main was showing. The other branch must keep the showsDraftBadge call, or the " +
+                "Drafts folder falls silent after a force-stop and never says '(Draft)' at all " +
+                "on IMAP.",
+            "showDraftBadge = if (fromSearch) email.isDraft else showsDraftBadge( " +
+                "isDraft = email.isDraft, accountId = email.accountId, " +
+                "mailboxId = email.mailboxId, roles = folderRoles, )",
+            namedArgument(body, SHOW_DRAFT_BADGE).replace(Regex("""\s+"""), " ").trim(),
+        )
+        assertEquals(
+            "the top-level row must hand the decision exactly these arguments, whole: the row's " +
+                "OWN keyword, and the row's OWN account and folder. 'ui.selectedMailboxId' here " +
+                "gives the unified list no chip at all (it selects no folder) and elsewhere " +
+                "decides on the folder next door — the cross-account confusion of #31.",
+            listOf(
+                "isDraft = email.isDraft",
+                "accountId = email.accountId",
+                "mailboxId = email.mailboxId",
+                "roles = folderRoles",
+            ),
+            arguments(callArguments(body, "showsDraftBadge").first()),
+        )
+    }
+
+    @Test fun `the children of an unfolded conversation ask on their own folder`() {
+        val body = body(INBOX_SCREEN, "emailRow")
+        val call = callArguments(body, "showsDraftBadge").lastOrNull()
+        assertEquals(
+            "a child row must be judged by the folder IT is filed in, not by the folder on screen: " +
+                "an unfolded conversation spans the viewed folder(s) plus Sent, so a draft child " +
+                "unfolded from the Inbox is the case that goes wrong. Arguments were:\n$call",
+            listOf(
+                "isDraft = child.isDraft",
+                "accountId = child.accountId",
+                "mailboxId = child.mailboxId",
+                "roles = folderRoles",
+            ),
+            call?.let { arguments(it) } ?: emptyList<String>(),
+        )
+        assertEquals(
+            "ThreadChildren must pass each child's own answer down to the row: " +
+                "'showDraftBadge = showDraftBadgeFor(child),'. A constant there is every child of " +
+                "every unfolded conversation losing (or gaining) its '(Draft)' at once.",
+            1,
+            body(INBOX_SCREEN, "ThreadChildren").lines()
+                .count { it.trim() == "showDraftBadge = showDraftBadgeFor(child)," },
+        )
+    }
+
+    @Test fun `the swipeable row hands the answer on to the row it draws`() {
+        // The link nothing else holds: EmailListItem's parameter DEFAULTS to the keyword, so
+        // deleting this one line compiles, leaves every behaviour test green (the pure function is
+        // still right) and every other rule here green (none of them reads this body) — while
+        // undoing the whole fix, top-level rows and unfolded children at once. On screen that is
+        // the report exactly as filed: no '(Draft)' in the Drafts folder after the app is killed,
+        // and none ever on an IMAP account.
+        assertEquals(
+            "SwipeableEmailRow must pass 'showDraftBadge = showDraftBadge,' on to EmailListItem, " +
+                "on one line and exactly once. Without it EmailListItem falls back to its default " +
+                "— the '\$draft' keyword alone — and the fix is silently undone everywhere.",
+            1,
+            body(INBOX_SCREEN, "SwipeableEmailRow").lines()
+                .count { it.trim() == "showDraftBadge = showDraftBadge," },
+        )
+    }
+
+    @Test fun `the row draws the chip from what it was told, not from the keyword`() {
+        val lines = code(EMAIL_LIST_ITEM).lines().map { it.trim() }
+        assertEquals(
+            "EmailListItem must gate the '(Draft)' chip on 'if (showDraftBadge) {'. Left as " +
+                "'if (email.isDraft) {' the whole wiring above is dead code and the chip still " +
+                "disappears from the Drafts folder after a force-stop.",
+            1, lines.count { it == "if (showDraftBadge) {" },
+        )
+        assertEquals(
+            "no row may go back to testing the keyword itself: that is the flag that does not " +
+                "survive process death and does not exist on IMAP.",
+            0, lines.count { it == "if (email.isDraft) {" },
+        )
+        assertEquals(
+            "the parameter must default to 'showDraftBadge: Boolean = email.isDraft' — the search " +
+                "results render this row with no folder-role map in hand, and the default is what " +
+                "leaves them exactly as they are today.",
+            1, lines.count { it == "showDraftBadge: Boolean = email.isDraft," },
+        )
+    }
+
     // -- reading the sources --------------------------------------------------------------------
 
     /** The `showRecipients = …` argument of the shared row renderer, up to the comma that ends it
      *  (parentheses balanced), found by name rather than by position among the row's arguments. */
     private fun showRecipientsArgument(): String {
         val body = body(INBOX_SCREEN, "emailRow")
-        val at = body.indexOf(SHOW_RECIPIENTS)
         assertTrue(
             "the shared row renderer must pass a showRecipients argument at all — without one the " +
                 "list never shows who a message went to (#59). Body was:\n$body",
-            at >= 0,
+            body.indexOf(SHOW_RECIPIENTS) >= 0,
         )
-        var i = at + SHOW_RECIPIENTS.length
+        return namedArgument(body, SHOW_RECIPIENTS)
+    }
+
+    /** The `<name> …` argument of a call in [body], from [name] up to the comma that ends the
+     *  argument (parentheses balanced) or the end of the text. */
+    private fun namedArgument(body: String, name: String): String {
+        val at = body.indexOf(name)
+        check(at >= 0) { "no '$name' argument in:\n$body" }
+        var i = at + name.length
         var depth = 0
         while (i < body.length) {
             when (body[i]) {
@@ -256,11 +368,13 @@ class OwnMessageWiringTest {
 
     companion object {
         private const val SHOW_RECIPIENTS = "showRecipients ="
+        private const val SHOW_DRAFT_BADGE = "showDraftBadge ="
 
         private const val APP_SOURCES = "app/src/main/kotlin"
         private const val INBOX_SCREEN_PATH = "$APP_SOURCES/app/sterna/ui/inbox/InboxScreen.kt"
         private const val MESSAGE_VIEW_MODEL_PATH = "$APP_SOURCES/app/sterna/ui/message/MessageViewModel.kt"
         private const val FOLDER_ACTIONS_PATH = "$APP_SOURCES/app/sterna/ui/FolderActions.kt"
+        private const val EMAIL_LIST_ITEM_PATH = "$APP_SOURCES/app/sterna/ui/components/EmailListItem.kt"
 
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
@@ -274,5 +388,6 @@ class OwnMessageWiringTest {
         private val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
         private val MESSAGE_VIEW_MODEL: File by lazy { File(root, MESSAGE_VIEW_MODEL_PATH) }
         private val FOLDER_ACTIONS: File by lazy { File(root, FOLDER_ACTIONS_PATH) }
+        private val EMAIL_LIST_ITEM: File by lazy { File(root, EMAIL_LIST_ITEM_PATH) }
     }
 }
