@@ -698,6 +698,25 @@ class ImapMailService(
             session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId)
         }
 
+    /**
+     * The cc+bcc addresses of one message, straight off the envelope — `null` when the message is
+     * not there (nothing to read) rather than an empty set, and `null` too when an envelope entry
+     * is there but no address can be got out of it ([copiedAddressesOrNull]).
+     *
+     * Read from the SERVER on purpose, never from the cache: the cache row has no cc/bcc column,
+     * so on IMAP it answers "no copied parties" both for a draft that has none and for one whose
+     * Cc was never loaded. The one caller, the draft save, is deciding whether to destroy a
+     * server copy, and those two answers must not look alike.
+     */
+    suspend fun ccAndBccOf(credentials: AccountCredentials, mailboxId: String, uid: Long): Set<String>? {
+        // Block body, not an expression one, so DraftAddressingWiringTest can read this body: an
+        // expression body has no braces of its own and the lookup would hand back the lambda's.
+        return onMailbox(credentials, mailboxId) { session, _ ->
+            val message = session.fetchByUid(uid) ?: return@onMailbox null
+            copiedAddressesOrNull(message.cc + message.bcc)
+        }
+    }
+
     /** Raw RFC822 source of a message (caller parses out the body/attachments). */
     suspend fun fetchSource(credentials: AccountCredentials, mailboxId: String, uid: Long): String =
         onMailbox(credentials, mailboxId) { session, _ -> session.fetchSource(uid) }

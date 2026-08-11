@@ -5143,8 +5143,9 @@ class MailRepository(
      * Save a draft, carrying [attachments] (the chips compose shows) into it so a re-saved draft
      * keeps its files. With [replacesEmailId] set (re-saving an opened draft, #63) the old server
      * draft is destroyed once the new one is safely created, so saving never duplicates — but
-     * ONLY when the new draft reproduced the old one's content: every attachment made it in and
-     * [bodyIsLossy] is false. Otherwise the original survives and the caller is told
+     * ONLY when the new draft reproduced the old one's content: every attachment made it in,
+     * [bodyIsLossy] is false, and the addressing it was sent to is provably still there.
+     * Otherwise the original survives and the caller is told
      * ([DraftSaveOutcome.ORIGINAL_KEPT]), because losing attachments or an HTML body the user was
      * just shown is irreversible while a duplicate is not. The destroy stays best-effort: a
      * failure leaves a stale copy rather than failing the save.
@@ -5179,9 +5180,31 @@ class MailRepository(
                     fromName = fromName, fromEmail = fromEmail, cc = ccTrimmed, bcc = bccTrimmed,
                 ).copy(attachments = parts),
             )
+            // What the copy about to be destroyed was addressed to, read back from the server —
+            // the composer cannot vouch for it here. Reopening an IMAP draft rebuilds it from the
+            // cache row, which has no cc/bcc column at all: a draft whose Cc was never displayed
+            // and one that has no Cc reach this line identically, both with an empty Cc field.
+            // Unknown (a failed read) is not empty, and it forbids the destroy.
+            //
+            // ⛔ Only the Cc counts as proof, never the Bcc. OutgoingMime.build writes `From:`,
+            // `To:` and `Cc:` and no `Bcc:` at all — a Bcc only ever reaches the RCPT TO of a
+            // send — so an address typed into the Bcc field is in NO header of the draft just
+            // appended. Counting it would re-open the whole loss with the guard green: the user
+            // re-types the Cc that came back empty, puts it in Bcc, the replacement "carries" it,
+            // and the server copy that actually held it is destroyed while the new one holds it
+            // nowhere. The price is assumed: an original whose envelope really does carry a Bcc
+            // can never be proven carried, so it stays — a duplicate in Drafts, as for a Cc.
+            val addressingIsCarried = draftAddressingIsCarried(
+                replacesEmailId = replacesEmailId,
+                replacement = ccTrimmed.toSet(),
+                originalAddressing = { id -> imapDraftAddressing(credentials, id) },
+            )
             val outcome = finishDraftSave(
                 credentials, replacesEmailId,
-                faithful = draftReplacementIsFaithful(attachments.size, parts.size, bodyIsLossy),
+                faithful = draftReplacementIsFaithful(
+                    attachments.size, parts.size, bodyIsLossy,
+                    addressingIsCarried = addressingIsCarried,
+                ),
             )
             // IMAP APPEND returns no stable id to synthesise a keyable row from, so — after the
             // replaced original is (best-effort) expunged — reload the Drafts folder so its list
@@ -5237,8 +5260,27 @@ class MailRepository(
         // never flickers empty; a new/lossy save keeps every real draft the server now holds.
         return finishDraftSave(
             credentials, replacesEmailId,
-            faithful = draftReplacementIsFaithful(attachments.size, blobs.size, bodyIsLossy),
+            faithful = draftReplacementIsFaithful(
+                attachments.size, blobs.size, bodyIsLossy,
+                // True, and not a read like the IMAP branch above: reopening a JMAP draft goes
+                // through Email/get, which returns to/cc/bcc from the server, so the composer's
+                // fields ARE the original's addressing — there is nothing left to prove. The one
+                // case where they would not be is a reopen that failed, and that one never gets
+                // here as a faithful save: ComposeViewModel sets editingDraftLossy on it.
+                addressingIsCarried = true,
+            ),
         )
+    }
+
+    /**
+     * The cc+bcc of an IMAP draft as the server holds it, or `null` when that could not be
+     * established — offline, a dropped socket, an id whose row or UID is gone. Null is what the
+     * decision above reads as "unknown", and an unknown keeps the original.
+     */
+    private suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String): Set<String>? {
+        val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull() ?: return null
+        val uid = ImapMailService.uidOf(emailId) ?: return null
+        return imap.ccAndBccOf(credentials, cached.mailboxId, uid)
     }
 
     /**
