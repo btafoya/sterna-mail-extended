@@ -474,8 +474,25 @@ class ImapSession(private var socket: Socket) : Closeable {
         return copyUidMapping(m.groupValues[1], m.groupValues[2])
     }
 
-    /** LIST every mailbox, inferring a role from special-use attributes or the name. */
-    fun listFolders(): List<ImapFolder> = parseListFolders(command("LIST \"\" \"*\"").untagged)
+    /**
+     * LIST every mailbox, inferring a role from special-use attributes or the name.
+     *
+     * The attributes are asked for BY NAME (`RETURN (SPECIAL-USE)`, RFC 6154 §5): a server is
+     * entitled to withhold `\Trash`/`\Junk`/`\Sent`/`\Drafts`/`\Archive` from a bare LIST and to
+     * hand them over only when they were requested. A trash that arrives attribute-less falls
+     * through to [roleFromName], which knows the folder names of the nine languages the app
+     * speaks and no others, so on a Turkish or Japanese server it gets no role at all — and a
+     * delete with no trash to move to DESTROYS the message.
+     *
+     * Only from a server that said it knows the extension, though. Ask one that never advertised
+     * it for a return option and it answers BAD: the LIST throws, the folder drawer comes back
+     * empty and the account is unusable — a worse failure than the one being avoided. Servers
+     * that never announced SPECIAL-USE keep exactly the command they have always been sent.
+     */
+    fun listFolders(): List<ImapFolder> {
+        val list = if (hasCapability("SPECIAL-USE")) "LIST \"\" \"*\" RETURN (SPECIAL-USE)" else "LIST \"\" \"*\""
+        return parseListFolders(command(list).untagged)
+    }
 
     /**
      * SELECT a mailbox and read back its status.
@@ -1089,8 +1106,8 @@ internal class ImapResult(
  * to [ImapFolder.name], the display leaf, and only there. A path is never displayed and a name
  * is never sent.
  */
-internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> =
-    untagged.mapNotNull { resp ->
+internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> {
+    val listed = untagged.mapNotNull { resp ->
         // * LIST (attrs) "delim" "name"
         if (resp.getOrNull(1) != "LIST") return@mapNotNull null
         @Suppress("UNCHECKED_CAST")
@@ -1115,11 +1132,65 @@ internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> =
             it.equals("\\Noselect", ignoreCase = true) || it.equals("\\NonExistent", ignoreCase = true)
         }
         if (nonSelectable && !path.equals("INBOX", ignoreCase = true)) return@mapNotNull null
-        ImapFolder(name = name, path = path, role = roleOf(name, attrs), delimiter = delim)
+        ListedFolder(name = name, path = path, delimiter = delim, attrs = attrs)
     }
+    val roles = assignRoles(listed)
+    return listed.mapIndexed { i, folder ->
+        ImapFolder(name = folder.name, path = folder.path, role = roles[i], delimiter = folder.delimiter)
+    }
+}
 
-/** Infer a normalised folder role from SPECIAL-USE attributes first, then the name. */
-internal fun roleOf(name: String, attrs: List<String>): String? {
+/** One selectable mailbox as the LIST described it, before its role is settled. Roles cannot be
+ *  settled folder by folder ([assignRoles]), so parsing and role assignment are two passes. */
+internal data class ListedFolder(
+    val name: String,
+    val path: String,
+    val delimiter: String,
+    val attrs: List<String>,
+)
+
+/**
+ * The role of each folder of ONE listing, in the order they were listed.
+ *
+ * This takes the whole list because both rules below are properties of the list, not of a folder,
+ * and neither can be decided by looking at one entry:
+ *
+ * 1. A role the SERVER STATED beats a role guessed from a name, wherever either sits in the
+ *    response. Hence two passes rather than "first one wins": the guesser runs only once every
+ *    stated role has been handed out. A user folder named "Archives" listed before the mailbox
+ *    the server itself marked `\Archive` would otherwise take the role, and archiving would file
+ *    mail where the server does not keep its archive.
+ *
+ *    The rule runs in BOTH directions: a folder that stated a recognised attribute never goes
+ *    through the name table, even when the role it stated was already taken. Falling back on its
+ *    name would let a second `\Trash` called "Archiv" come back as the ARCHIVE — the app would
+ *    file archived mail into a folder the server purges. The server has spoken; where its word
+ *    cannot be honoured the folder keeps no role rather than a contradicting guess.
+ * 2. A role is carried ONCE. A second candidate keeps a null role, INBOX included — INBOX is
+ *    unique by definition (RFC 3501 §5.1), so a second folder whose leaf reads "Inbox" is a user
+ *    folder. Two folders sharing a role means two Trashes in the drawer and a `roleMailboxId`
+ *    that returns whichever the query hands back first: the delete lands in one of them and the
+ *    user empties the other. A folder left role-less loses nothing but its icon — it stays
+ *    listed, searchable, renameable and deletable.
+ */
+internal fun assignRoles(listed: List<ListedFolder>): List<String?> {
+    val stated = listed.map { roleFromAttributes(it.attrs) }
+    val roles = MutableList<String?>(listed.size) { null }
+    val taken = mutableSetOf<String>()
+    stated.forEachIndexed { i, role ->
+        if (role != null && taken.add(role)) roles[i] = role
+    }
+    listed.forEachIndexed { i, folder ->
+        if (stated[i] != null) return@forEachIndexed
+        val guessed = roleFromName(folder.name) ?: return@forEachIndexed
+        if (taken.add(guessed)) roles[i] = guessed
+    }
+    return roles
+}
+
+/** The role a server STATED with an RFC 6154 SPECIAL-USE attribute — the only one it did not
+ *  have to be guessed. */
+internal fun roleFromAttributes(attrs: List<String>): String? =
     attrs.firstNotNullOfOrNull { attr ->
         when (attr.lowercase()) {
             "\\sent" -> "sent"
@@ -1130,14 +1201,86 @@ internal fun roleOf(name: String, attrs: List<String>): String? {
             "\\all" -> "all"
             else -> null
         }
-    }?.let { return it }
-    return when (name.lowercase()) {
-        "inbox" -> "inbox"
-        "sent", "sent mail", "sent items" -> "sent"
-        "drafts" -> "drafts"
-        "trash", "deleted", "deleted items" -> "trash"
-        "junk", "spam" -> "junk"
-        "archive", "archives" -> "archive"
-        else -> null
     }
+
+/**
+ * The role GUESSED from a folder's name, for the servers that state nothing.
+ *
+ * The names below are the ones SERVERS carry — what Dovecot, Roundcube, Thunderbird and the
+ * common webmails actually create in each language — never the app's own labels: the mailbox is
+ * named once, on the server, and the phone's language has no say in reading it. The app speaks
+ * nine languages and its detection used to know one, so a mailbox whose trash is called
+ * "Papierkorb", "Kosz" or "Корзина" came back with no trash at all — and with no trash,
+ * `MailRepository.deleteWouldDestroy` calls EVERY delete a destruction and the swipe erases mail
+ * instead of moving it. That is the whole reason this table is not English-only.
+ *
+ * ACCEPTED, deliberately: a USER folder named exactly "Papierkorb" on a server that states
+ * nothing takes the role, loses its Rename/Delete entries and drops out of search. That class of
+ * false positive has always existed in English ("Archive", "Archives"), this widens it and does
+ * not create it — and it destroys no mail, which the missing trash does. No heuristic (depth,
+ * position, message count) is added to dodge it.
+ *
+ * [lowercase] with no argument is locale-independent by contract, unlike the `toLowerCase()` it
+ * replaced: a phone set to Turkish maps 'I' to 'ı' and would stop recognising "INBOX".
+ */
+internal fun roleFromName(name: String): String? = when (name.lowercase()) {
+    "inbox" -> "inbox"
+
+    // Trash and Junk first: the role whose absence destroys, then the one whose absence pollutes
+    // every search with spam.
+    "trash", "deleted", "deleted items", "deleted messages", // en
+    "papierkorb", "gelöschte objekte", "gelöschte elemente", // de
+    "papelera", "elementos eliminados", // es
+    "corbeille", "éléments supprimés", // fr
+    "cestino", "posta eliminata", "elementi eliminati", // it
+    "prullenbak", "prullenmand", "verwijderde items", // nl
+    "kosz", "elementy usunięte", // pl
+    "lixeira", "lixo", "itens excluídos", "itens eliminados", // pt
+    "корзина", "удалённые", "удаленные", // ru
+    -> "trash"
+
+    "junk", "spam", "junk e-mail", "junk email", // en
+    "junk-e-mail", // de
+    "correo no deseado", "correo basura", // es
+    "courrier indésirable", "indésirables", // fr
+    "posta indesiderata", "indesiderata", // it
+    "ongewenste e-mail", "ongewenst", // nl
+    "wiadomości-śmieci", // pl
+    "lixo eletrônico", "lixo eletrónico", // pt
+    "спам", "нежелательная почта", // ru
+    -> "junk"
+
+    "sent", "sent mail", "sent items", "sent messages", // en
+    "gesendet", "gesendete objekte", "gesendete elemente", // de
+    "enviados", "elementos enviados", "correo enviado", // es + pt ("enviados")
+    "envoyés", "éléments envoyés", "messages envoyés", // fr
+    "inviata", "posta inviata", "elementi inviati", // it
+    "verzonden", "verzonden items", // nl
+    "wysłane", "elementy wysłane", // pl
+    "itens enviados", // pt
+    "отправленные", // ru
+    -> "sent"
+
+    "drafts", // en
+    "entwürfe", // de
+    "borradores", // es
+    "brouillons", // fr
+    "bozze", // it
+    "concepten", // nl
+    "kopie robocze", "wersje robocze", "robocze", // pl
+    "rascunhos", // pt
+    "черновики", // ru
+    -> "drafts"
+
+    "archive", "archives", // en + fr
+    "archiv", // de
+    "archivo", // es
+    "archivio", // it
+    "archief", // nl
+    "archiwum", // pl
+    "arquivo", // pt
+    "архив", // ru
+    -> "archive"
+
+    else -> null
 }
