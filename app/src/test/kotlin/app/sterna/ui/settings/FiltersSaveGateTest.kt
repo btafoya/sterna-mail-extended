@@ -1,5 +1,6 @@
 package app.sterna.ui.settings
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,6 +30,38 @@ class FiltersSaveGateTest {
                 "it is the only gesture that puts them back",
             filtersSaveEnabled(saving = false, dirty = false, rulesNotRunning = true),
         )
+    }
+
+    @Test fun `saving over a script this app could not read asks first`() {
+        // THE OVERWRITE. Save regenerates the whole `sterna` script from the list on screen, and
+        // over an unreadable script that list is EMPTY because nothing could be read out of it: one
+        // tap replaces a hand-written `fileinto` with nothing, on the server, with no way back.
+        assertEquals(
+            "an unreadable script must send Save through a confirmation, not straight to the write",
+            FiltersSaveStep.CONFIRM_OVERWRITE,
+            filtersSaveStep(scriptUnreadable = true),
+        )
+    }
+
+    @Test fun `an ordinary save is not interrupted by a question`() {
+        // The other half, and the reason this is a decision and not a habit: a confirmation on
+        // every save is a confirmation nobody reads by the third one.
+        assertEquals(FiltersSaveStep.WRITE, filtersSaveStep(scriptUnreadable = false))
+    }
+
+    @Test fun `the confirmation is a step added, never a door closed`() {
+        // Measured: scriptUnreadable and rulesNotRunning cannot both be true (FilterScriptStatus
+        // returns null on `enabledRuleCount == 0`, and an unreadable script yields no rule). This
+        // pins the answer for the race between the two reads anyway, because the safe answer must
+        // not depend on that: the question is asked AND the button stays reachable, so the return
+        // from holiday still has its one remedy.
+        assertEquals(FiltersSaveStep.CONFIRM_OVERWRITE, filtersSaveStep(scriptUnreadable = true))
+        assertTrue(
+            "an unreadable script must not grey out Save — that would state the problem and lock " +
+                "the door, which is the dead end #34 closed",
+            filtersSaveEnabled(saving = false, dirty = false, rulesNotRunning = true),
+        )
+        assertTrue(filtersSaveEnabled(saving = false, dirty = true, rulesNotRunning = false))
     }
 
     @Test fun `never two writes at once`() {

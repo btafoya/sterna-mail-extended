@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -68,6 +69,10 @@ fun FiltersScreen(
     // Saving from the dialog is a network round-trip (compile → validate → activate), so the screen
     // leaves only once the server has taken it; a refusal keeps the screen and its error in view.
     var leaveAfterSave by remember { mutableStateOf(false) }
+    // The overwrite confirmation, and which gesture is waiting behind it: the exit dialog's Save
+    // still has to leave once the server has taken the write, the button still has to stay.
+    var confirmOverwrite by remember { mutableStateOf(false) }
+    var overwriteThenLeave by remember { mutableStateOf(false) }
 
     val editIndex = editing
     if (editIndex != null && editIndex < state.rules.size) {
@@ -89,6 +94,18 @@ fun FiltersScreen(
             PendingExit.WAIT -> Unit
         }
     }
+    // ONE door for both gestures that write. Save regenerates the whole server-side script from the
+    // list on screen, and over a script this app could not parse that list is empty because nothing
+    // could be read out of it — so the confirmation belongs to the WRITE, not to the button. Hung on
+    // the button alone it is walked around by the back gesture, which reaches the same write through
+    // the exit dialog below. Which of the two asked travels in `thenLeave`.
+    fun requestSave(thenLeave: Boolean) {
+        when (filtersSaveStep(scriptUnreadable = state.scriptUnreadable)) {
+            FiltersSaveStep.CONFIRM_OVERWRITE -> { overwriteThenLeave = thenLeave; confirmOverwrite = true }
+            FiltersSaveStep.WRITE -> { leaveAfterSave = thenLeave; viewModel.save() }
+        }
+    }
+
     BackHandler(enabled = state.dirty) { confirmExit = true }
     if (confirmExit) {
         SaveChangesDialog(
@@ -96,7 +113,38 @@ fun FiltersScreen(
             canSave = !state.saving,
             onCancel = { confirmExit = false },
             onDiscard = { confirmExit = false; onBack() },
-            onSave = { confirmExit = false; leaveAfterSave = true; viewModel.save() },
+            onSave = { confirmExit = false; requestSave(thenLeave = true) },
+        )
+    }
+    if (confirmOverwrite) {
+        // Same shape as the block-sender dialog, because it is the same kind of write: server-side,
+        // permanent, no Undo behind it. What only a dialog can say is the body — that the whole
+        // script goes, including the part this app never managed to show. Cancelling leaves both
+        // the screen and the exit alone: the edits stay, unwritten, which is the recoverable side.
+        AlertDialog(
+            onDismissRequest = { confirmOverwrite = false },
+            title = { Text(stringResource(R.string.settings_filters_overwrite_title)) },
+            text = {
+                // The body SCROLLS. Material's text slot is a height-bounded box with no scrolling
+                // of its own, and a bare Text in it is CLIPPED — not ellipsised, just cut, with
+                // nothing saying more exists. Measured on the block-sender dialog, cut mid-word at
+                // the largest font scale, losing exactly the half that named the cost.
+                Text(
+                    stringResource(R.string.settings_filters_overwrite_body),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                // A verb, not the sentence, and for the reason measured on that same dialog: with a
+                // sentence here the label wrapped and Cancel was drawn INSIDE this button, one tap
+                // landing on both, on a permanent server-side write.
+                TextButton(onClick = { confirmOverwrite = false; leaveAfterSave = overwriteThenLeave; viewModel.save() }) {
+                    Text(stringResource(R.string.settings_filters_overwrite_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmOverwrite = false }) { Text(stringResource(R.string.settings_cancel)) }
+            },
         )
     }
 
@@ -118,6 +166,7 @@ fun FiltersScreen(
                     viewModel = viewModel,
                     onEdit = { editing = it },
                     onAdd = { viewModel.addRule(); editing = state.rules.size },
+                    onSave = { requestSave(thenLeave = false) },
                 )
             }
         }
@@ -147,6 +196,9 @@ private fun FiltersList(
     viewModel: FiltersViewModel,
     onEdit: (Int) -> Unit,
     onAdd: () -> Unit,
+    // NOT viewModel::save: the write goes through the screen's one door, which asks first when the
+    // save would replace a script nobody could read.
+    onSave: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         if (state.accountLabel.isNotBlank()) {
@@ -229,7 +281,7 @@ private fun FiltersList(
             )
         }
         Button(
-            onClick = viewModel::save,
+            onClick = onSave,
             // Nothing to push until a rule differs from what the server holds (#34) — unless the
             // server is not running the rules it holds, and Save is the way to put them back.
             enabled = filtersSaveEnabled(

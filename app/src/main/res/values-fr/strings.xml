@@ -355,6 +355,9 @@
     <string name="settings_filters_not_running">Vos règles de filtrage ne s\'appliquent pas en ce moment.</string>
     <string name="settings_filters_stops_auto_reply">Votre réponse automatique est active sur le serveur. Enregistrer ces filtres l\'arrêtera.</string>
     <string name="settings_filters_unreadable">Sterna Mail ne sait pas lire le script de filtrage de ce compte ; l\'enregistrement le remplacera.</string>
+    <string name="settings_filters_overwrite_title">Remplacer le script de filtrage ?</string>
+    <string name="settings_filters_overwrite_body">Sterna Mail n\'a pas pu lire le script de filtrage de ce compte. L\'enregistrement remplace tout le script par les règles de cet écran ; tout ce qu\'il contient et qui n\'apparaît pas ici sera perdu. C\'est irréversible.</string>
+    <string name="settings_filters_overwrite_confirm">Remplacer</string>
     <string name="settings_filters_edit_title">Modifier la règle</string>
     <string name="settings_filter_name">Nom de la règle</string>
     <string name="settings_filter_if">Si</string>
@@ -727,8 +730,8 @@
         <item quantity="many">%1$d de messages supprimés</item>
         <item quantity="other">%1$d messages supprimés</item>
     </plurals>
-    <string name="sender_volume_foreign_script">Un autre script de filtrage est actif sur ce compte : aucune règle ne peut être ajoutée d\'ici. C\'est dans %1$s → %2$s que les règles de ce compte se modifient.</string>
-    <string name="sender_volume_block_foreign">Un autre script de filtrage est actif</string>
+    <string name="sender_volume_foreign_script">Sterna Mail ne gère pas le script de filtrage de ce compte pour l\'instant : aucune règle ne peut être ajoutée d\'ici. C\'est dans %1$s → %2$s que les règles de ce compte se modifient.</string>
+    <string name="sender_volume_block_foreign">Sterna ne gère pas ce script de filtrage</string>
     <string name="sender_volume_block_title">Envoyer le courrier à venir de %1$s à la corbeille ?</string>
     <string name="sender_volume_block_body">Une règle sur le serveur enverra le courrier à venir de cette adresse à la corbeille, marqué lu. Rien de ce qui est déjà reçu ne bouge. La règle se modifie ou se retire dans %1$s → %2$s.</string>
     <string name="sender_volume_block_confirm">Créer</string>

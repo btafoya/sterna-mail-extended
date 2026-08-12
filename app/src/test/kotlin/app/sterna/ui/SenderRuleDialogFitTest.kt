@@ -14,6 +14,14 @@ import java.io.File
  * (`MailBySenderScreen`). At the largest system font size, on a device, both of them came out
  * broken in the same two ways (banc-1.4.8 § 11.6.1, Pixel 7, `font_scale 2.0`, `ru`):
  *
+ * ⭐ A THIRD dialog is covered here, and the file keeps its name: the filters screen's overwrite
+ * confirmation (`FiltersScreen`, `R.string.settings_filters_overwrite_title`). It is the same
+ * animal — an `AlertDialog` in front of a permanent server-side write with no Undo — and it was
+ * written by copying the two above, so it arrived with the same defects available. Both mutations
+ * this file was written for survived on it, with the whole suite green: the two action lambdas
+ * swapped between the slots, and a `maxLines = 3` beside the scroll modifier. A rule stated for two
+ * members of a family and not extended to the third is a rule that has stopped being a rule.
+ *
  *  - **(A) the two buttons overlapped.** "Отмена" `[617,1861]–[865,1959]` sat entirely INSIDE the
  *    confirm button's `[215,1689]–[865,2081]`. A tap at (740, 1900) is in both, on a gesture that
  *    writes to the server with no Undo. What is MEASURED is that, and this: the confirm label was
@@ -39,10 +47,10 @@ import java.io.File
  * is pinned here are the CAUSES, at their source, plus the one thing about these two dialogs that
  * is worse than a layout defect — which of the two action slots writes:
  *
- *  1. each ACTION LABEL of these two dialogs is one whole string resource — not an expression
+ *  1. each ACTION LABEL of these dialogs is one whole string resource — not an expression
  *     built around one, which would render characters no rule here can count;
  *  2. every such string is short enough to stay on one line, in all nine languages;
- *  3. the body of both dialogs scrolls instead of being clipped, and is bounded nowhere else;
+ *  3. the body of each dialog scrolls instead of being clipped, and is bounded nowhere else;
  *  4. the server-side write leaves from `confirmButton`, and `dismissButton` writes nothing.
  *
  * **Two limits, written down rather than left to be discovered:**
@@ -67,24 +75,23 @@ class SenderRuleDialogFitTest {
      */
     private val maxActionLabelChars = 14
 
-    @Test fun `both dialogs are found, with both of their action slots`() {
-        // The rule that keeps every other rule in this file honest. Each of the two assertions
-        // below reads slots out of a dialog located by its title string; if the dialog moves, is
-        // renamed, or loses a slot, the extraction must fail LOUDLY here rather than quietly
-        // asserting over an empty string somewhere else.
+    @Test fun `every confirmation is found, with both of its action slots`() {
+        // The rule that keeps every other rule in this file honest. Each of the assertions below
+        // reads slots out of a dialog located by its title string; if a dialog moves, is renamed,
+        // or loses a slot, the extraction must fail LOUDLY here rather than quietly asserting over
+        // an empty string somewhere else.
         assertEquals(
-            "the per-sender rule confirmation must exist on both surfaces, found by its title " +
-                "R.string.sender_volume_block_title",
-            listOf(READER, BY_SENDER).map { it.name },
-            listOf(READER, BY_SENDER).filter { runCatching { ruleDialog(it) }.isSuccess }.map { it.name },
+            "each confirmation that writes to the server must be found by its own title string",
+            DIALOGS.map { it.name },
+            DIALOGS.filter { runCatching { dialogSource(it) }.isSuccess }.map { it.name },
         )
-        listOf(READER, BY_SENDER).forEach { file ->
-            val dialog = ruleDialog(file)
+        DIALOGS.forEach { dialog ->
+            val source = dialogSource(dialog)
             listOf("title", "text", "confirmButton", "dismissButton").forEach { slot ->
                 assertTrue(
-                    "${file.name}'s rule dialog must still carry a '$slot = {' slot — this file " +
-                        "reads that slot and would otherwise pass over a dialog it never saw",
-                    "$slot = {" in dialog,
+                    "${dialog.name} must still carry a '$slot = {' slot — this file reads that " +
+                        "slot and would otherwise pass over a dialog it never saw",
+                    "$slot = {" in source,
                 )
             }
         }
@@ -102,29 +109,32 @@ class SenderRuleDialogFitTest {
      * saw it. `MailBySenderWiringTest` pins this wiring on the per-sender screen; the reader's
      * dialog had only its title and its body pinned, and the write's slot was pinned nowhere.
      *
-     * Both surfaces are covered here, symmetrically, because they are the same write twice.
+     * All three surfaces are covered here, symmetrically, because they are the same kind of write.
+     * The filters screen's overwrite confirmation was added later and the same swap survived on it
+     * with the suite green: the regex guarding it pinned which lambda goes with which LABEL, and
+     * never which SLOT receives the lambda.
      *
      * The write is looked for by name, which is the one thing this rule cannot derive. It fails
      * CLOSED if the names change: a confirm slot in which no write is found fails the first
      * assertion rather than passing quietly.
      */
-    @Test fun `the write leaves from the confirm slot of both dialogs, and the dismiss slot writes nothing`() {
-        listOf(READER, BY_SENDER).forEach { file ->
-            val dialog = ruleDialog(file)
-            val confirm = namedLambda(dialog, "confirmButton")
-            val dismiss = namedLambda(dialog, "dismissButton")
+    @Test fun `the write leaves from the confirm slot of every confirmation, and the dismiss slot writes nothing`() {
+        DIALOGS.forEach { dialog ->
+            val source = dialogSource(dialog)
+            val confirm = namedLambda(source, "confirmButton")
+            val dismiss = namedLambda(source, "dismissButton")
             assertTrue(
-                "${file.name}'s rule dialog must write from its CONFIRM slot: no call matching " +
-                    "$WRITE was found there. Either the write moved out of the confirmation — " +
-                    "which is the defect this dialog exists to prevent — or it was renamed, in " +
-                    "which case this rule must be taught the new name rather than left green. " +
+                "${dialog.name} must write from its CONFIRM slot: no call matching $WRITE was " +
+                    "found there. Either the write moved out of the confirmation — which is the " +
+                    "defect this dialog exists to prevent — or it was renamed, in which case this " +
+                    "rule must be taught the new name rather than left green. " +
                     "Confirm slot was:\n$confirm",
                 WRITE.containsMatchIn(confirm),
             )
             assertEquals(
-                "${file.name}'s DISMISS slot must write nothing at all. Swapped with the confirm " +
+                "${dialog.name}'s DISMISS slot must write nothing at all. Swapped with the confirm " +
                     "slot it still compiles, every other rule stays green, and the permanent " +
-                    "server-side write moves to where the reader learned to find 'Cancel'. Found " +
+                    "server-side write moves to where the user learned to find 'Cancel'. Found " +
                     "in the dismiss slot:\n$dismiss",
                 emptyList<String>(),
                 WRITE.findAll(dismiss).map { it.value }.toList(),
@@ -152,10 +162,10 @@ class SenderRuleDialogFitTest {
      * blacklist of `+`, `String.format`, `.repeat()` would be a list of the tricks thought of
      * today. This is the repo's "pin the whole line" lesson, moved from the modifier to the label.
      */
-    @Test fun `each action label of both rule dialogs is one whole string resource`() {
-        listOf(READER, BY_SENDER).forEach { file ->
+    @Test fun `each action label of every confirmation is one whole string resource`() {
+        DIALOGS.forEach { dialog ->
             listOf("confirmButton", "dismissButton").forEach { slot ->
-                actionLabelIds(file, slot)
+                actionLabelIds(dialog, slot)
             }
         }
     }
@@ -168,13 +178,13 @@ class SenderRuleDialogFitTest {
      * menu line has room to say what the gesture does); in a button it is what wrapped to four
      * lines and put the two actions on top of each other.
      */
-    @Test fun `no action label of either rule dialog is long enough to wrap`() {
+    @Test fun `no action label of any confirmation is long enough to wrap`() {
         val strings = locales().associate { it.name to stringsOf(it) }
         val offenders = mutableListOf<String>()
         val unresolved = mutableListOf<String>()
-        listOf(READER, BY_SENDER).forEach { file ->
+        DIALOGS.forEach { dialog ->
             listOf("confirmButton", "dismissButton").forEach { slot ->
-                actionLabelIds(file, slot).forEach { id ->
+                actionLabelIds(dialog, slot).forEach { id ->
                     // FAIL CLOSED. This read used to be `texts[id] ?: return@forEach`: an id the
                     // string map does not resolve was measured by nothing, silently, at any
                     // length — a label declared in a res file this rule does not read (a split
@@ -185,19 +195,19 @@ class SenderRuleDialogFitTest {
                     // than no rule.
                     val absent = strings.filterValues { id !in it }.keys
                     if (absent.isNotEmpty()) {
-                        unresolved += "${file.name}/$slot: R.string.$id resolves in none of $absent"
+                        unresolved += "${dialog.name}/$slot: R.string.$id resolves in none of $absent"
                     }
                     strings.forEach { (locale, texts) ->
                         val text = texts[id] ?: return@forEach
                         if (text.length > maxActionLabelChars) {
-                            offenders += "${file.name}/$slot: $locale/$id is ${text.length} chars — \"$text\""
+                            offenders += "${dialog.name}/$slot: $locale/$id is ${text.length} chars — \"$text\""
                         }
                     }
                 }
             }
         }
         assertEquals(
-            "every action label of these two dialogs must be READABLE by this rule in all nine " +
+            "every action label of these dialogs must be READABLE by this rule in all nine " +
                 "locales, or the length rule below is measuring nothing while reporting success. " +
                 "An id that resolves nowhere is not a translation problem — TranslationParityTest " +
                 "is happy with a key that is consistently absent from this rule's view — it is " +
@@ -227,28 +237,30 @@ class SenderRuleDialogFitTest {
      * existed. And a substring check passes over any mutation that LENGTHENS the line —
      * `verticalScroll(rememberScrollState(), enabled = false)` scrolls nothing.
      */
-    @Test fun `the body of both rule dialogs scrolls instead of being clipped`() {
-        listOf(READER, BY_SENDER).forEach { file ->
-            val body = namedLambda(ruleDialog(file), "text")
+    @Test fun `the body of every confirmation scrolls instead of being clipped`() {
+        DIALOGS.forEach { dialog ->
+            val body = namedLambda(dialogSource(dialog), "text")
             val lines = body.lines().map { it.trim() }
-            // Written after watching the mutation survive: `maxLines = 3` next to the scroll
+            // Written after watching the mutation survive, twice: `maxLines = 3` next to the scroll
             // modifier left this rule green and the body clipped at three lines again — the exact
             // defect, back, under a scroll that has nothing left to scroll. `overflow` is the same
-            // family (it decides what a bounded Text does with what does not fit).
+            // family (it decides what a bounded Text does with what does not fit). It survived a
+            // second time on the filters confirmation, whose own regex demanded the scroll modifier
+            // AFTER the string and so never looked at what came next.
             assertEquals(
-                "${file.name}'s rule dialog body must bound its text NOWHERE ELSE: a maxLines or " +
+                "${dialog.name}'s body must bound its text NOWHERE ELSE: a maxLines or " +
                     "an overflow beside the scroll modifier clips the sentence again, and the " +
                     "scroll then hides a cut instead of preventing one. Body was:\n$body",
                 emptyList<String>(),
                 lines.filter { "maxLines" in it || "overflow" in it },
             )
             assertEquals(
-                "${file.name}'s rule dialog body must carry exactly '$SCROLL_MODIFIER' on its " +
+                "${dialog.name}'s body must carry exactly '$SCROLL_MODIFIER' on its " +
                     "own line. Material's text slot is a bounded box: without it the German body " +
                     "(236 characters, ~17 lines at font_scale 2.0) is cut mid-sentence with " +
-                    "nothing on screen saying so — and the sentence lost is 'nothing already " +
-                    "received moves … the rule can be removed in Settings → Filters', which is " +
-                    "the reason this dialog exists at all. Body was:\n$body",
+                    "nothing on screen saying so — and what is lost is the half that names what " +
+                    "the write costs, which is the reason each of these dialogs exists at all. " +
+                    "Body was:\n$body",
                 1,
                 lines.count { it == SCROLL_MODIFIER },
             )
@@ -257,16 +269,16 @@ class SenderRuleDialogFitTest {
 
     // -- reading the sources and the resources ------------------------------------------------
 
-    /** The argument text of the one `AlertDialog(` in [file] that asks about a per-sender rule. */
-    private fun ruleDialog(file: File): String {
-        val dialogs = callArguments(code(file), "AlertDialog")
-            .filter { "R.string.sender_volume_block_title" in it }
-        check(dialogs.size == 1) {
-            "${file.name} must draw exactly one dialog titled R.string.sender_volume_block_title, " +
-                "found ${dialogs.size} — this lint reads that dialog's slots and has nothing to " +
+    /** The argument text of the one `AlertDialog(` in [dialog]'s file that carries its title. */
+    private fun dialogSource(dialog: Confirmation): String {
+        val found = callArguments(code(dialog.file), "AlertDialog")
+            .filter { "R.string.${dialog.titleId}" in it }
+        check(found.size == 1) {
+            "${dialog.file.name} must draw exactly one dialog titled R.string.${dialog.titleId}, " +
+                "found ${found.size} — this lint reads that dialog's slots and has nothing to " +
                 "read if it moved or was renamed"
         }
-        return dialogs.single()
+        return found.single()
     }
 
     /**
@@ -279,18 +291,18 @@ class SenderRuleDialogFitTest {
      * see and therefore cannot measure, and the honest answer to that is to refuse it rather than
      * to pass over it silently.
      */
-    private fun actionLabelIds(file: File, slot: String): List<String> {
-        val lambda = namedLambda(ruleDialog(file), slot)
+    private fun actionLabelIds(dialog: Confirmation, slot: String): List<String> {
+        val lambda = namedLambda(dialogSource(dialog), slot)
         val labels = callArguments(lambda, "Text")
         assertTrue(
-            "${file.name}'s '$slot' draws no Text at all — a label built somewhere this rule " +
+            "${dialog.name}'s '$slot' draws no Text at all — a label built somewhere this rule " +
                 "cannot see is a label this rule does not check. Slot was:\n$lambda",
             labels.isNotEmpty(),
         )
         return labels.map { content ->
             val id = LABEL.matchEntire(content.trim())?.groupValues?.get(1)
             assertTrue(
-                "${file.name}'s '$slot' must read exactly 'stringResource(R.string.<id>)' and " +
+                "${dialog.name}'s '$slot' must read exactly 'stringResource(R.string.<id>)' and " +
                     "nothing more. Found '${content.trim()}'. Anything appended to the resource " +
                     "puts characters on the button that no rule here counts: " +
                     "'stringResource(R.string.sender_volume_block_confirm) + \" \" + " +
@@ -374,6 +386,11 @@ class SenderRuleDialogFitTest {
         STRING.findAll(File(dir, "strings.xml").readText())
             .associate { it.groupValues[1] to it.groupValues[2] }
 
+    /** One confirmation drawn in front of a permanent server-side write, found by its title. */
+    private class Confirmation(val file: File, val titleId: String) {
+        val name: String get() = "${file.name}'s R.string.$titleId dialog"
+    }
+
     private companion object {
         /**
          * A `<string>` with its text — attributes ALLOWED, as `TranslationParityTest` reads them.
@@ -386,9 +403,10 @@ class SenderRuleDialogFitTest {
         /** An action label, whole: one `stringResource(R.string.<id>)` and nothing else. */
         val LABEL = Regex("""stringResource\(R\.string\.(\w+)\)""")
 
-        /** The server-side write, on either surface. Named, because nothing here can derive it —
-         *  and every rule that uses it is written to fail when the name stops being found. */
-        val WRITE = Regex("""\b(onBlock|blockSender)\(""")
+        /** The server-side write, on any of the three surfaces. Named, because nothing here can
+         *  derive it — and every rule that uses it is written to fail when the name stops being
+         *  found. `viewModel.save()` rewrites the whole Sieve script of the account. */
+        val WRITE = Regex("""\b(onBlock|blockSender|viewModel\.save)\(""")
 
         /** The whole line, as the repo's other source lints pin theirs. */
         const val SCROLL_MODIFIER = "modifier = Modifier.verticalScroll(rememberScrollState()),"
@@ -404,11 +422,28 @@ class SenderRuleDialogFitTest {
         }
 
         val res: File by lazy { File(root, "app/src/main/res") }
-        val READER: File by lazy {
-            File(root, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt")
-        }
-        val BY_SENDER: File by lazy {
-            File(root, "app/src/main/kotlin/app/sterna/ui/sender/MailBySenderScreen.kt")
+
+        /**
+         * Every confirmation these rules apply to. A dialog put in front of an irreversible
+         * server-side write belongs in this list on the day it is written: the two per-sender
+         * copies were covered and the filters one was not, and both mutations this file exists for
+         * were available on it again, silently.
+         */
+        val DIALOGS: List<Confirmation> by lazy {
+            listOf(
+                Confirmation(
+                    File(root, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt"),
+                    "sender_volume_block_title",
+                ),
+                Confirmation(
+                    File(root, "app/src/main/kotlin/app/sterna/ui/sender/MailBySenderScreen.kt"),
+                    "sender_volume_block_title",
+                ),
+                Confirmation(
+                    File(root, "app/src/main/kotlin/app/sterna/ui/settings/FiltersScreen.kt"),
+                    "settings_filters_overwrite_title",
+                ),
+            )
         }
     }
 }

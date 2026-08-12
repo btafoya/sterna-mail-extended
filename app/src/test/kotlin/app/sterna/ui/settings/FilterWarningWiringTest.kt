@@ -110,6 +110,78 @@ class FilterWarningWiringTest {
         )
     }
 
+    @Test fun `both write paths of the filters screen go through the confirmation decision`() {
+        // The failure mode this closes is not "the confirmation is missing" but "the confirmation
+        // is on the button only": the exit dialog's Save writes the same script, is reached by the
+        // back gesture and by the title-bar arrow, and a door hung on one of the two is no door.
+        // The decision itself is executed in FiltersSaveGateTest; pinned here are the CALL SITES,
+        // whole lines, because every way of getting this wrong is a line that still contains the
+        // right words: `scriptUnreadable = false`, a second `viewModel.save()` somewhere else.
+        val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
+        assertEquals(
+            "FiltersScreen must consult filtersSaveStep(scriptUnreadable = state.scriptUnreadable) " +
+                "exactly once, on the screen's own flag: a literal there makes the whole gate " +
+                "decorative, and a second call site is a second policy",
+            listOf("when (filtersSaveStep(scriptUnreadable = state.scriptUnreadable)) {"),
+            lines.filter { it.contains("filtersSaveStep(") },
+        )
+        assertEquals(
+            "BOTH Save gestures must funnel into requestSave(...) — the exit dialog first " +
+                "(back gesture and title-bar arrow), then the Save button. `thenLeave` is which " +
+                "one asked: dropped, either the screen leaves before the server has taken the " +
+                "write, or it stays on a screen the user asked to leave",
+            listOf(
+                "onSave = { confirmExit = false; requestSave(thenLeave = true) },",
+                "onSave = { requestSave(thenLeave = false) },",
+            ),
+            lines.filter { it.startsWith("onSave = ") },
+        )
+        assertTrue(
+            "…and the Save button's own click must BE that onSave: rewired to viewModel::save the " +
+                "funnel is still there, still tested, and walked straight past",
+            lines.contains("onClick = onSave,"),
+        )
+        assertEquals(
+            "the ONLY two places FiltersScreen may start a write: the WRITE branch of the " +
+                "decision, and the overwrite confirmation's own button. Anything else in this " +
+                "list is a third door, which is exactly how this one was found open",
+            listOf(
+                "FiltersSaveStep.WRITE -> { leaveAfterSave = thenLeave; viewModel.save() }",
+                "TextButton(onClick = { confirmOverwrite = false; leaveAfterSave = overwriteThenLeave; viewModel.save() }) {",
+            ),
+            lines.filter { Regex("viewModel(::save\\b|\\.save\\(\\))").containsMatchIn(it) },
+        )
+    }
+
+    @Test fun `the overwrite confirmation says what it destroys, and scrolls while saying it`() {
+        val source = text(FILTERS_SCREEN)
+        assertTrue(
+            "the dialog must carry R.string.settings_filters_overwrite_body — the only sentence " +
+                "that says the whole script is replaced by what is on screen; the title alone is " +
+                "a question the user cannot answer",
+            "R.string.settings_filters_overwrite_body" in source,
+        )
+        assertTrue(
+            "…in a body that SCROLLS. Material's text slot is height-bounded and clips a bare " +
+                "Text without a word, and this sentence is long by necessity (measured on the " +
+                "block-sender dialog, cut mid-word at the largest font scale)",
+            Regex(
+                "R\\.string\\.settings_filters_overwrite_body\\),?\\s*" +
+                    "modifier = Modifier\\.verticalScroll\\(rememberScrollState\\(\\)\\),",
+            ).containsMatchIn(source),
+        )
+        assertTrue(
+            "the confirming button must be the short verb (settings_filters_overwrite_confirm), " +
+                "never the body: with a sentence in it the label wrapped and Cancel was drawn " +
+                "INSIDE the confirm button — one tap on both, on a permanent server-side write",
+            Regex(
+                "TextButton\\(onClick = \\{ confirmOverwrite = false; leaveAfterSave = " +
+                    "overwriteThenLeave; viewModel\\.save\\(\\) \\}\\) \\{\\s*" +
+                    "Text\\(stringResource\\(R\\.string\\.settings_filters_overwrite_confirm\\)\\)",
+            ).containsMatchIn(source),
+        )
+    }
+
     @Test fun `the filters screen chooses its foreign-script line through the tested decision`() {
         val source = text(FILTERS_SCREEN)
         assertTrue(
@@ -204,11 +276,18 @@ class FilterWarningWiringTest {
                 "failed to parse, so passing false there loses the refusal that protects it",
             Regex("foreignFromRulesRead = result\\.foreignActiveScript").containsMatchIn(source),
         )
-        assertTrue(
-            "…and WHICH refusal it was (`unreadableFromRulesRead = result.scriptUnreadable`): the " +
-                "same read is the only place that fact exists, and dropped here the screen goes " +
-                "back to saying \"another script is active\" over a script it could not parse",
-            Regex("unreadableFromRulesRead = result\\.scriptUnreadable").containsMatchIn(source),
+        // WHOLE LINE, not `containsMatchIn`. Measured: `result.scriptUnreadable && false` LENGTHENS
+        // the line, so a containment check still matched it and the whole suite stayed green — with
+        // state.scriptUnreadable false for ever after, which is every consequence of that flag gone
+        // at once: no overwrite confirmation, no red line, and "No rules yet" back over a script
+        // this app could not read. This is the repo's "pin the whole line" lesson, again.
+        assertEquals(
+            "…and WHICH refusal it was: the load must carry `unreadableFromRulesRead = " +
+                "result.scriptUnreadable,` and nothing else on that line. The rules read is the " +
+                "only place that fact exists; anything appended to it (`&& false`, `&& !x`) reads " +
+                "as this line still being there and turns the flag off everywhere it is used",
+            listOf("unreadableFromRulesRead = result.scriptUnreadable,"),
+            source.lines().map { it.trim() }.filter { it.startsWith("unreadableFromRulesRead") },
         )
     }
 

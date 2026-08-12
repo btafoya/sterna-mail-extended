@@ -355,6 +355,9 @@
     <string name="settings_filters_not_running">Tus reglas de filtrado no se están aplicando en este momento.</string>
     <string name="settings_filters_stops_auto_reply">Tu respuesta automática está activa en el servidor. Al guardar estos filtros se detendrá.</string>
     <string name="settings_filters_unreadable">Sterna Mail no puede leer el script de filtrado de esta cuenta; al guardar, lo reemplazará.</string>
+    <string name="settings_filters_overwrite_title">¿Reemplazar el script de filtrado?</string>
+    <string name="settings_filters_overwrite_body">Sterna Mail no ha podido leer el script de filtrado de esta cuenta. Al guardar se reemplaza el script entero por las reglas de esta pantalla, así que se pierde todo lo que contenga y no aparezca aquí. No se puede deshacer.</string>
+    <string name="settings_filters_overwrite_confirm">Reemplazar</string>
     <string name="settings_filters_edit_title">Editar regla</string>
     <string name="settings_filter_name">Nombre de la regla</string>
     <string name="settings_filter_if">Si</string>
@@ -727,8 +730,8 @@
         <item quantity="many">%1$d de mensajes eliminados</item>
         <item quantity="other">%1$d mensajes eliminados</item>
     </plurals>
-    <string name="sender_volume_foreign_script">Hay otro script de filtrado activo en esta cuenta, así que no se puede añadir ninguna regla desde aquí. Las reglas de esta cuenta se editan en %1$s → %2$s.</string>
-    <string name="sender_volume_block_foreign">Hay otro script de filtrado activo</string>
+    <string name="sender_volume_foreign_script">Sterna Mail no está gestionando el script de filtrado de esta cuenta ahora mismo, así que no se puede añadir ninguna regla desde aquí. Las reglas de esta cuenta se editan en %1$s → %2$s.</string>
+    <string name="sender_volume_block_foreign">Sterna no gestiona este script de filtrado</string>
     <string name="sender_volume_block_title">¿Enviar a la papelera el correo futuro de %1$s?</string>
     <string name="sender_volume_block_body">Una regla en el servidor enviará a la papelera el correo futuro de esta dirección, marcado como leído. Nada de lo ya recibido se mueve. La regla se puede cambiar o quitar en %1$s → %2$s.</string>
     <string name="sender_volume_block_confirm">Crear regla</string>

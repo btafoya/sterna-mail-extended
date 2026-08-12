@@ -183,10 +183,28 @@ class MailBySenderWiringTest {
                 "decide nothing of its own",
             "state.blockNote?.let" in screen,
         )
+        // ⭐ ORDERED, and on the note's OWN call. This assertion used to be two unordered `in`
+        // checks over the whole file, and the mutation that swapped the two argument lines was
+        // green: the note then renders "Filters → Settings is where this account's rules are
+        // edited", in all nine languages, a path that exists on no screen. Both labels were still
+        // present, so containment was satisfied; the file carries a SECOND pair of these
+        // arguments (the rule dialog's body, pinned further down) so even a containment check
+        // localised to this call would have been answered by the other site.
+        val notes = callArguments(screen, "stringResource").filter { it.startsWith("note,") }
+        assertEquals(
+            "the note must be drawn by exactly one 'stringResource(note, …)' — this rule reads " +
+                "that call's arguments and has nothing to read if it moved. Found:\n" +
+                notes.joinToString("\n--\n"),
+            1, notes.size,
+        )
         assertTrue(
             "the note must name the Filters screen by its own localised labels, not by an " +
-                "English path typed into nine translations",
-            "R.string.settings_filters_title" in screen && "R.string.inbox_settings" in screen,
+                "English path typed into nine translations — and in the order the sentence " +
+                "reads: %1\$s is the settings entry, %2\$s the Filters screen INSIDE it. " +
+                "Swapped, the sentence reads 'Filters → Settings', which is nowhere. Whole " +
+                "lines, so an argument with anything appended to it fails here too. Note call " +
+                "was:\n${notes.single()}",
+            PATH_ARGS.containsMatchIn(notes.single()),
         )
         // NOT pinned here, and said so rather than left to be discovered: that the note carries
         // no button. Taking a running Sieve script over is the Filters screen's decision — it
@@ -299,19 +317,23 @@ class MailBySenderWiringTest {
             "stringResource(R.string.sender_volume_block_title, ruleFor.email)" in rule,
         )
         val body = namedLambda(rule, "text")
-        listOf(
-            "R.string.sender_volume_block_body",
-            "R.string.inbox_settings",
-            "R.string.settings_filters_title",
-        ).forEach { expected ->
-            assertTrue(
-                "the rule dialog's body must be '$expected' — the sentence that says nothing " +
-                    "already received moves and where the rule can be removed, named by the " +
-                    "app's own localised labels. That sentence IS the dialog's reason to exist. " +
-                    "Body was:\n$body",
-                expected in body,
-            )
-        }
+        assertTrue(
+            "the rule dialog's body must be 'R.string.sender_volume_block_body' — the sentence " +
+                "that says nothing already received moves and where the rule can be removed. " +
+                "That sentence IS the dialog's reason to exist. Body was:\n$body",
+            "R.string.sender_volume_block_body" in body,
+        )
+        // Its two arguments, ORDERED, for the reason written over the foot note's rule: this list
+        // used to be three unordered `in` checks, and swapping the two argument lines left the
+        // body telling the reader to undo the rule in "Filters → Settings" — a path that exists
+        // on no screen, in all nine languages, with every rule here green.
+        assertTrue(
+            "…named by the app's own localised labels and in the order the sentence reads: " +
+                "%1\$s is the settings entry, %2\$s the Filters screen INSIDE it. This is the " +
+                "half of the dialog that says how to undo a permanent server-side write, so a " +
+                "path that leads nowhere costs more here than anywhere else. Body was:\n$body",
+            PATH_ARGS.containsMatchIn(body),
+        )
         val confirm = namedLambda(rule, "confirmButton")
         assertTrue(
             "the write must leave from the confirm button, as 'viewModel.blockSender(ruleFor)' — " +
@@ -768,6 +790,24 @@ class MailBySenderWiringTest {
     private fun String.indentWidth() = length - trimStart().length
 
     companion object {
+        /**
+         * The two arguments of a "Settings → Filters" sentence, IN THAT ORDER, each alone on its
+         * own line.
+         *
+         * The order is the whole point: `%1$s` is the settings entry and `%2$s` the Filters
+         * screen inside it, in the nine translations as in English, so the two `stringResource`
+         * calls are not interchangeable — swapped, every one of those sentences names a path
+         * that exists on no screen. Nothing in the app can notice; the ids are both still there.
+         *
+         * The same shape as `FilterWarningWiringTest.ARM_NOT_RUNNING_ARGS`, which pins this order
+         * for the responder screen's own line, and pinned WHOLE LINES because a containment check
+         * is blind to anything appended to an argument.
+         */
+        private val PATH_ARGS = Regex(
+            """\n[ \t]*stringResource\(R\.string\.inbox_settings\),[ \t]*""" +
+                """\n[ \t]*stringResource\(R\.string\.settings_filters_title\),[ \t]*(?=\n|${'$'})""",
+        )
+
         private const val BY_SENDER_LABEL = "R.string.inbox_by_sender"
         private const val SCOPE_LABEL = "R.string.sender_volume_scope"
 

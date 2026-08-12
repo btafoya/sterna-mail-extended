@@ -544,4 +544,79 @@ class MailBySenderTest {
         assertEquals(4, pending.ids.size)
         assertEquals("a@x", pending.sender.email)
     }
+
+    // -- what the two refusals SAY ------------------------------------------------------------
+
+    /**
+     * ⭐ The two rules above pin WHICH string each refusal shows. Neither of them has ever looked
+     * at what that string SAYS, and that is where the defect lived: both sentences claimed
+     * "Another filter script is active on this account" while the boolean behind them,
+     * `FilterRulesState.Loaded.foreignActiveScript`, is `otherActiveScript || unreadable` — three
+     * situations, and the sentence was true in one of them:
+     *
+     *  1. a genuinely foreign active script (the webmail's own) — true;
+     *  2. OUR `sterna` script, present and unreadable, with nothing else active — the sentence
+     *     sends the reader hunting in her webmail for a third-party script that does not exist;
+     *  3. the account's `vacation` script, switched on by her own holiday responder — not
+     *     "another" script, HERS, and this is the ordinary case: turning the responder on is
+     *     enough to make the gesture disappear.
+     *
+     * At this point the code cannot tell the three apart, and it is not going to learn to: the
+     * fold IS the guard that stops both writes. So the words come down to what is true in all
+     * three — Sterna is not managing this account's filter script right now, therefore no rule can
+     * be added from here — and name no cause at all. ⛔ In particular the holiday responder is not
+     * named here: nothing at this layer knows it is the one.
+     *
+     * ⛔ WHY THIS IS A POSITIVE ASSERTION ON THE WHOLE SENTENCE, and not `!contains("Another")`.
+     * A negative rule on the offending word is green for "A different filter script is active on
+     * this account" — the same false claim, the same reader sent to the same wrong place, lint
+     * satisfied. The only rule that cannot be walked around by rewording the lie is one that
+     * states the whole truthful sentence. The cost is stated too: any deliberate edit of these two
+     * sentences fails here and must be re-read against the three cases above. That is the point.
+     */
+    @Test fun `both refusals say only what is true in all three causes of the fold`() {
+        val strings = englishStrings()
+        assertEquals(
+            "the by-sender screen's footnote is shown for FOREIGN_SCRIPT, which is " +
+                "otherActiveScript || unreadable — a third-party script, our own unreadable one, " +
+                "or her own vacation script. It keeps its pointer to Settings → Filters, where " +
+                "the state is actually read and repaired, and claims nothing about a cause",
+            "Sterna Mail isn't managing this account's filter script at the moment, so no filter " +
+                "rule can be added from here. %1\$s → %2\$s is where this account's rules are edited.",
+            strings["sender_volume_foreign_script"],
+        )
+        assertEquals(
+            "the greyed entry in the reader's menu — a menu line, so short, and the same claim: " +
+                "not managing, therefore not writable. No cause named",
+            "Sterna isn't managing this filter script",
+            strings["sender_volume_block_foreign"],
+        )
+    }
+
+    /**
+     * `values/strings.xml`, name → text as the app renders it (`\'` is XML escaping, not part of
+     * the sentence).
+     *
+     * Read as text because what a JVM test cannot reach is the VALUES, not the ids: `R` resolves
+     * perfectly well here — the rule above asserts on `R.string.sender_volume_foreign_script` —
+     * but it resolves to an integer, and turning that integer into a sentence needs resources at
+     * runtime, i.e. an instrumented test or Robolectric, and this repo has neither.
+     */
+    private fun englishStrings(): Map<String, String> {
+        val res = generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+            .map { java.io.File(it, "app/src/main/res/values/strings.xml") }
+            .firstOrNull { it.isFile }
+            ?: error(
+                "cannot locate app/src/main/res/values/strings.xml from " +
+                    "${java.io.File("").absolutePath} — this rule reads the resources as text and " +
+                    "needs a working directory inside the checkout",
+            )
+        val strings = Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
+            .findAll(res.readText())
+            .associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'").replace("\\\"", "\"") }
+        listOf("sender_volume_foreign_script", "sender_volume_block_foreign").forEach {
+            check(it in strings) { "no <string name=\"$it\"> in ${res.path} — this rule would assert over nothing" }
+        }
+        return strings
+    }
 }

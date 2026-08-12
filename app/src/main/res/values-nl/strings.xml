@@ -355,6 +355,9 @@
     <string name="settings_filters_not_running">Je filterregels worden op dit moment niet toegepast.</string>
     <string name="settings_filters_stops_auto_reply">Je automatische antwoord loopt op de server. Als je deze filters opslaat, stopt het.</string>
     <string name="settings_filters_unreadable">Sterna Mail kan het filterscript van dit account niet lezen; door op te slaan wordt het vervangen.</string>
+    <string name="settings_filters_overwrite_title">Filterscript vervangen?</string>
+    <string name="settings_filters_overwrite_body">Sterna Mail kon het filterscript van dit account niet lezen. Bij het opslaan wordt het hele script vervangen door de regels op dit scherm; alles wat erin staat en hier niet te zien is, gaat verloren. Dit kan niet ongedaan worden gemaakt.</string>
+    <string name="settings_filters_overwrite_confirm">Vervangen</string>
     <string name="settings_filters_edit_title">Regel bewerken</string>
     <string name="settings_filter_name">Regelnaam</string>
     <string name="settings_filter_if">Als</string>
@@ -721,8 +724,8 @@
         <item quantity="one">%1$d bericht verwijderd</item>
         <item quantity="other">%1$d berichten verwijderd</item>
     </plurals>
-    <string name="sender_volume_foreign_script">Er is een ander filterscript actief op dit account, dus hier kan geen regel worden toegevoegd. De regels van dit account bewerk je in %1$s → %2$s.</string>
-    <string name="sender_volume_block_foreign">Er is een ander filterscript actief</string>
+    <string name="sender_volume_foreign_script">Sterna Mail beheert het filterscript van dit account op dit moment niet, dus hier kan geen regel worden toegevoegd. De regels van dit account bewerk je in %1$s → %2$s.</string>
+    <string name="sender_volume_block_foreign">Sterna beheert dit filterscript niet</string>
     <string name="sender_volume_block_title">Toekomstige post van %1$s naar de prullenbak?</string>
     <string name="sender_volume_block_body">Een regel op de server stuurt toekomstige post van dit adres naar de prullenbak, gemarkeerd als gelezen. Al ontvangen berichten blijven staan. De regel kun je wijzigen of verwijderen in %1$s → %2$s.</string>
     <string name="sender_volume_block_confirm">Regel maken</string>

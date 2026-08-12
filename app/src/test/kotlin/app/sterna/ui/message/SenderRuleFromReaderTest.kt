@@ -347,9 +347,17 @@ class SenderRuleFromReaderTest {
         assertTrue(
             "and its body must say where the rule can be undone, in the app's own localised " +
                 "labels rather than an English path typed into nine translations",
-            "R.string.sender_volume_block_body," in screen &&
-                "stringResource(R.string.inbox_settings)," in screen &&
-                "stringResource(R.string.settings_filters_title)," in screen,
+            "R.string.sender_volume_block_body," in screen,
+        )
+        // ⭐ ORDERED. The three ids used to be checked with three unordered `in`: swapping the two
+        // argument lines kept all three true, and the sentence that tells the reader how to undo
+        // a permanent server-side rule then pointed at "Filters → Settings" — a path that exists
+        // on no screen, in all nine languages. The per-sender screen carried the same hole twice
+        // (MailBySenderWiringTest, same regex, same reason).
+        assertTrue(
+            "…and in the order the sentence reads: %1\$s is the settings entry, %2\$s the " +
+                "Filters screen INSIDE it. The two stringResource calls are not interchangeable",
+            PATH_ARGS.containsMatchIn(screen),
         )
     }
 
@@ -382,6 +390,17 @@ class SenderRuleFromReaderTest {
     }
 
     private companion object {
+        /**
+         * The two arguments of a "Settings → Filters" sentence, IN THAT ORDER, each alone on its
+         * own line — the same rule as `MailBySenderWiringTest.PATH_ARGS`, stated here because
+         * this is a different screen's copy of the same dialog and it had the same hole. Whole
+         * lines: a containment check is blind to anything appended to an argument.
+         */
+        val PATH_ARGS = Regex(
+            """\n[ \t]*stringResource\(R\.string\.inbox_settings\),[ \t]*""" +
+                """\n[ \t]*stringResource\(R\.string\.settings_filters_title\),[ \t]*(?=\n|${'$'})""",
+        )
+
         val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt").isFile }

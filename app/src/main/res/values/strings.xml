@@ -176,8 +176,8 @@
         <item quantity="one">%1$d message deleted</item>
         <item quantity="other">%1$d messages deleted</item>
     </plurals>
-    <string name="sender_volume_foreign_script">Another filter script is active on this account, so no filter rule can be added from here. %1$s → %2$s is where this account\'s rules are edited.</string>
-    <string name="sender_volume_block_foreign">Another filter script is active</string>
+    <string name="sender_volume_foreign_script">Sterna Mail isn\'t managing this account\'s filter script at the moment, so no filter rule can be added from here. %1$s → %2$s is where this account\'s rules are edited.</string>
+    <string name="sender_volume_block_foreign">Sterna isn\'t managing this filter script</string>
     <string name="sender_volume_block_title">Send future mail from %1$s to Trash?</string>
     <string name="sender_volume_block_body">A rule on the server will send future mail from this address to Trash, marked read. Nothing already received moves. The rule can be changed or removed in %1$s → %2$s.</string>
     <!-- The confirm button of that dialog. A VERB, and short: MAXIMUM 14 CHARACTERS in every
@@ -495,6 +495,9 @@
     <string name="settings_filters_not_running">Your filter rules are not being applied at the moment.</string>
     <string name="settings_filters_stops_auto_reply">Your auto-reply is running on the server. Saving these filters will stop it.</string>
     <string name="settings_filters_unreadable">Sterna Mail cannot read this account\'s filter script; saving will replace it.</string>
+    <string name="settings_filters_overwrite_title">Replace the filter script?</string>
+    <string name="settings_filters_overwrite_body">Sterna Mail could not read this account\'s filter script. Saving replaces the whole script with the rules on this screen, so anything it holds that is not shown here is lost. This cannot be undone.</string>
+    <string name="settings_filters_overwrite_confirm">Replace</string>
     <string name="settings_filters_edit_title">Edit rule</string>
     <string name="settings_filter_name">Rule name</string>
     <string name="settings_filter_if">If</string>

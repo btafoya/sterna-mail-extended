@@ -355,6 +355,9 @@
     <string name="settings_filters_not_running">As suas regras de filtro não estão a ser aplicadas neste momento.</string>
     <string name="settings_filters_stops_auto_reply">A sua resposta automática está ativa no servidor. Ao guardar estes filtros, será interrompida.</string>
     <string name="settings_filters_unreadable">O Sterna Mail não consegue ler o script de filtro desta conta; ao guardar, será substituído.</string>
+    <string name="settings_filters_overwrite_title">Substituir o script de filtro?</string>
+    <string name="settings_filters_overwrite_body">O Sterna Mail não conseguiu ler o script de filtro desta conta. Ao guardar, todo o script é substituído pelas regras deste ecrã, pelo que se perde tudo o que ele contenha e não esteja aqui visível. Não é possível anular.</string>
+    <string name="settings_filters_overwrite_confirm">Substituir</string>
     <string name="settings_filters_edit_title">Editar regra</string>
     <string name="settings_filter_name">Nome da regra</string>
     <string name="settings_filter_if">Se</string>
@@ -727,8 +730,8 @@
         <item quantity="many">%1$d de mensagens eliminadas</item>
         <item quantity="other">%1$d mensagens eliminadas</item>
     </plurals>
-    <string name="sender_volume_foreign_script">Há outro script de filtragem ativo nesta conta, por isso não é possível adicionar nenhuma regra a partir daqui. As regras desta conta editam-se em %1$s → %2$s.</string>
-    <string name="sender_volume_block_foreign">Há outro script de filtragem ativo</string>
+    <string name="sender_volume_foreign_script">O Sterna Mail não está a gerir o script de filtragem desta conta neste momento, por isso não é possível adicionar nenhuma regra a partir daqui. As regras desta conta editam-se em %1$s → %2$s.</string>
+    <string name="sender_volume_block_foreign">O Sterna não gere este script de filtragem</string>
     <string name="sender_volume_block_title">Enviar para o lixo o correio futuro de %1$s?</string>
     <string name="sender_volume_block_body">Uma regra no servidor enviará para o lixo o correio futuro deste endereço, marcado como lido. Nada do que já foi recebido é movido. A regra pode ser alterada ou removida em %1$s → %2$s.</string>
     <string name="sender_volume_block_confirm">Criar regra</string>

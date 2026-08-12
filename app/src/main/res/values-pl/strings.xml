@@ -355,6 +355,9 @@
     <string name="settings_filters_not_running">Twoje reguły filtrowania nie są obecnie stosowane.</string>
     <string name="settings_filters_stops_auto_reply">Twoja automatyczna odpowiedź działa na serwerze. Zapisanie tych filtrów ją wyłączy.</string>
     <string name="settings_filters_unreadable">Sterna Mail nie potrafi odczytać skryptu filtrującego tego konta; zapisanie go zastąpi.</string>
+    <string name="settings_filters_overwrite_title">Zastąpić skrypt filtrujący?</string>
+    <string name="settings_filters_overwrite_body">Sterna Mail nie potrafi odczytać skryptu filtrującego tego konta. Zapisanie zastąpi cały skrypt regułami z tego ekranu, więc wszystko, co się w nim znajduje i nie jest tu widoczne, zostanie utracone. Tej operacji nie można cofnąć.</string>
+    <string name="settings_filters_overwrite_confirm">Zastąp</string>
     <string name="settings_filters_edit_title">Edytuj regułę</string>
     <string name="settings_filter_name">Nazwa reguły</string>
     <string name="settings_filter_if">Jeżeli</string>
@@ -733,8 +736,8 @@
         <item quantity="many">Usunięto %1$d wiadomości</item>
         <item quantity="other">Usunięto %1$d wiadomości</item>
     </plurals>
-    <string name="sender_volume_foreign_script">Na tym koncie działa inny skrypt filtrujący, więc nie można stąd dodać reguły. Reguły tego konta edytuje się w %1$s → %2$s.</string>
-    <string name="sender_volume_block_foreign">Działa inny skrypt filtrujący</string>
+    <string name="sender_volume_foreign_script">Sterna Mail nie zarządza obecnie skryptem filtrującym tego konta, więc nie można stąd dodać reguły. Reguły tego konta edytuje się w %1$s → %2$s.</string>
+    <string name="sender_volume_block_foreign">Sterna nie zarządza skryptem filtrującym</string>
     <string name="sender_volume_block_title">Wysyłać przyszłe wiadomości od %1$s do kosza?</string>
     <string name="sender_volume_block_body">Reguła na serwerze będzie wysyłać przyszłe wiadomości z tego adresu do kosza, oznaczone jako przeczytane. Nic z tego, co już odebrano, nie zostanie przeniesione. Regułę można zmienić lub usunąć w %1$s → %2$s.</string>
     <string name="sender_volume_block_confirm">Utwórz</string>

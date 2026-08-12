@@ -355,6 +355,9 @@
     <string name="settings_filters_not_running">Le tue regole di filtro non vengono applicate in questo momento.</string>
     <string name="settings_filters_stops_auto_reply">La tua risposta automatica è attiva sul server. Salvando questi filtri verrà interrotta.</string>
     <string name="settings_filters_unreadable">Sterna Mail non riesce a leggere lo script di filtro di questo account; salvando verrà sostituito.</string>
+    <string name="settings_filters_overwrite_title">Sostituire lo script di filtro?</string>
+    <string name="settings_filters_overwrite_body">Sterna Mail non è riuscita a leggere lo script di filtro di questo account. Il salvataggio sostituisce l\'intero script con le regole di questa schermata, quindi va perso tutto ciò che contiene e non compare qui. L\'operazione non è reversibile.</string>
+    <string name="settings_filters_overwrite_confirm">Sostituisci</string>
     <string name="settings_filters_edit_title">Modifica regola</string>
     <string name="settings_filter_name">Nome regola</string>
     <string name="settings_filter_if">Se</string>
@@ -727,8 +730,8 @@
         <item quantity="many">%1$d di messaggi eliminati</item>
         <item quantity="other">%1$d messaggi eliminati</item>
     </plurals>
-    <string name="sender_volume_foreign_script">Su questo account è attivo un altro script di filtro, quindi da qui non si può aggiungere alcuna regola. Le regole di questo account si modificano in %1$s → %2$s.</string>
-    <string name="sender_volume_block_foreign">È attivo un altro script di filtro</string>
+    <string name="sender_volume_foreign_script">Al momento Sterna Mail non gestisce lo script di filtro di questo account, quindi da qui non si può aggiungere alcuna regola. Le regole di questo account si modificano in %1$s → %2$s.</string>
+    <string name="sender_volume_block_foreign">Sterna non gestisce questo script di filtro</string>
     <string name="sender_volume_block_title">Inviare nel cestino la posta futura da %1$s?</string>
     <string name="sender_volume_block_body">Una regola sul server invierà nel cestino la posta futura da questo indirizzo, contrassegnata come letta. Nulla di già ricevuto viene spostato. La regola si può modificare o rimuovere in %1$s → %2$s.</string>
     <string name="sender_volume_block_confirm">Crea regola</string>
