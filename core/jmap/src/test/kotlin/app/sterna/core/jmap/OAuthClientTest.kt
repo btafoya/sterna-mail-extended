@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -153,18 +154,48 @@ class OAuthClientTest {
         }
     }
 
-    @Test fun pollDeviceToken_doesNotPutTheTokensInTheErrorOfAMalformedResponse() = runBlocking {
+    @Test fun pollDeviceToken_doesNotPutTheTokensInTheErrorOfAMalformedResponse() {
         // Same payload on the device-flow path, whose failure text reaches the connect screen.
+        // ⚠ Read whatever surfaces — a returned Failed or a thrown exception: the guard is that
+        // the tokens are in neither, and it must not depend on which shape the failure takes.
         server.enqueue(
             MockResponse().setBody(
                 """{"access_token":"SECRET-AT","refresh_token":"SECRET-RT","expires_in":36""",
             ),
         )
-        val result = client.pollDeviceToken(metadata(), "DC", "sterna")
-        assertTrue(result is DeviceTokenResult.Failed)
-        val text = (result as DeviceTokenResult.Failed).error + " " + result.description
+        val outcome = runCatching { runBlocking { client.pollDeviceToken(metadata(), "DC", "sterna") } }
+        val text = outcome.fold(
+            onSuccess = { it.toString() },
+            onFailure = { e ->
+                generateSequence<Throwable>(e) { it.cause }.joinToString(" ") { "${it.javaClass} ${it.message}" }
+            },
+        )
         assertFalse("the failure carried the access token: $text", text.contains("SECRET-AT"))
         assertFalse("the failure carried the refresh token: $text", text.contains("SECRET-RT"))
+    }
+
+    /**
+     * A body this client cannot read is NOT a transport failure. The poll used to wrap the whole
+     * exchange, decode included, so a proxy's HTML error page served with a 200 came back as
+     * `network_error` — and the screen sent the reader to check a connection that was working.
+     */
+    @Test fun pollDeviceToken_doesNotCallAnUnreadableAnswerANetworkFailure() {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "text/html")
+                .setBody("<html><body>SECRET-PROXY-PAGE: authentication required</body></html>"),
+        )
+
+        val outcome = runCatching { runBlocking { client.pollDeviceToken(metadata(), "DC", "sterna") } }
+
+        assertNotEquals(
+            "a 200 whose body cannot be read is not a network failure",
+            DeviceTokenResult.Failed("network_error"), outcome.getOrNull(),
+        )
+        val failure = outcome.exceptionOrNull()
+        assertTrue("expected the unreadable answer to surface as a JmapException, got $outcome", failure is JmapException)
+        val text = generateSequence<Throwable>(failure) { it.cause }
+            .joinToString(" ") { "${it.javaClass} ${it.message}" }
+        assertFalse("the error carried the body: $text", text.contains("SECRET-PROXY-PAGE"))
     }
 
     @Test fun startDeviceAuthorization_doesNotPutTheResponseInItsError() {
@@ -180,6 +211,57 @@ class OAuthClientTest {
             val text = generateSequence<Throwable>(e) { it.cause }.joinToString(" ") { "${it.javaClass} ${it.message}" }
             assertFalse("the error carried the payload: $text", text.contains("SECRET-DC"))
         }
+    }
+
+    // ---- The refusal must reach the screen, and only the protocol's word for it ----
+    //
+    // Two halves of the same rule. The connect screen has to be able to say WHY a sign-in failed,
+    // so the server's `error` field has to survive the call — but an exception message here is
+    // written by OkHttp and carries the URL, the host and the port, and the response body is the
+    // caller's own tokens. So: the closed vocabulary of RFC 6749 §5.2 travels, the prose does not.
+
+    @Test fun pollDeviceToken_reportsAnUnreachableServerWithoutNamingIt() = runBlocking {
+        val endpoint = server.url("/auth/token").toString()
+        val port = server.port
+        server.shutdown() // nothing is listening any more: a real transport failure
+        val metadata = OAuthMetadata(tokenEndpoint = endpoint, deviceAuthorizationEndpoint = endpoint)
+
+        val result = client.pollDeviceToken(metadata, "DC", "sterna")
+
+        assertTrue("expected a terminal failure, got $result", result is DeviceTokenResult.Failed)
+        result as DeviceTokenResult.Failed
+        assertEquals("network_error", result.error)
+        // The connect screen renders this text: OkHttp's own message would put the host and port
+        // of the account's server on a screen anyone can be looking over.
+        val text = result.error + " " + result.description
+        assertFalse("the failure named the host: $text", text.contains("localhost"))
+        assertFalse("the failure named the host: $text", text.contains("127.0.0.1"))
+        assertFalse("the failure named the port: $text", text.contains(port.toString()))
+        assertFalse("the failure carried OkHttp's prose: $text", text.contains("Failed to connect", ignoreCase = true))
+
+        server = MockWebServer().apply { start() } // tearDown shuts one down
+    }
+
+    @Test fun startDeviceAuthorization_carriesTheOAuthErrorButNotTheBody() {
+        server.enqueue(
+            MockResponse().setResponseCode(400).setBody(
+                """{"error":"invalid_client","error_description":"SECRET-DESCRIPTION for tenant X"}""",
+            ),
+        )
+
+        val outcome = runCatching {
+            runBlocking { client.startDeviceAuthorization(metadata(), "sterna", "scope-a") }
+        }
+
+        val failure = outcome.exceptionOrNull()
+        assertTrue("expected a JmapException, got $outcome", failure is JmapException)
+        failure as JmapException
+        assertEquals("invalid_client", failure.oauthError)
+        assertEquals(400, failure.httpCode)
+        val text = generateSequence<Throwable>(failure) { it.cause }
+            .joinToString(" ") { "${it.javaClass} ${it.message}" }
+        assertFalse("the error carried the response body: $text", text.contains("SECRET-DESCRIPTION"))
+        assertFalse("the error carried the response body: $text", text.contains("error_description"))
     }
 
     // ---- A 3xx on one of the three POSTs must not send the secret to the host it names ----

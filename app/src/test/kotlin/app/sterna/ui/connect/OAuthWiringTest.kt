@@ -1,0 +1,184 @@
+package app.sterna.ui.connect
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+/**
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * [ConnectPrimingWiringTest]: it reads a file as text and proves nothing about what runs.
+ * `ConnectViewModel` is an `AndroidViewModel` wired to the app container, so this module (no
+ * Robolectric, no instrumented tests) cannot instantiate it, and no test in this repo executes the
+ * OAuth screen. The DECISION it now defers to is covered for real, by execution, in
+ * [OAuthErrorMessagesTest]; what is left to hold is that the screen actually defers to it, and
+ * reading the source is the only way to hold that.
+ *
+ * The rule: when an OAuth sign-in fails, the screen must say what the server said. Three sentences
+ * used to be written here instead — "Sign-in was declined or cancelled." for every terminal poll
+ * outcome, "This server doesn't support OAuth sign-in" for a server that does, and "Couldn't start
+ * OAuth sign-in" for a refusal that named itself — and the server's own reason was dropped. The
+ * choice of sentence now belongs to `oauthFailureSpec` / `oauthDiscoveryFailure`, and this file
+ * makes the old shape impossible to write back without a red test.
+ *
+ * ⚠ WHAT IT DOES NOT SAY. It does not prove that `oauthFailureMessage` is handed the right
+ * failure, nor that `getString` renders anything, nor that any of it is reached at runtime — the
+ * rules below are text. It does not read `OutlookSignIn`, which still picks a sentence of its own,
+ * nor `settings/AccountsViewModel`. A green run here means "the old form is not in the file", not
+ * "the screen is right".
+ *
+ * ⚠ HOW IT COMPARES. Required shapes are matched as WHOLE trimmed lines, with anchored regexes: a
+ * `contains` on a fragment is blind to any mutation that LENGTHENS the line (appending
+ * `?: R.string.connect_oauth_denied` to a compliant call, say), and that blindness has cost this
+ * repo real defects. Forbidden tokens are the one place a substring search is sound — nothing a
+ * mutation appends can remove the token it is looking for.
+ */
+class OAuthWiringTest {
+
+    /**
+     * The mutation this exists to kill: `connect_oauth_denied` back in `pollForToken`, which is
+     * the exact line that made every refusal — `invalid_client`, `invalid_grant`, `http_400`, a
+     * dead network — read as "you cancelled". It is a legitimate sentence; it is not this file's
+     * to choose. The only place allowed to reach for it is the fallback arm of `oauthFailureSpec`,
+     * where it applies to a failure that named nothing at all.
+     */
+    @Test fun `the screen never picks the declined sentence itself`() {
+        val offenders = source().lines().withIndex()
+            .filter { (_, line) -> DENIED.containsMatchIn(line) }
+            .map { (i, line) -> "${i + 1}: ${line.trim()}" }
+        assertEquals(
+            "ConnectViewModel must not name R.string.connect_oauth_denied at all. It says " +
+                "\"Sign-in was declined or cancelled.\" — true only when the user actually " +
+                "declined, and that case is decided in oauthFailureSpec, from the server's own " +
+                "`error`. Written here it becomes the answer to every failure again, including " +
+                "the ones the server explained, which is the whole defect. Found:\n" +
+                offenders.joinToString("\n"),
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * A terminal poll outcome carries the server's `error` (and, for Microsoft, an AADSTS code);
+     * the branch must hand that whole result to the shared mapper rather than render a sentence of
+     * its own.
+     */
+    @Test fun `the poll failure says what the server said`() {
+        val branch = failedBranch()
+        assertTrue(
+            "the `is DeviceTokenResult.Failed ->` branch of pollForToken must set the error state " +
+                "with oauthFailureMessage(<context>, result) — one whole line, matching " +
+                "${POLL_ROUTES.pattern}. Anything else is this screen choosing the words again, " +
+                "and `result` is the only thing carrying the server's reason. Branch was:\n" +
+                branch.joinToString("\n"),
+            branch.any { POLL_ROUTES.matches(it) },
+        )
+        val hardCoded = branch.filter { ERROR_FROM_RESOURCE.containsMatchIn(it) }
+        assertEquals(
+            "and it must not ALSO set the state from a hard-coded string: a second " +
+                "ConnectState.Error(string(R.string.…)) in this branch either overwrites the " +
+                "routed message or is what actually runs. Found:\n" + hardCoded.joinToString("\n"),
+            emptyList<String>(), hardCoded,
+        )
+    }
+
+    /**
+     * Discovery's two failures are different facts — no OAuth at all, versus OAuth without a
+     * device-authorization endpoint — and telling them apart is `oauthDiscoveryFailure`'s job. The
+     * screen asking for a string by name is how they became one sentence in the first place.
+     */
+    @Test fun `discovery chooses its own sentence`() {
+        val body = functionBody("connectOAuth")
+        assertTrue(
+            "connectOAuth must take its discovery verdict from oauthDiscoveryFailure(<metadata>), " +
+                "as a whole line matching ${DISCOVERY_VERDICT.pattern}. ⚠ The anchor is the point: " +
+                "`val x = oauthDiscoveryFailure(m) ?: R.string.connect_oauth_unsupported` still " +
+                "*contains* the call and is exactly the mutation that puts the false sentence " +
+                "back. Body was:\n$body",
+            body.lineSequence().map { it.trim() }.any { DISCOVERY_VERDICT.matches(it) },
+        )
+        val hardCoded = body.lines().map { it.trim() }.filter { UNSUPPORTED.containsMatchIn(it) }
+        assertEquals(
+            "and connectOAuth must not name R.string.connect_oauth_unsupported itself: it is one " +
+                "of the two answers oauthDiscoveryFailure picks between, and a server that " +
+                "advertises OAuth without a device flow is told it has none when this screen " +
+                "reaches for it directly. Found:\n" + hardCoded.joinToString("\n"),
+            emptyList<String>(), hardCoded,
+        )
+    }
+
+    // -- reading the file --------------------------------------------------------------------------
+
+    /**
+     * The lines of the `is DeviceTokenResult.Failed ->` arm of `pollForToken`, trimmed: from the
+     * arm itself to the line that closes it, by counting braces — the same raw counting as
+     * [ConnectPrimingWiringTest], sound only while the file's string literals carry no braces.
+     */
+    private fun failedBranch(): List<String> {
+        val lines = functionBody("pollForToken").lines()
+        val start = lines.indexOfFirst { FAILED_ARM.containsMatchIn(it) }
+        check(start >= 0) {
+            "pollForToken no longer has an `is DeviceTokenResult.Failed ->` arm: this lint would " +
+                "read an empty branch and pass. Rename it here too rather than let the rule go blind."
+        }
+        val out = mutableListOf<String>()
+        var depth = 0
+        var opened = false
+        for (i in start until lines.size) {
+            val line = lines[i]
+            out += line.trim()
+            depth += line.count { it == '{' } - line.count { it == '}' }
+            if (line.contains('{')) opened = true
+            if (opened && depth <= 0) break
+        }
+        return out
+    }
+
+    /** The body of a function of [CONNECT_VIEW_MODEL], as text. Braces counted raw, as above. */
+    private fun functionBody(name: String): String {
+        val lines = source().lines()
+        val start = lines.indexOfFirst { Regex("""\bfun $name\b""").containsMatchIn(it) }
+        check(start >= 0) {
+            "$name() is gone from ConnectViewModel: this lint reads nothing, so rename it here too " +
+                "rather than let the rules pass over an empty string."
+        }
+        val out = StringBuilder()
+        var depth = 0
+        var opened = false
+        for (i in start until lines.size) {
+            val line = lines[i]
+            out.appendLine(line)
+            depth += line.count { it == '{' } - line.count { it == '}' }
+            if (line.contains('{')) opened = true
+            if (opened && depth <= 0) break
+        }
+        return out.toString()
+    }
+
+    private fun source(): String = CONNECT_VIEW_MODEL.readText()
+
+    private companion object {
+        const val PATH = "app/src/main/kotlin/app/sterna/ui/connect/ConnectViewModel.kt"
+
+        /** Repo root, walked up from the module's working directory (as the other source lints do). */
+        val CONNECT_VIEW_MODEL: File by lazy {
+            generateSequence(File("").absoluteFile) { it.parentFile }
+                .firstOrNull { File(it, PATH).isFile }
+                ?.let { File(it, PATH) }
+                ?: error(
+                    "cannot locate the repo root from ${File("").absolutePath} — this test reads a " +
+                        "source file as text and needs a working directory inside the checkout",
+                )
+        }
+
+        /** Forbidden tokens: a substring search cannot be evaded by making the line longer. */
+        val DENIED = Regex("""\bR\.string\.connect_oauth_denied\b""")
+        val UNSUPPORTED = Regex("""\bR\.string\.connect_oauth_unsupported\b""")
+        val ERROR_FROM_RESOURCE = Regex("""ConnectState\.Error\(\s*string\(R\.string\.""")
+
+        /** Required shapes: whole trimmed lines, anchored, so a longer line is a different line. */
+        val POLL_ROUTES = Regex("""^_state\.value = ConnectState\.Error\(oauthFailureMessage\(.+, result\)\)$""")
+        val DISCOVERY_VERDICT = Regex("""^val [A-Za-z]\w* = oauthDiscoveryFailure\([A-Za-z]\w*\)$""")
+
+        val FAILED_ARM = Regex("""\bis DeviceTokenResult\.Failed\s*->""")
+    }
+}

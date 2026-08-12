@@ -581,6 +581,9 @@
     <string name="connect_oauth_declined">Odrzucono logowanie. Spróbuj ponownie.</string>
     <string name="connect_oauth_admin_consent">Administrator Twojej organizacji musi zatwierdzić Sternę do logowania przez Microsoft lub możesz zalogować się za pomocą hasła aplikacji.</string>
     <string name="connect_oauth_error_code">Microsoft odrzucił logowanie (%1$s). Spróbuj ponownie lub użyj hasła aplikacji.</string>
+    <string name="connect_oauth_flow_unsupported">Ten serwer oferuje logowanie OAuth, ale w sposób, którego Sterna jeszcze nie obsługuje. Użyj adresu e-mail i hasła.</string>
+    <string name="connect_oauth_error_reason">Serwer odrzucił logowanie (%1$s). Spróbuj ponownie lub użyj adresu e-mail i hasła.</string>
+    <string name="connect_oauth_network">Nie udało się połączyć z serwerem podczas oczekiwania na zatwierdzenie. Sprawdź połączenie i spróbuj ponownie.</string>
     <string name="connect_incoming_imap">Przychodzące (IMAP)</string>
     <string name="connect_outgoing_smtp">Wychodzące (SMTP)</string>
     <string name="connect_account_name_optional">Nazwa konta (opcjonalnie)</string>

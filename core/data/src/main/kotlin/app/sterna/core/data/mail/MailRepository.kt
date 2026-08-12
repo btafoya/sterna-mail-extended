@@ -2312,9 +2312,13 @@ class MailRepository(
         }
     }
 
-    /** OAuth metadata for a host, or null if it advertises no usable device flow. */
-    suspend fun discoverOAuth(host: String): OAuthMetadata? =
-        oauthClient.discoverMetadata(host)?.takeIf { it.supportsDeviceFlow }
+    /**
+     * OAuth metadata for a host, or null if it advertises none. A server that advertises OAuth
+     * without a device-authorization endpoint is returned AS IS, `supportsDeviceFlow` false:
+     * dropping it here made "this server has no OAuth" the only thing the connect screen could
+     * say about two different facts, and one of them was a lie.
+     */
+    suspend fun discoverOAuth(host: String): OAuthMetadata? = oauthClient.discoverMetadata(host)
 
     /** Begin the device flow against [metadata] using Sterna's client id + scopes. */
     suspend fun startDeviceAuthorization(metadata: OAuthMetadata): DeviceAuthorization =

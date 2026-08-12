@@ -11,6 +11,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /** OAuth 2.0 authorization-server metadata (RFC 8414), trimmed to what we use. */
@@ -147,7 +148,15 @@ class OAuthClient internal constructor(
         tokenHttpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw JmapException("Device authorization failed: HTTP ${response.code}", httpCode = response.code)
+                // The `error` field only — the connect screen has to be able to say WHY the server
+                // refused, and RFC 6749 §5.2 gives a short closed vocabulary for exactly that.
+                // Neither the body nor `error_description` goes into the message or the cause:
+                // this endpoint's payload is a device code, and a proxy's error page is prose.
+                throw JmapException(
+                    "Device authorization failed: HTTP ${response.code}",
+                    httpCode = response.code,
+                    oauthError = parseError(body)?.error,
+                )
             }
             decodeGuarded(body, "device authorization", DeviceAuthorization.serializer())
         }
@@ -165,7 +174,12 @@ class OAuthClient internal constructor(
             .add("client_id", clientId)
             .build()
         val request = Request.Builder().url(metadata.tokenEndpoint).post(form).header("Accept", "application/json").build()
-        runCatching {
+        // ⛔ Caught BY TYPE, IOException only. Catching by scope (`runCatching` over the block) made
+        // a 200 whose body this client cannot read — a proxy's HTML page, a truncated document —
+        // report itself as a dead network, and sent the reader off to check a connection that was
+        // working. A body we cannot read is a server problem and rises like everywhere else; and
+        // catching by type keeps a CancellationException (leaving the screen mid-poll) passing.
+        try {
             tokenHttpClient.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 if (response.isSuccessful) {
@@ -183,7 +197,13 @@ class OAuthClient internal constructor(
                     }
                 }
             }
-        }.getOrElse { DeviceTokenResult.Failed(it.message ?: "network error") }
+        // A fixed token, NOT `e.message`: OkHttp writes that message and it names the URL, the
+        // host and the port ("Failed to connect to mail.example.org/…:443"), and the connect
+        // screen DISPLAYS this field. That is the same leak `decodeGuarded` is here to stop —
+        // the caller only needs to know the exchange never reached a server.
+        } catch (_: IOException) {
+            DeviceTokenResult.Failed("network_error")
+        }
     }
 
     /** Exchange a refresh token for a fresh access token (RFC 6749 §6). */

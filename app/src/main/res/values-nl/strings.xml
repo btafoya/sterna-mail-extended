@@ -581,6 +581,9 @@
     <string name="connect_oauth_declined">Je hebt de aanmelding geweigerd. Probeer het opnieuw.</string>
     <string name="connect_oauth_admin_consent">De beheerder van je organisatie moet Sterna goedkeuren voor aanmelding met Microsoft, of je kunt je aanmelden met een app-wachtwoord.</string>
     <string name="connect_oauth_error_code">Microsoft heeft de aanmelding geweigerd (%1$s). Probeer het opnieuw of gebruik een app-wachtwoord.</string>
+    <string name="connect_oauth_flow_unsupported">Deze server biedt inloggen met OAuth, maar niet op een manier die Sterna al kan gebruiken. Gebruik in plaats daarvan e-mailadres en wachtwoord.</string>
+    <string name="connect_oauth_error_reason">De server heeft het inloggen geweigerd (%1$s). Probeer het opnieuw of gebruik e-mailadres en wachtwoord.</string>
+    <string name="connect_oauth_network">De server was niet bereikbaar tijdens het wachten op goedkeuring. Controleer je verbinding en probeer het opnieuw.</string>
     <string name="connect_incoming_imap">Inkomend (IMAP)</string>
     <string name="connect_outgoing_smtp">Uitgaand (SMTP)</string>
     <string name="connect_account_name_optional">Accountnaam (optioneel)</string>

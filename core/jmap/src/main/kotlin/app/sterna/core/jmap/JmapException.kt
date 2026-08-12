@@ -12,4 +12,10 @@ class JmapException(
     val httpCode: Int? = null,
     /** The JMAP method-level error type (e.g. "anchorNotFound"), when the failure was one. */
     val errorType: String? = null,
+    /**
+     * The OAuth protocol's `error` field (RFC 6749 §5.2, e.g. "invalid_client"), when the failure
+     * was an OAuth error response — never the response body, and never `error_description`. It is
+     * a short, closed vocabulary chosen by the protocol; the body is the caller's tokens.
+     */
+    val oauthError: String? = null,
 ) : Exception(message, cause)

@@ -581,6 +581,9 @@
     <string name="connect_oauth_declined">Hai rifiutato l\'accesso. Riprova.</string>
     <string name="connect_oauth_admin_consent">L\'amministratore della tua organizzazione deve approvare Sterna per l\'accesso Microsoft, oppure puoi accedere con una password per app.</string>
     <string name="connect_oauth_error_code">Microsoft ha rifiutato l\'accesso (%1$s). Riprova oppure usa una password per app.</string>
+    <string name="connect_oauth_flow_unsupported">Questo server offre l\'accesso OAuth, ma non in un modo che Sterna possa già usare. Usa invece email e password.</string>
+    <string name="connect_oauth_error_reason">Il server ha rifiutato l\'accesso (%1$s). Riprova oppure usa email e password.</string>
+    <string name="connect_oauth_network">Non è stato possibile raggiungere il server durante l\'attesa dell\'approvazione. Controlla la connessione e riprova.</string>
     <string name="connect_incoming_imap">In entrata (IMAP)</string>
     <string name="connect_outgoing_smtp">In uscita (SMTP)</string>
     <string name="connect_account_name_optional">Nome account (facoltativo)</string>

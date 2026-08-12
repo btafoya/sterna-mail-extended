@@ -274,25 +274,51 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val candidates = if (server.isNotBlank()) listOf(server.trim()) else Jmap.autodiscoverHosts(emailTrim)
         _state.value = ConnectState.Discovering
         oauthJob = viewModelScope.launch {
-            var metadata: OAuthMetadata? = null
-            var host: String? = null
+            // ⚠ COLLECT, don't stop at the first answer. autodiscoverHosts tries the bare domain
+            // first — the organisation's website — so a site that publishes an OAuth document
+            // without a device flow would end the search before mail.<domain> is ever asked, and
+            // refuse a sign-in that worked the day before. The happy case still probes one host:
+            // the loop breaks as soon as a candidate has the flow.
+            val discovered = mutableListOf<Pair<String, OAuthMetadata>>()
             for (h in candidates) {
-                metadata = runCatching { container.mailRepository.discoverOAuth(h) }.getOrNull()
-                if (metadata != null) { host = h; break }
+                val m = runCatching { container.mailRepository.discoverOAuth(h) }.getOrNull() ?: continue
+                discovered += h to m
+                if (m.supportsDeviceFlow) break
             }
-            if (metadata == null || host == null) {
-                _state.value = ConnectState.Error(string(R.string.connect_oauth_unsupported))
+            // "No OAuth here" and "OAuth, but not a flow this app can drive" are different facts
+            // and used to be the same sentence. WHICH sentence is oauthDiscoveryFailure's call and
+            // no longer this screen's — it answers for a null metadata too, so the "nothing
+            // answered anywhere" corner asks it again instead of naming a string here.
+            val chosen = chooseOAuthHost(discovered)
+            val advertised = chosen?.second
+            val discoveryFailure = oauthDiscoveryFailure(advertised)
+            if (chosen == null || discoveryFailure != null) {
+                _state.value = ConnectState.Error(
+                    string(discoveryFailure ?: requireNotNull(oauthDiscoveryFailure(null))),
+                )
                 return@launch
             }
-            val device = runCatching { container.mailRepository.startDeviceAuthorization(metadata) }.getOrNull()
+            val (host, found) = chosen
+            val start = runCatching { container.mailRepository.startDeviceAuthorization(found) }
+            val device = start.getOrNull()
             if (device == null) {
-                _state.value = ConnectState.Error(string(R.string.connect_oauth_failed))
+                // Whatever the server said about the refusal, said. A transport failure carries no
+                // oauthError and falls back to the old "Couldn't start OAuth sign-in".
+                val spec = oauthFailureSpec(
+                    error = (start.exceptionOrNull() as? JmapException)?.oauthError.orEmpty(),
+                    description = "",
+                    aadstsCode = null,
+                    fallbackRes = R.string.connect_oauth_failed,
+                )
+                _state.value = ConnectState.Error(
+                    if (spec.arg == null) string(spec.resId) else string(spec.resId, spec.arg),
+                )
                 return@launch
             }
             _state.value = ConnectState.AwaitingApproval(
                 device.userCode, device.verificationUri, device.verificationUriComplete,
             )
-            pollForToken(host, metadata, device, emailTrim, accountName)
+            pollForToken(host, found, device, emailTrim, accountName)
         }
     }
 
@@ -307,7 +333,27 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val deadline = System.currentTimeMillis() + device.expiresIn * 1000L
         while (System.currentTimeMillis() < deadline) {
             delay(interval * 1000)
-            when (val result = container.mailRepository.pollDeviceToken(metadata, device.deviceCode)) {
+            // A poll the client could not read at all now rises instead of passing for a dead
+            // network (it used to be swallowed into `Failed("network error")`). It must not leave
+            // this coroutine: an uncaught throw in viewModelScope takes the app down mid sign-in.
+            val result = try {
+                container.mailRepository.pollDeviceToken(metadata, device.deviceCode)
+            } catch (cancelled: CancellationException) {
+                // Leaving the screen cancels the poll: not something to show an error for.
+                throw cancelled
+            } catch (t: Throwable) {
+                val spec = oauthFailureSpec(
+                    error = (t as? JmapException)?.oauthError.orEmpty(),
+                    description = "",
+                    aadstsCode = null,
+                    fallbackRes = R.string.connect_oauth_failed,
+                )
+                _state.value = ConnectState.Error(
+                    if (spec.arg == null) string(spec.resId) else string(spec.resId, spec.arg),
+                )
+                return
+            }
+            when (result) {
                 is DeviceTokenResult.Success -> {
                     _state.value = ConnectState.Connecting
                     val outcome = runCatching {
@@ -322,7 +368,8 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 DeviceTokenResult.Pending -> Unit
                 DeviceTokenResult.SlowDown -> interval += 5
                 is DeviceTokenResult.Failed -> {
-                    _state.value = ConnectState.Error(string(R.string.connect_oauth_denied))
+                    // Not every terminal poll is a refusal by the reader: say what the server said.
+                    _state.value = ConnectState.Error(oauthFailureMessage(getApplication<Application>(), result))
                     return
                 }
             }
