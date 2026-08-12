@@ -111,6 +111,32 @@ class SieveCodecTest {
         assertEquals(emptyList<FilterRule>(), SieveCodec.parseRulesOrNull(SieveCodec.generate(emptyList())))
     }
 
+    /**
+     * The compared value: the marker line out whole, the rest normalised and otherwise untouched.
+     * Pinned with literal input and literal output — indentation and interior blank lines survive.
+     */
+    @Test fun `sieveBody drops the marker line and normalises blanks`() {
+        assertEquals(
+            "require [\"fileinto\"];\n\nif true {\n    keep;\n}",
+            SieveCodec.sieveBody(
+                "\n  # STERNA-RULES-V1: [] \r\nrequire [\"fileinto\"];  \r\n\r\nif true {\t\n    keep;\n}\n\n",
+            ),
+        )
+    }
+
+    /** Only the FIRST marker line is ours; a second one further down is content like any other. */
+    @Test fun `sieveBody keeps a second marker line`() {
+        assertEquals(
+            "keep;\n# STERNA-RULES-V1: []",
+            SieveCodec.sieveBody("# STERNA-RULES-V1: []\nkeep;\n# STERNA-RULES-V1: []\n"),
+        )
+    }
+
+    /** No marker at all: nothing is dropped, everything is compared. */
+    @Test fun `sieveBody without a marker keeps every line`() {
+        assertEquals("if true { keep; }", SieveCodec.sieveBody("if true { keep; }\n"))
+    }
+
     /** The lenient wrapper still flattens both nos to an empty list, for readers that only count. */
     @Test fun `parseRules flattens unreadable to empty`() {
         assertTrue(SieveCodec.parseRules("# STERNA-RULES-V1: {oops").isEmpty())

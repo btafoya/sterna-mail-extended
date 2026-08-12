@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 /**
  * What reading an account's filters answers — [loadedFilterRules], executed.
@@ -113,6 +112,260 @@ class FilterRulesReadTest {
         assertFalse(loadedFilterRules(null, otherActiveScript = false).foreignActiveScript)
     }
 
+    // ---- a script we read only PART of: our marker, and hand-written Sieve around it ----
+
+    /** The marker line `generate` writes for [rule] alone, JSON and all. */
+    private val bossMarker =
+        """# STERNA-RULES-V1: [{"name":"Boss","enabled":true,"field":"FROM","match":"IS",""" +
+            """"value":"boss@example.com","moveTo":"Work","markRead":false,"flag":false}]"""
+
+    /** The Sieve `generate` emits for [rule] alone, line by line. */
+    private val bossSieve = arrayOf(
+        """require ["fileinto"];""",
+        "",
+        """if address :is "from" "boss@example.com" {""",
+        """    fileinto "Work";""",
+        "}",
+    )
+
+    private fun script(vararg lines: String) = lines.joinToString("\n", postfix = "\n")
+
+    /**
+     * ⛔ THE BUG THIS BRANCH FIXES. A perfectly valid marker line, and around it Sieve this app
+     * never wrote — a rule added from Roundcube. The marker parsed, so the script was called fully
+     * understood: the per-sender gesture was offered, and saving recompiled the whole script from
+     * the JSON alone, dropping the hand-written rule without a word.
+     */
+    @Test fun `a rule written by hand after our own marks the script unreadable`() {
+        val state = loadedFilterRules(
+            script(
+                bossMarker,
+                *bossSieve,
+                """if header :contains "subject" "sale" {""",
+                "    discard;",
+                "}",
+            ),
+            otherActiveScript = false,
+        )
+        assertEquals("the rules we DID read are real and must stay on screen", listOf(rule), state.rules)
+        assertTrue("Sieve we did not write must refuse the per-sender write", state.foreignActiveScript)
+        assertTrue(
+            "…and Save on the filters screen must ask before replacing it",
+            state.scriptUnreadable,
+        )
+    }
+
+    /**
+     * ⛔ **THE LIKELIEST SHAPE OF THE BUG, and the one every other test here misses.** Sterna
+     * creates the `sterna` script the first time the filters screen is opened, the user adds no
+     * rule, and the marker decodes to an EMPTY list. Another client — Roundcube edits whichever
+     * script is active — then adds its own rule to that same file.
+     *
+     * Every other foreign-Sieve test above hands in a non-empty rule list, so this one is what
+     * stands between the fix and a mutation that guts it:
+     *
+     *     parsed == null || (parsed.isNotEmpty() && holdsForeignSieve(sternaScript, parsed))
+     *
+     * Measured: that edit left the whole suite green, and it reopens the reported bug exactly —
+     * the per-sender gesture is offered again, and its save recompiles the script from an empty
+     * list, taking the hand-written rule with it and saying nothing.
+     */
+    @Test fun `an empty rule list with hand-written Sieve around it is still unreadable`() {
+        val state = loadedFilterRules(
+            script(
+                "# STERNA-RULES-V1: []",
+                "",
+                """require ["fileinto"];""",
+                """if header :contains "subject" "roundcube" {""",
+                """    fileinto "Archive";""",
+                "}",
+            ),
+            otherActiveScript = false,
+        )
+        assertEquals("we read no rules of our own out of it", emptyList<FilterRule>(), state.rules)
+        assertTrue(
+            "zero rules of ours is not zero content: the per-sender write must stop",
+            state.foreignActiveScript,
+        )
+        assertTrue("…and Save must ask before replacing it", state.scriptUnreadable)
+    }
+
+    /** The marker is not on line 1: everything above it is Sieve nobody here compiled. */
+    @Test fun `hand-written Sieve before the marker marks the script unreadable`() {
+        val state = loadedFilterRules(
+            script(
+                """if header :contains "subject" "invoice" {""",
+                """    fileinto "Bills";""",
+                "}",
+                bossMarker,
+                *bossSieve,
+            ),
+            otherActiveScript = false,
+        )
+        assertEquals(listOf(rule), state.rules)
+        assertTrue(state.foreignActiveScript)
+        assertTrue(state.scriptUnreadable)
+    }
+
+    /** A `require` this codec would never have emitted: someone edited the script. */
+    @Test fun `an extra require marks the script unreadable`() {
+        val state = loadedFilterRules(
+            script(bossMarker, """require ["vacation"];""", *bossSieve),
+            otherActiveScript = false,
+        )
+        assertEquals(listOf(rule), state.rules)
+        assertTrue(state.foreignActiveScript)
+        assertTrue(state.scriptUnreadable)
+    }
+
+    /**
+     * Only the FIRST marker line is ours — the one [SieveCodec.parseRulesOrNull] read. A second one
+     * further down is content in excess, so it counts as foreign like any other line.
+     */
+    @Test fun `a second marker line lower down marks the script unreadable`() {
+        val state = loadedFilterRules(
+            script(bossMarker, *bossSieve, """# STERNA-RULES-V1: [{"name":"Ghost"}]"""),
+            otherActiveScript = false,
+        )
+        assertEquals(listOf(rule), state.rules)
+        assertTrue(state.foreignActiveScript)
+        assertTrue(state.scriptUnreadable)
+    }
+
+    /** The JSON says `Work`, the Sieve says `Archive`: the script no longer does what it lists. */
+    @Test fun `Sieve edited away from the metadata marks the script unreadable`() {
+        val state = loadedFilterRules(
+            script(
+                bossMarker,
+                """require ["fileinto"];""",
+                "",
+                """if address :is "from" "boss@example.com" {""",
+                """    fileinto "Archive";""",
+                "}",
+            ),
+            otherActiveScript = false,
+        )
+        assertEquals(listOf(rule), state.rules)
+        assertTrue(state.foreignActiveScript)
+        assertTrue(state.scriptUnreadable)
+    }
+
+    /** Both causes at once: neither cancels the other, and the red line must still name ours. */
+    @Test fun `a foreign script warns as unreadable even when another script is active`() {
+        val state = loadedFilterRules(
+            script(bossMarker, *bossSieve, "keep;"),
+            otherActiveScript = true,
+        )
+        assertTrue(state.foreignActiveScript)
+        assertTrue("another active script must not hide that OURS was half-read", state.scriptUnreadable)
+    }
+
+    // ---- the witnesses: what must NOT be called foreign ----
+
+    /** ⭐ What this app writes, read straight back. Anything else here would be a false alarm. */
+    @Test fun `a script this app just generated is never foreign`() {
+        val rules = listOf(
+            rule,
+            FilterRule(name = "off", enabled = false, value = "x@y.com", moveTo = "Work"),
+            FilterRule(name = "flagged", field = RuleField.SUBJECT, value = "urgent", flag = true),
+        )
+        for (list in listOf(emptyList(), listOf(rule), rules)) {
+            val state = loadedFilterRules(SieveCodec.generate(list), otherActiveScript = false)
+            assertEquals(list, state.rules)
+            assertFalse("we wrote this one: $list", state.foreignActiveScript)
+            assertFalse("we wrote this one: $list", state.scriptUnreadable)
+        }
+    }
+
+    /**
+     * ⭐ THE WITNESS THAT FIXES THE COMPARED VALUE. A script written by an OLDER version of this
+     * app: the Sieve below is byte-for-byte what we emit, but the marker's JSON carries a key we
+     * do not know (a field added later, or dropped later).
+     *
+     * Comparing the WHOLE script would call every one of those foreign — on the entire installed
+     * base, the day a ninth field is added to [FilterRule], because `encodeDefaults = true` writes
+     * them all. The marker line is therefore removed from the comparison, and only the Sieve is
+     * compared.
+     */
+    @Test fun `a marker written by another version of this app is not foreign`() {
+        val extraKey =
+            """# STERNA-RULES-V1: [{"name":"Boss","enabled":true,"field":"FROM","match":"IS",""" +
+                """"value":"boss@example.com","moveTo":"Work","markRead":false,"flag":false,""" +
+                """"colour":"red"}]"""
+        val missingKeys =
+            """# STERNA-RULES-V1: [{"name":"Boss","field":"FROM","match":"IS",""" +
+                """"value":"boss@example.com","moveTo":"Work"}]"""
+        for (marker in listOf(extraKey, missingKeys)) {
+            val state = loadedFilterRules(script(marker, *bossSieve), otherActiveScript = false)
+            assertEquals(listOf(rule), state.rules)
+            assertFalse("only the JSON differs, and the JSON is not Sieve: $marker", state.foreignActiveScript)
+            assertFalse(marker, state.scriptUnreadable)
+        }
+    }
+
+    /** ⭐ A server that hands the blob back in CRLF is not a server that rewrote the script. */
+    @Test fun `the same script in CRLF is not foreign`() {
+        val crlf = SieveCodec.generate(listOf(rule)).replace("\n", "\r\n")
+        val state = loadedFilterRules(crlf, otherActiveScript = false)
+        assertEquals(listOf(rule), state.rules)
+        assertFalse(state.foreignActiveScript)
+        assertFalse(state.scriptUnreadable)
+    }
+
+    /** Trailing blanks on two lines and no final newline: still our script, character for word. */
+    @Test fun `trailing spaces and a missing final newline are not foreign`() {
+        val sloppy = SieveCodec.generate(listOf(rule))
+            .replace(";\n", ";  \n")
+            .trimEnd('\n')
+        val state = loadedFilterRules(sloppy, otherActiveScript = false)
+        assertEquals(listOf(rule), state.rules)
+        assertFalse(state.foreignActiveScript)
+        assertFalse(state.scriptUnreadable)
+    }
+
+    /**
+     * ⭐ The non-regression witness. A blank script holds nothing to lose, so it is zero rules and
+     * NO alarm — the guard is written into the comparison itself, not left to the luck of what
+     * `generate(emptyList())` happens to normalise to.
+     */
+    @Test fun `a blank script is never foreign`() {
+        for (blank in listOf("", "   ", "\n\n", "\r\n\r\n")) {
+            val state = loadedFilterRules(blank, otherActiveScript = false)
+            assertEquals(emptyList<FilterRule>(), state.rules)
+            assertFalse("a blank script has nothing to lose: ${blank.length}", state.foreignActiveScript)
+            assertFalse("a blank script has nothing to lose: ${blank.length}", state.scriptUnreadable)
+        }
+    }
+
+    /** The decision on its own, with literal arguments — no state, no fold, just the comparison. */
+    @Test fun `holdsForeignSieve compares the Sieve and ignores the marker line`() {
+        assertTrue(
+            "one hand-written line in excess is enough",
+            holdsForeignSieve(script(bossMarker, *bossSieve, "keep;"), listOf(rule)),
+        )
+        assertFalse(
+            "the same Sieve under a marker from another version of this app is ours",
+            holdsForeignSieve(
+                script(
+                    """# STERNA-RULES-V1: [{"name":"Boss","field":"FROM","match":"IS",""" +
+                        """"value":"boss@example.com","moveTo":"Work","extra":1}]""",
+                    *bossSieve,
+                ),
+                listOf(rule),
+            ),
+        )
+        // ⚠ Measured on 2026-08-12, and left standing: deleting the `script.isBlank()` guard from
+        // holdsForeignSieve leaves the whole suite green. It is EQUIVALENT BY CONSTRUCTION, not a
+        // hole — a blank script and the script we write for zero rules normalise to the same empty
+        // body, and `parseRulesOrNull` answers emptyList() for a blank script, so the only call
+        // loadedFilterRules can ever make is the one asserted here. The guard stays as the written
+        // form of a rule that must not be rediscovered by accident (a blank script holds nothing to
+        // lose), NOT because a test needs it. Pinning it would have meant asserting a state no
+        // caller can reach.
+        assertFalse("blank is never foreign", holdsForeignSieve("   \n\t\n", emptyList()))
+        assertFalse("what we write is never foreign", holdsForeignSieve(SieveCodec.generate(listOf(rule)), listOf(rule)))
+    }
+
     // ---- the wiring, read out of the shipped source: a LAST RESORT, not the proof ----
 
     /**
@@ -175,49 +428,11 @@ class FilterRulesReadTest {
      * the comparison instead of being hidden by the first.
      */
     private fun declarationsOf(body: String, name: String): List<String> =
-        codeLines(body).filter { it.substringBefore(" =") == "val $name" }
-
-    /** [body] as trimmed code lines: comment lines dropped whole, trailing comments cut. */
-    private fun codeLines(body: String): List<String> = body.lines().mapNotNull { line ->
-        val code = line.trim()
-        if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) null
-        else withoutTrailingComment(code).takeIf { it.isNotBlank() }
-    }
-
-    private fun withoutTrailingComment(line: String): String {
-        var inString = false
-        var i = 0
-        while (i < line.length) {
-            val c = line[i]
-            when {
-                inString && c == '\\' -> i++
-                c == '"' -> inString = !inString
-                !inString && c == '/' && line.getOrNull(i + 1) == '/' -> return line.substring(0, i).trimEnd()
-            }
-            i++
-        }
-        return line.trimEnd()
-    }
+        SourceText.codeLines(body).filter { it.substringBefore(" =") == "val $name" }
 
     /** The body of `MailRepository.loadFilterRules`, from its signature to the next declaration. */
-    private fun loadFilterRulesBody(): String {
-        val source = locate("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt").readText()
-        val start = source.indexOf("suspend fun loadFilterRules(credentials: AccountCredentials)")
-        check(start >= 0) { "MailRepository no longer declares loadFilterRules(credentials)" }
-        val end = source.indexOf("\n    /**", start)
-        check(end > start) { "no declaration follows loadFilterRules — the slice would be the whole file" }
-        return source.substring(start, end)
-    }
-
-    /** [relative] resolved from the test's working directory, walking up. */
-    private fun locate(relative: String): File {
-        val fromModule = relative.substringAfter("core/data/")
-        var dir: File? = File(System.getProperty("user.dir")).absoluteFile
-        while (dir != null) {
-            File(dir, relative).takeIf { it.isFile }?.let { return it }
-            File(dir, fromModule).takeIf { it.isFile }?.let { return it }
-            dir = dir.parentFile
-        }
-        error("Cannot find $relative from ${System.getProperty("user.dir")}")
-    }
+    private fun loadFilterRulesBody(): String = SourceText.functionSource(
+        SourceText.read("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"),
+        "suspend fun loadFilterRules(credentials: AccountCredentials)",
+    )
 }

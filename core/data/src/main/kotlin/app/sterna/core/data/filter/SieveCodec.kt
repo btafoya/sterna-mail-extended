@@ -14,11 +14,47 @@ import kotlinx.serialization.json.Json
  */
 object SieveCodec {
     const val SCRIPT_NAME = "sterna"
+
+    /**
+     * ⛔ **The Sieve emitted below is a compatibility surface. Changing it is expensive, and
+     * bumping this marker is NOT the way out.**
+     *
+     * The marker is no longer only a place to hang JSON: reading a script now compares its Sieve
+     * to the Sieve those rules would produce TODAY, and a difference means somebody hand-edited
+     * the script. Emit one character differently and every script written by an earlier version
+     * stops matching — the whole installed base is told its filter script holds foreign Sieve, and
+     * is asked to confirm an overwrite it never provoked.
+     *
+     * ⛔ **Do not "fix" that by writing `# STERNA-RULES-V2:` here.** [parseRulesOrNull] knows this
+     * one string and no other, so a bump makes every V1 script on every server UNREADABLE instead
+     * of merely suspect — and unreadable is the WORSE of the two, not the better:
+     *
+     *  - suspect (the marker still matches): the rules are decoded, the filters screen LISTS them,
+     *    and the warning only asks before replacing. Nothing is lost by confirming.
+     *  - unreadable (the marker no longer matches): the rules are not decoded, the screen shows
+     *    ZERO rules under the same red line, and confirming the overwrite destroys filters the
+     *    user still has. That is the data loss this whole file exists to prevent.
+     *
+     * So a real change to the emitted Sieve costs a reader that accepts BOTH markers and a
+     * generator kept per version, so the comparison can be made against the version that wrote the
+     * script. Neither exists today. Until one does, treat the emitted Sieve as frozen: the cheap
+     * change is the one that emits nothing different.
+     *
+     * `SieveEmissionTest` pins it, golden output first and source lines second, so the edit cannot
+     * pass unnoticed.
+     */
     private const val MARKER = "# STERNA-RULES-V1:"
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     private val serializer = ListSerializer(FilterRule.serializer())
 
-    /** Build the Sieve script (with embedded JSON metadata) for [rules]. */
+    /**
+     * Build the Sieve script (with embedded JSON metadata) for [rules].
+     *
+     * ⛔ **What this emits is a compatibility surface, not an implementation detail**: it is
+     * compared against the scripts already sitting on servers, all of which an earlier build of
+     * this same function wrote. Read [MARKER] before changing a character of it — including
+     * [escape], which is part of what is emitted.
+     */
     fun generate(rules: List<FilterRule>): String {
         val sb = StringBuilder()
         sb.append(MARKER).append(' ').append(json.encodeToString(serializer, rules)).append('\n')
@@ -66,6 +102,31 @@ object SieveCodec {
      * on null.
      */
     fun parseRules(script: String): List<FilterRule> = parseRulesOrNull(script) ?: emptyList()
+
+    /**
+     * [script] reduced to the Sieve it runs: its marker line removed whole, and blanks normalised.
+     * The value two scripts are compared on to tell "we wrote all of this" from "we wrote part of
+     * it" (see `holdsForeignSieve`).
+     *
+     * ⭐ **The marker line goes out entirely, JSON included** — the FIRST line whose trimmed text
+     * starts with [MARKER], i.e. exactly the line [parseRulesOrNull] read. The JSON must not be
+     * compared: `encodeDefaults = true` writes every field, so the day a field is added to
+     * [FilterRule] the metadata of every script already on a server would differ from what we
+     * write today, and comparing it would call the entire installed base hand-edited. A SECOND
+     * marker line further down is not ours and stays in — it is content in excess like any other.
+     *
+     * Normalisation is the least that can be done: CRLF and lone CR to LF, trailing spaces and
+     * tabs off each line, and the block's own leading and trailing blanks off. Nothing more —
+     * indentation and interior blank lines are part of the script and stay compared. Measured on
+     * 2026-08-12: Stalwart hands the blob back byte for byte, so this is for a less careful host.
+     */
+    fun sieveBody(script: String): String {
+        val lines = script.replace("\r\n", "\n").replace('\r', '\n').lines()
+        val marker = lines.indexOfFirst { it.trim().startsWith(MARKER) }
+        return lines.filterIndexed { i, _ -> i != marker }
+            .joinToString("\n") { it.trimEnd(' ', '\t') }
+            .trim()
+    }
 
     private fun ruleToSieve(rule: FilterRule): String {
         val matchTag = if (rule.match == RuleMatch.IS) ":is" else ":contains"
