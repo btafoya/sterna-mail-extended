@@ -777,8 +777,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             if (cached != null) {
                 // BEFORE the prefill: the identity decides which signature the body opens with, so
                 // the alias must be picked first or the body would carry the default one (#81).
-                // The cached row only ever remembers To (never Cc), hence the second attempt below
-                // on the fetched original.
+                // Since schema v21 the cached row carries To, Cc AND Bcc; the second attempt below
+                // on the fetched original stays for rows cached BEFORE that migration, which are
+                // not back-filled and still come back with their copy columns empty.
                 preselectReceivingIdentity(credentials.id, cached)
                 _prefill.value = buildPrefill(cached, mode, selves(credentials), quoteBody = false)
                 if (mode != "forward") {

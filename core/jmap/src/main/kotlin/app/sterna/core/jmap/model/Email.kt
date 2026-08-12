@@ -95,7 +95,12 @@ data class Email(
     val replyTo: List<EmailAddress> = emptyList(),
     val to: List<EmailAddress> = emptyList(),
     val cc: List<EmailAddress> = emptyList(),
-    /** Populated by the single-message fetch only (needed to reopen a draft for editing, #63). */
+    /**
+     * The blind copies (needed to reopen a draft for editing, #63). Asked of the server by the
+     * single-message/body fetch AND by the three list property sets, like [cc] and [replyTo]: the
+     * cache's `@Upsert` replaces the row whole, so a list fetch that omitted it would erase the
+     * column the body fetch had filled.
+     */
     val bcc: List<EmailAddress> = emptyList(),
     val messageId: List<String> = emptyList(),
     /** The In-Reply-To header ids, so an edited reply draft keeps its threading (#63). */

@@ -224,12 +224,15 @@ class JmapClient internal constructor(
                             put("path", "/ids")
                         }
                         putJsonArray("properties") {
-                            // `replyTo`: this page's rows are CACHED (`emailDao.upsertAll`), and
-                            // that upsert replaces the whole row — omitting it here would wipe the
-                            // Reply-To another fetch stored. See [EMAIL_BODY_PROPERTIES].
+                            // `replyTo`, `cc`, `bcc`: this page's rows are CACHED
+                            // (`emailDao.upsertAll`), and that upsert replaces the whole row —
+                            // omitting one here would wipe what another fetch stored, so a
+                            // pull-to-refresh would empty the copies of a draft. See
+                            // [EMAIL_BODY_PROPERTIES] and [CopiesOnTheWireTest].
                             listOf(
                                 "id", "threadId", "subject", "preview",
-                                "receivedAt", "from", "replyTo", "to", "hasAttachment", "keywords",
+                                "receivedAt", "from", "replyTo", "to", "cc", "bcc",
+                                "hasAttachment", "keywords",
                             ).forEach { add(it) }
                         }
                     }
@@ -578,12 +581,13 @@ class JmapClient internal constructor(
                             put("accountId", accountId)
                             putJsonArray("ids") { batch.forEach { add(it) } }
                             putJsonArray("properties") {
-                                // `replyTo`: the delta sync writes these rows straight into the
-                                // cache, and the `@Upsert` replaces the row whole — see
+                                // `replyTo`, `cc`, `bcc`: the delta sync writes these rows straight
+                                // into the cache, and the `@Upsert` replaces the row whole — see
                                 // [EMAIL_BODY_PROPERTIES].
                                 listOf(
                                     "id", "threadId", "subject", "preview",
-                                    "receivedAt", "from", "replyTo", "to", "hasAttachment", "keywords",
+                                    "receivedAt", "from", "replyTo", "to", "cc", "bcc",
+                                    "hasAttachment", "keywords",
                                 ).forEach { add(it) }
                             }
                         }
@@ -1072,11 +1076,12 @@ class JmapClient internal constructor(
                             putJsonArray("ids") { batch.forEach { add(it) } }
                             putJsonArray("properties") {
                                 listOf(
-                                    // `replyTo`: thread members are cached too
+                                    // `replyTo`, `cc`, `bcc`: thread members are cached too
                                     // ([MailRepository.fetchThreadMembers]) — see
                                     // [EMAIL_BODY_PROPERTIES] for why every such path must ask.
                                     "id", "threadId", "subject", "preview", "receivedAt",
-                                    "from", "replyTo", "to", "hasAttachment", "keywords", "mailboxIds",
+                                    "from", "replyTo", "to", "cc", "bcc",
+                                    "hasAttachment", "keywords", "mailboxIds",
                                 ).forEach { add(it) }
                             }
                         }

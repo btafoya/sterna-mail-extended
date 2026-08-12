@@ -76,6 +76,11 @@ internal fun Email.toEntity(accountId: String, mailboxId: String): EmailEntity {
         // (a list, a support@ behind a no-reply@). Empty for almost every message, which stores
         // nothing and reads back as "answer the sender".
         replyToJson = EmailRecipients.encode(replyTo),
+        // Persisted since v21: the recipients in copy. The row is what a reopened draft and a
+        // "reply all" are rebuilt from, so a Cc that stops at the JMAP object is a Cc the user
+        // loses. Two separate columns: a blind copy is blind, and is never folded into the Cc.
+        ccJson = EmailRecipients.encode(cc),
+        bccJson = EmailRecipients.encode(bcc),
     )
 }
 
@@ -96,6 +101,11 @@ internal fun EmailEntity.toEmail(): Email = Email(
     // Persisted since v20: a row cached before the column existed, or a message with no
     // Reply-To at all, is NULL and decodes to an empty list — "no instruction, answer the sender".
     replyTo = EmailRecipients.decode(replyToJson),
+    // Persisted since v21: each copy field comes back from its OWN column. Reading the blind
+    // copies into `cc` would put an address the sender hid into the composer's visible Cc, and
+    // the next reply-all would mail it to everyone.
+    cc = EmailRecipients.decode(ccJson),
+    bcc = EmailRecipients.decode(bccJson),
     hasAttachment = hasAttachment,
     keywords = buildMap {
         if (seen) put("\$seen", true)

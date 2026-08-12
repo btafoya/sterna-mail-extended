@@ -808,6 +808,22 @@ internal fun ImapMessage.toEntity(accountId: String, mailboxId: String): EmailEn
         replyToJson = EmailRecipients.encode(
             replyTo.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
         ),
+        // Envelope Cc, same codec and same column shape as the two above (schema v21). Without
+        // this line the copied parties stop at [ImapMessage] and every reader that only has the
+        // row — a reopened draft, a reply-all, the offline and quick replies — writes to the To:
+        // alone and drops them out of the conversation.
+        ccJson = EmailRecipients.encode(
+            cc.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
+        ),
+        // Envelope Bcc, in ITS OWN column. ⛔ Never folded into ccJson above: the whole point of
+        // the second column is that a blind copy stays blind. In practice this is empty for
+        // anything THIS app appended — not a property of IMAP, but of our own MIME builder, which
+        // emits From/To/Cc and no Bcc: at all (OutgoingMime.build, SmtpClient.kt:337-341). A draft
+        // another client left on the account with a Bcc: header does surface here, which is
+        // precisely why the value is stored rather than presumed lost.
+        bccJson = EmailRecipients.encode(
+            bcc.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
+        ),
     )
 }
 

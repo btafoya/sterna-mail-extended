@@ -60,4 +60,34 @@ data class EmailEntity(
      * sync, exactly as [recipientsJson] did in v17.
      */
     val replyToJson: String? = null,
+    /**
+     * The message's `Cc:` recipients, JSON-encoded by [EmailRecipients] (added in schema v21).
+     *
+     * The people put in copy are part of the message's addressing, not decoration: reopening a
+     * draft rebuilds its Cc field from the cached row, and "reply all" builds its recipient list
+     * out of To + Cc. While the column did not exist the row answered "nobody in copy" to both,
+     * so reopening a draft silently emptied its Cc — valid addresses included — and every reply
+     * to all dropped the people in copy without a word on screen.
+     *
+     * Null on rows cached before v21 and on the many messages addressed to no one in copy: both
+     * decode to an empty list, i.e. the pre-v21 answer, which for those messages is the true one.
+     * There is no backfill — the addresses are not held locally, so an old row gains them at its
+     * next sync, exactly as [recipientsJson] did in v17 and [replyToJson] in v20.
+     */
+    val ccJson: String? = null,
+    /**
+     * The message's `Bcc:` recipients, JSON-encoded by [EmailRecipients] (added in schema v21).
+     *
+     * Only ever populated on mail this account sent or is writing — a received message never
+     * carries the blind copies. That is exactly the case that matters: a draft addressed in Bcc
+     * and reopened used to come back with the field emptied and the Cc/Bcc row folded shut, so
+     * the recipient was gone and nothing said so.
+     *
+     * ⚠ A separate column from [ccJson] on purpose, and never merged with it for display: the
+     * whole point of a blind copy is that it is not shown to the other recipients.
+     *
+     * Null on rows cached before v21 and on every message without blind copies; both decode to
+     * an empty list. No backfill, for the same reason as [ccJson].
+     */
+    val bccJson: String? = null,
 )

@@ -74,6 +74,29 @@ data class ImapMessage(
      * of which only ever see the cache row — address it too.
      */
     val replyTo: List<ImapAddress> = emptyList(),
+    /**
+     * Envelope `Cc` (index 6): the people put in copy, who a "reply to all" has to keep.
+     *
+     * Empty when the header is absent. Persisted like the recipients ([ImapMessage.to]) because
+     * the cache row is all a reopened draft and an offline reply-all ever see: an address that
+     * stops here is an address they cannot address, and the copied parties silently drop out of
+     * the conversation.
+     */
+    val cc: List<ImapAddress> = emptyList(),
+    /**
+     * Envelope `Bcc` (index 7): the blind copies.
+     *
+     * ⚠ Practically always empty on a received message — a server does not tell a recipient who
+     * else was blind-copied. It is empty on the drafts THIS app appends for a reason of our own,
+     * not a rule of the protocol: the ENVELOPE mirrors the headers of whatever was APPENDed, and
+     * [OutgoingMime.build] writes `From`, `To` and `Cc` and no `Bcc:` at all. A draft another
+     * client appended with a `Bcc:` header does read back here. Read anyway, because it costs
+     * nothing (the ENVELOPE is already fetched whole) and because a field that is never read is a
+     * field one starts believing is lost somewhere else.
+     *
+     * ⛔ Its own list, never merged into [cc]: that merge is how a blind copy stops being blind.
+     */
+    val bcc: List<ImapAddress> = emptyList(),
     /** Epoch millis from the envelope date (0 if unparseable). */
     val dateMillis: Long,
     val seen: Boolean,

@@ -13,7 +13,7 @@ import androidx.room.migration.Migration
  * very constant. Bumping it without adding the matching step to [SternaDatabase.ALL_MIGRATIONS]
  * is the destructive case: Room finds no path and drops every table, the outbox included.
  */
-internal const val SCHEMA_VERSION = 20
+internal const val SCHEMA_VERSION = 21
 
 @Database(
     entities = [
@@ -55,12 +55,13 @@ abstract class SternaDatabase : RoomDatabase() {
          * the migration must never fall back destructively; 16→17 adds the persisted To:
          * recipients (#63); 17→18 adds `purge_snapshot`, the frozen destroy list of an Empty trash
          * (#99); 18→19 records which UIDVALIDITY a snapshot and a folder's cache belong to (#99);
-         * 19→20 adds the persisted Reply-To addresses.
+         * 19→20 adds the persisted Reply-To addresses; 20→21 adds the persisted Cc and Bcc, so a
+         * reopened draft keeps its copies and "reply all" still answers everyone.
          */
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_9_10, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
             MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
-            MIGRATION_18_19, MIGRATION_19_20,
+            MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
         )
 
         fun build(context: Context): SternaDatabase =

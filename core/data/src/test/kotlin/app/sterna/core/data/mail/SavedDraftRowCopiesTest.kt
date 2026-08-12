@@ -1,0 +1,210 @@
+package app.sterna.core.data.mail
+
+import app.sterna.core.data.db.EmailRecipients
+import app.sterna.core.jmap.model.EmailAddress
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Saving a draft from the device must not blank the people in copy.
+ *
+ * `MailRepository.saveDraft` sends the Cc and Bcc to the server, then optimistically caches the
+ * saved draft so the Drafts list shows it at once (#63). That cache write is an `@Upsert`
+ * (`EmailDao.kt:237`) which replaces the row WHOLE: a row built without the copies writes
+ * `ccJson = NULL` over whatever the sync had stored. Reopening the draft then loses the copies —
+ * and the composer's Cc row is folded shut, so nothing says a recipient went missing.
+ *
+ * Two halves, because [MailRepository] cannot be built in a JVM test (Room, Context, sockets):
+ * the mapping is EXECUTED here through [savedDraftRow], and the two argument hops that feed it
+ * are pinned against the shipped source, whole line at a time.
+ */
+class SavedDraftRowCopiesTest {
+
+    private val alex = EmailAddress(name = "Alex", email = "alex@example.org")
+    private val bob = EmailAddress(email = "bob@example.org")
+    private val carol = EmailAddress(email = "carol@example.org")
+    private val dave = EmailAddress(email = "dave@example.org")
+    private val erin = EmailAddress(name = "Erin", email = "erin@example.org")
+    private val frank = EmailAddress(email = "frank@example.org")
+    private val gina = EmailAddress(email = "gina@example.org")
+
+    private fun row(
+        to: List<EmailAddress> = listOf(bob),
+        cc: List<EmailAddress> = listOf(carol),
+        bcc: List<EmailAddress> = listOf(dave),
+    ) = savedDraftRow(
+        accountId = "accA",
+        emailId = "draft-1",
+        draftMailboxId = "drafts",
+        from = alex,
+        to = to,
+        cc = cc,
+        bcc = bcc,
+        subject = "Six o'clock",
+        body = "See you there.",
+        inReplyTo = emptyList(),
+        references = emptyList(),
+        hasAttachment = false,
+    )
+
+    // --- the mapping, executed ----------------------------------------------------------------------
+
+    @Test fun theCachedDraftRowCarriesTheCopiesItWasSavedWith() {
+        val entity = row()
+
+        assertEquals("carol@example.org", EmailRecipients.decode(entity.ccJson).single().email)
+        assertEquals("dave@example.org", EmailRecipients.decode(entity.bccJson).single().email)
+        // …and the To is still the To: the three columns hold three different lists.
+        assertEquals("bob@example.org", EmailRecipients.decode(entity.recipientsJson).single().email)
+    }
+
+    @Test fun theRowReadsBackAsTheDraftTheComposerWillReopen() {
+        val reopened = row().toEmail()
+
+        assertEquals(listOf("bob@example.org"), reopened.to.map { it.email })
+        assertEquals(listOf("carol@example.org"), reopened.cc.map { it.email })
+        assertEquals(listOf("dave@example.org"), reopened.bcc.map { it.email })
+    }
+
+    @Test fun aDraftWithNobodyInCopyStoresNoCopies() {
+        val entity = row(cc = emptyList(), bcc = emptyList())
+
+        assertNull(entity.ccJson)
+        assertNull(entity.bccJson)
+        assertEquals(listOf("bob@example.org"), entity.toEmail().to.map { it.email })
+    }
+
+    /**
+     * ⭐ MORE THAN ONE PERSON IN COPY, and all of them stored, in the order they were typed.
+     * Every other fixture here holds a single address, and a one-element list is a fixed point of
+     * `take(1)`, `first()`, `lastOrNull()` — a row builder that keeps one copied party out of
+     * three passes the rest of this class. The order is asserted too: it is the order the reply-all
+     * will address them in.
+     */
+    @Test fun aDraftKeepsEveryCopiedParty() {
+        val entity = row(cc = listOf(carol, erin, frank), bcc = listOf(dave, gina))
+
+        assertEquals(
+            listOf("carol@example.org", "erin@example.org", "frank@example.org"),
+            EmailRecipients.decode(entity.ccJson).map { it.email },
+        )
+        assertEquals(listOf(null, "Erin", null), EmailRecipients.decode(entity.ccJson).map { it.name })
+        assertEquals(
+            listOf("dave@example.org", "gina@example.org"),
+            EmailRecipients.decode(entity.bccJson).map { it.email },
+        )
+        // …and read back, which is what the composer reopens.
+        val reopened = entity.toEmail()
+        assertEquals(
+            listOf("carol@example.org", "erin@example.org", "frank@example.org"),
+            reopened.cc.map { it.email },
+        )
+        assertEquals(listOf("dave@example.org", "gina@example.org"), reopened.bcc.map { it.email })
+    }
+
+    @Test fun aDraftBlindCopiedToOneAddressKeepsItOutOfTheVisibleCc() {
+        val entity = row(cc = emptyList(), bcc = listOf(dave))
+
+        assertNull("nobody was in visible copy; the Cc column must stay NULL", entity.ccJson)
+        assertEquals(listOf("dave@example.org"), entity.toEmail().bcc.map { it.email })
+        assertEquals(emptyList<String>(), entity.toEmail().cc.map { it.email })
+    }
+
+    // --- the two argument hops, pinned against the shipped source ------------------------------------
+
+    /**
+     * ⚠ SOURCE LINT. The executed tests above prove the mapping; they cannot prove the caller hands
+     * it the composer's copies. `cacheSavedDraft(… cc = emptyList(), …)` restores the whole defect
+     * and leaves every executed test green.
+     *
+     * Whole lines, not `contains`: the mutation that matters here REMOVES an argument, and the one
+     * after it would ADD one — a fragment match is blind to that.
+     */
+    @Test fun `saveDraft hands the trimmed copies to the cache write`() {
+        val body = DaoQuerySource.mailFunctionBody("MailRepository", "saveDraft")
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val at = body.indexOfFirst { it.startsWith("cacheSavedDraft(") }
+
+        assertTrue(
+            "MailRepository.saveDraft no longer calls cacheSavedDraft( — either the optimistic " +
+                "Drafts row is gone, or this lint must follow it",
+            at >= 0,
+        )
+        assertEquals(
+            "the arguments of the optimistic Drafts-row write changed. `ccTrimmed`/`bccTrimmed` " +
+                "are the addresses that were just sent to the server; dropping either one puts " +
+                "NULL into the column and empties a reopened draft's copies:",
+            listOf(
+                "cacheSavedDraft(",
+                "credentials, savedId, draftsId, from, recipients,",
+                "cc = ccTrimmed.map { EmailAddress(email = it) },",
+                "bcc = bccTrimmed.map { EmailAddress(email = it) },",
+                "subject, body,",
+                "inReplyTo, references, hasAttachment = blobs.isNotEmpty(),",
+                ")",
+            ),
+            body.drop(at).take(7),
+        )
+        // …and WHAT those two names hold, which the block above cannot say. `val ccTrimmed =
+        // emptyList<String>()` leaves every argument line above untouched, and the Cc then never
+        // even reaches the server: the call site is pinned, so pin the definitions too, whole
+        // lines, selected by name so a rename fails here rather than silently matching nothing.
+        assertEquals(
+            "the Cc/Bcc the save is built from are no longer the composer's trimmed addresses:",
+            listOf(
+                "val ccTrimmed = cc.map { it.trim() }.filter { it.isNotEmpty() }",
+                "val bccTrimmed = bcc.map { it.trim() }.filter { it.isNotEmpty() }",
+            ),
+            body.filter { it.startsWith("val ccTrimmed") || it.startsWith("val bccTrimmed") },
+        )
+    }
+
+    /**
+     * The second hop: what `cacheSavedDraft` forwards to the row builder it upserts.
+     *
+     * ⛔ Whole lines, like the lint above and for the same reason. Four `in`/`any` membership
+     * checks are blind to everything ADDED around them: `savedDraftRow(…).copy(ccJson = null,
+     * bccJson = null)` still contains `cc = cc,` and `bcc = bcc,` and `emailDao.upsertAll(`, so it
+     * passes all four while the cached draft blanks its own copies — the original defect, reopened
+     * by the very hop this test exists to hold.
+     */
+    @Test fun `the cache write forwards both copy fields to the row builder`() {
+        val body = DaoQuerySource.mailFunctionBody("MailRepository", "cacheSavedDraft")
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val at = body.indexOfFirst { it.startsWith("emailDao.upsertAll(") }
+
+        assertTrue(
+            "cacheSavedDraft no longer writes its row with emailDao.upsertAll( — the executed " +
+                "tests above then cover a mapping the app does not run:\n" + body.joinToString("\n"),
+            at >= 0,
+        )
+        assertEquals(
+            "the row cacheSavedDraft upserts is no longer built, whole and unaltered, from the " +
+                "addresses it was handed. Anything wrapped around savedDraftRow(…) writes NULL " +
+                "columns over what the sync stored, and reopening the draft loses the copies:",
+            listOf(
+                "emailDao.upsertAll(",
+                "listOf(",
+                "savedDraftRow(",
+                "accountId = credentials.id,",
+                "emailId = emailId,",
+                "draftMailboxId = draftMailboxId,",
+                "from = from,",
+                "to = to,",
+                "cc = cc,",
+                "bcc = bcc,",
+                "subject = subject,",
+                "body = body,",
+                "inReplyTo = inReplyTo,",
+                "references = references,",
+                "hasAttachment = hasAttachment,",
+                "),",
+                "),",
+                ")",
+            ),
+            body.drop(at).take(18),
+        )
+    }
+}

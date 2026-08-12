@@ -354,3 +354,30 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
         db.execSQL("ALTER TABLE `emails` ADD COLUMN `replyToJson` TEXT")
     }
 }
+
+/**
+ * Additive 20→21: `emails` gains `ccJson` and `bccJson`, the message's copied recipients
+ * ([EmailRecipients], see [EmailEntity.ccJson] and [EmailEntity.bccJson]).
+ *
+ * The cached row carried the `To:` since v17 but never the copies, and it is the row a reopened
+ * draft and a "reply all" are rebuilt from. So reopening a draft came back with its Cc and Bcc
+ * fields emptied — valid addresses included, the Cc/Bcc row folded shut, nothing on screen saying
+ * a recipient had gone — and replying to all silently left out everyone in copy.
+ *
+ * Two plain `ALTER TABLE … ADD COLUMN`, on the model of [MIGRATION_19_20], layered on top rather
+ * than folded into a released migration or into `EMAILS_CREATE_SQL` (rewriting either in place
+ * breaks the installs that replay the older statements and fails Room's identity check on the
+ * next launch). Nullable with no default, so every existing row keeps its data and reads back as
+ * "no copies" — the pre-v21 behaviour. No backfill: the addresses are not held locally, so an old
+ * row gains them at its next sync.
+ *
+ * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * `fallbackToDestructiveMigration()`, so an unhandled schema bump wipes the whole database —
+ * the outbox included, i.e. mail written and never sent.
+ */
+val MIGRATION_20_21 = object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `emails` ADD COLUMN `ccJson` TEXT")
+        db.execSQL("ALTER TABLE `emails` ADD COLUMN `bccJson` TEXT")
+    }
+}

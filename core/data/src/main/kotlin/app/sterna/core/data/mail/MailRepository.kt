@@ -369,6 +369,51 @@ internal fun requireSingleLineAddresses(addresses: List<String>) {
 }
 
 /**
+ * The Drafts-list row for a just-saved draft (#63), as a pure function so a JVM test can run the
+ * mapping the app runs ([MailRepository.cacheSavedDraft] only hands it to `emailDao.upsertAll`).
+ *
+ * ⚠ Every addressing field the row HAS A COLUMN FOR must be here. The row is written by an
+ * `@Upsert` that replaces the row whole, so a field left out is not "not filled yet": saving a
+ * draft with people in copy would blank the `ccJson`/`bccJson` a previous save or sync had stored,
+ * and reopening the draft would come back with the copies gone and the Cc row folded shut. That is
+ * `from`, `to`, `cc` and `bcc`.
+ *
+ * [inReplyTo] and [references] are NOT among them: they are taken for the [Email] built here, and
+ * `toEntity` drops them because `EmailEntity` has no such columns. The threading of an edited
+ * reply survives through the draft the server holds, not through this row — so do not read their
+ * presence in this signature as "the cached row remembers the threading".
+ */
+internal fun savedDraftRow(
+    accountId: String,
+    emailId: String,
+    draftMailboxId: String,
+    from: EmailAddress,
+    to: List<EmailAddress>,
+    cc: List<EmailAddress>,
+    bcc: List<EmailAddress>,
+    subject: String,
+    body: String,
+    inReplyTo: List<String>,
+    references: List<String>,
+    hasAttachment: Boolean,
+): EmailEntity = Email(
+    id = emailId,
+    accountId = accountId,
+    mailboxId = draftMailboxId,
+    subject = subject.ifBlank { null },
+    preview = body.replace(Regex("\\s+"), " ").trim().take(256).ifBlank { null },
+    receivedAt = java.time.Instant.now().toString(),
+    from = listOf(from),
+    to = to,
+    cc = cc,
+    bcc = bcc,
+    inReplyTo = inReplyTo,
+    references = references,
+    hasAttachment = hasAttachment,
+    keywords = mapOf("\$draft" to true, "\$seen" to true),
+).toEntity(accountId, draftMailboxId)
+
+/**
  * Read a cached row through [read]; if reading it fails at all, drop it via [purge] and report a
  * miss. An unreadable row must cost a refetch, never a message that can no longer be opened —
  * SQLite throws on reading a row past its cursor window, and it throws again on every retry.
@@ -5181,7 +5226,10 @@ class MailRepository(
         // Keyed on the server-returned id, so the next sync replaces it in place — no duplicate.
         if (savedId != null) {
             cacheSavedDraft(
-                credentials, savedId, draftsId, from, recipients, subject, body,
+                credentials, savedId, draftsId, from, recipients,
+                cc = ccTrimmed.map { EmailAddress(email = it) },
+                bcc = bccTrimmed.map { EmailAddress(email = it) },
+                subject, body,
                 inReplyTo, references, hasAttachment = blobs.isNotEmpty(),
             )
         }
@@ -5206,27 +5254,32 @@ class MailRepository(
         draftMailboxId: String,
         from: EmailAddress,
         to: List<EmailAddress>,
+        cc: List<EmailAddress>,
+        bcc: List<EmailAddress>,
         subject: String,
         body: String,
         inReplyTo: List<String>,
         references: List<String>,
         hasAttachment: Boolean,
     ) {
-        val row = Email(
-            id = emailId,
-            accountId = credentials.id,
-            mailboxId = draftMailboxId,
-            subject = subject.ifBlank { null },
-            preview = body.replace(Regex("\\s+"), " ").trim().take(256).ifBlank { null },
-            receivedAt = java.time.Instant.now().toString(),
-            from = listOf(from),
-            to = to,
-            inReplyTo = inReplyTo,
-            references = references,
-            hasAttachment = hasAttachment,
-            keywords = mapOf("\$draft" to true, "\$seen" to true),
-        ).toEntity(credentials.id, draftMailboxId)
-        emailDao.upsertAll(listOf(row))
+        emailDao.upsertAll(
+            listOf(
+                savedDraftRow(
+                    accountId = credentials.id,
+                    emailId = emailId,
+                    draftMailboxId = draftMailboxId,
+                    from = from,
+                    to = to,
+                    cc = cc,
+                    bcc = bcc,
+                    subject = subject,
+                    body = body,
+                    inReplyTo = inReplyTo,
+                    references = references,
+                    hasAttachment = hasAttachment,
+                ),
+            ),
+        )
     }
 
     /**

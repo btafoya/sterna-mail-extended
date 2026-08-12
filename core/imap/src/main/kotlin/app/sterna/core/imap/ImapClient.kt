@@ -928,6 +928,34 @@ class ImapSession(private var socket: Socket) : Closeable {
             val email = if (box != null && host != null) "$box@$host" else null
             if (email == null && name == null) null else ImapAddress(name = name, email = email)
         }
+        // Envelope "cc" (index 6): the people put in copy. Read exactly like the recipients above,
+        // decodeHeaderBytes on BOTH halves included — a copied address is not displayed and
+        // forgotten, it is prefilled as a recipient of a reply-all and re-sent, so a mangled host
+        // sends the copy to a domain that does not exist while the message looks sent.
+        @Suppress("UNCHECKED_CAST")
+        val ccAddrs = ((envelope?.getOrNull(6) as? List<Any?>).orEmpty()).mapNotNull { entry ->
+            val addr = entry as? List<Any?> ?: return@mapNotNull null
+            val name = decodeWords(addr.getOrNull(0) as? String)
+            val box = (addr.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
+            val host = (addr.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
+            val email = if (box != null && host != null) "$box@$host" else null
+            if (email == null && name == null) null else ImapAddress(name = name, email = email)
+        }
+        // Envelope "bcc" (index 7): the BLIND copies, and the reason the two slots are read
+        // separately here and stored in separate columns downstream.
+        //
+        // ⛔ Index 7 is not index 6. Filling `cc` from this slot would publish, on screen and in
+        // the recipient list of a reply-all, addresses the sender chose to hide — the one mistake
+        // in this function that cannot be walked back once the reply is sent.
+        @Suppress("UNCHECKED_CAST")
+        val bccAddrs = ((envelope?.getOrNull(7) as? List<Any?>).orEmpty()).mapNotNull { entry ->
+            val addr = entry as? List<Any?> ?: return@mapNotNull null
+            val name = decodeWords(addr.getOrNull(0) as? String)
+            val box = (addr.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
+            val host = (addr.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
+            val email = if (box != null && host != null) "$box@$host" else null
+            if (email == null && name == null) null else ImapAddress(name = name, email = email)
+        }
         val messageId = envelope?.getOrNull(9) as? String
         val inReplyTo = envelope?.getOrNull(8) as? String
 
@@ -938,6 +966,8 @@ class ImapSession(private var socket: Socket) : Closeable {
             fromEmail = fromEmail,
             to = toAddrs,
             replyTo = replyToAddrs,
+            cc = ccAddrs,
+            bcc = bccAddrs,
             dateMillis = dateMillis,
             seen = flags.any { it.equals("\\Seen", true) },
             flagged = flags.any { it.equals("\\Flagged", true) },
