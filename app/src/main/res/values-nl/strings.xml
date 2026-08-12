@@ -305,6 +305,8 @@
     <string name="settings_notifications_screen_title">Meldingen</string>
     <string name="settings_new_mail_section">Nieuwe e-mail</string>
     <string name="settings_notif_content_section">Notificatie-inhoud</string>
+    <string name="settings_notif_content_preview">Afzender, onderwerp en voorbeeld</string>
+    <string name="settings_notif_content_preview_desc">Toont ook het begin van het bericht, als dat beschikbaar is.</string>
     <string name="settings_notif_content_full">Afzender en onderwerp</string>
     <string name="settings_notif_content_full_desc">Toont de afzender en het onderwerp.</string>
     <string name="settings_notif_content_sender">Alleen afzender</string>

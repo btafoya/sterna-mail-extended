@@ -6,6 +6,8 @@ import android.content.SharedPreferences
 import app.sterna.container
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.mail.EmailKey
+import app.sterna.core.data.mail.FolderRefresh
+import app.sterna.core.data.mail.PreviewSource
 import app.sterna.core.data.mail.announceableAt
 import app.sterna.core.data.mail.notifyFloor
 import app.sterna.core.data.settings.NotificationContent
@@ -177,6 +179,18 @@ object NewMailNotifier {
      * — cancels nothing; the default is what a caller with no such signal passes. See
      * [Notifications.departuresToCancel] for what may and may not be fed here, and
      * `MailRepository.confirmDepartures` for why a delta's word alone is not enough.
+     *
+     * [previewSources] says where the opening line of each of [emails] could be READ from, for the
+     * protocol that has to read it (IMAP; a JMAP row already carries its own — see
+     * [FolderRefresh.previewSources]). Empty is a complete answer: the notifications are then the
+     * sender and the subject, which is what every position but one shows anyway.
+     *
+     * ⭐ [previewBudget] is the six reads and four seconds of the WHOLE ACCOUNT PASS, and a
+     * multi-folder caller MUST pass the same one to every folder it diffs ([FetchAndNotify.run]):
+     * this function is called once per folder, so a budget of its own here would be four budgets
+     * for an account watching three extra folders — 24 reads and up to 16 s of blocking IMAP work
+     * under one mutex, on one radio wake-up. The default is a budget of its own, which is the right
+     * answer for the single-folder callers and the wrong one for a fan-out.
      */
     suspend fun notifyDiff(
         context: Context,
@@ -186,6 +200,9 @@ object NewMailNotifier {
         emails: List<Email>,
         baselineIds: Collection<String>,
         departedIds: List<String> = emptyList(),
+        previewSources: Map<String, PreviewSource> = emptyMap(),
+        previewBudget: NotificationPreviews.PreviewBudget =
+            NotificationPreviews.PreviewBudget(System::currentTimeMillis),
     ) {
         // One notification per conversation: the uncollapsed folder sync hands us every new
         // member of a thread, so a reply burst would otherwise fire one notification per
@@ -231,13 +248,62 @@ object NewMailNotifier {
             val summarised = Notifications.summaryShownFor(
                 Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id }).size,
             )
-            newMail.forEach {
+            // ⛔ The openings are read HERE, in one pre-pass, BEFORE the first notification is
+            // posted — never inside the loop below. A network round trip between two posts would
+            // put an exception in the middle of a half-announced batch, and the [seed] at the
+            // bottom of this function would be skipped: the folder's baseline would not move, the
+            // next pass would re-announce every message in it, and a re-announcement MOVES MAIL
+            // server-side through `unarchiveThreadsOnReply`. [NotificationPreviews] therefore
+            // throws nothing, and posts nothing it has not already gathered — a notification
+            // amended a second later flickers, and late mail is not news.
+            NotificationPreviews.postGatheredFirst(
+                newMail,
+                keyOf = { it.id },
+                gather = {
+                    NotificationPreviews.gather(
+                        // Each argument on its own line, and each one pinned: `content` is what
+                        // makes the whole pre-pass conditional on the reader having asked for a
+                        // body, and `newMail` is what makes it read the mail being announced
+                        // rather than the first six rows of a fifty-message page. Both would
+                        // compile if they were replaced, and neither would look wrong on screen.
+                        content,
+                        newMail.map { it.id },
+                        previewSources,
+                        // The account pass's own budget, so this folder does not start afresh.
+                        previewBudget,
+                        numbering = { repository.recordedNumbering(credentials.id, mailboxId) },
+                        fetch = { source, budgetMs ->
+                            repository.notificationPreview(credentials, mailboxId, source, budgetMs)
+                        },
+                    )
+                },
                 // [mailboxId] is the folder this diff pass is for, i.e. where the mail arrived —
                 // so the tap can put the list there (issue #91). Passed for the inbox too, where
                 // [folderName] is deliberately null: the sub-text is about marking non-inbox
                 // mail, the id is about where Back must land.
-                Notifications.notifyNewMail(context, it, credentials.id, silent, folderName, mailboxId, content, summarised)
-            }
+                //
+                // The gathered opening travels ON the message, so every path that posts a mail
+                // notification — this one and the snooze wake-up — reads it from the same field,
+                // and the privacy setting keeps deciding on its own whether it is ever shown.
+                // `?: email.preview` is what leaves JMAP's own preview alone: nothing was gathered
+                // there, and the row already carries one.
+                post = { email, preview ->
+                    Notifications.notifyNewMail(
+                        context,
+                        email.copy(preview = preview ?: email.preview),
+                        credentials.id,
+                        silent,
+                        folderName,
+                        mailboxId,
+                        // The privacy setting this pass read, and the same value the gathering was
+                        // gated on: on its own line because it is what decides what a lock screen
+                        // shows, and a positional argument is invisible to anything but a whole-line
+                        // pin (the class of Codeberg #84).
+                        content,
+                        summarised,
+                    )
+                },
+            )
             readIds.forEach { Notifications.cancelChild(context, credentials.id, it) }
             departed.forEach { Notifications.cancelChild(context, credentials.id, it) }
             // Rebuilt from ALL active children so successive per-folder passes accumulate

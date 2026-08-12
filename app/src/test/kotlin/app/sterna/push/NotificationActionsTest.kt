@@ -13,8 +13,13 @@ import org.junit.Test
  * and the two informative positions lose theirs when the mail has nothing to put there — a
  * message with no From header at SENDER_ONLY reads "New message / New message".
  *
- * The two informative positions with an ordinary message were settled with the reporter and must
- * stay exactly as they were: three actions, REPLY → MARK_READ → DELETE.
+ * The informative positions with an ordinary message were settled with the reporter and must stay
+ * exactly as they were: three actions, REPLY → MARK_READ → DELETE.
+ *
+ * The body-preview position answers the same question the same way as SENDER_AND_SUBJECT — sender
+ * and subject are both on screen — and its own extra text counts for nothing here: a preview says
+ * what was written, not who wrote it or what about, so it never turns a nameless message into one
+ * the reader may Delete.
  */
 class NotificationActionsTest {
 
@@ -31,6 +36,39 @@ class NotificationActionsTest {
     /** What the shipped text rule would put on screen for the same mail, stand-ins included. */
     private fun reveal(content: NotificationContent, sender: String?, subject: String?) =
         MailNotificationText.resolve(content, sender ?: GENERIC, subject ?: NO_SUBJECT, GENERIC)
+
+    // -- the talkative position: same buttons as sender + subject, and for the same reason ------
+
+    /**
+     * BODY_PREVIEW reveals strictly more than SENDER_AND_SUBJECT and is read the same way here:
+     * the sender and the subject are both on screen, so either one naming the message is enough.
+     * Written out rather than iterated, so that pointing this position at another branch — the
+     * empty one, or SENDER_ONLY's — is a failure and not a silent change of behaviour.
+     */
+    @Test fun `body preview keeps the same three actions, in the same order`() {
+        assertEquals(all, actions(NotificationContent.BODY_PREVIEW, SENDER, SUBJECT))
+        assertEquals(all, actions(NotificationContent.BODY_PREVIEW, sender = null, subject = SUBJECT))
+        assertEquals(all, actions(NotificationContent.BODY_PREVIEW, SENDER, subject = null))
+    }
+
+    /**
+     * And the decision this position had to settle: a preview of the body does NOT name the message.
+     * It says what was written, never by whom or about what — "see you at 6" identifies nothing —
+     * so a mail carrying neither a From header nor a subject gets no buttons at BODY_PREVIEW either,
+     * exactly as at SENDER_ONLY, however much text the expanded notification is showing. Delete over
+     * a message the reader cannot identify is the loss this rule exists to prevent.
+     */
+    @Test fun `a preview does not name the message`() {
+        assertEquals(
+            emptyList<MailNotificationAction>(),
+            actions(NotificationContent.BODY_PREVIEW, sender = null, subject = null),
+        )
+        // Even though the notification is far from empty: the expanded line is showing the body.
+        val onScreen = MailNotificationText.resolve(
+            NotificationContent.BODY_PREVIEW, GENERIC, NO_SUBJECT, GENERIC, PREVIEW,
+        )
+        assertEquals("$NO_SUBJECT\n$PREVIEW", onScreen.bigText)
+    }
 
     @Test fun `sender and subject keeps reply, mark as read and delete, in that order`() {
         assertEquals(all, actions(NotificationContent.SENDER_AND_SUBJECT, SENDER, SUBJECT))
@@ -91,8 +129,13 @@ class NotificationActionsTest {
     /**
      * The two rules crossed, over every position and every combination of what the mail carries:
      * the actions must be offered exactly when something the user can see is the mail's own and
-     * not one of the stand-ins. Iterating the enum means a fourth position, or a drift between
+     * not one of the stand-ins. Iterating the enum means a fifth position, or a drift between
      * [MailNotificationText.resolve] and [Notifications.actionsFor], cannot slip past silently.
+     *
+     * No preview is fed in here, deliberately: a preview is text on screen that names nothing, so
+     * counting it as "what the user can see" would make this rule demand buttons over a message
+     * with neither sender nor subject. That case is written out in `a preview does not name the
+     * message` instead, with its answer in full.
      */
     @Test fun `actions are offered exactly when the notification names the message`() {
         val standIns = setOf(GENERIC, NO_SUBJECT)
@@ -126,5 +169,6 @@ class NotificationActionsTest {
         const val SUBJECT = "Blood test results"
         const val GENERIC = "New message"
         const val NO_SUBJECT = "(no subject)"
+        const val PREVIEW = "see you at 6"
     }
 }

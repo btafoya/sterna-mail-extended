@@ -856,6 +856,15 @@ data class FolderRefresh(
      * one from an absence would cancel the banners of live mail, which is worse than the defect.
      */
     val departedIds: List<String>,
+    /**
+     * Where the opening line of each of these messages could be read from, keyed by cache id —
+     * carried out of the sync page that already learned it (see [PreviewSource]).
+     *
+     * ⛔ ALWAYS EMPTY ON JMAP, and for the opposite reason to [departedIds]: a JMAP envelope brings
+     * `preview` with it, it is stored, and [Email.preview] is therefore already in the notifier's
+     * hand — offline included. Filling this there would buy a round trip for a string it has.
+     */
+    val previewSources: Map<String, PreviewSource>,
 )
 
 /**
@@ -1520,6 +1529,39 @@ class MailRepository(
         }
         return confirmed
     }
+
+    /**
+     * Read the opening of ONE message for a notification that is allowed to show it, or null when
+     * there is none to be had — asked on behalf of the notification layer, exactly like
+     * [confirmDepartures] and for the same reason: that layer must not grow a mail client of its own.
+     *
+     * ⛔ [budgetMs] is the ONLY bound on this call and it has no default, here or below: the block
+     * it reaches is blocking, holds the account's connection under its mutex and has no suspension
+     * point, so a `withTimeout` from the caller would cancel the coroutine while the thread stayed
+     * on the socket read — with the mutex taken, and every other IMAP operation of that account
+     * queued behind it. Pass what is LEFT of the pass's budget, never a fresh one.
+     *
+     * It throws nothing but a cancellation (see `ImapMailService.fetchPreview`): a preview is
+     * decoration on a notification whose job is to say that mail arrived.
+     */
+    suspend fun notificationPreview(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        source: PreviewSource,
+        budgetMs: Int,
+    ): String? = imap.fetchPreview(credentials, mailboxId, source.uid, source.part, budgetMs)
+
+    /**
+     * The UIDVALIDITY this folder was last observed under, or null if it was never observed.
+     *
+     * For the notification pre-pass, which cannot see a renumbering any other way: `fetchPreview`
+     * swallows the refusal (it throws nothing), and `invalidate` RECORDS the new numbering on its
+     * way out — so the second message of the same pass would sail through the check with a UID from
+     * the old numbering and show the opening of somebody else's mail (Codeberg #99). Comparing this
+     * number across the pass is the trace the refusal leaves.
+     */
+    suspend fun recordedNumbering(accountId: String, mailboxId: String): Long? =
+        imap.recordedUidValidity(accountId, mailboxId)
 
     /**
      * Drop rows the server authoritatively no longer has (an explicit per-id `notFound`) —
@@ -4984,7 +5026,15 @@ class MailRepository(
                 // "announced" and "remembered" being the same set is a property of THIS branch and
                 // not a rule of the type.
                 val page = load.messages.map { it.toEmail() }
-                FolderRefresh(load.mailboxId, load.name, load.role, page, page.map { it.id }, departedIds = emptyList())
+                FolderRefresh(
+                    load.mailboxId, load.name, load.role, page, page.map { it.id },
+                    departedIds = emptyList(),
+                    // The one branch that has anything to convey: an IMAP row carries no preview
+                    // (`preview = null` in `toEntity`, and nothing caches a body before the message
+                    // is opened), so the opening line has to be READ — and the section to read it
+                    // from is what this page already learned. Carried, never asked for again.
+                    previewSources = load.previewSources,
+                )
             }
         }
         val resolved = resolve(credentials)
@@ -5025,6 +5075,10 @@ class MailRepository(
                 // `confirmDepartures` asking the server is what actually protects a live banner
                 // (see `NewMailNotifier.notifyDiff`, #134).
                 departedIds = sync.departedIds,
+                // Nothing to convey: a JMAP envelope already carries `preview`, it is in the cache
+                // row this read just returned, and it is there offline too. Filling this would be a
+                // round trip for a string the notifier is already holding.
+                previewSources = emptyMap(),
             )
         }
         // Persist the fetched folder counters (previously discarded): without this, pushed and

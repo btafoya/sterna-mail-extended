@@ -7,6 +7,7 @@ import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.imap.IMAP_FOLDER_PAGE
+import app.sterna.core.imap.IMAP_PREVIEW_FETCH_BYTES
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.ImapFolderWalk
 import app.sterna.core.imap.ImapIdleConnection
@@ -14,6 +15,7 @@ import app.sterna.core.imap.ImapMailboxStatus
 import app.sterna.core.imap.ImapMessage
 import app.sterna.core.imap.ImapSearchCriteria
 import app.sterna.core.imap.ImapSession
+import app.sterna.core.imap.ImapTextPart
 import app.sterna.core.imap.ImapUidValidityChanged
 import app.sterna.core.imap.MailSecurity
 import app.sterna.core.imap.MailServerConfig
@@ -129,7 +131,47 @@ data class ImapWatchedLoad(
     val name: String,
     val role: String?,
     val messages: List<EmailEntity>,
+    /**
+     * Where each message's opening line could be READ from, for the ones that have one — see
+     * [PreviewSource] and [previewSourcesOf]. Keyed by the same cache id as [messages], so the
+     * notification layer can look one up for a message it holds without parsing an id apart.
+     *
+     * No default: a branch that forgot to fill it would silently announce mail with no preview
+     * for ever, and nothing about the notification would look wrong.
+     */
+    val previewSources: Map<String, PreviewSource>,
 )
+
+/**
+ * Where one message's opening line can be read from: its [uid] and the [part] the server's own
+ * BODYSTRUCTURE named, carried out of the sync page that already received both.
+ *
+ * ⛔ It exists so that NOTHING re-asks. The structure travels with the envelope of every page of
+ * every folder walk; a notification preview that had to ask again would spend a SELECT and a
+ * second FETCH per message, in a background service, before it could name the section it wants.
+ * The moment this is rebuilt from the server instead of carried, the whole point is gone.
+ */
+data class PreviewSource(val uid: Long, val part: ImapTextPart)
+
+/**
+ * The [PreviewSource] of each message of [page] that has readable text, keyed by cache id.
+ *
+ * A message with no `text/…` part is ABSENT rather than present-and-null: it has no opening line,
+ * so it must not consume one of the notification pass's few preview fetches (see
+ * `NotificationPreviews.gather`) — nor cost a round trip whose answer is already here.
+ *
+ * Pure, and given the page rather than a session: this is the whole of the conveyance, and it is
+ * the step where a refactor would quietly reach back to the server.
+ */
+internal fun previewSourcesOf(
+    accountId: String,
+    mailboxId: String,
+    page: List<ImapMessage>,
+): Map<String, PreviewSource> = page.mapNotNull { message ->
+    message.textPart?.let { part ->
+        ImapMailService.emailId(accountId, mailboxId, message.uid) to PreviewSource(message.uid, part)
+    }
+}.toMap()
 
 /**
  * The deadline arithmetic behind a time-bounded IMAP call. Pure and separate because every
@@ -527,9 +569,18 @@ class ImapMailService(
             val loads = targets.map { folder ->
                 val status = session.select(folder.path)
                 numbering += folder.path to status.uidValidity
-                val messages = session.fetchPage(status.exists, offset = 0, limit = limit)
-                    .map { it.toEntity(credentials.id, folder.path) }
-                ImapWatchedLoad(folder.path, folder.name, folder.role, messages)
+                // The page is kept whole for one line longer than it used to be: [toEntity] drops
+                // the BODYSTRUCTURE the server already sent, and the notification preview needs it.
+                // Re-asking for it later would be a second round trip per message for an answer
+                // that was in this very response.
+                val page = session.fetchPage(status.exists, offset = 0, limit = limit)
+                ImapWatchedLoad(
+                    folder.path,
+                    folder.name,
+                    folder.role,
+                    page.map { it.toEntity(credentials.id, folder.path) },
+                    previewSourcesOf(credentials.id, folder.path, page),
+                )
             }
             loads to missing
         }
@@ -721,6 +772,60 @@ class ImapMailService(
     suspend fun fetchSource(credentials: AccountCredentials, mailboxId: String, uid: Long): String =
         onMailbox(credentials, mailboxId) { session, _ -> session.fetchSource(uid) }
 
+    /**
+     * The opening of one message's text, for a notification that is allowed to show it — or null
+     * when there is none to be had. IMAP has no preview of its own: unlike JMAP, which returns one
+     * with every envelope, this is a read of the message itself, and the only one the notification
+     * path makes.
+     *
+     * [part] is what the envelope fetch already learned from the server's BODYSTRUCTURE
+     * ([ImapMessage.textPart]) — the section to read and how to decode it. Null there means the
+     * message has no `text/…` part at all, and this then makes NO CONNECTION: a message that is one
+     * PDF has no opening line, and asking the server about it would be a round trip whose answer is
+     * known.
+     *
+     * ⛔ It throws nothing, and that is deliberate: a preview is decoration on a notification whose
+     * job is to say that mail arrived. A timeout, a refused SELECT, a folder renumbered under it —
+     * every one of them costs the preview and nothing else. A cancellation is the exception, and is
+     * re-thrown: it means the caller is gone, and swallowing it here would turn a cancelled push
+     * pass into one that quietly continues.
+     *
+     * ⭐ [budgetMs] IS the timeout, and it has no default on purpose: a caller that forgot it would
+     * get [ImapBudget.NO_BUDGET], i.e. `soTimeout = 0`, i.e. block until the OS gives up — minutes,
+     * on a server that accepts the connection and then says nothing (a captive portal, a dead VPN).
+     *
+     * ⛔ And it is the ONLY thing that can bound this call. The block below is BLOCKING and holds
+     * the account's single connection under its mutex, with no suspension point inside it: a
+     * `withTimeout` wrapped around this from the caller would cancel the job without the thread
+     * ever coming back off the socket read, and the mutex would stay taken with it. Every other
+     * IMAP operation on that account queues behind this one, so the bound belongs here.
+     *
+     * ⭐ Through [onMailbox], like every other read that names a UID, so the folder's UIDVALIDITY is
+     * checked BEFORE the FETCH goes out. A UID from a renumbered folder names another message, and
+     * the notification would show the opening of somebody else's mail (Codeberg #99). No preview is
+     * the right answer there, and it is the one the refusal produces.
+     *
+     * ⛔ The result is returned, never stored: [toEntity] keeps writing `preview = null` for IMAP.
+     */
+    suspend fun fetchPreview(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        part: ImapTextPart?,
+        budgetMs: Int,
+    ): String? {
+        if (part == null) return null
+        return try {
+            onMailbox(credentials, mailboxId, budgetMs = budgetMs) { session, _ ->
+                BodyPreview.fromPart(session.fetchSectionPartial(uid, part.section, IMAP_PREVIEW_FETCH_BYTES), part)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: Throwable) {
+            android.util.Log.w("ImapPreview", "no preview for $mailboxId:$uid: ${failed.message}")
+            null
+        }
+    }
     private suspend fun config(endpoint: MailEndpoint, credentials: AccountCredentials) = MailServerConfig(
         host = endpoint.host,
         port = endpoint.port,

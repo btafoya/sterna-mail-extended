@@ -48,8 +48,16 @@ enum class MessageTextSize(val zoom: Int) { SMALL(85), NORMAL(100), LARGE(125), 
  */
 enum class DeliveryMode { INSTANT, BATTERY_SAVER }
 
-/** How much a new-mail notification reveals on the lock screen (Codeberg #25). */
-enum class NotificationContent { SENDER_AND_SUBJECT, SENDER_ONLY, NONE }
+/**
+ * How much a new-mail notification reveals on the lock screen (Codeberg #25), from the most
+ * talkative position to the most discreet.
+ *
+ * [BODY_PREVIEW] is the only one that shows anything of the message itself, and it is never the
+ * default: it has to be asked for. It is stored BY NAME, so a build that predates it reads
+ * "BODY_PREVIEW", fails its `valueOf` and falls back to [SENDER_AND_SUBJECT] — less revealing than
+ * what was asked for, which is the direction a downgrade must fail in.
+ */
+enum class NotificationContent { BODY_PREVIEW, SENDER_AND_SUBJECT, SENDER_ONLY, NONE }
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -314,10 +322,7 @@ class SettingsRepository(context: Context) {
     }
 
     /** What a new-mail notification shows; sender + subject by default (Codeberg #25). */
-    val notificationContent: Flow<NotificationContent> = dataStore.data.map { prefs ->
-        prefs[KEY_NOTIFICATION_CONTENT]?.let { runCatching { NotificationContent.valueOf(it) }.getOrNull() }
-            ?: NotificationContent.SENDER_AND_SUBJECT
-    }
+    val notificationContent: Flow<NotificationContent> = dataStore.data.map(::notificationContentFrom)
 
     suspend fun setNotificationContent(mode: NotificationContent) {
         dataStore.edit { it[KEY_NOTIFICATION_CONTENT] = mode.name }
@@ -386,7 +391,7 @@ class SettingsRepository(context: Context) {
         backup.pureBlack?.let { setPureBlack(it) }
         backup.listMonogram?.let { setListMonogram(it) }
         backup.deliveryMode?.let { v -> runCatching { DeliveryMode.valueOf(v) }.getOrNull()?.let { setDeliveryMode(it) } }
-        backup.notificationContent?.let { v -> runCatching { NotificationContent.valueOf(v) }.getOrNull()?.let { setNotificationContent(it) } }
+        notificationContentOrNull(backup.notificationContent)?.let { setNotificationContent(it) }
     }
 
     /**
@@ -456,12 +461,55 @@ class SettingsRepository(context: Context) {
         private val KEY_CONFIRM_LINKS = booleanPreferencesKey("confirm_links")
         private val KEY_IMAGE_ALLOWLIST = stringSetPreferencesKey("image_allowlist")
         private val KEY_DELIVERY_MODE = stringPreferencesKey("delivery_mode")
-        private val KEY_NOTIFICATION_CONTENT = stringPreferencesKey("notification_content")
         private val KEY_QUIET_ENABLED = booleanPreferencesKey("quiet_hours_enabled")
         private val KEY_QUIET_START = intPreferencesKey("quiet_hours_start")
         private val KEY_QUIET_END = intPreferencesKey("quiet_hours_end")
     }
 }
+
+/** The key the notification-content position is stored under. Renaming it puts every reader who
+ *  asked for a quieter notification back on sender + subject, so it is pinned by name in
+ *  [notificationContentFrom]'s test. */
+internal val KEY_NOTIFICATION_CONTENT = stringPreferencesKey("notification_content")
+
+/**
+ * What a new-mail notification shows when nobody has chosen a position, AND what an unreadable
+ * stored value falls back to (Codeberg #25). Sender + subject: today's behaviour, and never the
+ * talkative [NotificationContent.BODY_PREVIEW] — that one is only ever reached by asking for it.
+ *
+ * The unreadable case is not hypothetical: the position travels by name, so a device downgraded to
+ * a build that predates a position reads a name its enum does not have. The fallback therefore has
+ * to be a position that reveals LESS than the one that was stored, never more.
+ *
+ * `internal` on purpose, unlike the switch defaults next to it: this one has a single consumer,
+ * [notificationContentFrom], in this file. Exported to the `app` module it becomes something a
+ * screen can seed itself with before DataStore has answered, which is exactly the defect the
+ * five-settings gate was written to close (#57) — a default shown, and writable by a tap, over a
+ * choice already made.
+ */
+internal val NOTIFICATION_CONTENT_DEFAULT = NotificationContent.SENDER_AND_SUBJECT
+
+/**
+ * A stored position name, or null when there is nothing usable to read — no value at all, or a name
+ * this build's enum does not know (a newer build's position, seen after a downgrade).
+ *
+ * Null means "no answer", NOT "the default": the two callers want opposite things from it. The flow
+ * substitutes [NOTIFICATION_CONTENT_DEFAULT]; restoring a backup leaves the stored position alone,
+ * so importing a backup written by a newer build cannot silently make notifications more talkative
+ * than what is on the device.
+ */
+internal fun notificationContentOrNull(stored: String?): NotificationContent? =
+    stored?.let { name -> NotificationContent.entries.firstOrNull { it.name == name } }
+
+/**
+ * The position a new-mail notification is posted at, read from the stored preferences.
+ *
+ * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
+ * the whole [Preferences] there is no way to defeat the fallback from outside, and the test can hand
+ * it an empty store, a store holding each position, and a store holding a name no enum has.
+ */
+internal fun notificationContentFrom(prefs: Preferences): NotificationContent =
+    notificationContentOrNull(prefs[KEY_NOTIFICATION_CONTENT]) ?: NOTIFICATION_CONTENT_DEFAULT
 
 /** The key the reader's Reply/Forward bar switch is stored under. Renaming it loses the setting of
  *  every user who has turned the bar off, so it is pinned by name in [replyBarFrom]'s test. */

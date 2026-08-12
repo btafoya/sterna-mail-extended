@@ -133,15 +133,27 @@ class NotificationsGateWiringTest {
     /**
      * The gate above is worth nothing if the row that says "Neither sender nor subject" writes
      * "Sender + subject" when it is tapped: #57 would stop being a frame of bad luck and become
-     * permanent. Six lines carry that — three `selected =` and three `onClick =` — and they were
+     * permanent. Eight lines carry that — four `selected =` and four `onClick =` — and they were
      * held by nothing at all until this rule. Same for delivery: swapping the two `onClick`s turns
      * the battery saver on when the reader asks for instant mail.
+     *
+     * The block is pinned from the section's opening line to its closing brace, so a fifth row
+     * appended after the last `)` is a mismatch here rather than a row nothing watches: that is
+     * exactly the hole the body-preview row would have fallen into. The ORDER is pinned with it,
+     * and it carries meaning — the rows run from the most talkative position to the most discreet,
+     * so a reader can read the list as a scale rather than as four unrelated choices.
      */
     @Test fun `each notification-content row shows and writes its own value`() {
         assertBlockIn(
             notificationsScreen(),
             listOf(
                 "SettingsSection(stringResource(R.string.settings_notif_content_section)) {",
+                "DeliveryModeOption(",
+                "title = stringResource(R.string.settings_notif_content_preview),",
+                "subtitle = stringResource(R.string.settings_notif_content_preview_desc),",
+                "selected = state.notificationContent == NotificationContent.BODY_PREVIEW,",
+                "onClick = { viewModel.setNotificationContent(NotificationContent.BODY_PREVIEW) },",
+                ")",
                 "DeliveryModeOption(",
                 "title = stringResource(R.string.settings_notif_content_full),",
                 "subtitle = stringResource(R.string.settings_notif_content_full_desc),",

@@ -206,9 +206,15 @@ class ImapDestroyUnderNumberingTest {
      */
     @Test fun `the accessor really asks IMAP for the folder's numbering`() {
         assertEquals(
-            "the numbering must come from the IMAP layer's record for THAT account and THAT folder, " +
-                "on IMAP and only there — a body that answers null refuses every IMAP destroy for ever",
+            "the numbering must come from the IMAP layer's record for THAT account and THAT folder — " +
+                "a body that answers null refuses every IMAP destroy for ever. The two destroy reads " +
+                "carry a protocol guard; the notification one deliberately does not (it is reached " +
+                "only with IMAP preview sources in hand, and JMAP conveys none)",
             listOf(
+                // The notification pre-pass's own read of the same value: it is how a preview pass
+                // notices a folder renumbered under it, since `fetchPreview` swallows the refusal
+                // (see `MailRepository.recordedNumbering`, and `PreviewConveyanceTest`).
+                "imap.recordedUidValidity(accountId, mailboxId)",
                 "if (credentials.protocol == MailProtocol.IMAP) imap.recordedUidValidity(credentials.id, mailboxId) else null",
                 "if (credentials.protocol == MailProtocol.IMAP) imap.recordedUidValidity(credentials.id, trashMailboxId)",
             ),

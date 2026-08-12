@@ -305,6 +305,8 @@
     <string name="settings_notifications_screen_title">Notificações</string>
     <string name="settings_new_mail_section">Novos e-mails</string>
     <string name="settings_notif_content_section">Conteúdo das notificações</string>
+    <string name="settings_notif_content_preview">Remetente, assunto e pré-visualização</string>
+    <string name="settings_notif_content_preview_desc">Mostra também o início da mensagem, quando está disponível.</string>
     <string name="settings_notif_content_full">Remetente e assunto</string>
     <string name="settings_notif_content_full_desc">Mostra o remetente e o assunto.</string>
     <string name="settings_notif_content_sender">Apenas o remetente</string>

@@ -305,6 +305,8 @@
     <string name="settings_notifications_screen_title">Notifiche</string>
     <string name="settings_new_mail_section">Nuova posta</string>
     <string name="settings_notif_content_section">Contenuto delle notifiche</string>
+    <string name="settings_notif_content_preview">Mittente, oggetto e anteprima</string>
+    <string name="settings_notif_content_preview_desc">Mostra anche l\'inizio del messaggio, quando è disponibile.</string>
     <string name="settings_notif_content_full">Mittente e oggetto</string>
     <string name="settings_notif_content_full_desc">Mostra il mittente e l\'oggetto.</string>
     <string name="settings_notif_content_sender">Solo mittente</string>

@@ -305,6 +305,8 @@
     <string name="settings_notifications_screen_title">Уведомления</string>
     <string name="settings_new_mail_section">Новые письма</string>
     <string name="settings_notif_content_section">Содержимое уведомлений</string>
+    <string name="settings_notif_content_preview">Отправитель, тема и фрагмент</string>
+    <string name="settings_notif_content_preview_desc">Также показывает начало письма, когда оно доступно.</string>
     <string name="settings_notif_content_full">Отправитель и тема</string>
     <string name="settings_notif_content_full_desc">Показывает отправителя и тему.</string>
     <string name="settings_notif_content_sender">Только отправитель</string>

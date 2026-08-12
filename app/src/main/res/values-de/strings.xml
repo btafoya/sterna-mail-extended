@@ -305,6 +305,8 @@
     <string name="settings_notifications_screen_title">Benachrichtigungen</string>
     <string name="settings_new_mail_section">Neue E-Mails</string>
     <string name="settings_notif_content_section">Benachrichtigungsinhalt</string>
+    <string name="settings_notif_content_preview">Absender, Betreff und Vorschau</string>
+    <string name="settings_notif_content_preview_desc">Zeigt zusätzlich den Anfang der Nachricht, sofern verfügbar.</string>
     <string name="settings_notif_content_full">Absender und Betreff</string>
     <string name="settings_notif_content_full_desc">Zeigt Absender und Betreff an.</string>
     <string name="settings_notif_content_sender">Nur Absender</string>

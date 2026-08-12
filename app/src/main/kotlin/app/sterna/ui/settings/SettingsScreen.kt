@@ -736,6 +736,14 @@ private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit
                     )
                 }
                 SettingsSection(stringResource(R.string.settings_notif_content_section)) {
+                    // Most talkative first, most discreet last: the order is itself the
+                    // information, so the list reads as one scale instead of four choices.
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_notif_content_preview),
+                        subtitle = stringResource(R.string.settings_notif_content_preview_desc),
+                        selected = state.notificationContent == NotificationContent.BODY_PREVIEW,
+                        onClick = { viewModel.setNotificationContent(NotificationContent.BODY_PREVIEW) },
+                    )
                     DeliveryModeOption(
                         title = stringResource(R.string.settings_notif_content_full),
                         subtitle = stringResource(R.string.settings_notif_content_full_desc),

@@ -445,6 +445,8 @@
     <string name="settings_notifications_screen_title">Notifications</string>
     <string name="settings_new_mail_section">New mail</string>
     <string name="settings_notif_content_section">Notification content</string>
+    <string name="settings_notif_content_preview">Sender, subject and preview</string>
+    <string name="settings_notif_content_preview_desc">Also shows the start of the message, when it is available.</string>
     <string name="settings_notif_content_full">Sender and subject</string>
     <string name="settings_notif_content_full_desc">Show who it\'s from and the subject.</string>
     <string name="settings_notif_content_sender">Sender only</string>

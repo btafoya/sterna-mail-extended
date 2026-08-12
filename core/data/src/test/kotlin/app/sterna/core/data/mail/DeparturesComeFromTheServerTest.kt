@@ -176,10 +176,18 @@ class DeparturesComeFromTheServerTest {
             "the JMAP branch must carry that mailbox's own departures out to the notifier; the " +
                 "IMAP branch must state that it has none (re-reading a folder never says what left)",
             listOf(
-                "FolderRefresh(load.mailboxId, load.name, load.role, page, page.map { it.id }, departedIds = emptyList())",
+                "departedIds = emptyList(),",
                 "departedIds = sync.departedIds,",
             ),
             codeLinesNaming(body, "departedIds ="),
+        )
+        // The IMAP call moved onto several lines when it grew a second field (the notification
+        // preview sources), so the `emptyList()` above no longer names its branch on its own line.
+        // This says which branch it belongs to.
+        assertEquals(
+            "the empty departures must be the IMAP branch's — the one built from a re-read page",
+            listOf("load.mailboxId, load.name, load.role, page, page.map { it.id },"),
+            codeLinesNaming(body, "load.mailboxId"),
         )
     }
 

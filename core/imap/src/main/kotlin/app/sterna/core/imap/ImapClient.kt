@@ -745,22 +745,59 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 
     /** Raw content of one MIME section (e.g. an attachment), still transfer-encoded. */
-    fun fetchSection(uid: Long, section: String): String {
-        val result = command("UID FETCH $uid (BODY.PEEK[$section])")
-        val fetch = result.untagged.firstOrNull { it.getOrNull(2) == "FETCH" } ?: return ""
-        @Suppress("UNCHECKED_CAST")
-        val items = fetch.getOrNull(3) as? List<Any?> ?: return ""
-        val idx = items.indexOfFirst { it is String && it.startsWith("BODY", true) }
-        return (items.getOrNull(idx + 1) as? String).orEmpty()
-    }
+    fun fetchSection(uid: Long, section: String): String =
+        command("UID FETCH $uid (BODY.PEEK[$section])").bodyItem()
+
+    /**
+     * The first [maxBytes] octets of one MIME section, still transfer-encoded — a partial fetch
+     * (RFC 3501 §6.4.5), for a caller that wants an opening and not a message.
+     *
+     * ⛔ `BODY.PEEK`, like every body fetch in this class, and here it is the load-bearing word: the
+     * caller is a NOTIFICATION, so a bare `BODY[…]` would set `\Seen` on the server the moment the
+     * mail is announced. That is irreversible from here — the message leaves the unread list on
+     * every device the account is open on, and nothing in the app ever asked for it to be read.
+     *
+     * ⛔ And `<0.[maxBytes]>`, which is the other half: without it the server sends the WHOLE part,
+     * which for a mail carrying a 20 MB inline body is 20 MB pulled through a foreground service on
+     * mobile data, to show two lines of it.
+     *
+     * A short answer is not an error: a part smaller than [maxBytes] comes back whole, and a server
+     * that answers with no body item at all yields "" — see [bodyItem].
+     *
+     * ⭐ The `take` is what makes "[maxBytes] at most" TRUE rather than merely REQUESTED. `<0.n>` is
+     * a request, and nothing above enforces it: a literal is read up to 32 MiB, and [bodyItem] takes
+     * whatever item begins with `BODY` — so a server that ignores the partial, or answers `BODY[]`,
+     * would have the whole message decoded before anyone could throw it away. Deliberately NOT a
+     * conformance check: the partial fetch is normative and a refusal would be surface for a case
+     * that does not happen; truncating costs one call and makes the property hold client-side.
+     */
+    fun fetchSectionPartial(uid: Long, section: String, maxBytes: Int): String =
+        command("UID FETCH $uid (BODY.PEEK[$section]<0.$maxBytes>)").bodyItem().take(maxBytes)
 
     /** Raw RFC822 source of a message, for parsing the body/attachments. */
-    fun fetchSource(uid: Long): String {
-        val result = command("UID FETCH $uid (BODY.PEEK[])")
-        val fetch = result.untagged.firstOrNull { it.getOrNull(2) == "FETCH" } ?: return ""
+    fun fetchSource(uid: Long): String =
+        command("UID FETCH $uid (BODY.PEEK[])").bodyItem()
+
+    /**
+     * The body item of a FETCH answer, still transfer-encoded — the one reading shared by the three
+     * body fetches above, so that a fourth cannot arrive with a reading of its own.
+     *
+     * ⛔ The empty string when the answer carries NO body item. That is not pedantry: the item list
+     * opens with `UID <n>`, so an `indexOfFirst` that answered -1 and was used as-is handed back the
+     * atom at index 0 — the string "UID" — as though it were the message. On the attachment path
+     * that was 3 bytes written to a file; on the preview path it would be the word UID on a lock
+     * screen, presented as somebody's mail.
+     *
+     * The item is matched by prefix because a partial fetch is answered with the origin octet
+     * attached (`BODY[1]<0>`, RFC 3501 §7.4.2) — one atom, not two, since the IMAP parser breaks
+     * atoms on parentheses and spaces and this form has neither.
+     */
+    private fun ImapResult.bodyItem(): String {
+        val fetch = untagged.firstOrNull { it.getOrNull(2) == "FETCH" } ?: return ""
         @Suppress("UNCHECKED_CAST")
         val items = fetch.getOrNull(3) as? List<Any?> ?: return ""
         val idx = items.indexOfFirst { it is String && it.startsWith("BODY", true) }
+        if (idx < 0) return ""
         return (items.getOrNull(idx + 1) as? String).orEmpty()
     }
 
@@ -976,6 +1013,10 @@ class ImapSession(private var socket: Socket) : Closeable {
             hasAttachment = hasAttachment(map["BODYSTRUCTURE"]),
             messageId = messageId,
             inReplyTo = inReplyTo,
+            // The same structure the line above reduces to a boolean, read a second way and kept:
+            // which section holds the text, and how to decode it. Costs no command — it is here
+            // because every fetch in this class already asks for BODYSTRUCTURE.
+            textPart = firstTextPart(map["BODYSTRUCTURE"]),
         )
     }
 

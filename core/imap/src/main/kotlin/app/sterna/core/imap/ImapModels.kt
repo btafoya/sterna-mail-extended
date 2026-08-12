@@ -111,6 +111,16 @@ data class ImapMessage(
     val hasAttachment: Boolean,
     val messageId: String?,
     val inReplyTo: String?,
+    /**
+     * Where this message's readable text is, per the BODYSTRUCTURE that came with the envelope, or
+     * null when it has no `text/…` part (and when the server sent no structure at all).
+     *
+     * ⭐ Additive and nullable: nothing that lists, searches or restores a message reads it. It is
+     * kept ONLY so that a later, deliberate read — the notification preview — can name a section
+     * without asking the server to describe the message a second time. The structure was already
+     * fetched and already thrown away; see [firstTextPart].
+     */
+    val textPart: ImapTextPart? = null,
 )
 
 /** Result of selecting a mailbox. */

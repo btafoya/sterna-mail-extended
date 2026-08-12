@@ -68,6 +68,10 @@ object Notifications {
      * reads them:
      *
      *  - SENDER_AND_SUBJECT shows both, so either one naming the message is enough;
+     *  - BODY_PREVIEW shows both as well and is read identically. Its extra text counts for
+     *    nothing here, deliberately: an opening line says what was written, never by whom or about
+     *    what ("see you at 6" names nothing), so a preview must not turn a mail with no From and no
+     *    subject into one the reader is invited to Delete;
      *  - SENDER_ONLY shows only the sender — a subject the notification never displays cannot
      *    help, and a message with no From header (daemon mail, a malformed header) then reads
      *    "New message / New message" and gets no buttons;
@@ -81,7 +85,9 @@ object Notifications {
         hasSender: Boolean,
         hasSubject: Boolean,
     ): List<MailNotificationAction> = when (content) {
-        NotificationContent.SENDER_AND_SUBJECT -> if (hasSender || hasSubject) ALL_ACTIONS else emptyList()
+        NotificationContent.BODY_PREVIEW,
+        NotificationContent.SENDER_AND_SUBJECT,
+        -> if (hasSender || hasSubject) ALL_ACTIONS else emptyList()
         NotificationContent.SENDER_ONLY -> if (hasSender) ALL_ACTIONS else emptyList()
         NotificationContent.NONE -> emptyList()
     }
@@ -288,9 +294,17 @@ object Notifications {
         val subject = realSubject ?: context.getString(R.string.message_no_subject)
         // What the notification reveals, per the privacy setting — the rule itself lives in
         // [MailNotificationText] so it is testable, and so no caller can post with the
-        // defaults and leak what the user asked to hide (Codeberg #84). The expanded state
-        // shows the full subject, never a body preview (Codeberg #57).
-        val (title, text, bigText) = MailNotificationText.resolve(content, sender, subject, generic)
+        // defaults and leak what the user asked to hide (Codeberg #84). The expanded state shows
+        // the full subject, and the opening of the body at the ONE position that asks for it by
+        // name — never at the three that predate it, which is what was published to the reporter
+        // of #57 and what a reader who never opened the setting still gets.
+        //
+        // [Email.preview] is where that opening comes from, whoever filled it: the JMAP server
+        // hands one back with the envelope, and on IMAP the notification pre-pass reads it and
+        // puts it on the message ([NotificationPreviews]). Null is the ordinary answer — no
+        // preview, offline, a message that is one PDF — and the expanded line is the subject
+        // alone. Nothing is fetched from here: this function posts, it does not go to the network.
+        val (title, text, bigText) = MailNotificationText.resolve(content, sender, subject, generic, email.preview)
         // Which buttons it may carry, read from the same facts: a notification that names
         // nothing offers nothing to act on — at NONE always, and in the two informative
         // positions when the mail itself has nothing to show there (Codeberg #57).

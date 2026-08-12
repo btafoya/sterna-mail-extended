@@ -57,6 +57,13 @@ object FetchAndNotify {
             val inboxId = if (includeInbox) refreshes.firstOrNull()?.mailboxId else null
             if (inboxId != null) NewMailNotifier.migrateLegacyBaseline(context, credentials.id, inboxId)
             val unarchiveOnReply = container.settingsRepository.unarchiveOnReply.first()
+            // ⭐⛔ ONE budget for this ACCOUNT's whole pass, built HERE and not inside the loop: the
+            // diff below runs once per folder, so a budget built per folder would give an account
+            // watching three extra folders 4 × 6 reads and up to 4 × 4 s of blocking IMAP work
+            // under its single mutex, on one radio wake-up. The second folder inherits what the
+            // first one left, and a folder that arrives with nothing left reads nothing. Per
+            // account, because that is the unit of the mutex and of the wake-up alike.
+            val previewBudget = NotificationPreviews.PreviewBudget(System::currentTimeMillis)
             refreshes.forEach { folder ->
                 val isInbox = folder.mailboxId == inboxId
                 val folderName = if (isInbox) null else folder.name
@@ -95,9 +102,16 @@ object FetchAndNotify {
                     // The folder's departures ride along: what the server said left it during THIS
                     // refresh, so a message deleted from another client loses its banner (#134).
                     // Empty on IMAP and on the seed path above, which has no banner to take down.
+                    // The folder's preview sources ride along too: on IMAP the opening line has to
+                    // be READ, and the section to read it from is what THIS refresh's page already
+                    // learned from the server. Dropped here, the notifier would have to ask the
+                    // server to describe every message a second time — which is exactly what
+                    // carrying it exists to avoid. Empty on JMAP, where the row has its own.
                     NewMailNotifier.notifyDiff(
                         context, credentials, folder.mailboxId, folderName, folder.emails + returned, remembered,
                         folder.departedIds,
+                        folder.previewSources,
+                        previewBudget,
                     )
                 }
             }

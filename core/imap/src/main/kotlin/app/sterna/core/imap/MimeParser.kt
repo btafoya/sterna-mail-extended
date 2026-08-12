@@ -379,8 +379,21 @@ object MimeParser {
         return m?.groupValues?.get(1)?.trim()
     }
 
+    /**
+     * The charset a part declared, as a [java.nio.charset.Charset]: UTF-8 when it declared none,
+     * and UTF-8 when it declared one this JVM does not know — the fallback that has always been
+     * applied here, in ONE place.
+     *
+     * Public because the same question is asked of a part fetched on its own, from its
+     * BODYSTRUCTURE rather than from its Content-Type header (the notification preview): the same
+     * charset name resolved by a second implementation is a second fallback rule to keep in step,
+     * and the day they disagreed the two readings of one message would differ.
+     */
+    fun charsetNamed(name: String?): java.nio.charset.Charset =
+        runCatching { charset(name?.takeIf { it.isNotBlank() } ?: "utf-8") }.getOrDefault(Charsets.UTF_8)
+
     private fun charsetOf(contentType: String): java.nio.charset.Charset =
-        runCatching { charset(paramOf(contentType, "charset") ?: "utf-8") }.getOrDefault(Charsets.UTF_8)
+        charsetNamed(paramOf(contentType, "charset"))
 
     /**
      * The children of a multipart body, at most [MAX_PARTS] of them.
