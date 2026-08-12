@@ -21,4 +21,11 @@ data class ScheduledSendEntity(
     val sendAtMillis: Long,
     /** Server id of the saved draft this message was edited from (#63); destroyed on send. */
     val draftEmailId: String? = null,
+    /**
+     * Whether the message asks for a read receipt (RFC 8098). Held here as well as on
+     * [OutboxEntity] because a scheduled send waits in this table for hours and only becomes an
+     * outbox row when [app.sterna.send.ScheduledSendWorker] fires: a column missing here loses the
+     * request between the two, and the message goes out without asking.
+     */
+    val requestReceipt: Boolean = false,
 )

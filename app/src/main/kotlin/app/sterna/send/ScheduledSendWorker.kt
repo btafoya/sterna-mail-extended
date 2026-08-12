@@ -38,6 +38,9 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 bcc = row.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
                 // A scheduled send of an edited draft (#63) still replaces the stored draft.
                 draftEmailId = row.draftEmailId,
+                // …and one the user asked a read receipt for still asks: this hand-over is where a
+                // request that only lived on the scheduled row would be dropped.
+                requestReceipt = row.requestReceipt,
             )
             repo.deleteScheduledSend(id)
             Result.success()

@@ -8,6 +8,7 @@
     <string name="compose_attach">Datei anhängen</string>
     <string name="compose_save_draft">Entwurf speichern</string>
     <string name="compose_schedule_send">Senden planen</string>
+    <string name="compose_request_receipt">Lesebestätigung anfordern</string>
     <string name="compose_send">Senden</string>
     <string name="compose_from">Von</string>
     <string name="compose_choose_sender">Absender wählen</string>

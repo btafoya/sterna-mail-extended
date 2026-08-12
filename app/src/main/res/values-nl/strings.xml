@@ -8,6 +8,7 @@
     <string name="compose_attach">Bestand bijvoegen</string>
     <string name="compose_save_draft">Concept opslaan</string>
     <string name="compose_schedule_send">Verzending plannen</string>
+    <string name="compose_request_receipt">Leesbevestiging vragen</string>
     <string name="compose_send">Verzenden</string>
     <string name="compose_from">Van</string>
     <string name="compose_choose_sender">Afzender kiezen</string>

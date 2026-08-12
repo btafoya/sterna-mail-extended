@@ -369,6 +369,36 @@ internal fun requireSingleLineAddresses(addresses: List<String>) {
 }
 
 /**
+ * The composer draft a queued outbox row reopens as (#70), as a pure function so a JVM test can run
+ * the mapping the app runs — [MailRepository.takeOutboxForEdit] otherwise only reaches it through
+ * Room, and nothing could see a field silently left behind.
+ *
+ * ⚠ Every per-message choice the ROW holds has to be here. The row is the only copy of the message
+ * while it waits, and the composer that reopens it commits a NEW row on send: a field missing from
+ * this mapping is not "not filled yet", it is cancelled — the read receipt the user asked for, or
+ * the PGP mode, gone because the message was edited once.
+ */
+internal fun outboxDraftOf(
+    item: OutboxEntity,
+    attachments: List<EmailBodyPart>,
+): MailRepository.OutboxDraft = MailRepository.OutboxDraft(
+    to = item.recipients.split(",").joinToString(", ") { it.trim() },
+    cc = item.cc?.split(",")?.joinToString(", ") { it.trim() }.orEmpty(),
+    bcc = item.bcc?.split(",")?.joinToString(", ") { it.trim() }.orEmpty(),
+    subject = item.subject,
+    body = item.textBody,
+    fromAccountId = item.accountId,
+    fromEmail = item.fromEmail,
+    attachments = attachments,
+    inReplyTo = item.inReplyTo?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
+    references = item.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
+    pgpMode = item.pgpMode,
+    draftEmailId = item.draftEmailId,
+    outboxId = item.id,
+    requestReceipt = item.requestReceipt,
+)
+
+/**
  * The Drafts-list row for a just-saved draft (#63), as a pure function so a JVM test can run the
  * mapping the app runs ([MailRepository.cacheSavedDraft] only hands it to `emailDao.upsertAll`).
  *
@@ -5207,7 +5237,15 @@ class MailRepository(
         )
     }
 
-    /** Build an SMTP OutgoingMessage from compose fields (IMAP accounts). */
+    /**
+     * Build an SMTP OutgoingMessage from compose fields (IMAP accounts).
+     *
+     * [requestReceipt] carries no default ON PURPOSE. This one function builds the message for all
+     * three raw-MIME writes — the SMTP submission, the Sent/Drafts APPEND that reuses the same
+     * bytes, and the PGP/MIME blob the JMAP path imports — so a caller that forgot the read
+     * receipt would drop it from a whole protocol in silence. Without a default the compiler asks
+     * every caller the question instead.
+     */
     private fun outgoing(
         credentials: AccountCredentials,
         recipients: List<String>,
@@ -5220,8 +5258,11 @@ class MailRepository(
         fromEmail: String? = null,
         cc: List<String> = emptyList(),
         bcc: List<String> = emptyList(),
+        requestReceipt: Boolean,
     ): OutgoingMessage {
         val from = formatFrom(fromName, fromEmail) ?: credentials.username
+        // The read receipt is addressed to this very `from` string by OutgoingMime.build, so it is
+        // covered by the check below (and by headerSafe there) without a field of its own.
         requireSingleLineAddresses(listOf(from) + recipients + cc + bcc)
         return OutgoingMessage(
             from = from,
@@ -5235,6 +5276,7 @@ class MailRepository(
             references = references.joinToString(" ").ifBlank { null },
             messageId = "${java.util.UUID.randomUUID()}@${credentials.username.substringAfter('@', "localhost")}",
             dateMillis = System.currentTimeMillis(),
+            requestReceipt = requestReceipt,
         )
     }
 
@@ -5274,6 +5316,12 @@ class MailRepository(
         // identity it will be sent as instead of falling back to the login's address (issue #31).
         fromName: String? = null,
         fromEmail: String? = null,
+        /**
+         * Whether the draft asks for a read receipt (RFC 8098). The server copy carries the header
+         * so it says what would be sent; ⛔ it is NOT read back when the draft is reopened (D1) —
+         * the box comes back clear, which is assumed debt, not a bug to fix here.
+         */
+        requestReceipt: Boolean = false,
     ): DraftSaveOutcome {
         val ccTrimmed = cc.map { it.trim() }.filter { it.isNotEmpty() }
         val bccTrimmed = bcc.map { it.trim() }.filter { it.isNotEmpty() }
@@ -5286,6 +5334,7 @@ class MailRepository(
                 outgoing(
                     credentials, recipients, subject, body, inReplyTo, references,
                     fromName = fromName, fromEmail = fromEmail, cc = ccTrimmed, bcc = bccTrimmed,
+                    requestReceipt = requestReceipt,
                 ).copy(attachments = parts),
             )
             // What the copy about to be destroyed was addressed to, read back from the server —
@@ -5351,6 +5400,7 @@ class MailRepository(
             inReplyTo = inReplyTo,
             references = references,
             attachments = blobs,
+            requestReceipt = requestReceipt,
         )
         // Optimistically cache the just-saved draft so the Drafts list (a Room-backed
         // PagingSource) reflects it at once instead of waiting for a pull-to-refresh (#63).
@@ -5540,6 +5590,8 @@ class MailRepository(
         pgpMode: PgpMode? = null,
         pgpEntity: String? = null,
         draftEmailId: String? = null,
+        /** Ask for a read receipt (RFC 8098), per message; persisted so the worker still asks. */
+        requestReceipt: Boolean = false,
     ): Long {
         val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
         require(recipients.isNotEmpty()) { "Add at least one recipient." }
@@ -5572,6 +5624,7 @@ class MailRepository(
                 state = if (held) OutboxState.HELD else OutboxState.QUEUED,
                 pgpMode = pgpMode?.takeIf { it != PgpMode.OFF }?.name,
                 draftEmailId = draftEmailId,
+                requestReceipt = requestReceipt,
             ),
         )
         // Staging runs AFTER the row is inserted (it needs the id to key the durable dir). If it
@@ -5716,6 +5769,12 @@ class MailRepository(
         val draftEmailId: String? = null,
         /** The queued row this draft came from, held in [OutboxState.EDITING] until the composer is done. */
         val outboxId: Long,
+        /**
+         * Whether the queued item asks for a read receipt, so re-editing it does not quietly
+         * cancel one the user had asked for. No default: the row is the only place this fact
+         * lives while the message waits, and a construction site that skips it drops it.
+         */
+        val requestReceipt: Boolean,
     )
 
     /**
@@ -5736,21 +5795,7 @@ class MailRepository(
         // unreadable attachment (rather than reopen an amputated message), and a throw here must
         // leave the row exactly as it was — still QUEUED, still deliverable.
         val attachments = OutboxEdit.take(OutboxAttachments.decode(item.attachmentsJson), stagingDir)
-        val draft = OutboxDraft(
-            to = item.recipients.split(",").joinToString(", ") { it.trim() },
-            cc = item.cc?.split(",")?.joinToString(", ") { it.trim() }.orEmpty(),
-            bcc = item.bcc?.split(",")?.joinToString(", ") { it.trim() }.orEmpty(),
-            subject = item.subject,
-            body = item.textBody,
-            fromAccountId = item.accountId,
-            fromEmail = item.fromEmail,
-            attachments = attachments,
-            inReplyTo = item.inReplyTo?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
-            references = item.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
-            pgpMode = item.pgpMode,
-            draftEmailId = item.draftEmailId,
-            outboxId = id,
-        )
+        val draft = outboxDraftOf(item, attachments)
         outboxDao.setState(id, OutboxState.EDITING)
         return draft
     }
@@ -5832,6 +5877,7 @@ class MailRepository(
             val message = outgoing(
                 credentials, recipients, subject, body, inReplyTo, references, htmlBody,
                 fromName, fromEmail, ccTrimmed, bccTrimmed,
+                requestReceipt = item.requestReceipt,
             ).copy(
                 attachments = if (pgpEntity != null) emptyList() else outAttachments,
                 pgpEntity = pgpEntity,
@@ -5890,6 +5936,7 @@ class MailRepository(
                 outgoing(
                     credentials, to, subject, "", inReplyTo, references, null,
                     from.name ?: fromName, from.email, ccTrimmed, bccTrimmed,
+                    requestReceipt = item.requestReceipt,
                 ).copy(pgpEntity = pgpEntity),
             )
             client.importAndSendEmail(
@@ -5919,6 +5966,7 @@ class MailRepository(
                 inReplyTo = inReplyTo,
                 references = references,
                 attachments = attachments,
+                requestReceipt = item.requestReceipt,
             )
         }
 

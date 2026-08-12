@@ -17,10 +17,12 @@ class ComposeDirtyTest {
         bcc: String = "", initialBcc: String = "",
         subject: String = "", initialSubject: String = "",
         body: String = "", initialBody: String = "",
+        requestReceipt: Boolean = false, initialRequestReceipt: Boolean = false,
         attachmentsTouched: Boolean = false,
     ) = ComposeDirty.isDirty(
         onlyCopy, to, initialTo, cc, initialCc, bcc, initialBcc,
-        subject, initialSubject, body, initialBody, attachmentsTouched,
+        subject, initialSubject, body, initialBody,
+        requestReceipt, initialRequestReceipt, attachmentsTouched,
     )
 
     @Test fun anUntouchedReopenedMessageIsNotDirty() {
@@ -65,5 +67,36 @@ class ComposeDirtyTest {
 
     @Test fun anUndoneSendIsAlwaysGuardedEvenUntouched() {
         assertTrue(dirty(onlyCopy = true))
+    }
+
+    // --- the read-receipt box, both senses ------------------------------------------------------
+    //
+    // The grave one is CLEARING it. On a message reopened from the outbox the leave path is
+    // `cancel()`, which hands the queued row back exactly as it was: an unseen clear means the
+    // message goes out still asking for a receipt while the screen had just said it would not.
+
+    @Test fun clearingTheReadReceiptBoxIsDirty() {
+        assertTrue(
+            "unticking \"ask for a read receipt\" and leaving must raise the discard dialogue: the " +
+                "queued message is handed back unchanged, so a silent close SENDS the request the " +
+                "user just withdrew",
+            dirty(requestReceipt = false, initialRequestReceipt = true),
+        )
+    }
+
+    @Test fun tickingTheReadReceiptBoxIsDirty() {
+        assertTrue(
+            "ticking it and leaving must raise the dialogue too, or the request is dropped with " +
+                "the screen still showing it as asked for",
+            dirty(requestReceipt = true, initialRequestReceipt = false),
+        )
+    }
+
+    @Test fun aReadReceiptBoxThatOpenedTickedIsNotAnEdit() {
+        // The witness (#70 BLOCKER 3): a reopened outbox message opens with the box already ticked.
+        // Counting its mere PRESENCE would fire the discard dialogue on a reopen-and-close where
+        // nothing was touched, which is the very mistake this file exists to prevent.
+        assertFalse(dirty(requestReceipt = true, initialRequestReceipt = true))
+        assertFalse(dirty(requestReceipt = false, initialRequestReceipt = false))
     }
 }

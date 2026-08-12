@@ -8,6 +8,7 @@
     <string name="compose_attach">Adjuntar archivo</string>
     <string name="compose_save_draft">Guardar borrador</string>
     <string name="compose_schedule_send">Programar envío</string>
+    <string name="compose_request_receipt">Solicitar confirmación de lectura</string>
     <string name="compose_send">Enviar</string>
     <string name="compose_from">De</string>
     <string name="compose_choose_sender">Elegir remitente</string>

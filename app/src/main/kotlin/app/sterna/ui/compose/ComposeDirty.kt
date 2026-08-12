@@ -13,6 +13,13 @@ package app.sterna.ui.compose
  *
  * So recipients are compared as order-independent sets, subject/body as text, and attachments via an
  * explicit "the user touched them" flag rather than their mere presence.
+ *
+ * The read-receipt box is a field like the others, and it is compared against the value the message
+ * OPENED with for exactly the same reason: on a message reopened from the outbox the box opens
+ * already ticked, so "ticked" is not an edit — but ticking or CLEARING it is. Left out of the verdict
+ * it was lost in silence, with no dialogue at all: clearing the box and leaving gave `dirty = false`,
+ * so the editor closed straight through `cancel()`, the queued row went back untouched, and the
+ * message went out still asking while the screen had just said it would not.
  */
 internal object ComposeDirty {
     private fun addressSet(value: String): Set<String> =
@@ -30,6 +37,8 @@ internal object ComposeDirty {
         initialSubject: String,
         body: String,
         initialBody: String,
+        requestReceipt: Boolean,
+        initialRequestReceipt: Boolean,
         attachmentsTouched: Boolean,
     ): Boolean =
         // An undone send lives only on this screen: guard it even untouched, closing destroys it.
@@ -39,5 +48,6 @@ internal object ComposeDirty {
             addressSet(bcc) != addressSet(initialBcc) ||
             subject != initialSubject ||
             body != initialBody ||
+            requestReceipt != initialRequestReceipt ||
             attachmentsTouched
 }

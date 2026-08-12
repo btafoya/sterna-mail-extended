@@ -200,6 +200,109 @@ class OutgoingMimeTest {
         )
     }
 
+    // --- the read receipt (RFC 8098) --------------------------------------------------------------
+
+    @Test
+    fun receiptRequestedWritesDispositionNotificationToTheFromAddress() {
+        val mime = OutgoingMime.build(msg().copy(requestReceipt = true))
+
+        // The address, not just the header: a receipt sent anywhere but the visible From is
+        // either a leak or a receipt nobody receives.
+        assertEquals(
+            "Disposition-Notification-To: alice@example.com",
+            mime.lineSequence().first { it.startsWith("Disposition-Notification-To:") },
+        )
+        // Exactly one, and the pre-RFC spellings are deliberately not written at all.
+        assertEquals(1, mime.lineSequence().count { it.startsWith("Disposition-Notification-To:") })
+        assertFalse("no Return-Receipt-To", mime.contains("Return-Receipt-To"))
+        assertFalse("no X-Confirm-Reading-To", mime.contains("X-Confirm-Reading-To"))
+    }
+
+    @Test
+    fun noReceiptAskedMeansNoSuchHeaderAtAll() {
+        // The negative witness carries as much weight as the positive one: this header on a message
+        // nobody asked it for tells every recipient when the mail was opened.
+        val mime = OutgoingMime.build(msg())
+        assertFalse("no receipt header when none was asked for", mime.contains("Disposition-Notification-To"))
+    }
+
+    @Test
+    fun theReceiptFollowsTheFromItIsBuiltWith() {
+        // The "on behalf" case: a delegated send is submitted by one identity and shows another in
+        // From. The receipt must go where the correspondent can see it — the From — so it is that
+        // address, not the login, that appears here.
+        val mime = OutgoingMime.build(
+            msg().copy(from = "team@example.org", requestReceipt = true),
+        )
+        assertEquals(
+            "Disposition-Notification-To: team@example.org",
+            mime.lineSequence().first { it.startsWith("Disposition-Notification-To:") },
+        )
+    }
+
+    @Test
+    fun aDisplayNameWithSpecialsSurvivesAsAQuotedMailbox() {
+        // A comma in a display name is what turns one mailbox into two: unquoted, "Ruíz, Ana"
+        // reads as two addresses and the receipt is copied to a second, non-existent one.
+        val from = OutgoingMime.formatAddress("Ruíz, Ana", "ana@example.org")
+        val mime = OutgoingMime.build(msg().copy(from = from, requestReceipt = true))
+
+        val line = mime.lineSequence().first { it.startsWith("Disposition-Notification-To:") }
+        assertEquals("Disposition-Notification-To: $from", line)
+        // Same value as the From header, character for character: two headers naming the same
+        // mailbox differently is exactly the drift a separate address field would allow.
+        assertEquals(
+            mime.lineSequence().first { it.startsWith("From:") }.removePrefix("From:").trim(),
+            line.removePrefix("Disposition-Notification-To:").trim(),
+        )
+    }
+
+    @Test
+    fun receiptAddressCrlfCannotInjectExtraHeaders() {
+        val mime = OutgoingMime.build(
+            msg().copy(
+                from = "alice@example.com\r\nBcc: victim@evil.com",
+                requestReceipt = true,
+            ),
+        )
+
+        assertFalse("injected Bcc must not appear as a header", mime.contains("\nBcc:"))
+        // And the header that follows is still the real next header, not a fragment of the
+        // smuggled text: a split here would silently drop the MIME structure.
+        val lines = mime.lineSequence().toList()
+        val at = lines.indexOfFirst { it.startsWith("Disposition-Notification-To:") }
+        assertTrue("the receipt header must be there", at >= 0)
+        assertEquals("MIME-Version: 1.0", lines[at + 1])
+    }
+
+    @Test
+    fun theReceiptSitsAmongTheTopLevelHeadersBeforeMimeVersion() {
+        val mime = OutgoingMime.build(msg(references = "<x@a>").copy(requestReceipt = true))
+        val lines = mime.lineSequence().toList()
+        val references = lines.indexOfFirst { it.startsWith("References:") }
+        val receipt = lines.indexOfFirst { it.startsWith("Disposition-Notification-To:") }
+        val mimeVersion = lines.indexOfFirst { it.startsWith("MIME-Version:") }
+        assertTrue("References must come first", references in 0 until receipt)
+        assertTrue("MIME-Version must come after", receipt < mimeVersion)
+    }
+
+    @Test
+    fun aPgpMimeMessageStillCarriesTheReceiptHeader() {
+        // ⭐ The path a partial fix leaves mute. A signed or encrypted JMAP send does NOT go through
+        // Email/set: MailRepository builds these very bytes and imports them. The pre-built entity
+        // replaces the BODY, so the receipt has to be written above it — if it were emitted inside
+        // the body branch, every signed and every encrypted message would go out asking nothing.
+        val entity = "Content-Type: multipart/signed; protocol=\"application/pgp-signature\"\r\n\r\nbody\r\n"
+        val mime = OutgoingMime.build(msg().copy(pgpEntity = entity, requestReceipt = true))
+
+        assertEquals(
+            "Disposition-Notification-To: alice@example.com",
+            mime.lineSequence().first { it.startsWith("Disposition-Notification-To:") },
+        )
+        // The signed bytes themselves are untouched, byte for byte.
+        assertTrue("the entity must reach the wire verbatim", mime.endsWith(entity))
+    }
+
     @Test
     fun fromWithEmailAsNameQuotedInBuiltMime() {
         val mime = OutgoingMime.build(

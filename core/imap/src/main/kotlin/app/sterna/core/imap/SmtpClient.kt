@@ -108,6 +108,17 @@ data class OutgoingMessage(
      * ignored when set.
      */
     val pgpEntity: String? = null,
+    /**
+     * Ask the recipient's client for a read receipt: [OutgoingMime.build] then writes
+     * `Disposition-Notification-To:` (RFC 8098) naming THIS message's [from].
+     *
+     * A flag and not an address, deliberately. The receipt has to come back to the mailbox the
+     * correspondent can see, which is the `From` — including a delegated "on behalf" send, where
+     * the submitting identity is somebody else's. Deriving it here means no second address exists
+     * to drift from the visible one, and none can reach the MIME without the callers'
+     * single-line check and the [headerSafe] below, which is the whole CRLF-injection guard.
+     */
+    val requestReceipt: Boolean = false,
 )
 
 /**
@@ -344,6 +355,12 @@ object OutgoingMime {
             append("Message-ID: <${headerSafe(m.messageId.trim('<', '>'))}>\r\n")
             m.inReplyTo?.let { append("In-Reply-To: <${headerSafe(it.trim('<', '>'))}>\r\n") }
             m.references?.let { append("References: ${headerSafe(it)}\r\n") }
+            // Where a read receipt should be sent, if the recipient's client makes one at all
+            // (RFC 8098). The address is the From, character for character — one mailbox, and the
+            // one the correspondent can see. ⭐ Written HERE, above the body, so it is carried by
+            // the PGP/MIME branch below too: that entity replaces the body, and a receipt emitted
+            // inside it would leave every signed and every encrypted message asking for nothing.
+            if (m.requestReceipt) append("Disposition-Notification-To: ${headerSafe(m.from)}\r\n")
             append("MIME-Version: 1.0\r\n")
             // A pre-built (PGP/MIME) entity replaces the whole body construction.
             if (m.pgpEntity != null) {

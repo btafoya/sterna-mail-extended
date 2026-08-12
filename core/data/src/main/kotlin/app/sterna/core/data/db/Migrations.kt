@@ -381,3 +381,30 @@ val MIGRATION_20_21 = object : Migration(20, 21) {
         db.execSQL("ALTER TABLE `emails` ADD COLUMN `bccJson` TEXT")
     }
 }
+
+/**
+ * Additive 21→22: `outbox` and `scheduled_sends` each gain `requestReceipt`, the per-message
+ * "ask for a read receipt" choice ([OutboxEntity.requestReceipt], [ScheduledSendEntity.requestReceipt]).
+ *
+ * BOTH tables, not one. A message the user asked a receipt for can wait in either — the outbox for
+ * the undo window (or a failed retry), the scheduled table for hours — and a scheduled send only
+ * becomes an outbox row when its worker fires. A column on one table alone drops the request in
+ * the handover, silently, and the mail goes out asking nothing.
+ *
+ * ⚠ These two tables are the ones that hold UNSENT MAIL. `SternaDatabase` ends its builder with
+ * `fallbackToDestructiveMigration()`, so this step missing from
+ * [SternaDatabase.ALL_MIGRATIONS] — written but not registered — does not degrade anything: Room
+ * finds no 21→22 path and DROPS every table, the queued messages included.
+ *
+ * `INTEGER NOT NULL DEFAULT 0` rather than the nullable `TEXT` of the columns above, because the
+ * entity field is a non-null `Boolean`: SQLite requires a default to add a NOT NULL column to a
+ * populated table, and Room compares defaults at open time only when the ENTITY declares one (a
+ * Kotlin default is not a `@ColumnInfo(defaultValue = …)`, b/136515305). Existing rows therefore
+ * read back as 0 — "no receipt asked for", exactly what they were queued as.
+ */
+val MIGRATION_21_22 = object : Migration(21, 22) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `outbox` ADD COLUMN `requestReceipt` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `scheduled_sends` ADD COLUMN `requestReceipt` INTEGER NOT NULL DEFAULT 0")
+    }
+}

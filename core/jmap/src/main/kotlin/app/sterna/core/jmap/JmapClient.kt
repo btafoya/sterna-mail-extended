@@ -1623,6 +1623,8 @@ class JmapClient internal constructor(
         inReplyTo: List<String> = emptyList(),
         references: List<String> = emptyList(),
         attachments: List<EmailBodyPart> = emptyList(),
+        /** Ask for a read receipt: writes `Disposition-Notification-To:` naming [from] (RFC 8098). */
+        requestReceipt: Boolean = false,
     ): String? = withContext(Dispatchers.IO) {
         val payload = buildJsonObject {
             putJsonArray("using") {
@@ -1651,6 +1653,16 @@ class JmapClient internal constructor(
                                 }
                                 if (references.isNotEmpty()) {
                                     putJsonArray("references") { references.forEach { add(it) } }
+                                }
+                                // Where a read receipt should come back (RFC 8098). No Email
+                                // property exists for it, so RFC 8621 §4.1.2's `header:<name>:<form>`
+                                // is set on create; `asAddresses` takes {name, email} objects.
+                                // The address is `from` — the mailbox the correspondent sees,
+                                // which for a delegated send is not the submitting identity.
+                                if (requestReceipt) {
+                                    putJsonArray("header:Disposition-Notification-To:asAddresses") {
+                                        addJsonObject { addAddress(from) }
+                                    }
                                 }
                                 addAttachments(attachments)
                                 putJsonObject("keywords") { put("\$draft", true); put("\$seen", true) }
@@ -1884,6 +1896,8 @@ class JmapClient internal constructor(
         inReplyTo: List<String> = emptyList(),
         references: List<String> = emptyList(),
         attachments: List<EmailBodyPart> = emptyList(),
+        /** Ask for a read receipt: writes `Disposition-Notification-To:` naming [from] (RFC 8098). */
+        requestReceipt: Boolean = false,
     ): String? {
         val args = emailSet(session, auth) {
             put("accountId", accountId)
@@ -1900,6 +1914,14 @@ class JmapClient internal constructor(
                     // Keep a reply draft threaded, so sending it later still joins its conversation.
                     if (inReplyTo.isNotEmpty()) putJsonArray("inReplyTo") { inReplyTo.forEach { add(it) } }
                     if (references.isNotEmpty()) putJsonArray("references") { references.forEach { add(it) } }
+                    // The receipt request belongs in the stored draft too, so the copy on the
+                    // server describes the message that would be sent (RFC 8621 §4.1.2 header
+                    // property, `asAddresses` form; the address is `from`).
+                    if (requestReceipt) {
+                        putJsonArray("header:Disposition-Notification-To:asAddresses") {
+                            addJsonObject { addAddress(from) }
+                        }
+                    }
                     addAttachments(attachments)
                     putJsonObject("keywords") { put("\$draft", true); put("\$seen", true) }
                     putJsonObject("mailboxIds") { put(draftMailboxId, true) }

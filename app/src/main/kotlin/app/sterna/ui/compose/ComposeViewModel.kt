@@ -70,6 +70,17 @@ data class DraftFields(
     val body: String,
     /** Reveal the Cc/Bcc row (used when restoring a draft that had them). */
     val expand: Boolean = false,
+    /**
+     * Tick the "ask for a read receipt" box (RFC 8098) — set when reopening a message that already
+     * asked for one: an undone send, or a queued item taken back out of the Outbox.
+     *
+     * It travels with the other initial field values because the box IS one of them: the composer
+     * owns it in a `rememberSaveable`, exactly like the recipients and the body, so it survives a
+     * process death that this ViewModel does not. ⛔ It is NOT filled when a draft is reopened from
+     * the server: the header is not read back (assumed debt D1), and claiming otherwise here would
+     * tick a box for a request the message may not carry.
+     */
+    val requestReceipt: Boolean = false,
 )
 
 /** A "From" choice: one identity belonging to a specific account. */
@@ -642,6 +653,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 _prefill.value = DraftFields(
                     to = d.to, cc = d.cc, bcc = d.bcc, subject = d.subject, body = d.body,
                     expand = d.cc.isNotBlank() || d.bcc.isNotBlank(),
+                    // The box comes back ticked for a message that asked for a receipt (#70): this
+                    // composer will enqueue a NEW row, so a clear box here cancels the request.
+                    requestReceipt = d.requestReceipt,
                 )
                 _attachments.value = d.attachments
                 inReplyTo = d.inReplyTo
@@ -875,16 +889,23 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * capture now, close the screen, and let the outbox worker deliver it a few seconds later
      * (with auto-retry) unless the user undoes it. The row survives the app being killed.
      */
-    fun send(to: String, cc: String, bcc: String, subject: String, body: String) =
-        sendInternal(SendArgs(to, cc, bcc, subject, body), interactionResult = null)
+    fun send(to: String, cc: String, bcc: String, subject: String, body: String, requestReceipt: Boolean) =
+        sendInternal(SendArgs(to, cc, bcc, subject, body, requestReceipt), interactionResult = null)
 
-    /** The composer's field values, kept so a PGP interaction round-trip can retry the send. */
+    /**
+     * The composer's field values, kept so a PGP interaction round-trip can retry the send.
+     *
+     * The read-receipt choice rides here with them, and for the same reason: the OpenPGP dialog
+     * round-trip re-enters [sendInternal] with THIS record and nothing else, so a choice left out
+     * of it is a choice silently dropped from every signed or encrypted send.
+     */
     private data class SendArgs(
         val to: String,
         val cc: String,
         val bcc: String,
         val subject: String,
         val body: String,
+        val requestReceipt: Boolean,
     )
 
     private var pendingSendArgs: SendArgs? = null
@@ -950,6 +971,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // Editing a saved draft (#63): once this send is delivered, the worker
                     // destroys the draft it came from, so Drafts keeps no stale duplicate.
                     draftEmailId = editingDraftId,
+                    // Asked for on this screen, written at DELIVERY time by a headless worker —
+                    // so it has to be on the row, not in this process.
+                    requestReceipt = args.requestReceipt,
                 )
                 // The edits are queued now under this fresh row, so the row taken out for editing is
                 // consumed — dropped from the queue rather than given back (#70).
@@ -963,6 +987,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     forwardedText = forwarded?.text, forwardedHtml = forwarded?.html,
                     pgpMode = mode.takeIf { it != PgpMode.OFF }?.name,
                     draftEmailId = editingDraftId,
+                    requestReceipt = args.requestReceipt,
                 )
                 val app = getApplication<Application>()
                 // WYSIWYG (#70): every send is queued behind the undo window, but the message only
@@ -999,7 +1024,15 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * Schedule the message to be sent at [sendAtMillis]. Persisted to Room and fired by
      * WorkManager (survives the app closing). Attachments are not carried in v1.
      */
-    fun scheduleSend(to: String, cc: String, bcc: String, subject: String, body: String, sendAtMillis: Long) {
+    fun scheduleSend(
+        to: String,
+        cc: String,
+        bcc: String,
+        subject: String,
+        body: String,
+        sendAtMillis: Long,
+        requestReceipt: Boolean,
+    ) {
         // A scheduled send is handed to a headless worker that can neither sign nor encrypt (so any
         // PgpMode but OFF would go out unsigned/plaintext, #35) and its table carries no attachments
         // yet (so it would send amputated, audit A2/A3). The toolbar disables the button for both;
@@ -1033,6 +1066,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         references = references.joinToString(" ").ifBlank { null },
                         sendAtMillis = sendAtMillis,
                         draftEmailId = editingDraftId,
+                        // The row waits for hours; the request has to wait with it, or the
+                        // hand-over to the outbox drops it (ScheduledSendWorker).
+                        requestReceipt = requestReceipt,
                     ),
                 )
                 ScheduledSends.enqueue(getApplication(), id, sendAtMillis)
@@ -1101,7 +1137,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         body: String,
     ): Boolean = draftHasContent(to, cc, bcc, subject, body, _attachments.value.isNotEmpty())
 
-    fun saveDraft(to: String, cc: String, bcc: String, subject: String, body: String) {
+    fun saveDraft(to: String, cc: String, bcc: String, subject: String, body: String, requestReceipt: Boolean) {
         // The plaintext guarantee, enforced where the upload actually happens (#35): an encrypted
         // message never leaves a readable copy on the server, draft included. The toolbar hides
         // Save/Schedule and the leave dialog only offers Discard while encrypting, so this is
@@ -1143,6 +1179,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 attachments = _attachments.value,
                 bodyIsLossy = editingDraftLossy,
                 fromName = identity?.name, fromEmail = identity?.email,
+                requestReceipt = requestReceipt,
             )
             if (outcome == DraftSaveOutcome.ORIGINAL_KEPT) {
                 _notices.tryEmit(R.string.compose_draft_original_kept)

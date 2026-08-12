@@ -46,6 +46,8 @@ class SendOutbox(private val scope: CoroutineScope) {
          * Null for an undone send — that message lives only on this screen (the row is gone).
          */
         val editingOutboxId: Long? = null,
+        /** Whether the message asks for a read receipt (RFC 8098), so an undone send reopens asking. */
+        val requestReceipt: Boolean = false,
     )
 
     private val _pending = MutableStateFlow<Pending?>(null)
@@ -104,3 +106,30 @@ class SendOutbox(private val scope: CoroutineScope) {
         const val HOLD_MS = 5_000L
     }
 }
+
+/**
+ * The composer draft a queued outbox item is reopened with (#70), as a pure function so a JVM test
+ * can run the mapping the app runs: `OutboxViewModel.edit` is an `AndroidViewModel` method behind
+ * WorkManager and Room, so nothing could otherwise see a field left behind here.
+ *
+ * ⚠ The hand-over is the whole risk. Re-editing a queued message enqueues a NEW row from the
+ * composer's state, so any per-message choice this mapping drops is not merely absent from the
+ * screen — it is cancelled. That is the PGP mode, the draft being replaced, and the read receipt.
+ */
+internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.ComposeDraft =
+    SendOutbox.ComposeDraft(
+        to = draft.to,
+        cc = draft.cc,
+        bcc = draft.bcc,
+        subject = draft.subject,
+        body = draft.body,
+        fromAccountId = draft.fromAccountId,
+        fromIdentityEmail = draft.fromEmail,
+        attachments = draft.attachments,
+        inReplyTo = draft.inReplyTo,
+        references = draft.references,
+        pgpMode = draft.pgpMode,
+        draftEmailId = draft.draftEmailId,
+        editingOutboxId = draft.outboxId,
+        requestReceipt = draft.requestReceipt,
+    )

@@ -50,10 +50,12 @@ import app.sterna.core.jmap.model.Email
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -338,12 +340,25 @@ fun ComposeScreen(
     var body by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var applied by rememberSaveable { mutableStateOf(false) }
+    // "Ask for a read receipt" (RFC 8098), per message, from the overflow menu.
+    //
+    // ⚠ rememberSaveable, and NOT a ViewModel flow like the padlock beside it. The padlock survives
+    // a process death only because it is re-derived from a default setting; this box has no setting
+    // to be reborn from, so a ViewModel field would come back CLEAR after the app was killed with
+    // the composer open — the screen would then show "not asked for" while the user had asked, and
+    // the send would agree with the screen. It is a field value like the recipients and the body,
+    // it is saved like them, and it is handed to send/save/schedule as an argument like them.
+    var requestReceipt by rememberSaveable { mutableStateOf(false) }
     // Baseline to detect unsaved edits (set from the prefill for replies/forwards).
     var initialTo by rememberSaveable { mutableStateOf("") }
     var initialCc by rememberSaveable { mutableStateOf("") }
     var initialBcc by rememberSaveable { mutableStateOf("") }
     var initialSubject by rememberSaveable { mutableStateOf("") }
     var initialBody by rememberSaveable { mutableStateOf("") }
+    // …the box included: a reopened outbox message can OPEN ticked, so "ticked" is not an edit while
+    // ticking or clearing it is. Without this baseline the leave guard could not see either, and
+    // clearing the box then leaving sent the message still asking (see [ComposeDirty]).
+    var initialRequestReceipt by rememberSaveable { mutableStateOf(false) }
 
     // Which compose this is, for the signature rules: a forward carries its original at send time
     // (so its body holds no quote), while both a reply and a forward obey the "signature in
@@ -390,6 +405,12 @@ fun ComposeScreen(
                 initialBcc = bcc
                 initialSubject = it.subject
                 initialBody = it.body
+                // A reopened message that asked for a read receipt still asks (an undone send, a
+                // queued item taken back out of the Outbox): re-editing it enqueues a NEW row, so a
+                // box left clear here cancels the request. Applied with the other prefilled fields,
+                // inside the same `!applied` gate, so nothing overwrites a box the user has ticked.
+                requestReceipt = it.requestReceipt
+                initialRequestReceipt = it.requestReceipt
                 applied = true
                 // The To field self-focuses on first composition; the other two are asked here,
                 // once the prefill they open on is actually in place.
@@ -439,7 +460,10 @@ fun ComposeScreen(
     // pulled back out of a send (Undo) is also guarded even untouched: it lives on this screen only,
     // so closing would destroy it (#70) — unlike an outbox message, which [cancel] gives back. The
     // verdict itself is [ComposeDirty]: recipients compared as sets so reordering a chip is not an
-    // "edit" (#94), and a pre-filled Cc/Bcc/attachment not counted as one either (#70).
+    // "edit" (#94), and a pre-filled Cc/Bcc/attachment not counted as one either (#70). The
+    // read-receipt box is one of its fields: it is what the message will ASK FOR, and both senses of
+    // changing it were being dropped in silence on a reopened outbox message — clearing the box and
+    // leaving let the message go out still asking.
     val dirty = ComposeDirty.isDirty(
         onlyCopy = onlyCopy,
         to = to, initialTo = initialTo,
@@ -447,6 +471,7 @@ fun ComposeScreen(
         bcc = bcc, initialBcc = initialBcc,
         subject = subject.text, initialSubject = initialSubject,
         body = body.text, initialBody = initialBody,
+        requestReceipt = requestReceipt, initialRequestReceipt = initialRequestReceipt,
         attachmentsTouched = attachmentsTouched,
     )
     var showDiscard by remember { mutableStateOf(false) }
@@ -466,7 +491,7 @@ fun ComposeScreen(
     // absent = not yet checked, allowed — the send resolves keys and reports precisely).
     val keysReady = pgpMode != PgpMode.ENCRYPT || allRecipients.none { recipientKeys[it] == false }
     val canSend = recipientTokens(to).isNotEmpty() && allRecipients.all(::isValidEmail) && keysReady
-    val sendNow = { viewModel.send(to, cc, bcc, subject.text, body.text) }
+    val sendNow = { viewModel.send(to, cc, bcc, subject.text, body.text, requestReceipt) }
     val proceedAfterAttachment = {
         if (recipientCount >= MANY_RECIPIENTS) showManyRecipients = true else sendNow()
     }
@@ -657,7 +682,7 @@ fun ComposeScreen(
                             }, enabled = enabled) { Text(discardLabel, color = MaterialTheme.colorScheme.error) }
                             DiscardChoice.SAVE_DRAFT -> TextButton(onClick = {
                                 showDiscard = false
-                                viewModel.saveDraft(to, cc, bcc, subject.text, body.text)
+                                viewModel.saveDraft(to, cc, bcc, subject.text, body.text, requestReceipt)
                             }, enabled = enabled) { Text(stringResource(R.string.compose_discard_save)) }
                         }
                     }
@@ -756,7 +781,7 @@ fun ComposeScreen(
                     // rule, same function as the leave dialog above (#35).
                     if (draftSaveAllowed(pgpMode)) {
                         IconButton(
-                            onClick = { viewModel.saveDraft(to, cc, bcc, subject.text, body.text) },
+                            onClick = { viewModel.saveDraft(to, cc, bcc, subject.text, body.text, requestReceipt) },
                             enabled = !sending && canSaveDraft,
                         ) {
                             Icon(Icons.Filled.Save, contentDescription = stringResource(R.string.compose_save_draft))
@@ -778,7 +803,7 @@ fun ComposeScreen(
                                     text = { Text(label) },
                                     onClick = {
                                         scheduleMenu = false
-                                        viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis)
+                                        viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)
                                         Toast.makeText(
                                             context,
                                             context.getString(R.string.compose_scheduled_toast, label),
@@ -795,6 +820,32 @@ fun ComposeScreen(
                         enabled = !sending && canSend,
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.compose_send))
+                    }
+                    // Overflow: the per-message read receipt. It is a menu ENTRY and not an icon of
+                    // its own, because it is a choice one reads before ticking rather than a glyph
+                    // one recognises — but be honest about the cost: this overflow button is itself
+                    // an icon, so the bar now goes up to SEVEN when PGP is available and the draft
+                    // is deletable (lock, attach, delete, save, schedule, send, overflow). Whether
+                    // that still fits the narrow screens is a bench measurement, not a claim to make
+                    // here. Its wording says what the app DOES (ask), never that a receipt will
+                    // arrive: only the recipient's client decides that, and most either ignore the
+                    // request or ask their user first.
+                    Box {
+                        var moreMenu by remember { mutableStateOf(false) }
+                        IconButton(onClick = { moreMenu = true }, enabled = !sending) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
+                        }
+                        DropdownMenu(
+                            expanded = moreMenu,
+                            onDismissRequest = { moreMenu = false },
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.compose_request_receipt)) },
+                                trailingIcon = { Checkbox(checked = requestReceipt, onCheckedChange = null) },
+                                onClick = { moreMenu = false; requestReceipt = !requestReceipt },
+                            )
+                        }
                     }
                 },
             )

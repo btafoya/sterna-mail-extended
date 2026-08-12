@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.db.OutboxEntity
 import app.sterna.send.Outbox
-import app.sterna.send.SendOutbox
+import app.sterna.send.composeDraftOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -57,23 +57,10 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
             val draft = runCatching { repo.takeOutboxForEdit(id, staging) }
                 .onFailure { android.util.Log.w("SternaOutbox", "couldn't reopen outbox item $id for edit", it) }
                 .getOrNull() ?: return@launch
-            sendOutbox.reopen(
-                SendOutbox.ComposeDraft(
-                    to = draft.to,
-                    cc = draft.cc,
-                    bcc = draft.bcc,
-                    subject = draft.subject,
-                    body = draft.body,
-                    fromAccountId = draft.fromAccountId,
-                    fromIdentityEmail = draft.fromEmail,
-                    attachments = draft.attachments,
-                    inReplyTo = draft.inReplyTo,
-                    references = draft.references,
-                    pgpMode = draft.pgpMode,
-                    draftEmailId = draft.draftEmailId,
-                    editingOutboxId = draft.outboxId,
-                ),
-            )
+            // The mapping is a pure function ([composeDraftOf]) so a JVM test can execute it: what
+            // it drops is not missing from the screen, it is CANCELLED — re-editing enqueues a new
+            // row from the composer's state.
+            sendOutbox.reopen(composeDraftOf(draft))
             _readyToEdit.value = true
         }
     }

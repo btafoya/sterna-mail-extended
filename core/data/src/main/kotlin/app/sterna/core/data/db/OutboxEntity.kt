@@ -69,4 +69,16 @@ data class OutboxEntity(
      * send leaves the draft untouched.
      */
     val draftEmailId: String? = null,
+    /**
+     * Whether the message asks the recipient's client for a read receipt (RFC 8098's
+     * `Disposition-Notification-To:`, addressed to this row's `From`). Persisted because the header
+     * is written at DELIVERY time, in the headless worker, long after the composer is gone.
+     *
+     * A plain non-null `Boolean` with `INTEGER NOT NULL DEFAULT 0` on the column
+     * ([app.sterna.core.data.db.MIGRATION_21_22]): the Kotlin default is not a `@ColumnInfo`
+     * default, so Room's `TableInfo` carries none on the entity side and skips the default
+     * comparison at open time (b/136515305). Rows written before v22 read back as "not asked for",
+     * which is what they were.
+     */
+    val requestReceipt: Boolean = false,
 )
