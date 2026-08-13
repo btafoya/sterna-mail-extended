@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import app.sterna.core.jmap.model.Mailbox
+import java.text.Collator
 
 /**
  * True when the folder currently on screen is no longer part of the account's folder list,
@@ -39,8 +40,24 @@ private fun roleRank(role: String?): Int = when (role) {
 
 /**
  * The folders a move-to-folder picker offers: [mailboxes] minus the one the message(s) are
- * already filed under, standard folders first in a fixed order, custom folders after in the
- * order they came in (the sort is stable, so the drawer's own order survives).
+ * already filed under, standard folders first in a fixed order, then the user's own folders
+ * BY PATH — parent before child, siblings in alphabetical order.
+ *
+ * Custom folders used to come out in the order the server sent them (an IMAP `LIST`, a JMAP
+ * `sortOrder`), which is no order at all on screen: "Zulu" before "Alpha". The path is compared
+ * SEGMENT BY SEGMENT, shortest prefix first, so a child always follows its own parent and no
+ * root folder can slip between the two — a whole-path string compare would let "Work_Notes" do
+ * exactly that, since "_" sorts before "/".
+ *
+ * Names go through a [Collator], never [String.compareTo]: comparing UTF-16 units files "Über"
+ * after "Zoo" and all of Cyrillic after all of Latin, in an app translated into nine languages.
+ * The default follows the device locale; the parameter exists so a test can pin one.
+ *
+ * Each folder's ancestors are resolved ONCE, before the sort ([ancestorsOf], decorate/sort/
+ * undecorate), not from inside the comparator: a resolution walks a map rebuilt over the whole
+ * folder list, and this function runs in composition without `remember`. They are resolved
+ * against the full [mailboxes], not against the filtered targets — a child's path must not lose
+ * a segment just because its parent is the folder being moved out of.
  *
  * [mailboxes] must be ONE account's folder list — the account of what is being moved. Mailbox
  * ids collide across accounts of the same server (#92), so a picker fed a sibling account's
@@ -52,8 +69,35 @@ private fun roleRank(role: String?): Int = when (role) {
  * Shared by the list's selection-bar picker and the reader's overflow entry (#73), so both
  * offer the same folders in the same order.
  */
-internal fun moveTargets(mailboxes: List<Mailbox>, currentMailboxId: String?): List<Mailbox> =
-    mailboxes.filter { it.id != currentMailboxId }.sortedBy { roleRank(it.role) }
+internal fun moveTargets(
+    mailboxes: List<Mailbox>,
+    currentMailboxId: String?,
+    collator: Collator = Collator.getInstance(),
+    ancestorsOf: (Mailbox, List<Mailbox>) -> List<String> = ::mailboxAncestors,
+): List<Mailbox> =
+    mailboxes.filter { it.id != currentMailboxId }
+        .map { it to (ancestorsOf(it, mailboxes) + it.name) }
+        .sortedWith(
+            compareBy<Pair<Mailbox, List<String>>> { roleRank(it.first.role) }
+                .thenComparator { a, b -> comparePath(a.second, b.second, collator) },
+        )
+        .map { it.first }
+
+/**
+ * Two folder paths compared segment by segment, the shorter prefix first — so "Work" leads
+ * "Work/2026", which leads "Work/Alpha".
+ *
+ * Comparing the joined paths as one string instead would sort on whatever separator was used,
+ * and every separator loses to some legal folder name: with "/", a sibling named "Work_Notes"
+ * lands between "Work" and "Work/2026" and reads as a child of nothing.
+ */
+private fun comparePath(a: List<String>, b: List<String>, collator: Collator): Int {
+    for (i in 0 until minOf(a.size, b.size)) {
+        val order = collator.compare(a[i], b[i])
+        if (order != 0) return order
+    }
+    return a.size - b.size
+}
 
 /**
  * The ancestors of [mailbox], outermost first — empty when the folder sits at the account root.
