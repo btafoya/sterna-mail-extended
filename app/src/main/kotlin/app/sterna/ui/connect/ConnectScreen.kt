@@ -258,6 +258,11 @@ fun ConnectScreen(
                 DeviceApprovalPanel(awaiting, onCancel = viewModel::cancelOAuth)
                 return@Column
             }
+            val awaitingBrowser = state as? ConnectState.AwaitingBrowser
+            if (awaitingBrowser != null) {
+                BrowserAuthorizationPanel(awaitingBrowser, onCancel = viewModel::cancelOAuth)
+                return@Column
+            }
             (importSignIn as? ConnectViewModel.ImportSignIn.Listing)?.let { listing ->
                 val sel = listing.selected
                 if (sel == null) {
@@ -668,6 +673,63 @@ private fun Modifier.credentialField(reveal: CredentialBlockReveal): Modifier {
 private fun DeviceApprovalPanel(state: ConnectState.AwaitingApproval, onCancel: () -> Unit) {
     Spacer(Modifier.height(8.dp))
     DeviceApprovalContent(state.userCode, state.verificationUri, state.verificationUriComplete, onCancel)
+}
+
+/**
+ * Authorization-code panel (#55): open the sign-in page, then wait for the browser to come back.
+ *
+ * No user code to show and nothing to copy — the whole exchange travels in the URL — so this is
+ * the device panel minus the code, plus the one thing that flow cannot fail at: an image with no
+ * browser installed at all.
+ */
+@Composable
+private fun BrowserAuthorizationPanel(state: ConnectState.AwaitingBrowser, onCancel: () -> Unit) {
+    val context = LocalContext.current
+    // Two browsers for one authorization is the device flow's D2 defect over again, and worse
+    // here: each window carries its own request, the user finishes in one, and the other comes
+    // back with a state that is no longer the pending one.
+    val leaveOnce = rememberLeaveOnce()
+    var noBrowser by remember { mutableStateOf(false) }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        stringResource(R.string.connect_oauth_code_step1),
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Button(
+        onClick = {
+            leaveOnce {
+                // ⚠ The launch REPORTS back instead of swallowing its exception: a build with no
+                // browser (a stripped ROM, a work profile with no browser) must say so, not offer
+                // a button that silently does nothing — and must not crash on
+                // ActivityNotFoundException either.
+                val opened = runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(state.authorizationUrl))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }.isSuccess
+                noBrowser = !opened
+                opened
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(R.string.connect_oauth_open_browser)) }
+    if (noBrowser) {
+        Text(
+            stringResource(R.string.connect_oauth_no_browser),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+    Text(
+        stringResource(R.string.connect_oauth_code_waiting),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp))
+        TextButton(onClick = onCancel) { Text(stringResource(R.string.connect_oauth_cancel)) }
+    }
 }
 
 /** The shared device-flow approval body (code + open-browser + waiting + cancel), reused by both the

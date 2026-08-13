@@ -17,6 +17,7 @@ import app.sterna.push.UnifiedPushStateStore
 import app.sterna.security.AppLock
 import app.sterna.send.Outbox
 import app.sterna.send.SendOutbox
+import app.sterna.ui.connect.OAuthCodeSignIn
 import app.sterna.ui.connect.OutlookSignIn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +66,11 @@ class AppContainer(context: Context) {
 
     /** Drives the Outlook OAuth device flow app-scoped, so it survives the browser round-trip. */
     val outlookSignIn: OutlookSignIn = OutlookSignIn(mailRepository, appScope, context.applicationContext)
+
+    /** Drives the authorization-code grant app-scoped: that flow LEAVES the app for a browser and
+     *  comes back through MainActivity, long after a screen-scoped owner would be gone (#55). */
+    val oauthCodeSignIn: OAuthCodeSignIn =
+        OAuthCodeSignIn(mailRepository, appScope, context.applicationContext)
 
     init {
         val appContext = context.applicationContext

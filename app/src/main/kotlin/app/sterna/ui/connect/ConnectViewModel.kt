@@ -42,6 +42,8 @@ sealed interface ConnectState {
         val verificationUri: String,
         val verificationUriComplete: String?,
     ) : ConnectState
+    /** Authorization-code flow started: the browser must be sent to [authorizationUrl] (#55). */
+    data class AwaitingBrowser(val authorizationUrl: String) : ConnectState
     data class Error(val message: String) : ConnectState
 }
 
@@ -136,6 +138,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         observeOutlookSignIn()
+        observeOAuthCodeSignIn()
     }
 
     fun connect(server: String, username: String, password: String, accountName: String) {
@@ -274,17 +277,9 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val candidates = if (server.isNotBlank()) listOf(server.trim()) else Jmap.autodiscoverHosts(emailTrim)
         _state.value = ConnectState.Discovering
         oauthJob = viewModelScope.launch {
-            // ⚠ COLLECT, don't stop at the first answer. autodiscoverHosts tries the bare domain
-            // first — the organisation's website — so a site that publishes an OAuth document
-            // without a device flow would end the search before mail.<domain> is ever asked, and
-            // refuse a sign-in that worked the day before. The happy case still probes one host:
-            // the loop breaks as soon as a candidate has the flow.
-            val discovered = mutableListOf<Pair<String, OAuthMetadata>>()
-            for (h in candidates) {
-                val m = runCatching { container.mailRepository.discoverOAuth(h) }.getOrNull() ?: continue
-                discovered += h to m
-                if (m.supportsDeviceFlow) break
-            }
+            // ⚠ COLLECT, don't stop at the first answer, and WHICH answer ends the search is
+            // collectOAuthHosts' call, not this screen's — it is the rule a fake probe can run.
+            val discovered = collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it) }
             // "No OAuth here" and "OAuth, but not a flow this app can drive" are different facts
             // and used to be the same sentence. WHICH sentence is oauthDiscoveryFailure's call and
             // no longer this screen's — it answers for a null metadata too, so the "nothing
@@ -299,6 +294,21 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
             val (host, found) = chosen
+            // WHICH grant is chooseOAuthGrant's call, and it prefers the device flow: this screen
+            // only acts on the answer. The code grant hands over to the app-scoped driver, because
+            // from here the sign-in leaves for a browser and comes back through MainActivity —
+            // possibly after this ViewModel is gone.
+            if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {
+                // BY NAME: `email` and `accountName` are adjacent Strings, a swap compiles, and
+                // the account would be persisted with its label where its address belongs.
+                container.oauthCodeSignIn.start(
+                    host = host,
+                    metadata = found,
+                    email = emailTrim,
+                    accountName = accountName,
+                )
+                return@launch
+            }
             val start = runCatching { container.mailRepository.startDeviceAuthorization(found) }
             val device = start.getOrNull()
             if (device == null) {
@@ -415,6 +425,29 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 _state.value = when (o) {
                     OutlookOutcome.Success -> ConnectState.Connected
                     is OutlookOutcome.Error -> ConnectState.Error(o.message)
+                }
+            }
+        }
+    }
+
+    /** Mirror the app-scoped authorization-code sign-in into this screen's state (#55). */
+    private fun observeOAuthCodeSignIn() {
+        viewModelScope.launch {
+            container.oauthCodeSignIn.progress.collect { p ->
+                _state.value = when (p) {
+                    // Idle is where the driver sits before and after a sign-in: adopting it would
+                    // wipe whatever this screen is showing, including the error just emitted.
+                    OAuthCodeProgress.Idle -> return@collect
+                    is OAuthCodeProgress.AwaitingBrowser -> ConnectState.AwaitingBrowser(p.authorizationUrl)
+                    OAuthCodeProgress.Connecting -> ConnectState.Connecting
+                }
+            }
+        }
+        viewModelScope.launch {
+            container.oauthCodeSignIn.outcomes.collect { o ->
+                _state.value = when (o) {
+                    OAuthCodeOutcome.Success -> ConnectState.Connected
+                    is OAuthCodeOutcome.Error -> ConnectState.Error(o.message)
                 }
             }
         }
@@ -659,17 +692,21 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         smtp = if (a.protocol == MailProtocol.IMAP) MailEndpoint(a.smtpHost, a.smtpPort, a.smtpSecurity) else null,
     )
 
-    /** Cancel an in-progress device flow and return to the form. */
+    /** Cancel an in-progress browser sign-in (either grant) and return to the form. */
     fun cancelOAuth() {
         oauthJob?.cancel()
         oauthJob = null
         container.outlookSignIn.cancel()
+        // Drops the pending authorization with it: after Cancel, a redirect that still arrives
+        // (the browser was left open on the sign-in page) finds nothing and exchanges nothing.
+        container.oauthCodeSignIn.cancel()
         _state.value = ConnectState.Idle
     }
 
     private fun busy() = _state.value is ConnectState.Connecting ||
         _state.value is ConnectState.Discovering ||
-        _state.value is ConnectState.AwaitingApproval
+        _state.value is ConnectState.AwaitingApproval ||
+        _state.value is ConnectState.AwaitingBrowser
 
     private fun string(resId: Int) = getApplication<Application>().getString(resId)
     private fun string(resId: Int, vararg args: Any) = getApplication<Application>().getString(resId, *args)

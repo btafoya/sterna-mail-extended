@@ -761,6 +761,12 @@
     <string name="connect_oauth_flow_unsupported">This server offers OAuth sign-in, but not in a way Sterna can use yet. Use email and password instead.</string>
     <string name="connect_oauth_error_reason">The server refused the sign-in (%1$s). Try again, or use email and password instead.</string>
     <string name="connect_oauth_network">Couldn\'t reach the server while waiting for approval. Check your connection, then try again.</string>
+    <string name="connect_account_added">Account added</string>
+    <string name="connect_oauth_code_step1">To sign in, open the sign-in page in your browser, then come back to Sterna.</string>
+    <string name="connect_oauth_code_waiting">Waiting for you to finish in the browser and come back…</string>
+    <string name="connect_oauth_no_browser">No app on this device can open the sign-in page. Install a browser, then try again.</string>
+    <string name="connect_oauth_code_mismatch">This answer doesn\'t match the sign-in in progress. Start again.</string>
+    <string name="connect_oauth_code_lost">The sign-in expired or was interrupted. Start again.</string>
     <string name="connect_incoming_imap">Incoming (IMAP)</string>
     <string name="connect_outgoing_smtp">Outgoing (SMTP)</string>
     <string name="connect_account_name_optional">Account name (optional)</string>

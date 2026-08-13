@@ -59,6 +59,19 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mailto" />
             </intent-filter>
+            <!-- The OAuth authorization-code return (#55): the browser sends the answer back to
+                 <applicationId>://oauth, which re-enters this singleTask activity through
+                 onNewIntent.
+                 ⛔ The scheme is the ${applicationId} PLACEHOLDER and must stay one. The test app
+                 (-PtestApp) is app.sterna.test and installs alongside production; two packages
+                 registering one literal scheme make the return non-deterministic — Android picks
+                 the handler, and a sign-in tested on the bench proves nothing about either. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}" android:host="oauth" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SENDTO" />
                 <category android:name="android.intent.category.DEFAULT" />

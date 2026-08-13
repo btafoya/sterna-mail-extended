@@ -2,6 +2,7 @@ package app.sterna.ui.connect
 
 import app.sterna.R
 import app.sterna.core.jmap.OAuthMetadata
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -163,10 +164,16 @@ class OAuthErrorMessagesTest {
         assertEquals(R.string.connect_oauth_unsupported, oauthDiscoveryFailure(null))
     }
 
-    @Test fun `metadata without a device endpoint means the flow, not OAuth, is missing`() {
+    /**
+     * ⚠ The fixture lost its authorization endpoint on purpose (#55): a server that publishes one
+     * IS signable-into now, through the authorization-code grant, so it is no longer a failure at
+     * all — that case is `a code-only server is no discovery failure any more` below. What this
+     * one still holds is the sentence for a server advertising OAuth with NEITHER grant.
+     */
+    @Test fun `metadata with no usable grant means the flow, not OAuth, is missing`() {
         val advertised = OAuthMetadata(
             issuer = "https://idp.example",
-            authorizationEndpoint = "https://idp.example/authorize",
+            authorizationEndpoint = null,
             tokenEndpoint = "https://idp.example/token",
             deviceAuthorizationEndpoint = null,
         )
@@ -195,8 +202,9 @@ class OAuthErrorMessagesTest {
     // mail.<domain>: she signed in yesterday, and she is told her server offers a flow this app
     // cannot use. So the choice is by capability first, and only then by order.
 
-    private fun meta(host: String, deviceFlow: Boolean) = OAuthMetadata(
+    private fun meta(host: String, deviceFlow: Boolean, codeFlow: Boolean = false) = OAuthMetadata(
         issuer = "https://$host",
+        authorizationEndpoint = if (codeFlow) "https://$host/authorize" else null,
         tokenEndpoint = "https://$host/token",
         deviceAuthorizationEndpoint = if (deviceFlow) "https://$host/device" else null,
     )
@@ -245,5 +253,144 @@ class OAuthErrorMessagesTest {
             deviceAuthorizationEndpoint = "https://idp.example/device",
         )
         assertNull(oauthDiscoveryFailure(usable))
+    }
+
+    // ---- WHICH grant is driven (#55) ----
+    //
+    // The authorization-code grant is the fallback, not the new default. It leaves the app for a
+    // browser and comes back through an intent; the device flow does not leave at all, it is what
+    // every account signed in so far uses, and it stays first whenever a server offers both.
+
+    /** ⛔ The witness of non-regression: inverting the two arms of chooseOAuthGrant reddens here. */
+    @Test fun `a server that speaks both grants keeps the device flow`() {
+        assertEquals(
+            OAuthGrant.DEVICE_CODE,
+            chooseOAuthGrant(meta("mail.example.org", deviceFlow = true, codeFlow = true)),
+        )
+    }
+
+    @Test fun `a server with only a device endpoint drives the device flow`() {
+        assertEquals(OAuthGrant.DEVICE_CODE, chooseOAuthGrant(meta("mail.example.org", deviceFlow = true)))
+    }
+
+    /** The change itself: this server used to be told Sterna could not use its OAuth. */
+    @Test fun `a server with only an authorization endpoint drives the code grant`() {
+        assertEquals(
+            OAuthGrant.AUTHORIZATION_CODE,
+            chooseOAuthGrant(meta("mail.example.org", deviceFlow = false, codeFlow = true)),
+        )
+    }
+
+    @Test fun `a server with neither endpoint drives nothing`() {
+        assertEquals(OAuthGrant.NONE, chooseOAuthGrant(meta("mail.example.org", deviceFlow = false)))
+    }
+
+    /** A token endpoint is half of both grants: an authorization endpoint alone is not a flow. */
+    @Test fun `an authorization endpoint without a token endpoint is not a code grant`() {
+        val halfway = OAuthMetadata(
+            issuer = "https://idp.example",
+            authorizationEndpoint = "https://idp.example/authorize",
+            tokenEndpoint = "",
+        )
+        assertEquals(OAuthGrant.NONE, chooseOAuthGrant(halfway))
+    }
+
+    /** ⭐ Ranking across hosts, where the two grants live on different servers. */
+    @Test fun `the code grant does not beat the device flow on another host`() {
+        val discovered = listOf(
+            "example.org" to meta("example.org", deviceFlow = false, codeFlow = true),
+            "mail.example.org" to meta("mail.example.org", deviceFlow = true),
+        )
+        assertEquals("mail.example.org", chooseOAuthHost(discovered)?.first)
+    }
+
+    @Test fun `a code-only host beats a host with no usable grant at all`() {
+        val discovered = listOf(
+            "example.org" to meta("example.org", deviceFlow = false),
+            "mail.example.org" to meta("mail.example.org", deviceFlow = false, codeFlow = true),
+        )
+        assertEquals("mail.example.org", chooseOAuthHost(discovered)?.first)
+        assertNull(oauthDiscoveryFailure(chooseOAuthHost(discovered)?.second))
+    }
+
+    /** Order still decides between equals: the bare domain answered first and has the grant. */
+    @Test fun `between two code-only hosts the first responder is kept`() {
+        val discovered = listOf(
+            "example.org" to meta("example.org", deviceFlow = false, codeFlow = true),
+            "mail.example.org" to meta("mail.example.org", deviceFlow = false, codeFlow = true),
+        )
+        assertEquals("example.org", chooseOAuthHost(discovered)?.first)
+    }
+
+    @Test fun `a code-only server is no discovery failure any more`() {
+        assertNull(oauthDiscoveryFailure(meta("mail.example.org", deviceFlow = false, codeFlow = true)))
+    }
+
+    // ---- WHICH hosts are probed, and which answer ends the search ----
+    //
+    // The list `chooseOAuthHost` ranks is not given: it is what the probe loop collected, and the
+    // loop can make its promise unreachable. `Jmap.autodiscoverHosts` asks the BARE DOMAIN first.
+
+    /** ⭐ The regression this pins: the website has an authorization endpoint, the mail server has
+     *  the device flow, and stopping at the website sends a working sign-in off to a browser. */
+    @Test fun `a website publishing an authorization endpoint does not end the search`() = runBlocking {
+        val asked = mutableListOf<String>()
+        val discovered = collectOAuthHosts(
+            listOf("example.org", "mail.example.org", "jmap.example.org"),
+        ) { host ->
+            asked += host
+            when (host) {
+                "example.org" -> meta("example.org", deviceFlow = false, codeFlow = true)
+                "mail.example.org" -> meta("mail.example.org", deviceFlow = true)
+                else -> null
+            }
+        }
+        assertEquals(
+            "the mail server must be asked even though the bare domain already answered",
+            listOf("example.org", "mail.example.org"), asked,
+        )
+        assertEquals("mail.example.org", chooseOAuthHost(discovered)?.first)
+        assertEquals(OAuthGrant.DEVICE_CODE, chooseOAuthGrant(chooseOAuthHost(discovered)!!.second))
+    }
+
+    @Test fun `a device flow ends the search`() = runBlocking {
+        val asked = mutableListOf<String>()
+        collectOAuthHosts(listOf("mail.example.org", "jmap.example.org", "api.example.org")) { host ->
+            asked += host
+            meta(host, deviceFlow = true)
+        }
+        assertEquals(listOf("mail.example.org"), asked)
+    }
+
+    @Test fun `with no device flow anywhere every candidate is asked`() = runBlocking {
+        val asked = mutableListOf<String>()
+        val discovered = collectOAuthHosts(listOf("example.org", "mail.example.org")) { host ->
+            asked += host
+            meta(host, deviceFlow = false, codeFlow = host == "mail.example.org")
+        }
+        assertEquals(listOf("example.org", "mail.example.org"), asked)
+        // Only NOW does the code grant's rank matter, and it picks the host that has it.
+        assertEquals("mail.example.org", chooseOAuthHost(discovered)?.first)
+    }
+
+    @Test fun `a host that answers nothing is skipped, not recorded`() = runBlocking {
+        val discovered = collectOAuthHosts(listOf("example.org", "mail.example.org")) { host ->
+            if (host == "example.org") null else meta(host, deviceFlow = true)
+        }
+        assertEquals(listOf("mail.example.org"), discovered.map { it.first })
+    }
+
+    @Test fun `a host that fails outright does not end the search`() = runBlocking {
+        val discovered = collectOAuthHosts(listOf("example.org", "mail.example.org")) { host ->
+            if (host == "example.org") error("connection refused") else meta(host, deviceFlow = true)
+        }
+        assertEquals(listOf("mail.example.org"), discovered.map { it.first })
+    }
+
+    @Test fun `a server with OAuth but neither grant is still the flow sentence`() {
+        assertEquals(
+            R.string.connect_oauth_flow_unsupported,
+            oauthDiscoveryFailure(meta("mail.example.org", deviceFlow = false)),
+        )
     }
 }

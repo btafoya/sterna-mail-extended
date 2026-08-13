@@ -68,6 +68,7 @@ import app.sterna.core.jmap.JmapAuth
 import app.sterna.core.jmap.JmapClient
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.WindowWalk
+import app.sterna.core.jmap.buildAuthorizationUrl
 import app.sterna.core.imap.CryptoEnvelope
 import app.sterna.core.imap.CryptoKind
 import app.sterna.core.imap.ImapUidValidityChanged
@@ -2327,6 +2328,37 @@ class MailRepository(
     /** Poll the token endpoint once for a pending device authorization. */
     suspend fun pollDeviceToken(metadata: OAuthMetadata, deviceCode: String): DeviceTokenResult =
         oauthClient.pollDeviceToken(metadata, deviceCode, Jmap.OAUTH_CLIENT_ID)
+
+    /**
+     * The URL the browser is sent to for the authorization-code grant, with Sterna's client id and
+     * scopes — the same pair the device flow uses. Pure: it performs no request.
+     *
+     * A server discovered as code-flow capable has an authorization endpoint by definition
+     * (`supportsCodeFlow`); the check is here so a caller that skipped it fails on a sentence
+     * rather than on a null.
+     */
+    fun authorizationUrl(
+        metadata: OAuthMetadata,
+        redirectUri: String,
+        state: String,
+        codeChallenge: String,
+    ): String = buildAuthorizationUrl(
+        authorizationEndpoint = metadata.authorizationEndpoint
+            ?: throw JmapException("Server has no authorization endpoint"),
+        clientId = Jmap.OAUTH_CLIENT_ID,
+        redirectUri = redirectUri,
+        scope = Jmap.OAUTH_SCOPE,
+        state = state,
+        codeChallenge = codeChallenge,
+    )
+
+    /** Redeem an authorization code, proving PKCE possession with [codeVerifier] (RFC 7636). */
+    suspend fun exchangeCode(
+        metadata: OAuthMetadata,
+        code: String,
+        redirectUri: String,
+        codeVerifier: String,
+    ): OAuthTokens = oauthClient.exchangeCode(metadata, code, redirectUri, Jmap.OAUTH_CLIENT_ID, codeVerifier)
 
     /**
      * Validate freshly granted OAuth [tokens] against the JMAP server at [host],

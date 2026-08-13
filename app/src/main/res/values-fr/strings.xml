@@ -584,6 +584,12 @@
     <string name="connect_oauth_flow_unsupported">Ce serveur propose la connexion OAuth, mais pas sous une forme que Sterna sait encore utiliser. Utilisez plutôt votre adresse e-mail et votre mot de passe.</string>
     <string name="connect_oauth_error_reason">Le serveur a refusé la connexion (%1$s). Réessayez, ou utilisez plutôt votre adresse e-mail et votre mot de passe.</string>
     <string name="connect_oauth_network">Impossible de joindre le serveur pendant l\'attente de l\'approbation. Vérifiez votre connexion, puis réessayez.</string>
+    <string name="connect_account_added">Compte ajouté</string>
+    <string name="connect_oauth_code_step1">Pour vous connecter, ouvrez la page de connexion dans le navigateur, puis revenez dans Sterna.</string>
+    <string name="connect_oauth_code_waiting">En attente de votre retour depuis le navigateur…</string>
+    <string name="connect_oauth_no_browser">Aucune application de cet appareil ne peut ouvrir la page de connexion. Installez un navigateur, puis réessayez.</string>
+    <string name="connect_oauth_code_mismatch">Cette réponse ne correspond pas à la connexion en cours. Recommencez.</string>
+    <string name="connect_oauth_code_lost">La connexion a expiré ou a été interrompue. Recommencez.</string>
     <string name="connect_incoming_imap">Entrant (IMAP)</string>
     <string name="connect_outgoing_smtp">Sortant (SMTP)</string>
     <string name="connect_account_name_optional">Nom du compte (facultatif)</string>

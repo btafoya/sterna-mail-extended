@@ -58,31 +58,100 @@ fun oauthFailureSpec(
  *  plus the `http_<status>` tokens this app makes up when the server sent no `error` field. */
 private val OAUTH_ERROR_TOKEN = Regex("""^[a-z][a-z0-9_]{0,39}$|^http_\d{3}$""")
 
+/** The grant a discovered server is signed into with, in the order this app prefers them. */
+enum class OAuthGrant {
+    /** RFC 8628. Nothing leaves the app: a code is typed on another screen. */
+    DEVICE_CODE,
+
+    /** RFC 6749 §4.1 + PKCE. A browser round-trip, coming back on `<applicationId>://oauth`. */
+    AUTHORIZATION_CODE,
+
+    /** Neither: the server advertises OAuth this app cannot drive. */
+    NONE,
+}
+
 /**
- * Which discovered host the sign-in goes to: the first that speaks the device flow, and failing
- * that the first that answered at all.
+ * Which grant to drive against [metadata] — as a pure function, so the choice is EXECUTED by a
+ * test rather than read off the screen that acts on it.
+ *
+ * ⛔ The device flow wins whenever a server offers both, and that ordering is the point of the
+ * function. It is the path in production today, it never leaves the app (so no browser, no
+ * redirect, no chance of coming back into a dead process), and every server signed into so far
+ * uses it. The authorization code grant exists for servers that have NO device endpoint at all.
+ */
+fun chooseOAuthGrant(metadata: OAuthMetadata): OAuthGrant = when {
+    metadata.supportsDeviceFlow -> OAuthGrant.DEVICE_CODE
+    metadata.supportsCodeFlow -> OAuthGrant.AUTHORIZATION_CODE
+    else -> OAuthGrant.NONE
+}
+
+/**
+ * Probe [candidates] in order and COLLECT what answers — the search that feeds [chooseOAuthHost].
+ *
+ * ⚠ COLLECT, don't stop at the first answer. `Jmap.autodiscoverHosts` tries the BARE DOMAIN first
+ * — the organisation's website — so a site that publishes an OAuth document would end the search
+ * before `mail.<domain>` is ever asked, and refuse a sign-in that worked the day before.
+ *
+ * ⛔ ONLY a device flow ends the search, and that is not a leftover. A bare domain publishing an
+ * `authorization_endpoint` (any site behind an SSO portal does) would otherwise stop the probe
+ * here, and the mail server that carries the device flow would never be asked: someone who signed
+ * in yesterday without leaving the app is sent to a browser, to the WEBSITE's identity provider,
+ * which does not issue tokens for the mail server. The code grant is the fallback for when NO
+ * candidate has a device flow, and [chooseOAuthHost] is where that ranking happens — after every
+ * candidate has been given its chance to answer. Probing one host past a code-only answer is the
+ * price of that promise.
+ *
+ * Extracted from the connect screen so the loop can be RUN by a test with a fake probe: which
+ * hosts get asked is the decision, and it is invisible in the list the screen ends up with.
+ */
+suspend fun collectOAuthHosts(
+    candidates: List<String>,
+    discover: suspend (String) -> OAuthMetadata?,
+): List<Pair<String, OAuthMetadata>> {
+    val discovered = mutableListOf<Pair<String, OAuthMetadata>>()
+    for (host in candidates) {
+        val metadata = runCatching { discover(host) }.getOrNull() ?: continue
+        discovered += host to metadata
+        if (metadata.supportsDeviceFlow) break
+    }
+    return discovered
+}
+
+/**
+ * Which discovered host the sign-in goes to: the first that speaks the device flow, then the first
+ * that speaks the code grant, and failing both the first that answered at all.
  *
  * ⚠ The fallback is not decoration. `Jmap.autodiscoverHosts` tries the BARE DOMAIN first — the
  * organisation's website, the least likely of the four to be the mail server — so stopping at the
  * first host that merely advertises OAuth turns a working sign-in into "this server offers OAuth,
  * but not in a way Sterna can use yet" for anyone whose site publishes an OAuth document and whose
- * mail lives on `mail.<domain>`. And when NO candidate has a device flow, the first responder is
+ * mail lives on `mail.<domain>`. And when NO candidate has a usable grant, the first responder is
  * what makes that sentence true rather than "this server doesn't support OAuth sign-in".
+ *
+ * ⛔ The two capability passes are in [OAuthGrant]'s own order and both read it through
+ * [chooseOAuthGrant], so "which grant do we prefer" is stated once: a device flow on `mail.…`
+ * still wins over a code grant on the bare domain.
  */
 fun chooseOAuthHost(discovered: List<Pair<String, OAuthMetadata>>): Pair<String, OAuthMetadata>? =
-    discovered.firstOrNull { it.second.supportsDeviceFlow } ?: discovered.firstOrNull()
+    discovered.firstOrNull { chooseOAuthGrant(it.second) == OAuthGrant.DEVICE_CODE }
+        ?: discovered.firstOrNull { chooseOAuthGrant(it.second) == OAuthGrant.AUTHORIZATION_CODE }
+        ?: discovered.firstOrNull()
 
 /**
  * null when discovery found a server this app can actually sign into; otherwise what to show.
  *
  * The two failures are different facts and used to render the same sentence: a server with no
- * OAuth at all, and a server that offers OAuth but no device-authorization endpoint — the second
- * was being told it "doesn't support OAuth sign-in", which is simply false.
+ * OAuth at all, and a server that offers OAuth but no grant this app can drive — the second was
+ * being told it "doesn't support OAuth sign-in", which is simply false.
+ *
+ * ⚠ "A grant this app can drive" is [chooseOAuthGrant]'s answer and no longer a device endpoint:
+ * a server publishing only an authorization endpoint is signed into through the code grant (#55),
+ * so it is not a failure at all. Only a server with NEITHER endpoint keeps the flow sentence.
  */
 @StringRes
 fun oauthDiscoveryFailure(metadata: OAuthMetadata?): Int? = when {
     metadata == null -> R.string.connect_oauth_unsupported
-    !metadata.supportsDeviceFlow -> R.string.connect_oauth_flow_unsupported
+    chooseOAuthGrant(metadata) == OAuthGrant.NONE -> R.string.connect_oauth_flow_unsupported
     else -> null
 }
 

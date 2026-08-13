@@ -46,6 +46,7 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             pendingMailto.value = parseMailto(intent) ?: parseShare(intent)
             pendingEmailOpen.value = parseEmailOpen(intent)
+            consumeOAuthRedirect()
         }
         val settings = application.container.settingsRepository
         setContent {
@@ -93,6 +94,26 @@ class MainActivity : AppCompatActivity() {
         setIntent(intent)
         (parseMailto(intent) ?: parseShare(intent))?.let { pendingMailto.value = it }
         parseEmailOpen(intent)?.let { pendingEmailOpen.value = it }
+        consumeOAuthRedirect()
+    }
+
+    /**
+     * Hand an OAuth authorization-code redirect (`<applicationId>://oauth`, Codeberg #55) to the
+     * app-scoped driver, and strip it from the retained intent once taken.
+     *
+     * One-shot like the two payloads above, and for a sharper reason: an authorization code is
+     * redeemable exactly once, so a re-read of the intent (a rotation, a locale change) would hand
+     * the driver a return it has already consumed — which correctly answers "no sign-in is in
+     * progress" and would put that error on screen right after the account was added. The driver
+     * refuses a redirect that is not ours without reading anything else of it, and only then is
+     * the payload dropped; a mailto: or a share on the same intent keeps its own (they cannot
+     * collide — `parseMailto` filters on the `mailto` scheme).
+     */
+    private fun consumeOAuthRedirect() {
+        val current = intent ?: return
+        val data = current.data ?: return
+        if (!application.container.oauthCodeSignIn.onRedirect(data)) return
+        current.data = null
     }
 
     /**
