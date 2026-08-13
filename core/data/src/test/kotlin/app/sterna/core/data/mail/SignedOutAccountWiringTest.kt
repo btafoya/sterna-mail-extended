@@ -14,22 +14,39 @@ import org.junit.Test
  * (accountStore.currentId(), …)` compiles, keeps the call where it is, and stops the walk of every
  * account that is not the current one instead of the one that was signed out.
  *
- * ⛔ Six write paths are pinned, not two, and they were not all found at once — a counter-expertise
- * found three of them, and a later one found the sixth. Every path that WRITES under a local
- * account id has to ask, immediately before writing, because a network round-trip always separates
- * the answer from the write:
+ * ⛔ Nine write paths are pinned, not two, and they were not all found at once — a counter-expertise
+ * found three of them, a later one found the sixth, two more are a path #121 never walked at all,
+ * and the ninth is the JMAP half of a function whose IMAP half had been guarded twice. Every path
+ * that WRITES under a local account id has to ask, immediately before writing, because a network
+ * round-trip always separates the answer from the write:
  *  - the JMAP full-query walk (page by page);
  *  - the IMAP folder walk (page by page);
  *  - the JMAP delta branch (its eviction, its upsert and its cursor);
  *  - the FTS header crawl, whose table the orphan sweep inventories too;
  *  - the IMAP branch of `refreshAccountFolders` — the background push/worker pass, which reads the
  *    watched folders whole and then writes them all in one `forEach`;
+ *  - the JMAP branch of the same pass, whose folder-list write is the LAST statement of the
+ *    function: the deepest guard it crosses is the one inside the last `syncMailbox`, and a ghost
+ *    sweep, a cursor write and a notification read still separate that answer from this write;
  *  - `refresh`, which absorbs the refusal in a `runCatching` and would otherwise go on to write the
- *    folder list under the removed id.
+ *    folder list under the removed id;
+ *  - `unarchiveThreadsOnReply`'s SERVER move — the only write of the nine that does not land in
+ *    this phone's database. An `Email/set` un-archives the messages on the account itself: visible
+ *    in the webmail and on every other client the user owns, with no Undo, and (its re-file being
+ *    refused a moment later) not even a local trace;
+ *  - `unarchiveThreadsOnReply`'s re-file, which lands AFTER that move: rows written there are
+ *    recreated behind the sign-out's orphan sweep and show under a "deleted account" label until
+ *    the process restarts.
  *
- * ⛔ And three entry checks: `syncMailbox`, `imapWriteThrough`, and the same
- * `refreshAccountFolders` IMAP branch — each spares a session, a LOGIN and a folder list for an
- * account that was already gone when the pass started.
+ * ⛔ And four entry checks: `syncMailbox`, `imapWriteThrough`, the same `refreshAccountFolders`
+ * IMAP branch, and `unarchiveThreadsOnReply` — each SPARES a session, a LOGIN and a folder list
+ * when the account is already gone at the moment it asks.
+ *
+ * ⚠ Spares, and nothing stronger. None of these thirteen closes the race: a check that passed
+ * microseconds before the account left the store still writes, and still writes after the sweep
+ * (the ⚠ paragraph of [checkAccountStillConfigured] states it, and the orphan sweep at process
+ * start is what collects those). What is pinned here is the narrowing — from the minutes a deep
+ * folder or a cold JMAP session takes, down to the width of one write.
  */
 class SignedOutAccountWiringTest {
 
@@ -170,7 +187,8 @@ class SignedOutAccountWiringTest {
     // -- the background watched-folder pass: read whole, then written whole -------------------------
 
     @Test fun `the watched-folder pass asks again between the network read and its grouped write`() {
-        // ⭐ The one pass of the six that does NOT write page by page: `loadWatchedFolders` returns
+        // ⭐ A pass that does NOT write page by page (its JMAP twin below is the other one):
+        // `loadWatchedFolders` returns
         // when the whole network read is over (session, LOGIN, LIST, one FETCH per watched folder),
         // and only then does the `forEach` write up to `limit` messages PER folder. One check
         // immediately before the loop therefore covers every write it makes — and nothing else
@@ -213,6 +231,35 @@ class SignedOutAccountWiringTest {
         )
     }
 
+    @Test fun `the same pass asks again on its JMAP side, immediately before the folder-list write`() {
+        // ⭐ The IMAP half of this function has been guarded twice since #121 and the JMAP half not
+        // at all, and the two are NOT symmetrical by accident of reachability: `targets` is never
+        // empty here, so `syncMailbox` does run and does ask — but the last answer it got is a
+        // ghost sweep, a `putSyncState` and a `notifyRead` behind this line, and nothing asks in
+        // between. What lands is `MailboxDao.replaceAll`, the table `MailboxDao` itself calls the
+        // place an orphan is seen EARLIEST: a full drawer of folders under an account the user just
+        // removed, written after the sign-out's orphan sweep, until the process restarts.
+        //
+        // Pinned as a block from the end of the refresh loop through the return, because WHERE is
+        // the whole property: one line lower — below `replaceAll` — the folders are already
+        // written and the refusal only skips the `return`.
+        assertEquals(
+            "the JMAP branch of refreshAccountFolders no longer asks whether the account still " +
+                "exists immediately before mailboxDao.replaceAll. Moved below that write, or " +
+                "removed, a sign-out landing after the last syncMailbox leaves the whole folder " +
+                "list of the removed account in the drawer (#121).",
+            listOf(
+                "previewSources = emptyMap(),",
+                ")",
+                "}",
+                "$guard(credentials.id, accountStore.accounts().map { it.id })",
+                "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.map { it.toEntity(credentials.id) })",
+                "return refreshes",
+            ),
+            block("refreshAccountFolders", "previewSources = emptyMap(),", 6),
+        )
+    }
+
     // -- the FTS header crawl: the third paginated walk ---------------------------------------------
 
     @Test fun `the search-index crawl asks before every page it indexes`() {
@@ -226,6 +273,118 @@ class SignedOutAccountWiringTest {
                 "emailFtsDao.upsert(page.emails.map { it.toFts(credentials.id) })",
             ),
             block("syncSearchIndex", "$guard(credentials.id, accountStore.accounts().map { it.id })", 2),
+        )
+    }
+
+    // -- the reply's un-archive: a SERVER move, then a local re-file --------------------------------
+
+    @Test fun `the un-archive refuses to start for an account that is gone, before it even connects`() {
+        // ⛔ Not "just" an entry check that spares a session, which is why it is worth its own line
+        // ahead of `connect`: everything below it leads to `client.move`, a write on the SERVER
+        // made in the name of an account the user has just removed. And `connect` is one round-trip
+        // at best, five or six on a cold JMAP context (fetchSession, jmapAccountIdFor,
+        // reconcileLinkedAccounts, getIdentities, getMailboxes) — a check placed after it has
+        // already paid for them. It does not make the move safe, though: what does that is the
+        // check immediately before the move itself, pinned below.
+        //
+        // Pinned as a block, between the early return and the connect: below the connect it stops
+        // sparing anything, and above the early return it would throw for IMAP accounts and empty
+        // thread sets — paths that never write at all.
+        assertEquals(
+            "unarchiveThreadsOnReply no longer asks whether the account still exists before it " +
+                "connects. Everything below that line ends in a SERVER move for an account the " +
+                "user removed, and the session it opens is paid for before anyone asks.",
+            listOf(
+                "if (threadIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()",
+                "$guard(credentials.id, accountStore.accounts().map { it.id })",
+                "val ctx = connect(credentials)",
+            ),
+            block(
+                "unarchiveThreadsOnReply",
+                "if (threadIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()",
+                3,
+            ),
+        )
+    }
+
+    @Test fun `the server move asks one last time, on the far side of the session`() {
+        // ⭐ The widest window of the three, and the only write of the whole file that does not land
+        // in this phone's database. `connect` is fetchSession + jmapAccountIdFor +
+        // reconcileLinkedAccounts + getIdentities + getMailboxes, then a thread-members read: the
+        // entry check is several round-trips behind by the time this line runs. A sign-out landing
+        // in that window un-archives the messages ON THE SERVER for an account the user just
+        // removed — in her webmail, on every other client she owns, with no Undo — and the re-file
+        // guard below then refuses the local half, so the app keeps no trace of what it did.
+        // "Irréversible d'abord": this one is not optional because the two others exist.
+        //
+        // Pinned from the recently-mutated marks so the block states the order that matters: the
+        // marks and the #99 rescue stay AHEAD of the guard (they protect the rows during the very
+        // move this guard authorises), and the guard stays OUTSIDE the runCatching that follows —
+        // folded inside it, its refusal would be swallowed with the move's own failures and the
+        // pass would carry on as if the move had merely failed.
+        assertEquals(
+            "unarchiveThreadsOnReply no longer asks whether the account still exists immediately " +
+                "before client.move. The entry check is a session and several round-trips behind " +
+                "this line: without this one, a sign-out mid-connect still un-archives the thread " +
+                "on the SERVER, where nothing local can take it back.",
+            listOf(
+                "members.forEach { markRecentlyMutated(credentials.id, it.id) }",
+                "$guard(credentials.id, accountStore.accounts().map { it.id })",
+                "val result = runCatching {",
+                "client.move(ctx.session, ctx.accountId, members.map { it.id }, inbox, ctx.auth)",
+            ),
+            block("unarchiveThreadsOnReply", "members.forEach { markRecentlyMutated(credentials.id, it.id) }", 4),
+        )
+    }
+
+    @Test fun `the re-file asks again once the server has answered the move`() {
+        // The entry check is no proxy for this one: `connect` plus the `Email/set` move are several
+        // round-trips wide, and a sign-out landing inside that window leaves `upsertAll` writing
+        // Inbox rows under the removed id — recreated AFTER the sign-out's orphan sweep has run,
+        // and visible under a "deleted account" label until the next process start. That is the
+        // reported symptom itself, on a path #121 never walked.
+        //
+        // Pinned from the move's own `getOrNull` so the guard is fixed on the far side of the
+        // server call and immediately before the write: dropped below `emailDao.upsertAll(refiled)`
+        // it protects nothing, and folded into the `runCatching` above it would be swallowed with
+        // the move's own failures (which the whole-file rule below states separately).
+        assertEquals(
+            "the re-file of unarchiveThreadsOnReply is no longer, line for line, what this was " +
+                "written against: the guard must sit between the server move and " +
+                "emailDao.upsertAll(refiled). Below the upsert it is worth nothing — the ghost " +
+                "rows are already written.",
+            listOf(
+                "}.getOrNull() ?: return emptyList()",
+                "val moved = members.filter { it.id in result.done }",
+                "if (moved.isEmpty()) return emptyList()",
+                "moved.forEach { recentLocalMoves.mark(credentials.id, it.id) }",
+                "val refiled = moved.map { it.copy(mailboxId = inbox) }",
+                "$guard(credentials.id, accountStore.accounts().map { it.id })",
+                "emailDao.upsertAll(refiled)",
+            ),
+            block("unarchiveThreadsOnReply", "}.getOrNull() ?: return emptyList()", 7),
+        )
+    }
+
+    @Test fun `the un-archive still rescues from the destroy list and marks before the server call`() {
+        // The two neighbours the new guards must not have displaced. #99 is exceptionless (whatever
+        // moves leaves the destroy list), and the recently-mutated marks have to be set BEFORE the
+        // move so a sync firing mid-move cannot evict the rows: pushed below the second guard they
+        // would stop protecting anything during the very window that guard exists for.
+        val body = lines("unarchiveThreadsOnReply")
+        val rescue = body.indexOf("unlistFromTrashPurge(credentials.id, members.map { it.id })")
+        val mark = body.indexOf("members.forEach { markRecentlyMutated(credentials.id, it.id) }")
+        val move = body.indexOf("client.move(ctx.session, ctx.accountId, members.map { it.id }, inbox, ctx.auth)")
+        assertTrue(
+            "unarchiveThreadsOnReply no longer rescues from the trash purge / no longer marks its " +
+                "members recently-mutated / no longer moves; its body is:\n" + body.joinToString("\n"),
+            rescue >= 0 && mark >= 0 && move >= 0,
+        )
+        assertTrue("the #99 rescue now runs after the server move", rescue < move)
+        assertTrue(
+            "the recently-mutated marks now run after the server move: a concurrent sync can evict " +
+                "the very rows this pass is moving back into the Inbox",
+            mark < move,
         )
     }
 
@@ -294,10 +453,10 @@ class SignedOutAccountWiringTest {
         val body = DaoQuerySource.mailSource("MailRepository").lines()
         val sites = body.indices.filter { body[it].trim().startsWith("$guard(") }
         assertEquals(
-            "MailRepository no longer carries nine guard call sites — three entries and six " +
+            "MailRepository no longer carries thirteen guard call sites — four entries and nine " +
                 "writes. If a path was added or removed, say so here:\n" +
                 sites.joinToString("\n") { body[it].trim() },
-            9, sites.size,
+            13, sites.size,
         )
         sites.forEach { site ->
             val open = openBlocksAt(body, site).filter { "try" in it || "runCatching" in it }
@@ -317,14 +476,14 @@ class SignedOutAccountWiringTest {
         // file is where that costs the most: `AccountStillConfigured.kt` is in the SAME PACKAGE, so
         // a `private fun checkAccountStillConfigured(…)` declared anywhere in this class needs no
         // import to remove and no call site to touch — Kotlin resolves a member of the implicit
-        // receiver ahead of a top-level declaration of the package, and all NINE sites silently
+        // receiver ahead of a top-level declaration of the package, and all THIRTEEN sites silently
         // start calling the lenient copy. Every rule above stays green: the lines are identical,
         // their order is identical, the count is identical, no `try` is open, and
         // `SignedOutAccountStopsWritingTest` keeps executing the top-level function in its own
         // rig — the one production no longer calls.
         //
         // It is the same family of blindness as the hole this file was extended for: what is not
-        // pinned is invisible. So the declaration itself is pinned, once, for all nine sites.
+        // pinned is invisible. So the declaration itself is pinned, once, for all thirteen sites.
         val declaration = Regex("""\bfun\s+$guard\s*[(<]""")
         val found = DaoQuerySource.mailSource("MailRepository").lines()
             .map { it.trim() }

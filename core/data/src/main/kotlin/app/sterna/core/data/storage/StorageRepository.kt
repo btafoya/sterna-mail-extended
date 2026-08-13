@@ -138,10 +138,14 @@ class StorageRepository(
      * They are removed with the same per-account deletes sign-out uses. Deliberately NOT swept:
      *  - `snoozed` — user intent rather than cache, and per-account snoozes of a gone account are
      *    inert (the not-snoozed filter correlates on accountId);
-     *  - `purge_snapshot`, `mailbox_uid_validity`, the outbox and the attachment files — none of
+     *  - `purge_snapshot`, `mailbox_uidvalidity`, the outbox and the attachment files — none of
      *    them can produce a row in a list, and the attachment cache is shared, so clearing it here
      *    would cost every account a re-download on a housekeeping pass. They are not inventoried
      *    either: an id known only to them would be deleted from four tables it has no row in.
+     *    ⭐ And the exclusion is checkable, not merely asserted: every account id `AccountStore`
+     *    ever mints comes from `UUID.randomUUID()`, on all five of its creation paths, so an id is
+     *    never re-issued. A row left behind here is keyed on an id no account will ever carry
+     *    again — it has no possible reader, only bytes.
      */
     suspend fun purgeOrphanedAccounts(knownAccountIds: () -> Collection<String>): List<String> =
         withContext(Dispatchers.IO) {

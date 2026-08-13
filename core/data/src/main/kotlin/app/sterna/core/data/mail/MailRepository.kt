@@ -3655,7 +3655,8 @@ class MailRepository(
     }
 
     /**
-     * Codeberg #50 (opt-in): when a genuinely-new reply lands in the Inbox, pull the thread's
+     * Codeberg #50 (opt-out, ON by default — `SettingsRepository.unarchiveOnReply` reads
+     * `?: true`): when a genuinely-new reply lands in the Inbox, pull the thread's
      * archived members back so the Inbox conversation is whole again. JMAP only — IMAP has no
      * thread ids, so it can never resolve members to move. The archive resolves like
      * [archiveAll] minus creation (no archive folder means nothing is archived). Server-first
@@ -3665,9 +3666,28 @@ class MailRepository(
      * neither reconcile path prunes them while the server catches up on the move. Per-id
      * rejections simply stay archived. Returns the re-filed members as Inbox emails so the
      * caller can fold them into its notifier baseline.
+     *
+     * Guarded THREE times against a sign-out landing mid-pass (#121), because two round-trip-wide
+     * windows separate the three writes this makes:
+     *
+     *  - at the entry, before `connect`: it SPARES the session and everything below when the
+     *    account is already gone when it asks (`connect` is one round-trip at best, five or six on
+     *    a cold JMAP context);
+     *  - immediately before `client.move`, the widest window and the only IRREVERSIBLE write here:
+     *    the un-archive happens on the account itself, so it shows in the webmail and on every
+     *    other client, and no local rollback exists;
+     *  - immediately before the re-file, which lands after the move has come back: rows written
+     *    there are recreated AFTER the sign-out's orphan sweep and show under a "deleted account"
+     *    label until the next process start — the reported symptom.
+     *
+     * ⚠ None of the three closes the race (see [checkAccountStillConfigured]); they narrow it from
+     * a session's width to a write's.
      */
     suspend fun unarchiveThreadsOnReply(credentials: AccountCredentials, threadIds: Set<String>): List<Email> {
         if (threadIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()
+        // Below the early return (an IMAP account or an empty thread set writes nothing anywhere,
+        // and must not be refused), above the session (#121).
+        checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         val ctx = connect(credentials)
         val inbox = ctx.rolesToMailboxId["inbox"] ?: return emptyList()
         val archive = archiveMailboxId(ctx) ?: ctx.rolesToMailboxId["all"] ?: return emptyList()
@@ -3680,6 +3700,14 @@ class MailRepository(
         unlistFromTrashPurge(credentials.id, members.map { it.id })
         // Protect the rows BEFORE the server call, so a sync firing mid-move can't evict them.
         members.forEach { markRecentlyMutated(credentials.id, it.id) }
+        // ⭐ Ask again, immediately before the SERVER write — the widest window of the three. The
+        // entry check above is a whole `connect` behind (fetchSession, jmapAccountIdFor,
+        // reconcileLinkedAccounts, getIdentities, getMailboxes) plus a thread-members read, and a
+        // sign-out landing inside it would un-archive the thread ON THE ACCOUNT: in the webmail, on
+        // every other client, with no Undo — and the check before the re-file would then refuse the
+        // local half, leaving this phone with no trace of what it did. ⛔ Outside the runCatching
+        // below, so its refusal is not counted as one more move that merely failed.
+        checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         val result = runCatching {
             client.move(ctx.session, ctx.accountId, members.map { it.id }, inbox, ctx.auth)
         }.getOrNull() ?: return emptyList()
@@ -3689,6 +3717,11 @@ class MailRepository(
         // concurrent pass on another watched folder must not see them as fresh either.
         moved.forEach { recentLocalMoves.mark(credentials.id, it.id) }
         val refiled = moved.map { it.copy(mailboxId = inbox) }
+        // Ask again: the entry check is on the far side of a session and a server move, and only a
+        // check HERE stands between a sign-out and rows written under an id no account owns. ⛔ It
+        // sits outside the `runCatching` above on purpose — folded into it, its refusal would be
+        // swallowed with the move's own failures and this would go on writing.
+        checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         emailDao.upsertAll(refiled)
         adjustCountsForRemoval(moved, inbox)
         return refiled.map { it.toEmail() }
@@ -5042,6 +5075,15 @@ class MailRepository(
             ?: resolved.mailboxes.firstOrNull()
             ?: error("No mailboxes found.")
         val byId = resolved.mailboxes.associateBy { it.id }
+        // ⚠ INVARIANT, held five hops away in another module and stated here because this is where
+        // it is relied upon: on JMAP `targets` is NEVER empty, so at least one `syncMailbox` runs.
+        // The only production caller is `FetchAndNotify.run`, and `includeInbox = false` is
+        // produced in exactly one place — `MailFetchWorker` passing `includeInbox = pollInbox`,
+        // after `if (!pollInbox && !pollExtras) continue`. `hasExtrasToPoll` answers
+        // `isImap && watchedFolders.isNotEmpty()`, so on JMAP `pollExtras` is always false, hence
+        // `pollInbox` is true, hence `includeInbox` is true and the inbox is always added.
+        // ⛔ It excuses nothing below: a non-empty `targets` only means the last question was asked
+        // deep inside a `syncMailbox`, several steps before the folder-list write.
         val targets = buildList {
             if (includeInbox) add(inbox)
             extraFolderIds.forEach { id ->
@@ -5081,6 +5123,18 @@ class MailRepository(
                 previewSources = emptyMap(),
             )
         }
+        // ⭐ The JMAP side of the same question the IMAP branch above asks twice, so the two
+        // branches are now symmetrical (#121). `targets` is never empty here, so the last guard
+        // this pass crossed is the one inside the last `syncMailbox` — and its ghost sweep, its
+        // `putSyncState`, the `notifyRead` and the return all sit between that answer and this
+        // write, with nobody asking again. What lands unguarded is the whole folder list under a
+        // removed account, in the table `MailboxDao` calls the place an orphan is seen earliest:
+        // a full drawer of folders under an account the user has just deleted, written AFTER the
+        // sign-out's orphan sweep, and still there until the process restarts.
+        // ⚠ Narrowed, not closed — see [checkAccountStillConfigured]: a check that passed
+        // microseconds before the account left the store still writes. The sweep at process start
+        // is what collects those.
+        checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         // Persist the fetched folder counters (previously discarded): without this, pushed and
         // background-fetched mail never moved the drawer badge, and reading it afterwards made
         // the badge undercount. Written after the row syncs so badge and list land together.

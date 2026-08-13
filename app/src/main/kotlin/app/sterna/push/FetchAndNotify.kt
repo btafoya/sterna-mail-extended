@@ -7,6 +7,7 @@ import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.mail.AccountGoneException
 import app.sterna.core.data.mail.accountGoneCause
+import app.sterna.core.data.rethrowIfCancelled
 import kotlinx.coroutines.flow.first
 
 /**
@@ -68,9 +69,10 @@ object FetchAndNotify {
                 val isInbox = folder.mailboxId == inboxId
                 val folderName = if (isInbox) null else folder.name
                 val hasBaseline = NewMailNotifier.hasBaseline(context, credentials.id, folder.mailboxId)
-                // Codeberg #50 (opt-in): BEFORE this pass advances OR reseeds the inbox baseline,
-                // pull the archived members of threads that just received genuinely-new inbox
-                // mail back into the Inbox, so the list the user lands on is already whole.
+                // Codeberg #50 (opt-out, ON by default): BEFORE this pass advances OR reseeds
+                // the inbox baseline, pull the archived members of threads that just received
+                // genuinely-new inbox mail back into the Inbox, so the list the user lands on is
+                // already whole.
                 // Keyed to the same baseline+age-floor diff as the notifications, so mail the
                 // cache merely caught up on (scroll-back, re-sync) can never trigger it — and
                 // run ahead of ANY seed, because the silent app-open/account-switch reseed
@@ -81,11 +83,21 @@ object FetchAndNotify {
                 // announced as "new" later), and the per-thread collapse keeps the new reply as
                 // the one notification. Best-effort — a failed move must not cost the
                 // notification (or the reseed).
+                //
+                // ⛔ Best-effort, but NOT for a sign-out: the two guards inside
+                // `unarchiveThreadsOnReply` refuse by throwing an AccountGoneException, which is a
+                // CancellationException, which `runCatching` catches like any other failure. Eaten
+                // here, the re-file would be skipped and this pass would walk straight on to the
+                // seed/notifyDiff below — writing a baseline under the removed id into this
+                // module's SharedPreferences, which the sign-out's orphan sweep does not inventory.
+                // The ghost would have moved, not gone. So the cancellation leaves the wrapper and
+                // an ordinary failed move still costs no notification.
                 val returned = if (isInbox && hasBaseline && unarchiveOnReply) {
                     val threads = NewMailNotifier.newSince(context, credentials.id, folder.mailboxId, folder.emails)
                         .mapNotNull { it.threadId }
                         .toSet()
                     runCatching { container.mailRepository.unarchiveThreadsOnReply(credentials, threads) }
+                        .rethrowIfCancelled()
                         .getOrDefault(emptyList())
                 } else {
                     emptyList()
@@ -182,13 +194,47 @@ object FetchAndNotify {
         val threads = NewMailNotifier.newSince(context, credentials.id, inboxMailboxId, emails)
             .mapNotNull { it.threadId }
             .toSet()
-        val returned = runCatching { container.mailRepository.unarchiveThreadsOnReply(credentials, threads) }
-            .getOrDefault(emptyList())
-        val remembered = read.baselineIds + returned.map { it.id }
-        if (container.accountStore.notificationsEnabled(credentials.id)) {
-            NewMailNotifier.notifyDiff(context, credentials, inboxMailboxId, null, emails + returned, remembered)
-        } else {
-            NewMailNotifier.seed(context, credentials.id, inboxMailboxId, remembered)
+        // The try opens HERE and not higher because this is where a refusal can come from: the
+        // reads above it are plain cache reads with no guard of their own ([MailRepository
+        // .notifyRead] is two DAO queries). It closes on everything the re-file feeds, though —
+        // `notifyDiff` and `seed` both write the shared baseline under credentials.id, so an arm
+        // wrapping only the call would skip the re-file and write that baseline anyway.
+        try {
+            // Same best-effort wrapper as the background pass, and the same exception to the rule:
+            // a move the server refuses must not cost the notification, but a sign-out must leave
+            // the wrapper instead of being counted as one more failed move (#121).
+            val returned = runCatching { container.mailRepository.unarchiveThreadsOnReply(credentials, threads) }
+                .rethrowIfCancelled()
+                .getOrDefault(emptyList())
+            val remembered = read.baselineIds + returned.map { it.id }
+            if (container.accountStore.notificationsEnabled(credentials.id)) {
+                NewMailNotifier.notifyDiff(context, credentials, inboxMailboxId, null, emails + returned, remembered)
+            } else {
+                NewMailNotifier.seed(context, credentials.id, inboxMailboxId, remembered)
+            }
+        } catch (gone: AccountGoneException) {
+            // ⛔ Caught HERE for what it STOPS, not to protect the caller. `InboxViewModel` wraps
+            // both of its calls to this hook in a `runCatching` (`refreshFolder`, `refreshUnified`),
+            // so a refusal let out would be absorbed there and change nothing for it. What matters
+            // is that the rest of this function does not run: `notifyDiff` and `seed` both write
+            // the shared notifier baseline under credentials.id, into this module's
+            // SharedPreferences, which the sign-out's orphan sweep does not inventory.
+            //
+            // And that the sign-out leaves a LINE rather than a silence: absorbed upstream it would
+            // vanish without a word, which is the opposite of what #130 put in place everywhere
+            // else on this path.
+            //
+            // ⚠ WHAT the line claims is [accountGoneCause]'s to decide, from a FRESH
+            // `accountsUnreadable()` read: `AccountStore.accounts()` answers an unreadable blob
+            // with an empty list too, so this arm also fires with nobody having signed anything
+            // out, and printing "signed out" then turns a storage failure into a deliberate gesture
+            // in a reporter's logcat. `passKind` is this site's own word — a FOREGROUND refresh of
+            // one inbox, not the background pass of [run].
+            android.util.Log.i(
+                "FetchAndNotify",
+                "foreground inbox: ${accountGoneCause(credentials.id, container.accountStore.accountsUnreadable(), passKind = "refresh")}, dropped",
+                gone,
+            )
         }
     }
 }
