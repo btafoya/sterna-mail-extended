@@ -14,27 +14,27 @@ metadata/android/<locale>/
   full_description.txt   # listing body (plain text)
   changelogs/<code>.txt  # per versionCode; highest matching file is shown
   images/
-    icon.png             # 512x512 PNG  (TODO)
+    icon.png             # 512x512 PNG
     featureGraphic.png   # 1024x500 PNG (optional)
-    phoneScreenshots/    # 1.png, 2.png, ...  (TODO)
+    phoneScreenshots/    # 1.png, 2.png, ...
 ```
 
-Locales present: `en-US`, `fr-FR`. The changelog file is named after the
-`versionCode` in `app/build.gradle.kts` (currently `62` → `changelogs/62.txt`).
-Add a new `<code>.txt` for each release.
+The locales are whichever directories exist under `metadata/android/`; list that
+directory rather than trusting a list written here. Not every locale carries
+every file: some hold the descriptions only. The changelog file is named after
+the `versionCode` in `app/build.gradle.kts`, so each release adds a
+`changelogs/<code>.txt` under **every** locale that already has changelogs.
 
-## TODO before publishing (needs the physical Pixel 7)
+## Images
 
-Images are not yet committed (binary, captured on-device). Capture on the
-Pixel 7 (see project memory `sterna-environment`), light **and** dark, with a
-demo account (no real mail):
+The icon and the screenshots are committed. They live under `en-US` only and are
+not duplicated per locale. The screenshots are always taken with a demo account,
+never with real mail.
 
-1. Unified inbox            5. Undo send / schedule send
-2. Conversation / thread    6. Privacy settings (remote images blocked)
-3. Compose                  7. App lock
-4. Multi-select bar         8. Dark mode body
-
-Drop them in `images/phoneScreenshots/` as `1.png`, `2.png`, … and add a
-512×512 `images/icon.png` (render from the adaptive launcher icon in
-`app/src/main/res/`). Reuse the same screenshots under each locale, or
-symlink/duplicate per locale as needed.
+Refresh them when the screens they show change, so the listing never shows a
+layout the published app no longer has. Refresh them by **replacing** the files
+in `images/phoneScreenshots/`, which are numbered `1.png`, `2.png` and so on in
+the order they are shown: F-Droid displays whatever is there, so a deleted file
+silently shortens the listing by one screen. The 512×512 `images/icon.png` is
+rendered from the adaptive launcher icon in `app/src/main/res/` and only changes
+when that icon does.

@@ -134,7 +134,8 @@ Running your own server, with a free certificate or one you issued yourself? See
 - Add an account with just email + password (`/.well-known/jmap` autodiscovery),
   password-free **OAuth 2.0** sign-in (device flow), or manual IMAP/SMTP with
   provider presets; a "test connection" button before saving
-- Per-account colour, sync window, and notification toggle; encrypted credential
+- Per-account colour, sync window, and a "Sync new mail" switch governing that
+  account's background fetch and its notifications; encrypted credential
   storage (AndroidKeyStore); app lock (biometric / PIN)
 
 **🔒 Encryption**
@@ -177,9 +178,10 @@ tracked in [FEATURES.md](FEATURES.md). Contributions, bug reports and ideas are
 very welcome. 🙌
 
 Sterna Mail is written and maintained by one developer. Every change is
-reviewed and tested on physical devices before it ships, issues are closed on
-reporter confirmation, and release builds are reproducible and checked by
-F-Droid against the published source.
+reviewed and tested before it ships, on an emulator and on real hardware
+according to what the change needs. Issues are closed on reporter
+confirmation, and release builds are reproducible and checked by F-Droid
+against the published source.
 
 AI coding assistants are part of that toolchain. They do not decide what Sterna
 does and they do not review their own output. Nothing reaches a release without

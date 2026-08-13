@@ -1,6 +1,8 @@
 # Contributing to Sterna
 
-Thanks for your interest. Sterna is in early development; expect rapid change.
+Thanks for your interest. Sterna is a released app, published on F-Droid. It is
+written and maintained by one developer and still changes often, so expect the
+code around your patch to move.
 
 ## Requirements
 
@@ -14,8 +16,8 @@ Gradle installed.
 ## Build
 
 ```sh
-# Run unit tests for the JMAP layer
-./gradlew :core:jmap:test
+# Run the unit tests, every module that carries any
+./gradlew :core:jmap:test :core:imap:test :core:data:testDebugUnitTest :app:testDebugUnitTest
 
 # Build a debug APK
 ./gradlew :app:assembleDebug
@@ -107,8 +109,16 @@ systemProp.jdk.http.auth.tunneling.disabledSchemes=
 
 See [ARCHITECTURE.md](ARCHITECTURE.md). In short:
 
-- `:app`, Compose UI and app wiring.
-- `:core:jmap`, pure-Kotlin JMAP protocol client (unit-tested without Android).
+- `:app`, Android app: Compose UI, ViewModels, push services and workers,
+  notifications, OpenKeychain binding, app lock.
+- `:core:jmap`, Kotlin JVM library: JMAP client, session, typed RFC 8620/8621
+  models, EventSource push, OAuth device flow (unit-tested without Android).
+- `:core:imap`, Kotlin JVM library: IMAP/SMTP clients, IDLE, MIME parser and
+  builder, PGP/MIME, XOAUTH2 (unit-tested without Android).
+- `:core:data`, Android library: `MailRepository`, Room cache, account store,
+  settings, PGP seam, storage caps.
+- `:libs:openpgp-api`, Android library: vendored openpgp-api client (Java), for
+  the OpenKeychain bound service. It carries no tests of its own.
 
 ## Conventions
 

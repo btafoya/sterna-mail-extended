@@ -4,9 +4,10 @@ This document tracks Sterna Mail's feature set: what's built, what's planned on 
 roadmap, and proposed additions drawn from K-9 Mail / Thunderbird for Android
 and from what users expect of a modern, complete email client.
 
-It complements [ARCHITECTURE.md](ARCHITECTURE.md) (which holds the technical
-roadmap, M0–M5). For each proposed feature I note when JMAP makes it cheap to
-build, several things that are hard over IMAP are nearly free in JMAP.
+It complements [ARCHITECTURE.md](ARCHITECTURE.md), which describes how the app is
+actually built: module layout, mail sync, conversations, push and notifications,
+auth and secrets, storage. For each proposed feature I note when JMAP makes it
+cheap to build, several things that are hard over IMAP are nearly free in JMAP.
 
 **Status key**
 
@@ -14,6 +15,9 @@ build, several things that are hard over IMAP are nearly free in JMAP.
 - 🔜 **Planned**, next up, not yet built.
 - 💡 **Proposed**, not yet scheduled.
 - ⭐ **JMAP-native**, RFC 8620/8621 gives this almost for free.
+
+Status is read against `main`, not against the latest published release (1.4.9),
+so a ✅ can be ahead of the version you have installed.
 
 ---
 

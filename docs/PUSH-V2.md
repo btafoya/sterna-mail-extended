@@ -1,5 +1,12 @@
 # Push v2 — multi-folder watch (#16) and UnifiedPush transport (#17)
 
+> **Historical document.** This is the design written before the work; it is kept
+> for the reasoning, not as a description of the app. The work shipped in 1.2.0,
+> and everything below has been built, changed or dropped since.
+> For how push works today, read
+> [ARCHITECTURE.md](../ARCHITECTURE.md#push--notifications) and
+> [FEATURES.md](../FEATURES.md).
+
 Design document for the `feature/push-v2` work. Three phases, each independently
 shippable and device-testable; `main` stays releasable throughout.
 
