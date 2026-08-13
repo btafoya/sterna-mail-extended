@@ -8,6 +8,10 @@ import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.send.SendOutbox
 import app.sterna.util.isValidEmail
+import java.time.ZoneId
+import java.time.ZoneOffset
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Heuristic "forgot the attachment?" check: does [text] (subject + body) mention
@@ -1031,3 +1035,26 @@ internal fun withPrefix(subject: String?, prefix: String): String {
  */
 internal fun canApplyReplyQuote(applied: Boolean, bodyText: String, initialBody: String): Boolean =
     applied && bodyText == initialBody
+
+/**
+ * The time zone the composer renders an OUTGOING date in — the two dates it writes into a message
+ * body itself: a reply's quote attribution line and a forwarded message's Date header (#120). With
+ * [quotedDatesUtc] on, UTC; off (the default), [deviceZone]. Nothing else changes zone through
+ * here: the reader's header and the list rows keep the device's clock (MailDatesTest pins that),
+ * and the SMTP `Date:` header was already written in UTC without any setting.
+ */
+internal fun outgoingDateZone(
+    quotedDatesUtc: Boolean,
+    deviceZone: ZoneId = ZoneId.systemDefault(),
+): ZoneId = if (quotedDatesUtc) ZoneOffset.UTC else deviceZone
+
+/**
+ * [outgoingDateZone], resolved by SUSPENDING on the stored setting: the flow's first emission is
+ * awaited, never substituted with a default. DataStore answers a beat late on a cold start, and
+ * "not answered yet" is not "off" — a reply prefilled in that beat would write the local time with
+ * the switch on, which is the very leak the switch exists to close.
+ */
+internal suspend fun resolveOutgoingDateZone(
+    quotedDatesUtc: Flow<Boolean>,
+    deviceZone: ZoneId = ZoneId.systemDefault(),
+): ZoneId = outgoingDateZone(quotedDatesUtc.first(), deviceZone)

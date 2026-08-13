@@ -10,6 +10,7 @@ import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.MessageTextSize
 import app.sterna.core.data.settings.PLAIN_TEXT_DEFAULT
+import app.sterna.core.data.settings.QUOTED_DATES_UTC_DEFAULT
 import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.data.settings.PURE_BLACK_DEFAULT
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
@@ -464,6 +465,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setPlainText(enabled: Boolean) {
         viewModelScope.launch { settings.setPlainText(enabled) }
+    }
+
+    // The first frame, before DataStore has answered: QUOTED_DATES_UTC_DEFAULT, like replyBar above
+    // and for the same reason — a literal here would be a second copy of the default (#120). The
+    // COMPOSER never reads this state: it suspends on the repository flow itself, so a prefill in
+    // that first beat waits for the stored answer instead of taking this seed.
+    val quotedDatesUtc = settings.quotedDatesUtc.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = QUOTED_DATES_UTC_DEFAULT,
+    )
+
+    fun setQuotedDatesUtc(enabled: Boolean) {
+        viewModelScope.launch { settings.setQuotedDatesUtc(enabled) }
     }
 
     val messageTextSize = settings.messageTextSize.stateIn(

@@ -35,6 +35,7 @@ import app.sterna.net.isOfflineFailure
 import app.sterna.util.MailDates
 import kotlinx.coroutines.Dispatchers
 import java.io.File
+import java.time.ZoneId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -842,7 +843,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             } else {
                 // The whole body, not just the quote: the screen swaps it in wholesale, and it must
                 // keep the signature the cache-first prefill already put there.
-                _replyQuote.value = replyBody(quote(original))
+                _replyQuote.value = replyBody(quote(original, resolveOutgoingDateZone(settings.quotedDatesUtc)))
             }
         }
     }
@@ -1220,25 +1221,31 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         mode: String?,
         selves: Collection<String>,
         quoteBody: Boolean = true,
-    ): DraftFields = when (mode) {
-        "forward" -> DraftFields(
-            to = "",
-            subject = withPrefix(original.subject, "Fwd:"),
-            // The editable body starts empty (just the user's note, plus the signature when the
-            // "signature on replies and forwards" setting is on); the original is carried separately
-            // to send time so its formatting survives. See [buildForwarded].
-            body = replyBody(""),
-        )
-        "replyAll" -> DraftFields(
-            to = replyAllRecipients(original, selves),
-            subject = withPrefix(original.subject, "Re:"),
-            body = replyBody(if (quoteBody) quote(original) else ""),
-        )
-        else -> DraftFields( // reply
-            to = replyRecipient(original),
-            subject = withPrefix(original.subject, "Re:"),
-            body = replyBody(if (quoteBody) quote(original) else ""),
-        )
+    ): DraftFields {
+        // Resolved by SUSPENDING on the stored setting (#120), like the signature settings in
+        // [replyBody]: a composer opened moments after launch must not fall back to the default
+        // while DataStore is still opening — with the switch on, that beat would write local time.
+        val zone = resolveOutgoingDateZone(settings.quotedDatesUtc)
+        return when (mode) {
+            "forward" -> DraftFields(
+                to = "",
+                subject = withPrefix(original.subject, "Fwd:"),
+                // The editable body starts empty (just the user's note, plus the signature when the
+                // "signature on replies and forwards" setting is on); the original is carried separately
+                // to send time so its formatting survives. See [buildForwarded].
+                body = replyBody(""),
+            )
+            "replyAll" -> DraftFields(
+                to = replyAllRecipients(original, selves),
+                subject = withPrefix(original.subject, "Re:"),
+                body = replyBody(if (quoteBody) quote(original, zone) else ""),
+            )
+            else -> DraftFields( // reply
+                to = replyRecipient(original),
+                subject = withPrefix(original.subject, "Re:"),
+                body = replyBody(if (quoteBody) quote(original, zone) else ""),
+            )
+        }
     }
 
     /**
@@ -1246,11 +1253,16 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * device (it used to paste the raw ISO timestamp and an English "On …, … wrote:"), then the
      * original prefixed with "> " — cut at the sender's signature delimiter, so a long exchange does
      * not accumulate one signature per round (D4).
+     *
+     * [zone] is the clock the attribution's date speaks — [resolveOutgoingDateZone], suspended on
+     * the quoted-dates-in-UTC setting (#120). A parameter WITHOUT a default, on purpose: quote()
+     * has three callers (two in [buildPrefill], one on the background-enrichment path), and a
+     * default zone here would let a new or forgotten caller leak the device's time zone silently.
      */
-    private fun quote(o: Email): String {
+    private fun quote(o: Email, zone: ZoneId): String {
         val app = getApplication<Application>()
         val sender = o.from.firstOrNull()?.display() ?: app.getString(R.string.compose_quote_someone)
-        val date = MailDates.formatFull(o.receivedAt)
+        val date = MailDates.formatFull(o.receivedAt, zone)
         val attribution = app.getString(R.string.compose_quote_attribution, date, sender)
         val quoted = quotedOriginalText(o).lineSequence().joinToString("\n") { deepenQuote(it) }
         return "\n\n$attribution\n$quoted"
@@ -1298,7 +1310,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         return buildForwardedBlocks(
             from = o.from.joinToString { it.display() },
             subject = o.subject.orEmpty(),
-            date = MailDates.formatFull(o.receivedAt),
+            date = MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc)),
             to = o.to.joinToString { it.display() },
             // The whole original is forwarded, signature included: it is the message being passed
             // on, not a quote of it.

@@ -409,6 +409,9 @@
     <string name="settings_read_receipt_section">Запросы уведомления о прочтении</string>
     <string name="settings_read_receipt_title">Спрашивать перед отправкой уведомления о прочтении</string>
     <string name="settings_read_receipt_subtitle">Некоторые отправители просят сообщить им, когда их письмо будет показано. Выключено — запрос игнорируется. Включено — открытое письмо предложит ответить на него, и ничего не отправляется без вашего согласия.</string>
+    <string name="settings_quoted_dates_utc_section">Цитируемые даты</string>
+    <string name="settings_quoted_dates_utc_title">Писать цитируемые даты в UTC</string>
+    <string name="settings_quoted_dates_utc_subtitle">Дата в строке цитирования ответа и в заголовке пересланного письма записывается в UTC, а не в местном времени устройства.</string>
     <string name="settings_recipient_suggestions_section">Подсказки получателей</string>
     <string name="settings_suggest_contacts_title">Подсказывать из контактов</string>
     <string name="settings_suggest_contacts_subtitle">Автодополнять получателей из контактов этого устройства при вводе. Sterna Mail читает их только на устройстве и никогда не отправляет. Если выключено, всё равно подсказывает тех, кому вы недавно писали.</string>

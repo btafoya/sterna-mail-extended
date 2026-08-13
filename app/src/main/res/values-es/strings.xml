@@ -409,6 +409,9 @@
     <string name="settings_read_receipt_section">Solicitudes de confirmación de lectura</string>
     <string name="settings_read_receipt_title">Preguntar antes de enviar una confirmación de lectura</string>
     <string name="settings_read_receipt_subtitle">Algunos remitentes piden que se les avise cuando se muestra su mensaje. Desactivado, la petición se ignora. Activado, el mensaje que abras ofrece responderla, y no se envía nada sin tu consentimiento.</string>
+    <string name="settings_quoted_dates_utc_section">Fechas citadas</string>
+    <string name="settings_quoted_dates_utc_title">Escribir las fechas citadas en UTC</string>
+    <string name="settings_quoted_dates_utc_subtitle">La fecha de la línea de cita de una respuesta y del encabezado de un mensaje reenviado se escribe en UTC en lugar de la hora local del dispositivo.</string>
     <string name="settings_recipient_suggestions_section">Sugerencias de destinatarios</string>
     <string name="settings_suggest_contacts_title">Sugerir desde los contactos</string>
     <string name="settings_suggest_contacts_subtitle">Autocompletar destinatarios desde los contactos de este dispositivo mientras escribes. Sterna Mail los lee solo en el dispositivo y nunca los sube. Si está desactivado, sigue sugiriendo personas a las que has escrito recientemente.</string>

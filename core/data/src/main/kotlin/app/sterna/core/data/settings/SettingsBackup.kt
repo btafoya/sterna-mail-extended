@@ -56,6 +56,8 @@ data class SettingsBackup(
     val replyBar: Boolean? = null,
     /** Whether a message opens as text rather than as its own HTML (#149). */
     val plainText: Boolean? = null,
+    /** Whether a reply's quote line and a forward's Date header are written in UTC (#120). */
+    val quotedDatesUtc: Boolean? = null,
     /** Whether unread rows in the message list carry a background of their own (#141). */
     val unreadTint: Boolean? = null,
     /** Whether the dark theme sits on a black background, for OLED panels (#117). */

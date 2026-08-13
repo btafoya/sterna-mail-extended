@@ -924,6 +924,7 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
     val stripTracking by viewModel.stripTrackingParams.collectAsStateWithLifecycle()
     val confirmLinks by viewModel.confirmLinks.collectAsStateWithLifecycle()
     val askReadReceipt by viewModel.askReadReceipt.collectAsStateWithLifecycle()
+    val quotedDatesUtc by viewModel.quotedDatesUtc.collectAsStateWithLifecycle()
     val imageAllowlist by viewModel.imageAllowlist.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val contactsPermission = rememberLauncherForActivityResult(
@@ -972,6 +973,17 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
                     subtitle = stringResource(R.string.settings_read_receipt_subtitle),
                     checked = askReadReceipt,
                     onCheckedChange = viewModel::setAskReadReceipt,
+                )
+            }
+            // The dates the composer itself writes into outgoing text (#120). The subtitle says
+            // exactly what changes — two dates, rendered in UTC — and nothing more: no privacy
+            // promise, since the message keeps other traces of where it came from.
+            SettingsSection(stringResource(R.string.settings_quoted_dates_utc_section)) {
+                SettingSwitch(
+                    title = stringResource(R.string.settings_quoted_dates_utc_title),
+                    subtitle = stringResource(R.string.settings_quoted_dates_utc_subtitle),
+                    checked = quotedDatesUtc,
+                    onCheckedChange = viewModel::setQuotedDatesUtc,
                 )
             }
             SettingsSection(stringResource(R.string.settings_image_allowlist_section)) {

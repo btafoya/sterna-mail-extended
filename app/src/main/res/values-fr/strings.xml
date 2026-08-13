@@ -409,6 +409,9 @@
     <string name="settings_read_receipt_section">Demandes d\'accusé de lecture</string>
     <string name="settings_read_receipt_title">Demander avant d\'envoyer un accusé de lecture</string>
     <string name="settings_read_receipt_subtitle">Certains expéditeurs demandent à être prévenus quand leur message est affiché. Désactivé, la demande est ignorée. Activé, le message ouvert vous propose d\'y répondre, et rien ne part sans votre accord.</string>
+    <string name="settings_quoted_dates_utc_section">Dates citées</string>
+    <string name="settings_quoted_dates_utc_title">Écrire les dates citées en UTC</string>
+    <string name="settings_quoted_dates_utc_subtitle">La date de la ligne de citation d\'une réponse et de l\'en-tête d\'un message transféré est écrite en UTC plutôt qu\'à l\'heure locale de l\'appareil.</string>
     <string name="settings_recipient_suggestions_section">Suggestions de destinataires</string>
     <string name="settings_suggest_contacts_title">Suggérer depuis les contacts</string>
     <string name="settings_suggest_contacts_subtitle">Compléter les destinataires depuis les contacts de cet appareil pendant la saisie. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais. Désactivé, il suggère quand même les personnes que vous avez contactées récemment.</string>

@@ -257,6 +257,18 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_PLAIN_TEXT] = enabled }
     }
 
+    /** Whether the dates the composer itself writes into an outgoing message — a reply's quote
+     *  attribution line and a forwarded message's Date header — are rendered in UTC rather than in
+     *  this device's time zone (#120). OFF by default — the local time is what the app has always
+     *  written, and what a reader of the quote most likely expects. Global, not per account: the
+     *  two texts are produced by one composer, and the question ("what clock do my outgoing quotes
+     *  speak?") is about the device, not about a mailbox. */
+    val quotedDatesUtc: Flow<Boolean> = dataStore.data.map(::quotedDatesUtcFrom)
+
+    suspend fun setQuotedDatesUtc(enabled: Boolean) {
+        dataStore.edit { it[KEY_QUOTED_DATES_UTC] = enabled }
+    }
+
     /** Reading text size for the message body. */
     val messageTextSize: Flow<MessageTextSize> = dataStore.data.map { prefs ->
         prefs[KEY_MESSAGE_TEXT_SIZE]?.let { runCatching { MessageTextSize.valueOf(it) }.getOrNull() }
@@ -389,6 +401,7 @@ class SettingsRepository(context: Context) {
         signatureDelimiter = signatureDelimiter.first(),
         replyBar = replyBar.first(),
         plainText = plainText.first(),
+        quotedDatesUtc = quotedDatesUtc.first(),
         unreadTint = unreadTint.first(),
         pureBlack = pureBlack.first(),
         listMonogram = listMonogram.first(),
@@ -424,6 +437,7 @@ class SettingsRepository(context: Context) {
         backup.signatureDelimiter?.let { setSignatureDelimiter(it) }
         backup.replyBar?.let { setReplyBar(it) }
         backup.plainText?.let { setPlainText(it) }
+        backup.quotedDatesUtc?.let { setQuotedDatesUtc(it) }
         backup.unreadTint?.let { setUnreadTint(it) }
         backup.pureBlack?.let { setPureBlack(it) }
         backup.listMonogram?.let { setListMonogram(it) }
@@ -689,3 +703,29 @@ const val PLAIN_TEXT_DEFAULT = false
  * with the switch on, and one with it off.
  */
 internal fun plainTextFrom(prefs: Preferences): Boolean = prefs[KEY_PLAIN_TEXT] ?: PLAIN_TEXT_DEFAULT
+
+/** The key the quoted-dates-in-UTC switch is stored under. Renaming it puts the local time back
+ *  into every reply and forward of every user who chose UTC, so it is pinned by name in
+ *  [quotedDatesUtcFrom]'s test. */
+internal val KEY_QUOTED_DATES_UTC = booleanPreferencesKey("quoted_dates_utc")
+
+/**
+ * What the composer writes when nobody has touched the switch: the device's local time, which is
+ * what the app has always put into a reply's quote line and a forward's Date header (#120). OFF,
+ * deliberately — writing UTC is a choice, and a default of `true` would change the dates every
+ * user's correspondents read on update without anyone asking. One definition, read by
+ * [quotedDatesUtcFrom] and by the settings screen's initial value — the copy that makes a literal
+ * there dangerous.
+ */
+const val QUOTED_DATES_UTC_DEFAULT = false
+
+/**
+ * Whether the composer's outgoing quoted/forwarded dates are written in UTC, read from the stored
+ * preferences.
+ *
+ * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
+ * the whole [Preferences] there is no way to defeat the default from outside, and the test can hand
+ * it an empty store, a store with the switch on, and one with it off.
+ */
+internal fun quotedDatesUtcFrom(prefs: Preferences): Boolean =
+    prefs[KEY_QUOTED_DATES_UTC] ?: QUOTED_DATES_UTC_DEFAULT
