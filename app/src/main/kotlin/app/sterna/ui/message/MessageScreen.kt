@@ -62,6 +62,7 @@ import androidx.compose.material.icons.automirrored.filled.ReplyAll
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -1218,6 +1219,11 @@ private fun MessageContent(
     val crypto by viewModel.crypto.collectAsStateWithLifecycle()
     val unsubscribe by viewModel.unsubscribe.collectAsStateWithLifecycle()
     val unsubscribeState by viewModel.unsubscribeState.collectAsStateWithLifecycle()
+    // The read-receipt question (#148) and where an accepted one got to. The OFFER is what decides
+    // whether there is a strip at all, and it is null unless the switch is on AND the reader
+    // settled on a message that was unread AND the sender asked — see `offeredReadReceipt`.
+    val readReceiptOffer by viewModel.readReceiptOffer.collectAsStateWithLifecycle()
+    val readReceiptState by viewModel.readReceiptState.collectAsStateWithLifecycle()
     // OpenKeychain's passphrase/key dialogs round-trip through this launcher.
     val pgpLauncher = rememberPgpInteractionLauncher { data ->
         if (data != null) viewModel.decrypt(data) else viewModel.cancelDecrypt()
@@ -1318,6 +1324,12 @@ private fun MessageContent(
                 // The banner never acts on its own: it opens the same confirmation the
                 // overflow entry does (decision D7).
                 onUnsubscribe = viewModel::askUnsubscribe,
+                readReceiptOffer = readReceiptOffer,
+                readReceiptState = readReceiptState,
+                // ⭐ The two ends of the one gesture, and they must not be swapped: the first
+                // queues mail to a stranger, the second sends NOTHING and takes the question away.
+                onSendReadReceipt = viewModel::sendReadReceipt,
+                onDeclineReadReceipt = viewModel::declineReadReceipt,
             )
         }
     }
@@ -1363,6 +1375,10 @@ private fun ConversationBody(
     unsubscribe: UnsubscribeOptions? = null,
     unsubscribeState: UnsubscribeState = UnsubscribeState.Idle,
     onUnsubscribe: () -> Unit = {},
+    readReceiptOffer: ReadReceiptRequest? = null,
+    readReceiptState: ReadReceiptState = ReadReceiptState.Idle,
+    onSendReadReceipt: () -> Unit = {},
+    onDeclineReadReceipt: () -> Unit = {},
 ) {
     val msg = messages.firstOrNull() ?: return
     val full = msg.body
@@ -1588,6 +1604,12 @@ private fun ConversationBody(
                 unsubscribe = unsubscribe,
                 unsubscribeState = unsubscribeState,
                 onUnsubscribe = onUnsubscribe,
+                readReceiptOffer = readReceiptOffer,
+                readReceiptState = readReceiptState,
+                // Named for the reason given at the strip's own call site: two lambdas of the same
+                // type, one of which queues mail to a stranger.
+                onSendReadReceipt = onSendReadReceipt,
+                onDeclineReadReceipt = onDeclineReadReceipt,
             )
         }
         // Spinner until the body has laid out (cached/prefetched mail beats the 500ms, so none flashes).
@@ -1665,6 +1687,10 @@ private fun MessageHeader(
     unsubscribe: UnsubscribeOptions? = null,
     unsubscribeState: UnsubscribeState = UnsubscribeState.Idle,
     onUnsubscribe: () -> Unit = {},
+    readReceiptOffer: ReadReceiptRequest? = null,
+    readReceiptState: ReadReceiptState = ReadReceiptState.Idle,
+    onSendReadReceipt: () -> Unit = {},
+    onDeclineReadReceipt: () -> Unit = {},
 ) {
     val sender = msg.header.from.firstOrNull()
     // The user's own message (Sent/Drafts, or sent under one of the account's identities): the
@@ -1803,6 +1829,23 @@ private fun MessageHeader(
         unsubscribe?.let { options ->
             HorizontalDivider()
             UnsubscribeStrip(options, unsubscribeState, onUnsubscribe)
+        }
+        // The answer to a sender who asked to be told this was displayed (#148). LAST of the
+        // strips, for the same reason the unsubscribe one was: it must never push the crypto
+        // verdict or a meeting invitation below the fold. Its own presence is `readReceiptStrip`'s
+        // decision — null for very nearly every message, and for every reader who left the switch
+        // off — so the divider goes with it rather than framing an empty row.
+        readReceiptStrip(readReceiptOffer, readReceiptState)?.let { strip ->
+            HorizontalDivider()
+            // ⭐ NAMED, both of them, and not as a matter of style: the two lambdas have the same
+            // type, so passed positionally a swap of the two lines in the callee's signature
+            // compiles and makes the refusal QUEUE a receipt while the button does nothing. Named,
+            // that swap cannot be written at all.
+            ReadReceiptStrip(
+                strip,
+                onSendReadReceipt = onSendReadReceipt,
+                onDeclineReadReceipt = onDeclineReadReceipt,
+            )
         }
         HorizontalDivider()
     }
@@ -2505,6 +2548,134 @@ private fun UnsubscribeStrip(
                     ),
                 )
             }
+        }
+    }
+}
+
+/**
+ * The read-receipt strip above the body (#148): the question a sender's
+ * `Disposition-Notification-To` raises, and — once answered — where the answer got to.
+ *
+ * **It ASKS, and it is the only thing in this app that can send a receipt.** The reader has to have
+ * turned the switch on (Privacy settings, off by default), and even then nothing leaves without
+ * this button. The refusal costs one tap and sends ⛔ nothing at all: it takes the strip away and
+ * the page forgets the question. Nothing is written anywhere, so a message reopened later asks
+ * nothing either (the trigger is the unread → read transition, which happens once).
+ *
+ * **What it says, and what it must never say.** The line names WHO would be told, because that is
+ * the only fact the reader is deciding on, and it says *displayed* rather than *read*: an MDN
+ * reports that a message was shown on a device, and neither this app nor the protocol knows whether
+ * anybody read it. ⛔ There is no "sent" state, under any wording — a receipt has one road, the
+ * durable outbox, so "in the outbox" is the furthest the app can honestly go ([ReadReceiptState]
+ * has no `Sent`, deliberately). Once queued the line names the subject of the row that was queued,
+ * ⛔ handed back by `MailRepository.sendReadReceipt` and never rebuilt here: a strip naming one text
+ * while another leaves is worse than one naming nothing (house precedent: `unsubscribePreview`).
+ *
+ * **Its grammar is [UnsubscribeStrip]'s** — a [TextButton], no icon on it, a muted line beside it —
+ * for the reason that KDoc gives at length, and it is drawn LAST in the header so it can never push
+ * a crypto verdict or a meeting invitation below the fold.
+ *
+ * ⭐ **The height does not move BETWEEN THE STATES — and that is the exact size of the claim.** The
+ * measured height of the header keys the `remember` that builds the body's HTML document (see
+ * [ConversationBody]), so anything that changes the header's height cancels the body load in
+ * flight and puts the reader back at the top. Between asking, sending and queueing this row does
+ * not move: it is the SAME button throughout — only its label, its `enabled`, the spinner inside it
+ * and the line beside it change — and only the failure is allowed to grow, after a gesture the
+ * reader deliberately made. `heightIn` is a FLOOR and cannot level two different shapes; a bare
+ * [Text] sits back down on it while a button stands above (measured on the bench for the images
+ * strip, #153: 8 dp lost in the normal font, 13 dp at `font_scale 2.0`). Hence also `maxLines = 1`
+ * on the line of the three ordinary states: a wrap is a whole extra line, and German and Russian
+ * are the longest.
+ *
+ * ⚠ **What that does NOT claim: the strip appearing or leaving moves the header, like any other
+ * strip in it.** Two known cases, neither of them fixed here:
+ *  - the REFUSAL takes this row and its `HorizontalDivider()` away — roughly 49 dp, six times the
+ *    drift measured in #153 — so refusing reloads the body and loses the reader's place. It is
+ *    post-gesture, which is the licence its neighbours take, and the alternative (a row that stays
+ *    for ever saying "you said no") was refused: nothing may remain that could send.
+ *  - the APPEARANCE can happen with NO gesture at all. On a page the pager warmed the body can
+ *    land before the settle, and the setting answers asynchronously on top of that, so the question
+ *    can be raised a moment after the reader has started reading — the header grows, and the body
+ *    under her is rebuilt. That is the price of a setting read from DataStore, and it is measured
+ *    on the bench rather than argued here.
+ *
+ * ⚠ A short @Composable is exactly the shape R8 once inlined into drawing NOTHING in a release
+ * build (that is why `MonogramKt` is in proguard-rules.pro's -keep list — and it was already a
+ * top-level function in its own file when it happened). ⛔ **Do not move this into a small file of
+ * its own**: `MessageScreenKt` carries no `-keep` rule, and that arrangement is the one it went
+ * wrong in. Any change here is verified on a RELEASE build on a device; a debug build cannot see it.
+ */
+@Composable
+private fun ReadReceiptStrip(
+    // What [readReceiptStrip] decided, HANDED IN: the caller ran the decision once, to know
+    // whether to draw this row and its divider at all. ⛔ Not the offer and the state again — a
+    // second reading of the same rule is a rule no test can hold, because the test would be
+    // measuring the copy that does not ship.
+    strip: ReadReceiptStrip,
+    onSendReadReceipt: () -> Unit,
+    onDeclineReadReceipt: () -> Unit,
+) {
+    val body = strip.body
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            // No vertical padding of its own: the button's own minimum IS the strip's height. See
+            // the KDoc above — a strip that changes height reloads the body underneath it.
+            .heightIn(min = ButtonDefaults.MinHeight)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (body.names) stringResource(body.line, strip.named) else stringResource(body.line),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (body == ReadReceiptStripBody.FAILED) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            // ONE line in the three ordinary states, and this is a height rule, not typography:
+            // heightIn is a floor, so a wrapped line makes the strip a whole line taller.
+            maxLines = if (body.shape == ReadReceiptStripShape.BUTTON_ROW) 1 else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(end = 8.dp),
+        )
+        if (body.declines) {
+            // Saying no: the strip goes, and NOTHING leaves. It is offered only while the question
+            // stands untouched — once a receipt is queued there is nothing left to refuse.
+            IconButton(onClick = onDeclineReadReceipt) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.message_read_receipt_decline),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        // ⛔ Drawn in EVERY state, under no condition at all: the same button, in the same place, at
+        // the same size, wearing the label of the state it is in. Wrapping it in `if (body.acts)`
+        // reads like a tidy-up and is the measured defect — the queued row would fall back to a
+        // bare line, the header would lose the button's height and the body would be rebuilt.
+        TextButton(
+            onClick = onSendReadReceipt,
+            enabled = body.acts,
+            // A disabled TextButton otherwise takes onSurface at 38 % alpha, and the only
+            // confirmation this app gives that the answer was queued would be the palest
+            // thing in the header.
+            colors = ButtonDefaults.textButtonColors(
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+        ) {
+            if (body == ReadReceiptStripBody.SENDING) {
+                // Inside the button, at the icon's size: the button keeps its height, so the
+                // header does, so the body underneath is not reloaded mid-gesture.
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                stringResource(body.button),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

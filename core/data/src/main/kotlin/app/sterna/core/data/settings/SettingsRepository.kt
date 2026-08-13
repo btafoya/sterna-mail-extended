@@ -302,6 +302,27 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_CONFIRM_LINKS] = enabled }
     }
 
+    /**
+     * Whether an opened message that asks for a read receipt (RFC 8098's
+     * `Disposition-Notification-To:`) may raise the question at all — ⛔ **off by default**.
+     *
+     * ⛔ Two positions, never three: off, and the app ignores the header entirely; on, and it
+     * ASKS. There is no "always send", under any name. Turning this on is not consent to answer
+     * anybody — it is consent to be asked, one message at a time.
+     *
+     * ⚠ Whoever reads this flow drives an ACTION rather than shows a value, and DataStore answers
+     * a beat late: a reader that treats "not answered yet" as `false` is safe by coincidence of
+     * the default, and a reader that treats it as `true` asks the question of the overwhelming
+     * majority who never turned it on. See the caller's own unloaded state
+     * (`app.sterna.ui.message.ReadReceiptSetting.NOT_LOADED`), which is a THIRD value and not a
+     * boolean, precisely so the two cannot be confused.
+     */
+    val askReadReceipt: Flow<Boolean> = dataStore.data.map(::askReadReceiptFrom)
+
+    suspend fun setAskReadReceipt(enabled: Boolean) {
+        dataStore.edit { it[KEY_ASK_READ_RECEIPT] = enabled }
+    }
+
     /** Sender addresses (lower-cased) whose remote images load automatically. */
     val imageAllowlist: Flow<Set<String>> = dataStore.data.map { it[KEY_IMAGE_ALLOWLIST] ?: emptySet() }
 
@@ -352,6 +373,7 @@ class SettingsRepository(context: Context) {
         contactSuggestions = contactSuggestions.first(),
         stripTracking = stripTrackingParams.first(),
         confirmLinks = confirmLinks.first(),
+        askReadReceipt = askReadReceipt.first(),
         imageAllowlist = imageAllowlist.first().toList(),
         quietHoursEnabled = quietHoursEnabled.first(),
         quietHoursStart = quietHoursStart.first(),
@@ -386,6 +408,7 @@ class SettingsRepository(context: Context) {
         backup.contactSuggestions?.let { setContactSuggestions(it) }
         backup.stripTracking?.let { setStripTrackingParams(it) }
         backup.confirmLinks?.let { setConfirmLinks(it) }
+        backup.askReadReceipt?.let { setAskReadReceipt(it) }
         backup.imageAllowlist?.let { setImageAllowlist(it.toSet()) }
         backup.quietHoursEnabled?.let { setQuietHoursEnabled(it) }
         backup.quietHoursStart?.let { setQuietHoursStart(it) }
@@ -590,6 +613,35 @@ const val PURE_BLACK_DEFAULT = false
  * it an empty store, a store with the switch on, and one with it off.
  */
 internal fun pureBlackFrom(prefs: Preferences): Boolean = prefs[KEY_PURE_BLACK] ?: PURE_BLACK_DEFAULT
+
+/** The key the read-receipt switch is stored under. Renaming it turns the switch back off for
+ *  every user who has turned it on, so it is pinned by name in [askReadReceiptFrom]'s test. */
+internal val KEY_ASK_READ_RECEIPT = booleanPreferencesKey("ask_read_receipt")
+
+/**
+ * ⛔ **Off**, and this is the one value in this file that must never be flipped by a refactor: a
+ * read receipt tells a stranger that a person opened their mail, at a time, on a device.
+ * `SECURITY.md` promises none of that leaves on open. On by default, every install would start
+ * asking that question of readers who never heard of it.
+ *
+ * ⛔ It is also only two positions: off ignores the header, on ASKS. Turning it on is consent to be
+ * asked, never consent to answer, and there is no third value anywhere for "always send".
+ *
+ * One definition, read by [askReadReceiptFrom] and by the settings screen's initial value.
+ */
+const val ASK_READ_RECEIPT_DEFAULT = false
+
+/**
+ * Whether an opened message may raise the read-receipt question, read from the stored preferences.
+ *
+ * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
+ * the whole [Preferences] there is nothing left to pre-empt, and the test can hand it an empty
+ * store, a store with the switch on, and one with it off. ⚠ Whoever READS the flow has a second
+ * problem this function cannot solve — DataStore answers a beat late, and "not answered yet" is not
+ * "off"; see `app.sterna.ui.message.ReadReceiptSetting`.
+ */
+internal fun askReadReceiptFrom(prefs: Preferences): Boolean =
+    prefs[KEY_ASK_READ_RECEIPT] ?: ASK_READ_RECEIPT_DEFAULT
 
 /** The key the sender-initials switch is stored under. Renaming it puts the initials back for every
  *  user who has removed them, so it is pinned by name in [listMonogramFrom]'s test. */

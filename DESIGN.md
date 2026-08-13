@@ -146,7 +146,7 @@ are documented here as structure; build the ✅ ones first.
 - **Appearance:** theme Auto/Light/Dark 💡 · dynamic colour (Material You) ✅ *(new toggle)* · list density Comfortable/Compact 💡
 - **Notifications:** push for all accounts ✅ · new-mail master + system-channels link · quiet hours 💡
 - **Reading:** configurable swipe actions 💡 · conversation threading toggle (threading ✅) · mark-as-read on open · remote images (see Privacy)
-- **Writing:** default signature 💡 · undo send Off/5/10/30s 💡 · read receipts Never/Ask/Always 💡 · quote-on-reply · "forgot attachment?" reminder 💡
+- **Writing:** default signature 💡 · undo send Off/5/10/30s 💡 · read receipts: request one on a message being written ✅ · answer someone else's request from a strip on the message, one tap, nothing sent without it ✅ (Privacy switch, off by default) · quote-on-reply · "forgot attachment?" reminder 💡
 - **Privacy & Security:** remote image policy Never *(default)* / Ask / Always ✅ · per-sender allowlist 💡 · app lock ✅ (biometric + PIN/pattern/password fallback) · confirm external links 💡 · "Sterna collects no data" → [PRIVACY.md](PRIVACY.md)
 - **Storage & Sync:** sync / push on-off ✅ · sync window (count or age) 💡 · keep messages offline 💡 · storage used + Clear cache 💡 · download attachments on Wi-Fi only 💡 · settings export / import 💡
 - **About:** version · source (Codeberg) · GPLv3 licence · privacy policy ([PRIVACY.md](PRIVACY.md)) · OSS licences · report issue / security

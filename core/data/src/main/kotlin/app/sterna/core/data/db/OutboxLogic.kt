@@ -45,11 +45,28 @@ object OutboxLogic {
         if (attemptCount >= MAX_ATTEMPTS) OutboxState.FAILED else OutboxState.QUEUED
 
     /**
-     * Whether an outbox item can be reopened in the composer. Two things must hold.
+     * Whether an outbox item can be reopened in the composer. Three things must hold.
      *
-     * It must not be ENCRYPTED: the ciphertext lives in the item's own directory, not the row (see
-     * [OutboxEntity.pgpMode]), so the composer would open empty and send an empty message. Signing
-     * is unaffected — a SIGNED item keeps its body in the row and is signed at send time.
+     * ⛔ **It must carry no entity the composer cannot rebuild** —
+     * [carriesUnreplayablePrebuiltEntity]. Careful: "carries an entity" is NOT the rule, and
+     * writing it that way is a regression. Reopening a row throws the entity file away and, on
+     * Send, enqueues a brand-new row built from the composer's fields alone. Whether that is
+     * harmless depends entirely on whether those fields can produce the entity again:
+     *
+     *  - a SIGNED row can. The body is in the row, the composer signs it afresh at send time, and
+     *    the new entity is as good as the old. It has had Edit since #70 and keeps it.
+     *  - an RFC 8098 read receipt cannot. Its row holds the human-readable half; the
+     *    `message/disposition-notification` part — the fields that make it a receipt at all —
+     *    exists nowhere but in that file, and nothing in the composer knows how to write it. Edit
+     *    would silently turn a receipt into an odd little mail.
+     *
+     * ⚠ The argument has NO default. It used to be the PGP mode that decided this, which answered
+     * "editable" for every entity arriving without one, and a default would let the next call site
+     * inherit that same wrong answer in silence.
+     *
+     * It must not be ENCRYPTED either. Almost the same rows, but not by construction — the mode is
+     * what says the plaintext was blanked at rest ([OutboxEntity.pgpMode]), so a row that somehow
+     * lost its file would still open empty and send an empty message.
      *
      * And it must be genuinely waiting — QUEUED, HELD or FAILED. A [OutboxState.SENDING] row has a
      * send in flight: reopening it lets the worker's updateOutboxState clobber the EDITING flag,
@@ -57,11 +74,30 @@ object OutboxLogic {
      * open in a composer. Neither may be taken. An action that cannot do what its label promises is
      * not offered (#70); Retry and Delete stay — both work on the row as it stands.
      */
-    fun canEdit(pgpMode: String?, state: OutboxState): Boolean =
-        !pgpMode.equals("ENCRYPT", ignoreCase = true) && when (state) {
-            OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED -> true
-            OutboxState.SENDING, OutboxState.EDITING -> false
-        }
+    fun canEdit(pgpMode: String?, state: OutboxState, carriesUnreplayablePrebuiltEntity: Boolean): Boolean =
+        !carriesUnreplayablePrebuiltEntity && !pgpMode.equals("ENCRYPT", ignoreCase = true) &&
+            when (state) {
+                OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED -> true
+                OutboxState.SENDING, OutboxState.EDITING -> false
+            }
+
+    /**
+     * Whether a row's pre-built entity is one the composer could NOT produce again — the single
+     * expression behind [canEdit]'s first rule, so the screen and the state flip cannot disagree
+     * about it and neither has to spell it out.
+     *
+     * The test is "an entity with no PGP mode". A mode is exactly what says the composer built this
+     * entity and can build it again (`ComposeViewModel` writes one for every send that is not
+     * `PgpMode.OFF`, and stores the mode beside it); its absence is what says the entity came from
+     * somewhere else — today, RFC 8098's receipt, which is assembled once from a message that will
+     * not be in front of the reader again.
+     *
+     * @param pgpMode [OutboxEntity.pgpMode]. ⚠ `PgpMode.OFF` is never stored — `enqueueSend` writes
+     *   null for it — so null here genuinely means "no PGP was involved".
+     * @param entityPath [OutboxEntity.pgpEntityPath]: the row's entity file, or null.
+     */
+    fun isUnreplayablePrebuiltEntity(pgpMode: String?, entityPath: String?): Boolean =
+        entityPath != null && pgpMode == null
 
     /**
      * How long a message on its way stays off the badge past the instant it was allowed to go

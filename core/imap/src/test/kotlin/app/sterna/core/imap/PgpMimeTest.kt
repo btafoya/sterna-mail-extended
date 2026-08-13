@@ -65,10 +65,10 @@ class PgpMimeTest {
     }
 
     @Test
-    fun pgpEntityReplacesBodyInFullMessage() {
+    fun prebuiltEntityReplacesBodyInFullMessage() {
         val armor = "-----BEGIN PGP MESSAGE-----\r\n\r\nzz\r\n-----END PGP MESSAGE-----"
         val entity = PgpMime.wrapEncrypted(armor.toByteArray(), "BND3")
-        val full = OutgoingMime.build(message().copy(pgpEntity = entity))
+        val full = OutgoingMime.build(message().copy(prebuiltEntity = entity))
         // Headers present, normal body absent, entity spliced in.
         assertTrue(full.startsWith("From: a@b.c\r\n"))
         assertTrue(full.contains("Subject: s\r\n"))
@@ -80,7 +80,7 @@ class PgpMimeTest {
 
     @Test
     fun buildBodyEntityMatchesLegacySingleBodyBuild() {
-        // build() with no pgpEntity must equal headers + buildBodyEntity (refactor guard).
+        // build() with no prebuiltEntity must equal headers + buildBodyEntity (refactor guard).
         val m = message()
         val full = OutgoingMime.build(m)
         assertTrue(full.endsWith(OutgoingMime.buildBodyEntity(m)))

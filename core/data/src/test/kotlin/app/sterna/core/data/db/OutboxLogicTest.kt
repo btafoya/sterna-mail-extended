@@ -154,20 +154,63 @@ class OutboxLogicTest {
         assertNull(OutboxLogic.nextBadgeChange(items, now = 1_000 + grace))
     }
 
+    /**
+     * ⚠ The three rows below are the ONLY three shapes production ever writes, and the tests that
+     * follow use them rather than free combinations of the two arguments. `ComposeViewModel` builds
+     * an entity for every send that is not `PgpMode.OFF`, and `enqueueSend` stores `null` for OFF —
+     * so "SIGN with no entity" and "ENCRYPT with no entity" do not exist, and a test pinning one is
+     * a test of a state that cannot happen. One did, and it hid a regression: it kept
+     * `canEdit("SIGN", …, false)` green while every real signed row had lost its Edit button.
+     */
+    private fun signed() = OutboxLogic.isUnreplayablePrebuiltEntity("SIGN", "/outbox/1/prebuilt-entity.mime")
+    private fun encrypted() = OutboxLogic.isUnreplayablePrebuiltEntity("ENCRYPT", "/outbox/2/prebuilt-entity.mime")
+    private fun receipt() = OutboxLogic.isUnreplayablePrebuiltEntity(null, "/outbox/3/prebuilt-entity.mime")
+    private fun ordinary() = OutboxLogic.isUnreplayablePrebuiltEntity(null, null)
+
     @Test fun anEncryptedItemCannotBeReopenedInTheComposer() {
-        assertEquals(false, OutboxLogic.canEdit("ENCRYPT", OutboxState.QUEUED))
-        assertEquals(false, OutboxLogic.canEdit("encrypt", OutboxState.QUEUED))
+        assertEquals(false, OutboxLogic.canEdit("ENCRYPT", OutboxState.QUEUED, encrypted()))
+        assertEquals(false, OutboxLogic.canEdit("encrypt", OutboxState.QUEUED, encrypted()))
+    }
+
+    /**
+     * ⛔ A read receipt cannot be reopened: nothing can build its entity a second time.
+     *
+     * Reopening throws the entity file away and Send enqueues a fresh row from the composer's
+     * fields — which hold the human-readable half only. The `message/disposition-notification`
+     * part, the thing that makes it a receipt at all, exists nowhere else and no composer writes
+     * one. Edit would quietly turn a receipt into an odd little mail.
+     */
+    @Test fun aReadReceiptCannotBeReopened() {
+        assertEquals(true, receipt())
+        assertEquals(false, OutboxLogic.canEdit(null, OutboxState.QUEUED, receipt()))
+        assertEquals(false, OutboxLogic.canEdit(null, OutboxState.HELD, receipt()))
+        assertEquals(false, OutboxLogic.canEdit(null, OutboxState.FAILED, receipt()))
+    }
+
+    /**
+     * ⭐ THE WITNESS, and the regression it caught. A SIGNED row carries a pre-built entity too —
+     * and it keeps Edit, exactly as it has since #70. The composer holds its body, signs it again
+     * at send time, and the new entity is as good as the old one.
+     *
+     * Reading the rule as "carries an entity" instead of "carries an entity nothing can rebuild"
+     * takes Edit away from every signed message in the Outbox, which is a change to a screen this
+     * branch has no business changing.
+     */
+    @Test fun aSignedItemStillOffersEditAlthoughItCarriesAnEntity() {
+        assertEquals("a signed row's entity is one the composer can produce again", false, signed())
+        assertEquals(true, OutboxLogic.canEdit("SIGN", OutboxState.QUEUED, signed()))
+        assertEquals(true, OutboxLogic.canEdit("SIGN", OutboxState.HELD, signed()))
+        assertEquals(true, OutboxLogic.canEdit("SIGN", OutboxState.FAILED, signed()))
     }
 
     @Test fun aWaitingUnencryptedItemCanBeReopened() {
-        assertEquals(true, OutboxLogic.canEdit(null, OutboxState.QUEUED))
-        assertEquals(true, OutboxLogic.canEdit("SIGN", OutboxState.HELD))
-        assertEquals(true, OutboxLogic.canEdit(null, OutboxState.FAILED))
+        assertEquals(true, OutboxLogic.canEdit(null, OutboxState.QUEUED, ordinary()))
+        assertEquals(true, OutboxLogic.canEdit(null, OutboxState.FAILED, ordinary()))
     }
 
     /** #70: Edit must never be offered or accepted on a row whose send is in flight or already open. */
     @Test fun anInFlightOrAlreadyOpenItemCannotBeReopened() {
-        assertEquals(false, OutboxLogic.canEdit(null, OutboxState.SENDING))
-        assertEquals(false, OutboxLogic.canEdit(null, OutboxState.EDITING))
+        assertEquals(false, OutboxLogic.canEdit(null, OutboxState.SENDING, ordinary()))
+        assertEquals(false, OutboxLogic.canEdit(null, OutboxState.EDITING, ordinary()))
     }
 }

@@ -45,10 +45,13 @@ class DraftAddressingWiringTest {
         // THE line of the counter-expertise. OutgoingMime.build writes From/To/Cc and no `Bcc:`,
         // so an address typed into Bcc reaches no header of the appended draft: counting it would
         // let a user who re-types the lost Cc into Bcc destroy the copy that still held it.
+        // The second line is the read-receipt guard's own `replacement`, pinned by
+        // [DraftReceiptWiringTest]; it is listed here so this assertion keeps comparing WHOLE
+        // lines against a closed list rather than being loosened to a search.
         assertEquals(
             "the replacement's proof is its Cc alone — a Bcc is never written into the appended " +
                 "draft, so it can prove nothing (#63)",
-            listOf("replacement = ccTrimmed.toSet(),"),
+            listOf("replacement = ccTrimmed.toSet(),", "replacement = requestReceipt,", "replacement = requestReceipt,"),
             codeLinesNaming(bodyOf("MailRepository", "saveDraft"), "replacement ="),
         )
     }

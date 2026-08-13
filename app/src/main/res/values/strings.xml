@@ -283,6 +283,15 @@
     <string name="message_unsubscribe_failed_redirect">The sender\'s server asked to redirect the request, which would turn it into a page load. Sterna refused.</string>
     <string name="message_unsubscribe_failed_offline">No network. Try again later.</string>
     <string name="message_unsubscribe_failed_unreachable">The sender\'s unsubscribe server could not be reached.</string>
+    <!-- Reader: the strip answering a sender who asked to be told their message was displayed (RFC 8098, #148). It ASKS; nothing is ever sent without the button. Never say "read": an MDN reports a message being shown on a device, not a person reading it. The mail itself is fixed English built in ReadReceiptMail.kt and deliberately NOT a resource. -->
+    <string name="message_read_receipt_ask">%1$s asked to be told this message was displayed</string>
+    <string name="message_read_receipt_send">Send</string>
+    <string name="message_read_receipt_send_sending">Sending…</string>
+    <string name="message_read_receipt_send_queued">Queued</string>
+    <string name="message_read_receipt_decline">Do not answer this request</string>
+    <string name="message_read_receipt_sending">Putting an answer in the outbox…</string>
+    <string name="message_read_receipt_queued">In the outbox: %1$s</string>
+    <string name="message_read_receipt_failed">Nothing was put in the outbox, so nothing will be sent.</string>
     <!-- Reader overflow: view the message's raw headers (issue #60) -->
     <string name="message_view_headers">View headers</string>
     <string name="message_headers_title">Message headers</string>
@@ -542,6 +551,9 @@
     <string name="settings_strip_tracking_subtitle">Remove trackers (utm_*, fbclid, gclid…) from links before opening them, so senders can\'t tell when you click.</string>
     <string name="settings_confirm_links_title">Confirm before opening links</string>
     <string name="settings_confirm_links_subtitle">Show the destination and ask before opening a link from a message.</string>
+    <string name="settings_read_receipt_section">Read-receipt requests</string>
+    <string name="settings_read_receipt_title">Ask before sending a read receipt</string>
+    <string name="settings_read_receipt_subtitle">Some senders ask to be told when their message is displayed. Off, the request is ignored. On, the message you open offers to answer it, and nothing leaves unless you say so.</string>
     <string name="settings_recipient_suggestions_section">Recipient suggestions</string>
     <string name="settings_suggest_contacts_title">Suggest from contacts</string>
     <string name="settings_suggest_contacts_subtitle">Autocomplete recipients from this device\'s contacts while you type. Sterna Mail reads them on-device only, never uploads them. When off, it still suggests people you\'ve recently emailed.</string>

@@ -135,6 +135,25 @@ data class Email(
     /** `List-Unsubscribe-Post` (RFC 8058) — the sender's promise that a bare POST is enough. */
     @SerialName("header:List-Unsubscribe-Post:asText")
     val listUnsubscribePost: String? = null,
+    /**
+     * `Disposition-Notification-To` (RFC 8098), raw — where the sender asked a read receipt to go.
+     * Requested only by the two body-bearing fetches, like [listUnsubscribe]: a folder page must
+     * not pay for a header only an opened message reads.
+     *
+     * ⚠ Same invariant as [listUnsubscribe], and the same silent failure: the `@SerialName` IS the
+     * field. `DefaultJson` is `ignoreUnknownKeys = true`, so a wrong or missing name makes kotlinx
+     * drop the server's answer without a word, and every message then looks like one asking for
+     * nothing.
+     *
+     * ⭐ `asText` and not `asAddresses` — deliberately the same type as the IMAP path hands over
+     * (`MimeParser.headerOf`), so ONE parser ([app.sterna.core.data.mail.ReadReceiptHeader])
+     * decides on both protocols and a malformed header cannot be read two different ways
+     * depending on which server the account is on. ⛔ Not to be confused with the `asAddresses`
+     * property [app.sterna.core.jmap.JmapClient.sendEmail] SETS when composing: that one writes
+     * the header, this one reads it.
+     */
+    @SerialName("header:Disposition-Notification-To:asText")
+    val dispositionNotificationTo: String? = null,
 ) {
     /** Whether the message has been read ($seen keyword). */
     val isSeen: Boolean get() = keywords["\$seen"] == true

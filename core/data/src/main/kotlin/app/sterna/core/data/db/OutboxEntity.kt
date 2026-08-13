@@ -58,9 +58,24 @@ data class OutboxEntity(
     /** OpenPGP mode ("SIGN"/"ENCRYPT") when the payload is PGP/MIME; null otherwise. */
     val pgpMode: String? = null,
     /**
-     * File holding the pre-built PGP/MIME entity (ciphertext or signed — safe at
-     * rest). For ENCRYPT items textBody/htmlBody/attachmentsJson are emptied: the
-     * outbox never stores plaintext of an encrypted message.
+     * File holding this row's PRE-BUILT MIME ENTITY — the complete entity that replaces the body on
+     * the wire, byte for byte (`OutgoingMessage.prebuiltEntity`).
+     *
+     * ⚠ **The column name is narrower than what it holds, and that is on purpose.** It was born
+     * for PGP/MIME and is still spelled `pgpEntityPath` in SQLite; it now also carries RFC 8098's
+     * `multipart/report` read receipt, which has no PGP anywhere near it. Renaming the column would
+     * cost a Room migration — a new schema version, a table rebuild, another migration test — and
+     * buy nothing but a better word. ⛔ So do not read it as "this row is PGP": the mode is
+     * [pgpMode], and that is the only field that says so.
+     *
+     * For ENCRYPT items textBody/htmlBody/attachmentsJson are emptied: the outbox never stores
+     * plaintext of an encrypted message. A SIGNED item, or a receipt, keeps its body in the row —
+     * signed text is public, and a receipt's body is the human-readable half of its own entity.
+     *
+     * ⚠ The path is absolute and stored as written. Nothing looks the file up by name, which is why
+     * the file could be renamed from `pgp-entity.mime` to
+     * [app.sterna.core.data.mail.PREBUILT_ENTITY_FILE] without touching rows queued by an older
+     * build: they still point at theirs.
      */
     val pgpEntityPath: String? = null,
     /**

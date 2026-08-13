@@ -168,6 +168,14 @@
     <string name="message_unsubscribe_failed_redirect">De server van de afzender vroeg om een omleiding, wat het verzoek in een paginabezoek zou veranderen. Sterna heeft dat geweigerd.</string>
     <string name="message_unsubscribe_failed_offline">Geen netwerk. Probeer het later opnieuw.</string>
     <string name="message_unsubscribe_failed_unreachable">De afmeldserver van de afzender is niet bereikbaar.</string>
+    <string name="message_read_receipt_ask">%1$s wil weten dat dit bericht is weergegeven</string>
+    <string name="message_read_receipt_send">Versturen</string>
+    <string name="message_read_receipt_send_sending">Wordt verstuurd…</string>
+    <string name="message_read_receipt_send_queued">In wachtrij</string>
+    <string name="message_read_receipt_decline">Dit verzoek niet beantwoorden</string>
+    <string name="message_read_receipt_sending">Antwoord wordt in postvak uit gezet…</string>
+    <string name="message_read_receipt_queued">In postvak uit: %1$s</string>
+    <string name="message_read_receipt_failed">Er is niets in postvak uit gezet, er wordt niets verstuurd.</string>
     <string name="message_view_headers">Headers weergeven</string>
     <string name="message_headers_title">Berichtheaders</string>
     <string name="message_headers_empty">Geen headers om weer te geven</string>
@@ -398,6 +406,9 @@
     <string name="settings_strip_tracking_subtitle">Verwijder trackers (utm_*, fbclid, gclid…) uit links voordat je ze opent, zodat afzenders niet kunnen zien wanneer je klikt.</string>
     <string name="settings_confirm_links_title">Bevestigen voor het openen van links</string>
     <string name="settings_confirm_links_subtitle">Toon de bestemming en vraag om bevestiging voordat een link uit een bericht wordt geopend.</string>
+    <string name="settings_read_receipt_section">Verzoeken om leesbevestiging</string>
+    <string name="settings_read_receipt_title">Vragen voordat een leesbevestiging wordt verstuurd</string>
+    <string name="settings_read_receipt_subtitle">Sommige afzenders vragen om bericht te krijgen wanneer hun bericht wordt weergegeven. Uit: het verzoek wordt genegeerd. Aan: het geopende bericht biedt aan om te antwoorden, en er wordt niets verstuurd zonder jouw toestemming.</string>
     <string name="settings_recipient_suggestions_section">Ontvangersuggesties</string>
     <string name="settings_suggest_contacts_title">Suggesties uit contacten</string>
     <string name="settings_suggest_contacts_subtitle">Vul ontvangers aan uit de contacten van dit apparaat terwijl je typt. Sterna Mail leest ze alleen op het apparaat en uploadt ze nooit. Uitgeschakeld stelt het nog steeds mensen voor die je onlangs hebt gemaild.</string>

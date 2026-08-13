@@ -144,10 +144,15 @@ fun OutboxScreen(
                         TextButton(onClick = { viewModel.retry(item.id) }) {
                             Text(stringResource(R.string.outbox_retry))
                         }
-                        // Edit is offered only for a genuinely waiting, non-encrypted row (#70): an
-                        // encrypted item has no body in the row to reopen, and a SENDING item has a
-                        // send in flight that reopening would race into an orphan or a double send.
-                        if (OutboxLogic.canEdit(item.pgpMode, item.state)) {
+                        // Edit is offered only for a genuinely waiting row the composer could
+                        // rebuild (#70): a row whose entity nothing can produce again (a read
+                        // receipt) would come back as a different message, an encrypted item has no
+                        // body in the row to reopen, and a SENDING item has a send in flight that
+                        // reopening would race into an orphan or a double send. A SIGNED row is
+                        // rebuilt by signing afresh, and keeps Edit exactly as before.
+                        val unreplayable =
+                            OutboxLogic.isUnreplayablePrebuiltEntity(item.pgpMode, item.pgpEntityPath)
+                        if (OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) {
                             TextButton(onClick = { viewModel.edit(item.id) }) {
                                 Text(stringResource(R.string.outbox_edit))
                             }

@@ -168,6 +168,14 @@
     <string name="message_unsubscribe_failed_redirect">Serwer nadawcy poprosił o przekierowanie żądania, co zamieniłoby je we wczytanie strony. Sterna odmówiła.</string>
     <string name="message_unsubscribe_failed_offline">Brak sieci. Spróbuj ponownie później.</string>
     <string name="message_unsubscribe_failed_unreachable">Nie można połączyć się z serwerem wypisywania nadawcy.</string>
+    <string name="message_read_receipt_ask">%1$s prosi o powiadomienie, że ta wiadomość została wyświetlona</string>
+    <string name="message_read_receipt_send">Wyślij</string>
+    <string name="message_read_receipt_send_sending">Wysyłanie…</string>
+    <string name="message_read_receipt_send_queued">W kolejce</string>
+    <string name="message_read_receipt_decline">Nie odpowiadaj na tę prośbę</string>
+    <string name="message_read_receipt_sending">Umieszczanie odpowiedzi w skrzynce nadawczej…</string>
+    <string name="message_read_receipt_queued">W skrzynce nadawczej: %1$s</string>
+    <string name="message_read_receipt_failed">Nic nie trafiło do skrzynki nadawczej, nic nie zostanie wysłane.</string>
     <string name="message_view_headers">Pokaż nagłówki</string>
     <string name="message_headers_title">Nagłówki wiadomości</string>
     <string name="message_headers_empty">Brak nagłówków do wyświetlenia</string>
@@ -398,6 +406,9 @@
     <string name="settings_strip_tracking_subtitle">Usuwaj elementy śledzące (utm_*, fbclid, gclid…) z linków przed ich otwarciem, aby nadawcy nie wiedzieli, kiedy w nie klikasz.</string>
     <string name="settings_confirm_links_title">Potwierdzaj przed otwarciem linków</string>
     <string name="settings_confirm_links_subtitle">Pokaż adres docelowy i zapytaj przed otwarciem linku z wiadomości.</string>
+    <string name="settings_read_receipt_section">Prośby o potwierdzenie przeczytania</string>
+    <string name="settings_read_receipt_title">Pytaj przed wysłaniem potwierdzenia przeczytania</string>
+    <string name="settings_read_receipt_subtitle">Niektórzy nadawcy proszą o powiadomienie, gdy ich wiadomość zostanie wyświetlona. Wyłączone — prośba jest ignorowana. Włączone — otwarta wiadomość zaproponuje odpowiedź i nic nie zostanie wysłane bez Twojej zgody.</string>
     <string name="settings_recipient_suggestions_section">Sugestie odbiorców</string>
     <string name="settings_suggest_contacts_title">Sugeruj z kontaktów</string>
     <string name="settings_suggest_contacts_subtitle">Automatycznie uzupełniaj odbiorców z kontaktów tego urządzenia podczas pisania. Sterna Mail odczytuje je tylko na urządzeniu i nigdy ich nie przesyła. Po wyłączeniu nadal sugeruje osoby, do których ostatnio pisałeś.</string>

@@ -390,6 +390,30 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         initialValue = CONFIRM_LINKS_UNLOADED,
     )
 
+    /**
+     * Whether an opened message that asked for a read receipt may raise the question — the setting
+     * of [ReadReceiptSetting], ⛔ NOT a `Boolean`.
+     *
+     * The third value is the point: mapped to `false` while DataStore answers, "not read yet" and
+     * "the reader said no" would be the same thing, and the guard over everyone who never turned
+     * this on would hold by coincidence of a default. It is read at the moment the page settles —
+     * the earliest a question could be raised — so losing the race means no question on that
+     * message, which is the harmless side.
+     *
+     * ⭐ [SharingStarted.Eagerly], alone among the flows above, and it is required rather than
+     * chosen: this one is not collected by a composable. It is read by [maybeMarkRead] through
+     * `.value`, and under `WhileSubscribed` a flow nobody subscribes to never starts — it would sit
+     * on [ReadReceiptSetting.NOT_LOADED] for the life of the page and the switch would appear to do
+     * nothing at all.
+     */
+    val readReceiptSetting: StateFlow<ReadReceiptSetting> = settings.askReadReceipt
+        .map { if (it) ReadReceiptSetting.ON else ReadReceiptSetting.OFF }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = ReadReceiptSetting.NOT_LOADED,
+        )
+
     /** Sender addresses whose remote images load automatically. */
     val imageAllowlist = settings.imageAllowlist.stateIn(
         scope = viewModelScope,
@@ -792,6 +816,134 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // ---- read receipt (RFC 8098) ----
+
+    /**
+     * The question standing on the open message, or null when there is none to ask — which is the
+     * answer for very nearly all mail.
+     *
+     * ⛔ RAISED in exactly one place — [maybeOfferReadReceipt], through [offeredReadReceipt], off a
+     * marking only [maybeMarkRead] can write; see those for why the other eight ways a message
+     * becomes read cannot reach it. Everything else only ever CLEARS it: a new message ([load]), a
+     * refusal, an acceptance, and the switch being turned off. It carries what would be answered,
+     * captured at the moment the question is put, so that what the reader is shown and what would
+     * leave cannot come apart behind a reload.
+     */
+    private val _readReceiptOffer = MutableStateFlow<ReadReceiptRequest?>(null)
+    val readReceiptOffer = _readReceiptOffer.asStateFlow()
+
+    /** Where a receipt this reader accepted has got to; [ReadReceiptState.Idle] until they say so. */
+    private val _readReceiptState = MutableStateFlow<ReadReceiptState>(ReadReceiptState.Idle)
+    val readReceiptState = _readReceiptState.asStateFlow()
+
+    /**
+     * Whether the reader has had their say on THIS message's question — see [ReadReceiptAnswer].
+     *
+     * ⛔ Not derivable from [_readReceiptOffer] being null, and that is the whole reason it exists:
+     * a refusal leaves exactly the same null as a message that never asked, and the decision is
+     * replayed below on every change of the setting. Told apart by nothing, switching off and on
+     * again would put back the question the reader had just declined.
+     */
+    private var readReceiptAnswer = ReadReceiptAnswer.PENDING
+
+    init {
+        // ⭐ BOTH directions, through ONE decision replayed. Turning the switch off takes a standing
+        // question away; turning it ON with a message already open puts it. And it closes the
+        // cold-start race in passing: when the settle AND the body both land before DataStore's
+        // first emission, this is what asks the question that message would otherwise never raise.
+        // ⛔ It is not an amnesty: `readReceiptAnswer` goes into the decision, so a question already
+        // refused, or already answered, does not come back.
+        viewModelScope.launch {
+            readReceiptSetting.collect { maybeOfferReadReceipt() }
+        }
+    }
+
+    /**
+     * The reader said yes: queue the receipt through the outbox and report what was queued.
+     *
+     * The offer is taken and cleared FIRST, so a second tap has nothing to send; and the send uses
+     * the request the banner was showing, never a fresh read of the message on screen — the pager
+     * can settle on another one while this is in flight.
+     *
+     * ⭐ `deliveredTo` is handed over, not left out: it is the address the message ARRIVED at, and
+     * `MailRepository.sendReadReceipt` takes it as a parameter so an account with several aliases
+     * does not answer under a name the sender never wrote to.
+     *
+     * ⭐ What comes back is the preview of the row that was queued, and it is RELAYED into the
+     * state, never rebuilt here: the banner must name the very text that left.
+     *
+     * ⭐ The DECISION is run again here, and not merely "an offer exists". What leaves this device
+     * cannot be taken back, so the switch is read at the moment of the tap: a banner that survived
+     * a frame after the reader turned the setting off must not be able to answer a stranger. Same
+     * belt as the unsubscribe, which re-checks `offeredUnsubscribeAction` before acting.
+     */
+    fun sendReadReceipt() {
+        val pending = offeredReadReceipt(
+            setting = readReceiptSetting.value,
+            marking = ReadMarking.READER_SETTLE_UNREAD,
+            request = _readReceiptOffer.value,
+            answered = readReceiptAnswer.answered,
+        ) ?: return
+        readReceiptAnswer = ReadReceiptAnswer.ACCEPTED
+        _readReceiptOffer.value = null
+        val ownerId = loadedId ?: return
+        val ownerAccount = accountId
+        val app = getApplication<Application>()
+        _readReceiptState.value = ReadReceiptState.Sending
+        viewModelScope.launch {
+            val outcome: ReadReceiptState = try {
+                val credentials = credentials() ?: error(app.getString(R.string.status_no_saved_account))
+                readReceiptSendOutcome(
+                    repo.sendReadReceipt(
+                        credentials = credentials,
+                        receiptTo = pending.receiptTo,
+                        originalSubject = pending.originalSubject,
+                        originalMessageId = pending.originalMessageId,
+                        deliveredTo = pending.deliveredTo,
+                    ),
+                )
+            } catch (cancelled: CancellationException) {
+                // The page it belonged to is gone; not a failure to report.
+                throw cancelled
+            } catch (t: Throwable) {
+                // Said out loud for the same reason the unsubscribe does it: the banner has one
+                // sentence for a refused enqueue, a missing identity and a broken database alike.
+                android.util.Log.w("SternaReadReceipt", "read receipt failed", t)
+                ReadReceiptState.Failed
+            }
+            // The reader is a pager: a swipe while the enqueue is in flight would otherwise land
+            // this answer on the neighbouring message (ids are per account — issue #31).
+            if (loadedId == ownerId && accountId == ownerAccount) {
+                _readReceiptState.value = outcome
+                // ⭐ A FAILURE IS A RETRY, NOT A DEAD END — the posture the unsubscribe strip
+                // already takes ("a refusal or a dead network is a retry"). Nothing was queued, so
+                // the reader's yes bought her nothing; leaving her ACCEPTED would freeze a red
+                // sentence on the message until she left it. ⛔ A REFUSAL is not a failure: this
+                // runs only after she said yes, and `declineReadReceipt` is untouched by it.
+                // Put back through the DECISION rather than by restoring the captured request:
+                // the setting may have moved while the enqueue was in flight, and there must not
+                // be a second way to raise a question.
+                if (outcome == ReadReceiptState.Failed) {
+                    readReceiptAnswer = ReadReceiptAnswer.PENDING
+                    maybeOfferReadReceipt()
+                }
+            }
+        }
+    }
+
+    /**
+     * The reader said no: the question goes, and ⛔ nothing leaves.
+     *
+     * The refusal is remembered for THIS PAGE only, and only so that replaying the decision (the
+     * setting changing, the body landing) cannot put the question back. ⛔ Nothing is written
+     * anywhere: leave the message and come back and there is no memory of it, which is the trade
+     * this work made to avoid a column, a migration and a resync.
+     */
+    fun declineReadReceipt() {
+        readReceiptAnswer = ReadReceiptAnswer.DECLINED
+        _readReceiptOffer.value = null
+    }
+
     /** One automatic decrypt attempt per opened message (when the page settles). */
     private var autoDecryptTried = false
 
@@ -808,6 +960,17 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     // the anchor is read once (guarded by [anchorMarked]) when it is both active and loaded.
     private var active = false
     private var anchorMarked = false
+
+    /**
+     * How this page's message came to be marked read, once the pager settled on it — null until
+     * then, and null again for every new message ([load]).
+     *
+     * ⛔ Written in [maybeMarkRead] and nowhere else. It is the gate [maybeOfferReadReceipt] opens
+     * on, so a `setRead` coming from anywhere but this page's settle has no way to reach the
+     * read-receipt decision at all: it would have to write this field, and nothing outside this
+     * class can see it.
+     */
+    private var settleMarking: ReadMarking? = null
 
     /** Credentials for the message's own account (unified inbox), else the current one. */
     private fun credentials(): AccountCredentials? =
@@ -836,10 +999,17 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _unsubscribe.value = null
         _unsubscribeState.value = UnsubscribeState.Idle
         _unsubscribeConfirm.value = null
+        // And the read receipt, for the same reason and one degree worse: its button answers a
+        // NAMED stranger, captured from the message we are leaving. Left standing, a tap would
+        // tell the previous sender that a message the reader is no longer looking at was read.
+        _readReceiptOffer.value = null
+        _readReceiptState.value = ReadReceiptState.Idle
+        readReceiptAnswer = ReadReceiptAnswer.PENDING
         // Re-point the move picker at the account this page's message belongs to, before any
         // of its state is read (the folders come from the cache, so no network is involved).
         _ownerAccountId.value = credentials()?.id
         anchorMarked = false
+        settleMarking = null
         _state.value = MessageState.Loading
         _messages.value = emptyList()
         _mailboxRole.value = null
@@ -945,6 +1115,11 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 loadCalendarFor(_messages.value.first())
                 // If the page already settled before the body arrived, read it now.
                 maybeMarkRead()
+                // …and put the receipt question now that the body — the only fetch carrying
+                // `Disposition-Notification-To` — is in hand. A page that settled while the cached
+                // row was on screen took its decision on a row that could not name a single
+                // address; this is the first moment both halves of it exist.
+                maybeOfferReadReceipt()
                 // The reader shows the single opened message; the conversation (the rest of the
                 // thread) now lives only in the list's inline unfold, so no thread merge here.
             } catch (t: Throwable) {
@@ -955,6 +1130,10 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 _unsubscribe.value = null
                 _unsubscribeState.value = UnsubscribeState.Idle
                 _unsubscribeConfirm.value = null
+                // The receipt question likewise: there is no message under it any more, and a
+                // banner that outlives its message is one that never goes away.
+                _readReceiptOffer.value = null
+                _readReceiptState.value = ReadReceiptState.Idle
                 _state.value = MessageState.Error(readFailureText(t))
             }
         }
@@ -1070,11 +1249,31 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _crypto.value = CryptoUiState.Locked(lockedKind ?: CryptoKind.PGP_ENCRYPTED)
     }
 
-    /** Mark the anchor read (once) when this page is both settled and loaded. */
+    /**
+     * Mark the anchor read (once) when this page is both settled and loaded.
+     *
+     * ⭐ **The one place [settleMarking] is ever written**, and the reason is the `active` guard on
+     * its first line: settled means the pager has stopped on this page, so the message is in front
+     * of a person. `MailRepository.setRead`'s eight other callers — a swipe, a conversation unfold,
+     * a multi-select, "mark all read", a notification action, the marking on archive/delete, a
+     * Sieve rule, a `$seen` arriving from another device — mark mail read that nobody looked at
+     * here. `SECURITY.md` promises no read signal leaves on open; a receipt proposed for a swipe
+     * would contradict it word for word. See [offeredReadReceipt] for the decision itself and
+     * [ReadMarking] for how a call site says which of the nine it is.
+     */
     private fun maybeMarkRead() {
         if (!active || anchorMarked) return
         val current = (_state.value as? MessageState.Loaded)?.email ?: return
         anchorMarked = true
+        // Recorded BEFORE the early return below, because "already read" is one of the answers the
+        // decision owes: reopening a message that was read must NOT ask again, and that is the
+        // whole reason this work stores no "already offered / already refused" anywhere.
+        settleMarking = if (current.isSeen) {
+            ReadMarking.READER_SETTLE_ALREADY_READ
+        } else {
+            ReadMarking.READER_SETTLE_UNREAD
+        }
+        maybeOfferReadReceipt()
         if (current.isSeen) return
         // Reflect the read state immediately so the unread dot clears on settle…
         updateMessage(current.id) { it.copy(header = it.header.markRead(), body = it.body?.markRead()) }
@@ -1086,6 +1285,40 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             // Clear the mail's notification now that it's been read (Codeberg #19).
             Notifications.dismiss(getApplication(), credentials.id, credentials.username, listOf(current.id))
         }
+    }
+
+    /**
+     * Put — or take away — the read-receipt question, by RUNNING the decision against the state as
+     * it now stands.
+     *
+     * It cannot decide anything on its own: [settleMarking] is null until [maybeMarkRead] has run,
+     * and [maybeMarkRead] is the settle. That null is what makes the other eight ways a message
+     * becomes read structurally unable to reach the decision — none of them touches this page's
+     * marking, so none of them can put a value in it.
+     *
+     * Called from four places, because four things can complete the picture in any order:
+     *  - the SETTLE, which is the only one that decides a message was read by a person;
+     *  - the BODY landing, which is the only fetch carrying `Disposition-Notification-To` (the
+     *    cached list row painted first cannot);
+     *  - the SETTING changing, which is both the reader turning it on with a message already open
+     *    and DataStore answering after the other two have already happened;
+     *  - a SEND that FAILED, which puts back a question the reader answered but that bought her
+     *    nothing — a retry, exactly as the unsubscribe strip offers one. ⛔ Not a refusal: that one
+     *    is remembered.
+     *
+     * Being a function of the current state rather than of an event is what makes replaying it
+     * safe. ⛔ Except for one thing, which is why [readReceiptAnswer] goes in: a reader who said no
+     * has answered, and no replay may ask them again.
+     */
+    private fun maybeOfferReadReceipt() {
+        val marking = settleMarking ?: return
+        val current = (_state.value as? MessageState.Loaded)?.email ?: return
+        _readReceiptOffer.value = offeredReadReceipt(
+            setting = readReceiptSetting.value,
+            marking = marking,
+            request = readReceiptRequest(current, _deliveredTo.value),
+            answered = readReceiptAnswer.answered,
+        )
     }
 
     /** Download an attachment to the cache and hand it to a viewer app. */

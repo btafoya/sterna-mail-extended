@@ -967,7 +967,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     attachments, htmlBody, identity?.name, identity?.email, ccList, bccList,
                     holdMs = SendOutbox.HOLD_MS,
                     pgpMode = mode.takeIf { it != PgpMode.OFF },
-                    pgpEntity = pgpEntity,
+                    prebuiltEntity = pgpEntity,
                     // Editing a saved draft (#63): once this send is delivered, the worker
                     // destroys the draft it came from, so Drafts keeps no stale duplicate.
                     draftEmailId = editingDraftId,

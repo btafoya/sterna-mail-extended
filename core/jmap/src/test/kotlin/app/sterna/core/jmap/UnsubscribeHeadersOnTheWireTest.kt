@@ -194,23 +194,36 @@ class UnsubscribeHeadersOnTheWireTest {
     }
 
     /**
-     * ⛔ And the boundary of THAT. A 400 is the only status replayed. 401/403 are credentials,
-     * 5xx is the server being ill: replaying any of them would double the traffic, and — worse —
-     * hide a real refusal behind a second attempt that fails for the same reason.
+     * ⛔ And the boundary of THAT, for THIS guard: a 400 is the only status it replays without the
+     * unsubscribe headers. 401/403 are credentials, 5xx is the server being ill; dropping these
+     * two headers could not help, and pretending it might would hide a real refusal behind a
+     * second attempt that fails for the same reason.
+     *
+     * ⚠ The request COUNT is two per status, not one, and that is not this guard: the read-receipt
+     * guard wraps this one and replays anything but a rate limit, because that property is
+     * unmeasured and a server refusing it in unexpected words would otherwise wall the account
+     * (see `ReadReceiptHeaderOnTheWireTest`). What is asserted here is what belongs here — the
+     * status reaches the caller unchanged, and these two headers are never the thing dropped.
      */
-    @Test fun `an authentication or server error is never replayed`() = runBlocking {
+    @Test fun `an authentication or server error is never replayed without these headers`() = runBlocking {
         listOf(401, 403, 500, 503).forEach { code ->
             // A fresh client per code: the "refuses the properties" memo is per instance, and a
             // shared one would let the first code's verdict decide the next code's request.
             val fresh = JmapClient()
-            server.enqueue(MockResponse().setResponseCode(code))
+            repeat(2) { server.enqueue(MockResponse().setResponseCode(code)) }
 
             val failure = runCatching { fresh.getEmail(session(), "acc1", "m1", auth) }.exceptionOrNull()
 
             assertTrue("HTTP $code: $failure", failure is JmapException)
             assertEquals("HTTP $code must reach the caller", code, (failure as JmapException).httpCode)
         }
-        assertEquals("exactly one request per status, no replays", 4, server.requestCount)
+        assertEquals("one attempt and the outer guard's single replay, per status", 8, server.requestCount)
+        repeat(server.requestCount) {
+            assertTrue(
+                "no attempt may drop the unsubscribe headers over a failure that is not about them",
+                server.takeRequest().body.readUtf8().contains("header:List-Unsubscribe"),
+            )
+        }
     }
 
     /**
@@ -282,17 +295,21 @@ class UnsubscribeHeadersOnTheWireTest {
      * And the limit of the fallback: a real failure is NOT retried without the properties. Doing
      * so would swallow the error and hand the reader an empty message instead of a diagnosis.
      */
-    @Test fun `an unrelated method error is not retried`() = runBlocking {
-        server.enqueue(
-            MockResponse()
-                .setHeader("Content-Type", "application/json")
-                .setBody("""{"methodResponses":[["error",{"type":"accountNotFound"},"g0"]]}"""),
-        )
+    @Test fun `an unrelated method error is not retried without these headers`() = runBlocking {
+        val accountNotFound = MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("""{"methodResponses":[["error",{"type":"accountNotFound"},"g0"]]}""")
+        repeat(2) { server.enqueue(accountNotFound) }
 
         val failure = runCatching { client.getEmail(session(), "acc1", "m1", auth) }.exceptionOrNull()
 
         assertTrue("$failure", failure is JmapException)
         assertEquals("accountNotFound", (failure as JmapException).errorType)
-        assertEquals(1, server.requestCount)
+        // Two requests, and the second is the read-receipt guard's replay (see the note above);
+        // the error reaches the caller unchanged and these headers are asked for both times.
+        assertEquals(2, server.requestCount)
+        repeat(2) {
+            assertTrue(server.takeRequest().body.readUtf8().contains("header:List-Unsubscribe"))
+        }
     }
 }

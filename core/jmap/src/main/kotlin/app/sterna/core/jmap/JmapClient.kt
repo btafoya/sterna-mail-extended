@@ -875,48 +875,53 @@ class JmapClient internal constructor(
         emailId: String,
         auth: JmapAuth,
     ): Email = withContext(Dispatchers.IO) {
-        withUnsubscribeHeaderFallback(session) { withUnsubscribeHeaders ->
-            val payload = buildJsonObject {
-                putJsonArray("using") {
-                    add(Jmap.CORE_CAPABILITY)
-                    add(Jmap.MAIL_CAPABILITY)
-                }
-                putJsonArray("methodCalls") {
-                    addJsonArray {
-                        add("Email/get")
-                        addJsonObject {
-                            put("accountId", accountId)
-                            putJsonArray("ids") { add(emailId) }
-                            putJsonArray("properties") {
-                                EMAIL_BODY_PROPERTIES.forEach { add(it) }
-                                if (withUnsubscribeHeaders) UNSUBSCRIBE_PROPERTIES.forEach { add(it) }
+        // Two guards, receipt OUTSIDE and unsubscribe INSIDE — the order is load-bearing and its
+        // reasons are in [withReceiptHeaderFallback].
+        withReceiptHeaderFallback(session) { withReceiptHeader ->
+            withUnsubscribeHeaderFallback(session) { withUnsubscribeHeaders ->
+                val payload = buildJsonObject {
+                    putJsonArray("using") {
+                        add(Jmap.CORE_CAPABILITY)
+                        add(Jmap.MAIL_CAPABILITY)
+                    }
+                    putJsonArray("methodCalls") {
+                        addJsonArray {
+                            add("Email/get")
+                            addJsonObject {
+                                put("accountId", accountId)
+                                putJsonArray("ids") { add(emailId) }
+                                putJsonArray("properties") {
+                                    EMAIL_BODY_PROPERTIES.forEach { add(it) }
+                                    if (withUnsubscribeHeaders) UNSUBSCRIBE_PROPERTIES.forEach { add(it) }
+                                    if (withReceiptHeader) add(RECEIPT_HEADER_PROPERTY)
+                                }
+                                put("fetchHTMLBodyValues", true)
+                                put("fetchTextBodyValues", true)
                             }
-                            put("fetchHTMLBodyValues", true)
-                            put("fetchTextBodyValues", true)
+                            add("g0")
                         }
-                        add("g0")
                     }
                 }
-            }
-            val request = Request.Builder()
-                .url(session.apiUrl)
-                .header("Authorization", auth.authorizationHeader())
-                .header("Accept", "application/json")
-                .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
-                .build()
-            httpClient.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    // The message is unchanged word for word — it is shown to the reader. Only
-                    // the structured code is new, and only so the fallback above can tell a
-                    // rejected property (400) from a refusal that must stand (401, 403, 5xx).
-                    throw JmapException(
-                        "Email/get failed: HTTP ${response.code} ${response.message}",
-                        httpCode = response.code,
-                    )
+                val request = Request.Builder()
+                    .url(session.apiUrl)
+                    .header("Authorization", auth.authorizationHeader())
+                    .header("Accept", "application/json")
+                    .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                httpClient.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        // The message is unchanged word for word — it is shown to the reader.
+                        // Only the structured code is new, and only so the fallbacks above can
+                        // tell a rejected property (400) from a refusal that must stand.
+                        throw JmapException(
+                            "Email/get failed: HTTP ${response.code} ${response.message}",
+                            httpCode = response.code,
+                        )
+                    }
+                    decodeList(body, "Email/get", Email.serializer()).firstOrNull()
+                        ?: throw JmapException("Email not found: $emailId")
                 }
-                decodeList(body, "Email/get", Email.serializer()).firstOrNull()
-                    ?: throw JmapException("Email not found: $emailId")
             }
         }
     }
@@ -971,30 +976,33 @@ class JmapClient internal constructor(
         auth: JmapAuth,
     ): List<Email> = withContext(Dispatchers.IO) {
         getInBatches(session, ids) { batch ->
-            withUnsubscribeHeaderFallback(session) { withUnsubscribeHeaders ->
-                val payload = buildJsonObject {
-                    putJsonArray("using") {
-                        add(Jmap.CORE_CAPABILITY)
-                        add(Jmap.MAIL_CAPABILITY)
-                    }
-                    putJsonArray("methodCalls") {
-                        addJsonArray {
-                            add("Email/get")
-                            addJsonObject {
-                                put("accountId", accountId)
-                                putJsonArray("ids") { batch.forEach { add(it) } }
-                                putJsonArray("properties") {
-                                    EMAIL_BODY_PROPERTIES.forEach { add(it) }
-                                    if (withUnsubscribeHeaders) UNSUBSCRIBE_PROPERTIES.forEach { add(it) }
+            withReceiptHeaderFallback(session) { withReceiptHeader ->
+                withUnsubscribeHeaderFallback(session) { withUnsubscribeHeaders ->
+                    val payload = buildJsonObject {
+                        putJsonArray("using") {
+                            add(Jmap.CORE_CAPABILITY)
+                            add(Jmap.MAIL_CAPABILITY)
+                        }
+                        putJsonArray("methodCalls") {
+                            addJsonArray {
+                                add("Email/get")
+                                addJsonObject {
+                                    put("accountId", accountId)
+                                    putJsonArray("ids") { batch.forEach { add(it) } }
+                                    putJsonArray("properties") {
+                                        EMAIL_BODY_PROPERTIES.forEach { add(it) }
+                                        if (withUnsubscribeHeaders) UNSUBSCRIBE_PROPERTIES.forEach { add(it) }
+                                        if (withReceiptHeader) add(RECEIPT_HEADER_PROPERTY)
+                                    }
+                                    put("fetchHTMLBodyValues", true)
+                                    put("fetchTextBodyValues", true)
                                 }
-                                put("fetchHTMLBodyValues", true)
-                                put("fetchTextBodyValues", true)
+                                add("g0")
                             }
-                            add("g0")
                         }
                     }
+                    decodeList(postJmap(session, auth, payload), "Email/get", Email.serializer())
                 }
-                decodeList(postJmap(session, auth, payload), "Email/get", Email.serializer())
             }
         }
     }
@@ -1033,10 +1041,96 @@ class JmapClient internal constructor(
             call(ask)
         } catch (e: JmapException) {
             if (!ask || !isPropertyRejection(e)) throw e
+            // ⭐ The verdict is recorded only if dropping THESE properties is what made the call
+            // work. Before [withReceiptHeaderFallback] existed, these two were the only optional
+            // thing in the payload, so a rejection could only be about them and recording it up
+            // front cost nothing. It is no longer the only thing: a server that refuses the
+            // receipt property instead would have been written down here as one that refuses the
+            // unsubscribe headers, and the reader's banner would be off on that account for the
+            // life of the process — for a header that server was perfectly happy with. A retry
+            // that also fails now leaves NO verdict behind, which is the truth: the blame lies
+            // elsewhere (the receipt property, or `replyTo`).
+            val answered = call(false)
             serversRefusingUnsubscribeHeaders.add(session.apiUrl)
-            call(false)
+            answered
         }
     }
+
+    /**
+     * The twin of [withUnsubscribeHeaderFallback] for [RECEIPT_HEADER_PROPERTY], with its OWN
+     * per-URL memo — and deliberately not one guard covering both.
+     *
+     * **The invariant this shape buys, and the only reason for the duplication:** a server that
+     * refuses the receipt property keeps its unsubscribe banner, and a server that refuses the
+     * unsubscribe headers keeps the receipt reading. One guard over both property groups would
+     * drop all three the moment any one of them is refused, and neither feature could ever come
+     * back for that server.
+     *
+     * **The nesting, and why this one is OUTSIDE.** The two guards wrap the same request, so the
+     * inner one is the first to be retried. The inner one is [withUnsubscribeHeaderFallback], the
+     * measured one (Stalwart accepts those two properties; Cyrus, Fastmail and James were never
+     * measured), so a server that refuses them costs exactly the two requests it cost before this
+     * property existed, and the reader's banner behaviour is unchanged. The new, unmeasured
+     * property is the one that pays the extra probe: refusing it costs three requests once, then
+     * one for the rest of the process.
+     *
+     * What makes the two independent rather than merely nested is that BOTH write their memo only
+     * after a retry that actually succeeded — see the comment in the inner one. A server refusing
+     * only the receipt property therefore ends with only this memo set; one refusing only the
+     * unsubscribe headers ends with only the other; one refusing both ends with both, after four
+     * requests, once.
+     *
+     * ⭐ **Which failures are replayed: ALL of them, and that is deliberately NOT what the
+     * unsubscribe guard does.** That one replays [isPropertyRejection] only — `invalidArguments`,
+     * `unknownMethod`, HTTP 400 — because those two properties have been measured against a live
+     * server. This one has not: it has been seen to work on Stalwart and nowhere else, and a
+     * server that dislikes it is free to say so as `serverFail`, as a 500 from a validator that
+     * fell over, or in words RFC 8620 never wrote down. Under the narrow rule, every one of those
+     * would mean **no message opens at all on that account** — a mailbox that worked before this
+     * property was ever asked for. Dropping a property that is optional by construction can lose
+     * nothing; refusing to open mail cannot be undone by the user. So: replay anything, once.
+     *
+     * ⛔ The price, paid in full below: when the replay fails too, the ORIGINAL exception is
+     * rethrown, not the second one. A 401 must reach the reader as the 401 it was — the words are
+     * shown on screen — and a failure that had nothing to do with the property must leave no
+     * verdict behind about it. The cost is one extra request on an open that was failing anyway.
+     *
+     * ⛔ One exception to "anything": a rate limit ([isRateLimit]) is not replayed. This guard is
+     * outside [postWithRetry]'s backoff ladder, so replaying one would run that ladder twice —
+     * nine requests at a server that has just asked for fewer. See [isRateLimit].
+     */
+    private suspend fun <T> withReceiptHeaderFallback(
+        session: JmapSession,
+        call: suspend (withReceiptHeader: Boolean) -> T,
+    ): T {
+        val ask = session.apiUrl !in serversRefusingReceiptHeader
+        return try {
+            call(ask)
+        } catch (e: JmapException) {
+            if (!ask || isRateLimit(e)) throw e
+            val answered = try {
+                call(false)
+            } catch (_: JmapException) {
+                // The property was not the problem. Report what the reader actually met.
+                throw e
+            }
+            serversRefusingReceiptHeader.add(session.apiUrl)
+            answered
+        }
+    }
+
+    /**
+     * Whether [session]'s server was measured to reject [RECEIPT_HEADER_PROPERTY], i.e. whether a
+     * null `dispositionNotificationTo` on a message it returned means anything at all.
+     *
+     * ⭐ Asked by the draft save, and for one reason: on such a server EVERY message comes back
+     * with that field null, including a draft that does carry the header. Reading that as "this
+     * draft asks for no receipt" would let the save destroy the server copy that holds the
+     * request. The caller turns a `true` here into an UNKNOWN, and an unknown keeps the original
+     * (see `draftReceiptRequestIsCarried`).
+     */
+    fun refusesReceiptHeader(session: JmapSession): Boolean =
+        session.apiUrl in serversRefusingReceiptHeader
 
     /**
      * Every message of a thread (lightweight, no body) — `Thread/get`, then `Email/get` on the ids
@@ -2476,6 +2570,15 @@ class JmapClient internal constructor(
     private val serversRefusingUnsubscribeHeaders: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
+    /**
+     * API URLs whose server rejected [RECEIPT_HEADER_PROPERTY]. Its OWN set, separate from
+     * [serversRefusingUnsubscribeHeaders] on purpose: the two refusals are independent, and one
+     * shared flag would cost a server that dislikes one of them the other as well. Same lifetime
+     * and same per-URL scope — memory only, one entry per API URL.
+     */
+    private val serversRefusingReceiptHeader: MutableSet<String> =
+        java.util.concurrent.ConcurrentHashMap.newKeySet()
+
     companion object {
         /** How often the server should ping the EventSource connection, in seconds. */
         private const val PING_SECONDS = 90L
@@ -2498,13 +2601,14 @@ class JmapClient internal constructor(
          * it, the whole `Email/get` would fail and no message would open — the pattern to copy is
          * [withUnsubscribeHeaderFallback], and it would need its own per-URL memo.
          *
-         * ⚠ Adding it narrowed an assumption that guard makes. [withUnsubscribeHeaderFallback]
-         * reads any property rejection on THIS payload as "the two unsubscribe headers", because
-         * they used to be the only optional thing in it. A server refusing `replyTo` would now be
-         * misread: the retry drops the headers, keeps `replyTo`, fails again, and the unsubscribe
-         * banner stays off for that server for the life of the process. Left as is — the message
-         * would not open at all in that case, which is the larger problem, and the property is
-         * mandatory. Recorded so the next reader does not have to rediscover it.
+         * ⚠ Adding it narrowed an assumption that guard made: [withUnsubscribeHeaderFallback] read
+         * any property rejection on THIS payload as "the two unsubscribe headers", because they
+         * used to be the only optional thing in it. They no longer are — [RECEIPT_HEADER_PROPERTY]
+         * is optional too — so each guard now records its verdict only when dropping ITS OWN
+         * properties is what made the call succeed. A server refusing `replyTo` (or anything else
+         * mandatory) therefore leaves no verdict behind at all: every attempt fails, the message
+         * does not open, and that larger problem is not disguised as "this server has no
+         * unsubscribe banner" for the life of the process.
          */
         internal val EMAIL_BODY_PROPERTIES = listOf(
             "id", "blobId", "threadId", "subject", "preview", "receivedAt",
@@ -2521,6 +2625,18 @@ class JmapClient internal constructor(
             "header:List-Unsubscribe:asText",
             "header:List-Unsubscribe-Post:asText",
         )
+
+        /**
+         * The header property an opened message's read receipt is read from (RFC 8098, in RFC 8621
+         * §4.1.3's header form). Named here once so the request and its fallback cannot disagree.
+         *
+         * ⭐ `asText`, not `asAddresses`: the IMAP path can only hand over raw header text, and one
+         * parser for both protocols is worth more than a structured form on one of them. ⛔ It is
+         * NOT the property [sendEmail] and [saveDraft] write — that one is `asAddresses`, because
+         * a create needs a value the server can re-emit. Reading and writing are two properties
+         * with two forms, deliberately.
+         */
+        internal const val RECEIPT_HEADER_PROPERTY = "header:Disposition-Notification-To:asText"
 
         /**
          * Method-level errors that mean "I do not accept this argument" (RFC 8620 §3.6.2), i.e.
@@ -2546,6 +2662,20 @@ class JmapClient internal constructor(
 
         /** RFC 8620 §3.6.1 request-level limit error (e.g. Stalwart's maxConcurrentRequests). */
         private const val JMAP_ERROR_LIMIT = "urn:ietf:params:jmap:error:limit"
+
+        /**
+         * Whether [e] is a server saying "too many requests" — RFC 8620 §3.6.1's `error:limit` or
+         * a plain 429.
+         *
+         * The ONE failure [withReceiptHeaderFallback] does not replay, and the reason is arithmetic
+         * rather than principle: that guard sits OUTSIDE [postWithRetry]'s backoff ladder, so
+         * replaying a rate limit would run the whole ladder a second time — nine requests where
+         * five were already too many, against a server that has just asked for fewer. A limit is
+         * also, by construction, not about a property: it is answered before the method is
+         * dispatched, so the server never looked at what was asked for.
+         */
+        private fun isRateLimit(e: JmapException): Boolean =
+            e.errorType == JMAP_ERROR_LIMIT || e.httpCode == 429
 
         /** Retries for the transient limit/429 error, with a linear backoff step. */
         private const val LIMIT_RETRY_MAX = 4

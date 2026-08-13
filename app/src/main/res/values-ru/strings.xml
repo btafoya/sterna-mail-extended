@@ -168,6 +168,14 @@
     <string name="message_unsubscribe_failed_redirect">Сервер отправителя запросил перенаправление, что превратило бы запрос в загрузку страницы. Sterna отказалась.</string>
     <string name="message_unsubscribe_failed_offline">Нет сети. Повторите попытку позже.</string>
     <string name="message_unsubscribe_failed_unreachable">Не удалось связаться с сервером отписки отправителя.</string>
+    <string name="message_read_receipt_ask">%1$s просит сообщить, что это письмо было показано</string>
+    <string name="message_read_receipt_send">Отправить</string>
+    <string name="message_read_receipt_send_sending">Отправка…</string>
+    <string name="message_read_receipt_send_queued">В очереди</string>
+    <string name="message_read_receipt_decline">Не отвечать на этот запрос</string>
+    <string name="message_read_receipt_sending">Ответ помещается в исходящие…</string>
+    <string name="message_read_receipt_queued">В исходящих: %1$s</string>
+    <string name="message_read_receipt_failed">В исходящие ничего не помещено, ничего отправлено не будет.</string>
     <string name="message_view_headers">Показать заголовки</string>
     <string name="message_headers_title">Заголовки письма</string>
     <string name="message_headers_empty">Нет заголовков для отображения</string>
@@ -398,6 +406,9 @@
     <string name="settings_strip_tracking_subtitle">Удалять трекеры (utm_*, fbclid, gclid…) из ссылок перед их открытием, чтобы отправители не могли узнать, когда вы переходите по ссылке.</string>
     <string name="settings_confirm_links_title">Подтверждать перед открытием ссылок</string>
     <string name="settings_confirm_links_subtitle">Показывать адрес назначения и запрашивать подтверждение перед открытием ссылки из письма.</string>
+    <string name="settings_read_receipt_section">Запросы уведомления о прочтении</string>
+    <string name="settings_read_receipt_title">Спрашивать перед отправкой уведомления о прочтении</string>
+    <string name="settings_read_receipt_subtitle">Некоторые отправители просят сообщить им, когда их письмо будет показано. Выключено — запрос игнорируется. Включено — открытое письмо предложит ответить на него, и ничего не отправляется без вашего согласия.</string>
     <string name="settings_recipient_suggestions_section">Подсказки получателей</string>
     <string name="settings_suggest_contacts_title">Подсказывать из контактов</string>
     <string name="settings_suggest_contacts_subtitle">Автодополнять получателей из контактов этого устройства при вводе. Sterna Mail читает их только на устройстве и никогда не отправляет. Если выключено, всё равно подсказывает тех, кому вы недавно писали.</string>

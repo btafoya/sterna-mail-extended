@@ -923,6 +923,7 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
     val contactSuggestions by viewModel.contactSuggestions.collectAsStateWithLifecycle()
     val stripTracking by viewModel.stripTrackingParams.collectAsStateWithLifecycle()
     val confirmLinks by viewModel.confirmLinks.collectAsStateWithLifecycle()
+    val askReadReceipt by viewModel.askReadReceipt.collectAsStateWithLifecycle()
     val imageAllowlist by viewModel.imageAllowlist.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val contactsPermission = rememberLauncherForActivityResult(
@@ -960,6 +961,17 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
                     subtitle = stringResource(R.string.settings_confirm_links_subtitle),
                     checked = confirmLinks,
                     onCheckedChange = viewModel::setConfirmLinks,
+                )
+            }
+            // Next to the remote content it belongs with: both are "what does this message get to
+            // learn about me?". ⛔ ONE switch, and it asks — there is no third position that sends
+            // on its own, under any name.
+            SettingsSection(stringResource(R.string.settings_read_receipt_section)) {
+                SettingSwitch(
+                    title = stringResource(R.string.settings_read_receipt_title),
+                    subtitle = stringResource(R.string.settings_read_receipt_subtitle),
+                    checked = askReadReceipt,
+                    onCheckedChange = viewModel::setAskReadReceipt,
                 )
             }
             SettingsSection(stringResource(R.string.settings_image_allowlist_section)) {

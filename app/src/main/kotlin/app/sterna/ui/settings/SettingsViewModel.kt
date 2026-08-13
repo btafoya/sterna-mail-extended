@@ -152,6 +152,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { settings.setConfirmLinks(value) }
     }
 
+    /**
+     * The read-receipt switch (#148): whether an opened message may ASK whether to answer the
+     * sender who requested one. Off by default, and off is the position the switch shows while
+     * DataStore answers — here, unlike in the reader, that literal is only what a switch DRAWS
+     * for a frame, and the stored default is what it is drawn against.
+     *
+     * ⛔ The screen must not grow a third position. "Always send" is not a setting this app has.
+     */
+    val askReadReceipt = settings.askReadReceipt.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false,
+    )
+
+    fun setAskReadReceipt(value: Boolean) {
+        viewModelScope.launch { settings.setAskReadReceipt(value) }
+    }
+
     val imageAllowlist = settings.imageAllowlist.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

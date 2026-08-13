@@ -168,6 +168,14 @@
     <string name="message_unsubscribe_failed_redirect">Le serveur de l\'expéditeur a demandé une redirection, ce qui transformerait la requête en chargement de page. Sterna a refusé.</string>
     <string name="message_unsubscribe_failed_offline">Pas de réseau. Réessayez plus tard.</string>
     <string name="message_unsubscribe_failed_unreachable">Le serveur de désabonnement de l\'expéditeur est injoignable.</string>
+    <string name="message_read_receipt_ask">%1$s demande à être prévenu de l\'affichage de ce message</string>
+    <string name="message_read_receipt_send">Envoyer</string>
+    <string name="message_read_receipt_send_sending">Envoi…</string>
+    <string name="message_read_receipt_send_queued">En file</string>
+    <string name="message_read_receipt_decline">Ne pas répondre à cette demande</string>
+    <string name="message_read_receipt_sending">Mise de la réponse dans la boîte d\'envoi…</string>
+    <string name="message_read_receipt_queued">Dans la boîte d\'envoi : %1$s</string>
+    <string name="message_read_receipt_failed">Rien n\'a été mis dans la boîte d\'envoi, rien ne partira.</string>
     <string name="message_view_headers">Afficher les en-têtes</string>
     <string name="message_headers_title">En-têtes du message</string>
     <string name="message_headers_empty">Aucun en-tête à afficher</string>
@@ -398,6 +406,9 @@
     <string name="settings_strip_tracking_subtitle">Supprimez les traceurs (utm_*, fbclid, gclid…) des liens avant de les ouvrir, afin que les expéditeurs ne puissent pas savoir quand vous cliquez.</string>
     <string name="settings_confirm_links_title">Confirmer avant d\'ouvrir les liens</string>
     <string name="settings_confirm_links_subtitle">Affichez la destination et demandez confirmation avant d\'ouvrir un lien contenu dans un message.</string>
+    <string name="settings_read_receipt_section">Demandes d\'accusé de lecture</string>
+    <string name="settings_read_receipt_title">Demander avant d\'envoyer un accusé de lecture</string>
+    <string name="settings_read_receipt_subtitle">Certains expéditeurs demandent à être prévenus quand leur message est affiché. Désactivé, la demande est ignorée. Activé, le message ouvert vous propose d\'y répondre, et rien ne part sans votre accord.</string>
     <string name="settings_recipient_suggestions_section">Suggestions de destinataires</string>
     <string name="settings_suggest_contacts_title">Suggérer depuis les contacts</string>
     <string name="settings_suggest_contacts_subtitle">Compléter les destinataires depuis les contacts de cet appareil pendant la saisie. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais. Désactivé, il suggère quand même les personnes que vous avez contactées récemment.</string>

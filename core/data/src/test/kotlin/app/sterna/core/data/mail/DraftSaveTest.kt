@@ -27,6 +27,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 2, attachmentsCarried = 2, bodyIsLossy = false,
                 addressingIsCarried = true,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -36,6 +37,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = true,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -47,6 +49,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 2, attachmentsCarried = 1, bodyIsLossy = false,
                 addressingIsCarried = true,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -56,6 +59,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 1, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = true,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -67,6 +71,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = true,
                 addressingIsCarried = true,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -80,6 +85,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = false,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -230,6 +236,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = carried,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -246,6 +253,7 @@ class DraftSaveTest {
             draftReplacementIsFaithful(
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = carried,
+                receiptRequestIsCarried = true,
             ),
         )
     }
@@ -300,5 +308,153 @@ class DraftSaveTest {
     /** An address present but blank says as little as one that is absent. */
     @Test fun aBlankAddressIsAsUnreadableAsAMissingOne() {
         assertNull(copiedAddressesOrNull(listOf(ImapAddress(name = "aa", email = "   "))))
+    }
+
+    // ---- draftReceiptRequestIsCarried: the same rule, for the read receipt (D2) ---------------
+
+    /**
+     * ⭐ THE distinction, half one, and the reason this field could not be in the guard before the
+     * header could be read: `null` = could not be established. Not "asks for nothing".
+     *
+     * ⛔ Stated for `replacement = false` ONLY, which is where it means something: the new copy
+     * carries no request, so an original that might have held one must not be destroyed.
+     */
+    @Test fun aReceiptRequestThatCouldNotBeReadIsNotTheAbsenceOfOne() {
+        assertFalse(draftReceiptRequestIsCarried(original = null, replacement = false))
+    }
+
+    /**
+     * ⭐ …and the limit of that conservatism: when the REPLACEMENT asks for a receipt, nothing the
+     * original held can be lost, whatever it held. Answering false there would leave a duplicate
+     * in Drafts on every save of a draft that asks for one — the very thing this guard is supposed
+     * to stop doing to ordinary drafts.
+     */
+    @Test fun aReplacementThatAsksForOneCarriesAnythingIncludingAnUnknown() {
+        assertTrue(draftReceiptRequestIsCarried(original = null, replacement = true))
+        assertTrue(draftReceiptRequestIsCarried(original = true, replacement = true))
+        assertTrue(draftReceiptRequestIsCarried(original = false, replacement = true))
+    }
+
+    /** Half two, deliberately a separate test: a draft that really asked for nothing loses
+     *  nothing, so it may be replaced whatever the new one does. */
+    @Test fun anOriginalThatAskedForNothingIsCarriedByAnything() {
+        assertTrue(draftReceiptRequestIsCarried(original = false, replacement = false))
+        assertTrue(draftReceiptRequestIsCarried(original = false, replacement = true))
+    }
+
+    /** The loss itself: the original asked, the replacement does not. */
+    @Test fun aReceiptRequestTheReplacementDroppedIsNotCarried() {
+        assertFalse(draftReceiptRequestIsCarried(original = true, replacement = false))
+    }
+
+    /** And the ordinary case, which must NOT leave a duplicate behind. */
+    @Test fun aReceiptRequestStillAskedForIsCarried() {
+        assertTrue(draftReceiptRequestIsCarried(original = true, replacement = true))
+    }
+
+    /** On its own, everything else being perfect, it keeps the original. */
+    @Test fun aDroppedReceiptRequestKeepsTheOriginalOnItsOwn() {
+        assertFalse(
+            draftReplacementIsFaithful(
+                attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
+                addressingIsCarried = true,
+                receiptRequestIsCarried = false,
+            ),
+        )
+    }
+
+    // ---- draftReceiptRequestIsCarried(replacesEmailId, …): what the save actually runs --------
+
+    @Test fun aBrandNewDraftAsksNoServerAboutAReceipt() = runTest {
+        var read = false
+        val carried = draftReceiptRequestIsCarried(
+            replacesEmailId = null,
+            replacement = false,
+            originalRequested = { read = true; true },
+        )
+        assertTrue(carried)
+        assertFalse("nothing to replace must not cost a round trip", read)
+    }
+
+    @Test fun theReceiptIsReadForTheDraftBeingReplaced() = runTest {
+        val asked = mutableListOf<String>()
+        val carried = draftReceiptRequestIsCarried(
+            replacesEmailId = "imap:acct:Drafts:42",
+            replacement = false,
+            originalRequested = { id -> asked += id; false },
+        )
+        assertTrue(carried)
+        assertEquals(listOf("imap:acct:Drafts:42"), asked)
+    }
+
+    /** A replacement that asks for a receipt proves itself: no round trip is spent on the
+     *  original, because no answer could change the verdict. */
+    @Test fun aReplacementThatAsksForOneCostsNoRoundTrip() = runTest {
+        var read = false
+        val carried = draftReceiptRequestIsCarried(
+            replacesEmailId = "imap:acct:Drafts:42",
+            replacement = true,
+            originalRequested = { read = true; null },
+        )
+        assertTrue(carried)
+        assertFalse("nothing could be lost, so nothing needs reading", read)
+    }
+
+    /** Offline: the read throws, so the answer is unknown and the original stays. */
+    @Test fun aFailedReceiptReadLeavesTheOriginalAlone() = runTest {
+        assertFalse(
+            draftReceiptRequestIsCarried(
+                replacesEmailId = "imap:acct:Drafts:42",
+                replacement = false,
+                originalRequested = { throw IOException("offline") },
+            ),
+        )
+    }
+
+    /** A server that will not serve the header answers null — likewise unknown. */
+    @Test fun aServerThatCannotAnswerLeavesTheOriginalAlone() = runTest {
+        assertFalse(
+            draftReceiptRequestIsCarried(
+                replacesEmailId = "imap:acct:Drafts:42",
+                replacement = false,
+                originalRequested = { null },
+            ),
+        )
+    }
+
+    /** The D2 symptom, end to end through the decision the save runs: the reopened composer shows
+     *  the box clear, so the replacement asks for nothing while the original did. */
+    @Test fun theServerCopyThatStillHoldsTheReceiptRequestIsNotDestroyed() = runTest {
+        val carried = draftReceiptRequestIsCarried(
+            replacesEmailId = "jmap:d1",
+            replacement = false,
+            originalRequested = { true },
+        )
+        assertFalse(carried)
+        assertFalse(
+            draftReplacementIsFaithful(
+                attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
+                addressingIsCarried = true,
+                receiptRequestIsCarried = carried,
+            ),
+        )
+    }
+
+    /** …and the other half of the debt: an ordinary draft nobody asked a receipt for is still
+     *  replaced in place. One draft, not two, every time it is saved. */
+    @Test fun anOrdinaryDraftIsStillReplacedInPlace() = runTest {
+        val carried = draftReceiptRequestIsCarried(
+            replacesEmailId = "jmap:d1",
+            replacement = false,
+            originalRequested = { false },
+        )
+        assertTrue(carried)
+        assertTrue(
+            draftReplacementIsFaithful(
+                attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
+                addressingIsCarried = true,
+                receiptRequestIsCarried = carried,
+            ),
+        )
     }
 }

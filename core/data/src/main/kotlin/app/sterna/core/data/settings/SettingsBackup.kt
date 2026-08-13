@@ -29,6 +29,11 @@ data class SettingsBackup(
     val contactSuggestions: Boolean? = null,
     val stripTracking: Boolean? = null,
     val confirmLinks: Boolean? = null,
+    /**
+     * Whether an opened message may ASK the reader to answer a sender's read-receipt request
+     * (#148). ⛔ Never "send receipts": this backs up permission to be asked.
+     */
+    val askReadReceipt: Boolean? = null,
     val imageAllowlist: List<String>? = null,
     val quietHoursEnabled: Boolean? = null,
     val quietHoursStart: Int? = null,
@@ -76,7 +81,8 @@ data class SettingsBackup(
     fun isPlausible(): Boolean =
         themeMode != null || dynamicColor != null || listDensity != null || previewLines != null ||
             swipeRight != null || swipeLeft != null || sortOrder != null || contactSuggestions != null ||
-            stripTracking != null || confirmLinks != null || imageAllowlist != null ||
+            stripTracking != null || confirmLinks != null || askReadReceipt != null ||
+            imageAllowlist != null ||
             quietHoursEnabled != null || quietHoursStart != null || quietHoursEnd != null ||
             pushAllAccounts != null || language != null || conversationView != null ||
             messageTextSize != null || markReadOnDelete != null || accounts != null

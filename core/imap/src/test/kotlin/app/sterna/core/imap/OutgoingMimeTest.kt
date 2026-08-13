@@ -293,7 +293,7 @@ class OutgoingMimeTest {
         // replaces the BODY, so the receipt has to be written above it — if it were emitted inside
         // the body branch, every signed and every encrypted message would go out asking nothing.
         val entity = "Content-Type: multipart/signed; protocol=\"application/pgp-signature\"\r\n\r\nbody\r\n"
-        val mime = OutgoingMime.build(msg().copy(pgpEntity = entity, requestReceipt = true))
+        val mime = OutgoingMime.build(msg().copy(prebuiltEntity = entity, requestReceipt = true))
 
         assertEquals(
             "Disposition-Notification-To: alice@example.com",
@@ -301,6 +301,48 @@ class OutgoingMimeTest {
         )
         // The signed bytes themselves are untouched, byte for byte.
         assertTrue("the entity must reach the wire verbatim", mime.endsWith(entity))
+    }
+
+    /**
+     * ⭐ The seam is not a PGP seam. An entity carrying no PGP anywhere — RFC 8098's
+     * `multipart/report` receipt — replaces the body just as a signed one does, and reaches the
+     * wire character for character.
+     *
+     * This is the ONE builder both protocols use for such a message: SMTP submits these bytes, and
+     * the JMAP path uploads them with `Email/import` + `EmailSubmission/set` rather than letting
+     * the server rebuild the message from `Email/set` fields (which would re-encode it and lose
+     * `report-type=`). So proving it here proves it for both.
+     */
+    @Test
+    fun aPrebuiltEntityWithNoPgpAtAllReachesTheWireVerbatim() {
+        val entity = "Content-Type: multipart/report; report-type=disposition-notification;\r\n" +
+            " boundary=\"----sterna_mdn_1\"\r\n" +
+            "\r\n" +
+            "------sterna_mdn_1\r\n" +
+            "Content-Type: text/plain; charset=utf-8\r\n" +
+            "Content-Transfer-Encoding: base64\r\n" +
+            "\r\n" +
+            "RGlzcGxheWVkLg==\r\n" +
+            "------sterna_mdn_1\r\n" +
+            "Content-Type: message/disposition-notification\r\n" +
+            "\r\n" +
+            "Disposition: manual-action/MDN-sent-manually; displayed\r\n" +
+            "------sterna_mdn_1--\r\n"
+
+        val mime = OutgoingMime.build(msg().copy(prebuiltEntity = entity, requestReceipt = false))
+
+        assertTrue("the entity must reach the wire verbatim", mime.endsWith(entity))
+        assertEquals(
+            "the message headers must stop at MIME-Version and the entity follow immediately: it " +
+                "brings its own Content-Type, and a header written after it would land inside the " +
+                "report rather than on the message",
+            entity,
+            mime.substringAfter("MIME-Version: 1.0\r\n"),
+        )
+        assertFalse(
+            "the normal body construction must not run at all",
+            mime.contains("Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\naGVsbG8="),
+        )
     }
 
     @Test

@@ -25,6 +25,10 @@ enum class DraftSaveOutcome { SAVED, ORIGINAL_KEPT }
  *   addressed to — see [draftAddressingIsCarried]. An attachment that goes missing is countable
  *   at the save; a recipient that goes missing is not, because the composer cannot tell a draft
  *   with no Cc from a Cc it never managed to read.
+ * - [receiptRequestIsCarried] says the same of the read receipt the original asked for — see
+ *   [draftReceiptRequestIsCarried]. It is the same shape of loss as the addressing: the request
+ *   lives in a header of the server copy, the composer's checkbox comes back clear when the draft
+ *   is reopened, and destroying that copy takes the request with it in silence.
  *
  * Anything else is a duplicate in Drafts, which the user can delete. Data loss, they cannot undo.
  */
@@ -33,7 +37,11 @@ internal fun draftReplacementIsFaithful(
     attachmentsCarried: Int,
     bodyIsLossy: Boolean,
     addressingIsCarried: Boolean,
-): Boolean = !bodyIsLossy && attachmentsCarried == attachmentsIn && addressingIsCarried
+    receiptRequestIsCarried: Boolean,
+): Boolean = !bodyIsLossy &&
+    attachmentsCarried == attachmentsIn &&
+    addressingIsCarried &&
+    receiptRequestIsCarried
 
 /**
  * Whether [replacement] provably carries the addressing of the draft it replaces.
@@ -80,6 +88,63 @@ internal suspend fun draftAddressingIsCarried(
         null
     }
     return draftAddressingIsCarried(original, replacement)
+}
+
+/**
+ * Whether [replacement] provably carries the read-receipt request of the draft it replaces
+ * (RFC 8098's `Disposition-Notification-To`).
+ *
+ * ⭐ A [replacement] that asks for a receipt carries ANY original, including one that could not be
+ * read: whatever the old copy held, the new one holds a request, so nothing can be lost by
+ * destroying it. Answering "unknown" there would leave a duplicate in Drafts — and cost a server
+ * round trip to establish something that cannot change the verdict — every single time a draft
+ * that asks for a receipt is saved.
+ *
+ * ⭐ `original == null` means "could not be established", and answers false when the replacement
+ * asks for nothing — the same rule, and for the same reason, as [draftAddressingIsCarried]: the
+ * server copy is then the only thing that holds the request, and destroying it loses it silently.
+ * What made this decidable at all is that the header is now READ when a message is opened (JMAP's
+ * `header:Disposition-Notification-To:asText` property, IMAP's `readReceiptHeaderOf`); before
+ * that, the answer was unknown every time and the field was simply left out of the guard.
+ *
+ * The cases, and the asymmetry between them is the point:
+ *  - replacement asks → carried, whatever the original was, read or not;
+ *  - original asked, replacement does not → NOT carried: the request is about to be dropped, and
+ *    a duplicate in Drafts is the cheaper of the two mistakes;
+ *  - original did not ask → carried. Nothing is lost by destroying an original that had none;
+ *  - original unknown, replacement asks for nothing → NOT carried.
+ */
+internal fun draftReceiptRequestIsCarried(original: Boolean?, replacement: Boolean): Boolean =
+    replacement || original == false
+
+/**
+ * The same question asked of the id being replaced, with [originalRequested] doing the reading —
+ * the twin of [draftAddressingIsCarried], and executable in a JVM test for the same reason: the
+ * caller ([MailRepository.saveDraft]) needs Room, a context and a socket.
+ */
+internal suspend fun draftReceiptRequestIsCarried(
+    replacesEmailId: String?,
+    replacement: Boolean,
+    originalRequested: suspend (String) -> Boolean?,
+): Boolean {
+    // No original means nothing will be destroyed, so there is nothing to prove.
+    if (replacesEmailId == null) return true
+    // Nor is there anything to prove when the replacement itself asks for a receipt: no answer
+    // could change the verdict, so the read is skipped — a round trip saved on every save of a
+    // draft that asks for one.
+    if (replacement) return true
+    val original = try {
+        originalRequested(replacesEmailId)
+    } catch (cancelled: CancellationException) {
+        // Not a failed read: the caller is going away. Rethrown, or a cancelled save would look
+        // like a merely unknown answer and carry on.
+        throw cancelled
+    } catch (failure: Throwable) {
+        // Offline, socket dropped, folder gone, a server that will not serve the property:
+        // unknown, which forbids the destroy.
+        null
+    }
+    return draftReceiptRequestIsCarried(original, replacement)
 }
 
 /**

@@ -102,12 +102,20 @@ data class OutgoingMessage(
     val attachments: List<OutgoingAttachment> = emptyList(),
     /**
      * A complete pre-built MIME entity (its own Content-Type headers + body) that
-     * REPLACES the normal body/attachments — used for PGP/MIME, where the payload
-     * (multipart/signed or multipart/encrypted, attachments already inside) was
-     * assembled and signed/encrypted upstream. [body]/[html]/[attachments] are
-     * ignored when set.
+     * REPLACES the normal body/attachments. [body]/[html]/[attachments] are ignored when set.
+     *
+     * ⭐ NOT a PGP field, despite where it came from. It is the seam through which any payload
+     * this builder cannot express reaches the wire byte for byte: PGP/MIME (multipart/signed,
+     * multipart/encrypted — attachments already inside, signature computed over these very
+     * bytes) and RFC 8098's `multipart/report` read receipt ([app.sterna.core.data.mail]'s
+     * `readReceiptEntity`), which [buildBodyEntity] cannot build either — it knows `text/plain`,
+     * `text/html`, `multipart/mixed` and `multipart/related`, and nothing else.
+     *
+     * It used to be called `pgpEntity`, and the outbox refused to store one unless a PGP mode
+     * came with it — so a caller handing an entity and no mode had it dropped in silence and the
+     * message left as an empty shell. The name is the only thing that made that look sane.
      */
-    val pgpEntity: String? = null,
+    val prebuiltEntity: String? = null,
     /**
      * Ask the recipient's client for a read receipt: [OutgoingMime.build] then writes
      * `Disposition-Notification-To:` (RFC 8098) naming THIS message's [from].
@@ -362,9 +370,10 @@ object OutgoingMime {
             // inside it would leave every signed and every encrypted message asking for nothing.
             if (m.requestReceipt) append("Disposition-Notification-To: ${headerSafe(m.from)}\r\n")
             append("MIME-Version: 1.0\r\n")
-            // A pre-built (PGP/MIME) entity replaces the whole body construction.
-            if (m.pgpEntity != null) {
-                append(m.pgpEntity)
+            // A pre-built entity (PGP/MIME, or a multipart/report receipt) replaces the whole
+            // body construction — see [OutgoingMessage.prebuiltEntity].
+            if (m.prebuiltEntity != null) {
+                append(m.prebuiltEntity)
             } else {
                 append(buildBodyEntity(m))
             }
@@ -482,8 +491,14 @@ object OutgoingMime {
      * (e.g. a hidden Bcc:) or split the message. Reply/forward fields can echo a parsed
      * Message-ID/References straight from a hostile incoming message, so this is the sink
      * that must be clean.
+     *
+     * ⭐ Public, and ONE of it. A pre-built entity ([OutgoingMessage.prebuiltEntity]) is assembled
+     * outside this file and can carry header-shaped lines of its own — RFC 8098's
+     * `message/disposition-notification` part is nothing but fields, `Original-Message-ID` among
+     * them, copied from a message a stranger wrote. That builder needs this exact filter, and a
+     * second copy of it is how the two drift until one of them stops stripping something.
      */
-    private fun headerSafe(value: String): String =
+    fun headerSafe(value: String): String =
         value.filterNot { it == '\r' || it == '\n' || it.code < 32 }
 
     /**

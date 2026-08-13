@@ -83,6 +83,105 @@ class TranslationParityTest {
     }
 
     /**
+     * The read-receipt switch (#148), by name in the nine languages — the general parity rule
+     * above compares against `values/`, so it would go green on a switch never translated at all.
+     *
+     * It is a privacy switch: left in English, eight of nine readers meet a stray sentence about
+     * something being sent to a stranger, in the middle of a translated Privacy screen.
+     */
+    @Test
+    fun `the nine languages all label the read-receipt switch`() {
+        val files = listOf(File(res, "values/strings.xml")) + translations()
+        val missing = files.associate { it.parentFile.name to (READ_RECEIPT_ENGLISH.keys - keysOf(it)) }
+            .filterValues { it.isNotEmpty() }
+        assertEquals("the read-receipt switch is unlabelled in", emptyMap<String, Set<String>>(), missing)
+    }
+
+    /**
+     * ⛔ WHAT THAT SWITCH PROMISES, PINNED WHOLE: it makes the app **ask**, never send.
+     *
+     * There is no third position and there must never be one. A label saying "Send read receipts"
+     * describes a setting this app does not have — turning it on raises a question on a message,
+     * one message at a time, and nothing leaves without a tap. Getting that wording wrong is worse
+     * than having no setting: the reader would believe her phone answers strangers on its own.
+     *
+     * Whole-value equality on purpose: `contains` is blind to anything a reword appends.
+     *
+     * Not checked here, and stated as debt: that the eight translations say "ask" rather than
+     * "send". Their keys are held above; their meaning is read by nobody.
+     */
+    @Test
+    fun `the read-receipt switch says it asks, and never that it sends`() {
+        val actual = valuesOf(File(res, "values/strings.xml")).filterKeys { it in READ_RECEIPT_ENGLISH }
+        assertEquals(
+            "the read-receipt switch's English text changed. It owes exactly this: the app ASKS " +
+                "before sending, the request is ignored while the switch is off, and nothing ever " +
+                "leaves without the reader saying so. It must never promise to send.",
+            READ_RECEIPT_ENGLISH,
+            actual,
+        )
+    }
+
+    /**
+     * The strip that puts the question on the message (#148), by name in the nine languages.
+     *
+     * Same reason as the switch, one degree worse: this is the row that offers to tell a stranger
+     * something, and it appears in the middle of a message the reader is reading. Left in English,
+     * eight of nine readers are asked in a language they did not choose to make a decision they
+     * cannot undo.
+     */
+    @Test
+    fun `the nine languages all carry the read-receipt strip`() {
+        val files = listOf(File(res, "values/strings.xml")) + translations()
+        val missing = files.associate { it.parentFile.name to (READ_RECEIPT_STRIP_ENGLISH.keys - keysOf(it)) }
+            .filterValues { it.isNotEmpty() }
+        assertEquals("the read-receipt strip is untranslated in", emptyMap<String, Set<String>>(), missing)
+    }
+
+    /**
+     * ⛔ WHAT THE STRIP MAY SAY, PINNED WHOLE — and the three things it must never say.
+     *
+     * 1. **Never "read".** An MDN reports that a message was DISPLAYED on a device. Nobody knows
+     *    whether it was read, least of all this app, and "%1$s will know you read this" is a claim
+     *    made on the reader's behalf to someone who cannot check it.
+     * 2. **Never "sent".** A receipt has one road, the durable outbox, and nothing here watches it
+     *    leave — "in the outbox" is the furthest the app can honestly go (`ReadReceiptState` has no
+     *    `Sent`, deliberately).
+     * 3. **Never automatic, silent or transparent.** The whole feature is one gesture on one
+     *    message; wording that suggests otherwise describes a setting this app refused to build.
+     *
+     * Whole-value equality, because `contains` is blind to anything a reword appends.
+     *
+     * Not checked here, and stated as debt: that the eight translations obey the same three rules.
+     * Their keys are held above and their format arguments by the rule at the top of this file;
+     * their meaning is read by nobody.
+     */
+    @Test
+    fun `the strip asks, names who would be told, and never claims the message was read`() {
+        val actual = valuesOf(File(res, "values/strings.xml"))
+            .filterKeys { it in READ_RECEIPT_STRIP_ENGLISH }
+        // The screen runs FIRST, on what the file actually says: a reword that broke the promise
+        // should be told what it promised, not merely that the pin below no longer matches.
+        val forbidden = actual.values.flatMap { value ->
+            FORBIDDEN_OF_A_RECEIPT.filter { it in value.lowercase() }.map { "'$it' in \"$value\"" }
+        }
+        assertEquals(
+            "the strip must not promise that a message was READ (an MDN reports a display), that " +
+                "a receipt was SENT (it goes to an outbox and nothing here watches it leave), or " +
+                "that any of it happens on its own. Found:",
+            emptyList<String>(),
+            forbidden,
+        )
+        assertEquals(
+            "the read-receipt strip's English text changed. It owes exactly this: it names WHO " +
+                "asked, it says the message was DISPLAYED (never read), and the furthest it goes " +
+                "is the outbox — there is no 'sent'.",
+            READ_RECEIPT_STRIP_ENGLISH,
+            actual,
+        )
+    }
+
+    /**
      * The startup screen shown when the stored account list will not decode. It is the one screen
      * a user meets while her accounts are invisible, so a language that falls back to English there
      * leaves her reading a stranger's alphabet about her own mail having gone missing.
@@ -365,6 +464,62 @@ class TranslationParityTest {
             "values-pl" to "w tle",
             "values-pt" to "em segundo plano",
             "values-ru" to "фоновом режиме",
+        )
+
+        /**
+         * The three labels of the read-receipt switch, in English, whole.
+         *
+         * ⚠ The heading is hyphenated on purpose. `ReadReceiptMailTest` screens
+         * `values/strings.xml` for the MDN's OWN fixed English — "Read receipt", the subject that
+         * leaves the device — so that nobody "tidies" it into a translatable resource where the
+         * nine languages would claim it. A section titled "Read receipts" collides with that guard
+         * as a plain substring; "Read-receipt requests" is also the truer name, since what the
+         * section governs is what happens to a request somebody else made.
+         */
+        /**
+         * The six labels of the read-receipt strip, in English, whole.
+         *
+         * ⚠ None of these is what LEAVES the device: the mail itself is fixed English built by
+         * `readReceiptPreview`, and `ReadReceiptMailTest` screens this very file to keep it out of
+         * the resources — a correspondent's client does not speak the reader's language. Only the
+         * interface is translated, which is what these six are.
+         */
+        val READ_RECEIPT_STRIP_ENGLISH = mapOf(
+            "message_read_receipt_ask" to "%1\$s asked to be told this message was displayed",
+            "message_read_receipt_send" to "Send",
+            // The same button, wearing what became of the gesture. ⛔ "Queued", never "Sent": the
+            // outbox is the furthest this app can honestly claim to have got.
+            "message_read_receipt_send_sending" to "Sending…",
+            "message_read_receipt_send_queued" to "Queued",
+            "message_read_receipt_decline" to "Do not answer this request",
+            "message_read_receipt_sending" to "Putting an answer in the outbox…",
+            "message_read_receipt_queued" to "In the outbox: %1\$s",
+            "message_read_receipt_failed" to
+                "Nothing was put in the outbox, so nothing will be sent.",
+        )
+
+        /**
+         * What a receipt's own strip may never claim, in lower case.
+         *
+         * Three families, and each has a victim. Saying the message was READ tells a stranger
+         * something nobody knows — an MDN reports a display, and the reader may well have shut the
+         * message without a glance. Saying it was SENT names a delivery this app never watched:
+         * the receipt is in an outbox that retries, offline, for as long as it takes. Saying it
+         * happens AUTOMATICALLY describes the "always" position `SECURITY.md` says this app does
+         * not have.
+         */
+        val FORBIDDEN_OF_A_RECEIPT = listOf(
+            "you read", "was read", "has read", "read your", "read it", "read the message",
+            "was sent", "has been sent", "receipt sent", "already sent",
+            "automatic", "silent", "transparent", "in the background",
+        )
+
+        val READ_RECEIPT_ENGLISH = mapOf(
+            "settings_read_receipt_section" to "Read-receipt requests",
+            "settings_read_receipt_title" to "Ask before sending a read receipt",
+            "settings_read_receipt_subtitle" to "Some senders ask to be told when their message " +
+                "is displayed. Off, the request is ignored. On, the message you open offers to " +
+                "answer it, and nothing leaves unless you say so.",
         )
 
         /** The two labels of the unreadable-accounts startup screen, in English, whole. */

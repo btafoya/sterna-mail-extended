@@ -180,6 +180,55 @@ internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean 
     bodyJson.length + inlineImagesJson.length <= MAX_CACHED_BODY_CHARS
 
 /**
+ * [cached]'s read state made honest again: `$seen` taken from the `emails` row ([rowSeen]), which
+ * is where this app keeps the truth about what has been read.
+ *
+ * A cached body is a SNAPSHOT of the message as it was the first time it was fetched — keywords
+ * included. It is written on the FIRST open, while the message is still unread (the reader marks
+ * read separately, after the settle), so its `$seen` is frozen at `false` for the life of the row.
+ * Every later open then serves a body claiming the message has never been read, and anything
+ * downstream that reasons on the unread → read transition sees that transition again on every
+ * single open — that is issue #148's re-asked read-receipt question, on a message already read on
+ * both sides.
+ *
+ * ⭐ Here, and not in the reader: the reader is handed the read state by two objects that arrive in
+ * a non-deterministic order (the list row, whose `seen` is right, then the body that overwrites
+ * it), so a rule placed there is placed twice and diverges by whichever wins the race. The body
+ * served from a cache is the only one lying; it is corrected where it is made.
+ *
+ * ⛔ [rowSeen] null means the read state is UNKNOWN — no row, or a row that could not be read (see
+ * [seenOrUnknown]). Nothing is invented: "not in the `emails` table" is not "read", and assuming
+ * read would silently swallow a question that was owed. ⚠ The stated cost of that choice: on a
+ * message whose `emails` row is gone while its cached body survives, the reopened body still says
+ * what it said the day it was fetched, so a read-receipt question CAN still be re-asked there.
+ * That case is accepted, not fixed.
+ *
+ * ⛔ `$seen` only. The other keywords of a cached body are stale in the same way, and correcting
+ * them is a separate piece of work with its own witnesses — not something to slip in under a fix
+ * for the read state.
+ *
+ * ⚠ Reconciling is not read-only for the cache: a body with inline images goes on to
+ * `ensureInlineImages`, which re-persists this very [Email] once the images are fetched — so the
+ * corrected `$seen` lands back in the row's JSON. That is the truth of that moment being written,
+ * not a second source of it; the row of `emails` still decides on the next open.
+ */
+internal fun reconcileCachedSeen(cached: MessageBody, rowSeen: Boolean?): MessageBody {
+    if (rowSeen == null || cached.email.isSeen == rowSeen) return cached
+    return cached.copy(email = cached.email.copy(keywords = cached.email.keywords + ("\$seen" to rowSeen)))
+}
+
+/**
+ * The read state [read] reports, or null when it cannot be read at all — "unknown", which
+ * [reconcileCachedSeen] already knows how to answer (it hands the body back untouched).
+ *
+ * ⭐ The guard is the point, and it is the irreversible-first rule: the two paths this sits on
+ * return a body that is ALREADY in hand — one of them entirely from memory — and a message that
+ * can no longer be opened is a far worse failure than a read-receipt question asked twice. A
+ * locked or full database must therefore cost the reconciliation, never the open.
+ */
+internal suspend fun seenOrUnknown(read: suspend () -> Boolean?): Boolean? = runCatching { read() }.getOrNull()
+
+/**
  * Refuse an address carrying a line break before it is handed to a line-oriented protocol.
  * The SMTP envelope and the RFC 5322 headers are both built by concatenation, so a CR or LF
  * inside an address is a command/header injection primitive (a hidden `RCPT TO`, an extra
@@ -474,6 +523,49 @@ internal fun unsubscribeHeadersOf(raw: String): Pair<String?, String?> =
     MimeParser.headerOf(raw, "List-Unsubscribe") to MimeParser.headerOf(raw, "List-Unsubscribe-Post")
 
 /**
+ * `Disposition-Notification-To` (RFC 8098) as read off an IMAP message's raw source — the IMAP
+ * half of what JMAP asks the server for by property name.
+ *
+ * A named function for the same reason as [unsubscribeHeadersOf]: WHICH header is read is a
+ * decision, and the repository around it cannot be reached from a JVM test.
+ *
+ * ⛔ The name is the one RFC 8098 §2.1 defines and nothing else. `Return-Receipt-To` and
+ * `X-Confirm-Reading-To` are pre-standard spellings this app deliberately neither writes nor
+ * reads; adding them here would make Sterna answer requests it never agreed to recognise.
+ *
+ * [MimeParser.headerOf] unfolds continuation lines, which an address list very often uses, and it
+ * is a Map, so a message repeating the header keeps the LAST occurrence — same accepted limit as
+ * the unsubscribe pair, stated here rather than discovered later.
+ */
+internal fun readReceiptHeaderOf(raw: String): String? =
+    MimeParser.headerOf(raw, "Disposition-Notification-To")
+
+/**
+ * Whether the IMAP message whose source is [raw] asks for a read receipt — `null` for "cannot
+ * say". The decision of `MailRepository.imapDraftReceiptRequested`, as a pure function, so the
+ * one case that costs data is EXECUTED by a test instead of being read as source text.
+ *
+ * ⛔ A blank source is an UNKNOWN, and this line is the whole reason the function exists.
+ * `ImapClient.fetchSource` answers an empty string when the FETCH response carries no body item
+ * at all (its `bodyItem` says so): a UID that has gone, a folder renumbered underneath, a server
+ * answering `FETCH … ()`. Parsed, that empty string yields no header, no address, and the answer
+ * "this draft asked for nothing" — which authorises destroying the copy that holds the request.
+ * The addressing half of the same guard already answers null in that situation
+ * ([copiedAddressesOrNull]); this one must be at least as strong.
+ */
+internal fun receiptRequestedInSource(raw: String): Boolean? {
+    if (raw.isBlank()) return null
+    return ReadReceiptHeader.recipients(readReceiptHeaderOf(raw)).isNotEmpty()
+}
+
+/**
+ * The same for JMAP, from the property answer. The decision of
+ * `MailRepository.jmapDraftReceiptRequested`, likewise pure and likewise executed.
+ */
+internal fun receiptRequestedInProperty(header: String?, serverRefusesProperty: Boolean): Boolean? =
+    if (serverRefusesProperty) null else ReadReceiptHeader.recipients(header).isNotEmpty()
+
+/**
  * Run [stage] — persisting an outbox item's payload/attachments after its row is already inserted —
  * and, if it throws, [rollback] the just-inserted row before the error propagates. A staging
  * failure must leave NO row behind: an orphan (inserted with attachmentsJson "[]") would be
@@ -487,6 +579,81 @@ internal suspend fun <T> stageOrRollback(rollback: suspend () -> Unit, stage: su
         rollback()
         throw t
     }
+
+/**
+ * What queueing a send does with a pre-built entity, and what it keeps in the row.
+ *
+ * @property entityFile the entity to write beside the row, or null when there is none to write.
+ * @property redactBody whether the body, the HTML and the attachments must be blanked in the row.
+ */
+internal data class OutboxPayload(
+    val entityFile: String?,
+    val redactBody: Boolean,
+)
+
+/**
+ * The two decisions [MailRepository.enqueueSend] makes about a pre-built entity, in one place that
+ * a test can RUN — the call site can only be read.
+ *
+ * ⭐ **Storing the entity depends on the entity, and on nothing else.** It used to also demand a
+ * PGP mode (`prebuiltEntity != null && pgpMode != null && pgpMode != OFF`), which was invisible for
+ * as long as PGP was the only thing that built an entity: hand one over without a mode and the file
+ * was never written, the row kept a body the sender never wrote, and the message left as a shell —
+ * in silence, with no error anywhere. RFC 8098's `multipart/report` receipt is exactly such a
+ * caller. [pgpMode] is still a parameter for one reason: it is what makes that mistake expressible
+ * here, where a test catches it, instead of at a call site no test can execute.
+ *
+ * ⛔ **Blanking the row still depends on the mode, and must.** Only ciphertext may not be kept in
+ * the clear at rest. A signed message keeps its body in the row (it is signed at compose time and
+ * the body is public anyway), and so does a receipt: [OutboxEntity.textBody] is then the very text
+ * the entity carries base64'd in its first part, which is what the Outbox screen shows.
+ */
+internal fun outboxPayload(prebuiltEntity: String?, pgpMode: PgpMode?): OutboxPayload =
+    OutboxPayload(
+        entityFile = prebuiltEntity,
+        redactBody = pgpMode == PgpMode.ENCRYPT && prebuiltEntity != null,
+    )
+
+/**
+ * The pre-built entity of an outbox row about to be delivered: the file's text, null when the row
+ * carries none, and a hard failure when the row names a file that cannot be read.
+ *
+ * The failure is deliberate and must stay: the row's own body is either blank (ciphertext) or a
+ * plain-text shadow of a payload that was the message (a receipt's `multipart/report`). Falling
+ * back to it would send a shell of a mail nobody wrote and mark the item delivered. Failing keeps
+ * the item in the Outbox with its error, where a person can see it.
+ *
+ * [readText] is passed in so this is a pure decision a JVM test can run; the caller supplies the
+ * file read. It is called ONCE, before the protocols fork, so the IMAP branch and the JMAP branch
+ * are looking at the same value — see [MailRepository.performDelivery].
+ */
+internal fun prebuiltEntityAt(path: String?, readText: (String) -> String?): String? {
+    if (path == null) return null
+    return readText(path) ?: error("The prepared message payload is missing.")
+}
+
+/**
+ * The addresses a queued send teaches to the contact suggestions — all of them, or NONE.
+ *
+ * ⛔ [learn] is false on exactly one path, and it is a decision, not a saving: a read receipt
+ * (RFC 8098) is queued by [MailRepository.sendReadReceipt] on a gesture that was addressed to
+ * nobody. The reader opened a message; its sender had asked to be told. Learning that sender would
+ * fill "people you write to" with whoever writes to HER — a newsletter, a notification robot, a
+ * stranger's first mail — none of which she ever chose to write to.
+ */
+internal fun recipientsToLearn(recipients: List<String>, learn: Boolean): List<String> =
+    if (learn) recipients else emptyList()
+
+/**
+ * The name of the file a queued send's pre-built entity is written to, inside the item's own
+ * durable directory.
+ *
+ * It was `pgp-entity.mime` while PGP was the only thing that built one. ⚠ Renaming it is safe
+ * because nothing ever LOOKS the file up by name: [OutboxEntity.pgpEntityPath] stores the absolute
+ * path that was written, and delivery reads that. A row queued by an older build keeps pointing at
+ * its `pgp-entity.mime` and is delivered exactly as before; only new rows use the new name.
+ */
+internal const val PREBUILT_ENTITY_FILE = "prebuilt-entity.mime"
 
 /** Max full-text search matches returned to the UI. */
 private const val LOCAL_SEARCH_LIMIT = 100
@@ -2755,6 +2922,10 @@ class MailRepository(
             references = headerIds(MimeParser.headerOf(raw, "References")),
             listUnsubscribe = unsubscribe.first,
             listUnsubscribePost = unsubscribe.second,
+            // The read receipt rides along for free on the same source, for the same reason: on
+            // JMAP this is a requested property, here it is two lines of an answer already in
+            // hand, so both protocols hand the reader the same raw text.
+            dispositionNotificationTo = readReceiptHeaderOf(raw),
         )
     }
 
@@ -2811,8 +2982,17 @@ class MailRepository(
         // A message decrypted earlier this process renders instantly (memory only,
         // never persisted — see decryptMessage).
         decryptedCache.get(cryptoKey(credentials.id, emailId))?.let { entry ->
+            // Read the row BEFORE the marking below is launched: a decrypted body is as frozen as
+            // a Room one (see reconcileCachedSeen), and what this open must report is the read
+            // state as it stood when the message was opened, not as this very open leaves it.
+            // Guarded (seenOrUnknown) because this path was pure memory: a database that refuses
+            // to answer must not turn an instant render into an error screen.
+            val body = reconcileCachedSeen(
+                cached = entry.body,
+                rowSeen = seenOrUnknown { emailDao.seenOf(credentials.id, emailId) },
+            )
             if (markRead) bgScope.launch { runCatching { setRead(credentials, emailId, true) } }
-            return entry.body
+            return body
         }
         cachedMessage(credentials.id, emailId)?.let { cached ->
             // Mark read out of band — the body is already in hand, don't make the user wait.
@@ -3056,17 +3236,29 @@ class MailRepository(
      * outside, that exception escaped all the way to the reader — the message was then
      * permanently unopenable, not just uncached. A row we cannot read is dropped so the next
      * open refetches it.
+     *
+     * The read state it hands back is the `emails` row's, not the JSON's — see
+     * [reconcileCachedSeen]. That read sits OUTSIDE [readCachedOrPurge], because failing to read
+     * `seen` says nothing about the body row and must not delete it; it carries a guard of its own
+     * ([seenOrUnknown]) so it cannot throw either. Both halves of this function therefore keep the
+     * promise above: whatever the database does, a cached body still opens.
      */
-    suspend fun cachedMessage(accountId: String, emailId: String): MessageBody? = readCachedOrPurge(
-        read = {
-            val row = emailBodyDao.byId(accountId, emailId) ?: return@readCachedOrPurge null
-            MessageBody(
-                email = cacheJson.decodeFromString(Email.serializer(), row.bodyJson),
-                inlineImages = cacheJson.decodeFromString(inlineImagesSerializer, row.inlineImagesJson),
-            )
-        },
-        purge = { emailBodyDao.deleteById(accountId, emailId) },
-    )
+    suspend fun cachedMessage(accountId: String, emailId: String): MessageBody? {
+        val cached = readCachedOrPurge(
+            read = {
+                val row = emailBodyDao.byId(accountId, emailId) ?: return@readCachedOrPurge null
+                MessageBody(
+                    email = cacheJson.decodeFromString(Email.serializer(), row.bodyJson),
+                    inlineImages = cacheJson.decodeFromString(inlineImagesSerializer, row.inlineImagesJson),
+                )
+            },
+            purge = { emailBodyDao.deleteById(accountId, emailId) },
+        ) ?: return null
+        return reconcileCachedSeen(
+            cached = cached,
+            rowSeen = seenOrUnknown { emailDao.seenOf(accountId, emailId) },
+        )
+    }
 
     /**
      * Drop every cached message body, for every account. The bodies ONLY — the message list, the
@@ -5353,8 +5545,13 @@ class MailRepository(
         fromEmail: String? = null,
         /**
          * Whether the draft asks for a read receipt (RFC 8098). The server copy carries the header
-         * so it says what would be sent; ⛔ it is NOT read back when the draft is reopened (D1) —
-         * the box comes back clear, which is assumed debt, not a bug to fix here.
+         * so it says what would be sent; ⛔ it is still NOT put back into the composer when the
+         * draft is reopened (D1) — the box comes back clear, which remains assumed debt.
+         *
+         * ⭐ What is no longer debt (D2) is the destroy: the ORIGINAL's header is read from the
+         * server before the copy is thrown away, so a re-save that would silently drop the request
+         * keeps the original instead of destroying it. Until the header could be read at all, this
+         * field could not be part of the guard — see [draftReceiptRequestIsCarried].
          */
         requestReceipt: Boolean = false,
     ): DraftSaveOutcome {
@@ -5391,11 +5588,20 @@ class MailRepository(
                 replacement = ccTrimmed.toSet(),
                 originalAddressing = { id -> imapDraftAddressing(credentials, id) },
             )
+            // The same question for the read receipt the original may have asked for: the header
+            // is on the server copy, the reopened composer shows the box clear (D1), so without
+            // this the destroy takes the request away with nothing on screen.
+            val receiptIsCarried = draftReceiptRequestIsCarried(
+                replacesEmailId = replacesEmailId,
+                replacement = requestReceipt,
+                originalRequested = { id -> imapDraftReceiptRequested(credentials, id) },
+            )
             val outcome = finishDraftSave(
                 credentials, replacesEmailId,
                 faithful = draftReplacementIsFaithful(
                     attachments.size, parts.size, bodyIsLossy,
                     addressingIsCarried = addressingIsCarried,
+                    receiptRequestIsCarried = receiptIsCarried,
                 ),
             )
             // IMAP APPEND returns no stable id to synthesise a keyable row from, so — after the
@@ -5449,6 +5655,14 @@ class MailRepository(
                 inReplyTo, references, hasAttachment = blobs.isNotEmpty(),
             )
         }
+        // Unlike the addressing below, this one IS a read on JMAP too: reopening a draft brings
+        // its recipients back through Email/get, but not the state of the receipt checkbox (D1),
+        // so the composer's answer says nothing about what the original asked for.
+        val receiptIsCarried = draftReceiptRequestIsCarried(
+            replacesEmailId = replacesEmailId,
+            replacement = requestReceipt,
+            originalRequested = { id -> jmapDraftReceiptRequested(ctx, id) },
+        )
         // Evicts the replaced original (faithful edit) AFTER the new row is in, so the list
         // never flickers empty; a new/lossy save keeps every real draft the server now holds.
         return finishDraftSave(
@@ -5461,6 +5675,7 @@ class MailRepository(
                 // case where they would not be is a reopen that failed, and that one never gets
                 // here as a faithful save: ComposeViewModel sets editingDraftLossy on it.
                 addressingIsCarried = true,
+                receiptRequestIsCarried = receiptIsCarried,
             ),
         )
     }
@@ -5474,6 +5689,43 @@ class MailRepository(
         val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull() ?: return null
         val uid = ImapMailService.uidOf(emailId) ?: return null
         return imap.ccAndBccOf(credentials, cached.mailboxId, uid)
+    }
+
+    /**
+     * Whether the IMAP draft [emailId] asks for a read receipt, as the SERVER holds it — `null`
+     * when that could not be established, which keeps the original.
+     *
+     * Read from the source and never from the cache: no cache column holds this header, so the
+     * cache would answer "asks for nothing" both for a draft that asks for nothing and for one
+     * whose header was never loaded, and the destroy decision must not see those two alike.
+     *
+     * ⚠ It costs a full `FETCH` of the draft. Accepted: it happens only on an explicit save that
+     * REPLACES a server draft, the message it downloads is the one just uploaded by the APPEND
+     * above, and there is no cheaper honest read — `BODY.PEEK[HEADER.FIELDS (…)]` breaks
+     * `ImapParser`'s tokenisation and comes back an empty string with no error at all, which is
+     * the shape of answer this function exists to never give.
+     */
+    private suspend fun imapDraftReceiptRequested(credentials: AccountCredentials, emailId: String): Boolean? {
+        val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull() ?: return null
+        val uid = ImapMailService.uidOf(emailId) ?: return null
+        val raw = imap.fetchSource(credentials, cached.mailboxId, uid)
+        return receiptRequestedInSource(raw)
+    }
+
+    /**
+     * The same for a JMAP draft, through the one fetch that asks for the header property.
+     *
+     * ⭐ The `refusesReceiptHeader` line is the whole subtlety: on a server that rejects that
+     * property, EVERY message comes back with the field null — including a draft that carries the
+     * header. Reading that null as "asks for nothing" would authorise the destroy and lose the
+     * request. On such a server the answer is unknown, and the original stays.
+     */
+    private suspend fun jmapDraftReceiptRequested(ctx: Context, emailId: String): Boolean? {
+        val email = client.getEmail(ctx.session, ctx.accountId, emailId, ctx.auth)
+        return receiptRequestedInProperty(
+            header = email.dispositionNotificationTo,
+            serverRefusesProperty = client.refusesReceiptHeader(ctx.session),
+        )
     }
 
     /**
@@ -5623,21 +5875,32 @@ class MailRepository(
         bcc: List<String> = emptyList(),
         holdMs: Long = 0,
         pgpMode: PgpMode? = null,
-        pgpEntity: String? = null,
+        /**
+         * A complete MIME entity that replaces the body on the wire, byte for byte
+         * ([OutgoingMessage.prebuiltEntity]): PGP/MIME, or RFC 8098's `multipart/report` receipt.
+         * ⛔ NOT conditional on [pgpMode] — see [outboxPayload].
+         */
+        prebuiltEntity: String? = null,
         draftEmailId: String? = null,
         /** Ask for a read receipt (RFC 8098), per message; persisted so the worker still asks. */
         requestReceipt: Boolean = false,
+        /** Teach these addresses to the contact suggestions. ⛔ False for a receipt — [recipientsToLearn]. */
+        learnRecipients: Boolean = true,
     ): Long {
         val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
         require(recipients.isNotEmpty()) { "Add at least one recipient." }
         val ccTrimmed = cc.map { it.trim() }.filter { it.isNotEmpty() }
         val bccTrimmed = bcc.map { it.trim() }.filter { it.isNotEmpty() }
-        runCatching { rememberRecipients(recipients + ccTrimmed + bccTrimmed) }
+        recipientsToLearn(recipients + ccTrimmed + bccTrimmed, learnRecipients)
+            .takeIf { it.isNotEmpty() }
+            ?.let { runCatching { rememberRecipients(it) } }
 
-        // An encrypted payload replaces the plaintext everywhere at rest: the row
-        // keeps headers only, the PGP/MIME entity (ciphertext) goes to a file, and
-        // the attachments already live INSIDE the entity.
-        val encrypted = pgpMode == PgpMode.ENCRYPT && pgpEntity != null
+        // An encrypted payload replaces the plaintext everywhere at rest: the row keeps headers
+        // only, the ciphertext goes to a file, and the attachments already live INSIDE the entity.
+        // Both halves of that — what is written beside the row, and what is blanked in it — are
+        // [outboxPayload]'s, so they are decided by a function a test can run.
+        val payload = outboxPayload(prebuiltEntity, pgpMode)
+        val encrypted = payload.redactBody
         val now = System.currentTimeMillis()
         val held = holdMs > 0
         val id = outboxDao.insert(
@@ -5667,9 +5930,9 @@ class MailRepository(
         // a write failure — the row must not survive: an orphan carrying attachmentsJson "[]" would
         // be re-armed at the next startup and sent amputated (#70). Roll it back and relay the error.
         stageOrRollback(rollback = { deleteOutbox(id) }) {
-            if (pgpEntity != null && pgpMode != null && pgpMode != PgpMode.OFF) {
+            if (payload.entityFile != null) {
                 val dir = java.io.File(outboxFilesDir, id.toString()).apply { mkdirs() }
-                val entityFile = java.io.File(dir, "pgp-entity.mime").apply { writeText(pgpEntity) }
+                val entityFile = java.io.File(dir, PREBUILT_ENTITY_FILE).apply { writeText(payload.entityFile) }
                 outboxDao.byId(id)?.let { outboxDao.update(it.copy(pgpEntityPath = entityFile.absolutePath)) }
             } else {
                 // Make attachments durable now that we have the item id to key the persistent dir.
@@ -5825,7 +6088,8 @@ class MailRepository(
         // taken. A SENDING row has a send in flight — marking it EDITING here would race the
         // worker's updateOutboxState (orphaned edit or double send); an EDITING row is already open.
         // The screen hides Edit for these, but the guard belongs here too, where the state flips.
-        if (!OutboxLogic.canEdit(item.pgpMode, item.state)) return null
+        val unreplayable = OutboxLogic.isUnreplayablePrebuiltEntity(item.pgpMode, item.pgpEntityPath)
+        if (!OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) return null
         // Stage attachments for the composer BEFORE changing state: OutboxEdit.take throws on an
         // unreadable attachment (rather than reopen an amputated message), and a throw here must
         // leave the row exactly as it was — still QUEUED, still deliverable.
@@ -5886,11 +6150,12 @@ class MailRepository(
         val bccTrimmed = item.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
         val stored = OutboxAttachments.decode(item.attachmentsJson)
 
-        // PGP/MIME items carry a pre-built entity (signed at compose time, so no
-        // provider interaction is needed here in the background worker).
-        val pgpEntity = item.pgpEntityPath?.let { path ->
+        // Some items carry a pre-built entity: PGP/MIME (signed or encrypted at compose time, so
+        // no provider interaction is needed here in the headless worker) or an RFC 8098
+        // multipart/report receipt. Read ONCE, above the fork, so both protocols route on the same
+        // value — what makes the message go out verbatim is the entity, never the PGP mode.
+        val prebuiltEntity = prebuiltEntityAt(item.pgpEntityPath) { path ->
             runCatching { java.io.File(path).readText() }.getOrNull()
-                ?: error("The encrypted message payload is missing.")
         }
 
         if (credentials.protocol == MailProtocol.IMAP) {
@@ -5914,8 +6179,8 @@ class MailRepository(
                 fromName, fromEmail, ccTrimmed, bccTrimmed,
                 requestReceipt = item.requestReceipt,
             ).copy(
-                attachments = if (pgpEntity != null) emptyList() else outAttachments,
-                pgpEntity = pgpEntity,
+                attachments = if (prebuiltEntity != null) emptyList() else outAttachments,
+                prebuiltEntity = prebuiltEntity,
             )
             imap.send(credentials, message, mailboxDao.idForRole(credentials.id, "sent"))
             return
@@ -5963,16 +6228,21 @@ class MailRepository(
             ?: error("This account has no Drafts or Sent folder.")
         val sentId = submissionRoles["sent"] ?: draftsId
 
-        val sentEmailId = if (pgpEntity != null) {
-            // PGP/MIME must reach the wire byte-exact (protocol=/micalg= params,
-            // signed bytes), so the FULL raw message is built client-side with the
-            // same builder the SMTP path uses, then imported + submitted verbatim.
+        val sentEmailId = if (prebuiltEntity != null) {
+            // A pre-built entity must reach the wire byte-exact — PGP/MIME's protocol=/micalg=
+            // params and the bytes the signature was computed over, a receipt's
+            // report-type=disposition-notification and its message/disposition-notification part,
+            // none of which survives being re-encoded by the server from Email/set fields. So the
+            // FULL raw message is built client-side with the same builder the SMTP path uses, then
+            // imported + submitted verbatim. ⭐ The condition is the ENTITY, not the PGP mode: a
+            // receipt carries no mode, and routing on the mode would send it through Email/set,
+            // where it would arrive as a two-part mail nobody's client reads as a receipt.
             val raw = OutgoingMime.build(
                 outgoing(
                     credentials, to, subject, "", inReplyTo, references, null,
                     from.name ?: fromName, from.email, ccTrimmed, bccTrimmed,
                     requestReceipt = item.requestReceipt,
-                ).copy(pgpEntity = pgpEntity),
+                ).copy(prebuiltEntity = prebuiltEntity),
             )
             client.importAndSendEmail(
                 session = ctx.session,
@@ -6123,6 +6393,70 @@ class MailRepository(
             fromName = mail.fromName,
             fromEmail = mail.fromEmail,
         )
+    }
+
+    /**
+     * Queue the RFC 8098 read receipt answering [receiptTo] — the addresses
+     * [ReadReceiptHeader.recipients] found in the message's `Disposition-Notification-To:`.
+     *
+     * ⛔ **Nothing calls this yet.** No banner, no setting, no automatic trigger: a receipt tells a
+     * stranger when their mail was opened, and that is never sent without the reader saying so.
+     *
+     * Through the ordinary outbox, like the `mailto:` unsubscribe above: it retries, it survives a
+     * process death, it waits out an offline stretch, and the receipt lands in Sent where a signal
+     * that has left is visible — deliberately, since the reader is entitled to see what her phone
+     * told somebody about her.
+     *
+     * Three things differ from an ordinary send, and each is a decision:
+     *
+     *  - **[ReadReceiptMail.learnRecipients] is false.** Nobody was written to; see
+     *    [recipientsToLearn].
+     *  - **An empty [receiptTo] queues nothing and throws nothing.** `enqueueSend` opens with
+     *    `require(recipients.isNotEmpty())`, and the header this list comes from is empty for
+     *    anything malformed, so the case is ruled out by [readReceiptMail] returning null.
+     *  - **The identity is the account's, not the login's** (issue #31), as for the unsubscribe: a
+     *    delegated sub-account submits through its login, and a receipt from the login address is
+     *    about a message the sender never sent there. Which identity, out of an account that has
+     *    several, is [receiptIdentity]'s answer — from [deliveredTo], not from the order they
+     *    happen to be stored in.
+     *
+     * @param deliveredTo the address of THIS account the message arrived at, when the caller knows
+     *   it — the one thing this layer cannot work out. Null falls back to the identity's own
+     *   address and then to the login.
+     * @return what was queued, so the banner that offered it shows those very strings; null when
+     *   there was nothing to answer.
+     */
+    suspend fun sendReadReceipt(
+        credentials: AccountCredentials,
+        receiptTo: List<String>,
+        originalSubject: String?,
+        originalMessageId: String?,
+        deliveredTo: String? = null,
+    ): ReadReceiptPreview? {
+        val identity = receiptIdentity(accountStore.identities(credentials.id), deliveredTo)
+        val mail = readReceiptMail(
+            receiptTo = receiptTo,
+            originalSubject = originalSubject,
+            originalMessageId = originalMessageId,
+            identityName = identity?.name,
+            identityEmail = identity?.email,
+            deliveredTo = deliveredTo,
+            accountAddress = credentials.username,
+            // Drawn HERE, never inside the builder: a function that reaches for a random number is
+            // a function whose bytes no test can pin (PgpMime's callers do the same).
+            boundary = "----sterna_mdn_${java.util.UUID.randomUUID().toString().replace("-", "")}",
+        ) ?: return null
+        enqueueSend(
+            credentials = credentials,
+            to = mail.to,
+            subject = mail.subject,
+            body = mail.body,
+            fromName = mail.fromName,
+            fromEmail = mail.fromEmail,
+            prebuiltEntity = mail.prebuiltEntity,
+            learnRecipients = mail.learnRecipients,
+        )
+        return mail.preview()
     }
 
     // ---- scheduled send ----
