@@ -179,11 +179,11 @@ Out of scope:
 
 ### Android platform surface
 
-- The only exported component is the launcher `MainActivity`, and it does read untrusted
-  input: `mailto:` deep links (VIEW+BROWSABLE and SENDTO filters) plus `ACTION_SEND` /
-  `ACTION_SEND_MULTIPLE` in `*/*`, from which it reads `EXTRA_SUBJECT`, `EXTRA_TEXT` and
-  `EXTRA_STREAM`. All of it is treated as compose-screen prefill and nothing more. A
-  `mailto:` is parsed with the platform `MailTo` parser inside a `runCatching`, so a
+- Two components are exported. The first is the launcher `MainActivity`, and it does read
+  untrusted input: `mailto:` deep links (VIEW+BROWSABLE and SENDTO filters) plus
+  `ACTION_SEND` / `ACTION_SEND_MULTIPLE` in `*/*`, from which it reads `EXTRA_SUBJECT`,
+  `EXTRA_TEXT` and `EXTRA_STREAM`. All of it is treated as compose-screen prefill and nothing
+  more. A `mailto:` is parsed with the platform `MailTo` parser inside a `runCatching`, so a
   malformed or hostile URI opens nothing at all; the text extras only fill the subject and
   body fields; and of the shared URIs, **only `content:` ones are accepted**, so no app can
   hand over a `file:` path and have Sterna read its own private storage on the sender's
@@ -193,6 +193,13 @@ Out of scope:
   submission, and a consumed payload is stripped from the retained intent so it cannot replay
   on the next read. Push service, the notification receiver, and the FileProvider are not
   exported.
+- The second is `BootReceiver`, which restarts the push connection after a reboot or an
+  in-place update. It has to be exported: a manifest-declared receiver that is not exported
+  never sees a system broadcast at all. Its filter carries `BOOT_COMPLETED` and
+  `MY_PACKAGE_REPLACED`, both protected broadcasts that only the system can send, and the
+  receiver reads **nothing but `intent.action`**, compares it against those two constants and
+  returns on anything else. No extra, no data URI, no other field of the intent is ever read,
+  so a broadcast forged by another app carries no payload into the app.
 - Notification `PendingIntent`s are `IMMUTABLE` (except the RemoteInput reply, which must
   be mutable and targets a non-exported receiver explicitly).
 - The `FileProvider` shares only `cacheDir/attachments/`, with sanitized filenames and
