@@ -2218,25 +2218,24 @@ class MailRepository(
      * credentials, returning the host whose session authenticates. A 401/403 from
      * any reachable candidate means the server was found but the password is wrong
      * — reported distinctly so the UI can give a precise error.
+     *
+     * The candidates are probed AT ONCE and under one [JMAP_DISCOVERY_BUDGET_MS] budget: one after
+     * another, at the client's 20 s connect + 30 s read, a domain with no JMAP kept the sign-in
+     * screen spinning for up to 200 s. Which host wins is [discoverJmapAmong]'s decision, and it
+     * is rank in [Jmap.autodiscoverHosts], never latency — see there.
      */
     suspend fun discoverJmapServer(email: String, password: String, token: String? = null): DiscoveryResult {
         val hosts = Jmap.autodiscoverHosts(email)
         if (hosts.isEmpty()) return DiscoveryResult.NotFound
         // A non-null [token] is an API token (e.g. Fastmail): Bearer, never Basic.
         val auth = if (token != null) BearerAuth(token) else BasicAuth(email.trim(), password)
-        var sawAuthFailure = false
-        for (host in hosts) {
-            try {
-                val session = client.fetchSession(Jmap.sessionUrlFor(host), auth)
-                if (session.mailAccountId() != null) return DiscoveryResult.Found(host)
-            } catch (e: JmapException) {
-                if (e.httpCode == 401 || e.httpCode == 403) sawAuthFailure = true
-                // Other failures (host unreachable, not JMAP): try the next candidate.
-            } catch (_: Throwable) {
-                // Transport error (DNS, TLS, timeout): try the next candidate.
-            }
+        // No budget passed on purpose: the shipped value lives once, in JMAP_DISCOVERY_BUDGET_MS.
+        // What an answer or a failure MEANS is probeHost's, not this line's: nothing here is
+        // reachable from a JVM test, so a try/catch written out at this call site was a decision
+        // no test could hold.
+        return discoverJmapAmong(hosts) { host ->
+            probeHost { client.fetchSession(Jmap.sessionUrlFor(host), auth) }
         }
-        return if (sawAuthFailure) DiscoveryResult.BadCredentials else DiscoveryResult.NotFound
     }
 
     /**

@@ -28,6 +28,37 @@ class ConnectPrimingWiringTest {
     /** The three add paths, by the function each one lives in. */
     private val addPaths = listOf("finishJmapConnect", "finishTokenConnect", "connectImap")
 
+    /** The two paths that probe for a server before any account exists. */
+    private val discoveryPaths = listOf("connectAuto", "connectToken")
+
+    /**
+     * Every route the "Connect" button can take, all six of them. Offline — airplane mode, Wi-Fi
+     * off — none of them can succeed, and without a guard the screen spins through the whole
+     * connect/read timeout before saying that nothing answered. Five of six is not a fix: the
+     * unguarded one keeps that wait for its protocol only.
+     */
+    private val offlineGuarded = listOf(
+        "connect", "connectAuto", "connectToken", "connectOAuth", "connectOutlookOAuth", "connectImap",
+    )
+
+    /**
+     * And the two sign-ins the import flow puts on this same screen. They answer through the
+     * per-account row (`updateSelected`) instead of the screen's state, so they carry the guard in a
+     * second shape — see [IMPORT_OFFLINE_GUARD].
+     *
+     * ⚠ Neither list can find a route nobody wrote down: this file reads names, it does not
+     * enumerate the screen. These two were missed on the first pass for exactly that reason. A new
+     * way to sign an account in belongs in one of these lists on the day it is written.
+     */
+    private val offlineGuardedImports = listOf("submitImportPassword", "startImportOAuth")
+
+    /**
+     * What "the guard comes first" is measured against: the two spellings by which a route hands
+     * work to something that will try to reach the network — its own coroutine, or an app-scoped
+     * driver on the container. A guard placed after either of them has already let the request go.
+     */
+    private val requestHandoffs = listOf("viewModelScope.launch", "container.")
+
     /**
      * Every call in THIS FILE that brings an account into existence. It is a vocabulary, not a
      * proof: a creation call this list does not name is a path the rules below read straight past,
@@ -201,6 +232,137 @@ class ConnectPrimingWiringTest {
         )
     }
 
+    /**
+     * The same rule, on the two paths that run autodiscovery before any account exists. They used
+     * to write `runCatching { discoverJmapServer(…) }.getOrElse { NotFound }`, which swallows the
+     * cancellation that leaving the screen raises and then writes [ConnectState.NeedsServer] — a
+     * "tell me your server" form nobody asked for, onto a screen that is gone.
+     *
+     * Three things are read, because a `contains` on `"catch (cancelled: CancellationException)"`
+     * alone proved to hold none of them:
+     *  - the catch is pinned WITH ITS BODY ([RETHROWS_CANCELLATION]), since keeping the header and
+     *    returning `NotFound` from it restores the defect in full and matches a fragment happily;
+     *  - no `runCatching` wraps the probe, however the line is spelled;
+     *  - `discoverJmapServer` is still called HERE. Without that, the two rules above are satisfied
+     *    trivially by moving the call into a helper — the rule would then guard an empty room.
+     *
+     * ⚠ Still not held: a second, nested `try` that swallows before this one sees it. Declared debt
+     * — a text lint cannot see scope, and `ConnectViewModel` cannot be run in this module.
+     */
+    @Test fun `neither discovery path turns a cancelled probe into "no server found"`() {
+        val offenders = discoveryPaths.filterNot { path ->
+            val body = functionBody(path)
+            RETHROWS_CANCELLATION.containsMatchIn(body) &&
+                !DISCOVERY_RUN_CATCHING.containsMatchIn(body) &&
+                "discoverJmapServer(" in body
+        }
+        assertEquals(
+            "each discovery path must run discoverJmapServer() in a try that rethrows " +
+                "CancellationException before its catch-all. runCatching{}.getOrElse{} cannot: it " +
+                "catches the cancellation too, and the path then reports NotFound — NeedsServer on " +
+                "a screen the user has already left.",
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * Offline, nothing typed on this screen can reach a server, and every route used to find that
+     * out the long way: a DNS lookup that never resolves, then the connect timeout, then the read
+     * timeout, per candidate host. The guard is three lines and there is no decision to extract
+     * from it — [app.sterna.net.hasUsableNetwork] IS the decision.
+     *
+     * ⚠ And that decision has NO test of its own: it reads `ConnectivityManager`, so this module
+     * (no Robolectric, no instrumented tests) cannot run it. Inverting `hasUsableNetwork` itself
+     * leaves this file green. Say that plainly rather than let the rule below imply cover it does
+     * not give.
+     *
+     * ⛔ Matched as the WHOLE four-line shape, condition included, and anchored at the function
+     * body's own indentation. A fragment test is blind to every mutation that lengthens the line
+     * (`if (!hasUsableNetwork(app) && false)`); a test that accepts any indentation is blind to the
+     * one that wraps the whole guard in a condition —
+     * `if (imapPort == 993) { …guard… }` re-arms the timeout on every other port and matched a
+     * `[ \t]*` anchor happily.
+     */
+    @Test fun `every add route refuses to start a request while offline`() {
+        val offenders = offlineGuarded.filterNot { OFFLINE_GUARD.containsMatchIn(functionBody(it)) }
+        assertEquals(
+            "each of these routes must open with the offline guard, spelled exactly, and at the " +
+                "top level of the function — not nested inside any condition:\n" +
+                "    if (!hasUsableNetwork(app)) {\n" +
+                "        _state.value = ConnectState.Error(string(R.string.connect_offline))\n" +
+                "        return\n" +
+                "    }\n" +
+                "A route without it spins on the full connect/read timeout in airplane mode before " +
+                "reporting that nothing answered — for its protocol only, which is worse than no " +
+                "guard at all because the screen then behaves differently per sign-in method.",
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * And it must come FIRST. A guard is not a guard once the request is in flight: placed after
+     * `viewModelScope.launch {` it runs inside the coroutine that is already probing, and placed
+     * after `container.outlookSignIn.start(` it runs after the browser hand-off. Same instrument as
+     * the store-write ordering rule above — compare indices, because both spellings are present
+     * either way and only their order says which one happened first.
+     */
+    @Test fun `the offline guard runs before anything is launched`() {
+        val offenders = offlineGuarded.mapNotNull { route ->
+            val body = functionBody(route)
+            val guard = OFFLINE_GUARD.find(body)?.range?.first ?: return@mapNotNull null
+            val handoff = requestHandoffs.map { body.indexOf(it) }.filter { it >= 0 }.minOrNull()
+            if (handoff == null || guard < handoff) null else "$route: guard at $guard, handoff at $handoff"
+        }
+        assertEquals(
+            "the offline guard must precede the first viewModelScope.launch / container. call of " +
+                "its route: after them the probe is already running and the guard only decorates " +
+                "the failure. It stays AFTER the busy()/Connecting anti-double-submit check — a " +
+                "different rule, and one nothing in this module tests, so do not read this as " +
+                "cover for it.",
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * The same symptom, on the two routes that sign in an account an import brought in. They report
+     * through the per-account row rather than the screen's state, so they carry the guard in that
+     * shape — but the wait they used to take is the identical one.
+     *
+     * ⚠ These are the routes that matter MOST offline, not the least: importing a `.k9s` file is an
+     * entirely local operation, so it is exactly what someone does with no connection. The screen
+     * then opens straight onto the "accounts to sign in" list, whose buttons are these two.
+     */
+    @Test fun `signing in an imported account refuses to start a request while offline`() {
+        val offenders = offlineGuardedImports.filterNot { IMPORT_OFFLINE_GUARD.containsMatchIn(functionBody(it)) }
+        assertEquals(
+            "each imported-account sign-in must open with the offline guard in its own shape, at " +
+                "the top level of the function:\n" +
+                "    if (!hasUsableNetwork(app)) {\n" +
+                "        updateSelected { it.copy(error = string(R.string.connect_offline)) }\n" +
+                "        return\n" +
+                "    }\n" +
+                "Without it the row spins on the full connect/read timeout and then shows the raw " +
+                "exception text — after an import, which is the offline case by construction.",
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * The vocabulary must be alive, for the same reason `container.accountStore.addOAuth(` had to
+     * go: a route name that matches nothing restricts nothing, and the rules above would report
+     * six guarded routes while reading five. A rename must land here, in red.
+     */
+    @Test fun `every route this lint guards still exists in the file`() {
+        val dead = (offlineGuarded + offlineGuardedImports)
+            .filterNot { Regex("""\bfun $it\b""").containsMatchIn(source()) }
+        assertEquals(
+            "these routes no longer exist in ConnectViewModel, so the offline rules above are " +
+                "reading nothing on their behalf. Renamed? update the name here. Gone? drop it — " +
+                "never leave a name that cannot match.",
+            emptyList<String>(), dead,
+        )
+    }
+
     @Test fun `no add path refreshes on its own`() {
         val offenders = addPaths.filter { REFRESH.containsMatchIn(functionBody(it)) }
         assertEquals(
@@ -299,8 +461,55 @@ class ConnectPrimingWiringTest {
 
         val REFRESH = Regex("""mailRepository\.refresh\([^)]*\)""")
 
+        /** Any `runCatching` wrapped around autodiscovery, however the line is spelled. */
+        val DISCOVERY_RUN_CATCHING = Regex("""runCatching\s*\{[^}]*discoverJmapServer""")
+
+        /**
+         * The cancellation catch WITH its body. Pinning the header alone leaves
+         * `catch (cancelled: CancellationException) { DiscoveryResult.NotFound }` green, which is
+         * the reported defect back in full while the lint reports the path as fixed.
+         */
+        val RETHROWS_CANCELLATION = Regex(
+            """catch \(cancelled: CancellationException\) \{[^}]*throw cancelled""",
+            RegexOption.DOT_MATCHES_ALL,
+        )
+
         /** A Kotlin function declaration, and the name it declares. */
         val DECLARATION = Regex("""\bfun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(""")
+
+        /**
+         * The offline guard, as a whole: every one of its four lines pinned end to end, so that
+         * anything added to the condition (`&& false`), any other string shown, or a `return`
+         * turned into something that falls through, fails to match instead of hiding inside a
+         * `contains`.
+         *
+         * ⛔ The indentation is part of the pattern, and it is the point. Eight spaces is the top
+         * level of a method body in this file; twelve is one condition deep. Written `[ \t]*` this
+         * matched a guard buried inside `if (imapPort == 993) { … }`, which re-arms the whole
+         * timeout for every other port while the lint reports the route as guarded. A guard that
+         * only runs sometimes is not a guard, and indentation is the only thing in a text lint that
+         * can tell the difference.
+         */
+        val OFFLINE_GUARD = guardPattern(
+            """_state\.value = ConnectState\.Error\(string\(R\.string\.connect_offline\)\)""",
+        )
+
+        /** The same guard on the import routes, which answer through the row, not the screen. */
+        val IMPORT_OFFLINE_GUARD = guardPattern(
+            """updateSelected \{ it\.copy\(error = string\(R\.string\.connect_offline\)\) \}""",
+        )
+
+        /**
+         * The four-line guard around [answer], anchored at a method body's own indentation: 8
+         * spaces for the `if` and its closing brace, 12 for the two lines inside it.
+         */
+        private fun guardPattern(answer: String) = Regex(
+            """^ {8}if \(!hasUsableNetwork\(app\)\) \{[ \t]*\r?\n""" +
+                """ {12}$answer[ \t]*\r?\n""" +
+                """ {12}return[ \t]*\r?\n""" +
+                """ {8}\}[ \t]*$""",
+            RegexOption.MULTILINE,
+        )
 
         /** The one thing an add path may prime with — see the test that reads it. */
         const val PRIME_LAMBDA = "prime = { primeInbox(it) }"

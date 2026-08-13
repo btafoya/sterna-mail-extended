@@ -20,6 +20,7 @@ import app.sterna.core.jmap.DeviceTokenResult
 import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.OAuthMetadata
+import app.sterna.net.hasUsableNetwork
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -126,6 +127,15 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     private val container = application.container
 
+    /**
+     * The context the offline guard of every add route reads its connectivity from — the app's one
+     * connectivity check ([hasUsableNetwork]), the same one that picks "Sending…" over "queued" at
+     * send time. Offline, no route on this screen can succeed: the guard says so at once instead of
+     * letting the user watch a spinner run out the DNS, connect and read timeouts of every
+     * candidate host first.
+     */
+    private val app: Application get() = getApplication()
+
     private val _state = MutableStateFlow<ConnectState>(ConnectState.Idle)
     val state: StateFlow<ConnectState> = _state.asStateFlow()
 
@@ -143,6 +153,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     fun connect(server: String, username: String, password: String, accountName: String) {
         if (_state.value is ConnectState.Connecting || _state.value is ConnectState.Discovering) return
+        if (!hasUsableNetwork(app)) {
+            _state.value = ConnectState.Error(string(R.string.connect_offline))
+            return
+        }
         _state.value = ConnectState.Connecting
         viewModelScope.launch { finishJmapConnect(server.trim(), username, password, accountName) }
     }
@@ -156,11 +170,22 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      */
     fun connectAuto(email: String, password: String, accountName: String) {
         if (_state.value is ConnectState.Connecting || _state.value is ConnectState.Discovering) return
+        if (!hasUsableNetwork(app)) {
+            _state.value = ConnectState.Error(string(R.string.connect_offline))
+            return
+        }
         _state.value = ConnectState.Discovering
         viewModelScope.launch {
-            val result = runCatching {
+            val result = try {
                 container.mailRepository.discoverJmapServer(email.trim(), password)
-            }.getOrElse { MailRepository.DiscoveryResult.NotFound }
+            } catch (cancelled: CancellationException) {
+                // Leaving the screen cancels the probes. That is not "no server found", and the
+                // NeedsServer below would be a "tell me your server" form nobody asked for, written
+                // onto a screen that is gone.
+                throw cancelled
+            } catch (_: Throwable) {
+                MailRepository.DiscoveryResult.NotFound
+            }
             when (result) {
                 is MailRepository.DiscoveryResult.Found -> {
                     _state.value = ConnectState.Connecting
@@ -182,6 +207,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      */
     fun connectToken(server: String, email: String, token: String, accountName: String) {
         if (busy()) return
+        if (!hasUsableNetwork(app)) {
+            _state.value = ConnectState.Error(string(R.string.connect_offline))
+            return
+        }
         val emailTrim = email.trim()
         val serverTrim = server.trim()
         if (serverTrim.isNotBlank()) {
@@ -191,9 +220,15 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
         _state.value = ConnectState.Discovering
         viewModelScope.launch {
-            val result = runCatching {
+            val result = try {
                 container.mailRepository.discoverJmapServer(emailTrim, password = "", token = token)
-            }.getOrElse { MailRepository.DiscoveryResult.NotFound }
+            } catch (cancelled: CancellationException) {
+                // As in connectAuto: a cancelled probe is not a verdict about the server, and the
+                // token path must not answer one on a screen the user has left.
+                throw cancelled
+            } catch (_: Throwable) {
+                MailRepository.DiscoveryResult.NotFound
+            }
             when (result) {
                 is MailRepository.DiscoveryResult.Found -> {
                     _state.value = ConnectState.Connecting
@@ -271,6 +306,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      */
     fun connectOAuth(email: String, server: String, accountName: String) {
         if (busy()) return
+        if (!hasUsableNetwork(app)) {
+            _state.value = ConnectState.Error(string(R.string.connect_offline))
+            return
+        }
         val emailTrim = email.trim()
         // If the user entered a server (advanced), discover OAuth there; otherwise
         // derive candidate hosts from the email domain.
@@ -395,6 +434,9 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      */
     fun connectOutlookOAuth(email: String, accountName: String) {
         if (busy()) return
+        // ⛔ The two facts below outrank being offline, and are checked first on purpose: an
+        // unconfigured build and an empty address stay wrong once the network is back, so saying
+        // "you're offline" there would send the user off to fix the one thing that is not broken.
         if (!OAuthProvider.MICROSOFT.isConfigured) {
             _state.value = ConnectState.Error(string(R.string.connect_oauth_provider_unconfigured))
             return
@@ -402,6 +444,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val emailTrim = email.trim()
         if (emailTrim.isBlank()) {
             _state.value = ConnectState.Error(string(R.string.connect_oauth_need_email))
+            return
+        }
+        if (!hasUsableNetwork(app)) {
+            _state.value = ConnectState.Error(string(R.string.connect_offline))
             return
         }
         container.outlookSignIn.start(emailTrim, accountName)
@@ -596,6 +642,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val target = currentListing()?.selected ?: return
         if (target.verifying || password.isBlank()) return
         val account = container.accountStore.account(target.account.id) ?: return
+        if (!hasUsableNetwork(app)) {
+            updateSelected { it.copy(error = string(R.string.connect_offline)) }
+            return
+        }
         updateSelected { it.copy(verifying = true, error = null) }
         viewModelScope.launch {
             container.mailRepository.testConnection(credentialsFor(account, password)).fold(
@@ -624,6 +674,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val target = currentListing()?.selected ?: return
         val provider = target.account.provider ?: return
         if (target.verifying || target.approval != null) return
+        if (!hasUsableNetwork(app)) {
+            updateSelected { it.copy(error = string(R.string.connect_offline)) }
+            return
+        }
         updateSelected { it.copy(verifying = true, error = null, offerAppPasswordFallback = false) }
         importOAuthJob = viewModelScope.launch {
             val result = container.mailRepository.runProviderDeviceFlow(provider) { device ->
@@ -789,6 +843,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         smtpSecurity: ConnectionSecurity,
     ) {
         if (_state.value is ConnectState.Connecting) return
+        if (!hasUsableNetwork(app)) {
+            _state.value = ConnectState.Error(string(R.string.connect_offline))
+            return
+        }
         _state.value = ConnectState.Connecting
         viewModelScope.launch {
             try {
