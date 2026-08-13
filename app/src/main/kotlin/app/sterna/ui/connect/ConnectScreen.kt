@@ -65,6 +65,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -236,6 +237,28 @@ fun ConnectScreen(
         route, username, password,
         preset.imapHost, preset.imapPort, preset.smtpHost, preset.smtpPort,
     )
+
+    // Autoconfig cascade under this form, without redrawing it: when the IMAP password form comes
+    // up with an address already typed and both host fields untouched, discovery sets out in the
+    // background (the ViewModel gates it — armed chip, OAuth, offline or a bad address all keep it
+    // home). What it finds lands ONLY in the visible fields below, via [presetFilledWith]; Connect
+    // keeps reading the fields and nothing else (WYSIWYG). Found nothing → the screen stays
+    // exactly what it is. The second trigger — the address field losing focus — sits on the field
+    // itself.
+    LaunchedEffect(route) {
+        if (route == ConnectRoute.IMAP_PASSWORD) viewModel.discoverImapSettings(route, preset, username)
+    }
+    val discoveredImap by viewModel.imapDiscovery.collectAsStateWithLifecycle()
+    LaunchedEffect(discoveredImap) {
+        discoveredImap?.let {
+            preset = presetFilledWith(preset, it)
+            // Applied exactly once: a field the user clears afterwards must not refill itself.
+            viewModel.consumeImapDiscovery()
+        }
+    }
+    // The falling edge of the address field's focus: true only while it WAS focused, so losing
+    // focus — done typing, moved on — is what launches discovery, not the initial unfocused state.
+    var emailHadFocus by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.connect_add_account)) }) },
@@ -526,9 +549,18 @@ fun ConnectScreen(
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                    modifier = Modifier.fillMaxWidth().credentialField(credentialReveal).autofill(
-                        listOf(AutofillType.EmailAddress, AutofillType.Username),
-                    ) { username = it },
+                    modifier = Modifier.fillMaxWidth().credentialField(credentialReveal)
+                        .onFocusChanged { focusState ->
+                            // Leaving the field with an address typed is the moment discovery may
+                            // set out; the ViewModel's guard decides whether it actually does.
+                            if (emailHadFocus && !focusState.isFocused) {
+                                viewModel.discoverImapSettings(route, preset, username)
+                            }
+                            emailHadFocus = focusState.isFocused
+                        }
+                        .autofill(
+                            listOf(AutofillType.EmailAddress, AutofillType.Username),
+                        ) { username = it },
                 )
                 // In API-token mode this same secret field holds the token (labelled accordingly).
                 val tokenMode = route == ConnectRoute.JMAP_TOKEN

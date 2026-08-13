@@ -11,8 +11,11 @@ import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
+import app.sterna.core.data.autoconfig.MailAutoconfigResult
+import app.sterna.core.data.autoconfig.discoverMailAutoconfig
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OAuthDeniedException
+import app.sterna.core.imap.ImapException
 import app.sterna.core.data.mail.OAuthProvider
 import app.sterna.core.jmap.BearerAuth
 import app.sterna.core.jmap.DeviceAuthorization
@@ -58,6 +61,29 @@ internal fun isFastmailTarget(email: String, server: String): Boolean {
 
 /** The account an add resolved to: its id, and whether this add is what created it. */
 internal data class AddedAccount(val id: String, val created: Boolean)
+
+/**
+ * Whether an IMAP sign-in failure means the server LOOKED AT the credentials and said no —
+ * the one reading that may tell the user "wrong email or password".
+ *
+ * A [responseCode] (RFC 5530) is the server's own typed verdict and PRIMES the message text:
+ * only the credentials family — `AUTHENTICATIONFAILED`, `AUTHORIZATIONFAILED`, `EXPIRED` —
+ * blames the password. `[UNAVAILABLE]` during AUTHENTICATE is a server down, not a password
+ * wrong, however much the message talks about authentication.
+ *
+ * Without a code (servers predating RFC 5530), the historical fallback: the redacted command
+ * verb in the message — `LOGIN`/`AUTHENTICATE` — unchanged in behaviour.
+ */
+internal fun imapAuthRejected(responseCode: String?, message: String): Boolean =
+    if (responseCode != null) {
+        responseCode in CREDENTIAL_RESPONSE_CODES
+    } else {
+        message.contains("LOGIN", ignoreCase = true) ||
+            message.contains("AUTHENTICATE", ignoreCase = true)
+    }
+
+/** The RFC 5530 codes that mean "the credentials themselves were refused" — and no other. */
+private val CREDENTIAL_RESPONSE_CODES = setOf("AUTHENTICATIONFAILED", "AUTHORIZATIONFAILED", "EXPIRED")
 
 /**
  * What an add ended on: the account's id, and the priming failure it survived, if any.
@@ -145,6 +171,48 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
 
     private var oauthJob: Job? = null
     private var importOAuthJob: Job? = null
+
+    // ---- IMAP/SMTP settings discovery (the autoconfig cascade, under today's form) ----
+
+    private var imapDiscoveryJob: Job? = null
+
+    /** The address the cascade last set out for — a job still running, or a verdict rendered.
+     *  Either way the same address is not probed twice; a different one starts over. */
+    private var imapDiscoveryEmail: String? = null
+
+    private val _imapDiscovery = MutableStateFlow<MailAutoconfigResult.Found?>(null)
+
+    /** The one discovered configuration awaiting the screen. Consumed once
+     *  ([consumeImapDiscovery]): a field the user then clears must not refill itself. */
+    val imapDiscovery: StateFlow<MailAutoconfigResult.Found?> = _imapDiscovery.asStateFlow()
+
+    /**
+     * Run the autoconfig cascade for [email] in the background, holding what it finds for the
+     * screen to write into the VISIBLE host/port/security fields. Whether it may set out at all is
+     * [shouldDiscoverImapSettings]'s call — executed by a test — with the one Android-bound fact
+     * (connectivity) computed here: offline it does not start, silently. [MailAutoconfigResult.NotFound]
+     * changes nothing anywhere: no state, no spinner, no error. Leaving the screen kills the
+     * ViewModel and the job with it.
+     */
+    internal fun discoverImapSettings(route: ConnectRoute, preset: PresetForm, email: String) {
+        if (!shouldDiscoverImapSettings(route, preset, email, online = hasUsableNetwork(app))) return
+        val address = email.trim()
+        if (address == imapDiscoveryEmail) return
+        imapDiscoveryJob?.cancel()
+        imapDiscoveryEmail = address
+        imapDiscoveryJob = viewModelScope.launch {
+            // ⛔ No runCatching around the cascade: it owns its failures (they become NotFound
+            // inside) and RETHROWS cancellation, which must keep unwinding through here — a
+            // cancelled probe is the user leaving, not a verdict.
+            val found = discoverMailAutoconfig(address) as? MailAutoconfigResult.Found ?: return@launch
+            _imapDiscovery.value = found
+        }
+    }
+
+    /** The screen wrote the verdict into the fields: drop it so it is applied exactly once. */
+    fun consumeImapDiscovery() {
+        _imapDiscovery.value = null
+    }
 
     init {
         observeOutlookSignIn()
@@ -889,18 +957,20 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 // Leaving the screen cancels this coroutine: not something to show an error for.
                 throw cancelled
             } catch (t: Throwable) {
-                // A rejected IMAP login surfaces as "LOGIN … failed" / "AUTHENTICATE …"
-                // (the command verb is redacted, so no password leaks). On those, point
-                // the user at app passwords — most big providers refuse the normal one.
-                val msg = t.message.orEmpty()
-                val authRejected = msg.contains("LOGIN", ignoreCase = true) ||
-                    msg.contains("AUTHENTICATE", ignoreCase = true)
+                // A rejected IMAP login carries the server's RFC 5530 response code when it sent
+                // one, and surfaces as "LOGIN … failed" / "AUTHENTICATE …" (the command verb is
+                // redacted, so no password leaks). When the credentials themselves were refused,
+                // point the user at app passwords — most big providers refuse the normal one.
+                val code = (t as? ImapException)?.responseCode
                 _state.value = ConnectState.Error(
-                    if (authRejected) {
-                        string(R.string.connect_bad_credentials) + " " +
-                            string(R.string.connect_provider_app_password_note)
-                    } else {
-                        t.message ?: t.javaClass.simpleName
+                    when {
+                        imapAuthRejected(code, t.message.orEmpty()) ->
+                            string(R.string.connect_bad_credentials) + " " +
+                                string(R.string.connect_provider_app_password_note)
+                        // The server named its failure: show the CODE, never the response body —
+                        // a server's free text has already leaked a bearer token once (8e942069).
+                        code != null -> string(R.string.connect_imap_refused, code)
+                        else -> t.message ?: t.javaClass.simpleName
                     },
                 )
             }

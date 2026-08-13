@@ -13,7 +13,14 @@ import java.time.format.DateTimeFormatter
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
-class ImapException(message: String) : Exception(message)
+/**
+ * A protocol-level IMAP failure. [responseCode] is the server's bracketed response code
+ * (RFC 5530) when the failure is a tagged NO/BAD that carried one — `AUTHENTICATIONFAILED`,
+ * `UNAVAILABLE`, … — and `null` otherwise (no code on the line, or a local failure such as a
+ * closed connection). One field, not a type per code: it is the TYPED half of the failure, the
+ * one a caller may branch on, while [message] stays the loggable text and never drives a branch.
+ */
+class ImapException(message: String, val responseCode: String? = null) : Exception(message)
 
 /**
  * The selected mailbox has been renumbered: its UIDVALIDITY is no longer the one the caller's
@@ -169,7 +176,12 @@ class ImapSession(private var socket: Socket) : Closeable {
             when (resp[0]) {
                 tag -> {
                     val status = resp.getOrNull(1) as? String ?: "BAD"
-                    if (status != "OK") throw ImapException("AUTHENTICATE … failed: ${resp.drop(1).joinToString(" ")}")
+                    if (status != "OK") {
+                        throw ImapException(
+                            "AUTHENTICATE … failed: ${resp.drop(1).joinToString(" ")}",
+                            responseCodeIn(resp),
+                        )
+                    }
                     rememberCapabilities(resp)
                     return
                 }
@@ -283,7 +295,12 @@ class ImapSession(private var socket: Socket) : Closeable {
                     val status = resp.getOrNull(1) as? String ?: "BAD"
                     // Redact the echoed command: LOGIN/AUTHENTICATE carry the password,
                     // and this message surfaces to the UI and logs.
-                    if (status != "OK") throw ImapException("${redactCommand(line)} failed: ${resp.drop(1).joinToString(" ")}")
+                    if (status != "OK") {
+                        throw ImapException(
+                            "${redactCommand(line)} failed: ${resp.drop(1).joinToString(" ")}",
+                            responseCodeIn(resp),
+                        )
+                    }
                     return ImapResult(status, untagged, resp)
                 }
                 else -> {
@@ -1106,6 +1123,22 @@ internal fun capabilitiesInResponseCode(line: List<Any?>): Set<String>? {
     val flat = line.joinToString(" ") { flatten(it) }
     val code = Regex("\\[CAPABILITY([^\\]]*)\\]", RegexOption.IGNORE_CASE).find(flat) ?: return null
     return code.groupValues[1].split(' ').filter { it.isNotBlank() }.map { it.uppercase() }.toSet()
+}
+
+/**
+ * The response code of [line] (RFC 5530): the first bracketed WORD, upper-cased —
+ * `[AUTHENTICATIONFAILED] oops` answers `"AUTHENTICATIONFAILED"`, `[REFERRAL imap://…]` answers
+ * `"REFERRAL"` — or `null` when the line carries no bracket at all. Matched over the flattened
+ * line for the same reason as [capabilitiesInResponseCode]: `[` and `]` are not IMAP token
+ * delimiters, so the parser hands back atoms like `[AUTHENTICATIONFAILED]` whole.
+ *
+ * On an OK completion, `[CAPABILITY …]` is itself a response code, so this answers
+ * `"CAPABILITY"` on such a line. Deliberate and harmless: the throw sites only ask on a
+ * tagged NO/BAD, where the bracketed word is the failure's name.
+ */
+internal fun responseCodeIn(line: List<Any?>): String? {
+    val flat = line.joinToString(" ") { flatten(it) }
+    return Regex("\\[([^\\]\\s]+)").find(flat)?.groupValues?.get(1)?.uppercase()
 }
 
 /**

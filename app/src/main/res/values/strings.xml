@@ -744,6 +744,7 @@
     <string name="connect_discovering">Finding your server…</string>
     <string name="connect_server_not_found">Couldn\'t find your server automatically. Enter it below.</string>
     <string name="connect_bad_credentials">Wrong email or password.</string>
+    <string name="connect_imap_refused">The server refused the connection (%1$s).</string>
     <string name="connect_offline">You\'re offline. Adding an account needs a connection, so try again once you\'re back.</string>
     <string name="connect_provider_preset">Quick setup</string>
     <string name="connect_provider_app_password_note">Some providers (Gmail, Yahoo, iCloud…) need an app-specific password, not your normal one.</string>

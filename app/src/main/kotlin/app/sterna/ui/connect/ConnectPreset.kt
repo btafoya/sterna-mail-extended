@@ -2,6 +2,8 @@ package app.sterna.ui.connect
 
 import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailProtocol
+import app.sterna.core.data.autoconfig.MailAutoconfigResult
+import app.sterna.util.isValidEmail
 
 /**
  * What the add-account form decides on its own, kept out of the composable: which quick-setup
@@ -173,4 +175,53 @@ internal fun connectReady(
         imapHost.isNotBlank() && imapPort.toIntOrNull() != null &&
         smtpHost.isNotBlank() && smtpPort.toIntOrNull() != null
     else -> username.isNotBlank() && password.isNotBlank()
+}
+
+/**
+ * Whether the autoconfig cascade may set out for [email] at all. True only when the IMAP password
+ * form is the one on screen, no quick-setup chip is armed (the hard-coded providers outrank the
+ * cascade — and an OAuth chip has no host fields to fill), BOTH host fields are untouched, the
+ * address is one the app's shared [isValidEmail] rule accepts, and the device is [online]:
+ * offline the cascade must not set out at all, silently — no error state for a probe nobody asked
+ * for. A pure function, so a test executes the decision instead of re-reading the code around it.
+ */
+internal fun shouldDiscoverImapSettings(
+    route: ConnectRoute,
+    preset: PresetForm,
+    email: String,
+    online: Boolean,
+): Boolean = route == ConnectRoute.IMAP_PASSWORD &&
+    preset.selected == null &&
+    !preset.oauth &&
+    preset.imapHost.isBlank() &&
+    preset.smtpHost.isBlank() &&
+    isValidEmail(email) &&
+    online
+
+/**
+ * The discovered settings written into the form — per SIDE, atomically: the incoming trio
+ * (host + port + security, together) lands only while [PresetForm.imapHost] is untouched, the
+ * outgoing trio likewise on [PresetForm.smtpHost]. ⛔ A hand-typed host is never overwritten, and
+ * never has a discovered port or security slid under it: half the cascade's verdict under half
+ * the user's is a configuration nobody wrote. `selected`/`oauth`/`appPasswordUrl` are never
+ * touched. The verdict's username is deliberately NOT applied anywhere: the address field keeps
+ * what the user typed (WYSIWYG — no value may be used without being shown).
+ */
+internal fun presetFilledWith(preset: PresetForm, found: MailAutoconfigResult.Found): PresetForm {
+    var filled = preset
+    if (preset.imapHost.isBlank()) {
+        filled = filled.copy(
+            imapHost = found.incoming.host,
+            imapPort = found.incoming.port.toString(),
+            imapSecurity = found.incoming.security,
+        )
+    }
+    if (preset.smtpHost.isBlank()) {
+        filled = filled.copy(
+            smtpHost = found.outgoing.host,
+            smtpPort = found.outgoing.port.toString(),
+            smtpSecurity = found.outgoing.security,
+        )
+    }
+    return filled
 }
