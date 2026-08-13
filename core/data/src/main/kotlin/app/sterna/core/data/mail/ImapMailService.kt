@@ -125,6 +125,43 @@ internal fun reconcilableIds(load: ImapFolderLoad, accountId: String): Set<Strin
     return load.walk.uids.mapTo(HashSet()) { ImapMailService.emailId(accountId, load.targetMailboxId, it) }
 }
 
+/**
+ * Whether the SELECT this page was read through STATED that the folder is empty — `* 0 EXISTS`,
+ * parsed, and nothing else ([ImapMailboxStatus.existsObserved]).
+ *
+ * ⛔ The exact twin of what `ImapClient.walkFolder` writes into [ImapFolderWalk.folderStatedEmpty],
+ * on purpose and with the same words: the statement is the same statement, and the push pass needs
+ * it for the same reason the reconcile does. "The page came back with nothing in it" is not "the
+ * folder holds nothing": a SELECT that never stated a count leaves `exists` at 0, which reads
+ * exactly like an empty folder, and a folder whose remaining messages all carry `\Deleted` without
+ * an expunge states `* n EXISTS` with n > 0 and still yields no row, because `ImapSession.messages`
+ * drops every one of them. Only a count the server STATED, and zero, tells them apart.
+ *
+ * Pure and top-level for the reason [reconcilableIds] is: this is a decision, and a decision written
+ * inline in a network function is one no test can execute.
+ */
+internal fun pageVouchesForEmpty(status: ImapMailboxStatus): Boolean =
+    status.existsObserved && status.exists == 0
+
+/**
+ * The ids a watched folder's page MAY be remembered as — or NULL when this page cannot say what the
+ * folder holds, and the notification baseline must be left exactly as it was.
+ *
+ * The [reconcilableIds] pattern, for the same reason and with the same shape: null is a REFUSAL and
+ * an empty list is a statement, and the two must never be spelled the same way. `NewMailNotifier
+ * .seed` REPLACES a folder's baseline, so remembering an empty page erases it — and the next pass,
+ * finding nothing remembered, announces every unread message inside the notifier's age floor: one
+ * banner per thread, in the middle of the night, for mail the user read yesterday.
+ *
+ * ⭐ [ImapWatchedLoad.folderStatedEmpty] is the licence, and a folder that really was emptied carries
+ * it: an emptied folder must still be able to clear its baseline, or that baseline is immortal and
+ * mail refiled into the folder later can never be announced.
+ */
+internal fun watchedBaselineIds(load: ImapWatchedLoad): List<String>? {
+    if (load.messages.isEmpty() && !load.folderStatedEmpty) return null
+    return load.messages.map { it.id }
+}
+
 /** One watched folder's fetched page (multi-folder push, issue #16). */
 data class ImapWatchedLoad(
     val mailboxId: String,
@@ -140,6 +177,19 @@ data class ImapWatchedLoad(
      * for ever, and nothing about the notification would look wrong.
      */
     val previewSources: Map<String, PreviewSource>,
+    /**
+     * Whether the server STATED that this folder is empty — see [pageVouchesForEmpty], which is the
+     * only thing allowed to answer it, and [ImapFolderWalk.folderStatedEmpty], which is the same
+     * statement carried for the cache reconcile.
+     *
+     * No default, for the reason written on [previewSources]: this field is an ANSWER the server
+     * gave, and a default is a way of not asking. Either default lies in silence — `true` would let
+     * a page that read nothing wipe the baseline, which is the defect itself, and `false` would
+     * refuse for ever, so an emptied folder would keep a baseline no pass can ever clear and mail
+     * refiled there later would never be announced. Neither shows up as anything but "the
+     * notifications are odd", weeks later.
+     */
+    val folderStatedEmpty: Boolean,
 )
 
 /**
@@ -580,6 +630,10 @@ class ImapMailService(
                     folder.role,
                     page.map { it.toEntity(credentials.id, folder.path) },
                     previewSourcesOf(credentials.id, folder.path, page),
+                    // The SELECT's answer, not a verdict written here: `status` is already in hand,
+                    // so the provenance costs no request of its own — and the rule that reads it is
+                    // the one a test can execute.
+                    folderStatedEmpty = pageVouchesForEmpty(status),
                 )
             }
             loads to missing

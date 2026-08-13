@@ -1,5 +1,6 @@
 package app.sterna.push
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -48,7 +49,7 @@ class NotifyCandidatesWiringTest {
         // passes and each has to remember the whole read.
         val lines = code(FETCH_AND_NOTIFY).lines().map { it.trim() }
         listOf(
-            "val remembered = folder.baselineIds + returned.map { it.id }",
+            "val remembered = baselineIds + returned.map { it.id }",
             "NewMailNotifier.seed(context, credentials.id, folder.mailboxId, remembered)",
             "NewMailNotifier.seed(context, credentials.id, inboxMailboxId, read.baselineIds)",
             "val remembered = read.baselineIds + returned.map { it.id }",
@@ -66,6 +67,73 @@ class NotifyCandidatesWiringTest {
             "context, credentials, folder.mailboxId, folderName, folder.emails + returned, remembered," in lines &&
                 "NewMailNotifier.notifyDiff(context, credentials, inboxMailboxId, null, emails + returned, remembered)"
                 in lines,
+        )
+    }
+
+    /**
+     * SOURCE LINT, NEGATIVE SPACE — ⛔ these are ALL the places this file seeds a baseline, and
+     * there is no other.
+     *
+     * Every rule above asks that a line be PRESENT, and a presence check cannot see a line that was
+     * ADDED. This mutation passes all of them, because it names neither `folder.baselineIds` nor
+     * `orEmpty()` nor `?: emptyList()`, and it re-opens the whole defect through the side door —
+     * the first sight of a folder is marked "known, remembering nothing", so the next pass
+     * announces everything in it:
+     *
+     *     if (folder.emails.isEmpty() && !NewMailNotifier.hasBaseline(context, credentials.id, folder.mailboxId))
+     *         NewMailNotifier.seed(context, credentials.id, folder.mailboxId, emptyList())
+     *
+     * Compared as a LIST of whole lines, in order: an argument swapped, a fourth call site added or
+     * one of these three removed are all a different list. A `contains` would see none of it.
+     */
+    @Test fun `these three are every baseline this file writes, and there is no fourth`() {
+        assertEquals(
+            "FetchAndNotify seeds a baseline somewhere new. There are exactly three seed points — " +
+                "the folder loop's silent seed, the foreground hook's first sight, and its " +
+                "notifications-off arm — and each writes ids the pass actually read. A fourth is " +
+                "how an empty baseline gets written without any of the rules above noticing.",
+            listOf(
+                "NewMailNotifier.seed(context, credentials.id, folder.mailboxId, remembered)",
+                "NewMailNotifier.seed(context, credentials.id, inboxMailboxId, read.baselineIds)",
+                "NewMailNotifier.seed(context, credentials.id, inboxMailboxId, remembered)",
+            ),
+            codeLinesNaming(code(FETCH_AND_NOTIFY), "NewMailNotifier.seed("),
+        )
+    }
+
+    /**
+     * SOURCE LINT — ⛔ a refresh that says "I cannot tell you what this folder holds"
+     * (`FolderRefresh.baselineIds == null`) must SKIP the folder whole: no seed, no diff, not one
+     * write of the baseline.
+     *
+     * The refusal costs nothing to honour, and that is why skipping is the right gesture rather
+     * than a special case: a refused page is empty by construction, so there is nothing to
+     * announce, and the only thing this loop would do with it is precisely the write being refused.
+     *
+     * ⛔ The mutation this exists for is `?: emptyList()`. `seed` REPLACES the baseline, so an
+     * unknown taken as empty erases it, and the next pass announces every unread message inside the
+     * notifier's age floor — one banner per thread, at 3 a.m., for mail already read. It is
+     * unreachable from a JVM test in this module (`NewMailNotifier` needs SharedPreferences,
+     * `FetchAndNotify` an Application container), and the decision it honours is executed one
+     * module down in core/data's `EmptyPushPageIsNotAnEmptyFolderTest`.
+     *
+     * ⚠ It also carries what the pinned `remembered` line above lost when it stopped naming
+     * `folder.baselineIds`: this is the line that says the remembered ids come from the refresh.
+     */
+    @Test fun `a folder whose page could not say what it holds is skipped, never remembered as empty`() {
+        val lines = code(FETCH_AND_NOTIFY).lines().map { it.trim() }
+        assertTrue(
+            "FetchAndNotify.run must refuse a null baseline by leaving the folder alone:\n" +
+                "  val baselineIds = folder.baselineIds ?: return@forEach\n" +
+                "Its lines naming folder.baselineIds are now:\n" +
+                lines.filter { "folder.baselineIds" in it }.joinToString("\n"),
+            listOf("val baselineIds = folder.baselineIds ?: return@forEach") ==
+                lines.filter { "folder.baselineIds" in it },
+        )
+        assertTrue(
+            "a null baseline was flattened into an empty one somewhere in FetchAndNotify — " +
+                "`orEmpty()` / `?: emptyList()` on this path IS the defect, spelled quietly",
+            "orEmpty()" !in code(FETCH_AND_NOTIFY) && "?: emptyList()" !in code(FETCH_AND_NOTIFY),
         )
     }
 
@@ -128,6 +196,11 @@ class NotifyCandidatesWiringTest {
     }
 
     // -- reading the sources --------------------------------------------------------------------
+
+    /** The code lines of [source] naming [needle] — whole lines, and [code] has already cut the
+     *  comments. Whole lines, never a search: `in` is blind to anything a mutation LENGTHENS. */
+    private fun codeLinesNaming(source: String, needle: String): List<String> =
+        source.lines().map { it.trim() }.filter { needle in it }
 
     /** [file]'s code as one string, comments cut — the comments beside these call sites name the
      *  very expressions the rules forbid. */

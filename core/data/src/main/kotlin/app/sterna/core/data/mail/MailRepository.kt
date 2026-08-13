@@ -1038,9 +1038,24 @@ data class FolderRefresh(
     val name: String,
     val role: String?,
     val emails: List<Email>,
-    /** No default: a branch that forgot to say what it remembers would silently remember only
-     *  what it announced, which is the defect this field exists to close. */
-    val baselineIds: List<String>,
+    /**
+     * The ids this folder is to REMEMBER, or NULL when this refresh cannot say what the folder
+     * holds and the notifier must leave its baseline untouched ([watchedBaselineIds]).
+     *
+     * ⛔ An empty list cannot carry that refusal, which is why there is a null here at all: the
+     * empty list is the legitimate answer of a folder that really was emptied, and it is the one
+     * value that MUST still clear a baseline. Spelling "I don't know" and "there is nothing" the
+     * same way is the defect — `NewMailNotifier.seed` replaces, so an unknown taken as empty erases
+     * the baseline, and the next pass announces the whole day's unread mail, one banner per thread.
+     * The null-is-not-empty pattern is [reconcilableIds]', for exactly the same reason.
+     *
+     * ⭐ NEVER null on JMAP: that branch reads the cache back ([notifyRead]) instead of trusting a
+     * page, so it always knows what it holds.
+     *
+     * No default: a branch that forgot to say what it remembers would silently remember only
+     * what it announced, which is the defect this field first existed to close.
+     */
+    val baselineIds: List<String>?,
     /**
      * The ids the SERVER said LEFT this folder during the refresh — a delta eviction or an
      * existence sweep's `notFound`, and nothing else (see [MailboxSync]). The notification layer
@@ -5311,13 +5326,14 @@ class MailRepository(
             // No departures on IMAP, and none can be invented here: re-reading a folder says what
             // it holds, never what left it (see [FolderRefresh.departedIds], #134).
             return loads.map { load ->
-                // Unchanged: this branch has always handed the notifier its fetched page, and it
-                // remembers exactly what it handed over. Stated rather than defaulted, because
-                // "announced" and "remembered" being the same set is a property of THIS branch and
-                // not a rule of the type.
+                // This branch hands the notifier its fetched page, and remembers what that page can
+                // VOUCH for — which is the page itself whenever it read anything, and nothing at
+                // all when it came back empty without the server ever stating the folder empty
+                // (`watchedBaselineIds`). Remembering an empty page is what re-notified a whole
+                // day's unread mail on the pass after any unreadable one.
                 val page = load.messages.map { it.toEmail() }
                 FolderRefresh(
-                    load.mailboxId, load.name, load.role, page, page.map { it.id },
+                    load.mailboxId, load.name, load.role, page, watchedBaselineIds(load),
                     departedIds = emptyList(),
                     // The one branch that has anything to convey: an IMAP row carries no preview
                     // (`preview = null` in `toEntity`, and nothing caches a body before the message

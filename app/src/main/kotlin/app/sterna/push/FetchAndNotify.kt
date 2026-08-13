@@ -66,6 +66,22 @@ object FetchAndNotify {
             // account, because that is the unit of the mutex and of the wake-up alike.
             val previewBudget = NotificationPreviews.PreviewBudget(System::currentTimeMillis)
             refreshes.forEach { folder ->
+                // ⛔ FIRST, and it leaves the folder ENTIRELY alone: null is the refresh saying its
+                // page cannot state what this folder holds (`MailRepository.FolderRefresh
+                // .baselineIds`) — an IMAP SELECT that never stated a count, or a page that came
+                // back empty from a folder the server says holds messages. Skipping is the whole
+                // correction, and it costs nothing: a refused page is empty by construction, so
+                // there is nothing here to announce, and the only thing this iteration would go on
+                // to do is write the baseline — which is precisely the write being refused.
+                // `NewMailNotifier.seed` REPLACES, so writing an empty set here erases the folder's
+                // memory, and the NEXT pass finds the whole day's unread mail unknown and posts a
+                // banner per thread, at whatever hour push happens to run.
+                //
+                // ⚠ It holds just as hard when the folder has NO baseline yet (`hasBaseline` is
+                // false, below): seeding an empty set there marks the folder as known while
+                // remembering nothing, which is the same defect one pass later. `seedsSilently` is
+                // right as it stands — this skip is what keeps a refused page away from it.
+                val baselineIds = folder.baselineIds ?: return@forEach
                 val isInbox = folder.mailboxId == inboxId
                 val folderName = if (isInbox) null else folder.name
                 val hasBaseline = NewMailNotifier.hasBaseline(context, credentials.id, folder.mailboxId)
@@ -105,7 +121,7 @@ object FetchAndNotify {
                 // What the folder REMEMBERS: everything the pass read (not only what it hydrated for
                 // the diff), plus the members it just re-filed. The two sets are different sizes on
                 // purpose — see MailRepository.notifyRead.
-                val remembered = folder.baselineIds + returned.map { it.id }
+                val remembered = baselineIds + returned.map { it.id }
                 if (seedsSilently(resetBaselines, isInbox, hasBaseline)) {
                     // First sight of a folder (or an explicit reset): seed silently instead of
                     // flooding notifications for its whole existing content.
