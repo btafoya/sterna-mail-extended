@@ -1218,6 +1218,10 @@ private fun MessageContent(
             is MessageState.Loaded -> ConversationBody(
                 messages = messages,
                 blockRemote = !showRemote,
+                // Not the same question as `blockRemote`: this one says whether the reader ever
+                // had anything held back on this page, and it is read ONCE (see ConversationBody).
+                senderAllowed = senderAllowed,
+                onShowImages = viewModel::showImagesOnce,
                 stripTracking = stripTracking,
                 confirmLinks = confirmLinks,
                 attachmentStatus = attachmentStatus,
@@ -1260,6 +1264,9 @@ private const val BODY_REVEAL_FAILSAFE_MS = 2_500L
 private fun ConversationBody(
     messages: List<ThreadMessage>,
     blockRemote: Boolean,
+    /** Whether this sender is on the image allowlist, i.e. nothing was ever held back here. */
+    senderAllowed: Boolean,
+    onShowImages: () -> Unit,
     stripTracking: Boolean,
     confirmLinks: Boolean,
     attachmentStatus: String?,
@@ -1284,6 +1291,25 @@ private fun ConversationBody(
 ) {
     val msg = messages.firstOrNull() ?: return
     val full = msg.body
+    // Whether the header says anything about blocked pictures at all (#153) — decided ONCE, when
+    // the body arrives, and then frozen for the life of the page. Both halves of that matter:
+    //  · the ANSWER may not change, because the header's measured height keys the remember() that
+    //    builds the body's HTML document twenty lines below. A strip that appears or disappears
+    //    mid-read changes the header by a whole row, which re-keys that document and cancels the
+    //    body load in flight. What that costs depends on when it happens, and both are bad:
+    //    BEFORE the body has ever been revealed it costs the reveal itself — the height poll that
+    //    sets `bodyReady` was armed by the load just superseded and nothing re-arms it, so the
+    //    body sits at alpha 0 behind the spinner until the failsafe below lifts it. AFTER the
+    //    reveal `bodyReady` is latched (it is never set back to false), so the damage is in plain
+    //    sight instead: the document is rebuilt and reloaded under the reader's eyes and her
+    //    scroll position is lost, back to the top of the message. "Always show images from this
+    //    sender", chosen from the overflow menu while reading, is exactly that gesture: it flips
+    //    `senderAllowed`.
+    //  · the KEY is `full`, the same key the HTML remember() uses, so the two cannot disagree
+    //    about which body they are describing.
+    // `blockRemote` is deliberately NOT read here: it is the live state, and it chooses which of
+    // the strip's two same-height shapes is drawn — never whether the strip exists.
+    val imagesStrip = remember(full) { full != null && !senderAllowed && hasRemoteRefs(full.htmlContent()) }
     val density = LocalDensity.current
     // The body WebView OWNS all vertical scroll. It fills the viewport (so Blink culls offscreen
     // tiles — the email-view jank fix, Codeberg #5) and there is NO outer Compose vertical scroll to
@@ -1459,7 +1485,12 @@ private fun ConversationBody(
             MessageHeader(
                 msg, full, attachmentStatus, onOpenAttachment, calendar, onRespondToInvite,
                 onComposeTo, senderRule, showRecipients, deliveredTo, crypto, onCryptoAction,
-                unsubscribe, unsubscribeState, onUnsubscribe,
+                imagesStrip = imagesStrip,
+                imagesBlocked = blockRemote,
+                onShowImages = onShowImages,
+                unsubscribe = unsubscribe,
+                unsubscribeState = unsubscribeState,
+                onUnsubscribe = onUnsubscribe,
             )
         }
         // Spinner until the body has laid out (cached/prefetched mail beats the 500ms, so none flashes).
@@ -1528,6 +1559,12 @@ private fun MessageHeader(
     deliveredTo: String? = null,
     crypto: CryptoUiState = CryptoUiState.None,
     onCryptoAction: () -> Unit = {},
+    /** Whether this message has remote content that was held back — decided once, in
+     *  [ConversationBody], and frozen there for the life of the page. */
+    imagesStrip: Boolean = false,
+    /** The LIVE state: which of the strip's two same-height shapes is drawn. */
+    imagesBlocked: Boolean = true,
+    onShowImages: () -> Unit = {},
     unsubscribe: UnsubscribeOptions? = null,
     unsubscribeState: UnsubscribeState = UnsubscribeState.Idle,
     onUnsubscribe: () -> Unit = {},
@@ -1655,6 +1692,14 @@ private fun MessageHeader(
                     },
                 )
             }
+        }
+        // The pictures this message wanted from someone else's server, and did not get (#153).
+        // Until this, nothing on screen said so at all: the only way through was an entry buried
+        // in the reader's overflow menu, which a reader has no reason to open for a message that
+        // simply looks broken. The entry stays — it is the only way out when the detection misses.
+        if (imagesStrip) {
+            HorizontalDivider()
+            ImagesStrip(imagesBlocked, onShowImages)
         }
         // The way out of a mailing list, when the sender offers one. Last of the strips, so it
         // never pushes the crypto verdict or a meeting invitation below the fold.
@@ -2157,6 +2202,86 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
                 }
             }
             CryptoUiState.None -> Unit
+        }
+    }
+}
+
+/**
+ * The blocked-images strip above the body: **one button**, offering to fetch the pictures and then
+ * — once they are there — saying so, greyed out (#153).
+ *
+ * **Why it exists.** The reader blocks remote content by default, and said nothing about it. A
+ * message whose layout depends on its images just looked broken, and the only remedy was an entry
+ * in the overflow menu that no one opens for a message that looks broken rather than blocked. The
+ * strip states what happened where the consequence is visible.
+ *
+ * **A button, no icon, no sentence** — the grammar of the FREQUENT strips (see [UnsubscribeStrip]'s
+ * KDoc, which is the reference for all of this). Remote images are in most commercial mail, so this
+ * strip appears constantly and every pixel it costs is paid on every one of those messages. The
+ * label already says what the gesture does; an icon beside it would only repeat it.
+ *
+ * ⭐ **One shape in both states, and that is the whole risk of the feature.** The measured height of
+ * the header is part of the key of the `remember` that builds the body's HTML document (see
+ * [ConversationBody]), so a strip that changes size cancels the body load in flight: before the
+ * body's first reveal the reader is left waiting behind the spinner until the failsafe lifts it,
+ * and after that reveal she watches the message reload and lose her scroll position. Showing the
+ * images is a gesture made in this very header, so this strip does not disappear when it is done —
+ * it is the SAME [TextButton], `enabled = false`, wearing the other label from [ImagesStripBody].
+ * Two composables under one `heightIn` do not hold: that is a FLOOR, and the button stands above it
+ * (Material3's `minimumInteractiveComponentSize()`, plus a vertical inset that grows with the font
+ * scale) while a bare [Text] sits back down on it — the bench measured the header LOSING 8 dp at
+ * the tap in the normal font and 13 dp at `font_scale 2.0`.
+ *
+ * ⚠ One shape is only one height **as long as the label stays on one line** — hence `maxLines = 1`
+ * and the ellipsis, which are part of this rule and not a matter of taste. `heightIn` is a floor,
+ * so a label that wrapped would grow the strip by a whole line, and the two strings differ in
+ * length in every locale. Nothing in the JVM lays Compose out: all of this is an argument, not a
+ * tested guarantee — it is checked on the bench. Its PRESENCE is frozen for the life of the page
+ * for the same reason, one level up in [ConversationBody], and drawn on that flag ALONE — only the
+ * label and `enabled` follow the live state.
+ *
+ * ⚠ A short @Composable is exactly the shape R8 once inlined into drawing NOTHING in a release
+ * build (hence `MonogramKt` in proguard-rules.pro). **Do not move this into a small file of its
+ * own**, and verify any change here on a RELEASE build on a device; a debug build cannot see it.
+ */
+@Composable
+private fun ImagesStrip(blocked: Boolean, onShowImages: () -> Unit) {
+    // Asked, never re-decided from the boolean: a second copy of the rule here is a rule no test
+    // can hold, because the test would be measuring the copy that does not ship.
+    val body = imagesStripBody(blocked)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            // No padding of its own along the height: the button's own minimum IS the strip's
+            // height, and the button is the only thing in here. See the KDoc above — a strip that
+            // changes height reloads (and blanks) the body underneath it.
+            .heightIn(min = ButtonDefaults.MinHeight)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Done is done: the same button, in the same place, at the same size, with no gesture left
+        // in it. Nothing else is drawn here — a second shape is a second height.
+        TextButton(
+            onClick = onShowImages,
+            enabled = body.acts,
+            // A disabled TextButton otherwise takes onSurface at 38 % alpha, and the only
+            // confirmation this app gives that the pictures arrived would be the palest thing in
+            // the header — fainter than the muted line it replaces.
+            colors = ButtonDefaults.textButtonColors(
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+        ) {
+            Text(
+                stringResource(body.label),
+                // ONE line whatever the language, and this is a height rule, not typography:
+                // heightIn is a FLOOR, so a label that wrapped would make the strip a whole line
+                // taller — and the two strings differ in length in every locale (de 15 → 23
+                // chars, nl 18 → 24, fr 19 → 16), so at large font scales one state would wrap
+                // and the other would not. A clipped German word costs legibility on a status
+                // line; a wrap costs the body reload and the reader's place in the message.
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

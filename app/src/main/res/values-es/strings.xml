@@ -127,6 +127,7 @@
     <string name="message_title_fallback">Mensaje</string>
     <string name="message_back">Atrás</string>
     <string name="message_show_images">Mostrar imágenes</string>
+    <string name="message_images_shown">Imágenes mostradas</string>
     <string name="message_images_always_sender">Mostrar siempre las imágenes de este remitente</string>
     <string name="message_images_stop_sender">No mostrar automáticamente las imágenes de este remitente</string>
     <string name="message_open_link_title">¿Abrir este enlace?</string>
