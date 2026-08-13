@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.DeleteForever
@@ -658,6 +659,14 @@ private fun MessageActions(
     val imageAllowlist by viewModel.imageAllowlist.collectAsStateWithLifecycle()
     // Per-message manual override; the sender allowlist auto-shows without it.
     val manualShow by viewModel.manualShowImages.collectAsStateWithLifecycle()
+    // Reading mode (#149): the stored setting, this message's deviation from it (set by the very
+    // menu below), and the two answers they resolve to — what is RENDERED, and what the remote-image
+    // question is decided against. The second is not the first while the setting is still being
+    // read: see plainTextForImages.
+    val plainTextOverride by viewModel.plainText.collectAsStateWithLifecycle()
+    val plainTextSetting by viewModel.plainTextSetting.collectAsStateWithLifecycle()
+    val plainText = plainTextForBody(plainTextOverride, plainTextSetting)
+    val imageMode = plainTextForImages(plainTextOverride, plainTextSetting)
     // Folders the move-to-folder entry offers: this message's OWN account's, minus its current
     // one (#73). Empty (single-folder account, folders not cached yet) hides the entry rather
     // than opening a picker with nothing to pick.
@@ -671,7 +680,18 @@ private fun MessageActions(
     val loaded = state as? MessageState.Loaded ?: return
     val senderEmail = loaded.email.from.firstOrNull()?.email
     val senderAllowed = senderEmail?.lowercase()?.let { it in imageAllowlist } == true
-    val showRemote = manualShow || senderAllowed
+    val showRemote = showRemoteImages(imageMode, manualShow, senderAllowed)
+    // Is the reading-mode entry worth offering on THIS message (#149)? On mail with no HTML part —
+    // a mailing-list post, a git notification — both modes build the same <pre>, and the entry only
+    // ever flipped its own label. The verdict comes from building both bodies (see
+    // [readingModesDiffer]), so it needs the same localised notice the page renders. Remembered on
+    // the message and that notice: it renders the body twice and must not do so on every
+    // recomposition of the menu. Before the body arrives the state holds the cached header, which
+    // has no body at all — the entry stands down until there is something to switch.
+    val derivedNotice = stringResource(R.string.message_plain_text_derived)
+    val readingModeUseful = remember(loaded.email, derivedNotice) {
+        readingModesDiffer(loaded.email, derivedNotice)
+    }
     // Follow (flag) toggle, promoted from the overflow menu to the bar now that
     // the subject no longer takes the title space (Codeberg #44).
     val flagged = loaded.email.isFlagged
@@ -781,32 +801,75 @@ private fun MessageActions(
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = null) },
                 onClick = { menuOpen = false; onReply("forward", replyTargetId, accountId) },
             )
-            // Image controls: one-time show only while still blocked,
-            // plus the per-sender allowlist toggle.
-            if (!showRemote || senderEmail != null) HorizontalDivider()
-            if (!showRemote) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.message_show_images)) },
-                    leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
-                    onClick = { menuOpen = false; viewModel.showImagesOnce() },
-                )
-            }
-            if (senderEmail != null) {
+            // Reading mode (#149): read the message as text instead of its HTML, and back. The
+            // label says what the tap DOES, so it follows the mode actually RENDERED — the stored
+            // setting included, which is why the entry reads "Show HTML" on a message the setting
+            // opened as text. The tap writes the opposite of that as this message's deviation, so
+            // the label's promise is always the one carried out. Transitory: the deviation is
+            // forgotten when the message is left, and the setting decides again.
+            //
+            // Offered only when switching would actually CHANGE the screen: an entry that promises
+            // a rendering and hands back the identical document is a dead action, and that is what
+            // the setting's own audience got — with the setting on, "Show HTML" on a message with
+            // no HTML part flipped its label and nothing else.
+            if (readingModeUseful) {
+                HorizontalDivider()
                 DropdownMenuItem(
                     text = {
                         Text(
                             stringResource(
-                                if (senderAllowed) R.string.message_images_stop_sender
-                                else R.string.message_images_always_sender,
+                                if (plainText) R.string.message_show_html
+                                else R.string.message_show_plain_text,
                             ),
                         )
                     },
-                    leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
-                    onClick = {
-                        menuOpen = false
-                        viewModel.setImagesAlwaysAllowed(senderEmail, !senderAllowed)
+                    leadingIcon = {
+                        Icon(
+                            if (plainText) Icons.Filled.Code else Icons.Filled.Description,
+                            contentDescription = null,
+                        )
                     },
+                    onClick = { menuOpen = false; viewModel.setPlainText(!plainText) },
                 )
+            }
+            // Image controls: one-time show only while still blocked, plus the per-sender
+            // allowlist toggle. Both stand down in plain-text mode — there is no image in the
+            // document to show, so an entry offering to show one would be a lie, and the
+            // allowlist toggle would silently change what the NEXT message does from a screen
+            // where nothing visibly happens.
+            //
+            // Guarded on `imageMode`, NOT on `plainText`, and that is the same variable `showRemote`
+            // just above is decided on — this whole block asks showRemote's question, so it must get
+            // showRemote's answer. The two only differ while DataStore has not answered, and in that
+            // window a `plainText` guard makes the menu contradict itself: setting off, sender
+            // already on the allowlist, and it offers "Show images" and "Stop showing images from
+            // this sender" side by side.
+            if (!imageMode) {
+                if (!showRemote || senderEmail != null) HorizontalDivider()
+                if (!showRemote) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.message_show_images)) },
+                        leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                        onClick = { menuOpen = false; viewModel.showImagesOnce() },
+                    )
+                }
+                if (senderEmail != null) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (senderAllowed) R.string.message_images_stop_sender
+                                    else R.string.message_images_always_sender,
+                                ),
+                            )
+                        },
+                        leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            viewModel.setImagesAlwaysAllowed(senderEmail, !senderAllowed)
+                        },
+                    )
+                }
             }
             // Triage actions (Archive moved out to the toolbar; mark-unread
             // took its slot here — #50 follow-up).
@@ -1167,9 +1230,16 @@ private fun MessageContent(
     // Per-message manual override (set from the fixed toolbar's menu, hence in the VM);
     // the sender allowlist auto-shows without it.
     val manualShow by viewModel.manualShowImages.collectAsStateWithLifecycle()
+    // Reading mode (#149), resolved exactly as the menu above resolves it: the stored setting, this
+    // message's deviation from it, and the two answers — the one that picks the document, and the
+    // one the remote-image question is decided against.
+    val plainTextOverride by viewModel.plainText.collectAsStateWithLifecycle()
+    val plainTextSetting by viewModel.plainTextSetting.collectAsStateWithLifecycle()
+    val plainText = plainTextForBody(plainTextOverride, plainTextSetting)
+    val imageMode = plainTextForImages(plainTextOverride, plainTextSetting)
     val senderEmail = (state as? MessageState.Loaded)?.email?.from?.firstOrNull()?.email
     val senderAllowed = senderEmail?.lowercase()?.let { it in imageAllowlist } == true
-    val showRemote = manualShow || senderAllowed
+    val showRemote = showRemoteImages(imageMode, manualShow, senderAllowed)
     // The per-sender filter rule offered from the participants panel. The Trash is named from
     // the account's OWN cached folder list (no network), the script state is read once when the
     // panel opens, the account's own addresses come from the store, and which of the four answers
@@ -1229,6 +1299,7 @@ private fun MessageContent(
                 calendar = calendar,
                 onRespondToInvite = viewModel::respondToInvite,
                 textZoom = messageTextSize.zoom,
+                plainText = plainText,
                 replyBarEnabled = replyBarEnabled,
                 onBarVisibleChanged = viewModel::setReplyBarVisible,
                 onComposeTo = onComposeTo,
@@ -1274,6 +1345,10 @@ private fun ConversationBody(
     calendar: CalendarInvite?,
     onRespondToInvite: (String) -> Unit,
     textZoom: Int,
+    /** Read the message as text rather than as its HTML (#149). It selects the document below and
+     *  NOTHING else here: the reveal machinery is keyed on the message id, so a toggle rebuilds
+     *  the document without putting the spinner back over a body that is already on screen. */
+    plainText: Boolean,
     /** Whether the bottom Reply/Forward bar is wanted at all (#63). It gates the bar's visibility
      *  and the blank the document reserves for it, and NOTHING else: the reveal machinery below
      *  also drives the body's alpha, its spinner and the collapsing header. */
@@ -1345,6 +1420,16 @@ private fun ConversationBody(
     var bodyReady by remember(msg.id) { mutableStateOf(false) }
     val barReveal = remember(msg.id) { BarReveal() }
     var showBar by remember(msg.id) { mutableStateOf(false) }
+    // A reading-mode switch (#149) puts a DIFFERENT body under the same message id, so the geometry
+    // folded in so far is about a document that is gone: the newsletter's 8000 px range would
+    // outlive its 900 px flattening, and the bar — which only shows at a range the new body can no
+    // longer reach — would never come back, in either mode, until the message is closed.
+    // Keyed on `plainText` and on NOTHING else: the document is also rebuilt by an inline-image
+    // insert, a theme change or a header resize, and forgetting the range on those paths would take
+    // the bar away mid-read, which is exactly Codeberg #63. `bodyReady` and the rest below stay
+    // keyed on msg.id for the same reason: the body is already on screen, and re-arming its
+    // readiness would flash the spinner back over a message the reader is reading.
+    LaunchedEffect(plainText) { barReveal.documentReplaced() }
     // The VISIBLE Reply/Forward bar is fixed chrome at the pager level (outside the horizontal
     // swipe — #62): this page only reports whether its resting/scroll state wants the bar, and
     // the chrome follows the SETTLED page's value. The invisible measuring copy below stays
@@ -1432,8 +1517,20 @@ private fun ConversationBody(
                 // scroll above it, so the bar covered the end. In dark mode the spacer is transparent
                 // (buildHtmlDocument) so it shows the native surface and doesn't invert to an off-black box.
                 val bottomSpacerCssPx = (bottomInsetPx / density.density).roundToInt()
-                val html = remember(full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx) {
-                    buildHtmlDocument(full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx)
+                // The "derived text" line is resolved here, where a Composable can read resources,
+                // and handed to the document already localised.
+                val derivedNotice = stringResource(R.string.message_plain_text_derived)
+                // plainText is part of the key, or the toggle would change the mode and re-render
+                // the SAME document; the rebuilt document then differs, which is what makes
+                // EmailWebView's loadKey reload the page.
+                val html = remember(
+                    full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx,
+                    plainText, derivedNotice,
+                ) {
+                    buildHtmlDocument(
+                        full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx,
+                        plainText, derivedNotice,
+                    )
                 }
                 EmailWebView(
                     html = html,
@@ -3467,31 +3564,47 @@ private const val CSP_META =
         "font-src data:; media-src data: cid: http: https:; " +
         "form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'\">"
 
-private fun buildHtmlDocument(
+// `internal`, not private, since #149: what the page does with [ReaderBody.richHtml] — invert the
+// page or paint it in the app's colours — is the half of the reading-mode decision that lives HERE,
+// and it was the half nothing could see. A test that only ran [readerBody] stayed green with this
+// function reading `email.htmlContent() != null` again, which puts dark text on a light band.
+internal fun buildHtmlDocument(
     email: Email,
     inlineImages: Map<String, String> = emptyMap(),
     theme: EmailTheme = EmailTheme("#ffffff", "#111111", "#0b5fff", false),
     topSpacerCssPx: Int = 0,
     bottomSpacerCssPx: Int = 0,
+    plainText: Boolean = false,
+    derivedNotice: String = "",
 ): String {
-    val htmlContent = email.htmlContent()
-    var inner = htmlContent
-        ?: email.textContent()?.let { "<pre class=\"plain\">${escapeHtml(reflowFormatFlowed(it))}</pre>" }
-        ?: "<p>${escapeHtml(email.preview ?: "(no content)")}</p>"
-    // Embed inline images: replace cid: references with their data URIs.
-    inlineImages.forEach { (cid, dataUri) ->
-        inner = inner.replace("cid:$cid", dataUri).replace("cid:<$cid>", dataUri)
+    // Which part of the message the document carries, and what that implies for the page, is
+    // decided in ONE place a test can run — see [readerBody].
+    val body = readerBody(email, plainText, derivedNotice)
+    var inner = body.fragment
+    // The two rewrites below UNDO MARKUP the message wrote, so they apply only while the document
+    // actually carries that markup — [ReaderBody.richHtml], NOT "the message has HTML" (#149). A
+    // body we paint ourselves is HTML-escaped text, and escaping touches neither ':' nor '-': a
+    // message whose TEXT reads `cid:logo` or literally `prefers-color-scheme: dark` (a CSS snippet
+    // pasted into a dev mailing list) would otherwise come out mutilated as
+    // `prefers-color-scheme:dark) and (max-width:0px` — in the mode whose whole promise is to show
+    // the text as it is. This is why the guard is here and not inside the dark-theme branch below:
+    // the question is what the document CARRIES, not what colours it gets.
+    if (body.richHtml) {
+        // Embed inline images: replace cid: references with their data URIs.
+        inlineImages.forEach { (cid, dataUri) ->
+            inner = inner.replace("cid:$cid", dataUri).replace("cid:<$cid>", dataUri)
+        }
+        // Neutralise the email's own dark-mode styles. On a dark-mode device the WebView matches
+        // `prefers-color-scheme: dark`, so a marketing email renders its dark variant — which our
+        // invert then turns light (the "white band in dark theme" bug); declaring color-scheme is
+        // ignored by Android WebView, so we defang the media queries directly by appending an
+        // always-false condition. The email then always renders its light design, which we show
+        // as-is (light theme) or invert (dark theme).
+        inner = inner.replace(
+            Regex("""prefers-color-scheme\s*:\s*dark""", RegexOption.IGNORE_CASE),
+            "prefers-color-scheme:dark) and (max-width:0px",
+        )
     }
-    // Neutralise the email's own dark-mode styles. On a dark-mode device the WebView matches
-    // `prefers-color-scheme: dark`, so a marketing email renders its dark variant — which our
-    // invert then turns light (the "white band in dark theme" bug); declaring color-scheme is
-    // ignored by Android WebView, so we defang the media queries directly by appending an
-    // always-false condition. The email then always renders its light design, which we show
-    // as-is (light theme) or invert (dark theme).
-    inner = inner.replace(
-        Regex("""prefers-color-scheme\s*:\s*dark""", RegexOption.IGNORE_CASE),
-        "prefers-color-scheme:dark) and (max-width:0px",
-    )
     // Bracket the content with two real DOCUMENT elements (scrollable, unlike body padding which Blink
     // drops, or WebView view padding which clips the last lines): a transparent TOP spacer of the
     // collapsing header's height so the header overlays blank space and content starts below it; and a
@@ -3500,7 +3613,10 @@ private fun buildHtmlDocument(
     // in dark mode. cid/data already inlined above; pure layout, no scripts.
     inner = "<div aria-hidden=\"true\" style=\"height:${topSpacerCssPx}px\"></div>" + inner +
         "<div aria-hidden=\"true\" class=\"s-end\" style=\"height:${bottomSpacerCssPx}px\"></div>"
-    val richHtml = htmlContent != null
+    // What is RENDERED, not what is available: in plain-text mode a message that HAS HTML is still
+    // painted by us, in the app's own colours, and inverting that page would give dark text on a
+    // light band — the "white band in dark theme" bug seen from the other side.
+    val richHtml = body.richHtml
     if (theme.dark && richHtml) {
         // Rich HTML carries its own (usually white) backgrounds we can't restyle reliably,
         // so render it light and invert the whole page. The filter MUST sit on the root
@@ -3566,6 +3682,9 @@ private fun buildHtmlDocument(
           img { max-width: 100%; height: auto; }
           a { color: $link; }
           pre.plain { white-space: pre-wrap; word-wrap: break-word; font-family: sans-serif; }
+          /* The "text derived from HTML" line (#149). Only ever reached here: a derived body is
+             painted by us, so it is never in the inverted branch above. */
+          p.s-note { margin: 0 0 12px; font-size: 0.85em; opacity: 0.7; }
           /* Bottom spacer reserving room for the overlaying Reply/Forward bar; surface colour so it
              blends with the body background. */
           .s-end { background: $bg; }
@@ -3574,12 +3693,10 @@ private fun buildHtmlDocument(
 }
 
 /** Resolved theme colours (CSS hex) handed to the email WebView so it matches the app. */
-private data class EmailTheme(val background: String, val text: String, val link: String, val dark: Boolean)
+internal data class EmailTheme(val background: String, val text: String, val link: String, val dark: Boolean)
 
-private fun escapeHtml(text: String): String = text
-    .replace("&", "&amp;")
-    .replace("<", "&lt;")
-    .replace(">", "&gt;")
+// escapeHtml() lived here; it was character-for-character `core.data.text.htmlEscape`, which the
+// body decision now uses (see ReaderBody.kt). One escaper, not two.
 
 private const val ZWJ = '\u200D' // zero-width joiner: glues a multi-part emoji into one glyph
 private const val VS15 = '\uFE0E' // variation selector: force TEXT (monochrome) presentation

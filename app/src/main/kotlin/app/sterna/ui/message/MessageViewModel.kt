@@ -360,6 +360,15 @@ private fun Email.markRead(): Email =
  *  not been read yet. The safe side of this one is the one that costs a tap. */
 internal const val CONFIRM_LINKS_UNLOADED = true
 
+/** What the reader's REMOTE-IMAGE decision assumes about the reading-mode setting (#149) while
+ *  DataStore has not answered: plain text, i.e. no image fetched. Same trade as
+ *  [CONFIRM_LINKS_UNLOADED] and the same asymmetry — a message shown as HTML for one frame too many
+ *  costs a frame, an image fetched in that frame has already told the sender the mail was opened and
+ *  cannot be un-fetched. It is only the IMAGE half: what is RENDERED in that window is the stored
+ *  default, or the reader would see a flash of text on every message swiped past. See
+ *  [plainTextForImages] and [plainTextForBody], which are what execute both. */
+internal const val PLAIN_TEXT_UNLOADED_FOR_IMAGES = true
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class MessageViewModel(application: Application) : AndroidViewModel(application) {
     private val store = application.container.accountStore
@@ -633,6 +642,38 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _manualShowImages.value = true
     }
 
+    /** This message's DEVIATION from the reading-mode setting (#149), set from the overflow menu:
+     *  null = nobody chose, follow the setting; true/false = read THIS message as text, or as its
+     *  HTML, whatever the setting says. Not an `or` — with the setting on, the menu offers "Show
+     *  HTML" and has to deliver it. Lives here for the same reason as the image override: the menu
+     *  is at the pager level and the body it changes is at the page level. TRANSITORY on purpose —
+     *  reset to null on load, nothing is stored, and leaving the message returns to the setting. It
+     *  is pure UI over the body already in hand: it must never re-open or re-decrypt the message, or
+     *  every toggle would replay the OpenKeychain round-trip. Resolved by [plainTextForBody]. */
+    private val _plainText = MutableStateFlow<Boolean?>(null)
+    val plainText = _plainText.asStateFlow()
+
+    fun setPlainText(on: Boolean) {
+        _plainText.value = on
+    }
+
+    /**
+     * The stored reading-mode setting (#149) — and null while DataStore has not answered, which is a
+     * state the reader has to be able to SEE. `MessagePage` builds one of these per page of the
+     * pager, so that window reopens on every message swiped through, not once at launch.
+     *
+     * The initial value is therefore null and NOT PLAIN_TEXT_DEFAULT: seeding the default here would
+     * answer the remote-image question as "HTML" before the answer is known, which is the one side
+     * that cannot be taken back. The two readers of this null differ on purpose — [plainTextForBody]
+     * renders the default, [plainTextForImages] cuts the images — and neither is reachable if the
+     * null is resolved here.
+     */
+    val plainTextSetting: StateFlow<Boolean?> = settings.plainText.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = null,
+    )
+
     /** The raw-headers viewer (issue #60): null while closed, else its load/loaded/error state.
      *  Headers are pulled on demand ([viewHeaders]) so the normal reader path never fetches them. */
     private val _headers = MutableStateFlow<HeadersState?>(null)
@@ -812,6 +853,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         autoDecryptTried = false
         _replyBarVisible.value = false
         _manualShowImages.value = false
+        _plainText.value = null
         _headers.value = null
         _attachmentStatus.value = null
         // The per-sender rule, all three halves. The status is the answer to a gesture made on

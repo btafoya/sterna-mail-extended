@@ -9,6 +9,7 @@ import app.sterna.core.data.account.K9SettingsImporter
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.MessageTextSize
+import app.sterna.core.data.settings.PLAIN_TEXT_DEFAULT
 import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.data.settings.PURE_BLACK_DEFAULT
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
@@ -431,6 +432,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setReplyBar(enabled: Boolean) {
         viewModelScope.launch { settings.setReplyBar(enabled) }
+    }
+
+    // The first frame, before DataStore has answered: PLAIN_TEXT_DEFAULT, like replyBar above and
+    // for the same reason — a literal here would be a second copy of the default, and the switch
+    // would show the wrong position on entry for as long as the store takes to open (#149). The
+    // READER seeds the same setting with null instead, and deliberately: see MessageViewModel.
+    val plainText = settings.plainText.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = PLAIN_TEXT_DEFAULT,
+    )
+
+    fun setPlainText(enabled: Boolean) {
+        viewModelScope.launch { settings.setPlainText(enabled) }
     }
 
     val messageTextSize = settings.messageTextSize.stateIn(

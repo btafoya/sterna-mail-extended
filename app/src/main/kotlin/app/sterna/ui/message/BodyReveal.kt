@@ -186,6 +186,28 @@ internal class BarReveal {
     fun scrolled(scrollY: Int, maxScrollPx: Int, thresholdPx: Int): Boolean =
         fold(scrollY, maxScrollPx, thresholdPx)
 
+    /**
+     * The document was REPLACED — the reader switched between the message's HTML and its text
+     * (#149) — so everything folded in so far measured a body that is no longer on screen. Start
+     * over from a fresh [BarState]: range forgotten, bar not shown.
+     *
+     * Both rules in [BodyReveal.barAfterReport] compare reports about ONE body. "A measured range
+     * only grows" tells a body caught mid-layout from a body that shrank, which two DIFFERENT
+     * bodies have nothing to say about: an 8000 px newsletter flattened to 900 px of text keeps the
+     * old maximum, the shorter body can never reach it, and the Reply/Forward bar never comes back
+     * — in EITHER mode — until the message is closed, because the state is remembered on the
+     * message id. "A shown bar is only taken back by the reader moving" is the same mistake seen
+     * from the other side: a bar earned by a body that fitted would carry over onto a long one.
+     *
+     * This is NOT the load-time reset of a body that is still the same document: a body that
+     * relayouts, decodes its remote images or gets rethemed must keep its geometry, or the bar
+     * disappears mid-read (Codeberg #63). Only a change of reading mode may call this.
+     */
+    fun documentReplaced() {
+        state = BarState()
+        shown = false
+    }
+
     private fun fold(scrollY: Int, maxScrollPx: Int, thresholdPx: Int): Boolean {
         state = BodyReveal.barAfterReport(state, scrollY, maxScrollPx, thresholdPx)
         shown = state.shown

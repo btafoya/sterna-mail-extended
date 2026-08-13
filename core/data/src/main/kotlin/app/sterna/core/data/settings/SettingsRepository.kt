@@ -245,6 +245,18 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_REPLY_BAR] = enabled }
     }
 
+    /** Whether a message OPENS as text rather than as its own HTML (#149). OFF by default — the
+     *  HTML is what the app has always shown. It decides what a message opens as, not what it can
+     *  be shown as: the reader's menu still switches the message in hand either way, and that
+     *  choice is forgotten when the message is left. Global, not per account, for the same reason
+     *  [replyBar] is: the reader is shared by the unified inbox, and a per-account answer would
+     *  change the rendering from one message to the next in a single list. */
+    val plainText: Flow<Boolean> = dataStore.data.map(::plainTextFrom)
+
+    suspend fun setPlainText(enabled: Boolean) {
+        dataStore.edit { it[KEY_PLAIN_TEXT] = enabled }
+    }
+
     /** Reading text size for the message body. */
     val messageTextSize: Flow<MessageTextSize> = dataStore.data.map { prefs ->
         prefs[KEY_MESSAGE_TEXT_SIZE]?.let { runCatching { MessageTextSize.valueOf(it) }.getOrNull() }
@@ -354,6 +366,7 @@ class SettingsRepository(context: Context) {
         signatureBelowQuote = signatureBelowQuote.first(),
         signatureDelimiter = signatureDelimiter.first(),
         replyBar = replyBar.first(),
+        plainText = plainText.first(),
         unreadTint = unreadTint.first(),
         pureBlack = pureBlack.first(),
         listMonogram = listMonogram.first(),
@@ -387,6 +400,7 @@ class SettingsRepository(context: Context) {
         backup.signatureBelowQuote?.let { setSignatureBelowQuote(it) }
         backup.signatureDelimiter?.let { setSignatureDelimiter(it) }
         backup.replyBar?.let { setReplyBar(it) }
+        backup.plainText?.let { setPlainText(it) }
         backup.unreadTint?.let { setUnreadTint(it) }
         backup.pureBlack?.let { setPureBlack(it) }
         backup.listMonogram?.let { setListMonogram(it) }
@@ -598,3 +612,28 @@ const val LIST_MONOGRAM_DEFAULT = true
  */
 internal fun listMonogramFrom(prefs: Preferences): Boolean =
     prefs[KEY_LIST_MONOGRAM] ?: LIST_MONOGRAM_DEFAULT
+
+/** The key the plain-text reading switch is stored under. Renaming it puts the HTML back for every
+ *  user who chose to read text, so it is pinned by name in [plainTextFrom]'s test. */
+internal val KEY_PLAIN_TEXT = booleanPreferencesKey("plain_text")
+
+/**
+ * What a message opens as when nobody has touched the switch: its own HTML (#149). OFF,
+ * deliberately — reading everything as text is a choice, and a default of `true` would change what
+ * every message looks like on update without anyone asking. One definition, read by [plainTextFrom],
+ * by the settings screen's initial value and by the reader's own rendering decision; the last two
+ * are the copies that make a literal here dangerous.
+ */
+const val PLAIN_TEXT_DEFAULT = false
+
+/**
+ * Whether a message opens as text rather than as its own HTML, read from the stored preferences.
+ *
+ * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: as a
+ * function of the stored `Boolean?` the default stays reachable from outside — `plainTextFrom(
+ * prefs[KEY] ?: true)` flattens every message for every user who has never opened Settings — and no
+ * test can see it, since the argument is already defaulted by the time the function runs. Given the
+ * whole [Preferences] there is nothing left to pre-empt: the test hands it an empty store, a store
+ * with the switch on, and one with it off.
+ */
+internal fun plainTextFrom(prefs: Preferences): Boolean = prefs[KEY_PLAIN_TEXT] ?: PLAIN_TEXT_DEFAULT

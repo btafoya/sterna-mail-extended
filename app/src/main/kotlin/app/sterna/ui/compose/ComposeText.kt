@@ -137,8 +137,13 @@ internal fun originalPlainText(o: Email): String {
  * The body to work from, and whether it is HTML. HTML-only mail makes the server synthesise
  * textBody = the HTML part, so the "text" body can actually be HTML; a genuine text/plain part is
  * used as-is, and the one-line preview is the last resort.
+ *
+ * `internal`, not file-private, since #149: the reader's plain-text mode needs exactly this
+ * decision ([app.sterna.ui.message.readerBody]) and a second copy of it would be free to drift —
+ * the whole point is that "the text body" can be HTML, and a copy that forgot it would show
+ * escaped markup under a "plain text" label.
  */
-private fun bodySource(o: Email): Pair<String, Boolean> {
+internal fun bodySource(o: Email): Pair<String, Boolean> {
     val textPart = o.textBody.firstOrNull()
     val raw = textPart?.partId?.let { o.bodyValues[it]?.value }
     if (!raw.isNullOrBlank()) return raw to textPart?.type.equals("text/html", ignoreCase = true)

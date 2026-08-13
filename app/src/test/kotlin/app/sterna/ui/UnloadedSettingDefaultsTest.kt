@@ -3,14 +3,15 @@ package app.sterna.ui
 import app.sterna.core.data.settings.SwipeAction
 import app.sterna.ui.inbox.SWIPE_CONFIG_UNLOADED
 import app.sterna.ui.message.CONFIRM_LINKS_UNLOADED
+import app.sterna.ui.message.PLAIN_TEXT_UNLOADED_FOR_IMAGES
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 /**
- * Two settings that DRIVE AN ACTION rather than merely show a value, and the value each one carries
- * during the frames before DataStore has answered.
+ * Three settings that DRIVE AN ACTION rather than merely show a value, and the value each one
+ * carries during the frames before DataStore has answered.
  *
  * A swipe that lands in that window commits whatever `swipeConfig` says, and a link tapped in it
  * opens with or without the confirmation `confirmLinks` says. Seeding either flow with the
@@ -78,6 +79,23 @@ class UnloadedSettingDefaultsTest {
         )
     }
 
+    /**
+     * The third one (#149), and the one that is TWO answers to one unread value: what is rendered,
+     * and what the remote images are decided against. Only the second belongs here — the values are
+     * executed through the two decision functions in `ReaderBodyTest`, this pins the constant those
+     * read.
+     */
+    @Test fun `an unknown reading mode counts as text for the remote images`() {
+        assertTrue(
+            "the waiting value the image decision reads must be true — 'as if plain text', i.e. no " +
+                "remote image at all. false lets one frame fetch the images of a sender who is " +
+                "already on the allowlist while the reading mode is still unknown, and a tracking " +
+                "pixel that has fired cannot be un-fired. What is RENDERED in that window is the " +
+                "opposite call and stays on the stored default: see plainTextForBody",
+            PLAIN_TEXT_UNLOADED_FOR_IMAGES,
+        )
+    }
+
     // -- 2. the wiring, as a whole-line source lint -----------------------------------------------
 
     @Test fun `swipeConfig starts on the inert pair and nothing else`() {
@@ -109,6 +127,57 @@ class UnloadedSettingDefaultsTest {
             ),
             "the link-confirmation stateIn",
         )
+    }
+
+    /**
+     * The reading-mode setting reaches the reader UNRESOLVED — as a nullable, with `null` meaning
+     * "not read yet" — and that is the whole mechanism (#149). Seed it with the repository's default
+     * here and the null disappears one file too early: the image decision then answers "HTML" during
+     * a window in which nothing knows, `plainTextForImages` is never handed a null again, and the
+     * test that executes it goes on passing over a case the app can no longer reach.
+     */
+    @Test fun `the reader takes the reading-mode setting unresolved, null and all`() {
+        assertBlock(
+            MESSAGE_VIEW_MODEL,
+            listOf(
+                "val plainTextSetting: StateFlow<Boolean?> = settings.plainText.stateIn(",
+                "scope = viewModelScope,",
+                "started = SharingStarted.WhileSubscribed(5_000),",
+                "initialValue = null,",
+                ")",
+            ),
+            "the reading-mode setting's stateIn",
+        )
+    }
+
+    /**
+     * The negative screen for that one: the reader must not name the stored default at all. Its own
+     * waiting value is `null`, and the default belongs to `plainTextForBody`, which is executed by a
+     * test. `initialValue = PLAIN_TEXT_DEFAULT` compiles, looks careful, and is the defect.
+     */
+    @Test fun `the repository's reading-mode default is not restated in the message view model`() {
+        val offenders = codeLines(MESSAGE_VIEW_MODEL).filter { "PLAIN_TEXT_DEFAULT" in it }
+        assertEquals(
+            "MessageViewModel must not name PLAIN_TEXT_DEFAULT. Its waiting value is null, which is " +
+                "the only thing that lets the reader tell 'not read yet' from 'read, and off' — the " +
+                "two the body and the images answer differently. Found:\n" + offenders.joinToString("\n"),
+            emptyList<String>(),
+            offenders,
+        )
+    }
+
+    /**
+     * Both reading sites of the pager — the fixed toolbar's menu and the page's body — resolve the
+     * pair the SAME way, and each keeps the two answers apart. `MessageScreen` is Compose code and
+     * nothing here can run it; what is pinned is the whole line, twice, because a site that handed
+     * `plainText` (the rendered mode) to the image call would be right until the frame that is not.
+     */
+    @Test fun `both reader sites resolve the setting into two separate answers`() {
+        listOf(
+            "val plainTextSetting by viewModel.plainTextSetting.collectAsStateWithLifecycle()",
+            "val plainText = plainTextForBody(plainTextOverride, plainTextSetting)",
+            "val imageMode = plainTextForImages(plainTextOverride, plainTextSetting)",
+        ).forEach { line -> assertLineCount(MESSAGE_SCREEN, line, 2, "the reader's reading-mode wiring") }
     }
 
     /**
@@ -172,6 +241,27 @@ class UnloadedSettingDefaultsTest {
                 "exists to remove, one file past every other rule in this test. Lines mentioning " +
                 "'$near':\n" + nearby.joinToString("\n").ifEmpty { "(none at all)" },
             1,
+            lines.count { it == expected },
+        )
+    }
+
+    /**
+     * Pins one WHOLE line that must appear in [file] exactly [times] times.
+     *
+     * [assertSoleLine] with a count, for the rules that cover a decision taken at more than one
+     * site: the reader resolves the reading mode twice, once for the pager's menu and once for the
+     * page, and a rule satisfied by "at least one" is green with the second site left behind — which
+     * is the state in which the menu and the body disagree about what is on screen.
+     */
+    private fun assertLineCount(file: File, expected: String, times: Int, what: String) {
+        val lines = codeLines(file)
+        val head = expected.substringBefore(" =").substringBefore(" by")
+        assertEquals(
+            "$what: the line\n  $expected\nmust appear in ${file.name} exactly $times times, " +
+                "written EXACTLY like that. Anything appended to it — an `?: false`, a second " +
+                "argument — compiles and is invisible to a `contains`. Lines starting '$head':\n" +
+                lines.filter { it.startsWith(head) }.joinToString("\n").ifEmpty { "(none at all)" },
+            times,
             lines.count { it == expected },
         )
     }

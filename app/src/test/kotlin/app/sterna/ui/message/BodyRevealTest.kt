@@ -356,6 +356,33 @@ class BarRevealTest {
         }
     }
 
+    @Test fun `switching reading mode forgets the range of the document it replaced`() {
+        // #149: the toggle swaps a 7080 px newsletter for its flattening, which FITS the screen.
+        // The state is kept per message, so without the reset "a measured range only grows" keeps
+        // 7080 — a range the short body can never reach — and the bar never comes back, in either
+        // mode, until the message is closed.
+        val bar = BarReveal()
+        assertFalse("a long body at the top wants no bar", bar.bodyReady(BodyMetrics(0, 7080), threshold))
+
+        bar.documentReplaced()
+        assertFalse(bar.shown)
+        assertEquals(BarState(), bar.state)
+
+        assertTrue("the shorter body cannot reach the old range", bar.bodyReady(BodyMetrics(0, 0), threshold))
+    }
+
+    @Test fun `switching reading mode does not carry a shown bar onto the new body`() {
+        // The same mistake from the other side: the bar earned by a body that fitted would survive
+        // onto a long one, because "a shown bar is only taken back by the reader moving" and the
+        // reader did not move — they toggled the mode.
+        val bar = BarReveal()
+        assertTrue(bar.bodyReady(BodyMetrics(0, 0), threshold))
+
+        bar.documentReplaced()
+
+        assertFalse("the bar rode over onto a body it was never measured on", bar.scrolled(0, 7080, threshold))
+    }
+
     @Test fun `the reader reaching the end and scrolling away still works through the seam`() {
         val bar = BarReveal()
         assertFalse(bar.bodyReady(BodyMetrics(scrollY = 0, maxScrollPx = 7080), threshold))
