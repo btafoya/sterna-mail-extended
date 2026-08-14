@@ -775,6 +775,7 @@
     <string name="sender_volume_block_confirm">Criar regra</string>
     <string name="offline_banner">Está offline</string>
     <string name="sync_error_banner">Falha na sincronização: %1$s</string>
+    <string name="sync_error_timed_out">nada voltou a tempo</string>
     <string name="settings_conversation_section">Conversas</string>
     <string name="settings_conversation_title">Vista de conversa</string>
     <string name="settings_conversation_subtitle">Agrupar mensagens da mesma conversa numa linha, com uma contagem. As conversas vêm do servidor: nas contas JMAP as mensagens são agrupadas, numa conta IMAP cada mensagem fica na sua própria linha.</string>

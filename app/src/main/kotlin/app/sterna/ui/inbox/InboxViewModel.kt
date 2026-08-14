@@ -909,15 +909,38 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         status.value = Status(refreshing = true, error = null)
         refreshJob = viewModelScope.launch {
             try {
-                when (val sel = selection.value) {
-                    Sel.Unified -> refreshUnified()
-                    is Sel.Folder -> refreshFolder(sel.id)
+                // #130: the fourth end of a refresh — never coming back — used to be covered by
+                // nothing, and the list then announced a refresh in progress for ever. The bound
+                // and the reason for its size live in [REFRESH_BUDGET_MS]; nothing is passed here
+                // on purpose, so the shipped budget has exactly one home.
+                val outcome = refreshWithin {
+                    when (val sel = selection.value) {
+                        Sel.Unified -> refreshUnified()
+                        is Sel.Folder -> refreshFolder(sel.id)
+                    }
                 }
-                status.value = Status(refreshing = false, error = null)
-                // #65: every refresh doubles as the connectivity probe. A killswitch VPN is
-                // invisible to the framework (the Wi-Fi under the tunnel stays up and NOT_VPN),
-                // so what the requests live is the only thing that can correct what it claims.
-                connectivity.reportSuccess()
+                when (outcome) {
+                    RefreshOutcome.Delivered -> {
+                        status.value = Status(refreshing = false, error = null)
+                        // #65: every refresh doubles as the connectivity probe. A killswitch VPN is
+                        // invisible to the framework (the Wi-Fi under the tunnel stays up and NOT_VPN),
+                        // so what the requests live is the only thing that can correct what it claims.
+                        connectivity.reportSuccess()
+                    }
+                    is RefreshOutcome.Failed -> {
+                        val cause = outcome.cause
+                        status.value = Status(refreshing = false, error = cause.message ?: cause.javaClass.simpleName)
+                        connectivity.reportFailure(cause)
+                    }
+                    RefreshOutcome.AbandonedAtBudget -> {
+                        // ⛔ No connectivity.reportFailure here, deliberately: nothing has said the
+                        // device is offline — the refresh simply never came back — and the offline
+                        // banner on a phone that is plainly online IS defect #65. An abandoned wait
+                        // is an error, with its own wording, which is what RefreshNotice expects.
+                        val timedOut = getApplication<Application>().getString(R.string.sync_error_timed_out)
+                        status.value = Status(refreshing = false, error = timedOut)
+                    }
+                }
             } catch (c: CancellationException) {
                 throw c // a superseding refresh cancelled us — don't stomp its status
             } catch (t: Throwable) {

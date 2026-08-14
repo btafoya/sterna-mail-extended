@@ -769,6 +769,7 @@
     <string name="sender_volume_block_confirm">Regel maken</string>
     <string name="offline_banner">Je bent offline</string>
     <string name="sync_error_banner">Synchroniseren mislukt: %1$s</string>
+    <string name="sync_error_timed_out">er kwam niets op tijd terug</string>
 
     <!-- Conversations -->
     <string name="settings_conversation_section">Gesprekken</string>

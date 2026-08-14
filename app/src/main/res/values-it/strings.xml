@@ -775,6 +775,7 @@
     <string name="sender_volume_block_confirm">Crea regola</string>
     <string name="offline_banner">Sei offline</string>
     <string name="sync_error_banner">Sincronizzazione non riuscita: %1$s</string>
+    <string name="sync_error_timed_out">non è tornato nulla in tempo</string>
     <string name="settings_conversation_section">Conversazioni</string>
     <string name="settings_conversation_title">Vista conversazione</string>
     <string name="settings_conversation_subtitle">Raggruppa i messaggi della stessa conversazione in un\'unica riga, con un conteggio. Le conversazioni vengono dal server: negli account JMAP i messaggi vengono raggruppati, in un account IMAP ogni messaggio resta sulla propria riga.</string>

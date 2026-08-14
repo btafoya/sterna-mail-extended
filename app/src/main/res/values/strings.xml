@@ -193,6 +193,13 @@
     <!-- A refresh that failed while the device IS online: never the offline wording. %1$s is the
          failure's own text (a status line or an exception message, never mail content). -->
     <string name="sync_error_banner">Sync failed: %1$s</string>
+    <!-- The %1$s of sync_error_banner when the refresh was abandoned at its budget
+         (REFRESH_BUDGET_MS). It says only what is known: nothing came back. ⛔ NOT "the server
+         did not answer" — in the reported case no request was seen leaving the phone at all,
+         and blaming the server is the same lie of category as telling an online phone it is
+         offline. ⛔ No duration either: it would be wrong the day the constant moves. Reads in
+         the middle of a sentence, hence the lowercase start. -->
+    <string name="sync_error_timed_out">nothing came back in time</string>
     <string name="inbox_compose">Compose</string>
     <string name="inbox_no_results">No results</string>
     <string name="inbox_load_more_failed">Couldn\'t load more</string>
