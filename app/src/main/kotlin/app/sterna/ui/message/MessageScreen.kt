@@ -1,5 +1,6 @@
 package app.sterna.ui.message
 
+import app.sterna.BuildConfig
 import app.sterna.appLocale
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -19,6 +20,7 @@ import android.opengl.GLES20
 import android.os.Build
 import android.provider.CalendarContract
 import android.provider.ContactsContract
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -1404,10 +1406,12 @@ private fun ConversationBody(
     val density = LocalDensity.current
     // The body WebView OWNS all vertical scroll. It fills the viewport (so Blink culls offscreen
     // tiles — the email-view jank fix, Codeberg #5) and there is NO outer Compose vertical scroll to
-    // compete for the gesture: vertical drags stay in the WebView, horizontal swipes reach the pager
-    // (swipe-between-messages on the body — #6). The header is an OVERLAY that collapses (slides up)
-    // in lock-step with the body scroll; the Reply/Forward bar overlays the bottom, revealed only at
-    // the end (it never occupies scroll space, so it can't shrink the body into a show/hide loop).
+    // compete for the gesture: vertical drags stay in the WebView, and a sideways one reaches the
+    // pager (swipe-between-messages on the body — #6) only on a body with less than one touch slop
+    // of sideways travel, never on a two-finger gesture (#152). The header is an OVERLAY that
+    // collapses (slides up) in lock-step with the body scroll; the Reply/Forward bar overlays the
+    // bottom, revealed only at the end (it never occupies scroll space, so it can't shrink the body
+    // into a show/hide loop).
     // Both start HIDDEN and are only revealed once the body has ARRIVED and laid out. The body loads
     // async, so a cold open first paints a cached header-only frame (full == null — see
     // MessageViewModel) before the fetch returns. Initialising these to `!hasBody` (= shown) for that
@@ -3231,11 +3235,148 @@ internal object NavFadeGuard {
 private const val SWIPE_HORIZONTAL_DOMINANCE = 3.0f
 
 /**
+ * Who owns a drag on the message body once its axis is settled.
+ *
+ * - [CLAIM]: the body keeps it (`requestDisallowInterceptTouchEvent(true)`) — either the drag is not
+ *   clearly horizontal, or it is and the body has a USABLE course that way, i.e. at least a touch
+ *   slop of it (see [bodyCanTravel]). A course of 3px is travel left and still RELEASE.
+ * - [RELEASE]: left unclaimed, so the reading view's `HorizontalPager` swipes to another message.
+ * - [PENDING]: neither side of the drag has cleared the touch slop yet — no verdict, keep watching.
+ */
+internal enum class BodyDrag { PENDING, CLAIM, RELEASE }
+
+/**
+ * The body's once-per-gesture axis decision, factored out of [BodyWebView.onTouchEvent] so it can be
+ * unit-tested (a WebView cannot be built in a JVM test).
+ *
+ * A drag that is clearly horizontal (|dx| > |dy| × [SWIPE_HORIZONTAL_DOMINANCE]) used to go to the
+ * pager unconditionally, which made a body wider than the viewport — a 600px table, or any zoomed
+ * message — unreachable: dragging it sideways changed message instead of scrolling it (Codeberg
+ * #152). So the sideways course LEFT in the direction asked for decides: while there is a usable
+ * course that way — one touch slop or more of it — the body keeps the gesture. The pager gets it at
+ * the edge, and equally anywhere under that threshold: within a slop of the edge, and on any body
+ * whose whole course is smaller than a slop.
+ *
+ * ⚠ ON THE HORIZONTAL AXIS THIS IS NOW UNREACHABLE, and deliberately so: [bodyTakesGestureAtDown]
+ * settles the gesture at ACTION_DOWN for any body with at least a touch slop of travel, and a body
+ * under that threshold answers false to both parameters below — so the per-direction share this
+ * function describes never runs sideways. It is kept because it is still what decides EVERY gesture
+ * on a body with no usable course (the #97 near-vertical guard, the whole of 1.4.9's behaviour).
+ * ⛔ It catches NOTHING that DOWN missed: a body whose horizontal geometry only reflows after the
+ * finger has landed is decided by nobody — DOWN read it too early, and the sideways MOVE that would
+ * re-read it never arrives. That gap is known and unaddressed here. What this function's tests cover
+ * on the sideways rows is therefore a path production no longer takes; they are kept as the
+ * specification of the rule, not as a claim about what runs.
+ *
+ * The direction comes from the SIGN of [dx]. A finger moving right (dx > 0) drags the content right,
+ * i.e. lowers scrollX: that is the travel BEHIND the viewport, passed as [canScrollBack]. A finger
+ * moving left raises scrollX, so it needs the course AHEAD, [canScrollForward]. ⚠ Since the 3px
+ * defect (see [bodyTakesGestureAtDown]) the caller no longer hands over raw `canScrollHorizontally`
+ * answers: it measures both courses in pixels and passes them through [bodyCanTravel]. Not because
+ * this door rescues anything — it cannot, see above — but because there must be ONE rule: two doors
+ * holding two different notions of "has travel" is how the 3px defect would come back through
+ * whichever of them is looked at less. Both courses come from the scroll offset/range/extent rather
+ * than from `scrollX == 0`, which is wrong for a `dir="rtl"` document: it rests at a non-zero
+ * scrollX with no course left.
+ *
+ * While the geometry is unsettled both answer false, so the verdict is RELEASE and the behaviour is
+ * exactly 1.4.9's. Reaching the edge MID-gesture does not hand it over: the verdict is taken once,
+ * at the first slop crossing, because a claim released later is not given back (the pager's drag
+ * detector has by then seen its events consumed).
+ */
+internal fun bodyDragOwner(
+    dx: Float,
+    dy: Float,
+    slop: Float,
+    canScrollBack: Boolean,
+    canScrollForward: Boolean,
+): BodyDrag {
+    val ax = kotlin.math.abs(dx)
+    val ay = kotlin.math.abs(dy)
+    if (ax <= slop && ay <= slop) return BodyDrag.PENDING
+    val clearlyHorizontal = ax > ay * SWIPE_HORIZONTAL_DOMINANCE
+    if (!clearlyHorizontal) return BodyDrag.CLAIM
+    val roomThatWay = if (dx > 0f) canScrollBack else canScrollForward
+    return if (roomThatWay) BodyDrag.CLAIM else BodyDrag.RELEASE
+}
+
+/**
+ * Whether the body must claim the whole gesture at ACTION_DOWN, before anyone knows which way the
+ * finger will go. True as soon as the body can follow the finger for at least [minTravel] pixels on
+ * one side or the other — [travelBack] is the course already scrolled past, [travelForward] the one
+ * still ahead, both in device pixels.
+ *
+ * ⛔ THE THRESHOLD IS THE POINT, and it is what the first version of this function got wrong. It
+ * claimed on ANY travel, i.e. on `canScrollHorizontally`, whose own threshold is one pixel. The
+ * bench measured, on 2026-08-12, a 900px table inside a 914 CSS-px viewport — visibly whole, nothing
+ * to pan to — reporting `hRange=2403 hExtent=2400`: THREE pixels of course, produced by a border and
+ * a rounding. The body claimed, moved 3px under the finger and swipe-between-messages died in both
+ * directions, on a message where there was nothing to see. A body that cannot follow the finger over
+ * the very distance that makes a drag a drag ([minTravel] is the view's own
+ * `ViewConfiguration.scaledTouchSlop`) has nothing to show, so it must not take the gesture.
+ *
+ * ⚠ Courses can read NEGATIVE while the layout has not settled (extent momentarily above range). A
+ * negative course is not a course: it fails a positive threshold, which is the whole guard — do not
+ * "fix" it by taking an absolute value.
+ *
+ * [bodyDragOwner]'s rule is right but UNREACHABLE on the horizontal axis, which is why #152 survived
+ * its first fix and measured identical on two benches: 0 `drag` lines over 5 sideways drags, one line
+ * every time for a vertical one. `PointerInteropFilter` dispatches to an Android view like this
+ * (Compose 1.7.6, read in the bytecode, not supposed):
+ *
+ *     dispatchDuringInitialTunnel = disallowIntercept || the event is a DOWN or an UP
+ *     pass Initial and  dispatchDuringInitialTunnel  → dispatch to the view
+ *     pass Final   and !dispatchDuringInitialTunnel  → dispatch to the view
+ *
+ * and dispatching an already-consumed change sends the view an ACTION_CANCEL instead of the event.
+ * So while nothing is claimed, an ACTION_MOVE only reaches this WebView at the Final pass — AFTER the
+ * reading view's `HorizontalPager` has had the Main pass, consumed the horizontal drag and turned our
+ * MOVE into a CANCEL. The axis decision is never run. Vertically nothing consumes, the MOVE arrives,
+ * and the decision runs — which is exactly the asymmetry the bench measured.
+ *
+ * ACTION_DOWN is the one event always delivered on the Initial pass: the only instant at which the
+ * body speaks before the pager. And the claim cannot be handed back later — from the first MOVE the
+ * view consumes, the pager's `awaitPointerSlopOrCancellation` returns null and waits for a new
+ * finger. So this verdict is taken once, blind to the direction, and holds for the whole gesture.
+ *
+ * THE CONSEQUENCE, ACCEPTED, AND WIDER THAN IT LOOKS: on a body that HAS sideways travel, a sideways
+ * drag no longer changes message at all — not even towards the edge it is already at. That is the
+ * WYSIWYG call: a 600px table the reader cannot pan to is content shown and denied.
+ *
+ * ⛔ Do not soften it in a reply. The 600px HTML-newsletter template overflows EVERY phone held
+ * upright (360dp ≈ 360 CSS px; the bench measured hRange=1833 for hExtent=720, i.e. 1113px of
+ * course), so this is not an exotic case, and it FLIPS WITH ROTATION: the same message fits in
+ * landscape, where the swipe comes back. And the fallback is thinner than it sounds — the position
+ * bar is composed only in the conversation context (`showPosition`), so from the inbox, from search,
+ * or on a single message the only remaining way to the next message is going back to the list. A
+ * body that FITS is untouched: both courses are below one slop, this returns false, and the gesture
+ * goes to the pager exactly as in 1.4.9.
+ */
+internal fun bodyTakesGestureAtDown(travelBack: Int, travelForward: Int, minTravel: Int): Boolean =
+    bodyCanTravel(travelBack, minTravel) || bodyCanTravel(travelForward, minTravel)
+
+/**
+ * Whether [travel] pixels of remaining sideways course are worth taking a gesture for: they are once
+ * they reach [minTravel], the touch slop. ONE rule, called from both doors a gesture can come
+ * through — [bodyTakesGestureAtDown] at ACTION_DOWN, and [BodyWebView.onTouchEvent]'s ACTION_MOVE
+ * branch, which feeds [bodyDragOwner] the same verdict per direction instead of raw
+ * `canScrollHorizontally` answers — so that neither door can drift into its own idea of "has travel".
+ *
+ * ⚠ It replaces `canScrollHorizontally`, which compares the same three numbers with a threshold of a
+ * pixel or two (the exact platform expression is not in this repo — do not quote it from memory).
+ * That is what let 3px of border kill swipe-between-messages. Same numbers, a usable threshold.
+ */
+internal fun bodyCanTravel(travel: Int, minTravel: Int): Boolean = travel >= minTravel
+
+/**
  * The message-body WebView. It fills the viewport and OWNS its vertical scroll, so Blink culls
  * offscreen content (the email-view jank fix, Codeberg #5). There is no competing outer Compose
- * vertical scroll, so vertical drags stay here while horizontal swipes reach the reading view's
- * `HorizontalPager` (swipe-between-messages, #6) without any touch-routing tricks. It only adds a
- * scroll callback (for the collapsing header + the end-of-body bar reveal) and layout metrics.
+ * vertical scroll, so vertical drags stay here. Horizontal ones are ROUTED, in [onTouchEvent]: a
+ * sideways drag reaches the reading view's `HorizontalPager` (swipe-between-messages, #6) only on a
+ * body with less than one touch slop of sideways travel, and a second finger never reaches it
+ * (#152 — a table 3px wider than the viewport is a body that fits). Beyond
+ * that it adds a scroll callback (for the collapsing header + the end-of-body bar reveal) and
+ * layout metrics.
  */
 private class BodyWebView(context: Context) : WebView(context) {
     /** Invoked after every internal scroll so the host can collapse the header / reveal the bar. */
@@ -3272,19 +3413,76 @@ private class BodyWebView(context: Context) : WebView(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x; downY = event.y; axisDecided = false
+                // The ONLY instant this view speaks before the pager: DOWN is dispatched on the
+                // Initial pass, every ACTION_MOVE only on the Final one — so a sideways MOVE reaches
+                // us as an ACTION_CANCEL, already consumed by the pager, and the axis decision below
+                // is never run (see bodyTakesGestureAtDown). The two courses are measured HERE, in
+                // pixels, and not asked of canScrollHorizontally: its threshold is one pixel, and
+                // 3px of table border killed the swipe. travelForward needs travelBack, so it is a
+                // local; BodySideScrollWiringTest pins these three lines as text, since nothing in
+                // a JVM test can build a WebView and watch them run.
+                val travelBack = computeHorizontalScrollOffset()
+                val travelForward =
+                    computeHorizontalScrollRange() - computeHorizontalScrollExtent() - travelBack
+                val takesIt = bodyTakesGestureAtDown(
+                    travelBack = travelBack,
+                    travelForward = travelForward,
+                    minTravel = touchSlop,
+                )
+                // Outside the claim on purpose: a DOWN that took nothing is a RESULT — the line
+                // carries the two courses and the slop they were judged against, so "the body had
+                // nothing to show" is readable, and distinguishable from "the code never ran".
+                if (BuildConfig.DEBUG) logDownVerdict(takesIt, travelBack, travelForward)
+                if (takesIt) {
+                    axisDecided = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                }
+            }
+            // A second finger is never a swipe between messages. Pinch-to-zoom is supported here
+            // (builtInZoomControls), and it is the very gesture that creates the sideways travel a
+            // wide body needs — yet event.x stays pointer 0's, so two fingers spreading sideways
+            // make the first MOVE look clearly horizontal and the message would change under the
+            // zoom. Claim it outright and freeze the verdict, so no later MOVE re-arbitrates on
+            // deltas that are a spread, not a drag. No verdict is ever re-opened mid-gesture: this
+            // branch always arrives BEFORE the first two-finger MOVE.
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                axisDecided = true
+                parent?.requestDisallowInterceptTouchEvent(true)
             }
             MotionEvent.ACTION_MOVE -> if (!axisDecided) {
-                val dx = kotlin.math.abs(event.x - downX)
-                val dy = kotlin.math.abs(event.y - downY)
-                if (dx > touchSlop || dy > touchSlop) {
+                // Signed deltas: bodyDragOwner needs the DIRECTION of the drag to know which of the
+                // two travel answers applies. The claim goes through parent? on purpose — the
+                // WebView is not the AndroidView's root, there is a FrameLayout in between (the
+                // fade's SIGSEGV, Codeberg #10). The two answers are the SAME thresholded measure
+                // DOWN took, not raw canScrollHorizontally — one rule for both doors, so neither can
+                // drift. This branch rescues nothing sideways: it is not reached (see above).
+                val travelBack = computeHorizontalScrollOffset()
+                val travelForward =
+                    computeHorizontalScrollRange() - computeHorizontalScrollExtent() - travelBack
+                val owner = bodyDragOwner(
+                    dx = event.x - downX,
+                    dy = event.y - downY,
+                    slop = touchSlop.toFloat(),
+                    canScrollBack = bodyCanTravel(travelBack, touchSlop),
+                    canScrollForward = bodyCanTravel(travelForward, touchSlop),
+                )
+                if (owner != BodyDrag.PENDING) {
                     axisDecided = true
-                    // Claim the gesture for vertical scrolling UNLESS it is clearly horizontal: the
-                    // reading view's HorizontalPager (the parent) should only swipe between messages
-                    // on a deliberate sideways drag, so a mostly-vertical or diagonal drag scrolls the
-                    // body instead of flipping the page. A clearly-horizontal drag is left unclaimed so
-                    // the pager intercepts it.
-                    val clearlyHorizontal = dx > dy * SWIPE_HORIZONTAL_DOMINANCE
-                    if (!clearlyHorizontal) parent?.requestDisallowInterceptTouchEvent(true)
+                    // Debug-only measurement of the verdict, at the instant it is taken and BEFORE
+                    // the claim (nothing below changes the geometry, but the reading must not be
+                    // arguable). It exists because a wide body still changed message on the bench:
+                    // both canScrollHorizontally answers came back false while a table was visibly
+                    // cut off, and no JS probe is possible here (javaScriptEnabled = false). The
+                    // deltas are recomputed rather than hoisted into locals: the call above is
+                    // pinned argument by argument by BodySideScrollWiringTest, and two float
+                    // subtractions behind a debug guard are cheaper than weakening that pin. The
+                    // two courses ARE the ones just decided on, handed over rather than re-read.
+                    if (BuildConfig.DEBUG) {
+                        logDragVerdict(
+                            owner, event.x - downX, event.y - downY, travelBack, travelForward,
+                        )
+                    }
+                    if (owner == BodyDrag.CLAIM) parent?.requestDisallowInterceptTouchEvent(true)
                 }
             }
         }
@@ -3301,7 +3499,155 @@ private class BodyWebView(context: Context) : WebView(context) {
 
     /** Visible content height (device px): the WebView viewport minus its padding. */
     fun visibleExtentPx(): Int = computeVerticalScrollExtent()
+
+    /**
+     * One line per settled drag verdict, debug builds only (see [BODY_DRAG_TAG]). Call it INSIDE an
+     * `if (BuildConfig.DEBUG)`: the touch path is hot, and the guard must swallow the string
+     * building, not just the write.
+     *
+     * It reports the raw scroll geometry behind the verdict, so a bench pass can tell "the View
+     * really has no horizontal range" (range - extent == 0, i.e. the only travel is Chromium's
+     * visual viewport, which the View API does not expose) from "the range exists and was read at
+     * the wrong moment".
+     *
+     * ⭐ IT HAS ALREADY ANSWERED, on 2026-08-12: `verdict=CLAIM canFwd=true hRange=1833 hExtent=720`.
+     * The range exists, the View API reports it, and the body claims — WHEN IT IS ASKED. The reading
+     * this doc was written to test (that both answers came back false on a visibly cut-off table)
+     * was WRONG, and it cost a whole implementation cycle; do not resurrect it from this file.
+     * What was actually broken was the instant, not the API — see [bodyTakesGestureAtDown].
+     *
+     * ⭐ READ `travelBack`/`travelFwd` FIRST: those two are the numbers the verdict was ACTUALLY
+     * taken on, handed over by the caller, and the threshold they were compared against is `slop=`
+     * (one and the same number — the view's touch slop). A course under it is not a course: that is
+     * the 3px defect of 2026-08-12, where `hRange=2403 hExtent=2400` claimed a gesture and killed
+     * the swipe on a table that was entirely visible.
+     *
+     * ⚠ `canBack`/`canFwd` are the RAW View-API answers, re-read microseconds later and kept only so
+     * these lines still line up with the readings archived before the threshold existed. They are no
+     * longer what decides: `canFwd=true` next to `travelFwd=3 slop=24` and `verdict=RELEASE` is the
+     * fix working, not a contradiction. `hRange`/`hExtent`/`hOffset` are re-read too; nothing
+     * relayouts in that gap, so they should agree with the courses, and a line where they do not is
+     * itself the finding.
+     *
+     * `view=` is the view's identity hash: the pager keeps neighbouring pages composed and a thread
+     * opens several bodies, so lines from more than one WebView land under the same tag. It is what
+     * ties a drag to the `settle` line of the same body — and it is a number, never content.
+     */
+    @Suppress("DEPRECATION")
+    // getScale() is deprecated with no replacement on the View API: the modern answer is
+    // window.visualViewport, and JavaScript is disabled on this view — which is the very reason
+    // this measurement has to come from the View side. A scale != 1 with a zero horizontal range
+    // would say the travel lives only in Chromium's visual viewport — the bench REFUTED that on
+    // 2026-08-12 (hRange=1833 at scale=2.0), so the number now serves as the cross-check that the
+    // geometry reported here is the horizontal one, and it stays worth the deprecation.
+    private fun logDragVerdict(
+        owner: BodyDrag,
+        dx: Float,
+        dy: Float,
+        travelBack: Int,
+        travelForward: Int,
+    ) {
+        // Numbers only, plus an enum name. NEVER any part of the document: some benches carry real
+        // mail.
+        Log.d(
+            BODY_DRAG_TAG,
+            "drag view=${System.identityHashCode(this)} verdict=$owner dx=$dx dy=$dy slop=$touchSlop " +
+                "travelBack=$travelBack travelFwd=$travelForward " +
+                "canBack=${canScrollHorizontally(-1)} canFwd=${canScrollHorizontally(1)} " +
+                "scrollX=$scrollX hOffset=${computeHorizontalScrollOffset()} " +
+                "hRange=${computeHorizontalScrollRange()} hExtent=${computeHorizontalScrollExtent()} " +
+                "width=$width scale=$scale",
+        )
+    }
+
+    /**
+     * One line per finger landing on the body, debug builds only (see [BODY_DRAG_TAG]). Call it
+     * INSIDE an `if (BuildConfig.DEBUG)`, and OUTSIDE the claim: the hot-path rule of
+     * [logDragVerdict] applies, and so does the opposite of silence — a `takes=false` line is the
+     * finding, not the absence of a line.
+     *
+     * It exists because the previous bench pass could not tell two very different failures apart:
+     * "the body read no sideways travel" and "the decision was never reached at all". A `drag` line
+     * missing proves only the second; this one is emitted on EVERY gesture, so the pair (`down` with
+     * no `drag` following it) is now readable directly.
+     *
+     * ⚠ READ `takes=` BEFORE CONCLUDING: that pair has TWO causes since the DOWN claim exists.
+     * `takes=true` freezes the verdict, so no `drag` line follows — that is the NORMAL, working
+     * case, not a failure. Only `takes=false` with no `drag` still means the MOVE never arrived.
+     *
+     * ⭐ `travelBack`/`travelFwd`/`minTravel` are the decision itself: the two courses in pixels and
+     * the touch slop they had to reach. `takes=false travelFwd=3 minTravel=24` is the 3px case of
+     * 2026-08-12 behaving — a table that fits, keeping its swipe. `canBack`/`canFwd` beside them are
+     * the raw View-API answers (threshold: one pixel), kept only to line these lines up with the
+     * readings archived before the threshold existed; they no longer decide anything.
+     * ⚠ And cross-check the numbers against the `drag`/`settle` line of the same `view=`: nothing
+     * executes this string, so a wrong field here would read as a measurement (a horizontal range in
+     * the tens of thousands is a VERTICAL range, and hRange &lt; hExtent is impossible).
+     *
+     * Same metrics as [logDragVerdict] and [logSettledGeometry], same `view=` identity hash to tie
+     * the three together, and numbers only — never a fragment of the document.
+     */
+    @Suppress("DEPRECATION") // getScale(): same reason as [logDragVerdict].
+    private fun logDownVerdict(takes: Boolean, travelBack: Int, travelForward: Int) {
+        Log.d(
+            BODY_DRAG_TAG,
+            "down view=${System.identityHashCode(this)} takes=$takes " +
+                "travelBack=$travelBack travelFwd=$travelForward minTravel=$touchSlop " +
+                "canBack=${canScrollHorizontally(-1)} canFwd=${canScrollHorizontally(1)} " +
+                "scrollX=$scrollX hOffset=${computeHorizontalScrollOffset()} " +
+                "hRange=${computeHorizontalScrollRange()} hExtent=${computeHorizontalScrollExtent()} " +
+                "width=$width scale=$scale",
+        )
+    }
+
+    /**
+     * One line per load, debug builds only, at the point where the settle poll enables reporting —
+     * i.e. the geometry AT REST, before any finger has touched it. [template] names which of
+     * [buildHtmlDocument]'s two templates was rendered, because the dark-rich one puts
+     * `filter: invert(1)` on the root `<html>`, and a filtered root creates a containing block of
+     * its own: it WAS a candidate explanation for a horizontal range that reads as zero on a
+     * document that is visibly too wide. ⭐ That question is CLOSED — the bench found a real
+     * horizontal range on 2026-08-12 — and the line is kept for what it still measures: the
+     * geometry at rest, which the same pass showed disagreeing with the geometry during a drag
+     * (hRange == hExtent at rest, 1833 moments later). Read it as "not reflowed yet", never as
+     * "no travel". The bench still replays both themes and compares these two lines.
+     *
+     * ⚠ [settled] false means the poll hit its cap instead of seeing a stable range, so the reading
+     * is suspect — but even `settled=true` attests only that the VERTICAL range stopped moving:
+     * that is the only stability signal this poll has, and the horizontal geometry is merely assumed
+     * to have settled with it. [blockRemote] is here because a wide layout can be narrow with images
+     * blocked, which would zero the range for a reason none of the three hypotheses is about.
+     *
+     * ⛔ This line does NOT survive a relayout that skips a reload: changing the text-zoom setting
+     * reflows the body without re-keying the load, and the last line in logcat then describes a
+     * geometry that no longer exists. Re-open the message before trusting it.
+     */
+    @Suppress("DEPRECATION") // getScale(): same reason as [logDragVerdict].
+    fun logSettledGeometry(template: String, settled: Boolean, blockRemote: Boolean) {
+        Log.d(
+            BODY_DRAG_TAG,
+            "settle view=${System.identityHashCode(this)} template=$template settled=$settled " +
+                "blockRemote=$blockRemote " +
+                "canBack=${canScrollHorizontally(-1)} canFwd=${canScrollHorizontally(1)} " +
+                "scrollX=$scrollX hOffset=${computeHorizontalScrollOffset()} " +
+                "hRange=${computeHorizontalScrollRange()} hExtent=${computeHorizontalScrollExtent()} " +
+                "width=$width scale=$scale",
+        )
+    }
 }
+
+/** The single logcat tag of the #152 sideways-drag instrumentation. `Log.d` on purpose: the guard
+ *  is `BuildConfig.DEBUG`, and proguard-rules.pro additionally strips `Log.d`/`Log.v` from release. */
+private const val BODY_DRAG_TAG = "SternaBodyDrag"
+
+/**
+ * Which of [buildHtmlDocument]'s two templates produced [html] — debug instrumentation only, and
+ * deliberately NOT a decision anything on screen depends on. Only the dark-rich branch puts a
+ * `filter:` in the document head; the head is entirely ours, the message's own markup lands in the
+ * body, so no email can forge either answer.
+ */
+private fun bodyTemplateName(html: String): String =
+    if ("filter: invert(1)" in html.substringBefore("<body")) "dark-rich-invert" else "light-or-plain"
 
 /**
  * How long after a document load the body's height report may go missing before the WebView takes
@@ -3507,6 +3853,15 @@ private fun EmailWebView(
                     if (settleStable >= 2 || triesLeft <= 0) {
                         webView.reportingEnabled = true
                         reportScroll(webView)
+                        // Debug-only: the body's HORIZONTAL geometry at rest, once per load, from
+                        // the one point that already knows the layout has stopped moving. Reading
+                        // it here and again at each drag verdict is what separates "no range at
+                        // all" from "range read too early" (#152 follow-up).
+                        if (BuildConfig.DEBUG) {
+                            webView.logSettledGeometry(
+                                bodyTemplateName(html), settleStable >= 2, blockRemote,
+                            )
+                        }
                         return
                     }
                     webView.postDelayed({ settlePoll(triesLeft - 1) }, 50)
