@@ -536,6 +536,36 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     val savedDraftBehind: StateFlow<Boolean> = _savedDraftBehind.asStateFlow()
 
     /**
+     * Whether the saved draft this composer was opened on is still being fetched — the window in
+     * which the screen has no fields to show and must offer no action (`draftReopenView`).
+     *
+     * ⛔ NOT a [ComposeState]. That one is a single slot: `Sending`, `Error` and `Done` overwrite
+     * whatever is in it, so a `Loading` put there would be wiped by the first error, and would
+     * itself wipe the error banner on its way in. Two independent facts need two holders. The
+     * pattern is the repo's own: `CalendarInvite.loading` sits beside the reader's state the same
+     * way, for the same reason.
+     *
+     * Raised on the `draftId` path ONLY. A reply or a forward also fetches, and its buttons stay
+     * live throughout on purpose: a reply overwrites nothing on the server, so sending one while
+     * its quote is still coming loses nothing. Raising this flag there would disable Send on an
+     * offline reply that works today.
+     */
+    private val _draftLoading = MutableStateFlow(false)
+    val draftLoading: StateFlow<Boolean> = _draftLoading.asStateFlow()
+
+    /**
+     * The string id of what to say when the draft could not be read at all, or null while nothing
+     * has failed. Which sentence it is, is [draftLoadNoticeFor]'s answer, taken from the app's one
+     * offline verdict.
+     *
+     * Its real job is not the sentence: it is that the editor is NOT DRAWN while it is non-null.
+     * A blank, editable composer titled "Draft" cannot be told from a new message, and a save from
+     * it put a SECOND draft on the server while the first stayed there, untouched and invisible.
+     */
+    private val _draftLoadFailed = MutableStateFlow<Int?>(null)
+    val draftLoadFailed: StateFlow<Int?> = _draftLoadFailed.asStateFlow()
+
+    /**
      * The draft to delete, handed over exactly once, or null when there is nothing to hand over.
      *
      * Refuses while a send or a save is in flight (INV-6, like `abandon`/`sendInternal`/`submit`):
@@ -734,9 +764,20 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // Editing a saved draft (#63): reopen it in compose with every field it carried, and
         // remember its id so sending or re-saving replaces it instead of duplicating.
         if (draftId != null) {
+            // Raised HERE, before the coroutine, and NOT on its first line. The composer's first
+            // frame is composed from this flow's value, and a launch's body has not run by then:
+            // set inside, the editor is on screen — editable, with Save, Send and the padlock — for
+            // the frames in between, which is exactly the window a fast finger types into.
+            _draftLoading.value = true
             viewModelScope.launch {
                 try {
-                    val credentials = credentials() ?: return@launch
+                    // No account to ask means the draft cannot be read either, so this path says so
+                    // like any other failure. It used to fall through to a blank editable composer,
+                    // which is the lie being removed. Not "offline": the link may be perfect.
+                    val credentials = credentials() ?: run {
+                        _draftLoadFailed.value = draftLoadNoticeFor(offline = false)
+                        return@launch
+                    }
                     val draft = repo.fetchEmail(credentials, draftId)
                     // The row the Delete button would act on (#127), taken now, from the cache the
                     // Drafts list itself was drawn from. Only here: a draft that could not be read
@@ -776,13 +817,28 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // and destroy the only copy. No id yet means no destroy, at the price of a
                     // duplicate if the user saves during those seconds.
                     editingDraftId = draftId
-                } catch (_: Throwable) {
-                    // The draft couldn't be loaded: leave compose blank but say so, like a
-                    // failed reply prefill — a silently emptied draft would look like data loss.
-                    // Whatever it held is unknown to us now, so a later save must not destroy it.
+                } catch (t: Throwable) {
+                    // The draft could not be read. NOTHING is prefilled and, above all, no editor
+                    // is drawn (draftReopenView): a blank editable composer titled "Draft" cannot
+                    // be told from a new message, and saving from it added a SECOND draft while the
+                    // first stayed on the server, intact and invisible.
+                    //
+                    // The sentence is its own (compose_draft_offline / compose_draft_load_failed),
+                    // not compose_prefill_failed: that one already means "the quoted original of a
+                    // reply is missing", and a third meaning would make it say nothing at all. It
+                    // is unchanged on the reply path.
+                    //
+                    // Whatever the draft held is unknown to us now, so a later save must not
+                    // destroy it — even though nothing on this screen can save any more.
                     editingDraftLossy = true
-                    _attachmentStatus.value =
-                        getApplication<Application>().getString(R.string.compose_prefill_failed)
+                    val app = getApplication<Application>()
+                    _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))
+                } finally {
+                    // EVERY way out of the body lowers it, not just the two above: the silent
+                    // `return@launch` when there are no credentials, and any throw from outside the
+                    // try, would otherwise leave the composer waiting on a fetch that is over —
+                    // frozen, with no fields, no actions and no sentence, for good.
+                    _draftLoading.value = false
                 }
             }
             return

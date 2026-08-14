@@ -111,6 +111,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -182,6 +183,13 @@ fun ComposeScreen(
     // draftId in the route while its draft is still sitting in Drafts.
     val savedDraftBehind by viewModel.savedDraftBehind.collectAsStateWithLifecycle()
     val attachmentsTouched by viewModel.attachmentsTouched.collectAsStateWithLifecycle()
+    // Reopening a saved draft: whether its text is still being fetched, and what to say if it never
+    // arrived. Two flows and not one state, because ComposeState is a single slot that Sending and
+    // Error overwrite. The decision itself is [draftReopenView], out here in ComposeText so a JVM
+    // test can execute it, and it hands back the sentence to show rather than a flag to interpret.
+    // It is taken further down, once `applied` exists — the third thing it needs.
+    val draftLoading by viewModel.draftLoading.collectAsStateWithLifecycle()
+    val draftLoadFailed by viewModel.draftLoadFailed.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let(viewModel::attach)
@@ -439,6 +447,13 @@ fun ComposeScreen(
             viewModel.noticeQuoteNotAdded()
         }
     }
+
+    // Which of the three screens a reopened draft gets. Taken HERE and not up with the two flows,
+    // because it needs `applied`: once the prefill has landed, the editor is drawn whatever the
+    // fetch is doing. `applied` is a rememberSaveable and survives process death while the
+    // ViewModel does not, so after a kill it is the only thing that knows the text on screen is the
+    // reader's — see [draftReopenView], which explains why hiding it would be the worse lie.
+    val reopen = draftReopenView(draftLoading, draftLoadFailed, applied)
 
     val sending = state is ComposeState.Sending
 
@@ -731,6 +746,12 @@ fun ComposeScreen(
                     }
                 },
                 actions = {
+                  // Not one button while a reopened draft is still being read, or once it turned
+                  // out it cannot be. Whole block, not each button disabled one by one: every one
+                  // of them acts on fields that hold nothing, and the padlock, the paperclip and
+                  // the overflow have no meaning on a message that is not on screen. The X in
+                  // navigationIcon deliberately stays — it is the only way out.
+                  if (reopen is DraftReopenView.Editor) {
                     // OpenPGP lock toggle: OFF → sign → encrypt. Only when the account is set up.
                     if (pgpAvailable) {
                         val encrypting = pgpMode == PgpMode.ENCRYPT
@@ -847,11 +868,32 @@ fun ComposeScreen(
                             )
                         }
                     }
+                  }
                 },
             )
         },
     ) { padding ->
       Box(Modifier.fillMaxSize().padding(padding)) {
+        // ⭐ The editor is drawn or it is not. Every rememberSaveable above (`applied` first of
+        // all), and both LaunchedEffects that apply the prefill, stay OUTSIDE this `when` and
+        // unconditional: the success path must land exactly as it does today, and `applied` must
+        // keep surviving rotation and process death. Only the drawing moves.
+        when (reopen) {
+          // Still reading the draft. No sentence: a spinner already says "wait", and a line of text
+          // under it would be read as a verdict on a fetch that has not answered.
+          DraftReopenView.Waiting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+          // Read and failed. One sentence and the X, nothing else: there is no draft to edit, and
+          // an editor here would invite a save that adds a second draft beside the first.
+          is DraftReopenView.DeadEnd -> Text(
+              text = stringResource(reopen.notice),
+              style = MaterialTheme.typography.bodyLarge,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              textAlign = TextAlign.Center,
+              // No maxLines: German and Russian run to three or four lines here, and clipping the
+              // sentence would leave the only explanation on the screen half-said.
+              modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
+          )
+          DraftReopenView.Editor ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1110,6 +1152,7 @@ fun ComposeScreen(
                     }
                 },
             )
+        }
         }
         // The tern that carries the message off-screen, top-right.
         if (flying) {

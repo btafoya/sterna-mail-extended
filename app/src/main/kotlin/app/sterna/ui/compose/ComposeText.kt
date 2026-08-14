@@ -1,5 +1,6 @@
 package app.sterna.ui.compose
 
+import app.sterna.R
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.text.htmlEscape
 import app.sterna.core.data.text.htmlEscapeMultiline
@@ -1025,6 +1026,100 @@ internal fun receivingFromOption(
 internal fun withPrefix(subject: String?, prefix: String): String {
     val s = subject.orEmpty()
     return if (s.startsWith(prefix, ignoreCase = true)) s else "$prefix $s"
+}
+
+/**
+ * Which sentence a draft that could not be read shows. [offline] is
+ * `isOfflineFailure(t, online = hasUsableNetwork(app))`, the app's one offline verdict, decided by
+ * the caller because the caller is the only place that holds both the throwable and the link state.
+ *
+ * Two sentences rather than one, because they ask for different things: offline, the draft's text
+ * is on the other side of a connection and what is needed is to come back with one; over a live
+ * link, all we know is that the text did not arrive. ⛔ Neither sentence names a CAUSE: no server
+ * was even contacted on the "no credentials" path, and a captive portal, a refused certificate, a
+ * 401 and a local exception all land here identically. We do not state a mechanism we have not
+ * observed.
+ *
+ * ⛔ And neither promises a recovery that does not exist: `_draftLoadFailed` is never cleared and
+ * nothing re-runs the fetch, so coming back online changes nothing until the screen is left and the
+ * draft opened again (KISS: no retry state machine). Both sentences therefore ask for exactly that
+ * — open it again — which is the one thing that does work.
+ *
+ * Neither sentence says a word about saving, and that is deliberate: on this path there is nothing
+ * to save. The editor is not drawn at all when the fetch fails and nothing has been shown yet (see
+ * [draftReopenView]), so the only gesture left on the screen is the one that leaves it.
+ */
+internal fun draftLoadNoticeFor(offline: Boolean): Int =
+    if (offline) R.string.compose_draft_offline else R.string.compose_draft_load_failed
+
+/**
+ * What a composer opened on a saved draft is allowed to put on screen.
+ *
+ * Three states and not a boolean, because the third one carries something: the sentence to show.
+ */
+internal sealed interface DraftReopenView {
+    /** The draft is in hand, or this composer is not reopening one: the editor, exactly as always. */
+    data object Editor : DraftReopenView
+
+    /**
+     * The fetch is still out. Nothing is editable and no action is offered, because there is
+     * nothing yet to edit or to act on: the fields would be blank and a save from them would add a
+     * second draft beside the one still being read.
+     */
+    data object Waiting : DraftReopenView
+
+    /**
+     * The draft could not be read at all. [notice] is the string id of what to say, and it is the
+     * only thing this screen has left to offer besides the way out.
+     */
+    data class DeadEnd(val notice: Int) : DraftReopenView
+}
+
+/**
+ * Which of the three a reopened draft's composer draws, from what the ViewModel publishes about the
+ * fetch — whether it is still out ([loading]) and, if it failed, what to say about it
+ * ([failureNotice], null while nothing has failed) — and from the one thing the SCREEN knows:
+ * [prefillApplied], whether this screen has already put the draft in front of the reader.
+ *
+ * ⭐ [prefillApplied] WINS OVER BOTH, and it is not an exception grudgingly bolted on. It is the
+ * fact "this screen has already shown the draft". A screen that has shown it cannot lie by showing
+ * it again; what it WOULD hide, by drawing a spinner or a dead end over it, is the reader's own
+ * typing. That is a real path, not a hypothetical: `body`, `initialBody` and this very flag are
+ * `rememberSaveable` and survive process death, while the ViewModel does not — so after a kill the
+ * fetch is replayed, and offline it dead-ends over three words that are still in memory, intact and
+ * suddenly invisible. `ComposeDirty` would still see them, so the X would offer to save, and the
+ * save would put a SECOND draft on the server: the exact symptom this whole screen exists to close.
+ *
+ * The dead end and the wait are therefore claims about a draft NEVER DISPLAYED, which is precisely
+ * what `applied == false` says. It is the same flag that already stops a replayed prefill from
+ * overwriting restored text: one notion read in two places, not two rules to keep in agreement.
+ *
+ * ⭐ Wanted side effect: `carryDraftAttachments` runs AFTER `_prefill` is emitted and BEFORE the
+ * `finally` that lowers [loading]. With this argument the editor comes back as soon as the text is
+ * there, instead of sitting behind a bare spinner through the download AND the re-upload of an
+ * attachment of several MB (in JMAP `stageOutgoing` is a full network round trip). `editingDraftId`
+ * is still only set after that carry, so nothing destructive is armed during that window.
+ *
+ * [loading] wins over [failureNotice]. It is not a tie-break for tidiness: a notice left over from
+ * an earlier attempt must never be read as the verdict of the one now in flight, and while the
+ * fetch is out there is no verdict to read.
+ *
+ * ⭐ The answer CARRIES the string id rather than leaving the screen to pick a sentence from a
+ * boolean. That is the whole reason [DraftReopenView.DeadEnd] holds a value instead of being a
+ * second `data object`: what the reader ends up seeing is then a value this function RETURNED, so a
+ * JVM test can execute the decision and pin the very resource that lands on screen. Were the
+ * screen to re-derive the sentence, it would hold a second copy of the rule, and nothing outside
+ * Compose could see the two drift apart.
+ */
+internal fun draftReopenView(
+    loading: Boolean,
+    failureNotice: Int?,
+    prefillApplied: Boolean,
+): DraftReopenView = when {
+    prefillApplied -> DraftReopenView.Editor
+    loading -> DraftReopenView.Waiting
+    failureNotice != null -> DraftReopenView.DeadEnd(failureNotice)
+    else -> DraftReopenView.Editor
 }
 
 /**
