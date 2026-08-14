@@ -23,12 +23,14 @@ Three principles:
 
 ### Colour
 
-- Material You dynamic colour, but **desaturated**: warm-neutral surfaces with a
-  **single accent** (derived from the wallpaper) for actions and the unread
-  state. No multi-colour cards.
+- **Sterna's own palette is the default**: Arctic (light) and Pelagic (dark),
+  cold and desaturated, with a **single accent** for actions. It is what makes
+  the app look the same, recognisably Sterna, on every device. Material You
+  (wallpaper-derived colour) is an **opt-in setting**, not the direction. No
+  multi-colour cards.
 - Convey hierarchy through elevation and spacing rather than hue.
-- Dark mode uses a near-black `surfaceContainerLowest` — elegant and power-frugal
-  on the Pixel 7 OLED.
+- Dark mode uses a near-black `surfaceContainerLowest` — elegant, and
+  power-frugal on an OLED panel.
 
 ### Typography
 
@@ -53,10 +55,16 @@ Three principles:
 | Component | Treatment |
 |---|---|
 | Top bar | `LargeTopAppBar` that collapses on scroll; search + settings as actions; hamburger opens the folder drawer. |
-| Message row | monogram · (sender + subject + 1-line preview) · (time + unread dot). Accent dot for unread, no shouting bold. |
+| Message row | monogram (a setting) · sender + time · subject · preview (0 to 5 lines, a setting) · an account chip, tinted with the account's own colour when one is set, where rows come from several accounts (unified inbox, search) · paperclip and favourite star at the end. **Unread is shown by weight, never by a status dot**: sender, time and subject go bold, and the row also takes `surfaceContainerHighest` unless the reader turns that background off — bold alone read too faint in the dark scheme. |
 | Folder drawer | `ModalNavigationDrawer` (the M3 drawer I kept): account header, folder tree, selected item in `secondaryContainer`. |
 | Compose FAB | `FloatingActionButton` (extended) that shrinks to icon-only on scroll. |
 | Opened message | The one place a card is used; HTML in a WebView with remote content blocked. |
+
+**Read receipts, on both sides.** Asking for one is a per-message entry in the composer's overflow
+menu, not an icon of its own: it is a choice read before it is ticked rather than a glyph one
+recognises. Answering someone else's request is a strip on the opened message — it asks, one tap puts
+an answer in the outbox, and nothing leaves without that tap. The single switch that governs the
+strip sits in Privacy & security, is off by default, and has no position that answers on its own.
 
 ## Motion
 
@@ -76,7 +84,8 @@ bounce) so it stays alive yet sober.
 ## Settings & secondary screens
 
 This covers everything that is not the inbox or a message: preferences and
-account management.
+account management. It never says what is built and what is not: that register
+is [FEATURES.md](FEATURES.md), and there is only one of it.
 
 ### Model
 
@@ -137,46 +146,12 @@ Reuse the existing `SettingSwitch`; add a small, consistent kit:
   bottom sheet.
 - Motion follows the table above: ≤ 250ms, `FastOutSlowIn`, damped (no overshoot).
 
-### Feature → setting map
-
-Status mirrors [FEATURES.md](FEATURES.md) (✅ shipped · 💡 future). Future items
-are documented here as structure; build the ✅ ones first.
-
-- **Accounts (per-account):** display name ✅ · account colour 💡 · signature / identities 💡 · per-account notifications (push ✅) · server + username read-only ✅ · sign out ✅
-- **Appearance:** theme Auto/Light/Dark 💡 · dynamic colour (Material You) ✅ *(new toggle)* · list density Comfortable/Compact 💡
-- **Notifications:** push for all accounts ✅ · new-mail master + system-channels link · quiet hours 💡
-- **Reading:** configurable swipe actions 💡 · conversation threading toggle (threading ✅) · mark-as-read on open · remote images (see Privacy)
-- **Writing:** default signature 💡 · undo send Off/5/10/30s 💡 · read receipts: request one on a message being written ✅ · answer someone else's request from a strip on the message, one tap, nothing sent without it ✅ (Privacy switch, off by default) · quote-on-reply · "forgot attachment?" reminder 💡
-- **Privacy & Security:** remote image policy Never *(default)* / Ask / Always ✅ · per-sender allowlist 💡 · app lock ✅ (biometric + PIN/pattern/password fallback) · confirm external links 💡 · "Sterna collects no data" → [PRIVACY.md](PRIVACY.md)
-- **Storage & Sync:** sync / push on-off ✅ · sync window (count or age) 💡 · keep messages offline 💡 · storage used + Clear cache 💡 · download attachments on Wi-Fi only 💡 · settings export / import 💡
-- **About:** version · source (Codeberg) · GPLv3 licence · privacy policy ([PRIVACY.md](PRIVACY.md)) · OSS licences · report issue / security
-
-### Storage & Sync menu
-
-Reports **on-device** storage and controls retention. The strategy (bounded
-mirror + opt-in offline, protocol-agnostic for the planned IMAP support) lives in
-[ARCHITECTURE.md](ARCHITECTURE.md#storage--data-strategy). Status: ✅ shipped ·
-💡 future.
-
-**Global**
-- Storage used (DB + attachments), broken down per account 💡
-- Clear cache — purges Room rows + attachment files, keeps accounts 💡
-- Automatic attachment cleanup — size / age cap (LRU) 💡
-- Download attachments on Wi-Fi only 💡
-
-**Per-account** (in Accounts → detail)
-- Messages to sync — window by **count or age** (default 90 days) 💡
-- Keep messages offline — persist bodies (off by default) + its window 💡
-- Storage used by this account · Clear this account's cache 💡
-
-**IMAP-only** (shown only when the account is IMAP; future)
-- Folders to sync / push (IDLE), poll frequency, "delete from server" behaviour,
-  max message age
-
-Device usage is shown here; the server mailbox quota is a separate number
-(JMAP `Quota` ⭐, future).
-
 ### Storage note
+
+What the device holds is a **bounded mirror** of the mailbox, never a copy of
+it: every store has its bound, and signing out purges the account. The rules
+are in [Storage & retention](ARCHITECTURE.md#storage--retention). Storage
+figures are about the device; the server's mailbox quota is a separate number.
 
 App preferences are backed by a reactive DataStore `SettingsRepository`
 (`Flow` per setting), separate from `AccountStore`, which keeps accounts,
