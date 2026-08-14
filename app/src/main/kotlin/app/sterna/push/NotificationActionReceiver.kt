@@ -122,6 +122,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
             body = outcome.body,
             inReplyTo = fetched?.messageId.orEmpty(),
             references = fetched?.references.orEmpty() + fetched?.messageId.orEmpty(),
+            // A quick reply is typed in the shade and replaces no saved draft: nothing to freeze,
+            // and nothing destroyed when it lands.
+            draftUidValidity = null,
         )
     }
 

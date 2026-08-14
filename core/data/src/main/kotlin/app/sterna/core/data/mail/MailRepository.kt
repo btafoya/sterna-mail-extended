@@ -444,6 +444,7 @@ internal fun outboxDraftOf(
     references = item.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
     pgpMode = item.pgpMode,
     draftEmailId = item.draftEmailId,
+    draftUidValidity = item.draftUidValidity,
     outboxId = item.id,
     requestReceipt = item.requestReceipt,
 )
@@ -3594,14 +3595,39 @@ class MailRepository(
      * execution would pick up the number a refresh recorded after the renumbering, i.e. exactly
      * the value that makes the guard pass on the mail it exists to save.
      *
-     * [destroyDraft] does read it at execution, and that is a different question, not the same one
-     * asked later: a discarded draft has no confirmation to freeze anything under — it is destroyed
-     * in the same breath as the gesture. What the read buys there is the other half, "is there any
-     * numbering to oppose AT ALL", which an unrecorded folder fails. It does NOT close the window
-     * between reading an id off the screen and expunging it; nothing on that path does yet.
+     * The draft paths freeze it the same way, through [recordedUidValidityForDraft], called when
+     * the COMPOSER opens a draft and never again. ⚠ That closes the window between the composer and
+     * the expunge, and only that one. It does NOT close the earlier one: the id is read off the
+     * LIST, and a renumbering between the list row and the composer opening it is still unnoticed —
+     * the freeze then simply records the new numbering, and the destroy is licensed under it.
      */
     suspend fun recordedUidValidity(credentials: AccountCredentials, mailboxId: String): Long? =
         if (credentials.protocol == MailProtocol.IMAP) imap.recordedUidValidity(credentials.id, mailboxId) else null
+
+    /**
+     * The numbering to FREEZE for the draft [emailId] — the value [discardDraft] and the
+     * replace half of [saveDraft] oppose, much later, to what the server then states.
+     *
+     * ⛔ CALL IT WHEN THE ID IS READ (the composer reopening a draft), NEVER WHEN SAVING. Called at
+     * the save it answers the number a background pass recorded AFTER the folder was renumbered —
+     * `ImapMailService.loadFolder` / `loadWatchedFolders` see the renumbering first and write it
+     * through `UidValidityStore.invalidate`, while the id on screen still belongs to the old
+     * numbering. Opposed to itself that reads SAME, and the expunge goes out on a UID that now
+     * names ANOTHER message in Drafts (#99). Neither the cached rows nor the composer's memory are
+     * cleared by that invalidation, so the stale id survives to be destroyed with.
+     *
+     * The folder is resolved exactly as [destroyDraft] resolves it, so the number frozen belongs to
+     * the folder the expunge will SELECT. Null on JMAP (an id there survives anything a mailbox can
+     * go through), null on a folder whose numbering was never observed, and null when no folder can
+     * be resolved at all: all three mean "nothing to oppose", which destroys nothing.
+     */
+    suspend fun recordedUidValidityForDraft(credentials: AccountCredentials, emailId: String): Long? {
+        if (credentials.protocol != MailProtocol.IMAP) return null
+        val folder = emailDao.mailboxOf(credentials.id, emailId)
+            ?: mailboxDao.idForRole(credentials.id, "drafts")
+            ?: return null
+        return recordedUidValidity(credentials, folder)
+    }
 
     /** Move a message to an arbitrary mailbox (e.g. unarchive → Inbox, or move-to-folder).
      *  Returns the destination the message ended up in (null = a no-op, already there), so the
@@ -5559,6 +5585,15 @@ class MailRepository(
         inReplyTo: List<String> = emptyList(),
         references: List<String> = emptyList(),
         replacesEmailId: String? = null,
+        /**
+         * The IMAP numbering [replacesEmailId] belongs to, FROZEN by the caller when it read that
+         * id (#99). ⛔ No default on purpose: a call site that forgets it must fail to compile
+         * rather than silently freeze null, which destroys nothing and leaves a duplicate draft.
+         * Null is the honest answer on JMAP and on a folder never observed; it is never a stand-in
+         * for "not read yet". Read at save time it would be the number recorded AFTER a
+         * renumbering — see [recordedUidValidityForDraft].
+         */
+        replacesUidValidity: Long?,
         attachments: List<EmailBodyPart> = emptyList(),
         bodyIsLossy: Boolean = false,
         // The composer's chosen From, so a delegated sub-account's draft is honest about the
@@ -5625,6 +5660,7 @@ class MailRepository(
                     addressingIsCarried = addressingIsCarried,
                     receiptRequestIsCarried = receiptIsCarried,
                 ),
+                frozenUidValidity = replacesUidValidity,
             )
             // IMAP APPEND returns no stable id to synthesise a keyable row from, so — after the
             // replaced original is (best-effort) expunged — reload the Drafts folder so its list
@@ -5699,6 +5735,9 @@ class MailRepository(
                 addressingIsCarried = true,
                 receiptRequestIsCarried = receiptIsCarried,
             ),
+            // Null on JMAP, where nothing is numbered — carried all the same, so the two branches
+            // hand `finishDraftSave` the same thing and neither can start reading one for itself.
+            frozenUidValidity = replacesUidValidity,
         )
     }
 
@@ -5796,15 +5835,19 @@ class MailRepository(
      * attachment compose was showing made it into the replacement and the body wasn't flattened.
      * Otherwise the original stays put and the caller surfaces that, so nothing the user could
      * see is destroyed by a save that couldn't carry it (#63).
+     *
+     * [frozenUidValidity] is the numbering the composer froze when it opened that original; it is
+     * carried, never read here (#99 — see [recordedUidValidityForDraft]).
      */
     private suspend fun finishDraftSave(
         credentials: AccountCredentials,
         replacesEmailId: String?,
         faithful: Boolean,
+        frozenUidValidity: Long?,
     ): DraftSaveOutcome {
         if (replacesEmailId == null) return DraftSaveOutcome.SAVED
         if (!faithful) return DraftSaveOutcome.ORIGINAL_KEPT
-        runCatching { destroyDraft(credentials, replacesEmailId) }
+        runCatching { destroyDraft(credentials, replacesEmailId, frozenUidValidity) }
         return DraftSaveOutcome.SAVED
     }
 
@@ -5857,18 +5900,46 @@ class MailRepository(
      * and, unlike a plain [delete], nothing in Trash either. Failures propagate so the caller can
      * report them rather than closing over a draft that would reappear on the next sync.
      *
-     * ⛔ A REFUSAL IS NOT A FAILURE, and does not propagate. When the numbering guard declines
-     * ([ImapNumberingUnconfirmed]) nothing went out on the wire: the draft is intact on the server
-     * and in the cache, and there is nothing to report or retry. Its twin — the decision licensing
-     * an empty list, on a folder whose numbering was never recorded — has always been silent, since
-     * [imapDestroyGroup] simply returns. Both refusals say nothing, or neither does; saying it
-     * would mean a new string on screen, nine translations, and two identical refusals behaving
-     * differently. What the caller still hears about is every real failure below.
+     * [frozenUidValidity] is the numbering the caller froze when it READ [emailId] (the composer,
+     * through [recordedUidValidityForDraft]) — never a value looked up here, which would be the
+     * number recorded after the renumbering this guard exists to catch.
+     *
+     * ⛔ A REFUSAL IS NOT A FAILURE, and does not propagate. Three of them, all silent: the server
+     * stating no numbering at all ([ImapNumberingUnconfirmed]); the folder having been renumbered
+     * since the freeze ([ImapUidValidityChanged], raised by the SELECT — the case this parameter
+     * exists for); and the decision licensing an empty list, on a folder whose numbering was never
+     * recorded, where [imapDestroyGroup] simply returns. In none of the three did a destroy go out
+     * on the wire: THE MESSAGE IS INTACT ON THE SERVER, and there is nothing to report or retry.
+     * ⚠ The cache is not untouched on the renumbering one: the invalidation that precedes it has
+     * just dropped the cached BODIES of the whole Drafts folder, and the draft's list row survives
+     * holding an id of a numbering the server has thrown away — which is why that catch re-reads
+     * the folder. All three refusals say nothing, or none does; saying it would mean a new string
+     * on screen, nine translations, and identical refusals behaving differently. What the caller
+     * still hears about is every real failure below.
+     *
+     * ⛔ KEEP THE BLOCK BODY, for the same reason `ImapMailService.ccAndBccOf` keeps its own: an
+     * expression body has no braces, so the source rules of `ImapDestroyUnderNumberingTest` cannot
+     * delimit it and this function drops silently out of every one of them — including the rule
+     * forbidding it to look a numbering up for itself. Written as
+     * `= destroyDraft(c, id, frozen ?: recordedUidValidityForDraft(c, id))` it restores the defect
+     * entire on the "empty a draft" gesture, unseen, with the suite green.
      */
-    suspend fun discardDraft(credentials: AccountCredentials, emailId: String) =
-        destroyDraft(credentials, emailId)
+    suspend fun discardDraft(credentials: AccountCredentials, emailId: String, frozenUidValidity: Long?) {
+        destroyDraft(credentials, emailId, frozenUidValidity)
+    }
 
-    private suspend fun destroyDraft(credentials: AccountCredentials, emailId: String) {
+    /**
+     * [frozenUidValidity] is the numbering the CALLER froze when it read [emailId] — nothing here
+     * reads one. A read at this point (a local `val`, even one merely SHADOWING the parameter,
+     * which Kotlin accepts with a warning) hands the guard the number a background refresh recorded
+     * AFTER the folder was renumbered, which is precisely the value that lets the expunge through
+     * on the mail this guard exists to save. See [recordedUidValidityForDraft].
+     */
+    private suspend fun destroyDraft(
+        credentials: AccountCredentials,
+        emailId: String,
+        frozenUidValidity: Long?,
+    ) {
         if (credentials.protocol == MailProtocol.IMAP) {
             // Account-scoped (issue #31): the draft's folder must be resolved within this account.
             val folder = emailDao.mailboxOf(credentials.id, emailId)
@@ -5881,11 +5952,11 @@ class MailRepository(
             // numbering was never recorded at all, i.e. with nothing whatsoever to oppose. Same
             // decision as the held-back destroy: nothing to oppose licenses nothing, the draft
             // stays. A leftover draft is the cheap half of the trade; an expunge against whatever
-            // the folder numbers today is the expensive one.
-            val recorded = recordedUidValidity(credentials, folder)
-            val destroyable = UidValidity.destroyableUnderNumbering(listOf(emailId), recorded)
+            // the folder numbers today is the expensive one. ⛔ A null numbering is NOT rescued
+            // here: the decision below hands back an empty list and `imapDestroyGroup` returns.
+            val destroyable = UidValidity.destroyableUnderNumbering(listOf(emailId), frozenUidValidity)
             try {
-                imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), recorded)
+                imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), frozenUidValidity)
             } catch (unconfirmed: ImapNumberingUnconfirmed) {
                 // Refused, not failed: the server stopped stating the folder's numbering, so
                 // nothing left the client and the draft is intact on both sides. Silent, because
@@ -5895,6 +5966,21 @@ class MailRepository(
                 // would show the user a sentence of English IMAP jargon, untranslated, at the
                 // exact moment the guard saved their mail. ⛔ ONLY this type: a transport failure
                 // must keep going up, or the composer closes over a draft that comes back.
+            } catch (renumbered: ImapUidValidityChanged) {
+                // The refusal a FROZEN numbering makes reachable, and the one this fix is for:
+                // `onMailbox` hands `expectedUidValidity ?: recorded` to the SELECT, so a Drafts
+                // folder renumbered since the composer read the id is refused there, by type, and
+                // not by the decision above. Silent for exactly the reasons of the catch above —
+                // uncaught it becomes untranslated IMAP jargon in the save-error banner.
+                //
+                // `onMailbox` has already invalidated the folder (new numbering recorded, cached
+                // bodies dropped), but the draft's LIST ROW survives it, holding an id from a
+                // numbering that no longer exists — and this refusal says nothing, so the list is
+                // all the user has to go on: the state shown must be true. Re-read it, BEST-EFFORT
+                // and last, on the model of the save path's own reload: a reload that fails is
+                // still a refusal that lost nothing, and letting it throw would turn a silent,
+                // harmless refusal into the "could not save" banner this catch exists to avoid.
+                runCatching { refresh(credentials, folder) }
             }
             return
         }
@@ -5932,7 +6018,18 @@ class MailRepository(
          * ⛔ NOT conditional on [pgpMode] — see [outboxPayload].
          */
         prebuiltEntity: String? = null,
+        /** The saved draft this message was edited from (#63); destroyed once the send lands. */
         draftEmailId: String? = null,
+        /**
+         * The IMAP numbering [draftEmailId] was read under, frozen by whoever read it (#99).
+         *
+         * ⛔ **No default, on purpose.** The destroy happens at delivery, hours or days later, and
+         * `null` there means "destroy nothing": a default would let a new call site silently freeze
+         * nothing (a draft duplicated in Drafts for ever) or — worse, were the default anything but
+         * null — hand the expunge a number nobody froze. A site that has no draft to replace passes
+         * `draftUidValidity = null` explicitly, and says so by writing it.
+         */
+        draftUidValidity: Long?,
         /** Ask for a read receipt (RFC 8098), per message; persisted so the worker still asks. */
         requestReceipt: Boolean = false,
         /** Teach these addresses to the contact suggestions. ⛔ False for a receipt — [recipientsToLearn]. */
@@ -5973,6 +6070,7 @@ class MailRepository(
                 state = if (held) OutboxState.HELD else OutboxState.QUEUED,
                 pgpMode = pgpMode?.takeIf { it != PgpMode.OFF }?.name,
                 draftEmailId = draftEmailId,
+                draftUidValidity = draftUidValidity,
                 requestReceipt = requestReceipt,
             ),
         )
@@ -6116,6 +6214,14 @@ class MailRepository(
         val pgpMode: String?,
         /** The saved draft the item was edited from (#63), kept so re-sending still replaces it. */
         val draftEmailId: String? = null,
+        /**
+         * The numbering [draftEmailId] was frozen under (#99), so the composer that reopens this
+         * item can freeze the same one instead of starting again from nothing. No default, like
+         * [requestReceipt]: while the message waits, the row is the only place this number lives,
+         * and a mapping that skips it hands the next send `null` — a draft duplicated in Drafts on
+         * every re-save, with nothing on screen saying so.
+         */
+        val draftUidValidity: Long?,
         /** The queued row this draft came from, held in [OutboxState.EDITING] until the composer is done. */
         val outboxId: Long,
         /**
@@ -6185,7 +6291,18 @@ class MailRepository(
         // Delivered: the message this item was edited from (#63) leaves Drafts. Best-effort and
         // strictly AFTER success — a cleanup hiccup must not fail (and so re-fire) a sent mail;
         // a failed delivery above throws first, leaving the draft untouched.
-        item.draftEmailId?.let { runCatching { destroyDraft(credentials, it) } }
+        //
+        // ⛔ The numbering is CARRIED BY THE ROW, never looked up here (#99). This runs in a
+        // headless worker whenever the network comes back, or at a scheduled send's hour — hours or
+        // days after the composer read that draft's id. A read here answers whatever a background
+        // sync last recorded, so a Drafts folder renumbered in between is compared with itself,
+        // reads "same", and the expunge destroys whichever message now holds that UID. On IMAP a
+        // `null` — a row queued before v23 — destroys nothing, which is the safe half of the trade.
+        // On JMAP it is always null and the draft is destroyed all the same: `destroyDraft` ends on
+        // `jmapDestroyAll`, which opposes nothing because a JMAP id needs nothing opposed.
+        item.draftEmailId?.let {
+            runCatching { destroyDraft(credentials, it, item.draftUidValidity) }
+        }
     }
 
     private suspend fun performDelivery(credentials: AccountCredentials, item: OutboxEntity) {
@@ -6399,6 +6516,9 @@ class MailRepository(
             attachments = listOf(attachment),
             fromName = identity?.name,
             fromEmail = identity?.email,
+            // An invitation reply replaces no draft, so there is no numbering to freeze and
+            // nothing to destroy on delivery.
+            draftUidValidity = null,
         )
     }
 
@@ -6443,6 +6563,8 @@ class MailRepository(
             body = mail.body,
             fromName = mail.fromName,
             fromEmail = mail.fromEmail,
+            // The unsubscribe mail replaces no draft: nothing is destroyed when it lands.
+            draftUidValidity = null,
         )
     }
 
@@ -6506,6 +6628,8 @@ class MailRepository(
             fromEmail = mail.fromEmail,
             prebuiltEntity = mail.prebuiltEntity,
             learnRecipients = mail.learnRecipients,
+            // A read receipt replaces no draft: nothing is destroyed when it lands.
+            draftUidValidity = null,
         )
         return mail.preview()
     }

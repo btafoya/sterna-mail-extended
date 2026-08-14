@@ -38,6 +38,11 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 bcc = row.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
                 // A scheduled send of an edited draft (#63) still replaces the stored draft.
                 draftEmailId = row.draftEmailId,
+                // …and destroys it under the numbering the composer read it in, not one read at
+                // delivery (#99). This hand-over is where a number held only on the scheduled row
+                // would be dropped: the send would then destroy blind, hours later, on a Drafts
+                // folder the server may have renumbered meanwhile.
+                draftUidValidity = row.draftUidValidity,
                 // …and one the user asked a read receipt for still asks: this hand-over is where a
                 // request that only lived on the scheduled row would be dropped.
                 requestReceipt = row.requestReceipt,

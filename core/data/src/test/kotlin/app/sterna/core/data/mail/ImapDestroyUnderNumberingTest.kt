@@ -185,28 +185,64 @@ class ImapDestroyUnderNumberingTest {
      * with nothing whatsoever to oppose. Source text for the same reason as the tests above:
      * `MailRepository` needs Room and a `Context`, so the lines are pinned WHOLE, arguments
      * included — an assertion that the call merely exists says nothing about what it is handed.
+     *
+     * ⭐ Opposing a number READ HERE was only half of it, and the cheap half. Between the moment
+     * the composer reads the draft's id off the screen and the moment the discard goes out, a
+     * background pass (`loadFolder`, `loadWatchedFolders`) may have seen the folder renumbered and
+     * written the NEW number to the store. Reading at execution then opposes that new number to
+     * itself — SAME, expunge — on a UID belonging to the OLD numbering, i.e. on whatever message
+     * now holds that number in Drafts. So the numbering is frozen by the caller when it reads the
+     * id, and arrives here as a parameter; this path reads nothing (see
+     * [the destroy path never looks the numbering up for itself]).
      */
-    @Test fun `discarding a draft opposes the folder's numbering before expunging it`() {
+    @Test fun `discarding a draft opposes the numbering frozen when its id was read`() {
         val body = bodyOf("destroyDraft")
         assertEquals(
-            "the draft destroy must read the folder's recorded numbering through the repository's " +
-                "own accessor: `imap.recordedUidValidity(` is pinned to three lines elsewhere",
-            listOf("val recorded = recordedUidValidity(credentials, folder)"),
-            codeLinesNaming(body, "recordedUidValidity("),
-        )
-        assertEquals(
-            "and hand it to the SAME decision the held-back destroy runs, instead of deciding " +
-                "inline: nothing to oppose licenses nothing, and the draft simply stays",
-            listOf("val destroyable = UidValidity.destroyableUnderNumbering(listOf(emailId), recorded)"),
+            "the decision the held-back destroy runs must be handed the FROZEN parameter, never a " +
+                "value this path went and looked up: nothing to oppose licenses nothing, and the " +
+                "draft simply stays",
+            listOf("val destroyable = UidValidity.destroyableUnderNumbering(listOf(emailId), frozenUidValidity)"),
             codeLinesNaming(body, "destroyableUnderNumbering("),
         )
         assertEquals(
-            "only what the decision licensed may reach the expunge, and the numbering must travel " +
-                "with it: the argument is what `deleteBatch` opposes to the number the server " +
-                "states. Left out, the destroy arrives carrying nothing and the guard below has " +
-                "only the fallback to compare with itself",
-            listOf("imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), recorded)"),
+            "only what the decision licensed may reach the expunge, and the same frozen numbering " +
+                "must travel with it: the argument is what `deleteBatch` opposes to the number the " +
+                "server states. Left out, the destroy arrives carrying nothing and the guard below " +
+                "has only the fallback to compare with itself — which is the defect entire",
+            listOf(
+                "imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), frozenUidValidity)",
+            ),
             codeLinesNaming(body, "imapDestroyGroup("),
+        )
+    }
+
+    /**
+     * The freeze must name the folder the destroy will SELECT. The accessor the composer calls
+     * resolves it from the id exactly as [destroyDraft] does — the draft's own cached mailbox,
+     * falling back on the account's Drafts role. Resolve it differently on either side and the
+     * number frozen belongs to another folder: opposed to Drafts it reads CHANGED and every
+     * discard is refused for ever, or worse it happens to match and licenses the expunge the
+     * guard exists to stop.
+     */
+    @Test fun `the numbering is frozen for the very folder the destroy will select`() {
+        val resolution = listOf(
+            "val folder = emailDao.mailboxOf(credentials.id, emailId)",
+            "?: mailboxDao.idForRole(credentials.id, \"drafts\")",
+        )
+        listOf("destroyDraft", "recordedUidValidityForDraft").forEach { function ->
+            val body = bodyOf(function)
+            assertEquals(
+                "$function must resolve the draft's folder account-scoped (#31) and identically on " +
+                    "both sides of the freeze",
+                resolution,
+                codeLinesNaming(body, "mailboxOf(") + codeLinesNaming(body, "idForRole("),
+            )
+        }
+        assertEquals(
+            "and the accessor must answer with the numbering recorded for THAT folder — the " +
+                "repository's own protocol-guarded read, which is null on JMAP",
+            listOf("return recordedUidValidity(credentials, folder)"),
+            codeLinesNaming(bodyOf("recordedUidValidityForDraft"), "recordedUidValidity("),
         )
     }
 
@@ -223,13 +259,31 @@ class ImapDestroyUnderNumberingTest {
      * screen costs nine translations for a case in which nothing was lost.
      */
     @Test fun `a draft the server will not confirm the numbering of is refused in silence`() {
+        val body = bodyOf("destroyDraft")
         assertEquals(
-            "the draft path must swallow the numbering refusal AND NOTHING ELSE: a `runCatching` " +
-                "or a `catch (t: Throwable)` here would hide a transport failure and close the " +
-                "composer over a draft that comes back on the next sync. Without the catch at all, " +
-                "the user gets a sentence of English IMAP jargon in the save-error banner",
-            listOf("} catch (unconfirmed: ImapNumberingUnconfirmed) {"),
-            codeLinesNaming(bodyOf("destroyDraft"), "ImapNumberingUnconfirmed"),
+            "the draft path must swallow the two numbering refusals AND NOTHING ELSE, each caught " +
+                "BY TYPE. `ImapNumberingUnconfirmed` is the server stating no UIDVALIDITY at all; " +
+                "`ImapUidValidityChanged` is the one the frozen number now makes reachable — " +
+                "`onMailbox` hands `expectedUidValidity ?: recorded` to the SELECT, and a folder " +
+                "renumbered since the composer read the id refuses THERE. Uncaught, it travels the " +
+                "#69 path up to `ComposeViewModel.submit`, which puts `t.message` verbatim in the " +
+                "\"could not save\" banner: English protocol jargon in all nine locales, at the " +
+                "exact moment the guard saved the user's mail. A `runCatching` or a " +
+                "`catch (t: Throwable)` here would instead hide a transport failure and close the " +
+                "composer over a draft that comes back on the next sync. Body was:\n$body",
+            listOf(
+                "} catch (unconfirmed: ImapNumberingUnconfirmed) {",
+                "} catch (renumbered: ImapUidValidityChanged) {",
+            ),
+            codeLinesNaming(body, "catch"),
+        )
+        assertEquals(
+            "and the ONLY runCatching allowed on this path is the best-effort list refresh of the " +
+                "renumbering catch. Wrapping the destroy itself in one — the shape that reads as " +
+                "harmless — hides a transport failure just as `catch (t: Throwable)` would, and " +
+                "closes the composer over a draft that comes back on the next sync. Body was:\n$body",
+            listOf("runCatching { refresh(credentials, folder) }"),
+            codeLinesNaming(body, "runCatching"),
         )
         assertEquals(
             "and nowhere else in the repository: on the trash purge and on a selection destroy the " +
@@ -247,16 +301,147 @@ class ImapDestroyUnderNumberingTest {
      * the number a refresh recorded AFTER the renumbering, which is precisely the value that
      * makes it pass on the mail it exists to save. Same shape as the "no swallower" rule of
      * [DestroyChecksTheFolderWiringTest].
+     *
+     * `destroyDraft` joined this list: it used to read at execution, and that read WAS the window
+     * between the composer displaying a draft's id and the expunge going out. The accessor the
+     * composer freezes through, `recordedUidValidityForDraft`, is a different function on purpose —
+     * called at the read, never here. `discardDraft` and `finishDraftSave` are on it too: they are
+     * the two functions that HAND the parameter over, and a `?: recordedUidValidityForDraft(…)`
+     * written on either of them restores the whole defect while every other rule stays green.
+     * The needle is the shorter name, so it catches the new accessor as well.
      */
     @Test fun `the destroy path never looks the numbering up for itself`() {
-        listOf("destroyAll", "imapDestroyGroup").forEach { function ->
-            assertEquals(
-                "$function must take the frozen numbering as a parameter and read nothing: what it " +
-                    "could read is the numbering of the renumbering it must refuse (#99)",
-                emptyList<String>(),
-                codeLinesNaming(bodyOf(function), "recordedUidValidity"),
+        listOf("destroyAll", "imapDestroyGroup", "destroyDraft", "discardDraft", "finishDraftSave")
+            .forEach { function ->
+                assertEquals(
+                    "$function must take the frozen numbering as a parameter and read nothing: what " +
+                        "it could read is the numbering of the renumbering it must refuse (#99)",
+                    emptyList<String>(),
+                    codeLinesNaming(bodyOf(function), "recordedUidValidity"),
+                )
+            }
+    }
+
+    /**
+     * ⭐ And every one of them must be written as a BLOCK, because a single-expression body is
+     * INVISIBLE to the rule above: [DaoQuerySource.mailFunctionBody] delimits a body by matching
+     * braces, an expression body has none, and the lookup then fails instead of reading. A
+     * `discardDraft` written as
+     *
+     *     suspend fun discardDraft(…) = destroyDraft(c, id, frozen ?: recordedUidValidityForDraft(c, id))
+     *
+     * re-opens the defect ENTIRE on the "empty a draft" gesture — the fallback is taken exactly
+     * when the composer froze nothing, and it answers the number recorded AFTER the renumbering —
+     * and it cannot appear in the list above at all. Same reason `ImapMailService.ccAndBccOf` is
+     * kept a block, and its KDoc says so.
+     */
+    @Test fun `the draft destroy path is written in blocks, or no rule can see inside it`() {
+        listOf("destroyDraft", "discardDraft", "finishDraftSave").forEach { function ->
+            assertTrue(
+                "$function must have a BLOCK body: an expression body silently drops it out of " +
+                    "every source rule in this file, starting with the one forbidding it to read a " +
+                    "numbering for itself",
+                runCatching { bodyOf(function) }.isSuccess,
             )
         }
+    }
+
+    /**
+     * The freezing accessor, everywhere it is CALLED in the repository — pinned as a list rather
+     * than as an absence, so the DECLARATION has to be named and a rule that has stopped finding
+     * anything at all cannot pass by accident.
+     *
+     * ⭐ There is no execution-time call left. The send used to be the one exception: `performSend`
+     * read the numbering at delivery, which is a headless worker firing when the network comes back
+     * or at a scheduled send's hour — hours or days after the composer read that draft. The outbox
+     * row now CARRIES the number the composer froze (`OutboxEntity.draftUidValidity`), so this
+     * accessor is called nowhere in the repository: only the composer calls it, once, at the read.
+     *
+     * One line more here is the defect back, and each shape of it reads as harmless: a `?:` fallback
+     * in `performSend` "for rows queued before the column existed", a re-read in `discardDraft` or
+     * `finishDraftSave` "to be safe". All three answer the numbering recorded AFTER a renumbering,
+     * which is exactly the value that licenses the expunge on whatever now holds those UIDs.
+     *
+     * The file-wide rule below this one only pins `imap.recordedUidValidity(`; this accessor carries
+     * no `imap.` prefix and slips under it, so without this rule every draft path in the class could
+     * go back to reading at execution unseen.
+     */
+    @Test fun `the freezing accessor is declared for the composer and called at no execution point`() {
+        assertEquals(
+            "`recordedUidValidityForDraft` is the READ-TIME accessor and the repository must not " +
+                "call it AT ALL: every path that destroys a draft is handed the frozen number as a " +
+                "parameter — the composer's, or the outbox row's. A call restored here is a number " +
+                "read at execution, i.e. the defect, whichever function it is written in",
+            listOf(
+                // The declaration itself, pinned whole: the signature is part of the contract.
+                "suspend fun recordedUidValidityForDraft(credentials: AccountCredentials, emailId: String): Long? {",
+            ),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "recordedUidValidityForDraft("),
+        )
+    }
+
+    /**
+     * The two hand-overs of `saveDraft` — the IMAP branch and the JMAP one. Nothing named
+     * `finishDraftSave` in any test before this: replacing either argument with
+     * `replacesEmailId?.let { recordedUidValidityForDraft(credentials, it) }` restores the defect
+     * on the RE-SAVE gesture (the one that destroys the server copy it replaces) and leaves the
+     * whole suite green. Whole lines, arguments included.
+     */
+    @Test fun `re-saving hands on the numbering the composer froze, on both protocols`() {
+        val body = bodyOf("saveDraft")
+        assertEquals(
+            "both branches of saveDraft must hand `finishDraftSave` the parameter the composer " +
+                "froze — twice, identically: the IMAP branch destroys the replaced original by " +
+                "UID EXPUNGE, and the JMAP one carries null all the same so neither branch can " +
+                "start reading a numbering for itself. Body was:\n$body",
+            listOf("frozenUidValidity = replacesUidValidity,", "frozenUidValidity = replacesUidValidity,"),
+            codeLinesNaming(body, "frozenUidValidity"),
+        )
+    }
+
+    /**
+     * The inverse witness for the new accessor, twin of "the accessor really asks IMAP" below.
+     * Every executable rule here proves "handed nothing, destroy nothing"; nothing proves a healthy
+     * IMAP account is handed a REAL number. Flip `!=` to `==` on the protocol guard, or answer
+     * `null` outright, and every IMAP draft destroy becomes a silent, permanent refusal: a
+     * duplicate left in Drafts on every re-save, and an emptied draft that comes back on the next
+     * sync — with the whole suite green.
+     */
+    @Test fun `the freezing accessor answers a real number for an IMAP account`() {
+        val body = bodyOf("recordedUidValidityForDraft")
+        assertEquals(
+            "the accessor must refuse JMAP (`!=`) and answer the folder's recorded numbering for " +
+                "everything else. `==` there reads as a typo and turns the guard into a blanket " +
+                "refusal of every IMAP draft destroy, silently. Body was:\n$body",
+            listOf(
+                "if (credentials.protocol != MailProtocol.IMAP) return null",
+                "?: return null",
+                "return recordedUidValidity(credentials, folder)",
+            ),
+            codeLinesNaming(body, "return"),
+        )
+    }
+
+    /**
+     * ⛔ WYSIWYG on the refusal. `onMailbox` invalidates the folder before raising
+     * `ImapUidValidityChanged`, which drops the cached BODIES of the whole Drafts folder and
+     * records the new numbering — but the draft's LIST ROW survives, carrying an id from a
+     * numbering that no longer exists. The "save" path repairs that by accident (`saveDraft` ends
+     * on `runCatching { refresh(credentials, drafts) }`); the "empty a draft" path repaired
+     * nothing, so the user was left looking at a row that means nothing, with no word on screen.
+     */
+    @Test fun `a refused discard leaves the drafts list telling the truth`() {
+        val body = bodyOf("destroyDraft")
+        assertEquals(
+            "the renumbering catch must re-read the folder, best-effort: the refusal is silent, so " +
+                "the list is the only thing that can tell the user anything, and it must not keep " +
+                "showing a row whose id belongs to a numbering the server has thrown away. " +
+                "`runCatching` because a refusal that then fails to refresh is still a refusal — " +
+                "letting the reload throw would turn a silent, harmless refusal into the " +
+                "\"could not save\" banner it exists to avoid. Body was:\n$body",
+            listOf("runCatching { refresh(credentials, folder) }"),
+            codeLinesNaming(body, "refresh("),
+        )
     }
 
     /**

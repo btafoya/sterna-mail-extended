@@ -26,6 +26,10 @@ class SendOutboxTest {
         to = "a@b.c", cc = "", bcc = "", subject = subject, body = "body",
         fromAccountId = "acc", fromIdentityEmail = "me@b.c",
         attachments = emptyList(), inReplyTo = emptyList(), references = emptyList(),
+        // This message was edited from a saved draft, and it carries the numbering that draft's id
+        // was read under (#99). Stated rather than defaulted: the field has no default precisely so
+        // that a construction site cannot leave the freeze behind without the compiler saying so.
+        draftEmailId = "d1", draftUidValidity = 42L,
     )
 
     @Test fun `hold surfaces a pending affordance and no restored draft yet`() {

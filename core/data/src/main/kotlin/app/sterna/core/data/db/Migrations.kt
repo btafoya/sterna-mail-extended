@@ -408,3 +408,41 @@ val MIGRATION_21_22 = object : Migration(21, 22) {
         db.execSQL("ALTER TABLE `scheduled_sends` ADD COLUMN `requestReceipt` INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * Additive 22→23: `outbox` and `scheduled_sends` each gain `draftUidValidity`, the IMAP numbering
+ * the composer read `draftEmailId` under ([OutboxEntity.draftUidValidity],
+ * [ScheduledSendEntity.draftUidValidity]).
+ *
+ * The column exists because the draft is destroyed at DELIVERY time, in a headless worker, long
+ * after the composer is gone: an offline send leaves when the network returns, a scheduled one at
+ * its hour. A `UID EXPUNGE` only names a message inside one UIDVALIDITY, so a number looked up then
+ * is the number a background sync recorded AFTER a renumbering — compared with itself it reads
+ * "same", and the expunge lands on whatever message now holds those UIDs in Drafts (#99, the shape
+ * of #122 on a folder the user writes in).
+ *
+ * BOTH tables, exactly as [MIGRATION_21_22] and for the same reason, with a worse failure: a
+ * scheduled send waits in `scheduled_sends` for hours and only becomes an outbox row when
+ * [app.sterna.send.ScheduledSendWorker] fires. A column on one table alone drops the frozen number
+ * in that hand-over, silently, and the destroy goes out blind hours later.
+ *
+ * `INTEGER` NULLABLE with NO DEFAULT — the shape of `draftEmailId TEXT` above, not that of
+ * `requestReceipt INTEGER NOT NULL DEFAULT 0`: the entity field is a `Long?`, and Room's
+ * `TableInfo` compares affinity and nullability at open time.
+ *
+ * ⛔ **No backfill, deliberately.** Rows already queued read back `NULL`, and `null` DESTROYS
+ * NOTHING. There is nothing honest to backfill from: nobody knows which numbering those rows were
+ * enqueued under, and inventing the folder's current one is precisely the read this fix removes.
+ * The cost of `NULL` is a draft left behind in Drafts once — visible, and one tap to delete; the
+ * cost of guessing is an expunge under a numbering nobody can confirm, which is not recoverable.
+ *
+ * ⚠ Written AND registered in [SternaDatabase.ALL_MIGRATIONS]: unregistered, Room finds no 22→23
+ * path and `fallbackToDestructiveMigration()` DROPS every table — the outbox and the scheduled
+ * sends with it, i.e. mail the user wrote that never left the phone.
+ */
+val MIGRATION_22_23 = object : Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `outbox` ADD COLUMN `draftUidValidity` INTEGER")
+        db.execSQL("ALTER TABLE `scheduled_sends` ADD COLUMN `draftUidValidity` INTEGER")
+    }
+}

@@ -482,6 +482,28 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private var editingDraftId: String? = null
 
     /**
+     * The IMAP numbering [editingDraftId] belongs to, FROZEN at the moment that id was read (#99).
+     *
+     * An `UID EXPUNGE` only means anything inside one UIDVALIDITY. Between this composer reading
+     * the draft and a save or a discard going out, a background pass may have seen the Drafts
+     * folder renumbered and written the new number to the store — so a repository that looked it up
+     * at execution compared that new number with itself, said "same", and expunged a UID belonging
+     * to the old numbering, i.e. another message in Drafts. Frozen here, the SELECT is handed the
+     * number the id belongs to and the server refuses instead (silently: nothing was lost, the
+     * draft simply stays).
+     *
+     * ⛔ It is read ONCE, beside [editingDraftId], and never re-read on the way out — re-reading it
+     * is the defect itself, not a safety net. Same reason `InboxViewModel.flushPendingDestroy` is
+     * deliberately not `suspend`.
+     *
+     * On IMAP, null — a folder never observed, a draft this screen was not opened on — destroys
+     * nothing, which is the safe half of the trade. On JMAP it is ALWAYS null and the draft is
+     * destroyed all the same: the repository's JMAP branch opposes nothing, because a JMAP id
+     * survives anything a folder can go through. ⛔ The null is not "JMAP drafts are left behind".
+     */
+    private var editingDraftUidValidity: Long? = null
+
+    /**
      * Whether the draft being edited holds content this plain-text composer cannot put back: a
      * genuine HTML body (flattened to text on open), inline images or a calendar part (never
      * carried), or a file attachment that failed to re-stage. Re-saving then leaves the original
@@ -670,6 +692,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 } ?: options.firstOrNull { it.accountId == d.fromAccountId }
                 if (match != null) _selectedFrom.value = match
                 editingDraftId = d.draftEmailId
+                // …with the numbering that id was frozen under, carried by the outbox row through
+                // the queue and back (#99). Restored rather than re-read: the read that matters
+                // happened when the composer first opened the draft, and looking it up again here
+                // would answer the number a sync recorded after any renumbering — the value that
+                // lets the expunge through on another message. Null on a row queued before v23 — on
+                // IMAP that destroys nothing; on JMAP it is always null and destroys all the same.
+                editingDraftUidValidity = d.draftUidValidity
                 // Restore the PGP mode the message carried (#35/#70): a signed item reopens signed,
                 // an undone encrypted send reopens with the padlock on — never silently downgraded.
                 d.pgpMode?.let { mode ->
@@ -716,6 +745,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     inReplyTo = draft.inReplyTo
                     references = draft.references
                     editingDraftId = draftId
+                    // …and the numbering that id belongs to, frozen HERE and never read again: at
+                    // save time it would be the number a refresh recorded after the folder was
+                    // renumbered, and the expunge would land on another draft (#99).
+                    editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
                     // What this editor cannot give back on a re-save: rich formatting (the HTML
                     // body is flattened to text), inline images and calendar parts (not carried).
                     editingDraftLossy = draft.htmlContent() != null ||
@@ -972,6 +1005,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // Editing a saved draft (#63): once this send is delivered, the worker
                     // destroys the draft it came from, so Drafts keeps no stale duplicate.
                     draftEmailId = editingDraftId,
+                    // …under the numbering frozen when this composer read that id (#99). It is
+                    // persisted with the row because the destroy runs at DELIVERY: an offline send
+                    // leaves when the network returns, and the folder may have been renumbered by
+                    // then. Handing `null` here would destroy nothing; handing a fresh read would
+                    // destroy the wrong message.
+                    draftUidValidity = editingDraftUidValidity,
                     // Asked for on this screen, written at DELIVERY time by a headless worker —
                     // so it has to be on the row, not in this process.
                     requestReceipt = args.requestReceipt,
@@ -988,6 +1027,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     forwardedText = forwarded?.text, forwardedHtml = forwarded?.html,
                     pgpMode = mode.takeIf { it != PgpMode.OFF }?.name,
                     draftEmailId = editingDraftId,
+                    // Undoing this send reopens the composer from THIS record: without the frozen
+                    // numbering the reopened message could no longer destroy the draft it replaces.
+                    draftUidValidity = editingDraftUidValidity,
                     requestReceipt = args.requestReceipt,
                 )
                 val app = getApplication<Application>()
@@ -1067,6 +1109,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         references = references.joinToString(" ").ifBlank { null },
                         sendAtMillis = sendAtMillis,
                         draftEmailId = editingDraftId,
+                        // The row waits for hours, so the frozen numbering waits with it (#99):
+                        // read at the hour the send fires it would be the number recorded after a
+                        // renumbering, and the expunge would land on another draft.
+                        draftUidValidity = editingDraftUidValidity,
                         // The row waits for hours; the request has to wait with it, or the
                         // hand-over to the outbox drops it (ScheduledSendWorker).
                         requestReceipt = requestReceipt,
@@ -1155,13 +1201,15 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // way the screen then closes exactly as a normal save would.
         if (!hasDraftContent(to, cc, bcc, subject, body)) {
             val original = editingDraftId
+            // The numbering frozen when that id was read — carried, never re-read (#99).
+            val originalUidValidity = editingDraftUidValidity
             // Nothing is being saved, so a message reopened from the outbox is not being moved
             // anywhere: it goes back to the queue rather than evaporating on an empty save (#70).
             abandon()
             if (original == null) {
                 _state.value = ComposeState.Done
             } else {
-                submit(to) { credentials, _ -> repo.discardDraft(credentials, original) }
+                submit(to) { credentials, _ -> repo.discardDraft(credentials, original, originalUidValidity) }
             }
             return
         }
@@ -1177,6 +1225,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 credentials, recipients, subject, body, parseAddrs(cc), parseAddrs(bcc),
                 inReplyTo = inReplyTo, references = references,
                 replacesEmailId = editingDraftId,
+                // The numbering that id belongs to, frozen when the draft was opened — the server
+                // copy is expunged under it, or not at all (#99).
+                replacesUidValidity = editingDraftUidValidity,
                 attachments = _attachments.value,
                 bodyIsLossy = editingDraftLossy,
                 fromName = identity?.name, fromEmail = identity?.email,

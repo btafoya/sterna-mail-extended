@@ -53,6 +53,9 @@ class ReadReceiptWiringTest {
         references = listOf("<m0@example.org>"),
         pgpMode = "SIGN",
         draftEmailId = "d1",
+        // Not this test's subject (the numbering carried with the draft id is
+        // DraftNumberingCarriedWiringTest's), but the field has no default on purpose.
+        draftUidValidity = 77L,
         outboxId = 42,
         requestReceipt = requestReceipt,
     )

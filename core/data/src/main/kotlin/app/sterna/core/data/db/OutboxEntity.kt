@@ -85,6 +85,27 @@ data class OutboxEntity(
      */
     val draftEmailId: String? = null,
     /**
+     * The IMAP numbering (UIDVALIDITY) [draftEmailId] was read under, frozen by the composer when
+     * it opened that draft (#99) and carried here because the destroy happens at DELIVERY time —
+     * minutes, hours or days later, whenever the network comes back or a scheduled send fires.
+     *
+     * A `UID EXPUNGE` only names a message inside one UIDVALIDITY. Read at execution instead of
+     * carried, this value is whatever a background sync last recorded: if Drafts was renumbered in
+     * between, the guard compares the new number with itself, says "same", and expunges a UID from
+     * the OLD numbering — i.e. destroys another message in Drafts, silently.
+     *
+     * ⛔ **On IMAP, `null` destroys nothing**, and that is the safe half of the trade: a row queued
+     * before v23 leaves its draft in place, because nothing can be shown to still mean anything. A
+     * duplicate in Drafts is visible and can be deleted; an expunge under an unknown numbering
+     * cannot be undone.
+     *
+     * On JMAP it is ALWAYS null and the draft IS destroyed all the same — there is nothing to
+     * oppose because a JMAP id survives everything a folder can go through, so `destroyDraft` takes
+     * its own branch (`jmapDestroyAll`) and never asks about numbering. ⛔ Do not read the null as
+     * "JMAP drafts are left behind": they are not, and "fixing" that is fixing a non-bug.
+     */
+    val draftUidValidity: Long? = null,
+    /**
      * Whether the message asks the recipient's client for a read receipt (RFC 8098's
      * `Disposition-Notification-To:`, addressed to this row's `From`). Persisted because the header
      * is written at DELIVERY time, in the headless worker, long after the composer is gone.

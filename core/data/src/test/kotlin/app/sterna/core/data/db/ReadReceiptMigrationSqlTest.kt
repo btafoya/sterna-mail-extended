@@ -434,6 +434,8 @@ class ReadReceiptMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("this branch takes the schema to v22", 22, SCHEMA_VERSION)
+        // The receipt columns are v22's, and they stay v22's however far the schema goes on: a step
+        // renumbered after the fact would run against a database that has already had it.
+        assertEquals("the receipt columns arrive at v22", 22, MIGRATION_21_22.endVersion)
     }
 }

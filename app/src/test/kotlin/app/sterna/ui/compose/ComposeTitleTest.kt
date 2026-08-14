@@ -104,6 +104,10 @@ class ComposeTitleTest {
         attachments = emptyList(),
         inReplyTo = emptyList(),
         references = emptyList(),
+        // Edited from a saved draft, with the numbering its id was read under (#99): the field has
+        // no default, so every fixture states what the message actually carries.
+        draftEmailId = "d1",
+        draftUidValidity = 42L,
         editingOutboxId = editingOutboxId,
     )
 

@@ -40,6 +40,19 @@ class SendOutbox(private val scope: CoroutineScope) {
         /** The saved draft this message was edited from (#63), so re-sending still replaces it. */
         val draftEmailId: String? = null,
         /**
+         * The IMAP numbering [draftEmailId] was frozen under (#99), carried so a message that comes
+         * back to the composer — an undone send, a queued item reopened — still knows which
+         * numbering its draft id belongs to. Dropped here, the next send freezes nothing and the
+         * draft it replaces is left behind in Drafts.
+         *
+         * ⛔ **No default**, unlike the fields above it and for the reason this class is dangerous:
+         * a construction site that leaves it out compiles, reads as complete, and silently answers
+         * `null`. The Outbox screen's Edit is exactly such a site, and nothing but the compiler
+         * watches it — so the compiler is what watches it. Same rule as
+         * [app.sterna.core.data.mail.MailRepository.OutboxDraft.draftUidValidity].
+         */
+        val draftUidValidity: Long?,
+        /**
          * Set only when the draft came out of the outbox (#70): the id of the queued row, which
          * stays in the queue marked EDITING while this composer holds it. Closing the composer
          * gives it back ([MailRepository.releaseOutboxEdit]); sending/saving/deleting consumes it.
@@ -130,6 +143,7 @@ internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.Compo
         references = draft.references,
         pgpMode = draft.pgpMode,
         draftEmailId = draft.draftEmailId,
+        draftUidValidity = draft.draftUidValidity,
         editingOutboxId = draft.outboxId,
         requestReceipt = draft.requestReceipt,
     )
