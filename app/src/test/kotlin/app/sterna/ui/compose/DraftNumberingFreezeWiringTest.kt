@@ -42,15 +42,35 @@ class DraftNumberingFreezeWiringTest {
                 "something it never located. Body was:\n${prepare.joinToString("\n")}",
             id >= 0,
         )
-        assertEquals(
-            "the numbering must be frozen on the line right after '$REMEMBER_ID', in the same " +
-                "block of the reopen branch: it is the one moment at which the id on screen and " +
-                "the folder's numbering are known to belong to each other. Anywhere later is a " +
-                "different number — the one a refresh recorded after the renumbering, i.e. exactly " +
-                "the value that lets the expunge through on another message. Body was:\n" +
+        assertTrue(
+            "prepare() must still freeze the numbering as '$FREEZE'. Body was:\n" +
                 prepare.joinToString("\n"),
-            id + 1,
-            freeze,
+            freeze >= 0,
+        )
+        assertEquals(
+            "every line of prepare() that arms the destroy — the id — or freezes the numbering it " +
+                "belongs to, whole and IN ORDER: the restore branch reads both back from the " +
+                "undone send; the reopen branch freezes the numbering FIRST and arms the id LAST " +
+                "(#63: the id is set only after the attachment carry has answered, so a send " +
+                "tapped during that download destroys nothing). The numbering must be read at the " +
+                "earliest possible moment and never again: anywhere later is a different number — " +
+                "the one a refresh recorded after the renumbering, i.e. exactly the value that " +
+                "lets the expunge through on another message. An extra line here (an alias, a " +
+                "'re-read to be safe') is the defect restored. Body was:\n" +
+                prepare.joinToString("\n"),
+            listOf(
+                "editingDraftId = d.draftEmailId",
+                "editingDraftUidValidity = d.draftUidValidity",
+                FREEZE,
+                REMEMBER_ID,
+            ),
+            prepare.filter { it.startsWith("editingDraftId =") || it.startsWith("editingDraftUidValidity =") },
+        )
+        assertTrue(
+            "…and in the reopen branch the freeze must come BEFORE the id is armed: the id read " +
+                "and the number must belong to the same numbering, and the earliest read is the " +
+                "safest one. Body was:\n" + prepare.joinToString("\n"),
+            freeze < id,
         )
     }
 

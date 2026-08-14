@@ -108,6 +108,7 @@ class ComposeTitleTest {
         // no default, so every fixture states what the message actually carries.
         draftEmailId = "d1",
         draftUidValidity = 42L,
+        draftBodyIsLossy = false,
         editingOutboxId = editingOutboxId,
     )
 

@@ -116,8 +116,12 @@ class DraftNumberingCarriedWiringTest {
             calls.single()["draftUidValidity"],
         )
         assertEquals(
-            "…and beside the id it belongs to: the pair is what makes the expunge refusable",
-            "draftEmailId",
+            "…and beside the id it belongs to: the pair is what makes the expunge refusable. " +
+                "That id is `replaceableDraftId` and NOT the raw `draftEmailId` parameter since " +
+                "#63's send-side proof: the row may only name a draft the outgoing message was " +
+                "shown to reproduce (SendDraftDestructionWiringTest owns that rule). The pair " +
+                "still travels together — an unproven send writes neither.",
+            "replaceableDraftId",
             calls.single()["draftEmailId"],
         )
     }

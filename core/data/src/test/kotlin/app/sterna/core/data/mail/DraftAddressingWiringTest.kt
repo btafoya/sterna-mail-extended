@@ -59,8 +59,11 @@ class DraftAddressingWiringTest {
     @Test fun theOriginalsAddressingIsReadFromTheServerForTheReplacedDraft() {
         assertEquals(
             "the original's addressing must come from imapDraftAddressing, for the id being " +
-                "replaced and this account — the cache has no cc column to answer with",
-            listOf("originalAddressing = { id -> imapDraftAddressing(credentials, id) },"),
+                "replaced and this account — the cache has no cc column to answer with. " +
+                "ImapBudget.NO_BUDGET explicitly: the SAVE keeps its historic unbounded read " +
+                "(its own hang window is a pre-existing question, tracked separately); only the " +
+                "SEND path, which holds the message in RAM while it reads, carries a deadline.",
+            listOf("originalAddressing = { id -> imapDraftAddressing(credentials, id, ImapBudget.NO_BUDGET) },"),
             codeLinesNaming(bodyOf("MailRepository", "saveDraft"), "originalAddressing ="),
         )
     }
@@ -95,8 +98,10 @@ class DraftAddressingWiringTest {
             codeLinesNaming(body, "?: return"),
         )
         assertEquals(
-            "the addressing itself is the server's envelope, for the folder the cached row names",
-            listOf("return imap.ccAndBccOf(credentials, cached.mailboxId, uid)"),
+            "the addressing itself is the server's envelope, for the folder the cached row names " +
+                "— under the caller's own deadline, passed through whole: dropping `budgetMs` " +
+                "here re-opens the unbounded read for the send path however bounded its call is",
+            listOf("return imap.ccAndBccOf(credentials, cached.mailboxId, uid, budgetMs)"),
             codeLinesNaming(body, "ccAndBccOf("),
         )
     }

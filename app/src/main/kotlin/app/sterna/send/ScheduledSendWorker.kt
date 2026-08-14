@@ -36,13 +36,19 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 fromEmail = row.fromEmail,
                 cc = row.cc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
                 bcc = row.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
-                // A scheduled send of an edited draft (#63) still replaces the stored draft.
+                // A scheduled send of an edited draft (#63) still replaces the stored draft. The
+                // row cannot carry the composer's fidelity verdict (no column), so the id IS the
+                // verdict: ComposeViewModel.scheduleSend writes draftEmailId only when the body
+                // verdict is clean. `false` here hands that proven half on — it may say so ONLY
+                // because of that gate — and enqueueSend still reads the addressing half at fire
+                // time, where an unknown keeps the original.
                 draftEmailId = row.draftEmailId,
                 // …and destroys it under the numbering the composer read it in, not one read at
                 // delivery (#99). This hand-over is where a number held only on the scheduled row
                 // would be dropped: the send would then destroy blind, hours later, on a Drafts
                 // folder the server may have renumbered meanwhile.
                 draftUidValidity = row.draftUidValidity,
+                bodyIsLossy = false,
                 // …and one the user asked a read receipt for still asks: this hand-over is where a
                 // request that only lived on the scheduled row would be dropped.
                 requestReceipt = row.requestReceipt,

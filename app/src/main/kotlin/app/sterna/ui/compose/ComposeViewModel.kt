@@ -19,6 +19,7 @@ import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.mail.DraftSaveOutcome
+import app.sterna.core.data.mail.reopenedDraftIsLossy
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.imap.OutgoingAttachment
@@ -699,6 +700,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // lets the expunge through on another message. Null on a row queued before v23 — on
                 // IMAP that destroys nothing; on JMAP it is always null and destroys all the same.
                 editingDraftUidValidity = d.draftUidValidity
+                // The fidelity verdict travels WITH the id: before it did, undoing a send
+                // restored the id while this flag fell back to false, and re-sending destroyed
+                // an original the first send had deliberately spared.
+                editingDraftLossy = d.draftBodyIsLossy
                 // Restore the PGP mode the message carried (#35/#70): a signed item reopens signed,
                 // an undone encrypted send reopens with the padlock on — never silently downgraded.
                 d.pgpMode?.let { mode ->
@@ -744,17 +749,33 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     _prefill.value = draftFieldsOf(draft, _editingDraft.value)
                     inReplyTo = draft.inReplyTo
                     references = draft.references
-                    editingDraftId = draftId
-                    // …and the numbering that id belongs to, frozen HERE and never read again: at
-                    // save time it would be the number a refresh recorded after the folder was
-                    // renumbered, and the expunge would land on another draft (#99).
+                    // The numbering the draft's id belongs to, frozen HERE and never read again:
+                    // at save time it would be the number a refresh recorded after the folder was
+                    // renumbered, and the expunge would land on another draft (#99). Frozen before
+                    // the attachment carry, though the id below is armed after it: a numbering on
+                    // its own destroys nothing, so the earliest read is also the safest one.
                     editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
                     // What this editor cannot give back on a re-save: rich formatting (the HTML
-                    // body is flattened to text), inline images and calendar parts (not carried).
-                    editingDraftLossy = draft.htmlContent() != null ||
-                        draft.inlineImageParts().isNotEmpty() ||
-                        draft.calendarParts().isNotEmpty()
+                    // body is flattened to text), inline images and calendar parts (not carried),
+                    // and the read receipt the draft asked for — its header is on the server copy
+                    // and the checkbox below comes back CLEAR (D1), so the message would go out
+                    // asking for nothing and the destroy would take the only copy that asked.
+                    // Every leg is read off the DRAFT that was just fetched, never off this
+                    // screen's state, and the decision itself lives in core:data so a JVM test
+                    // can execute it — nothing here can (see DraftVerdictWiringTest).
+                    editingDraftLossy = reopenedDraftIsLossy(
+                        hasHtmlBody = draft.htmlContent() != null,
+                        inlineImageCount = draft.inlineImageParts().size,
+                        calendarPartCount = draft.calendarParts().size,
+                        receiptHeader = draft.dispositionNotificationTo,
+                    )
                     if (!carryDraftAttachments(credentials, draft)) editingDraftLossy = true
+                    // The id is set LAST, strictly after the attachment carry has answered: it is
+                    // what arms the destroy, and a send tapped while the carry was still
+                    // downloading used to go out without the attachments — flag still false —
+                    // and destroy the only copy. No id yet means no destroy, at the price of a
+                    // duplicate if the user saves during those seconds.
+                    editingDraftId = draftId
                 } catch (_: Throwable) {
                     // The draft couldn't be loaded: leave compose blank but say so, like a
                     // failed reply prefill — a silently emptied draft would look like data loss.
@@ -1003,7 +1024,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     pgpMode = mode.takeIf { it != PgpMode.OFF },
                     prebuiltEntity = pgpEntity,
                     // Editing a saved draft (#63): once this send is delivered, the worker
-                    // destroys the draft it came from, so Drafts keeps no stale duplicate.
+                    // destroys the draft it came from, so Drafts keeps no stale duplicate —
                     draftEmailId = editingDraftId,
                     // …under the numbering frozen when this composer read that id (#99). It is
                     // persisted with the row because the destroy runs at DELIVERY: an offline send
@@ -1011,6 +1032,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // then. Handing `null` here would destroy nothing; handing a fresh read would
                     // destroy the wrong message.
                     draftUidValidity = editingDraftUidValidity,
+                    // — and ONLY against proof: the composer's own verdict rides along, and
+                    // enqueueSend leaves the id off the row when it (or the addressing read)
+                    // cannot show the send reproduces the draft. The message still goes out;
+                    // the original then survives in Drafts instead of being destroyed behind
+                    // a send that silently dropped what this editor could not carry.
+                    bodyIsLossy = editingDraftLossy,
                     // Asked for on this screen, written at DELIVERY time by a headless worker —
                     // so it has to be on the row, not in this process.
                     requestReceipt = args.requestReceipt,
@@ -1030,6 +1057,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // Undoing this send reopens the composer from THIS record: without the frozen
                     // numbering the reopened message could no longer destroy the draft it replaces.
                     draftUidValidity = editingDraftUidValidity,
+                    draftBodyIsLossy = editingDraftLossy,
                     requestReceipt = args.requestReceipt,
                 )
                 val app = getApplication<Application>()
@@ -1108,7 +1136,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         inReplyTo = inReplyTo.joinToString(" ").ifBlank { null },
                         references = references.joinToString(" ").ifBlank { null },
                         sendAtMillis = sendAtMillis,
-                        draftEmailId = editingDraftId,
+                        // A scheduled send of an edited draft still replaces it (#63), but this
+                        // row cannot carry the fidelity verdict (no column). So the id itself is
+                        // the carrier: written only when the composer's verdict is clean,
+                        // withheld — original kept, duplicate in Drafts — when it is not.
+                        // ScheduledSendWorker relies on exactly this when it re-enters
+                        // enqueueSend with bodyIsLossy = false.
+                        draftEmailId = editingDraftId.takeUnless { editingDraftLossy },
                         // The row waits for hours, so the frozen numbering waits with it (#99):
                         // read at the hour the send fires it would be the number recorded after a
                         // renumbering, and the expunge would land on another draft.

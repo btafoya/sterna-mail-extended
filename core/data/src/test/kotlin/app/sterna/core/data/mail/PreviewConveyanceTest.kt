@@ -133,8 +133,15 @@ class PreviewConveyanceTest {
             codeLinesNaming(source, "imap.fetchPreview("),
         )
         assertEquals(
-            "with no default to forget — a defaulted deadline is soTimeout = 0, i.e. none",
-            listOf("budgetMs: Int,"),
+            "with no default to forget — a defaulted deadline is soTimeout = 0, i.e. none. Two " +
+                "such parameters in this file now, both no-default by design: the preview " +
+                "passthrough's own, and imapDraftAddressing's (the draft-proof read, whose SEND " +
+                "caller passes SEND_PROOF_BUDGET_MS and whose SAVE caller passes " +
+                "ImapBudget.NO_BUDGET explicitly — see SendDraftDestructionWiringTest).",
+            listOf(
+                "budgetMs: Int,",
+                "private suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {",
+            ),
             codeLinesNaming(source, "budgetMs: Int"),
         )
         assertEquals(

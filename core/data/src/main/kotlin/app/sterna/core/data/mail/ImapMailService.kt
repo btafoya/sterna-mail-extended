@@ -835,13 +835,26 @@ class ImapMailService(
      *
      * Read from the SERVER on purpose, never from the cache: the cache row has no cc/bcc column,
      * so on IMAP it answers "no copied parties" both for a draft that has none and for one whose
-     * Cc was never loaded. The one caller, the draft save, is deciding whether to destroy a
-     * server copy, and those two answers must not look alike.
+     * Cc was never loaded. Both callers are deciding whether to destroy a server copy — the draft
+     * save, and the send that replaces an edited draft — and those two answers must not look alike.
+     *
+     * ⭐ [budgetMs] has no default, for [fetchPreview]'s reason (its doc says it in full): the
+     * block below is blocking, holds the account's single connection under its mutex, and a
+     * `withTimeout` from the caller can bound none of that. The save passes
+     * [ImapBudget.NO_BUDGET] explicitly — its historic blocking behaviour, unchanged; the send
+     * passes a real deadline, because it runs this BEFORE its outbox row exists, while the
+     * message is only in the composer's RAM. An expired budget throws ([SocketTimeoutException]),
+     * which every caller already reads as "could not be established": unknown, keep the original.
      */
-    suspend fun ccAndBccOf(credentials: AccountCredentials, mailboxId: String, uid: Long): Set<String>? {
+    suspend fun ccAndBccOf(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        budgetMs: Int,
+    ): Set<String>? {
         // Block body, not an expression one, so DraftAddressingWiringTest can read this body: an
         // expression body has no braces of its own and the lookup would hand back the lambda's.
-        return onMailbox(credentials, mailboxId) { session, _ ->
+        return onMailbox(credentials, mailboxId, budgetMs = budgetMs) { session, _ ->
             val message = session.fetchByUid(uid) ?: return@onMailbox null
             copiedAddressesOrNull(message.cc + message.bcc)
         }

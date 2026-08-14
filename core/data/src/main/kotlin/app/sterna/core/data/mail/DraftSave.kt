@@ -44,6 +44,114 @@ internal fun draftReplacementIsFaithful(
     receiptRequestIsCarried
 
 /**
+ * Whether reopening a saved draft in this composer LOST something the server copy still holds —
+ * the verdict `ComposeViewModel.prepare` computes on the draft it just fetched, and the one
+ * [MailRepository.enqueueSend] reads back as `bodyIsLossy` before it may write a destroyable id
+ * onto an outbox row. `true` means "this screen cannot give that draft back", so the original is
+ * kept: a duplicate in Drafts is recoverable, a destroyed original is not (#63).
+ *
+ * ⭐ Public and taking primitives, unlike its `internal` sisters, for one reason: the caller lives
+ * in `:app` and is an `AndroidViewModel` no JVM test can instantiate. Pulling the decision out
+ * here is what makes it EXECUTABLE (`ReopenedDraftLossyTest`); the wiring that feeds it is all
+ * that is left to a source lint (`DraftVerdictWiringTest`).
+ *
+ * The legs, each one a thing the composer shows the user nothing about:
+ *  - [hasHtmlBody]: a draft authored elsewhere in HTML is flattened to plain text on open;
+ *  - [inlineImageCount]: inline images are not carried into the editor;
+ *  - [calendarPartCount]: calendar parts are not carried either;
+ *  - [receiptHeader]: RFC 8098's `Disposition-Notification-To` of the draft as the SERVER holds
+ *    it. The request lives in a header of the server copy and this composer's receipt checkbox
+ *    comes back CLEAR when a draft is reopened (debt D1), so the message goes out asking for
+ *    nothing — and destroying the original behind it takes the only copy that carried the
+ *    request, in silence, with nothing on screen having said so.
+ *
+ * ⭐ The receipt leg asks whether the header is THERE, not whether it parses: absent or blank is
+ * "nothing was asked for", and anything else — `<>`, an empty group, a word that is not an
+ * address — is PRESENT-BUT-UNREADABLE, which is an unknown, and an unknown keeps the original.
+ * Deliberately NOT [ReadReceiptHeader.recipients]`.isNotEmpty()`: that function decides no policy
+ * (its own KDoc says so) and answers the same empty list for "no header" and "a header I could
+ * not read", so reading it here would turn every malformed request into "nothing to lose",
+ * authorise the destroy, and take the only copy that carried the request — the same mistake
+ * [copiedAddressesOrNull] exists to refuse on the addressing. ⚠ The price, assumed: a draft whose
+ * receipt header is malformed is kept, i.e. a duplicate in Drafts, which the user can delete.
+ *
+ * ⚠ This verdict also governs [MailRepository.saveDraft] (the composer hands it over as
+ * `bodyIsLossy`), so a draft that asks for a receipt now RE-SAVES more cautiously too: it leaves
+ * the server copy in place and the user sees a duplicate in Drafts. Deliberate, and the cheaper
+ * of the two mistakes — a duplicate is deletable, a dropped receipt request is not recoverable.
+ */
+fun reopenedDraftIsLossy(
+    hasHtmlBody: Boolean,
+    inlineImageCount: Int,
+    calendarPartCount: Int,
+    receiptHeader: String?,
+): Boolean = hasHtmlBody ||
+    inlineImageCount > 0 ||
+    calendarPartCount > 0 ||
+    !receiptHeader.isNullOrBlank()
+
+/**
+ * The draft id a send may destroy once delivered, or null — the send path's use of the SAME rule
+ * [MailRepository.saveDraft] answers to, never a second one (#63). [MailRepository.enqueueSend]
+ * writes what this returns onto the outbox row, and [MailRepository.performSend] destroys only
+ * what the row names: no proof, no id, no destroy — the message still goes out, nothing ever
+ * holds it back, and the original survives in Drafts as a duplicate.
+ *
+ * Both attachment legs of [draftReplacementIsFaithful] receive [attachmentCount]: unlike a save,
+ * the send is all-or-nothing about its attachments (enqueueSend rolls its row back on a part it
+ * cannot stage, and delivery refuses to send short), so what goes out is exactly what compose was
+ * showing. [bodyIsLossy] is the composer's verdict on the reopened draft, and `true` is also what
+ * an unknown answers — a verdict that survived no persistence forbids the destroy.
+ * [addressingIsCarried] is asked only when there is an id to destroy, so a send that replaces
+ * nothing costs no server read.
+ *
+ * ⭐ `receiptRequestIsCarried = true`, and NOT a server read — the same shape of justification as
+ * the `addressingIsCarried = true` of [MailRepository.saveDraft]'s JMAP branch: the leg is already
+ * answered upstream by [bodyIsLossy]. On all four paths that can bring an id here, a clean
+ * `bodyIsLossy == false` carries the reopen verdict of [reopenedDraftIsLossy], whose receipt leg
+ * has already answered — SUBJECT TO the known hole below:
+ *  - immediate send: `ComposeViewModel.prepare` computes the verdict with [reopenedDraftIsLossy],
+ *    whose receipt leg answers `true` for a draft whose header asked for one;
+ *  - a send undone and reopened: the verdict travels WITH the id
+ *    (`SendOutbox.ComposeDraft.draftBodyIsLossy`), so it cannot be laundered back to false;
+ *  - a message reopened from a persisted outbox row: the verdict did not survive that table, so
+ *    `composeDraftOf` answers the unknown — `true` — and no id is written at all;
+ *  - a scheduled send: `scheduleSend` writes the id only against a clean verdict, and the worker
+ *    comes back through that one door with `bodyIsLossy = false`.
+ *
+ * ⚠ The hole, known and NOT closed here: all four paths read the header the composer was given,
+ * and on a JMAP server that refuses `header:Disposition-Notification-To:asText`,
+ * `dispositionNotificationTo` comes back `null` for EVERY message — a draft that does carry the
+ * request included. The receipt leg then says "nothing asked", the verdict is clean, and the
+ * original is destroyed. [MailRepository.saveDraft] does not have that hole: it asks
+ * `client.refusesReceiptHeader` and turns a refusal into the unknown (`receiptRequestedInProperty`),
+ * and nothing carries that bit down to the composer, which is what closing this would take. Not a
+ * regression, and deliberately out of this change's scope: before it, the send destroyed the
+ * original with no proof at all, on every server.
+ *
+ * ⛔ Deliberately NOT a read of the draft's header here (no `imapDraftReceiptRequested`): it would
+ * be a full `FETCH` of the source, run inside `enqueueSend` BEFORE the outbox row exists, while
+ * the message is only in the composer's RAM — and it would expire under `SEND_PROOF_BUDGET_MS` on
+ * any draft of any size, which reads as "unknown" and would keep every such original.
+ */
+internal suspend fun replaceableDraftIdOrNull(
+    draftEmailId: String?,
+    attachmentCount: Int,
+    bodyIsLossy: Boolean,
+    addressingIsCarried: suspend (String) -> Boolean,
+): String? {
+    if (draftEmailId == null) return null
+    val faithful = draftReplacementIsFaithful(
+        attachmentsIn = attachmentCount,
+        attachmentsCarried = attachmentCount,
+        bodyIsLossy = bodyIsLossy,
+        addressingIsCarried = addressingIsCarried(draftEmailId),
+        receiptRequestIsCarried = true,
+    )
+    return if (faithful) draftEmailId else null
+}
+
+/**
  * Whether [replacement] provably carries the addressing of the draft it replaces.
  *
  * ⭐ `original == null` means "could not be established", and that is NOT an empty addressing:

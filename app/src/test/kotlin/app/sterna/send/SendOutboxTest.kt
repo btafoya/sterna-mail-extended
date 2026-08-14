@@ -1,5 +1,6 @@
 package app.sterna.send
 
+import app.sterna.core.data.mail.MailRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +31,7 @@ class SendOutboxTest {
         // was read under (#99). Stated rather than defaulted: the field has no default precisely so
         // that a construction site cannot leave the freeze behind without the compiler saying so.
         draftEmailId = "d1", draftUidValidity = 42L,
+        draftBodyIsLossy = false,
     )
 
     @Test fun `hold surfaces a pending affordance and no restored draft yet`() {
@@ -70,5 +72,47 @@ class SendOutboxTest {
         val d = draft("edit queued")
         outbox.reopen(d)
         assertSame(d, outbox.restored.value)
+    }
+
+    // ---- the fidelity verdict of an edited draft travels WITH its id ---------------------------
+
+    /**
+     * The undo round trip must hand the verdict back exactly as it went in, both senses: a lossy
+     * send undone and re-sent must still refuse the destroy, and a clean one must still buy it.
+     * (Never seen red — [SendOutbox] holds the draft whole — it pins the contract against a future
+     * hold/restore that rebuilds the draft field by field and forgets this one.)
+     */
+    @Test fun `undoing a send brings the fidelity verdict back unchanged`() {
+        for (lossy in listOf(true, false)) {
+            val held = draft("verdict").copy(draftEmailId = "d1", draftBodyIsLossy = lossy)
+            outbox.hold("Sending…", held) {}
+            outbox.undo()
+            assertEquals(lossy, outbox.restored.value!!.draftBodyIsLossy)
+            outbox.consumeRestored()
+        }
+    }
+
+    /**
+     * ⭐ A message reopened from a PERSISTED outbox row reopens as lossy: the row has no column
+     * for the verdict, so the verdict did not survive — and an unknown must forbid the destroy,
+     * never authorise it. The id itself still travels (re-sending still replaces the draft when
+     * a later save can prove itself); it is only the destroy that the unknown refuses.
+     */
+    @Test fun `a message reopened from a persisted outbox row comes back with an unknown, lossy, verdict`() {
+        val reopened = composeDraftOf(
+            MailRepository.OutboxDraft(
+                to = "bob@example.org", cc = "", bcc = "",
+                subject = "Six o'clock", body = "see you there",
+                fromAccountId = "accA", fromEmail = "alex@masto.top",
+                attachments = emptyList(), inReplyTo = emptyList(), references = emptyList(),
+                pgpMode = null, draftEmailId = "d1", draftUidValidity = null,
+                outboxId = 42, requestReceipt = false,
+            ),
+        )
+        assertTrue(
+            "no persisted row carries the verdict, so a reopened one is unknown — and unknown is lossy",
+            reopened.draftBodyIsLossy,
+        )
+        assertEquals("the id still travels; only the destroy is refused", "d1", reopened.draftEmailId)
     }
 }

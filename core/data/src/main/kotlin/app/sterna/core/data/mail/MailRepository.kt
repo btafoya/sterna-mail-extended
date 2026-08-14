@@ -168,6 +168,32 @@ private const val PREFETCH_COUNT = 20
 private const val BODY_CACHE_CAP = 100
 
 /**
+ * Wall-clock budget for the IMAP envelope read the SEND path makes before it may destroy the
+ * draft a message was edited from ([MailRepository.enqueueSend] → `sendCarriesDraftAddressing`):
+ * one SELECT + one envelope FETCH, which a live server answers in well under a second. Of the
+ * order of the other bounded reads ([JMAP_DISCOVERY_BUDGET_MS] is the same 10 s;
+ * [ImapMailService.ENUMERATE_BUDGET_MS] allows 15 for a whole-folder walk).
+ *
+ * Why this read is bounded when the save's twin is not: it runs BEFORE the outbox row is
+ * inserted, while the message still exists only in the composer's RAM, and an unbounded socket
+ * (soTimeout 0, a server that accepts TCP and then says nothing) leaves the text there in exactly
+ * the state a process death loses it.
+ *
+ * ⚠ What it bounds, exactly — and what it does NOT: the deadline is taken inside
+ * [ImapMailService]'s `runWithRetry`, i.e. AFTER `withSession` has acquired the account's IMAP
+ * mutex (`pooled.mutex.withLock { runWithRetry(...) }`). So it bounds the connect and the reads
+ * themselves; it does not bound the WAIT for that mutex, and whatever holds it — a body fetch, an
+ * APPEND of a draft, a sync pass, all of them `NO_BUDGET` — is bounded by nothing. This constant
+ * therefore shortens the window the composer's text can sit in RAM, it does not close it; closing
+ * it would take a deadline on the lock itself, which every other caller shares.
+ *
+ * Expiry throws a [java.net.SocketTimeoutException] out of the read, which
+ * [draftAddressingIsCarried] already catches as "could not be established": unknown, no destroy,
+ * and the message goes out — nothing ever holds a send back.
+ */
+private const val SEND_PROOF_BUDGET_MS = 10_000
+
+/**
  * Largest body row we will write (characters of JSON, body + inline images). SQLite's cursor
  * window is 2 MB by default, and a row past it can be inserted but never read back — every
  * later read throws. Staying well under keeps the cache readable; a body over this is served
@@ -5643,7 +5669,11 @@ class MailRepository(
             val addressingIsCarried = draftAddressingIsCarried(
                 replacesEmailId = replacesEmailId,
                 replacement = ccTrimmed.toSet(),
-                originalAddressing = { id -> imapDraftAddressing(credentials, id) },
+                // NO_BUDGET, explicitly: the save's read keeps the blocking behaviour it has
+                // always had. Its own hang window (a silent server under a Save) predates this
+                // parameter and is tracked as its own question — only the SEND's read, which
+                // runs while the message exists nowhere durable, carries a deadline.
+                originalAddressing = { id -> imapDraftAddressing(credentials, id, ImapBudget.NO_BUDGET) },
             )
             // The same question for the read receipt the original may have asked for: the header
             // is on the server copy, the reopened composer shows the box clear (D1), so without
@@ -5731,7 +5761,11 @@ class MailRepository(
                 // through Email/get, which returns to/cc/bcc from the server, so the composer's
                 // fields ARE the original's addressing — there is nothing left to prove. The one
                 // case where they would not be is a reopen that failed, and that one never gets
-                // here as a faithful save: ComposeViewModel sets editingDraftLossy on it.
+                // here as a faithful save: ComposeViewModel sets editingDraftLossy on it — a
+                // verdict that now SURVIVES the round trips that used to reset it: an undone send
+                // carries it back (SendOutbox.ComposeDraft.draftBodyIsLossy), and a message
+                // reopened from a persisted outbox row comes back as unknown (lossy), never as a
+                // clean false.
                 addressingIsCarried = true,
                 receiptRequestIsCarried = receiptIsCarried,
             ),
@@ -5745,11 +5779,16 @@ class MailRepository(
      * The cc+bcc of an IMAP draft as the server holds it, or `null` when that could not be
      * established — offline, a dropped socket, an id whose row or UID is gone. Null is what the
      * decision above reads as "unknown", and an unknown keeps the original.
+     *
+     * [budgetMs] has no default and each caller answers it in the open: the save passes
+     * [ImapBudget.NO_BUDGET] (its historic blocking read, unchanged), the send passes
+     * [SEND_PROOF_BUDGET_MS] — see that constant for why the two differ. An expired budget
+     * throws out of here, and the callers' wrapper reads a throw as null: unknown, keep.
      */
-    private suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String): Set<String>? {
+    private suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>? {
         val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull() ?: return null
         val uid = ImapMailService.uidOf(emailId) ?: return null
-        return imap.ccAndBccOf(credentials, cached.mailboxId, uid)
+        return imap.ccAndBccOf(credentials, cached.mailboxId, uid, budgetMs)
     }
 
     /**
@@ -5786,6 +5825,36 @@ class MailRepository(
         return receiptRequestedInProperty(
             header = email.dispositionNotificationTo,
             serverRefusesProperty = client.refusesReceiptHeader(ctx.session),
+        )
+    }
+
+    /**
+     * Whether the message being queued provably carries the addressing of the draft it will
+     * destroy on delivery — the send-path twin of the question [saveDraft] asks before its own
+     * destroy, and the same doctrine: only the Cc counts as proof (the outgoing message writes no
+     * `Bcc:` header, so a Bcc can prove nothing), and a read that fails is an unknown, which
+     * forbids the destroy ([draftAddressingIsCarried] answers false for it).
+     *
+     * JMAP is exempt for the same reason its save is (see the comment in [saveDraft]): reopening
+     * a JMAP draft goes through Email/get, so the composer's fields ARE the original's
+     * addressing; the reopen that failed never gets here with a clean verdict, because
+     * ComposeViewModel sets `editingDraftLossy` on it and that verdict now travels with the id
+     * through every send path (`bodyIsLossy`).
+     */
+    private suspend fun sendCarriesDraftAddressing(
+        credentials: AccountCredentials,
+        replacesEmailId: String,
+        cc: List<String>,
+    ): Boolean {
+        if (credentials.protocol != MailProtocol.IMAP) return true
+        return draftAddressingIsCarried(
+            replacesEmailId = replacesEmailId,
+            replacement = cc.toSet(),
+            // Bounded, unlike the save's twin read: this runs inside enqueueSend BEFORE the
+            // outbox row is inserted, while the message is only in the composer's RAM — see
+            // SEND_PROOF_BUDGET_MS. Expiry throws, the wrapper answers null, unknown keeps
+            // the original, and the send itself is never held back.
+            originalAddressing = { id -> imapDraftAddressing(credentials, id, SEND_PROOF_BUDGET_MS) },
         )
     }
 
@@ -6030,6 +6099,14 @@ class MailRepository(
          * `draftUidValidity = null` explicitly, and says so by writing it.
          */
         draftUidValidity: Long?,
+        /**
+         * Whether the composer could NOT reproduce the draft behind [draftEmailId] (#63): an HTML
+         * body flattened to text, inline images or calendar parts it cannot carry, an attachment
+         * that failed to re-stage, or a reopen that failed outright. `true` is also what an
+         * unknown answers — a caller that cannot vouch for the body must not authorise a destroy
+         * — hence the default: forgetting this parameter can only keep a draft, never lose one.
+         */
+        bodyIsLossy: Boolean = true,
         /** Ask for a read receipt (RFC 8098), per message; persisted so the worker still asks. */
         requestReceipt: Boolean = false,
         /** Teach these addresses to the contact suggestions. ⛔ False for a receipt — [recipientsToLearn]. */
@@ -6042,6 +6119,17 @@ class MailRepository(
         recipientsToLearn(recipients + ccTrimmed + bccTrimmed, learnRecipients)
             .takeIf { it.isNotEmpty() }
             ?.let { runCatching { rememberRecipients(it) } }
+
+        // The proof the destroy stands on: performSend destroys, unconditionally, whatever draft
+        // id this row carries, so the id is written ONLY when the outgoing message provably
+        // reproduces the draft it was edited from — the same rule saveDraft answers to, run at
+        // this one choke point so the immediate send, the scheduled send and every retry buy
+        // their destroy the same way. Anything short of proof leaves the id off: the message
+        // still goes out (nothing ever holds a send back), and the original survives in Drafts.
+        val replaceableDraftId =
+            replaceableDraftIdOrNull(draftEmailId, attachments.size, bodyIsLossy) { id ->
+                sendCarriesDraftAddressing(credentials, id, ccTrimmed)
+            }
 
         // An encrypted payload replaces the plaintext everywhere at rest: the row keeps headers
         // only, the ciphertext goes to a file, and the attachments already live INSIDE the entity.
@@ -6069,7 +6157,7 @@ class MailRepository(
                 notBeforeMillis = now + holdMs,
                 state = if (held) OutboxState.HELD else OutboxState.QUEUED,
                 pgpMode = pgpMode?.takeIf { it != PgpMode.OFF }?.name,
-                draftEmailId = draftEmailId,
+                draftEmailId = replaceableDraftId,
                 draftUidValidity = draftUidValidity,
                 requestReceipt = requestReceipt,
             ),
@@ -6288,9 +6376,11 @@ class MailRepository(
     /** Actually deliver one outbox item (no queue indirection); exceptions propagate to the worker. */
     suspend fun performSend(credentials: AccountCredentials, item: OutboxEntity) {
         performDelivery(credentials, item)
-        // Delivered: the message this item was edited from (#63) leaves Drafts. Best-effort and
-        // strictly AFTER success — a cleanup hiccup must not fail (and so re-fire) a sent mail;
-        // a failed delivery above throws first, leaving the draft untouched.
+        // Delivered: the message this item was edited from (#63) leaves Drafts. The id is on the
+        // row ONLY because enqueueSend proved the replacement faithful — an unproven send carries
+        // none and destroys nothing. Best-effort and strictly AFTER success: a cleanup hiccup must
+        // not fail (and so re-fire) a sent mail; a failed delivery above throws first, leaving the
+        // draft untouched.
         //
         // ⛔ The numbering is CARRIED BY THE ROW, never looked up here (#99). This runs in a
         // headless worker whenever the network comes back, or at a scheduled send's hour — hours or

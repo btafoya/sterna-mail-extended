@@ -53,6 +53,15 @@ class SendOutbox(private val scope: CoroutineScope) {
          */
         val draftUidValidity: Long?,
         /**
+         * Whether the composer could not reproduce [draftEmailId]'s content — the verdict that
+         * decides whether delivery may destroy it (#63), carried WITH the id: an undone send used
+         * to restore the id while the verdict silently reset to a clean false, and re-sending
+         * destroyed an original the first send had spared. No default on purpose: a construction
+         * site that cannot answer must say `true` (unknown, which forbids the destroy), and a
+         * site allowed to skip it would be answering the destructive `false` for everyone.
+         */
+        val draftBodyIsLossy: Boolean,
+        /**
          * Set only when the draft came out of the outbox (#70): the id of the queued row, which
          * stays in the queue marked EDITING while this composer holds it. Closing the composer
          * gives it back ([MailRepository.releaseOutboxEdit]); sending/saving/deleting consumes it.
@@ -144,6 +153,11 @@ internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.Compo
         pgpMode = draft.pgpMode,
         draftEmailId = draft.draftEmailId,
         draftUidValidity = draft.draftUidValidity,
+        // A persisted outbox row carries no fidelity verdict (no column, deliberately — see
+        // [SendOutbox.ComposeDraft.draftBodyIsLossy]): reopened, the verdict is unknown, and an
+        // unknown is lossy. Re-sending still goes out whole; only the destroy is refused, so the
+        // draft it replaced survives in Drafts as a duplicate.
+        draftBodyIsLossy = true,
         editingOutboxId = draft.outboxId,
         requestReceipt = draft.requestReceipt,
     )
