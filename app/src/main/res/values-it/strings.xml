@@ -613,6 +613,8 @@
     <string name="connect_password">Password</string>
     <string name="connect_connecting">Connessione…</string>
     <string name="connect_connect">Connetti</string>
+    <string name="connect_step_continue">Continua</string>
+    <string name="connect_step_manual">Configura manualmente</string>
     <string name="connect_error">Impossibile connettersi: %1$s</string>
     <string name="connect_server">Server</string>
     <string name="connect_port">Porta</string>
@@ -790,7 +792,6 @@
     <string name="connect_import_header">Hai già account altrove?</string>
     <string name="connect_email_invalid">Inserisci un indirizzo email valido (come nome@esempio.com).</string>
     <string name="connect_import_signin_title">Accedi ai tuoi account</string>
-    <string name="connect_import_signin_progress">Account %1$d di %2$d</string>
     <string name="connect_import_signin_button">Accedi</string>
     <string name="connect_import_signin_skip">Salta per ora</string>
     <string name="connect_import_invalid">Questo file non è un backup di Sterna valido.</string>
@@ -798,7 +799,6 @@
     <string name="connect_import_no_accounts">Impostazioni importate. Il backup non aveva account, aggiungine uno qui sotto.</string>
     <string name="connect_import_k9">Importa da K-9 o Thunderbird</string>
     <string name="connect_import_k9_none">Nessun account importabile trovato in quel file.</string>
-    <string name="connect_import_k9_summary">%1$d account importati, %2$d ignorati (POP3 o non supportati).</string>
     <string name="import_snackbar_imported">%1$d account importati correttamente</string>
     <string name="import_snackbar_imported_with_skipped">%1$d account importati correttamente (%2$d ignorati)</string>
     <string name="import_snackbar_check_security">Verifica la sicurezza della connessione di %1$d di essi.</string>

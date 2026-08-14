@@ -83,9 +83,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.autofill.AutofillType
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import app.sterna.R
+import app.sterna.core.data.autoconfig.MailAutoconfigResult
 import app.sterna.ui.components.AppPasswordHelpLink
 import app.sterna.ui.components.PendingImportAccountsSection
 import app.sterna.ui.components.autofill
@@ -129,6 +131,17 @@ fun ConnectScreen(
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
 
+    // Which step of the add-account walk the user has reached. It survives a rotation AND process
+    // death, like every field on this screen — but the verdict it depends on does not, which is
+    // why what is DRAWN is [stepToRender]'s answer and never this value.
+    var rememberedStep by rememberSaveable(stateSaver = ConnectStepSaver) {
+        mutableStateOf(ConnectStep.ADDRESS)
+    }
+    // The address step's button was tapped while the probe was still out: leave as soon as it
+    // answers, and not one moment before — deciding early means deciding "manual", i.e. putting
+    // the protocol question back on screen.
+    var awaitingVerdict by rememberSaveable { mutableStateOf(false) }
+
     // Autodiscovery couldn't find the server → reveal the manual server field.
     LaunchedEffect(state) {
         if (state is ConnectState.NeedsServer) showAdvanced = true
@@ -159,6 +172,10 @@ fun ConnectScreen(
         snapshotFlow { imeInsets.getBottom(density) }
             .collectLatest { bottom -> if (bottom > 0) credentialReveal.reveal() }
     }
+    // The foot of the column has its own requester, on a container that exists whether or not
+    // there is anything to say — the block only speaks when something went wrong, and the keyboard
+    // is up exactly then (she has just typed her address). See the effect at the foot of the column.
+    val statusReveal = remember { BringIntoViewRequester() }
 
     // First-run only: import a settings backup here, since Settings is unreachable before an
     // account exists. A backup that carries account configuration recreates those accounts
@@ -238,27 +255,161 @@ fun ConnectScreen(
         preset.imapHost, preset.imapPort, preset.smtpHost, preset.smtpPort,
     )
 
-    // Autoconfig cascade under this form, without redrawing it: when the IMAP password form comes
-    // up with an address already typed and both host fields untouched, discovery sets out in the
-    // background (the ViewModel gates it — armed chip, OAuth, offline or a bad address all keep it
-    // home). What it finds lands ONLY in the visible fields below, via [presetFilledWith]; Connect
-    // keeps reading the fields and nothing else (WYSIWYG). Found nothing → the screen stays
-    // exactly what it is. The second trigger — the address field losing focus — sits on the field
-    // itself.
-    LaunchedEffect(route) {
-        if (route == ConnectRoute.IMAP_PASSWORD) viewModel.discoverImapSettings(route, preset, username)
+    // Autoconfig cascade under this walk: with an address typed and nothing hand-entered,
+    // discovery sets out in the background (the ViewModel gates it — armed chip, OAuth, offline or
+    // a bad address all keep it home). What it finds lands ONLY in the visible fields, via
+    // [presetFilledWith]; Connect keeps reading the fields and nothing else (WYSIWYG).
+
+    // The DURABLE verdict, and the one the walk steps on — never the one-shot fill signal below.
+    // [verdictFor] is what makes it honest: a verdict about the address the user has since changed
+    // answers nothing here.
+    val verdict by viewModel.discovery.collectAsStateWithLifecycle()
+    val found = verdictFor(verdict, username) as? MailAutoconfigResult.Found
+    // ⛔ The step DRAWN, not the step remembered: after process death the ViewModel comes back
+    // empty, and a credentials page for a server nobody discovered shows a state that is not true
+    // and offers a button that leads nowhere.
+    val walkStep = stepToRender(rememberedStep, found)
+
+    // How the server says this account signs in, and therefore what step 2 may ask for. ⛔ It is
+    // the server's answer, not a choice offered to the reader: OAuth used to be a button in the
+    // manual fallback, so whoever needed it had to know the word and go looking for it.
+    val oauthVerdict by viewModel.oauthDiscovery.collectAsStateWithLifecycle()
+    val ask = credentialsAsk(oauthVerdict, username)
+
+    // What the credentials step needs before it may run: the shipped rule, on the route that step
+    // really takes (JMAP with a password), never on whatever the manual form's chips say.
+    val credentialsReady = connectReady(
+        ConnectRoute.JMAP_AUTODISCOVER, username, password,
+        preset.imapHost, preset.imapPort, preset.smtpHost, preset.smtpPort,
+    )
+
+    // Whether this screen has already handed this address over to a browser sign-in, and for WHICH
+    // address — the one fact that tells "nothing has started yet" from "she cancelled it". Both are
+    // ConnectState.Idle, and the difference decides whether the step draws a wheel or an invitation,
+    // and whether the automatic trigger may fire at all. Saved, so a rotation does not restart the
+    // sign-in she just cancelled.
+    var handoverFor by rememberSaveable { mutableStateOf(NO_HANDOVER) }
+    val handedOver = handoverStarted(handoverFor, username)
+    // The ONE way this screen starts a hand-over — the automatic trigger below and the button of
+    // [CredentialsPane.SIGN_IN_OFFER] both come through here, so neither can start one without
+    // recording that it did.
+    fun startHandover() {
+        handoverFor = username.trim()
+        viewModel.connectOAuth(username, NO_TYPED_SERVER, accountName)
     }
-    val discoveredImap by viewModel.imapDiscovery.collectAsStateWithLifecycle()
-    LaunchedEffect(discoveredImap) {
-        discoveredImap?.let {
-            preset = presetFilledWith(preset, it)
+
+    // The one place the discovery triggers agree on what they hand the guard. ⛔ Hosts a verdict
+    // about ANOTHER address filled in go first: left in place they are what makes the guard refuse,
+    // and the address step would then wait for a probe that can never run.
+    fun probeAddress() {
+        preset = presetForAddress(preset, verdict, username, walkStep)
+        viewModel.discoverImapSettings(walkStep, route, preset, username)
+    }
+    // ⚠ Keyed on the STEP as well as the route: arriving at a step is as much a reason to probe as
+    // changing protocol, and a route-only key would never fire again once the walk moved.
+    LaunchedEffect(route, walkStep) {
+        if (walkStep == ConnectStep.ADDRESS || route == ConnectRoute.IMAP_PASSWORD) probeAddress()
+    }
+    val imapFill by viewModel.imapDiscovery.collectAsStateWithLifecycle()
+    LaunchedEffect(imapFill) {
+        imapFill?.let {
+            preset = presetFilledWith(preset, it, username)
             // Applied exactly once: a field the user clears afterwards must not refill itself.
             viewModel.consumeImapDiscovery()
         }
     }
-    // The falling edge of the address field's focus: true only while it WAS focused, so losing
-    // focus — done typing, moved on — is what launches discovery, not the initial unfocused state.
-    var emailHadFocus by remember { mutableStateOf(false) }
+    // The step this seam has already cleared a finished attempt for, null while it has cleared
+    // nothing — the marker the guard below reads, and the whole of what tells a rotation from an
+    // arrival. ⛔ NOT [rememberedStep], which is synchronised with walkStep inside the same effect
+    // (it differs only on a demotion).
+    // ⛔ SAVED, and null is not spelled ADDRESS. A rotation restores the step this screen already
+    // cleared for, so the seam does not run again on it and what the screen has just said stays.
+    // An arriving screen has no saved marker, so it still clears — and it must: at first run this
+    // screen is composed straight under the activity ([SternaApp]), which owns its ViewModel, so
+    // an attempt that ended before it last went away is still in hand when it comes back.
+    var clearedFor by rememberSaveable(stateSaver = ClearedStepSaver) {
+        mutableStateOf<ConnectStep?>(null)
+    }
+    // The step changed, and both loose ends are tied here — ONE seam, so neither can be forgotten
+    // at one of the several places the walk moves.
+    LaunchedEffect(walkStep) {
+        // ⛔ A demotion is FINAL until she moves herself: stepToRender sends the credentials step
+        // back to the address step when its verdict is gone (process death), and a probe that
+        // succeeds two seconds later must not teleport her forward, out of the step she is reading.
+        if (rememberedStep != walkStep) rememberedStep = walkStep
+        // ⛔ And what a FINISHED attempt left behind does not travel with her: a stale NeedsServer
+        // re-fired the IMAP handover the moment the credentials step was re-entered, adding an
+        // account on a tap on "Continue" that nobody meant as a sign-in.
+        //
+        // ⛔ ONLY WHERE IT IS DUE ([clearingIsDue], executed in ConnectWalkTest). A ROTATION
+        // recreates the composition and restarts this effect with the step unmoved: the sentence
+        // the last attempt left ("You're offline…") was wiped by the turn of the phone alone,
+        // measured at the bench over portrait→landscape→portrait.
+        if (clearingIsDue(clearedFor, walkStep)) {
+            clearedFor = walkStep
+            viewModel.clearFinishedAttempt()
+        }
+    }
+    // The address step is waiting for a verdict: [awaitedAnswer] says what ends that wait, and
+    // nothing else moves the walk forward.
+    //
+    // ⛔ OFFLINE IS ANSWERED HERE TOO, not only under the tap. Offline no probe sets out and none
+    // is recorded, so a wait armed before a process death comes back with nothing that could ever
+    // end it: the button stays disabled on "Finding your server…" for ever, and disabled it cannot
+    // even be tapped to say why. Ending it here is also what catches the link dropping between the
+    // tap's own read and this one — this effect is re-run right after the tap, the wait being one
+    // of its keys.
+    LaunchedEffect(awaitingVerdict, verdict, username) {
+        when (val answer = awaitedAnswer(awaitingVerdict, viewModel.advanceFromAddress(username))) {
+            is AwaitedAnswer.Leave -> {
+                awaitingVerdict = false
+                rememberedStep = answer.step
+            }
+            AwaitedAnswer.SayOffline -> {
+                awaitingVerdict = false
+                viewModel.reportOffline()
+            }
+            AwaitedAnswer.Wait -> Unit
+        }
+    }
+    // The server answered that this account signs in away from the app: start that sign-in, so the
+    // reader never has to know the word OAuth nor find a button for it. ⛔ The existing flows are
+    // untouched — this is only WHERE they are started from — and they take the whole screen
+    // through their own panels above.
+    LaunchedEffect(walkStep, ask) {
+        if (!shouldStartOAuthSignIn(walkStep, ask, handedOver)) return@LaunchedEffect
+        startHandover()
+    }
+    // JMAP first, on the secret the credentials step just collected (that is what it is collected
+    // BEFORE the probe for — `discoverJmapServer` needs it); the IMAP/SMTP endpoints the domain
+    // published only if that answers "no JMAP server here". [shouldTryDiscoveredImap] decides, a
+    // test executes it, and the protocol chips are never asked.
+    LaunchedEffect(state, walkStep, found) {
+        if (!shouldTryDiscoveredImap(walkStep, state, found)) return@LaunchedEffect
+        // Non-null by that decision; the compiler cannot see it across the call.
+        val endpoints = checkNotNull(found)
+        viewModel.connectImap(
+            username, password, accountName,
+            endpoints.incoming.host, endpoints.incoming.port, endpoints.incoming.security,
+            endpoints.outgoing.host, endpoints.outgoing.port, endpoints.outgoing.security,
+        )
+    }
+
+    // Where the Connect button goes, in one place for every step that has one: the manual form's
+    // six routes are untouched, the walk only chooses to press the same button.
+    fun submitConnect() {
+        when (route) {
+            ConnectRoute.OUTLOOK_OAUTH -> viewModel.connectOutlookOAuth(username, accountName)
+            ConnectRoute.JMAP_TOKEN -> viewModel.connectToken(server, username, password, accountName)
+            ConnectRoute.JMAP_AUTODISCOVER -> viewModel.connectAuto(username, password, accountName)
+            ConnectRoute.JMAP_SERVER -> viewModel.connect(server, username, password, accountName)
+            ConnectRoute.IMAP_PASSWORD -> viewModel.connectImap(
+                username, password, accountName,
+                preset.imapHost, preset.imapPort.toInt(), preset.imapSecurity,
+                preset.smtpHost, preset.smtpPort.toInt(), preset.smtpSecurity,
+            )
+        }
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.connect_add_account)) }) },
@@ -275,7 +426,20 @@ fun ConnectScreen(
                 .padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            val focusManager = LocalFocusManager.current
+            // ⛔ ABOVE the panels, and that position is the whole of it: each of them hands the
+            // column over with a `return@Column`, so a handler declared below is not composed
+            // while one is on screen — Back was then answered by nobody and the system popped the
+            // whole screen, leaving the user in the launcher with a sign-in still in flight. Here
+            // it does what the panel's own Cancel does, and Back on a panel is a cancellation
+            // everywhere else in this app.
+            // ⚠ It reaches NEITHER of the two other sign-ins this screen can show. The
+            // imported-accounts listing below draws ImportSignIn's own panel, not a ConnectState,
+            // and keeps its own cancel (cancelImportOAuth) and its own measured gestures. The
+            // manual form's Microsoft chip lands in the SAME ConnectState as the walk's own
+            // hand-over, and its poll is app-scoped precisely so that it survives this screen
+            // being popped — so what is asked here is WHOSE hand-over is on screen
+            // ([backCancelsHandover]), never merely whether one is.
+            BackHandler(enabled = backCancelsHandover(state, handedOver)) { viewModel.cancelOAuth() }
             val awaiting = state as? ConnectState.AwaitingApproval
             if (awaiting != null) {
                 DeviceApprovalPanel(awaiting, onCancel = viewModel::cancelOAuth)
@@ -317,338 +481,497 @@ fun ConnectScreen(
                 }
                 return@Column
             }
-            if (firstRun) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    stringResource(R.string.connect_welcome_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-                Text(
-                    stringResource(R.string.connect_welcome_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // Reached from the pending-imports list via its "Add account" exit (or after dismissing
-            // the last pending row): while deferred imported accounts remain, offer the way back to
-            // their sign-in list so leaving it is never one-way either.
-            if (viewModel.pendingStoredAccounts.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                OutlinedButton(
-                    onClick = viewModel::resumeImportSignIn,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.import_pending_title))
+            // Back belongs to the walk, and only to the walk. From the address step
+            // [stepBackKeeping] answers null, this handler is disabled, and the system pops the
+            // screen (or the first-run home simply stays) — a walk must never paint a blank screen
+            // of its own making. The address travels back with it: nobody retypes her address at
+            // every round trip.
+            BackHandler(enabled = stepBackKeeping(walkStep, username) != null) {
+                stepBackKeeping(walkStep, username)?.let { back ->
+                    rememberedStep = back.step
+                    username = back.email
                 }
-            }
-            // Import entry points, shown whenever adding an account (not just first run): migrating
-            // from K-9 / Thunderbird or a Sterna backup belongs here, where people add accounts, not
-            // buried in Settings → Backup.
-            Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.connect_import_header), style = MaterialTheme.typography.labelLarge)
-            OutlinedButton(
-                onClick = {
-                    importK9Launcher.launch(
-                        arrayOf("application/octet-stream", "text/xml", "application/xml", "*/*"),
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Filled.SettingsBackupRestore, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.connect_import_k9))
-            }
-            OutlinedButton(
-                onClick = {
-                    importSettingsLauncher.launch(
-                        arrayOf("application/json", "application/octet-stream", "text/plain"),
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Filled.SettingsBackupRestore, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.connect_import_settings))
-            }
-            Text(stringResource(R.string.connect_protocol), style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = protocol == MailProtocol.JMAP,
-                    onClick = {
-                        protocol = MailProtocol.JMAP
-                        // Leaving IMAP disarms an OAuth preset, so Connect can't still be
-                        // pointing at the Microsoft flow while the screen says JMAP (#105).
-                        preset = presetForProtocol(preset, MailProtocol.JMAP)
-                    },
-                    label = { Text(stringResource(R.string.connect_jmap)) },
-                )
-                FilterChip(
-                    selected = protocol == MailProtocol.IMAP,
-                    onClick = {
-                        protocol = MailProtocol.IMAP
-                        preset = presetForProtocol(preset, MailProtocol.IMAP)
-                    },
-                    label = { Text(stringResource(R.string.connect_imap_smtp)) },
-                )
             }
 
-            if (protocol == MailProtocol.JMAP) {
-                Text(stringResource(R.string.connect_auth_method), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = !useApiToken,
-                        onClick = { useApiToken = false },
-                        label = { Text(stringResource(R.string.connect_password)) },
-                    )
-                    FilterChip(
-                        selected = useApiToken,
-                        onClick = { useApiToken = true },
-                        label = { Text(stringResource(R.string.connect_auth_api_token)) },
-                    )
-                }
-                Text(
-                    stringResource(
-                        if (useApiToken) R.string.connect_api_token_hint else R.string.connect_jmap_autodiscover_hint,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                // Fastmail's JMAP endpoint refuses password (Basic) auth — API tokens only
-                // (#54) — so steer its users to the token option before they hit the 401.
-                if (!useApiToken && isFastmailTarget(username, server)) {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                    ) {
+            when (walkStep) {
+                // ---- 1. The address, alone ----------------------------------------------------
+                ConnectStep.ADDRESS -> {
+                    if (firstRun) {
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            stringResource(R.string.connect_fastmail_token_hint),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            stringResource(R.string.connect_welcome_title),
+                            style = MaterialTheme.typography.headlineSmall,
+                        )
+                        Text(
+                            stringResource(R.string.connect_welcome_subtitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                }
-                TextButton(
-                    onClick = { showAdvanced = !showAdvanced },
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Text(
-                        stringResource(
-                            if (showAdvanced) R.string.connect_advanced_hide else R.string.connect_advanced_show,
-                        ),
-                    )
-                }
-                if (showAdvanced) {
-                    OutlinedTextField(
-                        value = server,
-                        onValueChange = { server = it },
-                        label = { Text(stringResource(R.string.connect_jmap_server)) },
-                        placeholder = { Text(stringResource(R.string.connect_jmap_server_placeholder)) },
-                        singleLine = true,
+                    // Reached from the pending-imports list via its "Add account" exit (or after dismissing
+                    // the last pending row): while deferred imported accounts remain, offer the way back to
+                    // their sign-in list so leaving it is never one-way either.
+                    if (viewModel.pendingStoredAccounts.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = viewModel::resumeImportSignIn,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.import_pending_title))
+                        }
+                    }
+                    // Import entry points, shown whenever adding an account (not just first run): migrating
+                    // from K-9 / Thunderbird or a Sterna backup belongs here, where people add accounts, not
+                    // buried in Settings → Backup.
+                    Spacer(Modifier.height(4.dp))
+                    Text(stringResource(R.string.connect_import_header), style = MaterialTheme.typography.labelLarge)
+                    OutlinedButton(
+                        onClick = {
+                            importK9Launcher.launch(
+                                arrayOf("application/octet-stream", "text/xml", "application/xml", "*/*"),
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            } else {
-                Text(stringResource(R.string.connect_provider_preset), style = MaterialTheme.typography.labelLarge)
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    MAIL_PROVIDERS.forEach { provider ->
-                        // FilterChip, not AssistChip: the selected provider is visible, and
-                        // tapping it again lets go of it. Outlook used to be a one-way door —
-                        // it hid the server fields with nothing on screen to bring them back
-                        // (#105).
-                        FilterChip(
-                            selected = preset.selected == provider.name,
-                            onClick = { preset = presetChipTapped(preset, provider) },
-                            label = { Text(provider.name) },
-                        )
+                    ) {
+                        Icon(Icons.Filled.SettingsBackupRestore, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.connect_import_k9))
                     }
-                }
-                // Outlook signs in by OAuth, so the app-password note and the manual
-                // server/port fields don't apply — hide them while it's selected.
-                if (preset.serverFieldsVisible) {
-                    Text(
-                        stringResource(R.string.connect_provider_app_password_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    // Selected preset needs an app-specific password (Gmail…): one tap to
-                    // the provider's page to create one, since their normal password is refused.
-                    preset.appPasswordUrl?.let { url ->
-                        TextButton(
+                    OutlinedButton(
+                        onClick = {
+                            importSettingsLauncher.launch(
+                                arrayOf("application/json", "application/octet-stream", "text/plain"),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Filled.SettingsBackupRestore, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.connect_import_settings))
+                    }
+                    // The address, a name if she wants one, and one button. ⛔ Nothing else: no protocol
+                    // question, no host field, no sign-in method — those are answers the probes give, or
+                    // questions the manual fallback asks once the probes came back empty.
+                    Column(
+                        modifier = Modifier.bringIntoViewRequester(credentialReveal.block),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        AccountNameField(accountName, { accountName = it }, credentialReveal)
+                        EmailField(username, { username = it; awaitingVerdict = false }, credentialReveal) {
+                            probeAddress()
+                        }
+                        Button(
                             onClick = {
-                                leaveOnce {
-                                    runCatching {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    }.isSuccess
+                                when (val advance = viewModel.advanceFromAddress(username)) {
+                                    is AddressAdvance.Go -> rememberedStep = advance.step
+                                    // ⛔ Offline: nothing to wait for — no probe may set out and none
+                                    // is recorded — so the walk says so and stays put. Fall through to
+                                    // Waiting here and the button spins for ever; move her on and she
+                                    // lands in the manual form with no idea why.
+                                    // ⛔ AND THE GESTURE ASKS FOR THE ANSWER TO BE SEEN, because
+                                    // the effect at the foot of the column cannot: reportOffline
+                                    // writes the SAME ConnectState.Error every time, a data class
+                                    // into a MutableStateFlow — equal value, no emission, no
+                                    // recomposition, and LaunchedEffect(status) would not re-run
+                                    // even if there were one. Nothing puts the state back to Idle
+                                    // in between (typing does not, clearFinishedAttempt only fires
+                                    // on a change of step). So the SECOND tap said nothing at all:
+                                    // fix a typo in the address (focus scrolls the credential
+                                    // block, which sits ABOVE this one, back under the IME), tap
+                                    // Continue again, and nothing moves — the reported defect,
+                                    // word for word.
+                                    AddressAdvance.Offline -> {
+                                        viewModel.reportOffline()
+                                        scope.launch { statusReveal.bringIntoView() }
+                                    }
+                                    // The probe has not answered yet: ask for it (it may not even have
+                                    // set out — the field never lost focus) and leave when it does.
+                                    AddressAdvance.Waiting -> {
+                                        awaitingVerdict = true
+                                        probeAddress()
+                                    }
+                                    AddressAdvance.Blocked -> Unit
                                 }
                             },
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            // ⛔ The shared address rule, and NOT advanceFromAddress: this runs in
+                            // composition, i.e. on every keystroke, and that call reads the link
+                            // from Android (a binder round trip) only to throw the answer away —
+                            // whether the button is grey depends on the address alone. What the
+                            // link decides is what the TAP does, and there it is read at the tap.
+                            enabled = canLeaveAddressStep(username) && !awaitingVerdict,
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Icon(
-                                Icons.Filled.OpenInNew,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.connect_app_password_help))
-                        }
-                    }
-
-                    Text(stringResource(R.string.connect_incoming_imap), style = MaterialTheme.typography.labelLarge)
-                    HostPortRow(
-                        host = preset.imapHost, onHost = { preset = preset.copy(imapHost = it) },
-                        port = preset.imapPort, onPort = { preset = preset.copy(imapPort = it) },
-                        hostPlaceholder = stringResource(R.string.connect_imap_host_placeholder),
-                    )
-                    SecurityChips(preset.imapSecurity) { preset = preset.copy(imapSecurity = it) }
-
-                    Text(stringResource(R.string.connect_outgoing_smtp), style = MaterialTheme.typography.labelLarge)
-                    HostPortRow(
-                        host = preset.smtpHost, onHost = { preset = preset.copy(smtpHost = it) },
-                        port = preset.smtpPort, onPort = { preset = preset.copy(smtpPort = it) },
-                        hostPlaceholder = stringResource(R.string.connect_smtp_host_placeholder),
-                    )
-                    SecurityChips(preset.smtpSecurity) { preset = preset.copy(smtpSecurity = it) }
-                }
-            }
-
-            // One container for the whole credential block (fields + action buttons): revealing it
-            // as a unit brings ALL of it above the keyboard when it fits, so the next field and
-            // the Connect button are reachable without dismissing the keyboard first.
-            Column(
-                modifier = Modifier.bringIntoViewRequester(credentialReveal.block),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedTextField(
-                    value = accountName,
-                    onValueChange = { accountName = it },
-                    label = { Text(stringResource(R.string.connect_account_name_optional)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                    modifier = Modifier.fillMaxWidth().credentialField(credentialReveal),
-                )
-                // Flag an obviously malformed email (missing @ or a too-short/absent extension) as the
-                // user types, without hard-blocking: some IMAP servers accept a non-email username.
-                val emailLooksInvalid = username.isNotBlank() && !isValidEmail(username)
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text(stringResource(R.string.connect_email_username)) },
-                    singleLine = true,
-                    isError = emailLooksInvalid,
-                    supportingText = if (emailLooksInvalid) {
-                        { Text(stringResource(R.string.connect_email_invalid)) }
-                    } else {
-                        null
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
-                    modifier = Modifier.fillMaxWidth().credentialField(credentialReveal)
-                        .onFocusChanged { focusState ->
-                            // Leaving the field with an address typed is the moment discovery may
-                            // set out; the ViewModel's guard decides whether it actually does.
-                            if (emailHadFocus && !focusState.isFocused) {
-                                viewModel.discoverImapSettings(route, preset, username)
-                            }
-                            emailHadFocus = focusState.isFocused
-                        }
-                        .autofill(
-                            listOf(AutofillType.EmailAddress, AutofillType.Username),
-                        ) { username = it },
-                )
-                // In API-token mode this same secret field holds the token (labelled accordingly).
-                val tokenMode = route == ConnectRoute.JMAP_TOKEN
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = {
-                        Text(
-                            stringResource(
-                                if (tokenMode) R.string.connect_auth_api_token else R.string.connect_password,
-                            ),
-                        )
-                    },
-                    singleLine = true,
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = stringResource(
-                                    if (passwordVisible) R.string.connect_password_hide else R.string.connect_password_show,
+                            Text(
+                                stringResource(
+                                    if (awaitingVerdict) R.string.connect_discovering else R.string.connect_step_continue,
                                 ),
                             )
                         }
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done,
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                    modifier = Modifier.fillMaxWidth().credentialField(credentialReveal)
-                        .autofill(listOf(AutofillType.Password)) { password = it },
-                )
-                val busy = state is ConnectState.Connecting || state is ConnectState.Discovering
-                Button(
-                    onClick = {
-                        when (route) {
-                            ConnectRoute.OUTLOOK_OAUTH -> viewModel.connectOutlookOAuth(username, accountName)
-                            ConnectRoute.JMAP_TOKEN -> viewModel.connectToken(server, username, password, accountName)
-                            ConnectRoute.JMAP_AUTODISCOVER -> viewModel.connectAuto(username, password, accountName)
-                            ConnectRoute.JMAP_SERVER -> viewModel.connect(server, username, password, accountName)
-                            ConnectRoute.IMAP_PASSWORD -> viewModel.connectImap(
-                                username, password, accountName,
-                                preset.imapHost, preset.imapPort.toInt(), preset.imapSecurity,
-                                preset.smtpHost, preset.smtpPort.toInt(), preset.smtpSecurity,
+                        // ⛔ Only once a probe for THIS address came back with nothing. Beside a verdict
+                        // that worked, this button is the protocol question walking back on screen.
+                        if (offersManualSetup(verdict, username)) {
+                            OutlinedButton(
+                                onClick = { rememberedStep = ConnectStep.MANUAL },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.connect_step_manual)) }
+                        }
+                    }
+                }
+                // ---- 2. What the domain published, and the secret it needs --------------------
+                ConnectStep.CREDENTIALS -> {
+                    Spacer(Modifier.height(4.dp))
+                    // Which address this is for: shown rather than assumed (WYSIWYG), and a username node
+                    // for the password managers that match on address + domain, not on the secret field.
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.connect_email_username)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().autofill(
+                            listOf(AutofillType.EmailAddress, AutofillType.Username),
+                        ) {},
+                    )
+                    // ⛔ The password field belongs to ONE of the server's two answers, and it is
+                    // drawn only under it. Under the other the browser sign-in is already starting
+                    // (the effect above), and its own panel is about to take the whole screen; a
+                    // secret typed here in the meantime would be collected and then dropped in
+                    // silence, which is the defect this walk removes.
+                    // ⛔ And a wheel is drawn only while something IS running: after Cancel the
+                    // hand-over is over, the ask has not changed, and this step used to spin for
+                    // ever over nothing. [credentialsPane] decides, a test executes it.
+                    when (credentialsPane(ask, state, handedOver)) {
+                        CredentialsPane.WAITING -> CircularProgressIndicator()
+                        // The hand-over is over without an account (cancelled, or failed — the
+                        // message is drawn below): the step goes back to being an invitation, and
+                        // waits for HER gesture. ⛔ It does not restart on its own: that is what
+                        // makes the panel's Cancel mean something.
+                        CredentialsPane.SIGN_IN_OFFER -> {
+                            Text(stringResource(R.string.connect_oauth_code_step1), style = MaterialTheme.typography.bodyMedium)
+                            Button(
+                                onClick = { startHandover() },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(stringResource(R.string.connect_oauth_open_browser))
+                            }
+                        }
+                        CredentialsPane.PASSWORD -> {
+                            // The provider the domain named refuses a normal password (Gmail and friends): one tap
+                            // to the page where she creates the one that works, instead of three failed sign-ins.
+                            found?.let { appPasswordUrlFor(it) }?.let { url ->
+                                Text(
+                                    stringResource(R.string.connect_provider_app_password_note),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                TextButton(
+                                    onClick = {
+                                        leaveOnce {
+                                            runCatching {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                            }.isSuccess
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.connect_app_password_help))
+                                }
+                            }
+                            Column(
+                                modifier = Modifier.bringIntoViewRequester(credentialReveal.block),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                SecretField(
+                                    value = password,
+                                    onValue = { password = it },
+                                    label = stringResource(R.string.connect_password),
+                                    visible = passwordVisible,
+                                    onVisible = { passwordVisible = it },
+                                    reveal = credentialReveal,
+                                )
+                                val busy = state is ConnectState.Connecting || state is ConnectState.Discovering
+                                // ⛔ NOT the manual form's submit: that one reads the protocol chips,
+                                // and a single tap on IMAP/SMTP — three steps and a Back ago, for another
+                                // address — would send this step straight to IMAP without ever asking
+                                // JMAP. The walk decides by probing, so the walk names its own route.
+                                Button(
+                                    onClick = { viewModel.connectAuto(username, password, accountName) },
+                                    enabled = !busy && credentialsReady,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        when (state) {
+                                            is ConnectState.Discovering -> stringResource(R.string.connect_discovering)
+                                            is ConnectState.Connecting -> stringResource(R.string.connect_connecting)
+                                            else -> stringResource(R.string.connect_connect)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                // ---- 3. The manual fallback — reached only when discovery came back empty -----
+                ConnectStep.MANUAL -> {
+                    Text(stringResource(R.string.connect_protocol), style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = protocol == MailProtocol.JMAP,
+                            onClick = {
+                                protocol = MailProtocol.JMAP
+                                // Leaving IMAP disarms an OAuth preset, so Connect can't still be
+                                // pointing at the Microsoft flow while the screen says JMAP (#105).
+                                preset = presetForProtocol(preset, MailProtocol.JMAP)
+                            },
+                            label = { Text(stringResource(R.string.connect_jmap)) },
+                        )
+                        FilterChip(
+                            selected = protocol == MailProtocol.IMAP,
+                            onClick = {
+                                protocol = MailProtocol.IMAP
+                                preset = presetForProtocol(preset, MailProtocol.IMAP)
+                            },
+                            label = { Text(stringResource(R.string.connect_imap_smtp)) },
+                        )
+                    }
+
+                    if (protocol == MailProtocol.JMAP) {
+                        Text(stringResource(R.string.connect_auth_method), style = MaterialTheme.typography.labelLarge)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = !useApiToken,
+                                onClick = { useApiToken = false },
+                                label = { Text(stringResource(R.string.connect_password)) },
+                            )
+                            FilterChip(
+                                selected = useApiToken,
+                                onClick = { useApiToken = true },
+                                label = { Text(stringResource(R.string.connect_auth_api_token)) },
                             )
                         }
-                    },
-                    enabled = !busy && ready,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        when (state) {
-                            is ConnectState.Discovering -> stringResource(R.string.connect_discovering)
-                            is ConnectState.Connecting -> stringResource(R.string.connect_connecting)
-                            else -> stringResource(R.string.connect_connect)
-                        },
-                    )
-                }
+                        Text(
+                            stringResource(
+                                if (useApiToken) R.string.connect_api_token_hint else R.string.connect_jmap_autodiscover_hint,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        // Fastmail's JMAP endpoint refuses password (Basic) auth — API tokens only
+                        // (#54) — so steer its users to the token option before they hit the 401.
+                        if (!useApiToken && isFastmailTarget(username, server)) {
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                            ) {
+                                Text(
+                                    stringResource(R.string.connect_fastmail_token_hint),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = { showAdvanced = !showAdvanced },
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (showAdvanced) R.string.connect_advanced_hide else R.string.connect_advanced_show,
+                                ),
+                            )
+                        }
+                        if (showAdvanced) {
+                            OutlinedTextField(
+                                value = server,
+                                onValueChange = { server = it },
+                                label = { Text(stringResource(R.string.connect_jmap_server)) },
+                                placeholder = { Text(stringResource(R.string.connect_jmap_server_placeholder)) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    } else {
+                        Text(stringResource(R.string.connect_provider_preset), style = MaterialTheme.typography.labelLarge)
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            MAIL_PROVIDERS.forEach { provider ->
+                                // FilterChip, not AssistChip: the selected provider is visible, and
+                                // tapping it again lets go of it. Outlook used to be a one-way door —
+                                // it hid the server fields with nothing on screen to bring them back
+                                // (#105).
+                                FilterChip(
+                                    selected = preset.selected == provider.name,
+                                    onClick = { preset = presetChipTapped(preset, provider) },
+                                    label = { Text(provider.name) },
+                                )
+                            }
+                        }
+                        // Outlook signs in by OAuth, so the app-password note and the manual
+                        // server/port fields don't apply — hide them while it's selected.
+                        if (preset.serverFieldsVisible) {
+                            Text(
+                                stringResource(R.string.connect_provider_app_password_note),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            // Selected preset needs an app-specific password (Gmail…): one tap to
+                            // the provider's page to create one, since their normal password is refused.
+                            preset.appPasswordUrl?.let { url ->
+                                TextButton(
+                                    onClick = {
+                                        leaveOnce {
+                                            runCatching {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                            }.isSuccess
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.connect_app_password_help))
+                                }
+                            }
 
-                if (protocol == MailProtocol.JMAP && !useApiToken) {
-                    TextButton(
-                        onClick = { viewModel.connectOAuth(username, server, accountName) },
-                        enabled = !busy && username.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.connect_oauth_button)) }
+                            Text(stringResource(R.string.connect_incoming_imap), style = MaterialTheme.typography.labelLarge)
+                            HostPortRow(
+                                host = preset.imapHost, onHost = { preset = preset.copy(imapHost = it, discoveredFor = null) },
+                                port = preset.imapPort, onPort = { preset = preset.copy(imapPort = it) },
+                                hostPlaceholder = stringResource(R.string.connect_imap_host_placeholder),
+                            )
+                            SecurityChips(preset.imapSecurity) { preset = preset.copy(imapSecurity = it) }
+
+                            Text(stringResource(R.string.connect_outgoing_smtp), style = MaterialTheme.typography.labelLarge)
+                            HostPortRow(
+                                host = preset.smtpHost, onHost = { preset = preset.copy(smtpHost = it, discoveredFor = null) },
+                                port = preset.smtpPort, onPort = { preset = preset.copy(smtpPort = it) },
+                                hostPlaceholder = stringResource(R.string.connect_smtp_host_placeholder),
+                            )
+                            SecurityChips(preset.smtpSecurity) { preset = preset.copy(smtpSecurity = it) }
+                        }
+                    }
+
+                    // One container for the whole credential block (fields + action buttons): revealing it
+                    // as a unit brings ALL of it above the keyboard when it fits, so the next field and
+                    // the Connect button are reachable without dismissing the keyboard first.
+                    Column(
+                        modifier = Modifier.bringIntoViewRequester(credentialReveal.block),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        AccountNameField(accountName, { accountName = it }, credentialReveal)
+                        EmailField(username, { username = it }, credentialReveal) { probeAddress() }
+                        // In API-token mode this same secret field holds the token (labelled accordingly).
+                        val tokenMode = route == ConnectRoute.JMAP_TOKEN
+                        SecretField(
+                            value = password,
+                            onValue = { password = it },
+                            label = stringResource(
+                                if (tokenMode) R.string.connect_auth_api_token else R.string.connect_password,
+                            ),
+                            visible = passwordVisible,
+                            onVisible = { passwordVisible = it },
+                            reveal = credentialReveal,
+                        )
+                        val busy = state is ConnectState.Connecting || state is ConnectState.Discovering
+                        Button(
+                            onClick = { submitConnect() },
+                            enabled = !busy && ready,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                when (state) {
+                                    is ConnectState.Discovering -> stringResource(R.string.connect_discovering)
+                                    is ConnectState.Connecting -> stringResource(R.string.connect_connecting)
+                                    else -> stringResource(R.string.connect_connect)
+                                },
+                            )
+                        }
+
+                        if (protocol == MailProtocol.JMAP && !useApiToken) {
+                            TextButton(
+                                onClick = { viewModel.connectOAuth(username, server, accountName) },
+                                enabled = !busy && username.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.connect_oauth_button)) }
+                        }
+                        // Outlook has no separate button — its provider chip launches the OAuth flow.
+                    }
                 }
-                // Outlook has no separate button — its provider chip launches the OAuth flow.
             }
 
             Spacer(Modifier.height(4.dp))
-            when (val s = state) {
-                is ConnectState.Connecting, is ConnectState.Discovering -> CircularProgressIndicator()
-                is ConnectState.NeedsServer -> Text(
-                    text = stringResource(R.string.connect_server_not_found),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                is ConnectState.Error -> Text(
-                    text = stringResource(R.string.connect_error, s.message),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                else -> Unit
+            // What this block has to say is a VALUE first ([statusLine], executed in
+            // ConnectStatusTest), because it is also what the effect below has to scroll to: drawn
+            // from one reading of the state and scrolled from another, the two rules drift apart
+            // in silence.
+            // ⛔ And the Column is composed WHATEVER THE VALUE IS — with nothing in it just as
+            // readily — so within the walk's own column the requester's node is attached and
+            // placed long before there is a sentence to show. Hang the requester off the Text
+            // instead, or wrap this Column in `if (status != null)`, and the node comes into
+            // existence in the very frame the scroll is asked for.
+            // ⚠ NOT unconditional on the screen, and that is a known, UNMEASURED edge: the three
+            // `return@Column` above (the device-approval panel, the browser panel, the pending
+            // imports listing) hand the whole column away, so this block is not composed at all
+            // while one of them is up. Coming back out of a panel with an error already in state,
+            // the node is composed in the same frame the effect fires in. Left alone on purpose —
+            // the bench decides whether it needs anything.
+            val status = statusLine(state, walkStep)
+            Column(modifier = Modifier.bringIntoViewRequester(statusReveal)) {
+                when (status) {
+                    StatusLine.Working -> CircularProgressIndicator()
+                    StatusLine.ServerNotFound -> Text(
+                        text = stringResource(R.string.connect_server_not_found),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    is StatusLine.Failed -> Text(
+                        text = stringResource(R.string.connect_error, status.message),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    null -> Unit
+                }
+            }
+            // ⛔ THE BENCH DEFECT. At the address step, keyboard up, offline, the whole of the
+            // walk's answer to "Continue" is the sentence above — and the IME covered it (drawn at
+            // y≈1589, keyboard top y≈1500), so from the reader's side nothing happened at all.
+            // Keyed on the value SAID: it fires when the block starts speaking, not on every
+            // recomposition, and not once at first composition when there is nothing to say. The
+            // wheel is deliberately left where it is ([statusMustBeRead]).
+            LaunchedEffect(status) {
+                if (statusMustBeRead(status)) statusReveal.bringIntoView()
             }
         }
     }
 }
+
+/**
+ * What the walk's own sign-in passes where the manual form passes its "Advanced" server field.
+ *
+ * ⛔ NOT `server`. That value belongs to the manual form: it is a `rememberSaveable` only that form
+ * writes, nothing ever blanks it, and it is not on screen at the credentials step — using it there
+ * breaks WYSIWYG on its own. Worse, it decides WHICH host is asked: typed for one address, then
+ * carried to another the walk discovered, it sends this sign-in to that host alone, which answers
+ * "This server doesn't support OAuth sign-in" — a sentence that is false, under a wheel, with no
+ * password field beside it, on a path the reader never chose. The automatic path knows only what
+ * the probe found, which is exactly what `reusableOAuth` then hands the flow.
+ */
+private const val NO_TYPED_SERVER = ""
 
 /**
  * Coordinates scrolling the credential block above the keyboard: one requester for the whole
@@ -698,6 +1021,105 @@ private fun Modifier.credentialField(reveal: CredentialBlockReveal): Modifier {
                 reveal.focused = null
             }
         }
+}
+
+/** The optional label for the account being added — the same field at every step that shows it. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AccountNameField(value: String, onValue: (String) -> Unit, reveal: CredentialBlockReveal) {
+    val focusManager = LocalFocusManager.current
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValue,
+        label = { Text(stringResource(R.string.connect_account_name_optional)) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+        modifier = Modifier.fillMaxWidth().credentialField(reveal),
+    )
+}
+
+/**
+ * The address field — one implementation for the address step and for the manual form, so the
+ * malformed-address warning and the discovery trigger cannot drift apart between them.
+ *
+ * [onFocusLost] fires on the FALLING edge of focus (true only while the field WAS focused), so
+ * "done typing, moved on" is what may launch discovery, not the initial unfocused state.
+ */
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@Composable
+private fun EmailField(
+    value: String,
+    onValue: (String) -> Unit,
+    reveal: CredentialBlockReveal,
+    onFocusLost: () -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+    var hadFocus by remember { mutableStateOf(false) }
+    // Flag an obviously malformed email (missing @ or a too-short/absent extension) as the user
+    // types, without hard-blocking: some IMAP servers accept a non-email username.
+    val emailLooksInvalid = value.isNotBlank() && !isValidEmail(value)
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValue,
+        label = { Text(stringResource(R.string.connect_email_username)) },
+        singleLine = true,
+        isError = emailLooksInvalid,
+        supportingText = if (emailLooksInvalid) {
+            { Text(stringResource(R.string.connect_email_invalid)) }
+        } else {
+            null
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+        modifier = Modifier.fillMaxWidth().credentialField(reveal)
+            .onFocusChanged { focusState ->
+                // Leaving the field with an address typed is the moment discovery may set out;
+                // the ViewModel's guard decides whether it actually does.
+                if (hadFocus && !focusState.isFocused) onFocusLost()
+                hadFocus = focusState.isFocused
+            }
+            .autofill(listOf(AutofillType.EmailAddress, AutofillType.Username), onValue),
+    )
+}
+
+/** The secret field: a password at the credentials step, a password or an API token on the manual
+ *  form (which is why the [label] is the caller's to choose). */
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@Composable
+private fun SecretField(
+    value: String,
+    onValue: (String) -> Unit,
+    label: String,
+    visible: Boolean,
+    onVisible: (Boolean) -> Unit,
+    reveal: CredentialBlockReveal,
+) {
+    val focusManager = LocalFocusManager.current
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValue,
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { onVisible(!visible) }) {
+                Icon(
+                    if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = stringResource(
+                        if (visible) R.string.connect_password_hide else R.string.connect_password_show,
+                    ),
+                )
+            }
+        },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        modifier = Modifier.fillMaxWidth().credentialField(reveal)
+            .autofill(listOf(AutofillType.Password), onValue),
+    )
 }
 
 /** Device-flow approval screen: show the user code + a button to open the browser. */
@@ -992,6 +1414,25 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
  * Keeps the quick-setup selection across a rotation or a process death, like the separate fields it
  * replaced. Every member is a String, a Boolean or an enum name, so the list is plainly saveable.
  */
+/**
+ * Keeps the step the walk reached across a rotation AND a process death — by name, so a reordered
+ * enum cannot resurrect a different step from an old bundle. ⛔ It is not enough on its own: the
+ * verdict the credentials step needs does NOT survive process death, which is why what is drawn is
+ * [stepToRender]'s answer.
+ */
+private val ConnectStepSaver = listSaver<ConnectStep, String>(
+    save = { listOf(it.name) },
+    restore = { ConnectStep.valueOf(it[0]) },
+)
+
+/** No step has been cleared for yet — what an ARRIVING screen holds, and a rotation never does. */
+private const val NOTHING_CLEARED = ""
+
+private val ClearedStepSaver = listSaver<ConnectStep?, String>(
+    save = { listOf(it?.name ?: NOTHING_CLEARED) },
+    restore = { saved -> saved[0].takeIf { it != NOTHING_CLEARED }?.let(ConnectStep::valueOf) },
+)
+
 private val PresetFormSaver = listSaver<PresetForm, String>(
     save = {
         listOf(
@@ -999,6 +1440,10 @@ private val PresetFormSaver = listSaver<PresetForm, String>(
             it.imapHost, it.imapPort, it.imapSecurity.name,
             it.smtpHost, it.smtpPort, it.smtpSecurity.name,
             it.appPasswordUrl.orEmpty(),
+            // ⛔ Saved WITH the fields it is about: the host values survive process death, so the
+            // one fact that says who put them there has to survive with them, or they come back
+            // indistinguishable from hand-typed ones and jam the cascade for good.
+            it.discoveredFor.orEmpty(),
         )
     },
     restore = {
@@ -1014,6 +1459,7 @@ private val PresetFormSaver = listSaver<PresetForm, String>(
             smtpPort = it[6],
             smtpSecurity = ConnectionSecurity.valueOf(it[7]),
             appPasswordUrl = it[8].ifEmpty { null },
+            discoveredFor = it[9].ifEmpty { null },
         )
     },
 )

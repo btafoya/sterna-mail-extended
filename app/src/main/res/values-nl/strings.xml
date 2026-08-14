@@ -613,6 +613,8 @@
     <string name="connect_password">Wachtwoord</string>
     <string name="connect_connecting">Verbinden…</string>
     <string name="connect_connect">Verbinden</string>
+    <string name="connect_step_continue">Doorgaan</string>
+    <string name="connect_step_manual">Handmatig instellen</string>
     <string name="connect_error">Kon geen verbinding maken: %1$s</string>
     <string name="connect_server">Server</string>
     <string name="connect_port">Poort</string>
@@ -787,7 +789,6 @@
     <string name="connect_import_header">Heb je al accounts ergens anders?</string>
     <string name="connect_email_invalid">Voer een geldig e-mailadres in (zoals naam@voorbeeld.com).</string>
     <string name="connect_import_signin_title">Meld je aan bij je accounts</string>
-    <string name="connect_import_signin_progress">Account %1$d van %2$d</string>
     <string name="connect_import_signin_button">Aanmelden</string>
     <string name="connect_import_signin_skip">Nu overslaan</string>
     <string name="connect_import_invalid">Dat bestand is geen geldige Sterna-back-up.</string>
@@ -795,7 +796,6 @@
     <string name="connect_import_no_accounts">Instellingen geïmporteerd. De back-up had geen accounts, voeg er hieronder een toe.</string>
     <string name="connect_import_k9">Importeren uit K-9 of Thunderbird</string>
     <string name="connect_import_k9_none">Er zijn geen importeerbare accounts in dat bestand gevonden.</string>
-    <string name="connect_import_k9_summary">%1$d account(s) geïmporteerd, %2$d overgeslagen (POP3 of niet ondersteund).</string>
     <string name="import_snackbar_imported">%1$d account(s) succesvol geïmporteerd</string>
     <string name="import_snackbar_imported_with_skipped">%1$d account(s) succesvol geïmporteerd (%2$d overgeslagen)</string>
     <string name="import_snackbar_check_security">Controleer bij %1$d ervan de verbindingsbeveiliging.</string>

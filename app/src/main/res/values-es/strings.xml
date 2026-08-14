@@ -613,6 +613,8 @@
     <string name="connect_password">Contraseña</string>
     <string name="connect_connecting">Conectando…</string>
     <string name="connect_connect">Conectar</string>
+    <string name="connect_step_continue">Continuar</string>
+    <string name="connect_step_manual">Configurar manualmente</string>
     <string name="connect_error">No se pudo conectar: %1$s</string>
     <string name="connect_server">Servidor</string>
     <string name="connect_port">Puerto</string>
@@ -790,7 +792,6 @@
     <string name="connect_import_header">¿Ya tienes cuentas en otro sitio?</string>
     <string name="connect_email_invalid">Introduce una dirección de correo válida (como name@example.com).</string>
     <string name="connect_import_signin_title">Inicia sesión en tus cuentas</string>
-    <string name="connect_import_signin_progress">Cuenta %1$d de %2$d</string>
     <string name="connect_import_signin_button">Iniciar sesión</string>
     <string name="connect_import_signin_skip">Omitir por ahora</string>
     <string name="connect_import_invalid">Ese archivo no es una copia de seguridad válida de Sterna.</string>
@@ -798,7 +799,6 @@
     <string name="connect_import_no_accounts">Ajustes importados. La copia no tenía cuentas, así que añade una abajo.</string>
     <string name="connect_import_k9">Importar desde K-9 o Thunderbird</string>
     <string name="connect_import_k9_none">No se encontraron cuentas importables en ese archivo.</string>
-    <string name="connect_import_k9_summary">%1$d cuenta(s) importada(s), %2$d omitida(s) (POP3 o no compatibles).</string>
     <string name="import_snackbar_imported">%1$d cuenta(s) importada(s) correctamente</string>
     <string name="import_snackbar_imported_with_skipped">%1$d cuenta(s) importada(s) correctamente (%2$d omitida(s))</string>
     <string name="import_snackbar_check_security">Comprueba la seguridad de conexión de %1$d de ellas.</string>

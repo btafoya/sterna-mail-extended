@@ -186,16 +186,70 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      *  ([consumeImapDiscovery]): a field the user then clears must not refill itself. */
     val imapDiscovery: StateFlow<MailAutoconfigResult.Found?> = _imapDiscovery.asStateFlow()
 
+    private val _discovery = MutableStateFlow<DiscoveryVerdict?>(null)
+
+    /**
+     * The DURABLE verdict of the last probe, kept BESIDE the one-shot [imapDiscovery] and never in
+     * place of it — the two answer different questions:
+     *
+     *  - [imapDiscovery] is a signal to WRITE the fields, and is consumed the moment they are
+     *    written, so a host the user then clears by hand does not refill itself;
+     *  - this one is what the WALK reads ([stepToRender], [addressAdvance], [offersManualSetup]).
+     *    Consumed, it would send the credentials step back to the address step seconds after
+     *    reaching it, and again on every rotation, throwing away the password being typed.
+     *
+     * It is never nulled: a later probe replaces it with its own verdict, address included, and
+     * [verdictFor] is what decides whether it still answers for the address on screen. It does NOT
+     * survive process death (this ViewModel has no `SavedStateHandle`) — that is deliberate, and
+     * [stepToRender] is where the walk copes with it.
+     */
+    internal val discovery: StateFlow<DiscoveryVerdict?> = _discovery.asStateFlow()
+
+    private val _oauthDiscovery = MutableStateFlow<OAuthDiscovery?>(null)
+
+    /**
+     * How the address' server says this account signs in — the answer the credentials step asks
+     * [credentialsAsk] about, and the one the hand-over reuses instead of asking twice.
+     *
+     * Kept beside [discovery] rather than inside it: the two probes answer different questions and
+     * a refusal to probe ([verdictAfterRefusal]) has nothing to say about OAuth. Like [discovery]
+     * it is never nulled and never survives process death — after which the walk falls back to the
+     * address step and both probes run again.
+     */
+    internal val oauthDiscovery: StateFlow<OAuthDiscovery?> = _oauthDiscovery.asStateFlow()
+
     /**
      * Run the autoconfig cascade for [email] in the background, holding what it finds for the
-     * screen to write into the VISIBLE host/port/security fields. Whether it may set out at all is
-     * [shouldDiscoverImapSettings]'s call — executed by a test — with the one Android-bound fact
-     * (connectivity) computed here: offline it does not start, silently. [MailAutoconfigResult.NotFound]
-     * changes nothing anywhere: no state, no spinner, no error. Leaving the screen kills the
-     * ViewModel and the job with it.
+     * screen to write into the VISIBLE host/port/security fields, and its whole verdict for the
+     * walk. Whether it may set out at all is [shouldDiscoverImapSettings]'s call — executed by a
+     * test — given the [step] the screen is really drawing (the cascade may run before any protocol
+     * is chosen, but only there) and the one Android-bound fact (connectivity) computed here:
+     * offline it does not start, and records nothing either — what says so to the user is the
+     * address step's own button ([advanceFromAddress]). Leaving the screen kills the ViewModel and
+     * the job with it.
+     *
+     * ⛔ [MailAutoconfigResult.NotFound] still changes nothing the user can see — no state, no
+     * spinner, no error — but it is no longer dropped on the floor: "this domain publishes nothing"
+     * and "the probe has not finished" are the two answers the walk's address step chooses between,
+     * and they used to be the same absence of a value.
      */
-    internal fun discoverImapSettings(route: ConnectRoute, preset: PresetForm, email: String) {
-        if (!shouldDiscoverImapSettings(route, preset, email, online = hasUsableNetwork(app))) return
+    internal fun discoverImapSettings(
+        step: ConnectStep,
+        route: ConnectRoute,
+        preset: PresetForm,
+        email: String,
+    ) {
+        // ⛔ ONE read of the link, for both decisions below. Read twice, the guard can refuse for
+        // want of a network and the refusal be recorded as though the network were there — the
+        // fabricated NotFound this volet exists to remove, on a window nothing can reproduce.
+        val online = hasUsableNetwork(app)
+        if (!shouldDiscoverImapSettings(step, route, preset, email, online = online)) {
+            // A probe that never sets out still has to answer the walk for the refusals the user
+            // can act on. What it records — and, crucially, what it must NOT record when the
+            // refusal is the missing network itself — is [verdictAfterRefusal]'s call.
+            _discovery.value = verdictAfterRefusal(_discovery.value, email, online = online)
+            return
+        }
         val address = email.trim()
         if (address == imapDiscoveryEmail) return
         imapDiscoveryJob?.cancel()
@@ -204,14 +258,95 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             // ⛔ No runCatching around the cascade: it owns its failures (they become NotFound
             // inside) and RETHROWS cancellation, which must keep unwinding through here — a
             // cancelled probe is the user leaving, not a verdict.
-            val found = discoverMailAutoconfig(address) as? MailAutoconfigResult.Found ?: return@launch
-            _imapDiscovery.value = found
+            //
+            // ⛔ The two probes run CONCURRENTLY, each under its own budget: chained they would
+            // cost this step both budgets — 20 s instead of 10 — for everyone, including the
+            // majority whose server has no OAuth at all. [probeAddressTogether] is where that is
+            // executed by a test on a virtual clock; nothing here can be made to prove it.
+            val probe = probeAddressTogether(
+                settings = { discoverMailAutoconfig(address) },
+                oauth = { probeOAuthFor(address) },
+            )
+            val result = probe.settings
+            // ⛔ The OAuth answer BEFORE the verdict the walk steps on: the credentials step is
+            // drawn the instant _discovery lands, and drawn without this it would flash the
+            // password field of a server that wants a browser.
+            _oauthDiscovery.value = probe.oauth
+            // The durable copy first, whatever the answer: it is what the walk steps on.
+            _discovery.value = DiscoveryVerdict(address, result)
+            // Then the one-shot signal, which only a Found has anything to say to.
+            _imapDiscovery.value = result as? MailAutoconfigResult.Found
         }
+    }
+
+    /**
+     * Ask the address' domain how it signs in — no credentials involved ([MailRepository.discoverOAuth]
+     * is a plain GET), which is what lets this run at the address step, where there is nothing else
+     * to go on.
+     *
+     * ⛔ IT RIDES WITH EVERY CASCADE, on every step, and gating it on the step is the defect this
+     * spelling fixes. The settings verdict was never gated, so a pass from another step recorded a
+     * `Found` with NO OAuth answer beside it — and the credentials step then drew a bare wheel for
+     * an address that could never be probed again. The extra requests a manual-form pass now
+     * makes are credential-free GETs to the reader's own domain; that is the price of the two
+     * answers always travelling together.
+     *
+     * ⛔ It always ANSWERS: `chosen == null` is "nothing published OAuth here", which is a fact the
+     * credentials step acts on (the password field). "Nobody asked" is no longer expressible.
+     *
+     * ⛔ WHICH hosts it may ask is [mailOAuthCandidates]' call and NOT the four raw candidates: the
+     * first of those is the organisation's website, and its OAuth document sent the reader to a
+     * browser, onto a sign-in page that had nothing to do with her mail. The manual fallback's
+     * button keeps all four ([connectOAuth]), because there she asked for OAuth herself.
+     */
+    private suspend fun probeOAuthFor(address: String): OAuthDiscovery {
+        val chosen = discoverOAuthAmong(mailOAuthCandidates(address)) {
+            container.mailRepository.discoverOAuth(it)
+        }
+        return OAuthDiscovery(address, chosen)
+    }
+
+    /**
+     * Where the address step's button leads — [addressAdvance]'s call, executed by a test, fed the
+     * two facts the composable cannot hold honestly:
+     *
+     *  - the DURABLE verdict, read here rather than passed in, so one function answers whatever the
+     *    call site remembered;
+     *  - the link, read HERE AND NOW. Airplane mode is switched on a screen that is not
+     *    recomposing, so a value captured when the button was drawn is the link as it was before
+     *    she left the network — which is exactly the case being fixed.
+     *
+     * ⛔ No side effect: this is also what the button's `enabled` is computed from, i.e. it runs
+     * during composition. What offline SAYS is [reportOffline], called from the tap alone.
+     */
+    internal fun advanceFromAddress(email: String): AddressAdvance =
+        addressAdvance(email, _discovery.value, online = hasUsableNetwork(app))
+
+    /**
+     * Say that the device is offline, on the same surface and with the same sentence as the six
+     * sign-in routes' own guards ([connect], [connectAuto]…): `R.string.connect_offline`, which
+     * already lives in all nine locales.
+     *
+     * ⛔ It is a REPORT, not a step: the walk stays on the address step. The whole defect was that
+     * an offline tap moved the user into the manual form — protocol chips, hosts, ports — with
+     * nothing said about why the app had stopped looking.
+     */
+    internal fun reportOffline() {
+        _state.value = ConnectState.Error(string(R.string.connect_offline))
     }
 
     /** The screen wrote the verdict into the fields: drop it so it is applied exactly once. */
     fun consumeImapDiscovery() {
         _imapDiscovery.value = null
+    }
+
+    /**
+     * The walk moved to another step: whatever a FINISHED attempt left behind goes with the step it
+     * belongs to. [clearsAttemptOnLeave] decides which states those are — and, just as much, which
+     * ones must survive, because they are what stops a second submit.
+     */
+    internal fun clearFinishedAttempt() {
+        if (clearsAttemptOnLeave(_state.value)) _state.value = ConnectState.Idle
     }
 
     init {
@@ -386,7 +521,15 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         oauthJob = viewModelScope.launch {
             // ⚠ COLLECT, don't stop at the first answer, and WHICH answer ends the search is
             // collectOAuthHosts' call, not this screen's — it is the rule a fake probe can run.
-            val discovered = collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it) }
+            //
+            // ⛔ Unless the address step has already asked, for this very address and with no
+            // server typed by hand: its answer stands ([reusableOAuth]). Searching again, seconds
+            // later and on the path the reader did not choose, means a host that answers once but
+            // not twice is reported as "this server doesn't support OAuth sign-in" — false, and
+            // said to someone who never asked for OAuth in the first place.
+            val reused = reusableOAuth(_oauthDiscovery.value, emailTrim, server)
+            val discovered = reused?.let { listOf(it) }
+                ?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it) }
             // "No OAuth here" and "OAuth, but not a flow this app can drive" are different facts
             // and used to be the same sentence. WHICH sentence is oauthDiscoveryFailure's call and
             // no longer this screen's — it answers for a null metadata too, so the "nothing

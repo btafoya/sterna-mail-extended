@@ -65,6 +65,17 @@ internal data class PresetForm(
     val smtpPort: String = "465",
     val smtpSecurity: ConnectionSecurity = ConnectionSecurity.TLS,
     val appPasswordUrl: String? = null,
+    /**
+     * The address a PROBE filled these host fields for, or null when whatever is in them is the
+     * user's own.
+     *
+     * It is the one thing the fields themselves cannot say. The form survives process death
+     * (`rememberSaveable`) and the verdict behind it does not, so on the way back "imap.x.tld is
+     * here because a probe put it here" and "…because she typed it" are otherwise the same two
+     * non-blank strings — and the cascade's guard refuses to set out over either, which turned a
+     * successful discovery into a permanent failure ([presetForAddress]).
+     */
+    val discoveredFor: String? = null,
 ) {
     /**
      * Whether the manual server block is on screen. It is hidden under OAuth on purpose — host,
@@ -177,20 +188,110 @@ internal fun connectReady(
     else -> username.isNotBlank() && password.isNotBlank()
 }
 
+// ---- The three steps of adding an account ------------------------------------------------------
+
 /**
- * Whether the autoconfig cascade may set out for [email] at all. True only when the IMAP password
- * form is the one on screen, no quick-setup chip is armed (the hard-coded providers outrank the
- * cascade — and an OAuth chip has no host fields to fill), BOTH host fields are untouched, the
- * address is one the app's shared [isValidEmail] rule accepts, and the device is [online]:
+ * Which page of the add-account walk is on screen. The screen used to open on the protocol
+ * question (JMAP / IMAP-SMTP) — knowledge the user does not have, and which the probes can settle
+ * without her — so the walk is: the address, then what discovery decided, and today's form only
+ * when discovery came back empty.
+ */
+internal enum class ConnectStep {
+    /** The address, alone. Nothing else is asked until it is a well-formed one. */
+    ADDRESS,
+
+    /** What discovery decided, plus the secret it needs. Renders ONLY with a verdict in hand. */
+    CREDENTIALS,
+
+    /** Today's form, prefilled — the fallback, reached only when discovery found nothing. */
+    MANUAL,
+}
+
+/**
+ * Whether the address step may be left: the app's shared [isValidEmail] rule and nothing else. A
+ * second address rule here would drift from the one the address field itself flags errors with,
+ * and from the one [shouldDiscoverImapSettings] gates the cascade on.
+ */
+internal fun canLeaveAddressStep(email: String): Boolean = isValidEmail(email)
+
+/**
+ * Where the address step lands once discovery has RENDERED its verdict: on the credentials when it
+ * learned something, on the manual form when it did not. "Configure manually" is what a failure
+ * yields — and only a failure: offered beside a working verdict it would put the protocol question
+ * back on screen, which is the whole thing this walk removes.
+ *
+ * ⛔ DEBT FOR THE SCREEN VOLET — this function needs a verdict the app does not produce yet.
+ * `ConnectViewModel.discoverImapSettings` drops a [MailAutoconfigResult.NotFound] on the floor
+ * (`as? Found ?: return@launch`) and publishes a `Found?`, so "found nothing" and "not finished
+ * yet" are today indistinguishable from the UI — and this decision has to tell them apart, since
+ * one lands on the credentials and the other on the manual form. Whoever wires the steps must make
+ * the ViewModel surface the whole result, not just its Found case. Until then this function is
+ * correct and unreachable.
+ */
+internal fun stepAfterAddress(discovery: MailAutoconfigResult): ConnectStep =
+    if (discovery is MailAutoconfigResult.Found) ConnectStep.CREDENTIALS else ConnectStep.MANUAL
+
+/**
+ * The step actually RENDERED, given the [remembered] one and the verdict currently in hand.
+ *
+ * The step index survives process death (`rememberSaveable`); the verdict does not — it lives in a
+ * ViewModel with no `SavedStateHandle`, so it comes back null. ⛔ The credentials step therefore
+ * renders only while a [MailAutoconfigResult.Found] is there: a password field for a server nobody
+ * discovered shows a state that is not true (WYSIWYG) and its button leads nowhere. Without a
+ * verdict we fall back to the address step, from which discovery runs again.
+ *
+ * ⛔ DEBT FOR THE SCREEN VOLET — the ViewModel's `imapDiscovery` flow is NOT the input this
+ * function wants. It is one-shot: the screen writes the verdict into the fields and immediately
+ * calls `consumeImapDiscovery()`, which nulls it. Fed from that flow, this decision would send the
+ * credentials step back to the address one seconds after reaching it — and again after every
+ * rotation, throwing away the password being typed, which is the exact opposite of what it is for.
+ * Whoever wires the steps must keep a DURABLE copy of the verdict in the ViewModel, beside the
+ * one-shot signal and not in place of it (the one-shot is what stops a field the user cleared from
+ * refilling itself).
+ *
+ * ⚠ Once that copy exists, the intended difference is: a rotation keeps the ViewModel, so the
+ * credentials step holds and nothing typed is lost; a process death empties it, so we fall back to
+ * the address step. That difference is the whole point of this function — and today nothing
+ * delivers it, because nothing calls this function yet.
+ *
+ * The manual step needs no verdict: everything it shows is the form's own saved state.
+ */
+internal fun stepToRender(
+    remembered: ConnectStep,
+    discovered: MailAutoconfigResult.Found?,
+): ConnectStep =
+    if (remembered == ConnectStep.CREDENTIALS && discovered == null) ConnectStep.ADDRESS else remembered
+
+/**
+ * Where Back goes from [current]: the two later steps return to the address, and Back from the
+ * address leaves the screen — `null`, said here rather than guessed at the call site.
+ */
+internal fun stepBack(current: ConnectStep): ConnectStep? =
+    if (current == ConnectStep.ADDRESS) null else ConnectStep.ADDRESS
+
+/**
+ * Whether the autoconfig cascade may set out for [email] at all. True only when the form on screen
+ * is one the verdict can serve — the [ConnectStep.ADDRESS] step, where the cascade IS the point, or
+ * the IMAP password form of the manual fallback — with no quick-setup chip armed (the hard-coded
+ * providers outrank the cascade — and an OAuth chip has no host fields to fill), BOTH host fields
+ * untouched, an address the app's shared [isValidEmail] rule accepts, and the device [online]:
  * offline the cascade must not set out at all, silently — no error state for a probe nobody asked
- * for. A pure function, so a test executes the decision instead of re-reading the code around it.
+ * for.
+ *
+ * ⛔ The route condition is lifted at the address step ONLY, because that is the step where no
+ * protocol has been chosen yet — requiring one first is exactly what this walk removes. It stays
+ * for every other step: under the manual form with JMAP chosen there are no IMAP fields for the
+ * verdict to land in.
+ *
+ * A pure function, so a test executes the decision instead of re-reading the code around it.
  */
 internal fun shouldDiscoverImapSettings(
+    step: ConnectStep,
     route: ConnectRoute,
     preset: PresetForm,
     email: String,
     online: Boolean,
-): Boolean = route == ConnectRoute.IMAP_PASSWORD &&
+): Boolean = (step == ConnectStep.ADDRESS || route == ConnectRoute.IMAP_PASSWORD) &&
     preset.selected == null &&
     !preset.oauth &&
     preset.imapHost.isBlank() &&
@@ -207,13 +308,21 @@ internal fun shouldDiscoverImapSettings(
  * touched. The verdict's username is deliberately NOT applied anywhere: the address field keeps
  * what the user typed (WYSIWYG — no value may be used without being shown).
  */
-internal fun presetFilledWith(preset: PresetForm, found: MailAutoconfigResult.Found): PresetForm {
+internal fun presetFilledWith(
+    preset: PresetForm,
+    found: MailAutoconfigResult.Found,
+    email: String,
+): PresetForm {
     var filled = preset
+    // ⛔ [PresetForm.discoveredFor] is stamped by the ONE function that writes discovered values,
+    // and ONLY on a side it really wrote: provenance cannot be forgotten at a call site, and a
+    // form this fills nothing into is never marked as the cascade's work.
     if (preset.imapHost.isBlank()) {
         filled = filled.copy(
             imapHost = found.incoming.host,
             imapPort = found.incoming.port.toString(),
             imapSecurity = found.incoming.security,
+            discoveredFor = email.trim(),
         )
     }
     if (preset.smtpHost.isBlank()) {
@@ -221,6 +330,7 @@ internal fun presetFilledWith(preset: PresetForm, found: MailAutoconfigResult.Fo
             smtpHost = found.outgoing.host,
             smtpPort = found.outgoing.port.toString(),
             smtpSecurity = found.outgoing.security,
+            discoveredFor = email.trim(),
         )
     }
     return filled

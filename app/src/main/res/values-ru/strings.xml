@@ -613,6 +613,8 @@
     <string name="connect_password">Пароль</string>
     <string name="connect_connecting">Подключение…</string>
     <string name="connect_connect">Подключиться</string>
+    <string name="connect_step_continue">Далее</string>
+    <string name="connect_step_manual">Настроить вручную</string>
     <string name="connect_error">Не удалось подключиться: %1$s</string>
     <string name="connect_server">Сервер</string>
     <string name="connect_port">Порт</string>
@@ -799,7 +801,6 @@
     <string name="connect_import_header">Уже есть аккаунты в другом месте?</string>
     <string name="connect_email_invalid">Введите правильный адрес эл. почты (например, name@example.com).</string>
     <string name="connect_import_signin_title">Войдите в свои учётные записи</string>
-    <string name="connect_import_signin_progress">Учётная запись %1$d из %2$d</string>
     <string name="connect_import_signin_button">Войти</string>
     <string name="connect_import_signin_skip">Пропустить пока</string>
     <string name="connect_import_invalid">Этот файл не является допустимой резервной копией Sterna.</string>
@@ -807,7 +808,6 @@
     <string name="connect_import_no_accounts">Настройки импортированы. В копии не было учётных записей — добавьте её ниже.</string>
     <string name="connect_import_k9">Импорт из K-9 или Thunderbird</string>
     <string name="connect_import_k9_none">В этом файле не найдено учётных записей для импорта.</string>
-    <string name="connect_import_k9_summary">Импортировано учётных записей: %1$d, пропущено: %2$d (POP3 или не поддерживается).</string>
     <string name="import_snackbar_imported">Успешно импортировано учётных записей: %1$d</string>
     <string name="import_snackbar_imported_with_skipped">Успешно импортировано учётных записей: %1$d (пропущено: %2$d)</string>
     <string name="import_snackbar_check_security">Проверьте безопасность соединения у %1$d из них.</string>

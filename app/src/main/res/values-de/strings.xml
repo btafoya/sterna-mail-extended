@@ -613,6 +613,8 @@
     <string name="connect_password">Passwort</string>
     <string name="connect_connecting">Verbindung wird hergestellt…</string>
     <string name="connect_connect">Verbinden</string>
+    <string name="connect_step_continue">Weiter</string>
+    <string name="connect_step_manual">Manuell einrichten</string>
     <string name="connect_error">Verbindung fehlgeschlagen: %1$s</string>
     <string name="connect_server">Server</string>
     <string name="connect_port">Port</string>
@@ -784,7 +786,6 @@
     <string name="connect_import_header">Hast du bereits Konten anderswo?</string>
     <string name="connect_email_invalid">Geben Sie eine gültige E-Mail-Adresse ein (z. B. name@example.com).</string>
     <string name="connect_import_signin_title">Bei Ihren Konten anmelden</string>
-    <string name="connect_import_signin_progress">Konto %1$d von %2$d</string>
     <string name="connect_import_signin_button">Anmelden</string>
     <string name="connect_import_signin_skip">Vorerst überspringen</string>
     <string name="connect_import_invalid">Diese Datei ist keine gültige Sterna-Sicherung.</string>
@@ -792,7 +793,6 @@
     <string name="connect_import_no_accounts">Einstellungen importiert. Die Sicherung enthielt keine Konten – fügen Sie unten eines hinzu.</string>
     <string name="connect_import_k9">Aus K-9 oder Thunderbird importieren</string>
     <string name="connect_import_k9_none">In dieser Datei wurden keine importierbaren Konten gefunden.</string>
-    <string name="connect_import_k9_summary">%1$d Konto/Konten importiert, %2$d übersprungen (POP3 oder nicht unterstützt).</string>
     <string name="import_snackbar_imported">%1$d Konto/Konten erfolgreich importiert</string>
     <string name="import_snackbar_imported_with_skipped">%1$d Konto/Konten erfolgreich importiert (%2$d übersprungen)</string>
     <string name="import_snackbar_check_security">Prüfen Sie bei %1$d davon die Verbindungssicherheit.</string>

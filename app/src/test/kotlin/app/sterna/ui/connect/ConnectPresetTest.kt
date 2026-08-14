@@ -1,7 +1,9 @@
 package app.sterna.ui.connect
 
 import app.sterna.core.data.account.ConnectionSecurity
+import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
+import app.sterna.core.data.autoconfig.MailAutoconfigResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -194,6 +196,88 @@ class ConnectPresetTest {
                 ConnectRoute.JMAP_TOKEN, "alex@example.org", "",
                 imapHost = "", imapPort = "", smtpHost = "", smtpPort = "",
             ),
+        )
+    }
+
+    // --- The walk: which of the three steps is on screen -----------------------------------------
+
+    private val found = MailAutoconfigResult.Found(
+        incoming = MailEndpoint("imap.example.org", 143, ConnectionSecurity.STARTTLS),
+        outgoing = MailEndpoint("smtp.example.org", 587, ConnectionSecurity.STARTTLS),
+        username = "user@example.org",
+    )
+
+    @Test fun onlyAWellFormedAddressLeavesTheFirstStep() {
+        assertTrue(canLeaveAddressStep("alex@example.org"))
+        assertTrue("the shared rule trims; so must this one", canLeaveAddressStep("  alex@example.org  "))
+        assertFalse("nothing typed yet", canLeaveAddressStep(""))
+        assertFalse("no @ — there is no domain to probe", canLeaveAddressStep("alex"))
+        assertFalse(
+            "a one-label domain: the shared isValidEmail rejects it, and a rule written a second " +
+                "time here would drift from the one the address field flags errors with.",
+            canLeaveAddressStep("alex@example"),
+        )
+    }
+
+    @Test fun aDiscoveryThatLearnedSomethingLeadsToTheCredentials() {
+        assertEquals(
+            "the whole point of the walk: discovery answered, so the user is asked for her " +
+                "password and never for a protocol.",
+            ConnectStep.CREDENTIALS,
+            stepAfterAddress(found),
+        )
+    }
+
+    @Test fun aDiscoveryThatFoundNothingLeadsToTheManualForm() {
+        assertEquals(
+            "manual configuration appears on FAILURE and only on failure — offered next to a " +
+                "working verdict it would put the protocol question back on screen.",
+            ConnectStep.MANUAL,
+            stepAfterAddress(MailAutoconfigResult.NotFound),
+        )
+    }
+
+    @Test fun theCredentialsStepDoesNotComeBackWithoutItsVerdict() {
+        // Process death: the step index is rememberSaveable and comes back CREDENTIALS; the
+        // ViewModel that held the verdict has no SavedStateHandle and comes back empty.
+        assertEquals(
+            "a password field for a server nobody discovered is a state that is not true, and " +
+                "its button leads nowhere: without a verdict the screen renders the address step.",
+            ConnectStep.ADDRESS,
+            stepToRender(ConnectStep.CREDENTIALS, null),
+        )
+    }
+
+    @Test fun theCredentialsStepHoldsWhileItsVerdictIsThere() {
+        // The verdict is in hand (after a rotation, once the ViewModel keeps a durable copy —
+        // today's one-shot flow is nulled on consumption, see the function's KDoc).
+        assertEquals(
+            "a verdict in hand is not process death; sending this case back to the address step " +
+                "would throw away the password being typed.",
+            ConnectStep.CREDENTIALS,
+            stepToRender(ConnectStep.CREDENTIALS, found),
+        )
+    }
+
+    @Test fun theOtherTwoStepsRenderVerdictOrNot() {
+        assertEquals(ConnectStep.ADDRESS, stepToRender(ConnectStep.ADDRESS, null))
+        assertEquals(ConnectStep.ADDRESS, stepToRender(ConnectStep.ADDRESS, found))
+        assertEquals(
+            "the manual form shows nothing but the form's own saved state, so it survives a " +
+                "process death with no verdict at all.",
+            ConnectStep.MANUAL,
+            stepToRender(ConnectStep.MANUAL, null),
+        )
+        assertEquals(ConnectStep.MANUAL, stepToRender(ConnectStep.MANUAL, found))
+    }
+
+    @Test fun backReturnsToTheAddressAndThenLeavesTheScreen() {
+        assertEquals(ConnectStep.ADDRESS, stepBack(ConnectStep.CREDENTIALS))
+        assertEquals(ConnectStep.ADDRESS, stepBack(ConnectStep.MANUAL))
+        assertNull(
+            "back from the first step leaves the add-account screen — said here rather than " +
+                "guessed by the caller.",
+            stepBack(ConnectStep.ADDRESS),
         )
     }
 

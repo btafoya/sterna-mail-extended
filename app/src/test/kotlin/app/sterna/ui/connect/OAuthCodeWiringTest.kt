@@ -173,8 +173,15 @@ class OAuthCodeWiringTest {
         val MAIN_ACTIVITY = repoFile("app/src/main/kotlin/app/sterna/MainActivity.kt")
 
         const val HANDS_OVER = "if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {"
+        /**
+         * ⚠ The search is now the FALLBACK arm: the address step already asked, under its budget,
+         * and `reusableOAuth` hands its answer over rather than probing a second time (pinned in
+         * [OAuthHandoverWiringTest]). What must not change is that when there IS no answer to
+         * reuse — the manual button, a process death — the same shared search runs, with the same
+         * candidates and the same credentials-free probe.
+         */
         const val PROBES =
-            "val discovered = collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it) }"
+            "?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it) }"
         const val HANDS_REDIRECT = "consumeOAuthRedirect()"
         const val STRIPS = "current.data = null"
         const val TOASTS = "toast(message)"

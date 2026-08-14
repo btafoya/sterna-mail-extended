@@ -709,7 +709,6 @@
     <string name="connect_import_header">Already have accounts elsewhere?</string>
     <string name="connect_email_invalid">Enter a valid email address (like name@example.com).</string>
     <string name="connect_import_signin_title">Sign in to your accounts</string>
-    <string name="connect_import_signin_progress">Account %1$d of %2$d</string>
     <string name="connect_import_signin_button">Sign in</string>
     <string name="connect_import_signin_skip">Skip for now</string>
     <string name="connect_import_invalid">That file isn\'t a valid Sterna backup.</string>
@@ -717,7 +716,6 @@
     <string name="connect_import_no_accounts">Settings imported. The backup had no accounts, so add one below.</string>
     <string name="connect_import_k9">Import from K-9 or Thunderbird</string>
     <string name="connect_import_k9_none">No importable accounts were found in that file.</string>
-    <string name="connect_import_k9_summary">Imported %1$d account(s), skipped %2$d (POP3 or unsupported).</string>
     <string name="import_snackbar_imported">%1$d account(s) imported successfully</string>
     <string name="import_snackbar_imported_with_skipped">%1$d account(s) imported successfully (%2$d skipped)</string>
     <string name="import_snackbar_check_security">Check the connection security of %1$d of them.</string>
@@ -791,6 +789,8 @@
     <string name="connect_password">Password</string>
     <string name="connect_connecting">Connecting…</string>
     <string name="connect_connect">Connect</string>
+    <string name="connect_step_continue">Continue</string>
+    <string name="connect_step_manual">Set up manually</string>
     <string name="connect_error">Could not connect: %1$s</string>
     <string name="connect_server">Server</string>
     <string name="connect_port">Port</string>
