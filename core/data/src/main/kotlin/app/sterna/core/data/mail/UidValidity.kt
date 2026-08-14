@@ -58,6 +58,39 @@ object UidValidity {
     fun mayDestroy(snapshotUidValidity: Long?): Boolean = snapshotUidValidity != null && snapshotUidValidity > 0L
 
     /**
+     * Whether a destroy may go out at all, given the numbering it was [frozen] under and the one
+     * the server has JUST [stated] in the SELECT it is about to expunge under.
+     *
+     * [mayDestroy] asks half of this question — is there anything frozen to oppose — and that half
+     * was all `ImapSession.select` could check, because it refuses only when two POSITIVE numbers
+     * disagree. So a server that announced `UIDVALIDITY 42` yesterday and today answers a SELECT
+     * with NO `UIDVALIDITY` line refused nothing: the frozen 42 met a 0, the comparison was skipped,
+     * and `UID STORE +FLAGS (\Deleted)` + `UID EXPUNGE` went out against yesterday's UIDs. On an
+     * account with no Trash the folder that takes that is the INBOX, and nothing fails visibly.
+     *
+     * [stated] is the argument that carries the new value: anything at or below 0 means the server
+     * said nothing about this folder's numbering, and a numbering nobody states cannot confirm
+     * anything. Destroy only when both numbers are real and they are the same one; everything else
+     * — unstated, unfrozen, or different — refuses. The `stated > 0L` clause is a belt: a positive
+     * [frozen] equal to [stated] already forces it. It stays because it says out loud which of the
+     * two arguments is the new fact, and because it would still hold if the equality below were
+     * ever loosened.
+     *
+     * ⚠ This is deliberately NOT the rule `core/imap` applies to itself: there a server announcing
+     * no numbering is not turned into a refusal (`UidValidityTest`), because ten READ paths select
+     * through it and refusing would make a folder unreadable on a non-conforming server. Only the
+     * destroy is held to this standard, because only the destroy is irreversible.
+     *
+     * Free on a conforming server, and free on a server that NEVER states a numbering:
+     * [UidValidityStore.record] refuses to write a value at or below 0, `TrashPurge.snapshotUidValidity`
+     * refuses to freeze one, and `MessageDestroyWorker` turns 0 into null — so a frozen number above
+     * 0 can only exist for a folder whose numbering the server stated at some point. A permanently
+     * silent server freezes nothing, is already refused by [imapDestroyPlan], and never reaches here.
+     */
+    fun mayDestroyUnderStatedNumbering(frozen: Long?, stated: Long): Boolean =
+        stated > 0L && frozen != null && frozen > 0L && frozen == stated
+
+    /**
      * Which of [requested] an IMAP destroy may act on when all it has to oppose is [expected] —
      * the numbering the ids were read under, frozen with the user's confirmation.
      *
@@ -115,6 +148,26 @@ object UidValidity {
             .replace("%", "\\%")
             .replace("_", "\\_") + "%"
 }
+
+/**
+ * The server did not confirm [mailbox]'s numbering, so a destroy frozen under [expected] was
+ * refused before a single command naming a UID went out (Codeberg #99).
+ *
+ * Distinct from `ImapUidValidityChanged` ON PURPOSE, and it is not a subclass of it: that one
+ * means "the folder WAS renumbered", is caught by `ImapMailService.onMailbox` and invalidates the
+ * folder — dropping its cached bodies AND every pending purge snapshot it holds. Doing that here
+ * would let a momentarily quiet server throw away an "Empty trash" the user had confirmed, which
+ * is a destructive write nobody asked for. This one means "the server said nothing, so nothing is
+ * confirmed": it destroys nothing, drops nothing, and asks to be tried again later.
+ *
+ * Not an `ImapException` either, for the same reason `ImapUidValidityChanged` is not: the
+ * reconnect-and-retry of `ImapMailService.withSession` must not absorb it. It is raised AFTER the
+ * session block returns, so that retry is never even entered.
+ */
+class ImapNumberingUnconfirmed(
+    val mailbox: String,
+    val expected: Long?,
+) : Exception("The server stated no UIDVALIDITY for $mailbox; a destroy frozen under $expected was refused")
 
 /**
  * Where the per-folder UIDVALIDITY lives, seen from [ImapMailService] — which has a connection

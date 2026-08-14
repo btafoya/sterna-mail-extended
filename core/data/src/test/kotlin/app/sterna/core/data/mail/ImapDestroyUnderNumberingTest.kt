@@ -177,6 +177,71 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
+     * The OTHER destroy path, and the one `destroyAll` never routed: discarding a draft, or
+     * replacing one that was re-saved, expunges a single id straight from the folder it names.
+     * It handed `imapDestroyGroup` nothing to oppose, so `onMailbox` fell back on
+     * `expectedUidValidity ?: recorded`, compared the folder's current number with itself and
+     * expunged — including on a folder whose numbering the app had never recorded at all, i.e.
+     * with nothing whatsoever to oppose. Source text for the same reason as the tests above:
+     * `MailRepository` needs Room and a `Context`, so the lines are pinned WHOLE, arguments
+     * included — an assertion that the call merely exists says nothing about what it is handed.
+     */
+    @Test fun `discarding a draft opposes the folder's numbering before expunging it`() {
+        val body = bodyOf("destroyDraft")
+        assertEquals(
+            "the draft destroy must read the folder's recorded numbering through the repository's " +
+                "own accessor: `imap.recordedUidValidity(` is pinned to three lines elsewhere",
+            listOf("val recorded = recordedUidValidity(credentials, folder)"),
+            codeLinesNaming(body, "recordedUidValidity("),
+        )
+        assertEquals(
+            "and hand it to the SAME decision the held-back destroy runs, instead of deciding " +
+                "inline: nothing to oppose licenses nothing, and the draft simply stays",
+            listOf("val destroyable = UidValidity.destroyableUnderNumbering(listOf(emailId), recorded)"),
+            codeLinesNaming(body, "destroyableUnderNumbering("),
+        )
+        assertEquals(
+            "only what the decision licensed may reach the expunge, and the numbering must travel " +
+                "with it: the argument is what `deleteBatch` opposes to the number the server " +
+                "states. Left out, the destroy arrives carrying nothing and the guard below has " +
+                "only the fallback to compare with itself",
+            listOf("imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), recorded)"),
+            codeLinesNaming(body, "imapDestroyGroup("),
+        )
+    }
+
+    /**
+     * And it must refuse WITHOUT A WORD ON SCREEN.
+     *
+     * The refusal arrives here as an exception. `ComposeViewModel.submit` catches every `Throwable`
+     * and puts `t.message` straight into the "could not save" banner (`ComposeScreen`), so a refusal
+     * left to propagate shows the user "The server stated no UIDVALIDITY for Drafts; a destroy
+     * frozen under 42 was refused" — English protocol jargon, in all nine locales, precisely when
+     * the guard is doing its job. Its twin refusal, the one where the decision licenses an empty
+     * list, is already silent: `imapDestroyGroup` returns on `if (uidToId.isEmpty()) return` and
+     * nobody raises anything. Both refusals say nothing, or neither does — and a new string on
+     * screen costs nine translations for a case in which nothing was lost.
+     */
+    @Test fun `a draft the server will not confirm the numbering of is refused in silence`() {
+        assertEquals(
+            "the draft path must swallow the numbering refusal AND NOTHING ELSE: a `runCatching` " +
+                "or a `catch (t: Throwable)` here would hide a transport failure and close the " +
+                "composer over a draft that comes back on the next sync. Without the catch at all, " +
+                "the user gets a sentence of English IMAP jargon in the save-error banner",
+            listOf("} catch (unconfirmed: ImapNumberingUnconfirmed) {"),
+            codeLinesNaming(bodyOf("destroyDraft"), "ImapNumberingUnconfirmed"),
+        )
+        assertEquals(
+            "and nowhere else in the repository: on the trash purge and on a selection destroy the " +
+                "same refusal must keep travelling up to `MessageDestroyWorker`, which bounds its " +
+                "own retries. Swallowed there, a purge the user confirmed would report success " +
+                "having destroyed nothing",
+            listOf("} catch (unconfirmed: ImapNumberingUnconfirmed) {"),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "ImapNumberingUnconfirmed"),
+        )
+    }
+
+    /**
      * The numbering ARRIVES on this path; it is never read on it. A local read — including one
      * that merely SHADOWS the parameter, which Kotlin accepts with a warning — hands the guard
      * the number a refresh recorded AFTER the renumbering, which is precisely the value that

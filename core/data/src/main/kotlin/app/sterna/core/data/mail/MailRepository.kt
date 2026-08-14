@@ -3590,9 +3590,15 @@ class MailRepository(
      * a mailbox can go through, and null on IMAP when the folder's numbering was never observed:
      * both mean "nothing to oppose", which destroys nothing (Codeberg #99).
      *
-     * Read at the confirmation and never again: re-reading it at execution would pick up the
-     * number a refresh recorded after the renumbering, i.e. exactly the value that makes the
-     * guard pass on the mail it exists to save.
+     * On the HELD-BACK destroy it is read at the confirmation and never again: re-reading it at
+     * execution would pick up the number a refresh recorded after the renumbering, i.e. exactly
+     * the value that makes the guard pass on the mail it exists to save.
+     *
+     * [destroyDraft] does read it at execution, and that is a different question, not the same one
+     * asked later: a discarded draft has no confirmation to freeze anything under — it is destroyed
+     * in the same breath as the gesture. What the read buys there is the other half, "is there any
+     * numbering to oppose AT ALL", which an unrecorded folder fails. It does NOT close the window
+     * between reading an id off the screen and expunging it; nothing on that path does yet.
      */
     suspend fun recordedUidValidity(credentials: AccountCredentials, mailboxId: String): Long? =
         if (credentials.protocol == MailProtocol.IMAP) imap.recordedUidValidity(credentials.id, mailboxId) else null
@@ -5850,6 +5856,14 @@ class MailRepository(
      * destroy the edit-replace flow uses, so an emptied draft leaves nothing behind in Drafts —
      * and, unlike a plain [delete], nothing in Trash either. Failures propagate so the caller can
      * report them rather than closing over a draft that would reappear on the next sync.
+     *
+     * ⛔ A REFUSAL IS NOT A FAILURE, and does not propagate. When the numbering guard declines
+     * ([ImapNumberingUnconfirmed]) nothing went out on the wire: the draft is intact on the server
+     * and in the cache, and there is nothing to report or retry. Its twin — the decision licensing
+     * an empty list, on a folder whose numbering was never recorded — has always been silent, since
+     * [imapDestroyGroup] simply returns. Both refusals say nothing, or neither does; saying it
+     * would mean a new string on screen, nine translations, and two identical refusals behaving
+     * differently. What the caller still hears about is every real failure below.
      */
     suspend fun discardDraft(credentials: AccountCredentials, emailId: String) =
         destroyDraft(credentials, emailId)
@@ -5860,7 +5874,28 @@ class MailRepository(
             val folder = emailDao.mailboxOf(credentials.id, emailId)
                 ?: mailboxDao.idForRole(credentials.id, "drafts")
                 ?: return
-            imapDestroyGroup(credentials, folder, listOf(emailId), mutableSetOf(), mutableSetOf())
+            // The one destroy that never went through `destroyAll`, and so opposed nothing (#99):
+            // an EXPUNGE names messages by UID, and a UID means a message only inside ONE
+            // numbering. With no numbering handed over, the SELECT falls back on the number
+            // recorded right now, compares it with itself and expunges — even for a folder whose
+            // numbering was never recorded at all, i.e. with nothing whatsoever to oppose. Same
+            // decision as the held-back destroy: nothing to oppose licenses nothing, the draft
+            // stays. A leftover draft is the cheap half of the trade; an expunge against whatever
+            // the folder numbers today is the expensive one.
+            val recorded = recordedUidValidity(credentials, folder)
+            val destroyable = UidValidity.destroyableUnderNumbering(listOf(emailId), recorded)
+            try {
+                imapDestroyGroup(credentials, folder, destroyable, mutableSetOf(), mutableSetOf(), recorded)
+            } catch (unconfirmed: ImapNumberingUnconfirmed) {
+                // Refused, not failed: the server stopped stating the folder's numbering, so
+                // nothing left the client and the draft is intact on both sides. Silent, because
+                // the twin refusal just above — an empty `destroyable`, on a folder never
+                // recorded — has always been silent, and because `ComposeViewModel` puts any
+                // exception's message verbatim into the save-error banner: propagating this one
+                // would show the user a sentence of English IMAP jargon, untranslated, at the
+                // exact moment the guard saved their mail. ⛔ ONLY this type: a transport failure
+                // must keep going up, or the composer closes over a draft that comes back.
+            }
             return
         }
         jmapDestroyAll(connect(credentials), listOf(emailId))

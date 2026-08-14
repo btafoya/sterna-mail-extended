@@ -685,14 +685,39 @@ class ImapMailService(
      * [expectedUidValidity] is the numbering the caller's UIDs were read under — the one frozen
      * with an "Empty trash" snapshot. A folder renumbered since then refuses the whole call
      * ([ImapUidValidityChanged]) instead of destroying whatever now holds those numbers (#99).
+     *
+     * ⭐ And so does a folder whose numbering the server STOPS STATING. The refusal in
+     * [ImapSession.select] compares two positive numbers, so a SELECT carrying no `UIDVALIDITY`
+     * line at all sailed through it and the expunge went out on yesterday's UIDs — in the INBOX
+     * itself on an account with no Trash. This is the one place where all three facts are in hand
+     * at once: the intent is DESTRUCTIVE, the number is the one the user's confirmation FROZE, and
+     * the status is what the server JUST said. The read paths cannot be held to this standard
+     * (they would make a folder unreadable on a non-conforming server), and a `requireNumbering`
+     * flag on `select()` would carry the destructive intent down into `core/imap`, where every
+     * future caller could forget it. So the decision, [UidValidity.mayDestroyUnderStatedNumbering],
+     * is asked here, once, for the three destroy entry points that reach this call: the trash
+     * purge, a selection destroy, and `MailRepository.destroyDraft`.
+     *
+     * ⚠ The block RETURNS a verdict and the refusal is raised after [onMailbox] returns, rather
+     * than thrown inside it. Two things depend on that: a throw inside would be caught by
+     * `withSession`'s retry, which would close the session, reconnect, LOGIN and re-SELECT before
+     * failing anyway; and it must not be mistaken for `ImapUidValidityChanged`, which
+     * [onMailbox] answers by INVALIDATING the folder — dropping the very purge snapshot the user
+     * confirmed. Nothing is invalidated and nothing is recorded here: with a stated numbering of 0
+     * [UidValidity.verdict] answers `UNVERIFIABLE`, and `rememberNumbering` writes nothing for it.
      */
     suspend fun deleteBatch(
         credentials: AccountCredentials,
         mailboxId: String,
         uids: List<Long>,
         expectedUidValidity: Long? = null,
-    ) = onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity) { session, _ ->
-        session.delete(uids)
+    ) {
+        val destroyed = onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity) { session, status ->
+            val mayDestroy = UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
+            if (mayDestroy) session.delete(uids)
+            mayDestroy
+        }
+        if (!destroyed) throw ImapNumberingUnconfirmed(mailboxId, expectedUidValidity)
     }
 
     /**
