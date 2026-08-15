@@ -332,10 +332,14 @@ class LocalDraftUploadWiringTest {
             codeLinesNaming(source, "accountsWithDrafts("),
         )
         assertEquals(
-            "⛔ the re-arm is scoped to ONE account: an unscoped UPDATE would flip another " +
-                "account's EDITING row to PENDING while its composer is open",
-            listOf("localDraftDao.revertUnfinishedToPending(accountId)"),
-            codeLinesNaming(source, "revertUnfinishedToPending("),
+            "⛔ the re-arm is scoped to ONE account and takes NOTHING else: an unscoped UPDATE " +
+                "would reach another account's row, whose upload may be genuinely in flight in this " +
+                "process. ⛔ And there is no second argument to add: the statement rescues " +
+                "UPLOADING alone (LocalDraftDaoSqlTest executes it), so no id, no lease and no " +
+                "exception is passed here — a call that carried one again would mean an EDITING " +
+                "sweep is back",
+            listOf("localDraftDao.revertUploadingToPending(accountId)"),
+            codeLinesNaming(source, "revertUploadingToPending("),
         )
         assertEquals(
             "⛔ a startup must see the rows that are BACKED OFF too — asking `pending` at the " +

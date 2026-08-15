@@ -5812,6 +5812,12 @@ class MailRepository(
      *
      * The row keeps whatever backoff it had: a draft whose last attempt failed is not made to retry
      * sooner because it was opened and closed.
+     *
+     * ⛔ **And it is the ONLY way back out of [LocalDraftState.EDITING].** The startup sweep does not
+     * touch that state any more ([LocalDraftDao.revertUploadingToPending]), so there is no net under
+     * this: a path that leaves the composer without calling this leaves the row held for ever, i.e.
+     * a draft that never reaches the server. `abandonPlan` decides who calls it, and every one of
+     * its answers is executed in `LocalDraftReopenTest`.
      */
     suspend fun releaseLocalDraftEdit(accountId: String, id: String) =
         giveLocalDraftEditBack(
@@ -5834,14 +5840,33 @@ class MailRepository(
     suspend fun consumeLocalDraft(accountId: String, id: String) = discardLocalDraft(accountId, id)
 
     /**
-     * Bring ONE account's rows back from a process death mid-edit or mid-upload (#95).
+     * Bring ONE account's rows back from a process death mid-upload or mid-staging (#95).
      *
-     * ⛔ Per account, never a global `UPDATE`: another account's composer may be open on an EDITING
-     * row, and flipping that back to PENDING hands the text being typed to the upload worker. The
-     * scope is the DAO's; this is only the name the app layer calls it by.
+     * ⛔ Per account, never a global `UPDATE`: another account's upload may be genuinely in flight in
+     * this process, in which case `UPLOADING` is not a leftover at all. The scope is the DAO's; this
+     * is only the name the app layer calls it by.
+     *
+     * ⛔ **TWO statements, and they must not be merged.** A row rescued from `UPLOADING` is whole and
+     * keeps the right to replace the server draft it names. A row rescued from `STAGING` carries
+     * `attachmentsJson` "[]" it can never refill, so it comes back flagged `bodyIsLossy` — otherwise
+     * the upload calls it a faithful replacement and destroys the original that still holds the
+     * attachments. Both are scoped, both are per account; see
+     * [LocalDraftDao.revertStagedToPendingLossy]. The single call site
+     * (`AppContainer`/`SternaApplication`) does not need to know there are two.
+     *
+     * ⛔ **And `EDITING` is not part of either, deliberately** — see
+     * [LocalDraftDao.revertUploadingToPending]. This runs from `appScope` at every start, i.e. while
+     * Android is still restoring the back stack, BEFORE the composer killed with a draft open has
+     * read its row back: nothing here can tell a held row from an abandoned one, so it lets the
+     * state alone and [releaseLocalDraftEdit] is the only way out of it. That also removes the race
+     * this used to try to win — no row a restored composer may take is ever `PENDING` in between, so
+     * neither the work items booked just below nor one WorkManager replays can consume it
+     * (`localDraftUploadIsDue` answers not-due on `EDITING`).
      */
-    suspend fun revertUnfinishedLocalDrafts(accountId: String) =
-        localDraftDao.revertUnfinishedToPending(accountId)
+    suspend fun revertUnfinishedLocalDrafts(accountId: String) {
+        localDraftDao.revertUploadingToPending(accountId)
+        localDraftDao.revertStagedToPendingLossy(accountId)
+    }
 
     /**
      * Every row of one account still owed to the server — ⛔ **backed-off rows included**, which is

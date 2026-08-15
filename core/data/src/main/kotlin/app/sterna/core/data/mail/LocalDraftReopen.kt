@@ -195,9 +195,9 @@ sealed interface LocalDraftEdit {
  * found at an open is this phone's own lease, left behind by a process that died holding it.
  *
  * ⛔ Refusing it re-opens the defect the branch was written against, and on the very path it exists
- * to survive. Process killed with the composer open: the row stays `EDITING`; at the next start
- * `SternaApplication`'s revert runs in `appScope` behind an enumeration of accounts while
- * `prepare()` reads the row live, and the composer usually wins the race; it is answered
+ * to survive. Process killed with the composer open: the row stays `EDITING` — the startup sweep
+ * does not take it back any more ([LocalDraftDao.revertUploadingToPending]), precisely so that the
+ * restored composer finds it exactly where it left it. Refused, it is answered
  * [LocalDraftEdit.Busy] and returns BEFORE arming `editingDraftId` / `editingLocalDraftId` /
  * `replacesEmailId`; but `applied` is a `rememberSaveable` that survived the process, so
  * `draftReopenView` draws `Editor` — the sentence below is never shown — and the user is in a
@@ -222,8 +222,10 @@ fun localDraftMayBeTakenForEdit(state: LocalDraftState): Boolean = when (state) 
  * the caller — the writer [LocalDraftState.EDITING] never had.
  *
  * ⛔ **The state everything already respects and nothing ever wrote.** `LocalDraftDao.pending`
- * excludes it, `localDraftUploadIsDue` excludes it, and startup reverts it — but while the row was
- * unreachable nothing ever set it. Reopening the row opens exactly the race it was written for: the
+ * excludes it and `localDraftUploadIsDue` excludes it — but while the row was unreachable nothing
+ * ever set it. ⛔ And nothing but [giveLocalDraftEditBack] ever unsets it: the startup sweep
+ * (`LocalDraftDao.revertUploadingToPending`) leaves the state alone, so this write is a promise the
+ * composer alone can keep. Reopening the row opens exactly the race it was written for: the
  * network comes back while the composer is open, the worker uploads, and `discardLocalDraft` takes
  * the row AND its attachment directory away under the user. Her "Save" then lands on a fresh row
  * with no files, and the server keeps a copy of the text she was still editing.
@@ -296,7 +298,13 @@ suspend fun takeLocalDraftEditOrGiveItBack(
 
 /**
  * Give a row taken with [takeLocalDraftEdit] back to the upload worker, and re-arm the job that
- * would have uploaded it.
+ * would have uploaded it — ⛔ **the only way out of [LocalDraftState.EDITING] there is.**
+ *
+ * The startup sweep does not touch that state ([LocalDraftDao.revertUploadingToPending]): a cold
+ * start cannot tell a row a restored composer is about to take from one nobody will ever claim, and
+ * guessing wrong hands the text being typed to the upload worker. So there is no net under this —
+ * a screen that leaves without calling it leaves the draft held for ever, and `abandonPlan` is where
+ * that is decided, path by path.
  *
  * ⛔ **Only an `EDITING` row**, exactly as `MailRepository.releaseOutboxEdit` does: any other state
  * means this composer no longer owns the row — a save has already re-written it `PENDING`, or an
@@ -432,13 +440,14 @@ data class AbandonPlan(
  * ([commitThenConsumeLocalDraft]) itself when it lands. Releasing the local row from under it — as
  * closing the screen did, because the release sat ABOVE the guard — puts the row back to PENDING,
  * the upload worker takes it, and a copy of the message that has just gone out is filed in the
- * server's Drafts. `SternaApplication`'s startup re-arm then puts it back for good.
+ * server's Drafts, permanently.
  *
  * ⛔ **And the two are independent**, which is why the release cannot simply be moved to the bottom
  * of `abandon()` instead: every reopened local draft has a null outbox id, so written under
  * `editingOutboxId ?: return` the release would never run at all and the row would stay EDITING for
- * ever — held back from the upload worker and from the startup re-arm by the very state that was
- * meant to be temporary. The place is the middle one: under the [sending] guard, above the outbox
+ * ever — held back from the upload worker, and no longer rescued by anything: the startup sweep
+ * leaves `EDITING` alone on purpose, so this release is the only way out. The place is the middle
+ * one: under the [sending] guard, above the outbox
  * `?: return`.
  *
  * ⛔ **[emptying] withholds the phone's own row, and only that one** (#95 × #69). The close that
@@ -453,8 +462,9 @@ data class AbandonPlan(
  * is how it was written: one field cannot carry two decisions. `editingLocalDraftId` is "which row
  * this composer holds", and blanking it to mean "give nothing back this once" also erased the
  * answer to the first question — so a `submit` that FAILED left the row `EDITING` with nobody left
- * to release it. Held back from the upload worker and from the startup re-arm, never uploaded again
- * until the next cold start, on the very path where the user has been told her deletion failed.
+ * to release it. Held back from the upload worker and rescued by nothing — the startup sweep leaves
+ * `EDITING` alone — the draft is then never uploaded again at all, on the very path where the user
+ * has been told her deletion failed.
  * ⛔ And "give it back on the failure" is NOT the fix: the composer is still open, she still holds
  * the row, and `EDITING` is the true state. Nothing is lost by keeping it — the text is on the
  * phone — while releasing it sends the server the text she has just erased.
@@ -481,9 +491,10 @@ fun abandonPlan(
  * nowhere else, which is exactly the shape `discardLocalDraft` already has on the upload path.
  *
  * ⛔ And it must HAPPEN. Left behind, the row stays at the top of Drafts with its "not on the server
- * yet" pill after the message has gone, `SternaApplication`'s startup re-arm puts it back to
- * `PENDING`, and the upload worker files a copy of an already-sent message in the server's Drafts,
- * for good.
+ * yet" pill after the message has gone — in `EDITING`, which no sweep takes back any more — and it
+ * stays there over restarts, hiding the server draft it names (`replacesEmailId`) behind it. Reopen
+ * and close that ghost once and the release hands it to the upload worker, which files a copy of an
+ * already-sent message in the server's Drafts, for good.
  *
  * ⛔ **Which is why the pair is SHELTERED FROM CANCELLATION, and both halves together.** The caller
  * is `viewModelScope`, and that scope dies with the screen: the composer's X stays live during a

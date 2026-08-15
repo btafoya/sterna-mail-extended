@@ -32,9 +32,9 @@ class LocalDraftRearmWiringTest {
         //  - the rescue runs BEFORE the scheduling, or a row stranded in UPLOADING by a process
         //    death is still UPLOADING when the queue is read and gets a work item that will find
         //    it already in flight;
-        //  - it runs PER ACCOUNT. `revertUnfinishedToPending` is scoped for a reason: a global
-        //    UPDATE would flip another account's EDITING row back to PENDING while its composer is
-        //    open, and the upload worker would take the text away from under the user.
+        //  - it runs PER ACCOUNT. `revertUploadingToPending` is scoped for a reason: a global
+        //    UPDATE would reach another account's row, whose upload may be genuinely in flight in
+        //    this very process rather than left behind by a death.
         val lines = linesOf(APPLICATION)
         assertEquals(
             "AppContainer must re-arm the local drafts at startup, exactly as it re-arms the outbox:",

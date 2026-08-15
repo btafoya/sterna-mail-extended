@@ -325,14 +325,18 @@ internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPa
  *
  * - **A first save** ([existing] null) has nothing to protect. It goes down in
  *   [LocalDraftState.STAGING], with the `attachmentsJson` "[]" [localDraftRow] built, which every
- *   reader of the queue skips: a process killed before the files are copied leaves a row nobody
- *   uploads amputated (#70), and there was nothing else to lose.
+ *   reader of the QUEUE skips: a process killed before the files are copied leaves a row nobody
+ *   uploads amputated (#70), and there was nothing else to lose — the next start hands that row
+ *   back as [LocalDraftState.PENDING], attachment-less and flagged `bodyIsLossy`
+ *   (`revertStagedToPendingLossy`), which is all there is left to save of it.
  * - **A re-save** lands on a row that is already whole, and may already be uploadable. So it writes
  *   the new text — that half is the promise of the volet and is not negotiable — and KEEPS what the
  *   row carries: the descriptors of the files staged by the save that worked, and its state. Copied
  *   over with "[]" and [LocalDraftState.STAGING], as this used to do, a process killed at exactly
- *   this instant turned a draft that was going to leave into a row that `LocalDraftDao.pending`,
- *   the deferred worker and the startup re-arm all walk past — text nobody reads any more.
+ *   this instant turned a draft that was going to leave with its files into a row the re-arm hands
+ *   back saying "[]" — i.e. the attachments of a save that HAD worked, dropped, and the draft sent
+ *   amputated. ⭐ This is also why a stranded [LocalDraftState.STAGING] row is always a first save,
+ *   and therefore always one whose attachments never existed on the row at all.
  *
  * The new descriptors replace them only once [stageLocalDraftAttachments] has actually written the
  * new bytes, in [saveDraftLocalFirst]'s second [upsert].
@@ -377,8 +381,10 @@ internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEnt
  * network — that is the whole promise of the volet. What [LocalDraftState.STAGING] closes is the
  * other end: a process killed BETWEEN the two upserts (the `catch` only ever covered the exception
  * case) left a row saying "[]" that a later upload would have sent amputated, silently. Now such a
- * row is simply not picked up. One enum value, no second flag and no state machine; the price is a
- * row that waits for the volet that will sweep [LocalDraftState.STAGING] up, stated as debt.
+ * row is not picked up by any upload, and the next start hands it back as
+ * [LocalDraftState.PENDING] without attachments and flagged `bodyIsLossy`
+ * (`revertStagedToPendingLossy`): the descriptors died with the process, so the row must never be
+ * taken for a faithful replacement of a server draft whose attachments are still up there.
  *
  * ⛔ [discard] is on the success path and nowhere else. Moved to a `finally`, or run before the
  * outcome is known, it would be strictly worse than the bug this fixes: the screen would say the
@@ -441,10 +447,11 @@ internal suspend fun saveDraftLocalFirst(
     // directory the rollback removes belongs to the draft, not to one save of it.
     // ⛔ [NonCancellable]: this rollback runs from a coroutine that may ALREADY be cancelled, and
     // `discardLocalDraft` is two `runCatching` — the first swallows the CancellationException the
-    // Room delete throws, the second (a plain file delete) goes through regardless. What survived
-    // was a row in [LocalDraftState.STAGING] saying "[]" whose staged bytes had just been removed,
-    // and no reader ever picks that up: `LocalDraftDao.pending` skips STAGING and
-    // `revertUnfinishedToPending` only revives EDITING/UPLOADING. Half a delete is worse than none.
+    // Room delete throws, the second (a plain file delete) goes through regardless. What survives
+    // is a row in [LocalDraftState.STAGING] saying "[]" whose staged bytes have just been removed —
+    // a save the user was told failed, that the next start's `revertStagedToPendingLossy` hands
+    // back as PENDING and that then leaves without a single one of the files she attached. Half a
+    // delete is worse than none.
     val staged = stageOrRollback(
         rollback = { withContext(NonCancellable) { if (existing == null) discard(row) } },
     ) { stage(row) }
@@ -456,8 +463,10 @@ internal suspend fun saveDraftLocalFirst(
     // (`stageLocalDraftAttachments` is plain file copying), so a cancellation arriving while the
     // attachment bytes are copied is FIRST SEEN HERE — on the write that turns a staged row into an
     // uploadable one, and outside the `try` below, so nothing catches it. Cut here, a first save
-    // leaves a STAGING row saying "[]" with its bytes on disk, which nothing ever uploads and no
-    // force-stop rescues; a re-save leaves the NEW text beside the descriptors and the state of the
+    // leaves a STAGING row saying "[]" with its bytes on disk: no upload takes it, and the next
+    // start's `revertStagedToPendingLossy` sends the text WITHOUT those bytes, which are orphaned in
+    // the draft's directory until it is discarded; a re-save leaves the NEW text beside the
+    // descriptors and the state of the
     // OLD one — including the [LocalDraftState.EDITING] lease the composer took when it reopened
     // the draft, which `localDraftUploadIsDue` reads as "not mine to send".
     withContext(NonCancellable) { upsert(durable) }

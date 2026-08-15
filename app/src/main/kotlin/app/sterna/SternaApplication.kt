@@ -147,11 +147,26 @@ class AppContainer(context: Context) {
         // was written and the job was not leaves a draft waiting on nothing — and unlike a send,
         // nothing else will ever come and ask about it.
         //
-        // ⛔ Per account, and the rescue BEFORE the scheduling. `revertUnfinishedLocalDrafts` is
-        // scoped because a global UPDATE would flip ANOTHER account's EDITING row back to PENDING
-        // while its composer is open, and the upload worker would then take the text away from
-        // under the user. The rows come back backed-off ones included, each with its own delay:
-        // nothing here gives up on a draft, it only asks about it less often.
+        // ⛔ What the rescue picks up, and it is TWO states and no more: a row left UPLOADING by a
+        // process that died mid-attempt (nobody is looking at it any more, and no composer can have
+        // taken it — `localDraftMayBeTakenForEdit` refuses that state), and a row left STAGING mid
+        // file-copy, which comes back flagged `bodyIsLossy` so it cannot destroy the server original
+        // it names.
+        //
+        // ⛔ **And NOT an EDITING row — do not "repair" that back in.** This runs from appScope
+        // while Android is still restoring the back stack, i.e. BEFORE the composer that was killed
+        // with a draft open has read its row back (it takes EDITING again on purpose). Flipping it
+        // to PENDING here hands the text being typed to the upload worker, which deletes the row and
+        // its attachment directory on a successful upload: the user's next "Save" mints a second
+        // row, so two drafts on the server and the edit lost. That is measured, on IMAP and on JMAP.
+        // EDITING is given back by `MailRepository.releaseLocalDraftEdit`, and no sweep takes it
+        // back. (It is not claimed that nothing else ever overwrites the state — the upload worker
+        // still writes UPLOADING after reading the row, which is its own, older window.)
+        //
+        // ⛔ Per account, and the rescue BEFORE the scheduling — a row still UPLOADING when the
+        // queue is read gets a work item that finds it already in flight. The rows come back
+        // backed-off ones included, each with its own delay: nothing here gives up on a draft, it
+        // only asks about it less often.
         appScope.launch {
             runCatching {
                 mailRepository.accountsWithLocalDrafts().forEach { accountId ->

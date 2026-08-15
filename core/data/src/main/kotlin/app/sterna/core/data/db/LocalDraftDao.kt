@@ -61,8 +61,11 @@ interface LocalDraftDao {
      * `UPLOADING` is included on purpose. It is the state a row is left in by a process that died
      * mid-upload, and leaving it out would strand exactly the draft whose upload we are least sure
      * about. `EDITING` is excluded for the reason [LocalDraftState.EDITING] gives, and
-     * ⛔ [LocalDraftState.STAGING] for the reason that one gives: such a row's `attachmentsJson` is
-     * still "[]" while its files are being copied, so picking it up sends the draft amputated.
+     * ⛔ [LocalDraftState.STAGING] for its own: such a row's `attachmentsJson` is still "[]" while
+     * its files are being copied, so picking it up sends the draft amputated. ⛔ That exclusion
+     * STAYS — a row whose copy is genuinely in flight is not the worker's. What keeps it from being
+     * a dead end is [revertStagedToPendingLossy], which at the next start hands a `STAGING` row
+     * that outlived its process back as `PENDING`, flagged so it cannot destroy an original.
      *
      * ⛔ [nowMillis] is a PARAMETER, not a `strftime`/`CURRENT_TIMESTAMP` in the statement. A query
      * that reads the clock itself cannot be tested at a chosen instant, and this one decides whether
@@ -79,6 +82,11 @@ interface LocalDraftDao {
     /**
      * The accounts holding at least one draft that is not on the server yet — so a startup re-arm
      * can find its work without any query reading across accounts. Ids of accounts, never mail.
+     *
+     * ⛔ EVERY row counts, whatever its state, and a `WHERE` here would be the quietest way to undo
+     * the re-arm: this is its FIRST link, and an account left out is never asked about again. An
+     * account whose only row is [LocalDraftState.STAGING] is precisely the one that needs it.
+     * `LocalDraftDaoSqlTest` executes this statement rather than trusting the call site.
      */
     @Query("SELECT DISTINCT accountId FROM local_drafts")
     suspend fun accountsWithDrafts(): List<String>
@@ -88,20 +96,87 @@ interface LocalDraftDao {
     suspend fun setState(accountId: String, id: String, state: LocalDraftState)
 
     /**
-     * Bring back every row of ONE account left mid-edit or mid-upload by a process that died (#70's
-     * rule for the outbox, applied here): the edit is unrecoverable, the draft is not.
+     * Bring back every row of ONE account left mid-upload by a process that died (#70's rule for the
+     * outbox, applied here): the attempt is unrecoverable, the draft is not.
+     *
+     * ⭐ **Why an [LocalDraftState.UPLOADING] row must come back, and why it is safe to bring it
+     * back blind.** It is what a process killed mid-upload leaves behind, so nobody is looking at it
+     * any more: the worker that owned it died with the process, and no composer can have taken it in
+     * the meantime — `localDraftMayBeTakenForEdit` refuses that state outright. Left alone the row
+     * is frozen for ever: `pending` counts it as due, but nothing ever books a work item for it
+     * again, so the draft never reaches the server and not a word is said.
+     *
+     * ⛔ **[LocalDraftState.EDITING] is NOT here, and that is the decision this statement carries.**
+     * The state means a composer HOLDS the row; flipping it hands the text being typed to the upload
+     * worker, which on a successful upload calls `discardLocalDraft` — the row AND its attachment
+     * directory deleted under the user, her "Save" landing on a fresh row, and two drafts on the
+     * server. And a cold start cannot tell the two cases apart: this runs from `appScope` while
+     * Android is still restoring the back stack, i.e. BEFORE the composer killed with a draft open
+     * has read its row back (`localDraftMayBeTakenForEdit` accepts `EDITING` for exactly that), so
+     * no id, no lease and no timing can be consulted here. Left alone, the row is still `EDITING`
+     * when the restored screen reads it, and `localDraftUploadIsDue` answers not-due on that state —
+     * so neither the work items booked at startup nor the ones WorkManager replays can consume it.
+     * The sweep has no race left to win because it no longer enters one.
+     *
+     * ⚠ **What that does NOT say**: it does not say nothing else ever writes over `EDITING`. The
+     * upload worker reads a row and then calls `setState(UPLOADING)` unconditionally
+     * (`MailRepository.uploadLocalDraft`), so a composer taking the row between those two steps is
+     * still overwritten — a narrow read-then-write window this statement neither opens nor closes,
+     * and which predates it (`findings/le-televerseur-ecrase-un-etat-qu-il-a-lu-avant.md`). What is
+     * claimed here is only this: THIS sweep no longer touches the state.
+     *
+     * ⛔ [LocalDraftState.STAGING] is not here either — it has its own statement,
+     * [revertStagedToPendingLossy], because it cannot come back on the same terms. A row rescued
+     * here is WHOLE: its `attachmentsJson` already describes files that exist, so it may replace
+     * the server draft it names and let the original be destroyed. Merged into one statement, a
+     * staged row would inherit that permission, and merging them back is the data loss that
+     * statement's KDoc describes.
      *
      * ⛔ Scoped, like every other write here. Unscoped, a re-arm triggered by one account signing in
-     * would flip another account's `EDITING` row back to `PENDING` while its composer is open — and
-     * the upload worker would take the text away from under the user, which is the one thing
-     * [LocalDraftState.EDITING] exists to prevent. [accountsWithDrafts] is how a startup finds the
-     * accounts to call this for.
+     * would reach another account's row — and that account's upload may be genuinely in flight in
+     * this very process, in which case the state is not a leftover at all. [accountsWithDrafts] is
+     * how a startup finds the accounts to call this for.
+     */
+    @Query("UPDATE local_drafts SET state = 'PENDING' WHERE accountId = :accountId AND state = 'UPLOADING'")
+    suspend fun revertUploadingToPending(accountId: String)
+
+    /**
+     * Bring ONE account's rows back from a process death mid-STAGING — to [LocalDraftState.PENDING]
+     * and ⛔ **flagged [LocalDraftEntity.bodyIsLossy]**.
+     *
+     * ⭐ Why such a row is re-armed at all: nothing else reaches it. [pending] skips it, the
+     * composer refuses it (`localDraftMayBeTakenForEdit`), and no gesture in the Drafts list
+     * touches a local row — so it sat in the list for ever, drawn but unopenable, hiding the server
+     * draft it names behind it, and the only way out was signing the account out, which deletes the
+     * text. The state is FLIPPED, nothing is replayed: an orphan `STAGING` row is always a FIRST
+     * save (a re-save copies `existing.state`, see `localDraftStagingRow`), so it carries
+     * `attachmentsJson` "[]", and the identity of what was attached — source path, type, `cid`,
+     * disposition — lived only in the composer's memory and died with the process. No column holds
+     * it, so it cannot be re-staged.
+     *
+     * ⛔ **And why it comes back LOSSY, which is the half that keeps this from destroying mail.**
+     * Whether those attachments are lost depends on the row:
+     * - a draft written from scratch — the bytes are gone whatever we do, the typed text is not,
+     *   and an empty descriptor list is an attachment ABSENT, not a truncated one;
+     * - a draft that REPLACES a server one ([LocalDraftEntity.replacesEmailId]) — the attachments
+     *   are ON THE SERVER, in the original. Uploaded as it stands, "[]" yields 0 parts, so
+     *   `draftReplacementIsFaithful` compares 0 to 0, calls the replacement faithful, and
+     *   `finishDraftSave` DESTROYS the original that held the files.
+     *
+     * [LocalDraftEntity.bodyIsLossy] is the column that exists to say "this replacement cannot
+     * reproduce the original" (`draftReplacementIsFaithful` is `!bodyIsLossy && …`). Set here, the
+     * upload keeps the original and answers `ORIGINAL_KEPT`: the user finds two drafts and deletes
+     * one. A duplicate is deletable, a destroyed original is not — so the flag is set on every
+     * rescued row, including the from-scratch ones where it costs nothing, rather than on a
+     * condition this statement would have to get right for ever.
+     *
+     * ⛔ Scoped like the rest: another account's `STAGING` row may be a save running right now.
      */
     @Query(
-        "UPDATE local_drafts SET state = 'PENDING' " +
-            "WHERE accountId = :accountId AND state IN ('EDITING', 'UPLOADING')",
+        "UPDATE local_drafts SET state = 'PENDING', bodyIsLossy = 1 " +
+            "WHERE accountId = :accountId AND state = 'STAGING'",
     )
-    suspend fun revertUnfinishedToPending(accountId: String)
+    suspend fun revertStagedToPendingLossy(accountId: String)
 
     /**
      * Record a failed upload: what went wrong, when, and when to try again. ⚠ No state change to a

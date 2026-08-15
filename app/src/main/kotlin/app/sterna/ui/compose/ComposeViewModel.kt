@@ -1265,9 +1265,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      *    flight (INV-6: that send consumes the row itself) and on a row the close has already given
      *    back (#127) — which is all this gesture needs of a one-shot take. ⛔ Blanking it up front,
      *    as this was written, is `abandonPlan`'s defect one gesture further along: the composer then
-     *    answers "I hold no row" to everything downstream, a failure leaves the row `EDITING` with
-     *    nobody left to release it, and `SternaApplication.revertUnfinishedLocalDrafts` puts it back
-     *    `PENDING` at the next launch — uploading the draft that was just deleted;
+     *    answers "I hold no row" to everything downstream and a failure leaves the row `EDITING`
+     *    with nobody left to release it — a ghost no startup sweep takes back, which the first
+     *    reopen-and-close uploads: the draft that was just deleted, filed in Drafts;
      *  - the row goes back to the upload worker when nothing was destroyed, and to NOBODY when
      *    something was: [localDraftLeaseAfterDelete], handed the lease AS IT STANDS at the end. The
      *    failure is atomic — everything that throws is in front of any destruction — so a deletion

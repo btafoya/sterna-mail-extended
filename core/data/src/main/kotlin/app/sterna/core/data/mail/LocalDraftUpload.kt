@@ -269,7 +269,7 @@ fun localDraftUploadIsDue(state: LocalDraftState, notBeforeMillis: Long, nowMill
  * ⛔ A failure does NOT reach the caller and is not a reason to stop: it is written on the row and
  * reported as [LocalDraftUploadStep.KEPT_FOR_LATER]. A [CancellationException] is not a failure —
  * the worker is being stopped — so it is rethrown and the row keeps the state it had, which the next
- * startup's `revertUnfinishedToPending` rescues.
+ * startup's `revertUploadingToPending` rescues.
  */
 @Suppress("LongParameterList")
 internal suspend fun uploadLocalDraftOnce(

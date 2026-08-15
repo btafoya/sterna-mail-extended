@@ -120,10 +120,10 @@ fun emptiedLocalDraftKeepsServerCopy(replacedServerDraftId: String?, bodyIsLossy
  *
  * ⛔ **The lease is a decision, not a field to blank.** Blanked up front — as this gesture was
  * written — the composer answered "I hold no row" to everything downstream: a `submit` that threw
- * left the row `EDITING` with nobody left to release it, the close gave nothing back, and
- * `SternaApplication.revertUnfinishedLocalDrafts` put it to `PENDING` at the next launch and had the
- * upload worker file, in the server's Drafts, the draft the user had just deleted. The same defect
- * `abandonPlan` was written to end, one gesture further along.
+ * left the row `EDITING` with nobody left to release it and the close gave nothing back, so the row
+ * sat in the Drafts list as a ghost of a draft the user had just deleted — no sweep takes `EDITING`
+ * back — and the first reopen-and-close handed it to the upload worker, which filed it in the
+ * server's Drafts. The same defect `abandonPlan` was written to end, one gesture further along.
  *
  * ⭐ **The failure is atomic: nothing happened.** Everything that can throw sits IN FRONT of any
  * destruction (`credentials()`, `draftMailboxOf`, enqueuing `destroyDurably`) and
@@ -168,9 +168,10 @@ fun localDraftLeaseAfterDelete(lease: String?, destroyed: Boolean): String? =
  * `commitThenConsumeLocalDraft` carries for the same reason, one gesture away. The caller is
  * `viewModelScope`, which dies with the `NavBackStackEntry` the composer is scoped to: the back
  * gesture, in the second this runs. Cancelled between the destroy and the consume, the server copy
- * is destroyed AND the local row survives — `revertUnfinishedLocalDrafts` puts it back `PENDING` at
- * the next launch and the upload worker files, in the server's Drafts, the draft the user deleted,
- * brand new. Cancelled between the eviction and the consume, the same. Both halves of the window
+ * is destroyed AND the local row survives — held in `EDITING`, which no startup sweep takes back, so
+ * it stays in the Drafts list as the draft the user deleted, and the first reopen-and-close hands it
+ * to the upload worker, which files it in the server's Drafts brand new. Cancelled between the
+ * eviction and the consume, the same. Both halves of the window
  * are inside these three lines, so the shelter holds all three.
  *
  * ⛔ **And no wider.** A cancellation that arrives BEFORE anything is destroyed is honoured, and must

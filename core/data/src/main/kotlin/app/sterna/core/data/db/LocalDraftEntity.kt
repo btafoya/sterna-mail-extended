@@ -17,16 +17,30 @@ enum class LocalDraftState {
     /**
      * The text is written; the attachment bytes are still being copied.
      *
-     * ⛔ Deliberately NOT picked up by [LocalDraftDao.pending], and deliberately NOT re-armed by
-     * [LocalDraftDao.revertUnfinishedToPending]. A row is born here and leaves for [PENDING] in the
-     * same call, once the files exist and their descriptors are on the row. The window is short, and
-     * a process that dies inside it is exactly the case this value exists for: what survives says
-     * `attachmentsJson` "[]" while the composer was showing chips, and uploading THAT would send a
-     * draft amputated of its files, weeks later, in silence (#70's rule for the outbox, applied
-     * here). An amputated send is not recoverable; a stranded row is.
+     * ⛔ Deliberately NOT picked up by [LocalDraftDao.pending]: a row is born here and leaves for
+     * [PENDING] in the same call, once the files exist and their descriptors are on the row. The
+     * window is short, and a process that dies inside it is exactly the case this value exists for:
+     * what survives says `attachmentsJson` "[]" while the composer was showing chips, and uploading
+     * THAT would send a draft amputated of its files, weeks later, in silence (#70's rule for the
+     * outbox, applied here). An amputated send is not recoverable; a stranded row is.
      *
-     * ⚠ Nothing sweeps a stranded [STAGING] row up yet — it is left to the upload volet, which is
-     * where the attachments could be re-staged or the row honestly reported. Assumed debt.
+     * ⭐ So it is never UPLOADED here — [LocalDraftDao.pending] and `localDraftUploadIsDue` both keep
+     * excluding it — but it is RE-ARMED at the next start:
+     * [LocalDraftDao.revertStagedToPendingLossy] brings a [STAGING] row back to [PENDING], WITHOUT
+     * its attachments and ⛔ **flagged [LocalDraftEntity.bodyIsLossy]**. Such an orphan is always a
+     * FIRST save (a re-save copies the row's own state, see `localDraftStagingRow`), so it carries
+     * "[]", and the identity of what was attached — source path, type, `cid`, disposition — lived
+     * only in the composer's memory and died with the process; no column holds it, so it cannot be
+     * re-staged. What that costs depends on the row, and the two cases are not the same:
+     * - written from scratch, the bytes are gone either way and the typed text is not; the row then
+     *   shows no attachment, which is the truth rather than a truncation;
+     * - replacing a server draft ([LocalDraftEntity.replacesEmailId]), the attachments are still ON
+     *   THE SERVER. Sent as a faithful replacement, "[]" would have the original — and its files —
+     *   destroyed. The flag is what stops that: `draftReplacementIsFaithful` fails, the original is
+     *   kept, and the user is left a duplicate to delete instead of a loss to discover.
+     *
+     * That is what keeps this enum's promise above — no terminal state, and no state whose rescue
+     * costs mail.
      */
     STAGING,
 
@@ -38,9 +52,26 @@ enum class LocalDraftState {
 
     /**
      * Open in the composer (#70's rule, applied to drafts): held back from the upload worker while
-     * it is being edited, so the phone and the server can never race over the same text. A process
-     * death mid-edit strands a row here, so startup returns any [EDITING] row to [PENDING] — the
-     * edit is gone, the draft is not.
+     * it is being edited, so the phone and the server can never race over the same text.
+     *
+     * ⛔ **Written by the composer, and given back by the composer alone — no sweep takes it back.**
+     * ⚠ Not to be read as "nothing else ever writes over it": the upload worker's
+     * `setState(UPLOADING)` follows its read of the row without re-checking the state, so a take
+     * that lands between the two is overwritten (`findings/le-televerseur-ecrase-un-etat-qu-il-a-lu-avant.md`).
+     * A process death
+     * mid-edit strands a row here and the next start does NOT take it back
+     * ([LocalDraftDao.revertUploadingToPending] rescues [UPLOADING] only): Android restores the back
+     * stack, so the composer that was killed comes back and reads this very row a moment later
+     * (`localDraftMayBeTakenForEdit` accepts [EDITING] for exactly that), and a sweep running from
+     * `appScope` beforehand cannot tell that case from an abandoned row. Flipped to [PENDING] in
+     * between, the row is due for `LocalDraftDao.pending`, the upload worker takes it, and a
+     * successful upload deletes the row and its attachment directory while the user is typing into
+     * them — two drafts on the server and the edit lost.
+     *
+     * ⚠ The price, named: a row whose composer never comes back (`abandonPlan` withholds the release
+     * on a `submit` that failed, and a `giveLocalDraftEditBack` that never runs) waits here instead
+     * of being uploaded. The text is on the phone, visible in the Drafts list and openable
+     * (`localDraftMayBeTakenForEdit`), so what is delayed is the upload, not the draft.
      */
     EDITING,
 }

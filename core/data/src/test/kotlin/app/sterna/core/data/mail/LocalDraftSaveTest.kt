@@ -491,9 +491,9 @@ class LocalDraftSaveTest {
         // attachment bytes are copied is FIRST SEEN at the write that turns the staged row into an
         // uploadable one — which sits outside the `try`, so nothing catches it. What was left was a
         // row in STAGING saying "[]" with its bytes already on disk: `LocalDraftDao.pending` skips
-        // STAGING and `revertUnfinishedToPending` only revives EDITING/UPLOADING, so that draft
-        // never leaves — not after a restart, not after a force-stop. Worse than the defect this
-        // volet fixed, which healed itself in 7 s.
+        // STAGING, so no upload takes it, and the startup re-arm only rescues it as a draft WITHOUT
+        // the files that are sitting right there on disk. Which is why the write below is
+        // NonCancellable: the row comes out PENDING and describing its bytes, here and now.
         val source = File(filesDir, "compose-cache").apply { mkdirs() }
         val attached = File(source, "notes.txt").apply { writeText("hello") }
         val part = EmailBodyPart(partId = attached.absolutePath, name = "notes.txt", size = 5L)

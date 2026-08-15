@@ -551,9 +551,9 @@ class LocalDraftReopenWiringTest {
      *    flight (INV-6) and refused on a row the close has already given back (#127), which is the
      *    only half of a one-shot take this gesture needs. ⛔ Blanking it here is the defect
      *    `abandonPlan` was written to end, one gesture further along: the composer then answers "I
-     *    hold no row" to everything downstream, a failure leaves the row `EDITING` with nobody left
-     *    to release it, and `revertUnfinishedLocalDrafts` puts it back `PENDING` at the next launch
-     *    so the upload worker files, in the server's Drafts, the draft that was just deleted;
+     *    hold no row" to everything downstream and a failure leaves the row `EDITING` with nobody
+     *    left to release it — a ghost no startup sweep takes back, which the first reopen-and-close
+     *    hands to the upload worker: the draft that was just deleted, filed in the server's Drafts;
      *  · ⛔ `destroyReplacedServerDraft`, never `consumeEditingLocalDraft` on its own. That one
      *    takes the row and its files and nothing else — and while the row exists it is the ONLY
      *    thing naming the server draft it replaced (`replacedServerIds` / `hidesServerRow`).
