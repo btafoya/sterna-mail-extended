@@ -145,6 +145,84 @@ class RemoteImagesTest {
         )
     }
 
+    // ── imagesStripPresent, executed ───────────────────────────────────────────────────────────
+    //
+    // The whole truth table, inputs and answers written out as literals. Nothing here recomputes
+    // `!plainText && !senderAllowed && …`: with the rule copied, the shipped condition could be
+    // inverted and this section would follow it down.
+
+    @Test fun `in text mode a blocked newsletter gets no strip`() {
+        assertFalse(
+            "reading mode is TEXT, so the document holds no image to hold back and " +
+                "showRemoteImages() stays false for as long as that mode holds. A strip drawn " +
+                "here says \"Show images\" with a LIVE button that changes nothing when tapped, " +
+                "again and again, for good — the reported defect",
+            imagesStripPresent(
+                plainText = true,
+                senderAllowed = false,
+                html = """<img src="https://t.example.com/px.gif">""",
+            ),
+        )
+    }
+
+    @Test fun `in text mode an allowed sender gets no strip either`() {
+        assertFalse(
+            "nothing is held back and nothing is rendered: two reasons for no strip",
+            imagesStripPresent(
+                plainText = true,
+                senderAllowed = true,
+                html = """<img src="https://t.example.com/px.gif">""",
+            ),
+        )
+    }
+
+    @Test fun `in text mode a body with nothing remote gets no strip`() {
+        assertFalse(
+            imagesStripPresent(plainText = true, senderAllowed = false, html = "<p>hello</p>"),
+        )
+    }
+
+    @Test fun `in text mode a body that is not there gets no strip`() {
+        assertFalse(imagesStripPresent(plainText = true, senderAllowed = false, html = null))
+    }
+
+    @Test fun `in HTML mode a blocked newsletter gets its strip`() {
+        assertTrue(
+            "this is the nominal path of #153: HTML mode, sender not on the allowlist, a remote " +
+                "image in the document. No strip here and the reader sees a hole in her " +
+                "newsletter and is told nothing about it",
+            imagesStripPresent(
+                plainText = false,
+                senderAllowed = false,
+                html = """<img src="https://t.example.com/px.gif">""",
+            ),
+        )
+    }
+
+    @Test fun `in HTML mode an allowed sender gets no strip`() {
+        assertFalse(
+            "this sender's pictures are fetched without asking, so a strip would offer to " +
+                "unblock something that was never blocked",
+            imagesStripPresent(
+                plainText = false,
+                senderAllowed = true,
+                html = """<img src="https://t.example.com/px.gif">""",
+            ),
+        )
+    }
+
+    @Test fun `in HTML mode a body with nothing remote gets no strip`() {
+        assertFalse(
+            "nothing in this message is refused at load time, so the strip would be a row of " +
+                "header about nothing — and the header's height keys the body's HTML document",
+            imagesStripPresent(plainText = false, senderAllowed = false, html = "<p>hello</p>"),
+        )
+    }
+
+    @Test fun `in HTML mode a body that is not there gets no strip`() {
+        assertFalse(imagesStripPresent(plainText = false, senderAllowed = false, html = null))
+    }
+
     /**
      * SOURCE LINT, NOT A MEASUREMENT — Compose is not run here, so these rules would still pass on
      * a strip that laid out wrong. What they hold is the one property no reviewer can see in a
@@ -344,6 +422,45 @@ class RemoteImagesTest {
     }
 
     /**
+     * The hop ABOVE the one pinned just here, which nothing else in this class or in
+     * [ReaderBodyTest] reads: `MessageContent` is where the two answers are HANDED DOWN.
+     *
+     * [ReaderBodyTest] pins how `showRemote` and `plainText` are DECIDED; `HEADER_WIRING` above
+     * pins what `ConversationBody` does with `blockRemote` once it has it. Between the two there is
+     * one line each, and a single token changed on either passes the whole suite:
+     *
+     *  - `blockRemote = showRemote` inverts the app's privacy posture. The pictures of a sender the
+     *    reader never allowed are fetched — which tells that sender the message was opened and
+     *    gives him her IP address — while an allowed sender's are held back.
+     *  - `plainText = imageMode` hands the body, and with it the strip's presence, the IMAGE-side
+     *    answer. The two differ only until DataStore replies, so every message she opens renders a
+     *    frame as plain text and then swaps to HTML: the flicker `plainTextForBody` exists to stop.
+     */
+    @Test fun `the body is handed the reading-mode answer and the blocking state, not their twins`() {
+        val call = bodyCallLines()
+        assertTrue(
+            "MessageContent no longer opens the call on the line " +
+                "'$BODY_CALL_OPENING' — was it reformatted or moved? This rule reads that call " +
+                "and nothing else, so without this check it would pass on an empty list.",
+            call.isNotEmpty(),
+        )
+        assertEquals(
+            "MessageContent must hand ConversationBody these arguments VERBATIM, one whole line " +
+                "each: ${BODY_WIRING.joinToString(" · ")}.\n" +
+                "`blockRemote = !showRemote` is the app's privacy posture: NEGATED, the images of " +
+                "a sender the reader never allowed are fetched — telling him she opened the " +
+                "message and handing him her IP — while an allowed sender's are blocked.\n" +
+                "`plainText = plainText` is the READING-mode answer; `imageMode` is the " +
+                "image-side twin sitting on the line above it, and the two differ until DataStore " +
+                "replies — handed that one, every message she opens draws a frame of plain text " +
+                "before swapping to HTML, and the strip appears and disappears with it.\n" +
+                "Call site was:\n${call.joinToString("\n")}",
+            emptyList<String>(),
+            BODY_WIRING.filterNot { hasLine(call, it) },
+        )
+    }
+
+    /**
      * WHETHER the row is drawn at all — the condition no other rule in this class reads, and the
      * cheapest way left to bring the whole defect back.
      *
@@ -377,12 +494,25 @@ class RemoteImagesTest {
      * on anything else — or not remembered at all — an "always show images from this sender"
      * chosen from the overflow menu makes the strip VANISH mid-read: the header loses a whole row,
      * which re-keys the document exactly like a resize does.
+     *
+     * The key is `(full, plainText)`, and BOTH halves are part of the rule. ⚠ `plainText` is NOT
+     * free: the strip's own height feeds `topSpacerCssPx`, which the body's HTML remember() keys
+     * on, so a reading-mode toggle loads the document twice — once for the mode, once for the
+     * header that changed under it. It is allowed for that ONE gesture, which already replaces the
+     * document and puts the reader back at the top; the image-side mode (`imageMode`) is refused
+     * because it flips with no gesture at all, when DataStore answers.
      */
     @Test fun `the strip's presence is frozen for the life of the page`() {
         assertTrue(
-            "ConversationBody must decide the strip exactly once, keyed on `full` — the same key " +
-                "the body's HTML remember() already uses, so the two cannot disagree. Expected " +
-                "this line, verbatim:\n  $PRESENCE_LINE\nMessageScreen.kt has no line equal to it.",
+            "ConversationBody must decide the strip on `(full, plainText)` and on nothing else. " +
+                "Every other key costs body reloads for no gesture: this strip's own height is an " +
+                "input to the document's key (header height -> topSpacerCssPx), so anything that " +
+                "flips the presence reloads the body a SECOND time, after the mode's own reload. " +
+                "That is paid only for the reading-mode toggle, which replaces the document and " +
+                "re-tops the message anyway. NOT `imageMode`, which flips with no gesture when " +
+                "DataStore answers; NOT `senderAllowed`, which promises to move nothing. " +
+                "Expected this line, verbatim:\n  $PRESENCE_LINE\nMessageScreen.kt has no line " +
+                "equal to it.",
             hasLine(screenLines(), PRESENCE_LINE),
         )
     }
@@ -442,6 +572,16 @@ class RemoteImagesTest {
             .dropWhile { it != "MessageHeader(" }
             .takeWhile { it != ")" }
 
+    /**
+     * The `ConversationBody(...)` call inside `MessageContent` — the arguments only, on the same
+     * pattern as [headerCallLines], so a line matching somewhere else in that 130-line composable
+     * (the `val`s at the top of it, in particular) cannot satisfy the rule by accident.
+     */
+    private fun bodyCallLines(): List<String> =
+        block("private fun MessageContent(").lines().map { it.trim() }
+            .dropWhile { it != BODY_CALL_OPENING }
+            .takeWhile { it != ")" }
+
     private fun block(signature: String): String {
         val text = SOURCE.readText()
         val at = text.indexOf(signature)
@@ -497,9 +637,21 @@ class RemoteImagesTest {
             "onShowImages = onShowImages",
         )
 
+        /** Where `MessageContent` hands the page down; the arguments below are read from it. */
+        const val BODY_CALL_OPENING = "is MessageState.Loaded -> ConversationBody("
+
+        /**
+         * The two answers handed down from `MessageContent`, as they must appear at that call
+         * site. Each has a twin one token away (`showRemote`, `imageMode`) that compiles.
+         */
+        val BODY_WIRING = listOf(
+            "blockRemote = !showRemote",
+            "plainText = plainText",
+        )
+
         const val PRESENCE_LINE =
-            "val imagesStrip = remember(full) { full != null && !senderAllowed && " +
-                "hasRemoteRefs(full.htmlContent()) }"
+            "val imagesStrip = remember(full, plainText) { " +
+                "imagesStripPresent(plainText, senderAllowed, full?.htmlContent()) }"
 
         val STRIP_CALL = Regex("""\b[A-Z]\w*Strip\([^)\n]*\)""")
 

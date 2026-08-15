@@ -65,6 +65,35 @@ private val SRC_ATTR =
 private val SCHEME = Regex("""^([a-zA-Z][a-zA-Z0-9+.\-]*):""")
 
 /**
+ * Whether the header carries an images strip at all for this page — the presence question, taken
+ * out of the `@Composable` so a JVM test can RUN it rather than re-read it.
+ *
+ * It is answered on [plainText] — the reading mode the BODY is rendered in
+ * (`plainTextForBody`) — and deliberately NOT on the image-side mode (`plainTextForImages`).
+ * ⚠ The house rule written at the overflow menu ("guarded on `imageMode`, NOT on `plainText`")
+ * is about a menu that recomposes freely; it does not extend to a presence held the way this one
+ * is. Changing this answer mid-read costs TWO loads of the body's document, because the strip's
+ * own height feeds the key that document is built on — the full mechanism is written at the call
+ * site in `ConversationBody`, and it is the reason this takes the mode the DOCUMENT is keyed on.
+ * The image-side mode flips on its own the moment DataStore answers, so it would spend those two
+ * loads with no gesture behind them; [plainText] only changes when the reader asks for the other
+ * rendering, which reloads and re-tops the message anyway.
+ *
+ * ⚠ The debt that buys, stated rather than hidden: the two modes disagree while DataStore has not
+ * answered (`PLAIN_TEXT_DEFAULT` is false, `PLAIN_TEXT_UNLOADED_FOR_IMAGES` is true). In that
+ * window this says "strip", `showRemoteImages` says "hold the pictures back", and the button is
+ * live and does nothing — the reported defect, for a few frames, for every reader rather than for
+ * those who set the switch. It closes itself when DataStore answers, and the alternative spends a
+ * double document load on everyone whose switch is off.
+ *
+ * In text mode there is no image in the document to hold back, so there is nothing to announce and
+ * nothing a tap could change: `showRemoteImages` stays false while the mode holds, so a strip drawn
+ * there is a permanently dead button (its `enabled` never goes down and its label never changes).
+ */
+internal fun imagesStripPresent(plainText: Boolean, senderAllowed: Boolean, html: String?): Boolean =
+    !plainText && !senderAllowed && hasRemoteRefs(html)
+
+/**
  * What the images strip SAYS, and whether it can still be pressed — the decision taken out of the
  * `@Composable` so a JVM test can RUN it, on the pattern of [UnsubscribeStripBody].
  *

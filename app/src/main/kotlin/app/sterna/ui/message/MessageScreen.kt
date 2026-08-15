@@ -1360,8 +1360,10 @@ private fun ConversationBody(
     onRespondToInvite: (String) -> Unit,
     textZoom: Int,
     /** Read the message as text rather than as its HTML (#149). It selects the document below and
-     *  NOTHING else here: the reveal machinery is keyed on the message id, so a toggle rebuilds
-     *  the document without putting the spinner back over a body that is already on screen. */
+     *  decides, with it, whether the images strip exists at all (see `imagesStripPresent` and the
+     *  comment on `imagesStrip`) — and nothing else here: the reveal machinery is keyed on the
+     *  message id, so a toggle rebuilds the document without putting the spinner back over a body
+     *  that is already on screen. */
     plainText: Boolean,
     /** Whether the bottom Reply/Forward bar is wanted at all (#63). It gates the bar's visibility
      *  and the blank the document reserves for it, and NOTHING else: the reveal machinery below
@@ -1384,12 +1386,12 @@ private fun ConversationBody(
 ) {
     val msg = messages.firstOrNull() ?: return
     val full = msg.body
-    // Whether the header says anything about blocked pictures at all (#153) — decided ONCE, when
-    // the body arrives, and then frozen for the life of the page. Both halves of that matter:
-    //  · the ANSWER may not change, because the header's measured height keys the remember() that
-    //    builds the body's HTML document twenty lines below. A strip that appears or disappears
-    //    mid-read changes the header by a whole row, which re-keys that document and cancels the
-    //    body load in flight. What that costs depends on when it happens, and both are bad:
+    // Whether the header says anything about blocked pictures at all (#153) — decided when the
+    // body arrives, then held, and re-decided on ONE gesture only. Both halves of that matter:
+    //  · the ANSWER may not change on its own, because the header's measured height keys the
+    //    remember() that builds the body's HTML document twenty lines below. A strip that appears
+    //    or disappears mid-read changes the header by a whole row, which re-keys that document and
+    //    cancels the body load in flight. What that costs depends on when it happens, both bad:
     //    BEFORE the body has ever been revealed it costs the reveal itself — the height poll that
     //    sets `bodyReady` was armed by the load just superseded and nothing re-arms it, so the
     //    body sits at alpha 0 behind the spinner until the failsafe below lifts it. AFTER the
@@ -1398,11 +1400,31 @@ private fun ConversationBody(
     //    scroll position is lost, back to the top of the message. "Always show images from this
     //    sender", chosen from the overflow menu while reading, is exactly that gesture: it flips
     //    `senderAllowed`.
-    //  · the KEY is `full`, the same key the HTML remember() uses, so the two cannot disagree
-    //    about which body they are describing.
+    //  · the KEY is `(full, plainText)`, so exactly ONE thing can still flip this answer mid-read:
+    //    the reading-mode toggle in the overflow menu. ⚠ BE HONEST ABOUT WHAT THAT COSTS — the
+    //    tempting claim, that the flip merely rides the rebuild `plainText` triggers anyway, is
+    //    FALSE. The strip's presence is itself an input to the document's key, through the header
+    //    height: this row + its divider are ~49 dp, `onSizeChanged` writes `headerHeightPx` in the
+    //    LAYOUT phase (a pass later than the composition that saw `plainText` change), and that
+    //    feeds `topSpacerCssPx`, which the HTML remember() keys on. So the toggle loads the
+    //    document TWICE: once for the mode, then again for the header that changed under it.
+    //    That is accepted here, and only here, because the toggle is a gesture that ALREADY
+    //    replaces the whole document and already puts the reader back at the top — she asked for
+    //    a different rendering. It is NOT accepted for a gesture that promises to move nothing,
+    //    which is why `senderAllowed` stays out of the key (see above).
+    //    `plainText` and NOT `imageMode`, and the difference is exactly that gesture: the
+    //    image-side mode is absent from the document's key AND flips on its own, when DataStore
+    //    answers, so keying on it would spend those two loads with no gesture behind them, on
+    //    every reader whose setting is off. The price paid instead is the other way round and is
+    //    written at `imagesStripPresent`: while DataStore has not answered, the strip may be
+    //    decided present next to images that are held back, and its button does nothing for those
+    //    few frames. (The rule at the overflow menu, "guarded on `imageMode`, NOT on `plainText`",
+    //    is about a menu that recomposes freely; it does not extend to a presence held like this.)
     // `blockRemote` is deliberately NOT read here: it is the live state, and it chooses which of
     // the strip's two same-height shapes is drawn — never whether the strip exists.
-    val imagesStrip = remember(full) { full != null && !senderAllowed && hasRemoteRefs(full.htmlContent()) }
+    // In text mode there is no strip at all: `showRemoteImages` stays false while that mode holds,
+    // so the button could never do anything and would sit there live and dead (#149 × #153).
+    val imagesStrip = remember(full, plainText) { imagesStripPresent(plainText, senderAllowed, full?.htmlContent()) }
     val density = LocalDensity.current
     // The body WebView OWNS all vertical scroll. It fills the viewport (so Blink culls offscreen
     // tiles — the email-view jank fix, Codeberg #5) and there is NO outer Compose vertical scroll to
@@ -1682,8 +1704,9 @@ private fun MessageHeader(
     deliveredTo: String? = null,
     crypto: CryptoUiState = CryptoUiState.None,
     onCryptoAction: () -> Unit = {},
-    /** Whether this message has remote content that was held back — decided once, in
-     *  [ConversationBody], and frozen there for the life of the page. */
+    /** Whether this message has remote content that was held back — decided in [ConversationBody],
+     *  and held there for as long as the reading mode does NOT change. It is not frozen for the
+     *  life of the page: a reading-mode toggle re-decides it, at the cost written out there. */
     imagesStrip: Boolean = false,
     /** The LIVE state: which of the strip's two same-height shapes is drawn. */
     imagesBlocked: Boolean = true,

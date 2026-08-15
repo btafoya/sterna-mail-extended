@@ -98,6 +98,13 @@ internal fun readingModesDiffer(email: Email, derivedNotice: String): Boolean {
  * offers "Show images" over a body that cannot show any, or the reverse, is the state on screen
  * lying about the state in force. Plain-text mode has no image to load at all, so it wins over
  * both the per-message override and the sender allowlist.
+ *
+ * A THIRD place asks the reading-mode half of the same question, and does not call this function:
+ * [imagesStripPresent], which decides whether the header carries an images strip at all. It takes
+ * `plainText` (the body's mode) where these two take `imageMode`, because its answer is frozen
+ * into a `remember` whose key must stay included in the key of the body's HTML document —
+ * `plainText` is in that key and `imageMode` is not. Same verdict once DataStore has answered;
+ * before that, the two guards differ on purpose (see the overflow menu in `MessageScreen`).
  */
 internal fun showRemoteImages(plainText: Boolean, manualShow: Boolean, senderAllowed: Boolean): Boolean =
     !plainText && (manualShow || senderAllowed)
