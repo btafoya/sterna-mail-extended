@@ -11,6 +11,9 @@ import org.junit.Test
  * `contains` is blind to any mutation that lengthens a line, which is how three of this project's
  * rules were defeated before.
  *
+ * ⚠ The path moved with #95: the two protocol branches now live in `MailRepository.uploadDraft`,
+ * which `saveDraft` reaches only once the draft is durable on the phone. The guards below follow it.
+ *
  * What it exists for (#63): re-saving an IMAP draft destroys the server copy. The copy is the only
  * thing holding a Cc the composer never displayed, so the destroy is allowed only when the
  * replacement provably carries the addressing. Every single word below is one that, changed alone,
@@ -34,10 +37,10 @@ class DraftAddressingWiringTest {
 
     @Test fun theSaveAsksWhetherTheAddressingSurvivedBeforeDestroyingAnything() {
         assertEquals(
-            "saveDraft must put the question to draftAddressingIsCarried — the pure function a " +
+            "uploadDraft must put the question to draftAddressingIsCarried — the pure function a " +
                 "test can execute — not to a predicate written inline where nothing reaches it",
             listOf("val addressingIsCarried = draftAddressingIsCarried("),
-            codeLinesNaming(bodyOf("MailRepository", "saveDraft"), "draftAddressingIsCarried("),
+            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "draftAddressingIsCarried("),
         )
     }
 
@@ -52,7 +55,7 @@ class DraftAddressingWiringTest {
             "the replacement's proof is its Cc alone — a Bcc is never written into the appended " +
                 "draft, so it can prove nothing (#63)",
             listOf("replacement = ccTrimmed.toSet(),", "replacement = requestReceipt,", "replacement = requestReceipt,"),
-            codeLinesNaming(bodyOf("MailRepository", "saveDraft"), "replacement ="),
+            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "replacement ="),
         )
     }
 
@@ -60,11 +63,15 @@ class DraftAddressingWiringTest {
         assertEquals(
             "the original's addressing must come from imapDraftAddressing, for the id being " +
                 "replaced and this account — the cache has no cc column to answer with. " +
-                "ImapBudget.NO_BUDGET explicitly: the SAVE keeps its historic unbounded read " +
-                "(its own hang window is a pre-existing question, tracked separately); only the " +
-                "SEND path, which holds the message in RAM while it reads, carries a deadline.",
+                "ImapBudget.NO_BUDGET explicitly, which means `this CALL SITE names no deadline` " +
+                "and no longer means `nothing bounds this read`: under the interactive save it is " +
+                "the historic unbounded read (its own hang window is a pre-existing question, " +
+                "tracked separately), while under the DEFERRED upload the coroutine's own " +
+                "ImapReadBudget applies to it (#95) — wanted, since an expiry reads as `unknown`, " +
+                "i.e. no destroy. Only the SEND path, which holds the message in RAM while it " +
+                "reads, carries a deadline written at its call site.",
             listOf("originalAddressing = { id -> imapDraftAddressing(credentials, id, ImapBudget.NO_BUDGET) },"),
-            codeLinesNaming(bodyOf("MailRepository", "saveDraft"), "originalAddressing ="),
+            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "originalAddressing ="),
         )
     }
 
@@ -80,7 +87,7 @@ class DraftAddressingWiringTest {
                 "addressingIsCarried = addressingIsCarried,",
                 "addressingIsCarried = true,",
             ),
-            codeLinesNaming(bodyOf("MailRepository", "saveDraft"), "addressingIsCarried"),
+            codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "addressingIsCarried"),
         )
     }
 

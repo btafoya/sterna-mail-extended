@@ -381,16 +381,17 @@ class ImapDestroyUnderNumberingTest {
     }
 
     /**
-     * The two hand-overs of `saveDraft` — the IMAP branch and the JMAP one. Nothing named
+     * The two hand-overs of `uploadDraft` (`saveDraft`'s upload half since #95) — the IMAP branch
+     * and the JMAP one. Nothing named
      * `finishDraftSave` in any test before this: replacing either argument with
      * `replacesEmailId?.let { recordedUidValidityForDraft(credentials, it) }` restores the defect
      * on the RE-SAVE gesture (the one that destroys the server copy it replaces) and leaves the
      * whole suite green. Whole lines, arguments included.
      */
     @Test fun `re-saving hands on the numbering the composer froze, on both protocols`() {
-        val body = bodyOf("saveDraft")
+        val body = bodyOf("uploadDraft")
         assertEquals(
-            "both branches of saveDraft must hand `finishDraftSave` the parameter the composer " +
+            "both branches of uploadDraft must hand `finishDraftSave` the parameter the composer " +
                 "froze — twice, identically: the IMAP branch destroys the replaced original by " +
                 "UID EXPUNGE, and the JMAP one carries null all the same so neither branch can " +
                 "start reading a numbering for itself. Body was:\n$body",

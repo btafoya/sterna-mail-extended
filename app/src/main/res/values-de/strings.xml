@@ -31,6 +31,8 @@
     <string name="compose_draft_original_kept">Als neuer Entwurf gespeichert. Das Original wurde behalten, weil diese Kopie nicht alles übernehmen konnte, was darin stand.</string>
     <string name="compose_draft_offline">Dieser Entwurf konnte nicht geladen werden: keine Verbindung. Komm mit einer Verbindung zurück und öffne ihn erneut.</string>
     <string name="compose_draft_load_failed">Der Text dieses Entwurfs konnte nicht geladen werden. Schließe diesen Bildschirm und versuche, ihn erneut zu öffnen.</string>
+    <string name="compose_local_draft_gone">Dieser Entwurf ist nicht mehr auf diesem Telefon. Wenn er den Server erreicht hat, findest du ihn in den Entwürfen.</string>
+    <string name="compose_emptied_draft_server_copy_kept">Die Kopie auf dem Server bleibt, weil dieses Telefon nicht alles davon lesen konnte.</string>
     <string name="compose_forward_attachment_dropped">Einige Anhänge der weitergeleiteten Nachricht konnten nicht übernommen werden.</string>
     <string name="compose_scheduled_toast">Geplant — %1$s</string>
     <string name="compose_discard_title">Nachricht verwerfen?</string>
@@ -39,6 +41,7 @@
     <string name="compose_discard_message_encrypted_draft">Diese Nachricht ist verschlüsselt, deshalb können deine Änderungen nicht als Entwurf behalten werden: Ein Entwurf wird genau so, wie du ihn geschrieben hast, auf dem Mailserver gespeichert und ist für alle mit Zugriff lesbar. Wenn du jetzt gehst, gehen nur die Änderungen verloren; der bereits gespeicherte Entwurf bleibt in den Entwürfen.</string>
     <string name="compose_delete_draft_title">Diesen Entwurf löschen?</string>
     <string name="compose_delete_draft_body">Wandert in den Papierkorb oder wird gelöscht, wenn dieses Konto keinen hat. Was du seit dem Öffnen getippt hast, wird nicht gespeichert.</string>
+    <string name="compose_delete_draft_body_local">Die Kopie auf diesem Telefon und ihre Anhänge werden sofort gelöscht.</string>
     <string name="compose_discard_title_outbox">Änderungen verwerfen?</string>
     <string name="compose_discard_title_changes">Änderungen verwerfen?</string>
     <string name="compose_discard_message_outbox">Deine Änderungen werden verworfen, die Nachricht aber nicht: Sie bleibt im Postausgang oder wandert in die Entwürfe, wenn du sie speicherst.</string>
@@ -728,6 +731,7 @@
     <string name="outbox_state_sending">Wird gesendet…</string>
     <string name="outbox_state_failed">Fehlgeschlagen: %1$s</string>
     <string name="outbox_state_failed_unknown">Senden nicht möglich</string>
+    <string name="outbox_state_kept_as_draft">Als Entwurf auf diesem Gerät gespeichert, nicht gesendet</string>
     <string name="outbox_retry">Wiederholen</string>
     <string name="outbox_edit">Bearbeiten</string>
     <string name="outbox_delete">Löschen</string>
@@ -830,6 +834,7 @@
     <string name="a11y_unfavourite">Markierung entfernen</string>
     <string name="a11y_has_attachment">Hat einen Anhang</string>
     <string name="draft_label">Entwurf</string>
+    <string name="local_draft_not_uploaded">Nicht hochgeladen</string>
     <string name="a11y_conversation_pill">Unterhaltung, %1$d Nachrichten</string>
     <string name="a11y_conversation_expanded">Ausgeklappt</string>
     <string name="a11y_conversation_collapsed">Eingeklappt</string>

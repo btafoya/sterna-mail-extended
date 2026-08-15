@@ -36,7 +36,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.LaunchedEffect
 import app.sterna.R
 import app.sterna.core.data.db.OutboxLogic
-import app.sterna.core.data.db.OutboxState
 import app.sterna.ui.components.EmptyArt
 import app.sterna.ui.components.EmptyState
 
@@ -127,18 +126,27 @@ fun OutboxScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val failed = item.state == OutboxState.FAILED
+                    // ⛔ What the row says, and in which colour, is decided in OutboxRowText and
+                    // only EXECUTED here. A `when (item.state)` written back into this composable
+                    // is unreachable from every test in this module — and its `else ->` is exactly
+                    // how a state with no branch of its own inherited another one's sentence: a
+                    // message saved as a draft on the phone was announced as "Failed: saved as a
+                    // draft on this device, not sent", in nine languages (#95).
                     Text(
-                        when (item.state) {
-                            OutboxState.SENDING -> stringResource(R.string.outbox_state_sending)
-                            OutboxState.FAILED -> stringResource(
-                                R.string.outbox_state_failed,
+                        if (outboxStateShowsReason(item.state)) {
+                            stringResource(
+                                outboxStateLabel(item.state),
                                 item.lastError ?: stringResource(R.string.outbox_state_failed_unknown),
                             )
-                            else -> stringResource(R.string.outbox_state_waiting)
+                        } else {
+                            stringResource(outboxStateLabel(item.state))
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        color = if (outboxStateIsError(item.state)) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                     )
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = { viewModel.retry(item.id) }) {

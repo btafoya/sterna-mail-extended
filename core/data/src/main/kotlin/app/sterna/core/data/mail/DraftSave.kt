@@ -1,5 +1,6 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.db.OutboxState
 import app.sterna.core.imap.ImapAddress
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -10,7 +11,89 @@ import kotlin.coroutines.cancellation.CancellationException
  * original was deliberately left on the server: a duplicate in Drafts is recoverable, a destroyed
  * original is not (#63).
  */
-enum class DraftSaveOutcome { SAVED, ORIGINAL_KEPT }
+enum class DraftSaveOutcome {
+    SAVED,
+    ORIGINAL_KEPT,
+
+    /**
+     * The draft is on the PHONE and not yet on the server: it was written locally before the upload
+     * was attempted, and the upload failed — offline, a dropped socket, a server that refused (#95).
+     *
+     * ⛔ Not an error, and the composer must not show one. Nothing was lost: the text, its
+     * addressing and its attachments are durable, and the server draft this one replaces (if any)
+     * was left alone precisely because the upload did not happen.
+     *
+     * ⚠ Nothing SAYS so on screen yet. Marking a draft "not on the server" in the list is its own
+     * volet, with the nine translations that go with it; here the value exists so no caller can read
+     * a failed upload as a failed save.
+     */
+    KEPT_ON_DEVICE,
+}
+
+/**
+ * Whether the composer has to tell the user something about a save's [outcome].
+ *
+ * ⭐ Executed rather than restated, because the answer for [DraftSaveOutcome.KEPT_ON_DEVICE] is the
+ * user-visible half of issue #95: an offline save that produced a notice — or worse, the error
+ * banner — would be the reported symptom with extra steps. Only a save that deliberately left the
+ * edited original behind has anything to report.
+ */
+fun draftSaveNeedsNotice(outcome: DraftSaveOutcome): Boolean = outcome == DraftSaveOutcome.ORIGINAL_KEPT
+
+/**
+ * Whether a save's [outcome] permits the composer to CONSUME the queued outbox row it was editing
+ * (#70 × #95) — i.e. to run `deleteOutbox`, which drops the row AND its staged attachment directory.
+ *
+ * ⛔ The destructive half of the save, and the one that must read the outcome. The route is: a
+ * message is waiting to be sent, the user taps "edit", then "save" while the phone has no network.
+ * The upload cannot happen, so the draft is [DraftSaveOutcome.KEPT_ON_DEVICE] — and until the volet
+ * that shows local drafts lands, NOTHING on screen displays it. Deleting the queued row there takes
+ * away the last copy the user can see, plus its files, in exchange for one that is invisible.
+ *
+ * Before the draft was written locally at all, `saveDraft` simply threw offline and this line was
+ * never reached: the row stayed in the queue, on the Outbox screen, recoverable. Restoring that is
+ * the whole rule — the queued row is consumed only once the draft has really reached the server.
+ *
+ * ⚠ The row is NOT left as it was either: see [draftSaveParksTheQueuedRowAs], which says where a
+ * row that survives its save has to be put so it is neither hidden nor sent.
+ */
+fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
+    outcome != DraftSaveOutcome.KEPT_ON_DEVICE
+
+/**
+ * The state the edited outbox row must be PARKED in after a save with this [outcome], or null when
+ * that save consumed the row ([draftSaveConsumesTheQueuedRow]) and there is nothing left to park.
+ *
+ * ⛔ Leaving the row where the composer found it — [OutboxState.EDITING] — is a SEND the user never
+ * asked for, and it is the defect this answers. EDITING is filtered out of the Outbox screen and
+ * off the badge alike ([OutboxLogic.isWaitingInOutbox], [OutboxLogic.activeCount]), so the message
+ * is on no screen at all; and the next launch reverts EDITING rows to QUEUED
+ * (`MailRepository.revertEditingOutbox`) and re-arms them — the PRE-EDIT text goes out, with no
+ * undo window, after the user tapped "save as draft". The KDoc above used to call that deliberate.
+ *
+ * ⛔ [OutboxState.FAILED] is the OTHER wrong answer, and it was the first attempt at this fix. It
+ * has four of the five properties wanted, and the fifth is not a wording detail: FAILED is what
+ * `OutboxLogic.needsFailureBanner` reads, so it lights "Some messages didn't send. Tap to review."
+ * across the Inbox and tints the outbox dot red — over a save that did exactly what was asked, with
+ * nothing left that could ever clear it, since there is no deferred upload here whose success would
+ * take the banner back down.
+ *
+ * So [OutboxState.KEPT_AS_DRAFT], a value of its own, which costs no migration (`state` is TEXT and
+ * Room stores the constant's name) and answers each question separately:
+ *  - [OutboxLogic.isReadyToSend] false — the worker never sends it on its own;
+ *  - [OutboxLogic.isWaitingInOutbox] true — the Outbox screen lists it;
+ *  - it counts on the badge with NO grace ([OutboxLogic.activeCount]) — it shows at once;
+ *  - [OutboxLogic.canEdit] true — it reopens, and Retry still sends it by hand;
+ *  - [OutboxLogic.needsFailureBanner] FALSE — nothing failed, so nothing shouts.
+ *
+ * ⭐ Parking at SAVE time is also what keeps this out of the way of the startup recovery: a row
+ * already parked is no longer EDITING, so `revertEditingOutbox` and [OutboxLogic.stateAfterEdit] —
+ * whose job is a process death DURING an edit, and which stay as they are — never see it. That is
+ * why `MailRepository.parkOutboxEdit` writes the state and nothing else: the `attemptCount` ruse
+ * that kept a FAILED-parked row parked has no reader left.
+ */
+fun draftSaveParksTheQueuedRowAs(outcome: DraftSaveOutcome): OutboxState? =
+    if (draftSaveConsumesTheQueuedRow(outcome)) null else OutboxState.KEPT_AS_DRAFT
 
 /**
  * Whether a re-saved draft reproduced the one it replaces, i.e. whether the original may be

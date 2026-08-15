@@ -188,6 +188,9 @@ fun EmailListItem(
     // map answers with the message's own folder as well (see showsDraftBadge). The default is the
     // keyword alone — exactly today's behaviour for the call site that has no role map (search).
     showDraftBadge: Boolean = email.isDraft,
+    // Whether to mark the row as a draft this phone is still holding for the server (#95). Default
+    // false: no other list shows such a row, and no other caller can answer the question.
+    showNotUploadedBadge: Boolean = false,
 ) {
     val senderName = email.from.firstOrNull()?.display() ?: stringResource(R.string.message_unknown_sender)
     val recipient = if (showRecipients) email.to.firstOrNull() else null
@@ -293,6 +296,13 @@ fun EmailListItem(
                 if (showDraftBadge) {
                     Spacer(Modifier.width(6.dp))
                     DraftLabel(fill = chipBackground)
+                }
+                // A second chip, right of "(Draft)": the phone is still holding this draft for the
+                // server (#95). Two chips rather than one combined label so a draft that HAS been
+                // uploaded and one that has not read the same up to the extra word.
+                if (showNotUploadedBadge) {
+                    Spacer(Modifier.width(6.dp))
+                    NotUploadedLabel(fill = chipBackground)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -482,6 +492,25 @@ private fun ThreadPill(
  * [fill] is handed down rather than read from the theme here, for the reason given on [chipFill]:
  * the chip has to know which row it is painted on.
  */
+/**
+ * The chip next to "(Draft)" on a draft this phone holds and the server has not got yet (#95).
+ * Same muted weight as [DraftLabel] and just as informational: the row it sits on has no action of
+ * its own until the draft is uploaded.
+ */
+@Composable
+private fun NotUploadedLabel(fill: Color) {
+    Text(
+        text = stringResource(R.string.local_draft_not_uploaded),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .background(fill)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}
+
 @Composable
 private fun DraftLabel(fill: Color) {
     Text(

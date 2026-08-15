@@ -72,7 +72,15 @@ class ReadReceiptMigrationSqlTest {
         "CREATE TABLE `recent_contacts` (" +
             "`email` TEXT NOT NULL PRIMARY KEY, `name` TEXT, `lastSeen` INTEGER NOT NULL)"
 
-    /** Every table a v21 database holds rows in, so "nothing was lost" can be measured, not hoped. */
+    /**
+     * Every table a v21 database holds rows in, so "nothing was lost" can be measured, not hoped.
+     *
+     * ⚠ `local_drafts` is absent because it does not EXIST at v21 — it is created by
+     * [MIGRATION_22_23], and counting rows in it here would only prove SQLite raises "no such
+     * table". The list of a migration test is the list of its own version; the one that matters for
+     * the drafts a user is holding is [LocalDraftsMigrationSqlTest]'s, and the next step's test must
+     * carry it forward.
+     */
     private val allTables = listOf(
         "emails", "email_bodies", "snoozed", "mailboxes", "outbox", "scheduled_sends",
         "recent_contacts", "email_fts", "purge_snapshot", "mailbox_uidvalidity",

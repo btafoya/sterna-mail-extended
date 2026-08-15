@@ -6,11 +6,14 @@ import android.util.Log
 import app.sterna.core.data.DataFactory
 import app.sterna.core.data.account.AccountStore
 import app.sterna.core.data.mail.BodyCachePurge
+import app.sterna.core.data.mail.LocalDraftScheduler
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OutboxScheduler
+import app.sterna.core.data.mail.localDraftUploadJobs
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.storage.StorageRepository
 import app.sterna.core.jmap.JmapClient
+import app.sterna.drafts.LocalDraftUploads
 import app.sterna.pgp.OpenKeychainPgpEngine
 import app.sterna.push.UnifiedPushManager
 import app.sterna.push.UnifiedPushStateStore
@@ -86,6 +89,13 @@ class AppContainer(context: Context) {
         }
         // Let the data layer arm the delivery worker from any send call site (compose, RSVP, …).
         mailRepository.outboxScheduler = OutboxScheduler { id, delay -> Outbox.enqueue(appContext, id, delay) }
+        // The same for a draft the server could not be given (#95): the save books the deferred
+        // upload itself, gated on connectivity, so a draft written in a lift leaves on its own when
+        // the phone comes out. Without this the only bookings were the startup re-arm and the
+        // worker re-booking itself, i.e. the draft waited for the app to die and start again.
+        mailRepository.localDraftScheduler = LocalDraftScheduler { accountId, id, delay ->
+            LocalDraftUploads.enqueue(appContext, accountId, id, delay)
+        }
         // A linked sub-account pruned on reconcile (access revoked, Codeberg #31) drops its
         // notification baselines too, exactly like a sign-out — the data layer cannot reach them.
         mailRepository.onAccountPruned = { app.sterna.push.NewMailNotifier.clear(appContext, it) }
@@ -130,6 +140,28 @@ class AppContainer(context: Context) {
                 val delay = (item.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0)
                 Outbox.enqueue(appContext, item.id, delay)
             }
+        }
+        // The same safety net for a draft the phone kept because the server could not be reached
+        // (#95). WorkManager persists its jobs, but a reboot, a restore or a version where the row
+        // was written and the job was not leaves a draft waiting on nothing — and unlike a send,
+        // nothing else will ever come and ask about it.
+        //
+        // ⛔ Per account, and the rescue BEFORE the scheduling. `revertUnfinishedLocalDrafts` is
+        // scoped because a global UPDATE would flip ANOTHER account's EDITING row back to PENDING
+        // while its composer is open, and the upload worker would then take the text away from
+        // under the user. The rows come back backed-off ones included, each with its own delay:
+        // nothing here gives up on a draft, it only asks about it less often.
+        appScope.launch {
+            runCatching {
+                mailRepository.accountsWithLocalDrafts().forEach { accountId ->
+                    mailRepository.revertUnfinishedLocalDrafts(accountId)
+                    localDraftUploadJobs(
+                        accountId,
+                        mailRepository.localDraftsAwaitingUpload(accountId),
+                        System.currentTimeMillis(),
+                    ).forEach { LocalDraftUploads.enqueue(appContext, it.accountId, it.id, it.delayMillis) }
+                }
+            }.onFailure { Log.w("Sterna", "local-draft re-arm failed; retried next start", it) }
         }
     }
 }

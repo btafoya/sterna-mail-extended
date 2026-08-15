@@ -4,11 +4,15 @@ import android.content.Context
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
+import app.sterna.core.data.db.LocalDraftDao
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxUidValidityDao
 import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.SnoozedDao
+import app.sterna.core.data.mail.localDraftDirName
+import app.sterna.core.data.mail.purgeLocalDraftsOfAccount
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -39,6 +43,10 @@ class StorageRepository(
     private val snoozedDao: SnoozedDao,
     private val purgeSnapshotDao: PurgeSnapshotDao,
     private val mailboxUidValidityDao: MailboxUidValidityDao,
+    /** Drafts written on the phone and not yet on the server (#95) — user data, not cache. */
+    private val localDraftDao: LocalDraftDao,
+    /** Where those drafts' attachment bytes are staged; the same tree `MailRepository` writes to. */
+    private val localDraftFilesDir: File,
 ) {
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
 
@@ -90,17 +98,46 @@ class StorageRepository(
      * On sign-out: purge the account's cached rows and the attachment cache.
      * Attachments aren't namespaced per account, so the whole (re-downloadable)
      * cache is cleared to avoid leaking one account's files to another.
+     *
+     * ⭐ **The local drafts go here and in no other purge, and that is a decision** (#95, #121's
+     * neighbourhood). A draft kept on the phone is NOT cache: it is text the user typed that the
+     * server never received, so it is ranked with `snoozed` and the outbox on the user-data side —
+     * removed when the account that owns it is removed, and left alone by everything that calls
+     * itself a cache purge ([clearAllCache], [clearAccountCache], [purgeOrphanedAccounts]). The
+     * other three are offered as free of consequence because every byte they drop can be downloaded
+     * again; this text cannot.
+     *
+     * ⚠ Its FILES go with it, not just its rows. Since the store gained a writer, signing out left
+     * the attachments of every unsent draft on the phone with no row left to name them by: the
+     * directories are named after the draft ids, so they can only be found while the rows are still
+     * there — hence the order inside [purgeLocalDraftsOfAccount].
+     *
+     * ⛔ **One `runCatching` PER STEP**, as [purgeOrphanedAccounts] already does table by table.
+     * These are independent deletions, and this call is made in a LOOP over every account a
+     * cascading sign-out removes (#31), followed by the orphan sweep (#121). A throw from any one
+     * step used to skip the steps after it — the attachment cache included — come back out into
+     * `AccountsViewModel.signOut`, stop the cascade on the linked sub-accounts and take the sweep
+     * with it. The draft purge, which touches the file system, made that far likelier.
      */
-    suspend fun purgeAccount(accountId: String) = withContext(Dispatchers.IO) {
-        emailDao.deleteForAccount(accountId)
-        emailFtsDao.clearAccount(accountId)
-        emailBodyDao.deleteForAccount(accountId)
-        mailboxDao.deleteForAccount(accountId)
-        snoozedDao.deleteForAccount(accountId)
+    suspend fun purgeAccount(accountId: String): Unit = withContext(Dispatchers.IO) {
+        runCatching { emailDao.deleteForAccount(accountId) }
+        runCatching { emailFtsDao.clearAccount(accountId) }
+        runCatching { emailBodyDao.deleteForAccount(accountId) }
+        runCatching { mailboxDao.deleteForAccount(accountId) }
+        runCatching { snoozedDao.deleteForAccount(accountId) }
         // A pending Empty-trash destroy list belongs to the account that is going away (#99).
-        purgeSnapshotDao.deleteForAccount(accountId)
-        mailboxUidValidityDao.deleteForAccount(accountId)
-        clearAttachments()
+        runCatching { purgeSnapshotDao.deleteForAccount(accountId) }
+        runCatching { mailboxUidValidityDao.deleteForAccount(accountId) }
+        // Every row of the account, EDITING and STAGING ones included — an upload queue read would
+        // walk past exactly the draft whose composer was open when the user signed out.
+        runCatching {
+            purgeLocalDraftsOfAccount(
+                ids = { localDraftDao.observeForAccount(accountId).first().map { it.id } },
+                deleteRows = { localDraftDao.deleteForAccount(accountId) },
+                dirOf = { File(localDraftFilesDir, localDraftDirName(it)) },
+            )
+        }
+        runCatching { clearAttachments() }
     }
 
     /**
@@ -138,6 +175,12 @@ class StorageRepository(
      * They are removed with the same per-account deletes sign-out uses. Deliberately NOT swept:
      *  - `snoozed` — user intent rather than cache, and per-account snoozes of a gone account are
      *    inert (the not-snoozed filter correlates on accountId);
+     *  - `local_drafts` and their staged files (#95) — the same rank as `snoozed`, and for a harder
+     *    reason: this is text the user typed and the server has not got. This sweep runs at every
+     *    start, off an inventory of four CACHE tables that a draft's own table is deliberately
+     *    outside of (`LocalDraftEntity`), so an account holding nothing but drafts would be named an
+     *    orphan by a list it has no row in. [purgeAccount] is where they go, on the one event that
+     *    says the user is done with that account;
      *  - `purge_snapshot`, `mailbox_uidvalidity`, the outbox and the attachment files — none of
      *    them can produce a row in a list, and the attachment cache is shared, so clearing it here
      *    would cost every account a re-download on a housekeeping pass. They are not inventoried

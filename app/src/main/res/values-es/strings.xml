@@ -31,6 +31,8 @@
     <string name="compose_draft_original_kept">Guardado como un borrador nuevo. Se conservó el original, porque esta copia no podía llevarse todo lo que contenía.</string>
     <string name="compose_draft_offline">No se pudo cargar este borrador: no hay conexión. Vuelve cuando tengas conexión y ábrelo de nuevo.</string>
     <string name="compose_draft_load_failed">No se pudo cargar el texto de este borrador. Cierra esta pantalla e intenta abrirlo de nuevo.</string>
+    <string name="compose_local_draft_gone">Este borrador ya no está en este teléfono. Si llegó al servidor, lo encontrarás en Borradores.</string>
+    <string name="compose_emptied_draft_server_copy_kept">La copia del servidor se conserva, porque este teléfono no pudo leerla por completo.</string>
     <string name="compose_forward_attachment_dropped">No se pudieron incluir algunos archivos adjuntos del mensaje reenviado.</string>
     <string name="compose_scheduled_toast">Programado — %1$s</string>
     <string name="compose_discard_title">¿Descartar mensaje?</string>
@@ -39,6 +41,7 @@
     <string name="compose_discard_message_encrypted_draft">Este mensaje está cifrado, así que tus cambios no pueden guardarse como borrador: un borrador se almacena en el servidor de correo tal como lo escribiste, legible por cualquiera que tenga acceso. Si sales ahora, solo se descartan los cambios; el borrador ya guardado sigue en Borradores.</string>
     <string name="compose_delete_draft_title">¿Eliminar este borrador?</string>
     <string name="compose_delete_draft_body">Va a la Papelera o se elimina si esta cuenta no tiene carpeta Papelera. Lo escrito desde que lo abriste no se guarda.</string>
+    <string name="compose_delete_draft_body_local">La copia en este teléfono, y sus archivos adjuntos, se eliminan de inmediato.</string>
     <string name="compose_discard_title_outbox">¿Descartar los cambios?</string>
     <string name="compose_discard_title_changes">¿Descartar los cambios?</string>
     <string name="compose_discard_message_outbox">Se descartan tus cambios, pero el mensaje no: sigue en la bandeja de salida, o pasa a Borradores si lo guardas.</string>
@@ -730,6 +733,7 @@
     <string name="outbox_state_sending">Enviando…</string>
     <string name="outbox_state_failed">Error: %1$s</string>
     <string name="outbox_state_failed_unknown">no se pudo enviar</string>
+    <string name="outbox_state_kept_as_draft">Guardado como borrador en este dispositivo, sin enviar</string>
     <string name="outbox_retry">Reintentar</string>
     <string name="outbox_edit">Editar</string>
     <string name="outbox_delete">Eliminar</string>
@@ -836,6 +840,7 @@
     <string name="a11y_unfavourite">Quitar destacado</string>
     <string name="a11y_has_attachment">Tiene un archivo adjunto</string>
     <string name="draft_label">Borrador</string>
+    <string name="local_draft_not_uploaded">Sin subir</string>
     <string name="a11y_conversation_pill">Conversación, %1$d mensajes</string>
     <string name="a11y_conversation_expanded">Expandida</string>
     <string name="a11y_conversation_collapsed">Contraída</string>

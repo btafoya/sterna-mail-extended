@@ -31,6 +31,8 @@
     <string name="compose_draft_original_kept">Сохранено как новый черновик. Оригинал оставлен, потому что эта копия смогла перенести не всё, что в нём было.</string>
     <string name="compose_draft_offline">Не удалось загрузить этот черновик: нет подключения. Вернитесь с подключением и откройте его снова.</string>
     <string name="compose_draft_load_failed">Не удалось загрузить текст этого черновика. Закройте этот экран и попробуйте открыть его снова.</string>
+    <string name="compose_local_draft_gone">Этого черновика больше нет на телефоне. Если он попал на сервер, вы найдёте его в Черновиках.</string>
+    <string name="compose_emptied_draft_server_copy_kept">Копия на сервере остаётся, потому что телефон смог прочитать не всё.</string>
     <string name="compose_forward_attachment_dropped">Некоторые вложения пересылаемого сообщения не удалось включить.</string>
     <string name="compose_scheduled_toast">Запланировано — %1$s</string>
     <string name="compose_discard_title">Удалить сообщение?</string>
@@ -39,6 +41,7 @@
     <string name="compose_discard_message_encrypted_draft">Это письмо зашифровано, поэтому ваши изменения нельзя сохранить как черновик: черновик хранится на почтовом сервере ровно в том виде, в каком вы его написали, и доступен для чтения любому, у кого есть доступ. Если выйти сейчас, пропадут только изменения; уже сохранённый черновик останется в Черновиках.</string>
     <string name="compose_delete_draft_title">Удалить этот черновик?</string>
     <string name="compose_delete_draft_body">Отправляется в Корзину или удаляется, если у этой учётной записи нет папки Корзина. Всё, набранное после открытия, не сохраняется.</string>
+    <string name="compose_delete_draft_body_local">Копия на этом телефоне и её вложения удаляются сразу.</string>
     <string name="compose_discard_title_outbox">Сбросить изменения?</string>
     <string name="compose_discard_title_changes">Сбросить изменения?</string>
     <string name="compose_discard_message_outbox">Ваши изменения будут сброшены, а сообщение — нет: оно останется в исходящих или попадёт в Черновики, если вы его сохраните.</string>
@@ -734,6 +737,7 @@
     <string name="outbox_state_sending">Отправка…</string>
     <string name="outbox_state_failed">Ошибка: %1$s</string>
     <string name="outbox_state_failed_unknown">не удалось отправить</string>
+    <string name="outbox_state_kept_as_draft">Сохранено как черновик на этом устройстве, не отправлено</string>
     <string name="outbox_retry">Повторить</string>
     <string name="outbox_edit">Изменить</string>
     <string name="outbox_delete">Удалить</string>
@@ -845,6 +849,7 @@
     <string name="a11y_unfavourite">Снять пометку</string>
     <string name="a11y_has_attachment">Есть вложение</string>
     <string name="draft_label">Черновик</string>
+    <string name="local_draft_not_uploaded">Не загружено</string>
     <string name="a11y_conversation_pill">Переписка, сообщений: %1$d</string>
     <string name="a11y_conversation_expanded">Развёрнуто</string>
     <string name="a11y_conversation_collapsed">Свёрнуто</string>

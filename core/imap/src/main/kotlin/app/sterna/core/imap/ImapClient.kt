@@ -738,6 +738,41 @@ class ImapSession(private var socket: Socket) : Closeable {
     fun allUids(cap: Int): List<Long> = uidSearchCapped("ALL", cap)
 
     /**
+     * The HIGHEST [cap] UIDs of the SELECTed mailbox, ascending, via `UID SEARCH ALL`.
+     *
+     * The other end of the folder from [allUids], and it is why this exists rather than a `cap`
+     * argument on that one: the caller here is the draft de-duplication of #95, whose copy — if the
+     * server kept it — is the LAST thing `APPEND`ed to Drafts. Keeping the head, as [allUids] does,
+     * would look precisely where the copy is not, on any folder holding more than [cap] drafts.
+     *
+     * `ALL` because it is the one RFC 3501 search key every server implements. `HEADER
+     * "Message-ID"` is not: Stalwart answers an empty `* SEARCH` to every shape of it while
+     * answering `HEADER "Subject"` perfectly, and an empty answer is indistinguishable from "your
+     * draft is not there" — which is how a second copy of the same text got appended.
+     *
+     * Like [allUids] it reads EVERY untagged `SEARCH` line, not just the first ([searchUids] reads
+     * only the first): a server is free to split a long answer, and here a dropped tail is exactly
+     * the newest ids, i.e. the answer. No `CHARSET` question — `ALL` is pure ASCII.
+     *
+     * ⚠ **No cap during the parse, unlike [allUids], and no way round it**: the ids wanted are at
+     * the END, so they cannot be known before the response is read whole; and the sort is what
+     * makes "the highest" true rather than "the last listed", the RFC promising no order at all.
+     * The cost is a list of the folder's ids held for the length of one call — accepted because
+     * this reads a DRAFTS folder, once per deferred retry, and never a Trash of 200 000.
+     *
+     * ⛔ An empty answer is an empty list, and a refused search still THROWS — the caller's only
+     * safe reading of "I could not look" is "append it", never "it is already there".
+     */
+    fun newestUids(cap: Int): List<Long> {
+        if (cap <= 0) return emptyList()
+        return command("UID SEARCH ALL").untagged
+            .filter { it.getOrNull(1) == "SEARCH" }
+            .flatMap { line -> line.drop(2).mapNotNull { (it as? String)?.toLongOrNull() } }
+            .sorted()
+            .takeLast(cap)
+    }
+
+    /**
      * At most [cap] UIDs matching one plain search [key] (`ALL`, `DELETED`, …), with the cap
      * enforced during the parse — the shape [allUids] documents at length, shared with the
      * "is anything else flagged?" question of [finishPurgeWithoutUidPlus]. Both read EVERY
@@ -918,8 +953,26 @@ class ImapSession(private var socket: Socket) : Closeable {
         }
     }
 
+    /**
+     * Say `LOGOUT`, read its completion, and close the socket — with the READ bounded by
+     * [LOGOUT_READ_BUDGET_MS].
+     *
+     * ⛔ **The LOGOUT is still sent and its answer is still read.** Dropping either would leave the
+     * session open on the server until its own idle timeout, and an account with a small
+     * simultaneous-connection limit then refuses the NEXT upload. What changed is only the bound on
+     * the read — and on a peer that has gone MUTE (no FIN, so `ImapParser`'s end-of-stream check
+     * never fires) that bound does not replace the same thing on the two ways in here:
+     *
+     * - from `ImapMailService.runWithRetry` it replaces NOTHING: `withReadTimeoutSuspending` puts
+     *   `soTimeout` back in its `finally` and the close is made from the `catch`, i.e. outside the
+     *   bounded block, so this read was an unbounded `recvfrom` holding the account mutex for as
+     *   long as the OS took to notice (#95, measured at 9 minutes on the bench);
+     * - from `ImapIdleConnection.close` it replaces 28 MINUTES: [idle] arms `soTimeout` to its
+     *   refresh window and is parked inside it while the close arrives on ANOTHER thread, so the
+     *   socket still carries that value and the goodbye inherited the IDLE window.
+     */
     override fun close() {
-        runCatching { command("LOGOUT") }
+        runCatching { withReadTimeout(LOGOUT_READ_BUDGET_MS) { command("LOGOUT") } }
         runCatching { socket.close() }
     }
 
@@ -1196,6 +1249,20 @@ internal val purgeWithoutUidPlus = PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS
  * compress to well under any server's command-length limit.
  */
 private const val UID_SET_CHUNK = 200
+
+/**
+ * How long [ImapSession.close] may wait for the answer to its `LOGOUT`.
+ *
+ * ⭐ **Why five seconds, and why a number at all**: this is not a read that does work, it is a
+ * teardown courtesy. On a live link a `LOGOUT` costs one round trip — under three seconds even on a
+ * bad mobile link — and on a dead one waiting buys nothing at all, since the bytes we are waiting
+ * for are never coming. So the number only has to be comfortably above a slow round trip.
+ *
+ * ⚠ It is also a cost paid under the account mutex, and paid TWICE at worst: `runWithRetry` closes
+ * the session on failure and, with `retryOnFailure`, can do so again on the second attempt. Five
+ * seconds is therefore ten seconds of worst-case teardown; a minute here would be two.
+ */
+private const val LOGOUT_READ_BUDGET_MS = 5_000
 
 /** Tokens always readable on a line, however spent a caller's token budget is: enough for a
  *  tagged status line (`a12 NO [BADCHARSET] …`) to stay recognisable. */

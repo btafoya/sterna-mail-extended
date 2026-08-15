@@ -18,7 +18,7 @@ import app.sterna.push.PushController
 import app.sterna.snooze.Snoozes
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.StoredAccount
-import app.sterna.core.data.db.OutboxState
+import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.InboxRow
@@ -184,9 +184,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = 0,
     )
 
-    /** Whether any outbox item is parked as failed (drives the failure banner). */
+    /**
+     * Whether any outbox item is parked as failed (drives the failure banner).
+     *
+     * ⛔ Through [OutboxLogic.needsFailureBanner], never by testing a state here: the banner sits
+     * across the Inbox and tints the outbox dot red, and it is cleared by nothing. A row saved as a
+     * draft on the phone (#95) is deliberately NOT one of these — it is listed and counted, but
+     * nothing failed, so nothing shouts.
+     */
     val outboxHasFailures: StateFlow<Boolean> = repo.outboxFlow()
-        .map { items -> items.any { it.state == OutboxState.FAILED } }
+        .map { items -> items.any { OutboxLogic.needsFailureBanner(it.state) } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -620,6 +627,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * re-emit — so adding an account left the map scoped to the previous ones and its rows fell
      * back to the pre-#115 rule. Switching accounts does not emit here and does not need to: the
      * map covers every configured account, whichever one is selected.
+     *
+     * ⛔ NEVER add `replayExpirationMillis = 0` to this timeout either — banned here for exactly
+     * the reason it is banned on [localDraftRows] downstream, and by transitivity through it: on
+     * the way back to the screen this map would restart at `emptyMap`, the local-row flow would
+     * read no Drafts role, and the phone's own drafts would blink out of the list while the server
+     * row they were hiding comes back. Pinned whole in `LocalDraftListWiringLintTest`.
      */
     val folderRoles: StateFlow<Map<Pair<String, String>, String>> =
         folderRolesFlow(store.accountsFlow) { accountIds -> repo.observeFolderRoles(accountIds) }
@@ -717,6 +730,60 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }.cachedIn(viewModelScope)
+
+    /**
+     * What `local_drafts` contributes to the list on screen — empty everywhere but this account's
+     * Drafts folder (#95). The decision, and the flow itself, are [localDraftRowsFlow]'s, which a
+     * JVM test executes; this only hands it the real inputs.
+     *
+     * ⛔ The role comes from [folderRoles] rather than from [mailboxes]: that one carries `onEach`
+     * side effects (a notification's folder, the vanished-folder fallback), so a second collector
+     * would re-run them. [folderRoles] is already shared and answers exactly the same question.
+     *
+     * ⛔ Shared as a `StateFlow` because [selectAll] has to READ IT AT THE TAP, not collect it: the
+     * server rows these local drafts replace are hidden from the list, and a bulk action that still
+     * counted them would delete a message that was never on screen — the destructive half of #126,
+     * re-opened by our own hiding.
+     *
+     * ⭐ `WhileSubscribed(5_000)` and not `Eagerly`, and it is safe for a reason worth writing down:
+     * the ONLY synchronous reader of `.value` is [selectAll], which nothing but `InboxScreen` can
+     * reach (the tap is on its selection bar), and that screen is collecting [pagedListRows] — this
+     * flow's own downstream — for the whole LIFE OF THE SCREEN, and not merely while somebody is
+     * looking at it: `collectAsLazyPagingItems` is bound to the composition, not to the lifecycle
+     * like the `collectAsStateWithLifecycle` calls beside it, so it keeps collecting in the
+     * background too. So there is no tap without a subscriber.
+     * `Eagerly` here bought nothing and cost the upstream: [folderRoles] unsubscribes 5 s after its
+     * last collector, and an eager one downstream pinned that Room query subscribed for the entire
+     * life of the ViewModel.
+     *
+     * ⛔ NEVER add `replayExpirationMillis = 0` to "tidy up" the timeout. Without it the last value
+     * is kept while nobody collects; with it the cache drops back to an empty [LocalDraftRows], and
+     * a [selectAll] landing in the re-subscription window subtracts NOTHING — "Select all" then
+     * "Delete" sends to the Trash a server draft the list was hiding and the user never saw. That
+     * is the destructive half of #126 all over again. The DAO is in any case only subscribed while
+     * the scope really is a Drafts folder ([localDraftRowsFlow] answers the empty rows without
+     * touching the store anywhere else).
+     */
+    private val localDraftRows: StateFlow<LocalDraftRows> =
+        localDraftRowsFlow(
+            currentAccountId = currentAccountId,
+            selectedMailboxId = selection.map { (it as? Sel.Folder)?.id },
+            folderRoles = folderRoles,
+            unreadOnly = unreadOnly,
+            localDrafts = { accountId -> repo.observeLocalDrafts(accountId) },
+        ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LocalDraftRows())
+
+    /**
+     * ⭐ **What the LIST screen pages, and nothing else may.** [pagedEmails] with the phone's own
+     * drafts on top and the server copies they replace taken out — see [withLocalDrafts] for why
+     * this is strictly downstream of `cachedIn` and why it is a `combine` and not a `map`.
+     *
+     * ⛔ `MessageScreen` keeps paging [pagedEmails]. Handing the reader this one puts a local-draft
+     * id in its pager, where a sideways swipe opens a page that cannot load and a swipe-delete
+     * announces a deletion IMAP never performed.
+     */
+    val pagedListRows: Flow<PagingData<InboxRow>> =
+        combine(pagedEmails, localDraftRows) { paged, local -> withLocalDrafts(paged, local) }
 
     /** The accounts' Sent folders backing the chip's "plus Sent replies" scope — live from the
      *  folder cache in conversation mode (deduped upstream, so the pager only rebuilds when a
@@ -1649,11 +1716,18 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     // ---- multi-select ----
 
     fun enterSelection(email: Email) {
+        // ⛔ A draft only this phone holds is not selectable: every action a selection leads to
+        // (delete, archive, move, mark read) is a no-op or an error over an id no server knows,
+        // and none of them removes the local row. See [isLocalDraftRow].
+        if (isLocalDraftRow(email.id)) return
         _selectionActive.value = true
         _selectedKeys.value = setOf(email.emailKey())
     }
 
     fun toggleSelect(email: Email) {
+        // Same refusal as [enterSelection]: "Select all" already skips these rows (selectableIds
+        // reads `emails` alone), and a tap in selection mode must not put one in either.
+        if (isLocalDraftRow(email.id)) return
         val key = email.emailKey()
         val next = _selectedKeys.value.toMutableSet().apply {
             if (!add(key)) remove(key)
@@ -1698,11 +1772,17 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * does the selection. The unfiltered read that used to sit here handed the bulk action every
      * read message of the folder too — the second half of #126, and the destructive half: select
      * all + delete moved messages that were never on screen to the Trash.
+     *
+     * ⛔ And the same half again, re-opened from our own side by #95: a server draft that a local
+     * one is standing in for is TAKEN OUT of the list but is still filed in `emails`, so
+     * [selectableIds] hands it over like any other. [selectableKeysMinusHidden] subtracts it — the
+     * counter must not say N+1, and "Delete" must not reach a row nobody was shown.
      */
     fun selectAll() {
         _selectionActive.value = true
         val search = searchState.value
         val filtered = unreadOnly.value
+        val hidden = localDraftRows.value.replacedServerIds
         viewModelScope.launch {
             _selectedKeys.value = selectAllKeys(
                 searching = search.active,
@@ -1710,7 +1790,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 results = search.results?.map { it.emailKey() },
                 loading = search.loading,
                 complete = search.complete,
-                folderKeys = repo.selectableIds(currentScopes(), filtered),
+                folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered), hidden),
             )
         }
     }

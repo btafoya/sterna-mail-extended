@@ -484,7 +484,7 @@ class DraftNumberingMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("this branch takes the schema to v23", 23, SCHEMA_VERSION)
+        assertEquals("this branch takes the schema to v24", 24, SCHEMA_VERSION)
     }
 
     private companion object {

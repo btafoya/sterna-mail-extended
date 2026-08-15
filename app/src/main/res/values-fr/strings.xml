@@ -31,6 +31,8 @@
     <string name="compose_draft_original_kept">Enregistré comme nouveau brouillon. L\'original a été conservé, car cette copie ne pouvait pas tout reprendre.</string>
     <string name="compose_draft_offline">Impossible de charger ce brouillon : pas de connexion. Revenez avec une connexion et rouvrez-le.</string>
     <string name="compose_draft_load_failed">Impossible de charger le texte de ce brouillon. Fermez cet écran et rouvrez-le.</string>
+    <string name="compose_local_draft_gone">Ce brouillon n\'est plus sur ce téléphone. S\'il est arrivé sur le serveur, vous le trouverez dans Brouillons.</string>
+    <string name="compose_emptied_draft_server_copy_kept">La copie sur le serveur reste, car ce téléphone n\'a pas pu tout en lire.</string>
     <string name="compose_forward_attachment_dropped">Certaines pièces jointes du message transféré n\'ont pas pu être incluses.</string>
     <string name="compose_scheduled_toast">Programmé — %1$s</string>
     <string name="compose_discard_title">Abandonner le message ?</string>
@@ -39,6 +41,7 @@
     <string name="compose_discard_message_encrypted_draft">Ce message est chiffré : vos modifications ne peuvent pas être conservées en brouillon, car un brouillon est stocké sur le serveur de courrier tel que vous l\'avez écrit, lisible par qui y a accès. Quitter maintenant abandonne seulement les modifications ; le brouillon déjà enregistré reste dans Brouillons.</string>
     <string name="compose_delete_draft_title">Supprimer ce brouillon ?</string>
     <string name="compose_delete_draft_body">Part à la Corbeille, ou est supprimé si ce compte n\'a pas de dossier Corbeille. Ce qui a été tapé depuis son ouverture n\'est pas enregistré.</string>
+    <string name="compose_delete_draft_body_local">La copie sur ce téléphone, et ses pièces jointes, sont supprimées immédiatement.</string>
     <string name="compose_discard_title_outbox">Abandonner vos modifications ?</string>
     <string name="compose_discard_title_changes">Abandonner vos modifications ?</string>
     <string name="compose_discard_message_outbox">Vos modifications sont abandonnées, mais pas le message : il reste dans la boîte d\'envoi, ou passe dans les Brouillons si vous l\'enregistrez.</string>
@@ -730,6 +733,7 @@
     <string name="outbox_state_sending">Envoi…</string>
     <string name="outbox_state_failed">Échec : %1$s</string>
     <string name="outbox_state_failed_unknown">envoi impossible</string>
+    <string name="outbox_state_kept_as_draft">Enregistré comme brouillon sur cet appareil, non envoyé</string>
     <string name="outbox_retry">Réessayer</string>
     <string name="outbox_edit">Modifier</string>
     <string name="outbox_delete">Supprimer</string>
@@ -838,6 +842,7 @@
     <string name="a11y_unfavourite">Ne plus suivre le message</string>
     <string name="a11y_has_attachment">Contient une pièce jointe</string>
     <string name="draft_label">Brouillon</string>
+    <string name="local_draft_not_uploaded">Non téléversé</string>
     <string name="a11y_conversation_pill">Conversation, %1$d messages</string>
     <string name="a11y_conversation_expanded">Développée</string>
     <string name="a11y_conversation_collapsed">Réduite</string>

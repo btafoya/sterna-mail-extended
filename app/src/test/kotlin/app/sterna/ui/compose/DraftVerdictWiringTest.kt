@@ -24,8 +24,11 @@ class DraftVerdictWiringTest {
         val call = callsOf(bodyOf(COMPOSE_VIEW_MODEL, "sendInternal"), "repo.enqueueSend(").single()
         assertEquals(
             "the id of the draft being replaced must still ride the queue — dropping it leaves a " +
-                "stale duplicate in Drafts after every faithful send",
-            "editingDraftId",
+                "stale duplicate in Drafts after every faithful send — through the decision that " +
+                "keeps one of THIS PHONE's own draft ids off the row and names the server draft a " +
+                "local row stands in for instead (#95, sendDraftTarget): the worker destroys " +
+                "whatever this names, and a local id names nothing a server ever issued",
+            "sendTarget.emailId",
             call["draftEmailId"],
         )
         assertEquals(
@@ -40,7 +43,7 @@ class DraftVerdictWiringTest {
 
     @Test fun `the draft kept for undo carries the verdict, so an undone send cannot launder it`() {
         val call = callsOf(bodyOf(COMPOSE_VIEW_MODEL, "sendInternal"), "SendOutbox.ComposeDraft(").single()
-        assertEquals("editingDraftId", call["draftEmailId"])
+        assertEquals("sendTarget.emailId", call["draftEmailId"])
         assertEquals(
             "the record an undone send reopens from must carry the verdict WITH the id: restoring " +
                 "the id alone is the laundering — the re-send then destroys an original the first " +
@@ -146,9 +149,18 @@ class DraftVerdictWiringTest {
         // while another is in flight), so the id itself is the carrier. Two lines, one invariant,
         // pinned together: relax either alone and a scheduled send of a lossy draft destroys it.
         assertEquals(
-            "scheduleSend must withhold the id when the composer's verdict is not clean — the " +
-                "row has nowhere else to say so",
-            "editingDraftId.takeUnless { editingDraftLossy }",
+            "scheduleSend must withhold the destroy when the composer's verdict is not clean — " +
+                "the row has nowhere else to say so — and it withholds the PAIR, at the one place " +
+                "that builds it. Dropped here, a scheduled send of a draft this composer could not " +
+                "reproduce destroys the original it was written to spare. Line was:",
+            listOf(").unlessBodyIsLossy(editingDraftLossy)"),
+            codeLinesNaming(bodyOf(COMPOSE_VIEW_MODEL, "scheduleSend"), "unlessBodyIsLossy"),
+        )
+        assertEquals(
+            "…and the row is written off that answer, through the guard that keeps a " +
+                "`local-draft:` id off it and names the server draft a local row stands in for " +
+                "(#95): the two guards answer different questions and neither replaces the other",
+            "sendTarget.emailId",
             callsOf(bodyOf(COMPOSE_VIEW_MODEL, "scheduleSend"), "ScheduledSendEntity(").single()["draftEmailId"],
         )
         val fired = callsOf(bodyOf(SCHEDULED_SEND_WORKER, "doWork"), "repo.enqueueSend(").single()

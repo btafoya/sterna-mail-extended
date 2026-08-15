@@ -87,18 +87,21 @@ class DraftNumberingCarriedWiringTest {
     @Test fun `the send queues the numbering the composer froze`() {
         val body = bodyOf(COMPOSE_VIEW_MODEL, "sendInternal")
         assertEquals(
-            "enqueueSend must be handed `editingDraftUidValidity`. `null` here is a deferred send " +
-                "that destroys nothing — the draft it replaces stays in Drafts for ever — and " +
-                "anything READ here instead is the number recorded after a renumbering, which is " +
-                "the defect this branch closes.",
-            "editingDraftUidValidity",
+            "enqueueSend must be handed the numbering out of `sendDraftTarget`. `null` here is a " +
+                "deferred send that destroys nothing — the draft it replaces stays in Drafts for " +
+                "ever — and anything READ here instead is the number recorded after a renumbering, " +
+                "which is the defect this branch closes.",
+            "sendTarget.uidValidity",
             callsOf(body, "repo.enqueueSend(").single()["draftUidValidity"],
         )
         assertEquals(
-            "…beside the id it belongs to: the two are only meaningful together",
-            "editingDraftId",
+            "…beside the id it belongs to, OUT OF THE SAME ANSWER: the pair is one decision, and " +
+                "an id from one place beside a numbering from another expunges a UID under a " +
+                "UIDVALIDITY it does not belong to, i.e. another message of Drafts (#95 × #99)",
+            "sendTarget.emailId",
             callsOf(body, "repo.enqueueSend(").single()["draftEmailId"],
         )
+        assertEquals(SEND_TARGET, callsOf(body, "sendDraftTarget(").single())
     }
 
     @Test fun `the draft kept for Undo keeps it too, so an undone send can still destroy`() {
@@ -107,7 +110,7 @@ class DraftNumberingCarriedWiringTest {
             "undoing a send reopens the composer from THIS record: without the frozen numbering " +
                 "the reopened message can no longer destroy the draft it replaces, and saving or " +
                 "sending it leaves a duplicate behind with nothing on screen saying so",
-            "editingDraftUidValidity",
+            "sendTarget.uidValidity",
             callsOf(body, "SendOutbox.ComposeDraft(").single()["draftUidValidity"],
         )
     }
@@ -118,10 +121,27 @@ class DraftNumberingCarriedWiringTest {
             "the scheduled row is where the message waits for hours, and it becomes an outbox row " +
                 "only when the worker fires. What is not in this row is gone by then, and the " +
                 "destroy goes out blind on a folder the server may have renumbered meanwhile",
-            "editingDraftUidValidity",
+            "sendTarget.uidValidity",
             callsOf(body, "ScheduledSendEntity(").single()["draftUidValidity"],
         )
+        assertEquals(SEND_TARGET, callsOf(body, "sendDraftTarget(").single())
     }
+
+    /**
+     * The four arguments the composer must hand `sendDraftTarget`, by name and whole — both send
+     * sites. ⛔ The numbering is only frozen if BOTH pairs go in: drop
+     * `replacedServerDraftUidValidity` and a draft reopened off this phone's own store names the
+     * server copy it replaces with no numbering at all, so an IMAP destroy silently deletes
+     * nothing; drop `replacedServerDraftId` and nothing names that copy any more, which is the
+     * whole of the defect. The ANSWER to these arguments is executed in
+     * `core:data` (`SendDraftTargetTest`), not restated here.
+     */
+    private val SEND_TARGET = mapOf(
+        "editingDraftId" to "editingDraftId",
+        "editingDraftUidValidity" to "editingDraftUidValidity",
+        "replacedServerDraftId" to "replacedServerDraftId",
+        "replacedServerDraftUidValidity" to "replacedServerDraftUidValidity",
+    )
 
     @Test fun `the scheduled worker hands the row's numbering to the outbox`() {
         val body = bodyOf(SCHEDULED_SEND_WORKER, "doWork")
@@ -190,13 +210,17 @@ class DraftNumberingCarriedWiringTest {
     @Test fun `nothing in the composer assigns that field anything else`() {
         // Whole lines, in order, across the WHOLE class: `= null` at either site is a draft left
         // behind for ever, and a third assignment smuggled in anywhere is a number nobody froze.
+        // The two `editingDraftUidValidity = editingDraftUidValidity,` are NOT writes: they are the
+        // named argument the two send sites hand `sendDraftTarget`, pinned whole here as well so
+        // that a `= null` slipped into either one is read as what it is — the deferred destroy that
+        // finds nothing.
         val assignments = codeLines(COMPOSE_VIEW_MODEL.readText())
             .filter { it.startsWith("editingDraftUidValidity =") }
         assertEquals(
-            "exactly two writes: the restore of a message coming back from the queue, and the " +
-                "freeze taken when a saved draft is opened. Lines were:\n" +
-                assignments.joinToString("\n"),
-            listOf(RESTORE, FREEZE),
+            "exactly two writes — the restore of a message coming back from the queue, and the " +
+                "freeze taken when a saved draft is opened — and the two hand-overs to " +
+                "sendDraftTarget. Lines were:\n" + assignments.joinToString("\n"),
+            listOf(RESTORE, FREEZE, HANDED_OVER, HANDED_OVER),
             assignments,
         )
     }
@@ -329,6 +353,9 @@ class DraftNumberingCarriedWiringTest {
         /** The read-time freeze `DraftNumberingFreezeWiringTest` owns; pinned here as the only other write. */
         private const val FREEZE =
             "editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)"
+
+        /** Not a write: the named argument each send site hands `sendDraftTarget`. */
+        private const val HANDED_OVER = "editingDraftUidValidity = editingDraftUidValidity,"
 
         private const val COMPOSE_VIEW_MODEL_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"

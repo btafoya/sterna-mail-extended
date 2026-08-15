@@ -31,6 +31,8 @@
     <string name="compose_draft_original_kept">Zapisano jako nową wersję roboczą. Oryginał zachowano, ponieważ ta kopia nie mogła przenieść wszystkiego, co zawierał.</string>
     <string name="compose_draft_offline">Nie udało się wczytać tej wersji roboczej: brak połączenia. Wróć z połączeniem i otwórz ją ponownie.</string>
     <string name="compose_draft_load_failed">Nie udało się wczytać tekstu tej wersji roboczej. Zamknij ten ekran i spróbuj otworzyć ją ponownie.</string>
+    <string name="compose_local_draft_gone">Tej wersji roboczej nie ma już na tym telefonie. Jeśli dotarła na serwer, znajdziesz ją w Wersjach roboczych.</string>
+    <string name="compose_emptied_draft_server_copy_kept">Kopia na serwerze pozostaje, ponieważ ten telefon nie mógł jej całej odczytać.</string>
     <string name="compose_forward_attachment_dropped">Nie udało się dołączyć niektórych załączników przekazywanej wiadomości.</string>
     <string name="compose_scheduled_toast">Zaplanowano — %1$s</string>
     <string name="compose_discard_title">Odrzucić wiadomość?</string>
@@ -39,6 +41,7 @@
     <string name="compose_discard_message_encrypted_draft">Ta wiadomość jest zaszyfrowana, więc twoich zmian nie można zachować jako wersji roboczej: wersja robocza jest przechowywana na serwerze pocztowym dokładnie w takiej postaci, w jakiej ją napisano, czytelna dla każdego, kto ma do niej dostęp. Wyjście teraz odrzuca tylko zmiany; zapisana wcześniej wersja robocza pozostaje w Wersjach roboczych.</string>
     <string name="compose_delete_draft_title">Usunąć tę wersję roboczą?</string>
     <string name="compose_delete_draft_body">Trafia do Kosza albo zostaje usunięta, jeśli to konto nie ma folderu Kosz. To, co napisano od jej otwarcia, nie jest zapisywane.</string>
+    <string name="compose_delete_draft_body_local">Kopia na tym telefonie i jej załączniki zostają usunięte od razu.</string>
     <string name="compose_discard_title_outbox">Odrzucić zmiany?</string>
     <string name="compose_discard_title_changes">Odrzucić zmiany?</string>
     <string name="compose_discard_message_outbox">Zmiany zostaną odrzucone, ale wiadomość nie: pozostanie w skrzynce nadawczej albo trafi do Wersji roboczych, jeśli ją zapiszesz.</string>
@@ -732,6 +735,7 @@
     <string name="outbox_state_sending">Wysyłanie…</string>
     <string name="outbox_state_failed">Niepowodzenie: %1$s</string>
     <string name="outbox_state_failed_unknown">nie udało się wysłać</string>
+    <string name="outbox_state_kept_as_draft">Zapisano jako wersję roboczą na tym urządzeniu, nie wysłano</string>
     <string name="outbox_retry">Ponów</string>
     <string name="outbox_edit">Edytuj</string>
     <string name="outbox_delete">Usuń</string>
@@ -842,6 +846,7 @@
     <string name="a11y_unfavourite">Usuń oznaczenie</string>
     <string name="a11y_has_attachment">Zawiera załącznik</string>
     <string name="draft_label">Wersja robocza</string>
+    <string name="local_draft_not_uploaded">Nie przesłano</string>
     <string name="a11y_conversation_pill">Rozmowa, %1$d wiadomości</string>
     <string name="a11y_conversation_expanded">Rozwinięto</string>
     <string name="a11y_conversation_collapsed">Zwinięto</string>

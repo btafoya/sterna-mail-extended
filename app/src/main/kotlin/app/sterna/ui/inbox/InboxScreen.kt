@@ -245,7 +245,7 @@ fun InboxScreen(
     viewModel: InboxViewModel = viewModel(),
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
-    val pagedEmails = viewModel.pagedEmails.collectAsLazyPagingItems()
+    val listRows = viewModel.pagedListRows.collectAsLazyPagingItems()
     val swipe by viewModel.swipeConfig.collectAsStateWithLifecycle()
     val selectionActive by viewModel.selectionActive.collectAsStateWithLifecycle()
     val selectedKeys by viewModel.selectedKeys.collectAsStateWithLifecycle()
@@ -670,7 +670,7 @@ fun InboxScreen(
         var prevKey: String? = null
         var wasAtTop = true
         snapshotFlow {
-            val key = if (pagedEmails.itemCount > 0) pagedEmails.peek(0)?.email?.let { "${it.accountId}|${it.id}" } else null
+            val key = if (listRows.itemCount > 0) listRows.peek(0)?.email?.let { "${it.accountId}|${it.id}" } else null
             val atTop = listState.firstVisibleItemIndex == 0 &&
                 listState.firstVisibleItemScrollOffset == 0
             key to atTop
@@ -698,7 +698,7 @@ fun InboxScreen(
     var entryPlayed by rememberSaveable(ui.selectedMailboxId, ui.unified) { mutableStateOf(false) }
     LaunchedEffect(ui.selectedMailboxId, ui.unified) {
         if (entryPlayed) return@LaunchedEffect
-        snapshotFlow { pagedEmails.itemCount }.first { it > 0 }
+        snapshotFlow { listRows.itemCount }.first { it > 0 }
         delay(ENTRY_CAP * ENTRY_STEP_MS + ENTRY_ROW_MS + 80L)
         entryPlayed = true
     }
@@ -1405,6 +1405,10 @@ fun InboxScreen(
                     // that: whether a search hit should ALSO be chipped by its folder is another
                     // decision, out of this branch's scope — but a plain `false` here would REMOVE
                     // a chip that was there, which is not "unchanged".
+                    // The second chip, next to "(Draft)": this draft is on the phone and has not
+                    // reached the server yet (#95). The same predicate the gesture sites ask, so
+                    // the row cannot be marked inert and drawn as uploaded, or the other way round.
+                    showNotUploadedBadge = isLocalDraftRow(email.id),
                     showDraftBadge = if (fromSearch) email.isDraft else showsDraftBadge(
                         isDraft = email.isDraft,
                         accountId = email.accountId,
@@ -1417,35 +1421,50 @@ fun InboxScreen(
                         else performSwipe(action, email, viewModel, ui)
                     },
                     onClick = {
-                        if (selectionActive) {
+                        when {
+                            // ⭐ A draft only this phone holds opens in the composer like any other
+                            // (#95) — `ComposeViewModel.prepare` routes a local id to the store that
+                            // holds it and never asks a server about it. It stays the FIRST branch:
+                            // `selectionActive` below would toggle a selection `InboxViewModel`
+                            // refuses for this row (so the tap would do nothing at all), and the
+                            // Drafts branch under it is gated on !fromSearch && !expandable &&
+                            // isDraftsContext.
+                            isLocalDraftRow(email.id) -> onEditDraft(email.id, email.accountId)
                             // A collapsed conversation selects/deselects all its members at once.
-                            if (expandable) viewModel.toggleSelectThread(email) else viewModel.toggleSelect(email)
-                        } else if (!fromSearch && !expandable && isDraftsContext(ui)) {
+                            selectionActive -> if (expandable) viewModel.toggleSelectThread(email) else viewModel.toggleSelect(email)
                             // In the Drafts folder a tap EDITS the draft (#63): open it in
                             // compose, prefilled — not in the read-only reader.
-                            onEditDraft(email.id, email.accountId)
-                        } else {
-                            viewModel.onEmailOpened(email.id)
-                            onOpenEmail(email.id, email.accountId, entryIndex, fromSearch)
+                            !fromSearch && !expandable && isDraftsContext(ui) -> onEditDraft(email.id, email.accountId)
+                            else -> {
+                                viewModel.onEmailOpened(email.id)
+                                onOpenEmail(email.id, email.accountId, entryIndex, fromSearch)
+                            }
                         }
                     },
                     onLongClick = {
                         if (expandable) viewModel.enterSelectionThread(email) else viewModel.enterSelection(email)
                     },
-                    onToggleFavourite = {
-                        val favouriting = !email.isFlagged
-                        viewModel.toggleFlag(email)
-                        // Only "Favourites first" moves the row on starring, so only there is
-                        // there anywhere to follow it to (#111). Under any other order the row
-                        // stays put, and scrolling away would just cost the reader their place —
-                        // which is what this did unconditionally while the pin was hard-wired.
-                        // Search results are excluded outright: they read no sort order at all,
-                        // and `listState` is the BROWSE list's, so a jump here scrolls a list
-                        // the reader isn't even looking at.
-                        if (favouriting && !fromSearch && ui.sortOrder == SortOrder.FLAGGED_FIRST) {
-                            scope.launch { listState.animateScrollToItem(0) }
+                    // ⛔ The star is a gesture too, on every row, and reachable by TalkBack (#95):
+                    // toggleFlag over a local id touches no row at all on IMAP (the star simply
+                    // never fills) and raises "Action failed" on JMAP. A local draft gets no star
+                    // rather than a dead one — an affordance that cannot do what it draws is the
+                    // very lie this volet exists to end.
+                    onToggleFavourite = if (showsFavouriteStar(email.id)) {
+                        {
+                            val favouriting = !email.isFlagged
+                            viewModel.toggleFlag(email)
+                            // Only "Favourites first" moves the row on starring, so only there is
+                            // there anywhere to follow it to (#111). Under any other order the row
+                            // stays put, and scrolling away would just cost the reader their place —
+                            // which is what this did unconditionally while the pin was hard-wired.
+                            // Search results are excluded outright: they read no sort order at all,
+                            // and `listState` is the BROWSE list's, so a jump here scrolls a list
+                            // the reader isn't even looking at.
+                            if (favouriting && !fromSearch && ui.sortOrder == SortOrder.FLAGGED_FIRST) {
+                                scope.launch { listState.animateScrollToItem(0) }
+                            }
                         }
-                    },
+                    } else null,
                     selected = email.emailKey() in selectedKeys,
                     // LOAD-BEARING BEYOND THIS ROW, and nothing else says so: this is one of the
                     // guards that make "selection active while the search results are empty"
@@ -1454,7 +1473,14 @@ fun InboxScreen(
                     // results are on screen. Simplify this to `true` some day and a selection can
                     // outlive the list it was taken from, at which point "Select all" takes the
                     // folder behind an empty result list and deletes it (#126).
-                    gesturesEnabled = !selectionActive,
+                    // ⛔ The other half is the swipe guard for a draft only this phone holds, and
+                    // it has to sit HERE, not further down (#95): commitSwipe plays the entire
+                    // take-off — the row leaves by the edge, tilts and fades to nothing — and only
+                    // THEN calls onSwipe, so performSwipe's refusal arrives after the row has been
+                    // destroyed on screen. A left swipe is DELETE by default: she would watch the
+                    // only copy of the text she has just typed fly off, with no snackbar and no
+                    // Undo, over a draft that is still in the table.
+                    gesturesEnabled = rowGesturesEnabled(email.id, selectionActive),
                     unread = row.unread,
                     threadCount = row.threadCount,
                     threadExpandable = expandable,
@@ -1546,7 +1572,7 @@ fun InboxScreen(
             // Thin line above the list, but only when there are cached rows to sit above
             // (WYSIWYG). The zero-rows case shows the matching centred state below instead, so
             // the two never double up.
-            if (pagedEmails.itemCount > 0) {
+            if (listRows.itemCount > 0) {
                 when (notice) {
                     RefreshNotice.OFFLINE -> OfflineBanner()
                     RefreshNotice.ERROR -> SyncErrorBanner(ui.error.orEmpty())
@@ -1563,7 +1589,7 @@ fun InboxScreen(
                     viewModel.refresh()
                     // Also re-attempt a failed fetch-older append, so the pull gesture
                     // clears the sticky "couldn't load more" footer, not just Retry.
-                    pagedEmails.retry()
+                    listRows.retry()
                 },
                 modifier = Modifier.fillMaxSize().weight(1f),
                 state = refreshState,
@@ -1576,7 +1602,7 @@ fun InboxScreen(
                 },
             ) {
                 val searchActive = ui.searching && ui.searchQuery.isNotBlank()
-                val refreshLoading = pagedEmails.loadState.refresh is LoadState.Loading
+                val refreshLoading = listRows.loadState.refresh is LoadState.Loading
                 when {
                     searchActive -> when (searchDisplay(ui.searchResults.size, ui.searchLoading, ui.searchComplete)) {
                         SearchDisplay.RESULTS ->
@@ -1659,21 +1685,21 @@ fun InboxScreen(
                             modifier = Modifier.align(Alignment.Center),
                         )
                     }
-                    pagedEmails.itemCount > 0 ->
+                    listRows.itemCount > 0 ->
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize()
-                                .verticalScrollbar(listState, pagedEmails.itemCount),
+                                .verticalScrollbar(listState, listRows.itemCount),
                         ) {
                             items(
-                                count = pagedEmails.itemCount,
-                                key = pagedEmails.itemKey { "${it.email.accountId}|${it.email.id}" },
+                                count = listRows.itemCount,
+                                key = listRows.itemKey { "${it.email.accountId}|${it.email.id}" },
                             ) { index ->
                                 // animateItem keeps each row identified across Paging snapshot
                                 // swaps so a read/unread toggle re-binds in place instead of
                                 // blinking. Placement-only (no fade) so loading a new page of
                                 // rows doesn't stutter the scroll.
-                                pagedEmails[index]?.let { row ->
+                                listRows[index]?.let { row ->
                                     emailRow(
                                         row,
                                         Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null),
@@ -1684,7 +1710,7 @@ fun InboxScreen(
                                 }
                             }
                             // Footer: server fetch-on-scroll (RemoteMediator) progress/errors.
-                            when (pagedEmails.loadState.append) {
+                            when (listRows.loadState.append) {
                                 is LoadState.Loading -> item(key = "append-loading") {
                                     Box(
                                         Modifier.fillMaxWidth().padding(16.dp),
@@ -1709,7 +1735,7 @@ fun InboxScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = TextAlign.Center,
                                         )
-                                        Button(onClick = { pagedEmails.retry() }) { Text(stringResource(R.string.inbox_retry)) }
+                                        Button(onClick = { listRows.retry() }) { Text(stringResource(R.string.inbox_retry)) }
                                     }
                                 }
                                 else -> Unit
@@ -1872,6 +1898,9 @@ private fun SwipeableEmailRow(
     /** No default: both call sites hold the folder-role map and must answer with it, or a row
      *  loses its "(Draft)" after process death and never has one on IMAP. */
     showDraftBadge: Boolean,
+    /** Whether the row is a draft this phone holds and the server has not got (#95). Defaults to
+     *  false, like [EmailListItem]'s own parameter: no other list has such rows in it. */
+    showNotUploadedBadge: Boolean = false,
     onSwipe: (SwipeAction) -> Unit,
     onClick: () -> Unit,
     // Nullable so inline conversation children can omit long-press selection and the star.
@@ -2207,6 +2236,7 @@ private fun SwipeableEmailRow(
                 onHighlightShown = onHighlightShown,
                 showRecipients = showRecipients,
                 showDraftBadge = showDraftBadge,
+                showNotUploadedBadge = showNotUploadedBadge,
             )
         }
     }
@@ -2350,6 +2380,11 @@ private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext
 
 /** Dispatch a configured swipe action to the view model for [email]. */
 private fun performSwipe(action: SwipeAction, email: Email, viewModel: InboxViewModel, ui: MailUi) {
+    // ⛔ A draft only this phone holds is inert (#95): repo.delete / archive / moveToMailbox read a
+    // UID out of an id that carries none — a silent no-op on IMAP, an error on JMAP — and none of
+    // them removes the local row. Left through, a "delete" swipe would announce a deletion that did
+    // not happen and offer an Undo over an untouched row. See [isLocalDraftRow].
+    if (isLocalDraftRow(email.id)) return
     when (action) {
         SwipeAction.NONE -> Unit
         SwipeAction.TOGGLE_READ -> viewModel.toggleRead(email)

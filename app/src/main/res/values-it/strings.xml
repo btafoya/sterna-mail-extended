@@ -31,6 +31,8 @@
     <string name="compose_draft_original_kept">Salvato come nuova bozza. L\'originale è stato mantenuto, perché questa copia non poteva riportare tutto ciò che conteneva.</string>
     <string name="compose_draft_offline">Impossibile caricare questa bozza: nessuna connessione. Torna con una connessione e riaprila.</string>
     <string name="compose_draft_load_failed">Impossibile caricare il testo di questa bozza. Chiudi questa schermata e prova ad aprirla di nuovo.</string>
+    <string name="compose_local_draft_gone">Questa bozza non è più su questo telefono. Se è arrivata al server, la trovi in Bozze.</string>
+    <string name="compose_emptied_draft_server_copy_kept">La copia sul server resta, perché questo telefono non è riuscito a leggerla tutta.</string>
     <string name="compose_forward_attachment_dropped">Non è stato possibile includere alcuni allegati del messaggio inoltrato.</string>
     <string name="compose_scheduled_toast">Programmato — %1$s</string>
     <string name="compose_discard_title">Eliminare il messaggio?</string>
@@ -39,6 +41,7 @@
     <string name="compose_discard_message_encrypted_draft">Questo messaggio è cifrato, quindi le tue modifiche non possono essere conservate come bozza: una bozza viene archiviata sul server di posta esattamente come l\'hai scritta, leggibile da chiunque vi abbia accesso. Uscendo ora si perdono solo le modifiche; la bozza già salvata resta in Bozze.</string>
     <string name="compose_delete_draft_title">Eliminare questa bozza?</string>
     <string name="compose_delete_draft_body">Va nel Cestino o viene eliminata se questo account non ha una cartella Cestino. Quanto scritto da quando l\'hai aperta non viene salvato.</string>
+    <string name="compose_delete_draft_body_local">La copia su questo telefono, e i suoi allegati, vengono eliminati subito.</string>
     <string name="compose_discard_title_outbox">Scartare le modifiche?</string>
     <string name="compose_discard_title_changes">Scartare le modifiche?</string>
     <string name="compose_discard_message_outbox">Le tue modifiche vengono scartate, ma il messaggio no: resta nella posta in uscita, oppure passa alle Bozze se lo salvi.</string>
@@ -730,6 +733,7 @@
     <string name="outbox_state_sending">Invio in corso…</string>
     <string name="outbox_state_failed">Non riuscito: %1$s</string>
     <string name="outbox_state_failed_unknown">invio non riuscito</string>
+    <string name="outbox_state_kept_as_draft">Salvato come bozza su questo dispositivo, non inviato</string>
     <string name="outbox_retry">Riprova</string>
     <string name="outbox_edit">Modifica</string>
     <string name="outbox_delete">Elimina</string>
@@ -836,6 +840,7 @@
     <string name="a11y_unfavourite">Rimuovi da Speciali</string>
     <string name="a11y_has_attachment">Contiene un allegato</string>
     <string name="draft_label">Bozza</string>
+    <string name="local_draft_not_uploaded">Non caricato</string>
     <string name="a11y_conversation_pill">Conversazione, %1$d messaggi</string>
     <string name="a11y_conversation_expanded">Espansa</string>
     <string name="a11y_conversation_collapsed">Compressa</string>

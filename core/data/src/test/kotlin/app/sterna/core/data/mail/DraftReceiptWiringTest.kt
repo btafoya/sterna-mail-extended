@@ -53,12 +53,12 @@ class DraftReceiptWiringTest {
         // Two calls, one per protocol. A single one — the IMAP branch returns early — leaves the
         // other protocol destroying originals on the old, unguarded rule.
         assertEquals(
-            "saveDraft must put the question to draftReceiptRequestIsCarried on BOTH branches",
+            "uploadDraft must put the question to draftReceiptRequestIsCarried on BOTH branches",
             listOf(
                 "val receiptIsCarried = draftReceiptRequestIsCarried(",
                 "val receiptIsCarried = draftReceiptRequestIsCarried(",
             ),
-            codeLinesNaming(bodyOf("saveDraft"), "draftReceiptRequestIsCarried("),
+            codeLinesNaming(bodyOf("uploadDraft"), "draftReceiptRequestIsCarried("),
         )
     }
 
@@ -67,7 +67,7 @@ class DraftReceiptWiringTest {
             "what the replacement asks for is the value being saved — a literal here makes the " +
                 "guard answer the same thing for every draft",
             listOf("replacement = requestReceipt,", "replacement = requestReceipt,"),
-            codeLinesNaming(bodyOf("saveDraft"), "replacement = requestReceipt"),
+            codeLinesNaming(bodyOf("uploadDraft"), "replacement = requestReceipt"),
         )
     }
 
@@ -79,7 +79,7 @@ class DraftReceiptWiringTest {
                 "originalRequested = { id -> imapDraftReceiptRequested(credentials, id) },",
                 "originalRequested = { id -> jmapDraftReceiptRequested(ctx, id) },",
             ),
-            codeLinesNaming(bodyOf("saveDraft"), "originalRequested ="),
+            codeLinesNaming(bodyOf("uploadDraft"), "originalRequested ="),
         )
     }
 
@@ -93,7 +93,7 @@ class DraftReceiptWiringTest {
                 "receiptRequestIsCarried = receiptIsCarried,",
                 "receiptRequestIsCarried = receiptIsCarried,",
             ),
-            codeLinesNaming(bodyOf("saveDraft"), "receiptRequestIsCarried"),
+            codeLinesNaming(bodyOf("uploadDraft"), "receiptRequestIsCarried"),
         )
     }
 

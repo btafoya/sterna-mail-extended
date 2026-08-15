@@ -57,6 +57,70 @@ class ComposeDeleteWiringTest {
         )
     }
 
+    /**
+     * ⛔ **The SAME rule for the draft the phone is keeping** (#95), and it was not held: that
+     * branch ended on `ComposeState.Done`, so the screen played the tern's flight — 300 ms of
+     * animation written for a message that went OUT — and then popped to `"inbox"` instead of the
+     * Drafts list the composer was opened from. A deletion is not a departure, and the rule above
+     * has said so since #127; it simply could not see this branch, which closes through the
+     * ViewModel rather than through the navigation handler.
+     *
+     * So the deletion says when it is over and the screen leaves the way `onCancel` leaves — the
+     * bare `popBackStack()` this file already pins on the route. ⛔ Not `onDone`: that one is the
+     * flight AND the pop to the inbox, both wrong here. ⛔ And not a pop fired from the tap either:
+     * the destroy must be made durable, the server copy evicted and the row consumed before the
+     * screen goes, and a failure keeps the screen up with its banner.
+     */
+    @Test fun `deleting the draft the phone is keeping does not fly the tern away either`() {
+        val screen = code(COMPOSE_SCREEN).lines().map { it.trim() }
+        assertEquals(
+            "⛔ the composer's own deletion must close on the ViewModel's one-shot, WHOLE LINE, and " +
+                "with the plain-pop callback: `onDone()` there flies the tern away and lands on " +
+                "the inbox, and `ComposeState.Done` (which is what this branch used to end on) " +
+                "does both. Lines naming the signal were:",
+            listOf("viewModel.localDraftDeleted.collect { onCancel() }"),
+            screen.filter { "localDraftDeleted" in it },
+        )
+        val route = composeRoute()
+        assertEquals(
+            "…and the callback it closes through must still be the bare pop, on the list the " +
+                "composer was opened from — the same leave the X uses. Argument was:",
+            "onCancel = { entry.navigateOnce { nav.popBackStack() } }",
+            argument(route, "onCancel =").replace(Regex("""\s+"""), " "),
+        )
+    }
+
+    /**
+     * ⭐ **The BINDING, whole line — the mutation every rule in this file was blind to.**
+     *
+     * `val editingLocalDraftId by viewModel.attachmentStatus.collectAsStateWithLifecycle()` has the
+     * same type (`StateFlow<String?>`), compiles, and leaves this whole file green: every other rule
+     * pins EXPRESSIONS CONTAINING the identifier — the fourth argument of `draftDeleteOffered`, the
+     * two `if (editingLocalDraftId != null) {` branches — and none of them pins where the value comes
+     * from. Under it the trash is never offered on a draft the phone is keeping (the correction is
+     * undone outright), and on the one state where that flow is non-null — a preload that failed —
+     * the button appears over a composer holding no lease and does nothing.
+     *
+     * Same instrument as `SenderRuleFromReaderTest`'s "that list must be the ViewModel's": the line,
+     * not a substring of it.
+     */
+    @Test fun `the delete gesture is bound to the lease itself, and to the kept-copy verdict`() {
+        val screen = code(COMPOSE_SCREEN).lines().map { it.trim() }
+        assertEquals(
+            "⛔ the lease binding, WHOLE LINE. Anything else of type StateFlow<String?> on the " +
+                "right-hand side compiles and disarms every other rule in this file. Lines were:",
+            listOf("val editingLocalDraftId by viewModel.editingLocalDraftId.collectAsStateWithLifecycle()"),
+            screen.filter { it.startsWith("val editingLocalDraftId") },
+        )
+        assertEquals(
+            "⛔ …and the verdict the confirmation warns from, WHOLE LINE: bound to another Boolean " +
+                "flow the dialog would promise the server copy stays exactly where it does not, or " +
+                "stay silent where it does. Lines were:",
+            listOf("val deleteKeepsServerCopy by viewModel.deleteKeepsServerCopy.collectAsStateWithLifecycle()"),
+            screen.filter { it.startsWith("val deleteKeepsServerCopy") },
+        )
+    }
+
     @Test fun `the button is offered by the shared decision, and asks before deleting`() {
         val screen = code(COMPOSE_SCREEN)
         val at = screen.indexOf(OFFERED)
@@ -69,8 +133,13 @@ class ComposeDeleteWiringTest {
         assertEquals(
             "draftDeleteOffered must be handed the live arguments: a constant here would offer the " +
                 "button on a message pulled back out of the outbox, or on a draft that could not " +
-                "be read. Arguments were:\n$guard",
-            "restore, draftId, editingDraft != null",
+                "be read. ⛔ The fourth is the LEASE on a draft the phone is keeping (#95) — " +
+                "`editingLocalDraftId != null`, and nothing else: `false` there takes the only way " +
+                "out of such a draft away again (the swipe refuses it, the selection refuses it, " +
+                "and emptying it by hand is unannounced), while `draftOpenRoute(draftId) == LOCAL` " +
+                "offers a dead button over a row the upload worker has already consumed. " +
+                "Arguments were:\n$guard",
+            "restore, draftId, editingDraft != null, editingLocalDraftId != null",
             guard.replace(Regex("""\s+"""), " "),
         )
         val block = balanced(screen, screen.indexOf('{', at), '{', '}')
@@ -115,6 +184,96 @@ class ComposeDeleteWiringTest {
                 "Dialog was:\n$dialog",
             Regex("""dismissButton = \{ TextButton\(onClick = \{ pendingDraftDelete = false }\)""")
                 .containsMatchIn(flat),
+        )
+    }
+
+    /**
+     * ⛔ **One title, two BODIES, and which one is drawn is pinned WHOLE-LINE** (#95).
+     *
+     * `compose_delete_draft_body` says the draft "goes to the Trash, or is deleted if this account
+     * has no Trash folder", and behind it sits the list's move-to-Trash with its Undo snackbar.
+     * Over a draft the PHONE is keeping, every word of that is false: no server has ever seen the
+     * row, there is no Trash for it to go to, no Undo behind it, and the row and its staged files
+     * go at once. Drawn there, the app promises a way back that does not exist — on the one dialog
+     * whose whole job is to say what is about to be lost.
+     *
+     * ⛔ And the local body may not go the other way either: it says NOTHING about a copy on the
+     * server. A draft this phone never read whole KEEPS the server copy it replaced
+     * (`planForEmptiedLocalDraft`, `bodyIsLossy`), so "it exists nowhere else" would be a lie in
+     * exactly that case — which is why no `outbox_*` string may be borrowed here, and the rule
+     * above already forbids it.
+     *
+     * ⛔ **Which is why the kept copy is SAID HERE, before the finger** (#95). Saying it afterwards
+     * was the whole defect: the dialog announced "this draft hasn't reached the server … this can't
+     * be undone", the row went, the mask over the server copy lifted, and the draft from BEFORE the
+     * edit came back at the top of Drafts — with, for only correction, a toast naming a gesture
+     * (emptying) the user had not made. The sentence is `compose_emptied_draft_server_copy_kept`,
+     * reworded to name no gesture because it now serves two, and the decision to draw it is
+     * [emptiedLocalDraftKeepsServerCopy], executed by `EmptiedLocalDraftTest`.
+     */
+    @Test fun `the confirmation names the body that is true of the draft in hand`() {
+        val text = bodySlot().let { slot -> callArguments(slot, "Text").single() }
+        assertEquals(
+            "⛔ the confirmation's one Text, WHOLE LINES. Both bodies must be here and chosen on " +
+                "the LEASE this composer holds (`editingLocalDraftId != null`): the server body " +
+                "promises the Trash and an Undo that a draft the phone is keeping has neither of, " +
+                "and the local body may only state what is true of ALL THREE local cases — the " +
+                "copy this phone holds, and its attachments, go at once. What is true of one case " +
+                "only is the second sentence, drawn under the first when the server copy behind " +
+                "the row is KEPT: without it the dialog promises the opposite of what happens. A " +
+                "substring check would not see either swap, nor a " +
+                "`stringResource(R.string.compose_delete_draft_body)` put back over both. Text " +
+                "was:\n$text",
+            listOf(
+                "listOfNotNull(",
+                "stringResource(",
+                "if (editingLocalDraftId != null) {",
+                "R.string.compose_delete_draft_body_local",
+                "} else {",
+                "R.string.compose_delete_draft_body",
+                "},",
+                "),",
+                "if (deleteKeepsServerCopy) {",
+                "stringResource(R.string.compose_emptied_draft_server_copy_kept)",
+                "} else {",
+                "null",
+                "},",
+                ").joinToString(\"\\n\\n\"),",
+                SCROLL_MODIFIER,
+            ),
+            text.lines().map { it.trim() }.filter { it.isNotEmpty() },
+        )
+    }
+
+    /**
+     * ⛔ **The confirming button's two branches, WHOLE, and they are two different gestures.**
+     *
+     * A SERVER draft is moved to the Trash by the list's own ViewModel, through `onDeleteDraft` and
+     * the navigation guard — unchanged, and the rule above still pins it. A draft the phone is
+     * KEEPING has no server row for that gesture to act on: `inboxViewModel.delete(email)` would be
+     * handed a null and do nothing, silently, while the dialog closed like a success. Its deletion
+     * is the composer's own — `deleteEditingLocalDraft`, the emptying gesture of #95 × #69 reached
+     * by a button instead of by an empty save, which destroys the replaced server copy under its
+     * proofs and only then takes the row and its files.
+     */
+    @Test fun `the confirming button sends a kept draft to the composer's own deletion`() {
+        val click = confirmOnClick()
+        assertEquals(
+            "⛔ the confirming button, whole and in order. `viewModel.deleteEditingLocalDraft()` on " +
+                "the local branch: `onDeleteDraft { viewModel.takeEditingDraft() }` put back there " +
+                "hands the inbox a null server row — nothing is deleted, nothing is said, and the " +
+                "draft is still at the top of Drafts when the screen closes. And the SERVER branch " +
+                "must stay word for word what it was, taker included, since that one really does " +
+                "own a cached row to move to the Trash. Block was:\n" + click.joinToString("\n"),
+            listOf(
+                "pendingDraftDelete = false",
+                "if (editingLocalDraftId != null) {",
+                "viewModel.deleteEditingLocalDraft()",
+                "} else {",
+                "onDeleteDraft { viewModel.takeEditingDraft() }",
+                "}",
+            ),
+            click,
         )
     }
 
@@ -279,6 +438,25 @@ class ComposeDeleteWiringTest {
                 "did not balance and this rule is reading the rest of the dialog. Read:\n$slot"
         }
         return slot
+    }
+
+    /**
+     * The `onClick = { … }` block of the confirmation's `confirmButton` slot, braces balanced, as
+     * trimmed non-empty lines — comments already cut by [code].
+     */
+    private fun confirmOnClick(): List<String> {
+        val dialog = confirmationBlock()
+        val slotAt = dialog.indexOf("confirmButton = {")
+        check(slotAt >= 0) {
+            "the confirmation no longer declares a 'confirmButton = {' slot — this rule reads it " +
+                "and has nothing to read if it moved. Dialog was:\n$dialog"
+        }
+        val slot = balanced(dialog, slotAt, '{', '}')
+        val clickAt = slot.indexOf("onClick = {")
+        check(clickAt >= 0) {
+            "the confirming button no longer carries an 'onClick = {' block. Slot was:\n$slot"
+        }
+        return balanced(slot, clickAt, '{', '}').lines().map { it.trim() }.filter { it.isNotEmpty() }
     }
 
     /** The argument text of every `name(…)` call in [text], parentheses balanced. */

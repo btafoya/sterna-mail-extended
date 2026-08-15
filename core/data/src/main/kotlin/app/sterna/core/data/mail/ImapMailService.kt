@@ -37,6 +37,8 @@ import kotlinx.coroutines.withContext
 import java.net.SocketTimeoutException
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 
 /**
  * A folder's mailboxes + what the walk of the target folder saw.
@@ -240,6 +242,24 @@ internal object ImapBudget {
     fun deadline(budgetMs: Int, nowMs: Long): Long = if (budgetMs > 0) nowMs + budgetMs else NO_BUDGET.toLong()
 
     /**
+     * The budget one call actually runs under: what its CALLER asked for, and failing that whatever
+     * [ImapReadBudget] the coroutine carries ([ambientMs]).
+     *
+     * ⛔ The caller wins whenever it named anything at all, however long — a caller that passed a
+     * budget has weighed its own operation, and an ambient value silently shortening it would make
+     * a bound tighter than the one written at the call site. The ambient value is a FLOOR under the
+     * calls that named nothing, not a ceiling over the ones that did.
+     *
+     * Both zero is [NO_BUDGET] — the blocking behaviour every existing caller has always had, which
+     * is what happens whenever nobody installed an element: the ambient value is then 0.
+     */
+    fun effective(callerMs: Int, ambientMs: Int): Int = when {
+        callerMs > 0 -> callerMs
+        ambientMs > 0 -> ambientMs
+        else -> NO_BUDGET
+    }
+
+    /**
      * What is left of [deadline] at [nowMs], as a socket timeout: [NO_BUDGET] when there is no
      * deadline, otherwise a positive number of milliseconds — and an exception once the budget
      * is spent, so a caller cannot connect or read "one last time" past its own deadline.
@@ -254,6 +274,31 @@ internal object ImapBudget {
         if (left <= 0) throw SocketTimeoutException("IMAP budget exhausted")
         return left.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     }
+}
+
+/**
+ * ⭐ **A read budget carried by the COROUTINE**, for the calls whose bound cannot be written at the
+ * call site (#95).
+ *
+ * `withSession`'s [budgetMs] is per call, and the calls that need bounding most are the ones that
+ * pass none: `appendDraft` is the whole of the deferred draft upload, and it is `NO_BUDGET`, i.e.
+ * `soTimeout = 0`, i.e. a link cut mid-`APPEND` leaves the thread in a `read()` that never returns.
+ * ⛔ **A coroutine cancellation does not end a blocking read**: the job is cancelled, the thread
+ * stays on the socket, it keeps the account's IMAP mutex, and the caller's own `finally` — the one
+ * that would have written the failed attempt on the row — is never reached. That is measured
+ * behaviour, not a worry: a draft went to `UPLOADING` and stayed there with nothing else able to
+ * touch the account.
+ *
+ * So the bound is installed by the CONTEXT the operation runs in ([MailRepository.uploadLocalDraft])
+ * and read at the one place every IMAP call passes, `runWithRetry`. ⛔ It is a FLOOR, never a
+ * ceiling: [ImapBudget.effective] lets any caller that named a budget of its own keep it, and with
+ * no element installed the ambient value is 0 and every existing caller is bit-for-bit unchanged.
+ *
+ * ⛔ It does not bound the WAIT for the account's mutex, for `SEND_PROOF_BUDGET_MS`'s reason — but it
+ * is what stops this operation from being the thing another caller waits on forever.
+ */
+internal class ImapReadBudget(val millis: Int) : AbstractCoroutineContextElement(ImapReadBudget) {
+    companion object Key : CoroutineContext.Key<ImapReadBudget>
 }
 
 /**
@@ -284,12 +329,23 @@ class ImapMailService(
      * the session is dropped and the block retried once with a fresh connection.
      *
      * [budgetMs] is a wall-clock deadline for the whole call, retry included; `0` (the default
-     * every existing caller keeps) means the blocking behaviour this has always had. See
-     * [ENUMERATE_BUDGET_MS] for what a budget is and is not worth.
+     * every existing caller keeps) means the blocking behaviour this has always had — unless the
+     * COROUTINE carries an [ImapReadBudget], which then applies to exactly those callers
+     * ([ImapBudget.effective]). See [ENUMERATE_BUDGET_MS] for what a budget is and is not worth.
+     *
+     * ⛔ [retryOnFailure] turns that one retry OFF, **per call and for one caller** ([appendDraft]).
+     * A read can be replayed; an `APPEND` cannot. The failure a client sees says nothing about what
+     * the server did with bytes it had already received, so replaying it inside the same call is how
+     * one save gesture puts two drafts in the Drafts folder — with no attempt recorded in between,
+     * so neither the deferred retry nor the `Message-ID` search of #95 ever gets a say, and IMAP
+     * `APPEND` hands back no id for the phone to see either copy by. The retry belongs to the
+     * deferred loop, which knows how to de-duplicate; the price is 30 s of backoff on a failure that
+     * was only transient. ⛔ Not a change of the reconnect policy: every other caller keeps it.
      */
     private suspend fun <T> withSession(
         credentials: AccountCredentials,
         budgetMs: Int = 0,
+        retryOnFailure: Boolean = true,
         // Suspending for ONE caller, [loadFolder], whose folder walk writes each page to the
         // database between requests — that is what holds the walk's memory to one page. Every
         // other block here suspends at nothing and behaves exactly as before. ⚠ What a suspending
@@ -307,7 +363,7 @@ class ImapMailService(
                     pooled.session = null
                 }
                 pooled.config = config
-                runWithRetry(pooled, config, budgetMs, block)
+                runWithRetry(pooled, config, budgetMs, retryOnFailure, block)
             }
         }
 
@@ -315,9 +371,15 @@ class ImapMailService(
         pooled: Pooled,
         config: MailServerConfig,
         budgetMs: Int,
+        retryOnFailure: Boolean,
         block: suspend (ImapSession) -> T,
     ): T {
-        val deadline = ImapBudget.deadline(budgetMs, System.currentTimeMillis())
+        // ⭐ ONE deadline, from the caller's budget or — when it named none — the one the coroutine
+        // carries ([ImapReadBudget]). It is taken here, so the two `remaining` calls below both
+        // derive from it: bounding the connect and leaving the reads at 0 would leave `appendDraft`
+        // exactly as unbounded as it was, since its wait is entirely in the tagged response.
+        val ambientMs = currentCoroutineContext()[ImapReadBudget]?.millis ?: ImapBudget.NO_BUDGET
+        val deadline = ImapBudget.deadline(ImapBudget.effective(budgetMs, ambientMs), System.currentTimeMillis())
         var attempt = 0
         while (true) {
             // What is left of the budget bounds the connect, and what is left AFTER it bounds
@@ -347,7 +409,9 @@ class ImapMailService(
             } catch (t: Throwable) {
                 runCatching { session.close() }
                 pooled.session = null
-                if (++attempt >= 2) throw t
+                // ⛔ The connection is dropped either way — it is the REPLAY that is refused for a
+                // caller whose command is not idempotent. See [withSession]'s [retryOnFailure].
+                if (!retryOnFailure || ++attempt >= 2) throw t
             }
         }
     }
@@ -481,9 +545,63 @@ class ImapMailService(
         }
     }
 
-    /** APPEND a draft (\Draft flag) into the Drafts folder. */
+    /**
+     * APPEND a draft (\Draft flag) into the Drafts folder.
+     *
+     * ⛔ **`retryOnFailure = false`, and it is the point of the call.** The bytes of one save go out
+     * at most once per call: a replay inside the session would append a second copy of the same text
+     * before any attempt is recorded, so the deferred loop — the only place that de-duplicates by
+     * `Message-ID` (#95) — would never see the first one. ⛔ Not the same for [send]'s Sent-folder
+     * APPEND, which is outside this and unchanged.
+     *
+     * ⚠ **And no budget of its own, deliberately**: the same call serves the interactive save, which
+     * keeps its historic blocking read, and the deferred upload, which needs a bound. A parameter
+     * here would have to be threaded through `uploadDraft` for one of its two callers; the bound is
+     * therefore installed on the coroutine instead ([ImapReadBudget], and
+     * [LOCAL_DRAFT_UPLOAD_BUDGET_MS] is the value the upload uses).
+     */
     suspend fun appendDraft(credentials: AccountCredentials, draftsMailbox: String, message: OutgoingMessage) =
-        withSession(credentials) { it.append(draftsMailbox, OutgoingMime.build(message), "\\Draft") }
+        withSession(credentials, retryOnFailure = false) {
+            it.append(draftsMailbox, OutgoingMime.build(message), "\\Draft")
+        }
+
+    /**
+     * Whether the Drafts folder already holds the draft named [messageId] — the question a deferred
+     * upload asks before appending a second copy of text the server has (#95). `APPEND` returns no
+     * id to keep, so this header is the only name that draft has on both sides of the network.
+     *
+     * ⛔ **The question is NOT put to the server as a search key.** `SEARCH HEADER "Message-ID"` is
+     * what this used to send, and Stalwart answers it with an empty `* SEARCH` in every shape —
+     * naked, bracketed, substring, on a delivered message — while answering `HEADER "Subject"` and
+     * `HEADER "To"` perfectly. Measured at the bench, five witnesses, on a folder holding two copies
+     * of the very id being asked about. An empty answer reads as "not there", so the guard appended
+     * a third copy. So: `UID SEARCH ALL` ([ImapSession.newestUids]), the one key every server
+     * implements, the newest [DRAFT_LOOKUP_SCAN] of them, their envelopes, and the comparison made
+     * HERE by [localDraftMessageIdMatches].
+     *
+     * ⛔ **The newest, and a folder deeper than the cap answers "not there".** Our copy is the last
+     * thing `APPEND`ed, so it is at that end; and past the cap the honest answer is "I did not
+     * look", whose only safe reading here is "append it".
+     *
+     * ⛔ **Not [search], deliberately.** That one maps entities, applies the attachment filter and
+     * turns a folder it could not read into a skipped folder plus a log line — an empty answer that
+     * cannot be told apart from "there is nothing there". Here the two must never look alike: an
+     * error has to reach the caller, whose only safe reading of "I could not look" is "append it".
+     * ⛔ Which is also why nothing below is wrapped in a `runCatching`.
+     */
+    suspend fun draftIsAlreadyThere(
+        credentials: AccountCredentials,
+        draftsMailbox: String,
+        messageId: String,
+    ): Boolean {
+        // Block body, not an expression one, so LocalDraftUploadWiringTest can read this body: an
+        // expression body has no braces of its own and the lookup would hand back the lambda's.
+        return withSession(credentials) { session ->
+            session.select(draftsMailbox)
+            session.fetchUids(session.newestUids(DRAFT_LOOKUP_SCAN))
+                .any { localDraftMessageIdMatches(messageId, it.messageId) }
+        }
+    }
 
     /** Connect + authenticate (and list folders) to verify the account's IMAP settings. */
     suspend fun testConnection(credentials: AccountCredentials) {
@@ -841,10 +959,16 @@ class ImapMailService(
      * ⭐ [budgetMs] has no default, for [fetchPreview]'s reason (its doc says it in full): the
      * block below is blocking, holds the account's single connection under its mutex, and a
      * `withTimeout` from the caller can bound none of that. The save passes
-     * [ImapBudget.NO_BUDGET] explicitly — its historic blocking behaviour, unchanged; the send
-     * passes a real deadline, because it runs this BEFORE its outbox row exists, while the
-     * message is only in the composer's RAM. An expired budget throws ([SocketTimeoutException]),
-     * which every caller already reads as "could not be established": unknown, keep the original.
+     * [ImapBudget.NO_BUDGET] explicitly — its historic blocking behaviour; the send passes a real
+     * deadline, because it runs this BEFORE its outbox row exists, while the message is only in the
+     * composer's RAM. An expired budget throws ([SocketTimeoutException]), which every caller
+     * already reads as "could not be established": unknown, keep the original.
+     *
+     * ⚠ **`NO_BUDGET` here is "the caller named nothing", not "nothing bounds this".** The save's
+     * call site is shared with the DEFERRED draft upload, whose coroutine carries an
+     * [ImapReadBudget] (#95): passing `NO_BUDGET` from there yields to that ambient bound
+     * ([ImapBudget.effective]). Wanted, and harmless in the only direction that matters — an expiry
+     * is "unknown", i.e. no destroy.
      */
     suspend fun ccAndBccOf(
         credentials: AccountCredentials,
@@ -964,6 +1088,20 @@ class ImapMailService(
          * difference between minutes and never. A real Trash answers in well under a second.
          */
         const val ENUMERATE_BUDGET_MS = 15_000
+
+        /**
+         * How many of the NEWEST drafts [draftIsAlreadyThere] reads envelopes for (#95).
+         *
+         * One `UID FETCH` of fifty envelopes, on a link that has just failed, to avoid appending a
+         * copy of text the server already holds. Fifty because the copy being looked for is the
+         * LAST thing appended to the folder: a deferred upload runs minutes after the save it
+         * retries, and fifty drafts written in between is already a stretch.
+         *
+         * ⛔ Deeper than this, the answer is "not found", i.e. APPEND. That is the direction a
+         * doubt must fall: a copy too many in Drafts is visible and deletable, a draft abstained
+         * over is gone — `uploadLocalDraftOnce` consumes the row either way.
+         */
+        const val DRAFT_LOOKUP_SCAN = 50
 
         /** Stable, globally-unique cache id for an IMAP message. */
         fun emailId(accountId: String, mailboxId: String, uid: Long): String = "imap:$accountId:$mailboxId:$uid"

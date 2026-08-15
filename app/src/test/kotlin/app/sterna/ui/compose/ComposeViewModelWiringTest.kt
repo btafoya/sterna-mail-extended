@@ -122,10 +122,166 @@ class ComposeViewModelWiringTest {
         )
     }
 
+    /**
+     * ⛔ The queued row a composer was editing is DESTROYED by `consumeEditingOutbox` —
+     * `repo.deleteOutbox(id)` takes the row and its staged attachment directory. Since #95 a save
+     * can come back having reached nothing: KEPT_ON_DEVICE means the draft is on the phone alone,
+     * and no screen shows local drafts yet. Consuming the queued row on that outcome removes the
+     * only copy the user can still see, and the files with it.
+     *
+     * The decision is a pure function executed in `LocalDraftSaveTest`; what nothing here can
+     * execute is whether this class still ASKS it. The whole line is compared, so
+     * `if (draftSaveConsumesTheQueuedRow(outcome) || true)` does not slip through.
+     */
+    @Test fun `the queued row is dropped only for a draft that really reached the server`() {
+        val body = bodyOf("saveDraft")
+        assertEquals(
+            "saveDraft must consume the edited outbox row behind " +
+                "draftSaveConsumesTheQueuedRow(outcome), and nowhere else in this body. " +
+                "Body was:\n$body",
+            listOf("if (draftSaveConsumesTheQueuedRow(outcome)) consumeEditingOutbox()"),
+            body.lines().map { it.trim() }.filter { "consumeEditingOutbox()" in it },
+        )
+    }
+
+    /**
+     * ⛔ The other half of the same outcome, and the one that decides whether the message is SENT.
+     * A row that is not consumed is not "left alone": left in `EDITING` it is on no screen (the
+     * Outbox screen and the badge both filter EDITING out) and the next launch reverts it to QUEUED
+     * and delivers the PRE-EDIT text, with no undo window, after the user tapped "save as draft".
+     *
+     * The state is decided by a pure function executed in `LocalDraftSaveTest`; what nothing here
+     * can execute is whether this class still ASKS it, and whether it asks BEFORE consuming (the
+     * consume clears `editingOutboxId`, so a park written after it would silently do nothing).
+     * Whole lines, so a lengthening mutation cannot slip past.
+     */
+    @Test fun `the queued row that survives the save is parked, and parked before anything drops it`() {
+        val body = bodyOf("saveDraft")
+        assertEquals(
+            "saveDraft must park the edited outbox row behind draftSaveParksTheQueuedRowAs(" +
+                "outcome), and nowhere else in this body. Body was:\n$body",
+            listOf("draftSaveParksTheQueuedRowAs(outcome)?.let { parkEditingOutbox(it) }"),
+            body.lines().map { it.trim() }.filter { "parkEditingOutbox(" in it },
+        )
+        val park = body.indexOf("parkEditingOutbox(")
+        val consume = body.indexOf("consumeEditingOutbox()")
+        assertTrue("saveDraft no longer parks the edited row at all", park >= 0)
+        assertTrue("saveDraft no longer consumes the edited row at all", consume >= 0)
+        assertTrue(
+            "the park must be written BEFORE the consume: consumeEditingOutbox() sets " +
+                "editingOutboxId to null, so a park below it returns without touching the row and " +
+                "the message is left EDITING — the defect, with a line of code that looks right. " +
+                "Body was:\n$body",
+            park < consume,
+        )
+    }
+
+    /**
+     * ⛔ THE WHOLE BODY, line by line and in order — a filter on one name is blind to the mutation
+     * that costs the least to write: MOVE the park line into the `if (draftSaveNeedsNotice(outcome))`
+     * block right above it. Nothing is added, nothing is lengthened, every `contains` rule and every
+     * "these are the lines naming parkEditingOutbox" rule stays green — and the fix is disarmed
+     * outright, because `draftSaveNeedsNotice` is true only for ORIGINAL_KEPT, which never parks
+     * anything. Only the ORDERED, COMPLETE list of statements sees a line change nesting.
+     *
+     * The price is stated: any honest refactor of this function turns this red. That direction of
+     * error is loud and one minute to fix; the other direction is a fix that comes silently undone.
+     */
+    @Test fun `the whole of saveDraft, statement by statement`() {
+        val body = bodyOf("saveDraft")
+        assertEquals(
+            "ComposeViewModel.saveDraft is pinned whole. If you meant to change it, read the two " +
+                "⛔ comments in it first: the park must be a statement of the submit block itself " +
+                "(not nested in a condition) and must come before the consume. Body was:\n$body",
+            listOf(
+                "if (!draftSaveAllowed(_pgpMode.value)) {",
+                "_notices.tryEmit(R.string.compose_pgp_no_draft)",
+                "return",
+                "}",
+                "if (!hasDraftContent(to, cc, bcc, subject, body)) {",
+                "val original = editingDraftId",
+                "val originalUidValidity = editingDraftUidValidity",
+                // ⛔ The close that accompanies a deletion hands the phone's own row to NOBODY —
+                // abandon() would otherwise put it back PENDING and re-arm its upload, sending the
+                // pre-edit text of the draft just emptied up to the server (#95 × #69) — and it is
+                // said AS AN ARGUMENT. Said by blanking `editingLocalDraftId` first, as it was, a
+                // submit() that FAILED left the row EDITING with nobody left to release it: no
+                // upload worker will touch it again before the next cold start.
+                "abandon(emptying = true)",
+                "if (original == null) {",
+                "_state.value = ComposeState.Done",
+                // ⛔ A `local-draft:` id names nothing repo.discardDraft can destroy: under IMAP
+                // numbering it answers an empty list, so the emptied draft survived and went up on
+                // the next network while the screen closed as a success. And the row is not taken
+                // away on its own either: while it exists it MASKS the server draft it replaces, so
+                // consuming it alone brings that draft back with its pre-edit text (#95 × #69).
+                "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
+                "submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }",
+                "} else {",
+                "submit(to) { credentials, _ -> repo.discardDraft(credentials, original, originalUidValidity) }",
+                "}",
+                "return",
+                "}",
+                "submit(to) { credentials, recipients ->",
+                "val identity = selectedIdentity()",
+                "val outcome = repo.saveDraft(",
+                "credentials, recipients, subject, body, parseAddrs(cc), parseAddrs(bcc),",
+                "inReplyTo = inReplyTo, references = references,",
+                "replacesEmailId = editingDraftId,",
+                "replacesUidValidity = editingDraftUidValidity,",
+                "attachments = _attachments.value,",
+                "bodyIsLossy = editingDraftLossy,",
+                "fromName = identity?.name, fromEmail = identity?.email,",
+                "requestReceipt = requestReceipt,",
+                ")",
+                "if (draftSaveNeedsNotice(outcome)) {",
+                "_notices.tryEmit(R.string.compose_draft_original_kept)",
+                "}",
+                "draftSaveParksTheQueuedRowAs(outcome)?.let { parkEditingOutbox(it) }",
+                "if (draftSaveConsumesTheQueuedRow(outcome)) consumeEditingOutbox()",
+                "}",
+            ),
+            codeOf(body),
+        )
+    }
+
+    /**
+     * ⛔ And the park has to SURVIVE the screen going away — the whole body again, for the same
+     * reason: `viewModelScope.launch` here instead of `appScope.launch` is one word, and it is the
+     * defect. The save runs in `viewModelScope` (through `submit`), the user's back gesture during
+     * the spinner cancels it, and a park scheduled on that scope never writes: the row stays
+     * EDITING and the next launch sends the pre-edit message. `abandon()` uses `appScope` for
+     * exactly this, and the two are the same problem.
+     *
+     * The id is read and cleared BEFORE the launch, synchronously, so the ordering against
+     * `consumeEditingOutbox` cannot depend on when a coroutine gets scheduled.
+     */
+    @Test fun `the park outlives the screen, like abandon does`() {
+        val body = bodyOf("parkEditingOutbox")
+        assertEquals(
+            "parkEditingOutbox must take the row's id synchronously and then write through " +
+                "appScope — never viewModelScope, which the back gesture cancels. Body was:\n$body",
+            listOf(
+                "val id = editingOutboxId ?: return",
+                "editingOutboxId = null",
+                "_editingOutbox.value = false",
+                "appScope.launch {",
+                "runCatching { repo.parkOutboxEdit(id, state) }",
+                ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't park the edited outbox item\", it) }",
+                "}",
+            ),
+            codeOf(body),
+        )
+    }
+
     // -- reading the source ---------------------------------------------------------------------
 
     /** The body of `fun prepare(`, braces balanced, comments cut. */
     private fun prepareBody(): String = bodyOf("prepare")
+
+    /** [body]'s code lines, trimmed and blanks dropped — the shape the whole-body rules compare. */
+    private fun codeOf(body: String): List<String> =
+        body.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
     /** The body of `fun [name](` in `ComposeViewModel.kt`, braces balanced, comments cut. */
     private fun bodyOf(name: String): String {

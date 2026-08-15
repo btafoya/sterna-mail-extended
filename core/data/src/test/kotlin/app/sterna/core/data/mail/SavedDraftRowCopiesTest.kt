@@ -122,8 +122,10 @@ class SavedDraftRowCopiesTest {
      * Whole lines, not `contains`: the mutation that matters here REMOVES an argument, and the one
      * after it would ADD one — a fragment match is blind to that.
      */
-    @Test fun `saveDraft hands the trimmed copies to the cache write`() {
-        val body = DaoQuerySource.mailFunctionBody("MailRepository", "saveDraft")
+    @Test fun `the upload hands the trimmed copies to the cache write`() {
+        // ⚠ Moved by #95: the two protocol branches live in `uploadDraft`, which `saveDraft` runs
+        // only after the draft is durable on the phone. The copies now come off the row.
+        val body = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
             .lines().map { it.trim() }.filter { it.isNotEmpty() }
         val at = body.indexOfFirst { it.startsWith("cacheSavedDraft(") }
 
@@ -141,7 +143,7 @@ class SavedDraftRowCopiesTest {
                 "credentials, savedId, draftsId, from, recipients,",
                 "cc = ccTrimmed.map { EmailAddress(email = it) },",
                 "bcc = bccTrimmed.map { EmailAddress(email = it) },",
-                "subject, body,",
+                "row.subject, row.textBody,",
                 "inReplyTo, references, hasAttachment = blobs.isNotEmpty(),",
                 ")",
             ),
@@ -154,8 +156,8 @@ class SavedDraftRowCopiesTest {
         assertEquals(
             "the Cc/Bcc the save is built from are no longer the composer's trimmed addresses:",
             listOf(
-                "val ccTrimmed = cc.map { it.trim() }.filter { it.isNotEmpty() }",
-                "val bccTrimmed = bcc.map { it.trim() }.filter { it.isNotEmpty() }",
+                "val ccTrimmed = localDraftAddresses(row.cc)",
+                "val bccTrimmed = localDraftAddresses(row.bcc)",
             ),
             body.filter { it.startsWith("val ccTrimmed") || it.startsWith("val bccTrimmed") },
         )

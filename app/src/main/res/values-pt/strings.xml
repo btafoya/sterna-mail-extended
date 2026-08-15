@@ -31,6 +31,8 @@
     <string name="compose_draft_original_kept">Salvo como um novo rascunho. O original foi mantido, porque esta cópia não conseguia levar tudo o que ele continha.</string>
     <string name="compose_draft_offline">Não foi possível carregar este rascunho: não há ligação. Volte com uma ligação e abra-o novamente.</string>
     <string name="compose_draft_load_failed">Não foi possível carregar o texto deste rascunho. Feche este ecrã e tente abri-lo novamente.</string>
+    <string name="compose_local_draft_gone">Este rascunho já não está neste telefone. Se chegou ao servidor, vai encontrá-lo em Rascunhos.</string>
+    <string name="compose_emptied_draft_server_copy_kept">A cópia no servidor mantém-se, porque este telefone não conseguiu ler tudo o que ela continha.</string>
     <string name="compose_forward_attachment_dropped">Não foi possível incluir alguns anexos da mensagem encaminhada.</string>
     <string name="compose_scheduled_toast">Agendado — %1$s</string>
     <string name="compose_discard_title">Descartar mensagem?</string>
@@ -39,6 +41,7 @@
     <string name="compose_discard_message_encrypted_draft">Esta mensagem está criptografada, por isso as suas alterações não podem ser guardadas como rascunho: um rascunho fica no servidor de e-mail exatamente como foi escrito, legível por quem tiver acesso a ele. Se sair agora, só as alterações são descartadas; o rascunho já guardado permanece em Rascunhos.</string>
     <string name="compose_delete_draft_title">Eliminar este rascunho?</string>
     <string name="compose_delete_draft_body">Vai para a Lixeira, ou é eliminado se esta conta não tiver pasta Lixeira. O que escreveu desde que o abriu não é guardado.</string>
+    <string name="compose_delete_draft_body_local">A cópia neste telefone, e os seus anexos, são eliminados de imediato.</string>
     <string name="compose_discard_title_outbox">Descartar as alterações?</string>
     <string name="compose_discard_title_changes">Descartar as alterações?</string>
     <string name="compose_discard_message_outbox">As suas alterações são descartadas, mas a mensagem não: continua na caixa de saída, ou passa para os Rascunhos se a guardar.</string>
@@ -730,6 +733,7 @@
     <string name="outbox_state_sending">A enviar…</string>
     <string name="outbox_state_failed">Falhou: %1$s</string>
     <string name="outbox_state_failed_unknown">não foi possível enviar</string>
+    <string name="outbox_state_kept_as_draft">Guardado como rascunho neste dispositivo, por enviar</string>
     <string name="outbox_retry">Tentar de novo</string>
     <string name="outbox_edit">Editar</string>
     <string name="outbox_delete">Eliminar</string>
@@ -838,6 +842,7 @@
     <string name="a11y_unfavourite">Remover estrela</string>
     <string name="a11y_has_attachment">Tem um anexo</string>
     <string name="draft_label">Rascunho</string>
+    <string name="local_draft_not_uploaded">Não carregado</string>
     <string name="a11y_conversation_pill">Conversa, %1$d mensagens</string>
     <string name="a11y_conversation_expanded">Expandida</string>
     <string name="a11y_conversation_collapsed">Recolhida</string>

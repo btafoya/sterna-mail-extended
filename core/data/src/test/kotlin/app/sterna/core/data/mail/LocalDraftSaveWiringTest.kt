@@ -1,0 +1,315 @@
+package app.sterna.core.data.mail
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * ⚠ THIS TEST READS SOURCE TEXT — the last resort, as [DraftAddressingWiringTest] does and for the
+ * same reason: `MailRepository` needs Room, a `Context` and a socket, so no JVM test can build one.
+ * The DECISIONS are executed by [LocalDraftSaveTest]; this pins only WHERE they are plugged in, and
+ * it pins WHOLE LINES — `contains` is blind to any mutation that lengthens a line.
+ *
+ * What it exists for (#95): the local write has to be in the COMMON TRUNK, ahead of both protocol
+ * branches. `saveDraft` executing one line of network before writing the row would leave every
+ * executed test green — the orchestration would still be correct, it would just never run on the
+ * path the app takes.
+ */
+class LocalDraftSaveWiringTest {
+
+    private fun bodyOf(function: String): String = DaoQuerySource.mailFunctionBody("MailRepository", function)
+
+    private fun codeLinesNaming(body: String, needle: String): List<String> =
+        body.lines().map { it.trim() }
+            .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
+            .filter { needle in it }
+
+    private fun codeOf(body: String): List<String> =
+        body.lines().map { it.trim() }
+            .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") || it.isEmpty() }
+
+    @Test fun `saveDraft itself touches no network at all`() {
+        // ⛔ The point of the volet, stated where it can rot: every byte that leaves goes through
+        // uploadDraft, which is reached only after the row is durable. A single `imap.` or
+        // `connect(` back in this body is the old order restored.
+        val body = codeOf(bodyOf("saveDraft"))
+        val network = body.filter { line ->
+            listOf("imap.", "client.", "connect(", "jmapDraftAttachments(", "imapDraftAttachments(")
+                .any { it in line }
+        }
+        assertEquals(
+            "MailRepository.saveDraft must reach the network only through uploadDraft, which " +
+                "saveDraftLocalFirst calls AFTER the row is written:",
+            emptyList<String>(), network,
+        )
+    }
+
+    @Test fun `the save is assembled out of the functions the tests execute`() {
+        val body = codeOf(bodyOf("saveDraft"))
+        val at = body.indexOfFirst { it == "val target = localDraftTarget(" }
+        assertTrue("MailRepository.saveDraft no longer looks its row up with localDraftTarget", at >= 0)
+        assertEquals(
+            "⛔ the row a save lands on must be looked up by BOTH keys, with the REAL statements: " +
+                "`forServerDraft = { null }`, or dropping the second lookup, mints a fresh row on " +
+                "every re-save of an edited server draft — N rows, N Message-IDs, N uploads and N " +
+                "attempts to destroy the same original:",
+            listOf(
+                "val target = localDraftTarget(",
+                "replacesEmailId,",
+                "byId = { localDraftDao.byId(credentials.id, it) },",
+                "forServerDraft = { localDraftDao.forServerDraft(credentials.id, it) },",
+                ")",
+            ),
+            body.drop(at).take(5),
+        )
+        assertEquals(
+            "⛔ the server draft to destroy must go through serverDraftReplacedBy: a local id " +
+                "handed on reaches destroyDraft, and on IMAP it ends in a UID",
+            listOf("val serverReplaced = serverDraftReplacedBy(replacesEmailId)"),
+            body.filter { "serverDraftReplacedBy(" in it },
+        )
+        assertEquals(
+            "the whole order — write, stage, upload, and consume only on success — is one function " +
+                "so a test can run it",
+            listOf("return saveDraftLocalFirst("),
+            body.filter { "saveDraftLocalFirst(" in it },
+        )
+    }
+
+    @Test fun `the things saveDraftLocalFirst is given are the real store, whole lines`() {
+        // ⛔ `record` is the newest of them and the easiest to drop: a save that fails offline
+        // leaves the row for the upload worker, and if the attempt is not written down the row's
+        // `notBeforeMillis` never moves. `LocalDraftDao.pending` then hands it back at once, and
+        // against a server that is REFUSING rather than absent the worker retries as fast as it is
+        // allowed to, on battery, for as long as the refusal lasts.
+        //
+        // ⛔ And two that are about the draft ALREADY saved:
+        //  - `existing` is what tells the orchestration whether this save created the row it is
+        //    about. Handed `null`, a failed staging rolls back a row a PREVIOUS save wrote, i.e.
+        //    deletes the text and the staged bytes of a draft that was safely on the phone;
+        //  - `schedule` is what makes the promise of the volet true at all. Without it a draft
+        //    saved with no network waits for the next START of the app, and nothing says so.
+        val body = codeOf(bodyOf("saveDraft"))
+        val at = body.indexOfFirst { it == "return saveDraftLocalFirst(" }
+        assertTrue("MailRepository.saveDraft no longer calls saveDraftLocalFirst( — follow it", at >= 0)
+        assertEquals(
+            "the adapters handed to the orchestration are what LocalDraftSaveTest stands in for. " +
+                "`upsert = { }`, a stage that returns emptyList() or `record = { _, _ -> }` leave " +
+                "every executed test green and do nothing at all on a real phone:",
+            listOf(
+                "return saveDraftLocalFirst(",
+                "row = row,",
+                "existing = existing,",
+                "nowMillis = System.currentTimeMillis(),",
+                "upsert = { localDraftDao.upsert(it) },",
+                "stage = { stageLocalDraftAttachments(localDraftDir(it.id), attachments) },",
+                "discard = { discardLocalDraft(credentials.id, it.id) },",
+                "upload = { saved -> uploadDraft(credentials, saved, attachments) },",
+                "record = { saved, attempt ->",
+                "localDraftDao.recordAttempt(",
+                "credentials.id, saved.id, LocalDraftState.PENDING, attempt.attemptCount, attempt.error,",
+                "attempt.atMillis, attempt.notBeforeMillis,",
+                ")",
+                "},",
+                "schedule = { job -> localDraftScheduler?.schedule(job.accountId, job.id, job.delayMillis) },",
+                ")",
+            ),
+            body.drop(at).take(16),
+        )
+    }
+
+    @Test fun `the booking seam does not suspend, and the signature says so`() {
+        // ⛔ THE guard the whole cancelled path rests on, and it had no witness at all: put
+        // `suspend` back on `schedule` and everything stays green, because the harness's fake never
+        // suspends. On a phone it would: from a cancelled coroutine every suspension point throws,
+        // so a suspending booking seam books NOTHING on the one path that exists to book — the
+        // composer closing mid-upload. The compiler is what enforces it (a `localDraftDao.…` added
+        // in that lambda would not compile), and this is what stops the type being widened.
+        //
+        // ⛔ WHOLE LINES: `schedule: suspend (LocalDraftUploadJob) -> Unit,` is a LONGER line, so
+        // any `contains`-style check would be blind to exactly the mutation this exists for.
+        val source = DaoQuerySource.mailSource("LocalDraftSave")
+        val at = source.indexOf("internal suspend fun saveDraftLocalFirst(")
+        assertTrue("LocalDraftSave no longer declares saveDraftLocalFirst( — renamed?", at >= 0)
+        assertEquals(
+            "the seams of the save, and which of them may suspend:",
+            listOf(
+                "internal suspend fun saveDraftLocalFirst(",
+                "row: LocalDraftEntity,",
+                "existing: LocalDraftEntity?,",
+                "nowMillis: Long,",
+                "upsert: suspend (LocalDraftEntity) -> Unit,",
+                "stage: suspend (LocalDraftEntity) -> List<OutboxAttachment>,",
+                "discard: suspend (LocalDraftEntity) -> Unit,",
+                "upload: suspend (LocalDraftEntity) -> DraftSaveOutcome,",
+                "record: suspend (LocalDraftEntity, LocalDraftAttempt) -> Unit,",
+                "schedule: (LocalDraftUploadJob) -> Unit,",
+                "): DraftSaveOutcome {",
+            ),
+            codeOf(source.substring(at, source.indexOf('{', at) + 1)),
+        )
+    }
+
+    @Test fun `every value the composer hands over is on the row, argument by argument`() {
+        // ⭐ THE mutation that survived the first pass: `bodyIsLossy = bodyIsLossy` → `= false`
+        // compiles and leaves the whole suite green. `uploadDraft` reads its verdict off the ROW
+        // now, so a false there tells draftReplacementIsFaithful that a draft the composer could
+        // only show as flattened text reproduces its HTML original — and finishDraftSave destroys
+        // that original, body, inline images and calendar parts included. That is exactly the loss
+        // the #63 guard exists to prevent, with every guard still green.
+        //
+        // The row builder is EXECUTED by LocalDraftSaveTest (every argument of localDraftRow lands
+        // on the entity, and the entity is what both uploads read). What no JVM test can execute is
+        // this call: `saveDraft` needs Room, a Context and a socket. So the call is pinned as
+        // source, WHOLE LINES and all of them at once — `contains` would be blind to
+        // `bodyIsLossy = bodyIsLossy && false`, which lengthens the line.
+        val body = codeOf(bodyOf("saveDraft"))
+        val at = body.indexOfFirst { it == "val row = localDraftRow(" }
+        assertTrue("MailRepository.saveDraft no longer builds its row with localDraftRow", at >= 0)
+        assertEquals(
+            "every argument here carries a value from the composer to what goes out on the wire. " +
+                "A literal, a default or a condition ANDed onto one of them is a field silently " +
+                "dropped from the draft on BOTH protocols, with every executed test still green:",
+            listOf(
+                "val row = localDraftRow(",
+                "accountId = credentials.id,",
+                "id = target.id,",
+                "messageId = localDraftMessageId(existing) { newMessageId(credentials.username) },",
+                "to = recipients,",
+                "cc = cc,",
+                "bcc = bcc,",
+                "subject = subject,",
+                "body = body,",
+                "fromName = fromName,",
+                "fromEmail = fromEmail,",
+                "inReplyTo = inReplyTo,",
+                "references = references,",
+                "replacesEmailId = serverReplaced,",
+                "replacesUidValidity = localDraftUidValidity(serverReplaced) { mailboxId ->",
+                "mailboxUidValidityDao.recorded(credentials.id, mailboxId)",
+                "},",
+                "bodyIsLossy = bodyIsLossy,",
+                "requestReceipt = requestReceipt,",
+                "existing = existing,",
+                "nowMillis = System.currentTimeMillis(),",
+                ")",
+            ),
+            body.drop(at).take(22),
+        )
+    }
+
+    @Test fun `the destroy verdict is read off the row, on both protocols`() {
+        // The consumer of `bodyIsLossy`. Both branches must ask the ROW — the value the composer
+        // set, frozen at save time — and not a literal: `false` at either site authorises the
+        // destroy of an original this composer cannot reproduce, on that protocol only.
+        assertEquals(
+            "both uploads must weigh the row's own bodyIsLossy before finishDraftSave may destroy " +
+                "the original (#63)",
+            listOf(
+                "attachments.size, parts.size, row.bodyIsLossy,",
+                "attachments.size, blobs.size, row.bodyIsLossy,",
+            ),
+            codeLinesNaming(bodyOf("uploadDraft"), "bodyIsLossy"),
+        )
+    }
+
+    @Test fun `the Message-ID the row froze is the one the row builder is given`() {
+        assertEquals(
+            "the row's Message-ID must come from localDraftMessageId(existing) — a fresh mint here " +
+                "gives the same draft a new name on every save, which is what main did",
+            listOf("messageId = localDraftMessageId(existing) { newMessageId(credentials.username) },"),
+            codeLinesNaming(bodyOf("saveDraft"), "messageId ="),
+        )
+    }
+
+    @Test fun `the appended draft is built from the row and not from the arguments`() {
+        // ⭐ The one line the whole Message-ID story rests on. `outgoing(credentials, …)` here — the
+        // shape main had — mints a fresh id inside and the row's name never reaches the server.
+        assertEquals(
+            "the IMAP APPEND must be built by localDraftOutgoing from the row that was just written",
+            listOf("localDraftOutgoing(row, credentials.username, parts, System.currentTimeMillis()),"),
+            codeLinesNaming(bodyOf("uploadDraft"), "localDraftOutgoing("),
+        )
+        assertEquals(
+            "and nothing on the draft path may go back to outgoing(), which mints its own",
+            emptyList<String>(),
+            codeLinesNaming(bodyOf("uploadDraft"), "outgoing(").filterNot { "localDraftOutgoing(" in it },
+        )
+    }
+
+    @Test fun `the UIDVALIDITY is read for this account, at save time`() {
+        assertEquals(
+            "the numbering must be frozen while it is still true — the row may wait weeks, and the " +
+                "upload's last act is a delete addressed by UID (#99)",
+            listOf(
+                "replacesUidValidity = localDraftUidValidity(serverReplaced) { mailboxId ->",
+                "mailboxUidValidityDao.recorded(credentials.id, mailboxId)",
+            ),
+            codeOf(bodyOf("saveDraft")).filter { "localDraftUidValidity(" in it || "mailboxUidValidityDao" in it },
+        )
+    }
+
+    @Test fun `a local draft's files are its own, never the outbox's`() {
+        // Read over the WHOLE file, not one function: what matters is that `localDraftFilesDir`
+        // is resolved in exactly one place and that no draft path ever names `outboxFilesDir`.
+        // ⛔ An outbox item's staged bytes die with the send; a draft's wait as long as the draft
+        // does. One directory for both is one purge away from an amputated draft.
+        val source = DaoQuerySource.mailSource("MailRepository")
+        assertEquals(
+            "the draft staging tree must be resolved in one place, from its own field",
+            listOf(
+                "private val localDraftFilesDir: java.io.File,",
+                "java.io.File(localDraftFilesDir, localDraftDirName(id))",
+            ),
+            codeLinesNaming(source, "localDraftFilesDir"),
+        )
+        assertEquals(
+            "consuming a draft takes its row AND its files, together — and both best-effort: this " +
+                "runs after the draft is on the server and after the original it replaced was " +
+                "destroyed, so a throw here reports a failure on a save that fully succeeded",
+            listOf(
+                "{",
+                "runCatching { localDraftDao.deleteById(accountId, id) }",
+                "runCatching { localDraftDir(id).deleteRecursively() }",
+                "}",
+            ),
+            codeOf(bodyOf("discardLocalDraft")),
+        )
+    }
+
+    @Test fun `a JMAP draft already on the server is never re-uploaded because Room hiccuped`() {
+        // The twin of the IMAP branch's `runCatching { refresh(...) }`. By that line client.saveDraft
+        // has returned an id: the draft IS on the server. A Room failure propagating out of the
+        // upload is caught as KEPT_ON_DEVICE, keeps the local row, and the next attempt appends the
+        // same draft a second time — a duplicate created by a cache write.
+        val body = codeOf(bodyOf("uploadDraft"))
+        val at = body.indexOfFirst { it.startsWith("cacheSavedDraft(") }
+        assertTrue("uploadDraft no longer caches the just-saved JMAP draft — did it move?", at > 0)
+        assertEquals(
+            "the optimistic Drafts-list cache write must not be able to fail the upload",
+            "runCatching {", body[at - 1],
+        )
+    }
+
+    @Test fun `parking an edited row writes the state and NOTHING else`() {
+        // ⛔ The whole body, in order. Two things it must not do, and both were in the first draft
+        // of this fix:
+        //  - it must not force `attemptCount` to MAX_ATTEMPTS. That was a ruse to make
+        //    OutboxLogic.stateAfterEdit keep the row parked — needed only while the parked state
+        //    WAS `FAILED`. With a state of its own the row is no longer EDITING, so the reopen path
+        //    (releaseOutboxEdit, revertEditingExhaustedToFailed) never looks at it at all;
+        //  - it must not overwrite `lastError`. A row that really failed to send BEFORE it was
+        //    reopened keeps the cause of that failure — it happened, and Retry is still offered.
+        // `setState` is the statement that touches one column; `update(row.copy(...))` rewrites the
+        // whole row and is how either value gets clobbered again.
+        assertEquals(
+            "parkOutboxEdit must flip the state of an EDITING row and touch no other column:",
+            listOf(
+                "val row = outboxDao.byId(id) ?: return",
+                "if (row.state != OutboxState.EDITING) return",
+                "outboxDao.setState(id, state)",
+            ),
+            codeOf(bodyOf("parkOutboxEdit")).drop(1).dropLast(1),
+        )
+    }
+}

@@ -460,21 +460,34 @@ internal fun discardChoices(mayKeepDraft: Boolean, hasContent: Boolean): List<Di
     )
 
 /**
- * Whether the composer offers to delete the draft it is editing (#127).
+ * Whether the composer offers to delete the draft it is editing (#127, #95).
  *
- * Three conditions, each of them a way of not lying about what the button would do:
+ * Four terms, each of them a way of not lying about what the button would do:
  *
  *  - [draftId], the navigation argument: this composer was opened FROM a saved draft. A new mail,
  *    a reply and a forward have nothing to delete;
  *  - not [restore]: a message pulled back out of the send queue carries a draft id too, and what is
  *    expected of it is the outbox's own gesture, on a row parked in `EDITING` that must be handed
  *    back or consumed. That screen is titled "Edit"; this button is not for it;
- *  - [draftInHand]: the draft was actually READ and its row is in the cache, so there is a message
- *    to delete. Offline, a reopen whose fetch failed has a draft id and nothing behind it — and a
- *    button that would silently do nothing is worse than no button.
+ *  - [draftInHand]: the SERVER draft was actually READ and its row is in the cache, so there is a
+ *    message to move to the Trash. Offline, a reopen whose fetch failed has a draft id and nothing
+ *    behind it — and a button that would silently do nothing is worse than no button;
+ *  - [localDraftHeld]: this composer holds the lease on a draft the phone is KEEPING and no server
+ *    has ever seen (#95). It has no cached row and never will, so [draftInHand] is false for it
+ *    for ever — and until this term existed the only way out of such a draft was to empty it by
+ *    hand and save, which nothing on screen said. ⛔ Not `draftOpenRoute(draftId) == LOCAL`: on a
+ *    row the upload worker consumed between the list being drawn and the finger landing, the route
+ *    still answers LOCAL while the ViewModel holds nothing. The LEASE is the truth.
+ *
+ * The two last are an OR, and everything above them still holds: whichever store the draft came
+ * from, a restore and a composer with no draft id are still offered nothing.
  */
-internal fun draftDeleteOffered(restore: Boolean, draftId: String?, draftInHand: Boolean): Boolean =
-    !restore && draftId != null && draftInHand
+internal fun draftDeleteOffered(
+    restore: Boolean,
+    draftId: String?,
+    draftInHand: Boolean,
+    localDraftHeld: Boolean,
+): Boolean = !restore && draftId != null && (draftInHand || localDraftHeld)
 
 /**
  * Where the caret starts in a prefilled body, or null when [focus] is not the body (that field

@@ -18,6 +18,29 @@ enum class OutboxState {
     FAILED,
 
     /**
+     * Reopened in the composer and then SAVED AS A DRAFT ON THE PHONE, with no server copy to show
+     * for it (#95 × #70). The row stays so the message is still somewhere the user can see it, and
+     * the send worker never picks it up again on its own: they asked for a save, not for a send.
+     *
+     * ⛔ Not [FAILED], although it behaves like it in three places out of four. Nothing failed —
+     * the save the user asked for succeeded, on the phone — and FAILED is not just a state: it
+     * lights the Inbox's "Some messages didn't send. Tap to review." banner right across the list
+     * and paints the row in the error colour, a claim nothing would ever retract, because there is
+     * no deferred upload that could take it back down.
+     *
+     * ⛔ Not [EDITING] either, which was the defect: an [EDITING] row is on no screen at all
+     * ([OutboxLogic.isWaitingInOutbox] hides it and [OutboxLogic.activeCount] does not count it),
+     * and the next launch hands it back to the queue ([OutboxDao.revertEditingToQueued]) and
+     * delivers the PRE-EDIT text with no undo window.
+     *
+     * ⭐ It costs no migration: the `state` column is `TEXT NOT NULL` and Room stores the constant's
+     * NAME, so an older build simply never wrote this word. ⚠ A row in this state read back by an
+     * OLDER build would fail to map — irrelevant here (downgrades are not a supported path) but
+     * worth knowing before this value is written anywhere else.
+     */
+    KEPT_AS_DRAFT,
+
+    /**
      * Reopened in the composer for editing (#70): held back from the send worker while it is open,
      * so it is neither delivered nor lost. Closing the composer returns it to [QUEUED]; sending,
      * saving or deleting consumes the row. A process death mid-edit strands it here, so startup

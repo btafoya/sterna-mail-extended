@@ -17,15 +17,29 @@ import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
+import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.ScheduledSendEntity
+import app.sterna.core.data.mail.DraftOpenRoute
 import app.sterna.core.data.mail.DraftSaveOutcome
+import app.sterna.core.data.mail.LocalDraftEdit
+import app.sterna.core.data.mail.abandonPlan
+import app.sterna.core.data.mail.commitThenConsumeLocalDraft
+import app.sterna.core.data.mail.draftOpenRoute
+import app.sterna.core.data.mail.draftSaveConsumesTheQueuedRow
+import app.sterna.core.data.mail.draftSaveNeedsNotice
+import app.sterna.core.data.mail.draftSaveParksTheQueuedRowAs
+import app.sterna.core.data.mail.localDraftPrefill
 import app.sterna.core.data.mail.reopenedDraftIsLossy
+import app.sterna.core.data.mail.sendDraftTarget
+import app.sterna.core.data.mail.takeLocalDraftEditOrGiveItBack
+import app.sterna.core.data.mail.unlessBodyIsLossy
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.imap.OutgoingAttachment
 import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.imap.PgpMime
+import app.sterna.mail.MessageDestroyWorker
 import app.sterna.send.Outbox
 import app.sterna.send.ScheduledSends
 import app.sterna.send.SendOutbox
@@ -197,6 +211,36 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      */
     private val _notices = MutableSharedFlow<Int>(extraBufferCapacity = 1)
     val notices: SharedFlow<Int> = _notices.asSharedFlow()
+
+    /**
+     * The draft this phone was keeping has been deleted, and the screen may go (#95 × #127).
+     *
+     * ⛔ **A signal of its own, and NOT [ComposeState.Done].** Done is what a message that WENT OUT
+     * reaches: the screen plays the tern's flight for 300 ms and then pops to `"inbox"`. A deletion
+     * is neither — it closes the way the server draft's deletion closes, with a bare `popBackStack()`
+     * onto the Drafts list the composer was opened from, which is also where the deleted row was
+     * showing. ⛔ It is emitted only after the destroy is durable, the server copy evicted and the
+     * row consumed: fired from the tap, it would close the screen over a deletion that then failed.
+     */
+    private val _localDraftDeleted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val localDraftDeleted: SharedFlow<Unit> = _localDraftDeleted.asSharedFlow()
+
+    /**
+     * Whether deleting the draft this phone is keeping would LEAVE the server copy behind it — the
+     * one thing the confirmation owes the reader before her finger lands (#95).
+     *
+     * The row masks the server draft it replaced, and when this phone never read that draft whole
+     * the copy is deliberately kept ([planForEmptiedLocalDraft], rule 1 of the grid): the row goes,
+     * the mask lifts, and the draft from BEFORE the edit comes back at the top of Drafts. The dialog
+     * used to say the opposite ("this draft hasn't reached the server … this can't be undone") and
+     * the only correction was a toast, after the fact, naming a gesture she had not made.
+     *
+     * ⭐ The decision is [emptiedLocalDraftKeepsServerCopy], run on the two terms the row carries and
+     * armed once, where they are read — never recomputed in the composable, which no JVM test here
+     * can execute.
+     */
+    private val _deleteKeepsServerCopy = MutableStateFlow(false)
+    val deleteKeepsServerCopy: StateFlow<Boolean> = _deleteKeepsServerCopy.asStateFlow()
 
     /** Every identity across all accounts, and the chosen one (which sets the sending account). */
     private val _fromOptions = MutableStateFlow<List<FromOption>>(emptyList())
@@ -513,6 +557,46 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private var editingDraftLossy = false
 
     /**
+     * The row of `local_drafts` this composer holds a lease on (#95), and the account it belongs to
+     * — null unless a draft the server has not got was reopened.
+     *
+     * ⛔ Both are needed to give it back: every write to that table is scoped by `(accountId, id)`
+     * because ids collide between two accounts of one server (#31), and an unscoped release would
+     * hand ANOTHER account's open row to the upload worker. They are set synchronously as the lease
+     * is taken and read by [releaseLocalDraftEdit] as the screen goes.
+     *
+     * ⭐ **The id is PUBLISHED, exactly as [editingDraft] publishes the server row** (#95): it is
+     * what the Delete button may be offered on, and it is the only honest answer to "is there a
+     * local draft to delete". `draftOpenRoute(draftId) == LOCAL` is not: on `LocalDraftEdit.Gone`
+     * — the upload worker consumed the row between the list being drawn and the finger landing —
+     * the route still says LOCAL, the editor stays drawn, and the button would do nothing at all.
+     * Only a lease actually HELD arms it, and it is dropped the moment the lease is released or
+     * consumed — never merely because a gesture is acting on it ([heldEditingLocalDraft]).
+     *
+     * ⛔ One holder, not a var beside a flow: two of them drift, and the one the screen reads would
+     * then offer a button over a row the ViewModel no longer holds.
+     */
+    private val _editingLocalDraftId = MutableStateFlow<String?>(null)
+    val editingLocalDraftId: StateFlow<String?> = _editingLocalDraftId.asStateFlow()
+    private var editingLocalDraftAccountId: String? = null
+
+    /**
+     * The SERVER draft the reopened local row stands in for, and the numbering that id was frozen
+     * under — read off the row at the open (`LocalDraftPrefill`), null unless a local draft that
+     * replaces something was reopened.
+     *
+     * ⛔ **Two fields of their own, and NOT [editingDraftId] / [editingDraftUidValidity].** That pair
+     * is what a re-save and a send act on, and for a reopened local draft it names the ROW: a server
+     * id there mints a second row per save, and a numbering there licenses an expunge beside an id
+     * no server ever issued. These two are read by the gestures that CONSUME the row and therefore
+     * lift the mask it holds over the server copy — emptying the draft (#95 × #69), sending it and
+     * scheduling it ([sendDraftTarget]) — because consuming the row alone unmasks that copy and puts
+     * the pre-edit text back in Drafts for good.
+     */
+    private var replacedServerDraftId: String? = null
+    private var replacedServerDraftUidValidity: Long? = null
+
+    /**
      * The saved draft behind this composer AS A MESSAGE — the cached row, ready to be deleted —
      * or null when there is none to delete (#127).
      *
@@ -761,87 +845,131 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             return
         }
 
-        // Editing a saved draft (#63): reopen it in compose with every field it carried, and
-        // remember its id so sending or re-saving replaces it instead of duplicating.
-        if (draftId != null) {
-            // Raised HERE, before the coroutine, and NOT on its first line. The composer's first
-            // frame is composed from this flow's value, and a launch's body has not run by then:
-            // set inside, the editor is on screen — editable, with Save, Send and the padlock — for
-            // the frames in between, which is exactly the window a fast finger types into.
-            _draftLoading.value = true
-            viewModelScope.launch {
-                try {
-                    // No account to ask means the draft cannot be read either, so this path says so
-                    // like any other failure. It used to fall through to a blank editable composer,
-                    // which is the lie being removed. Not "offline": the link may be perfect.
-                    val credentials = credentials() ?: run {
-                        _draftLoadFailed.value = draftLoadNoticeFor(offline = false)
-                        return@launch
-                    }
-                    val draft = repo.fetchEmail(credentials, draftId)
-                    // The row the Delete button would act on (#127), taken now, from the cache the
-                    // Drafts list itself was drawn from. Only here: a draft that could not be read
-                    // must not be offered a delete (see [editingDraft]). Read scoped to this
-                    // account (#31): two sub-accounts of one login can mint the same draft id.
-                    _editingDraft.value = runCatching { repo.cachedEmail(credentials.id, draftId) }.getOrNull()
-                    // That same row is also the ONLY place a recipient the server dropped can still
-                    // be found (#96), so the prefill is handed it — it fills an addressing field the
-                    // server returned empty, and never touches one the server filled.
-                    _prefill.value = draftFieldsOf(draft, _editingDraft.value)
-                    inReplyTo = draft.inReplyTo
-                    references = draft.references
-                    // The numbering the draft's id belongs to, frozen HERE and never read again:
-                    // at save time it would be the number a refresh recorded after the folder was
-                    // renumbered, and the expunge would land on another draft (#99). Frozen before
-                    // the attachment carry, though the id below is armed after it: a numbering on
-                    // its own destroys nothing, so the earliest read is also the safest one.
-                    editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
-                    // What this editor cannot give back on a re-save: rich formatting (the HTML
-                    // body is flattened to text), inline images and calendar parts (not carried),
-                    // and the read receipt the draft asked for — its header is on the server copy
-                    // and the checkbox below comes back CLEAR (D1), so the message would go out
-                    // asking for nothing and the destroy would take the only copy that asked.
-                    // Every leg is read off the DRAFT that was just fetched, never off this
-                    // screen's state, and the decision itself lives in core:data so a JVM test
-                    // can execute it — nothing here can (see DraftVerdictWiringTest).
-                    editingDraftLossy = reopenedDraftIsLossy(
-                        hasHtmlBody = draft.htmlContent() != null,
-                        inlineImageCount = draft.inlineImageParts().size,
-                        calendarPartCount = draft.calendarParts().size,
-                        receiptHeader = draft.dispositionNotificationTo,
-                    )
-                    if (!carryDraftAttachments(credentials, draft)) editingDraftLossy = true
-                    // The id is set LAST, strictly after the attachment carry has answered: it is
-                    // what arms the destroy, and a send tapped while the carry was still
-                    // downloading used to go out without the attachments — flag still false —
-                    // and destroy the only copy. No id yet means no destroy, at the price of a
-                    // duplicate if the user saves during those seconds.
-                    editingDraftId = draftId
-                } catch (t: Throwable) {
-                    // The draft could not be read. NOTHING is prefilled and, above all, no editor
-                    // is drawn (draftReopenView): a blank editable composer titled "Draft" cannot
-                    // be told from a new message, and saving from it added a SECOND draft while the
-                    // first stayed on the server, intact and invisible.
-                    //
-                    // The sentence is its own (compose_draft_offline / compose_draft_load_failed),
-                    // not compose_prefill_failed: that one already means "the quoted original of a
-                    // reply is missing", and a third meaning would make it say nothing at all. It
-                    // is unchanged on the reply path.
-                    //
-                    // Whatever the draft held is unknown to us now, so a later save must not
-                    // destroy it — even though nothing on this screen can save any more.
-                    editingDraftLossy = true
-                    val app = getApplication<Application>()
-                    _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))
-                } finally {
-                    // EVERY way out of the body lowers it, not just the two above: the silent
-                    // `return@launch` when there are no credentials, and any throw from outside the
-                    // try, would otherwise leave the composer waiting on a fetch that is over —
-                    // frozen, with no fields, no actions and no sentence, for good.
-                    _draftLoading.value = false
+        // Editing a saved draft: reopen it in compose with every field it carried, and remember its
+        // id so sending or re-saving replaces it instead of duplicating (#63).
+        //
+        // ⛔ Which STORE the id belongs to is a decision, not a null check, and it is answered in
+        // core:data where a JVM test executes it (`draftOpenRoute`). Branching on `draftId != null`
+        // alone sent a `local-draft:` id down the branch below, whose first statement is
+        // repo.fetchEmail: for an id no server has ever heard of that is "Message is not in the
+        // cache." on IMAP and an unknown id on JMAP — and with no network it does not even fail
+        // fast, it blocks on the connect timeout. The catch then posts compose_prefill_failed and
+        // the composer opens EMPTY over the only copy of the text (#95). A `when` over the three
+        // answers also means the local arm cannot be moved below the server one.
+        when (draftOpenRoute(draftId)) {
+            DraftOpenRoute.LOCAL -> {
+                // Raised HERE, before the coroutine, and NOT on its first line — the same reason
+                // the SERVER arm below states, and it holds on a Room read too: this way the flag
+                // is up before the first suspension point, so before any frame the read could
+                // delay. Set inside, the editor is on screen — editable, with Save, Send and the
+                // padlock — for whatever the dispatcher does with that body, which is exactly the
+                // window a fast finger types into, and a save landing in it writes a SECOND draft
+                // while the first stays intact and invisible. That is the defect #63 closed on the
+                // server route and this one still held open.
+                // ⚠ Today `viewModelScope` is Main.immediate and `prepare` is called from a
+                // LaunchedEffect, so the body would in fact run inline and no frame is drawn in
+                // between: this placement is a guard against those two facts changing, not a
+                // reading of them. It costs one statement, and it is what makes the two arms read
+                // alike.
+                _draftLoading.value = true
+                // ⛔ The `finally` is at THIS level, not inside prepareLocalDraft: that function
+                // leaves by three bare `return`s (no credentials, Gone, Busy) as well as by any
+                // throw from Room, and a flag only one path lowers is a spinner for good — with
+                // the sentence the failure just recorded never drawn under it.
+                viewModelScope.launch {
+                    try { prepareLocalDraft(draftId!!) } finally { _draftLoading.value = false }
                 }
+                return
             }
-            return
+            DraftOpenRoute.SERVER -> {
+                // ⛔ The name stays `draftId` below, deliberately: the numbering freeze, the id and
+                // the lossy verdict of this branch are pinned line by line by four wiring rules.
+                val draftId: String = draftId!!
+                // Raised HERE, before the coroutine, and NOT on its first line: this way the flag
+                // is up before the first suspension point, so before any frame the fetch could
+                // delay. Set inside, the editor is on screen — editable, with Save, Send and the
+                // padlock — for whatever the dispatcher does with that body, which is exactly the
+                // window a fast finger types into. ⚠ Same reservation as the LOCAL arm above:
+                // Main.immediate would run the body inline as things stand, so this is a guard
+                // against that changing, not a reading of it. The waiting the reader SEES on this
+                // arm is the network's; the local arm raises the same flag for a Room read.
+                _draftLoading.value = true
+                viewModelScope.launch {
+                    try {
+                        // No account to ask means the draft cannot be read either, so this path
+                        // says so like any other failure. It used to fall through to a blank
+                        // editable composer, which is the lie being removed. Not "offline": the
+                        // link may be perfect.
+                        val credentials = credentials() ?: run {
+                            _draftLoadFailed.value = draftLoadNoticeFor(offline = false)
+                            return@launch
+                        }
+                        val draft = repo.fetchEmail(credentials, draftId)
+                        // The row the Delete button would act on (#127), taken now, from the cache
+                        // the Drafts list itself was drawn from. Only here: a draft that could not
+                        // be read must not be offered a delete (see [editingDraft]). Read scoped to
+                        // this account (#31): two sub-accounts of one login mint the same draft id.
+                        _editingDraft.value = runCatching { repo.cachedEmail(credentials.id, draftId) }.getOrNull()
+                        // That same row is also the ONLY place a recipient the server dropped can
+                        // still be found (#96), so the prefill is handed it — it fills an addressing
+                        // field the server returned empty, never one the server filled.
+                        _prefill.value = draftFieldsOf(draft, _editingDraft.value)
+                        inReplyTo = draft.inReplyTo
+                        references = draft.references
+                        // The numbering the draft's id belongs to, frozen HERE and never read again:
+                        // at save time it would be the number a refresh recorded after the folder was
+                        // renumbered, and the expunge would land on another draft (#99). Frozen before
+                        // the attachment carry, though the id below is armed after it: a numbering on
+                        // its own destroys nothing, so the earliest read is also the safest one.
+                        editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
+                        // What this editor cannot give back on a re-save: rich formatting (the HTML
+                        // body is flattened to text), inline images and calendar parts (not carried),
+                        // and the read receipt the draft asked for — its header is on the server copy
+                        // and the checkbox below comes back CLEAR (D1), so the message would go out
+                        // asking for nothing and the destroy would take the only copy that asked.
+                        // Every leg is read off the DRAFT that was just fetched, never off this
+                        // screen's state, and the decision itself lives in core:data so a JVM test
+                        // can execute it — nothing here can (see DraftVerdictWiringTest).
+                        editingDraftLossy = reopenedDraftIsLossy(
+                            hasHtmlBody = draft.htmlContent() != null,
+                            inlineImageCount = draft.inlineImageParts().size,
+                            calendarPartCount = draft.calendarParts().size,
+                            receiptHeader = draft.dispositionNotificationTo,
+                        )
+                        if (!carryDraftAttachments(credentials, draft)) editingDraftLossy = true
+                        // The id is set LAST, strictly after the attachment carry has answered: it is
+                        // what arms the destroy, and a send tapped while the carry was still
+                        // downloading used to go out without the attachments — flag still false —
+                        // and destroy the only copy. No id yet means no destroy, at the price of a
+                        // duplicate if the user saves during those seconds.
+                        editingDraftId = draftId
+                    } catch (t: Throwable) {
+                        // The draft could not be read. NOTHING is prefilled and, above all, no
+                        // editor is drawn (draftReopenView): a blank editable composer titled
+                        // "Draft" cannot be told from a new message, and saving from it added a
+                        // SECOND draft while the first stayed on the server, intact and invisible.
+                        //
+                        // The sentence is its own (compose_draft_offline /
+                        // compose_draft_load_failed), not compose_prefill_failed: that one already
+                        // means "the quoted original of a reply is missing", and a third meaning
+                        // would make it say nothing at all. It is unchanged on the reply path.
+                        //
+                        // Whatever the draft held is unknown to us now, so a later save must not
+                        // destroy it — even though nothing on this screen can save any more.
+                        editingDraftLossy = true
+                        val app = getApplication<Application>()
+                        _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))
+                    } finally {
+                        // EVERY way out of the body lowers it, not just the two above: the silent
+                        // `return@launch` when there are no credentials, and any throw from outside
+                        // the try, would otherwise leave the composer waiting on a fetch that is
+                        // over — frozen, with no fields, no actions and no sentence, for good.
+                        _draftLoading.value = false
+                    }
+                }
+                return
+            }
+            DraftOpenRoute.NONE -> Unit
         }
 
         // A fresh mail pre-addressed to a participant, or prefilled from a mailto: link
@@ -959,6 +1087,326 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
+     * Reopen one of THIS PHONE's own drafts — a row of `local_drafts` the server has not got (#95).
+     *
+     * ⛔ **Nothing on this path may touch the network, and nothing may read the cache.** The id
+     * names a row no server has ever heard of: `fetchEmail` answers "Message is not in the cache."
+     * on IMAP and an unknown id on JMAP, `cachedEmail` answers null, and offline the first of them
+     * blocks on the connect timeout before failing. A fallback to either could only make the screen
+     * lie. The row IS the draft, and [localDraftPrefill] projects it — a pure function a JVM test
+     * executes field by field, rather than a prefill built by hand here where a forgotten column
+     * (Bcc, In-Reply-To, the attachments) is silently a dropped one.
+     *
+     * ⭐ The row is taken out of the upload worker's way for as long as this composer holds it
+     * ([LocalDraftState.EDITING], given back by [releaseLocalDraftEdit]). Without that lease the
+     * network coming back mid-edit uploads the draft and `discardLocalDraft` deletes the row AND
+     * its attachment directory under the user; her next "Save" then lands on a fresh row with no
+     * files, beside a copy of the older text the server now keeps.
+     *
+     * ⚠ [_editingDraft] is deliberately left null: it is the SERVER row the list's delete moves to
+     * the Trash, and there is no such row here. The Delete button is offered all the same, on
+     * [editingLocalDraftId] — the lease this open really holds — and it goes to
+     * [deleteEditingLocalDraft], which is the emptying gesture reached by a button.
+     *
+     * ⛔ **A row that is not there is SAID, not swallowed** — and said on [_draftLoadFailed], the
+     * one flow [draftReopenView] reads to take the editor OFF the screen. The upload worker can
+     * consume the row between the list being drawn and the tap landing on it, and both early exits
+     * used to be a bare `?: return`: the composer then opened blank, with nothing on it and not a
+     * word, over a draft the user had just seen in the list. A sentence on `_attachmentStatus`
+     * fixed neither half — it is a status line UNDER an editor that is still drawn, still editable
+     * and still offering Save over a draft this screen never read.
+     */
+    private suspend fun prepareLocalDraft(id: String) {
+        val credentials = credentials()
+        if (credentials == null) {
+            noticeLocalDraftNoAccount()
+            return
+        }
+        // ⛔ The lease is taken, remembered and — if this screen is popped while the take is still
+        // out — GIVEN BACK BY THIS COROUTINE, under the cancellation shelter the decision carries.
+        // Armed after the call instead, the id was never remembered when viewModelScope died inside
+        // it: the row stayed EDITING, held back from the upload worker and from abandon() alike,
+        // and the draft reached the server only after the next cold start (#95).
+        val lease = takeLocalDraftEditOrGiveItBack(
+            id = id,
+            take = { repo.takeLocalDraftForEdit(credentials.id, it) },
+            // Remembered synchronously, and BEFORE any field is written: the back gesture can
+            // arrive at the very next frame. Both halves — ids collide between two accounts of one
+            // server (#31), and an unscoped release hands ANOTHER account's open row to the worker.
+            arm = { taken ->
+                editingLocalDraftAccountId = credentials.id
+                _editingLocalDraftId.value = taken.id
+            },
+            giveBack = { runCatching { repo.releaseLocalDraftEdit(credentials.id, it) } },
+        )
+        val row = when (lease) {
+            // The row is gone — the worker consumed it between the list being drawn and the tap
+            // landing, or the user threw it away. Nothing will bring it back, so the sentence must
+            // not ask for anything: compose_local_draft_gone.
+            LocalDraftEdit.Gone -> {
+                noticeLocalDraftGone()
+                return
+            }
+            // The row is there and something else really owns it right now: its files are being
+            // staged, or the worker is uploading it. A different sentence, because it asks for
+            // something different and something that WORKS: close this screen and open it again.
+            // ⭐ An EDITING row is NOT here: it is this phone's own stale lease, taken back above.
+            LocalDraftEdit.Busy -> {
+                noticeLocalDraftBusy()
+                return
+            }
+            is LocalDraftEdit.Taken -> lease.row
+        }
+        val fields = localDraftPrefill(row)
+        _prefill.value = DraftFields(
+            to = fields.to,
+            cc = fields.cc,
+            bcc = fields.bcc,
+            subject = fields.subject,
+            body = fields.body,
+            expand = fields.expand,
+        )
+        _attachments.value = fields.attachments
+        inReplyTo = fields.inReplyTo
+        references = fields.references
+        // The address the draft was written as, so a delegated sub-account's draft reopens under the
+        // identity it will send as and not under the login's (#31).
+        fields.fromEmail?.let { written ->
+            _fromOptions.value.firstOrNull {
+                it.accountId == credentials.id && it.identity.email.equals(written, ignoreCase = true)
+            }
+        }?.let {
+            _selectedFrom.value = it
+            refreshPgp()
+        }
+        // The fidelity verdict travels WITH the id, exactly as it does for an undone send: `false`
+        // here would launder a body the composer already knows it cannot reproduce, and the next
+        // send would destroy the original this row was written to spare (#63).
+        editingDraftLossy = fields.bodyIsLossy
+        // ⭐ The row's OWN id: `localDraftTarget` looks a `local-draft:` id up by id, so a re-save
+        // lands on this very row. The server draft this row stands in for is NOT armed here — a
+        // local id names nothing a server can be asked to destroy (`serverDraftReplacedBy`), and
+        // [editingDraftUidValidity] therefore stays null: a numbering is the one thing that lets an
+        // expunge through, and there is no server id here for it to belong to.
+        editingDraftId = fields.editingDraftId
+        // ⭐ The server draft this row stands in for, carried to the gestures that consume the row —
+        // emptying it, sending it, scheduling it — since each of those lifts the mask the row holds
+        // over that copy. Kept apart from the pair above on purpose: this id is not what a re-save
+        // lands on, and its numbering must never end up beside an id the server did not issue.
+        replacedServerDraftId = fields.replacedServerDraftId
+        replacedServerDraftUidValidity = fields.replacedServerDraftUidValidity
+        // ⭐ Armed from the two terms the row carries, at the one place they are read, so the delete
+        // confirmation can say BEFORE the tap that the copy on the server stays (#95). The decision
+        // is the same one the empty save's notice is posted from — one function, executed.
+        _deleteKeepsServerCopy.value =
+            emptiedLocalDraftKeepsServerCopy(fields.replacedServerDraftId, fields.bodyIsLossy)
+    }
+
+    /**
+     * The user emptied a draft this phone was keeping, and saved: destroy the SERVER draft it stood
+     * in for, then take the row away (#95 × #69).
+     *
+     * ⛔ **Consuming the row alone is the defect.** While the row exists the server draft is taken out
+     * of the Drafts list (`replacedServerIds` / `hidesServerRow`, `ui/inbox/LocalDraftRows.kt`, both
+     * reading `replacesEmailId`); once the row goes, nobody names it any more, the mask lifts, and the
+     * draft the user has just emptied comes back at the top of Drafts carrying the text from before
+     * her edit — permanently, and looking like a sync bug. ⚠ The mask is not total: `hidesServerRow`
+     * only hides a row that stands for ITSELF (`threadCount == 1`), so a server draft that represents
+     * a conversation is drawn beside its local row — the duplicate accepted there, on purpose.
+     *
+     * The destroy travels the route every permanent destroy in this app takes: held-back WorkManager
+     * work under a network constraint, carrying the folder and the FROZEN numbering, so it survives
+     * the process and fires when the network returns. ⛔ Through [MessageDestroyWorker.destroyDurably]
+     * and not `schedule`: the latter takes the account's unique work slot with `REPLACE` and would
+     * drop a permanent delete confirmed seconds ago, still inside its undo window.
+     *
+     * The order of the acts is decided and executed in [destroyThenConsumeEmptiedLocalDraft], what
+     * the order CARRIES in [planForEmptiedLocalDraft], and which folder it is opposed to in
+     * `draftDestroyFolder` — all three pure, all three run by a JVM test, because an order missing its
+     * folder or its numbering destroys nothing in silence.
+     *
+     * ⭐ A draft this phone never read WHOLE keeps its server copy, and the screen says so: see
+     * [planForEmptiedLocalDraft]. `editingDraftLossy` is that verdict, carried off the row by
+     * `localDraftPrefill` — the same value the save opposes to `draftReplacementIsFaithful`.
+     */
+    private suspend fun destroyReplacedServerDraft(credentials: AccountCredentials, localDraftId: String) {
+        val serverDraft = replacedServerDraftId
+        val plan = planForEmptiedLocalDraft(
+            replacedServerDraftId = serverDraft,
+            // Frozen when the row was written, carried, never re-read (#99).
+            replacedServerDraftUidValidity = replacedServerDraftUidValidity,
+            mailboxId = serverDraft?.let { repo.draftMailboxOf(credentials, it) },
+            bodyIsLossy = editingDraftLossy,
+        )
+        destroyThenConsumeEmptiedLocalDraft(
+            localDraftId = localDraftId,
+            plan = plan,
+            destroy = { MessageDestroyWorker.destroyDurably(getApplication(), credentials.id, listOf(it)) },
+            evict = { ids -> repo.evictAll(credentials.id, ids) },
+            consume = { id -> consumeEditingLocalDraft(id) },
+            tell = { _notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept) },
+        )
+    }
+
+    /**
+     * Delete the draft this phone is KEEPING, from the composer that holds it (#95 × #127).
+     *
+     * ⛔ **This is not a second way to destroy anything.** A deletion asked for IS the emptying —
+     * [destroyReplacedServerDraft], written for "the user emptied it and saved", reached by a
+     * button instead of by an empty save. The same plan under the same proofs: the server copy this
+     * row replaced is destroyed only where it can be, KEPT and said where this phone never read it
+     * whole ([planForEmptiedLocalDraft]), and the local row and its files go last
+     * ([destroyThenConsumeEmptiedLocalDraft]). Until this existed the only way out of a draft the
+     * phone was keeping was to empty it by hand and save, which nothing on screen said.
+     *
+     * The acts, in this order, and each one is a defect prevented:
+     *
+     *  - the lease is READ, not blanked ([heldEditingLocalDraft]). It refuses while a send is in
+     *    flight (INV-6: that send consumes the row itself) and on a row the close has already given
+     *    back (#127) — which is all this gesture needs of a one-shot take. ⛔ Blanking it up front,
+     *    as this was written, is `abandonPlan`'s defect one gesture further along: the composer then
+     *    answers "I hold no row" to everything downstream, a failure leaves the row `EDITING` with
+     *    nobody left to release it, and `SternaApplication.revertUnfinishedLocalDrafts` puts it back
+     *    `PENDING` at the next launch — uploading the draft that was just deleted;
+     *  - the row goes back to the upload worker when nothing was destroyed, and to NOBODY when
+     *    something was: [localDraftLeaseAfterDelete], handed the lease AS IT STANDS at the end. The
+     *    failure is atomic — everything that throws is in front of any destruction — so a deletion
+     *    that failed leaves a draft that is still exactly a draft;
+     *  - ⛔ the screen closes on [localDraftDeleted], never on `ComposeState.Done`: Done is the
+     *    tern's flight, written for a message that went OUT, and it lands on the inbox instead of
+     *    the Drafts list this composer was opened from.
+     *
+     * ⚠ Stated debt, not fixed here: the failure banner is the SAVE one ("couldn't save the draft"),
+     * because a deletion has no banner of its own. It is wrong in wording and right in substance —
+     * nothing was destroyed, the draft is still there.
+     */
+    fun deleteEditingLocalDraft() {
+        val id = heldEditingLocalDraft() ?: return
+        _state.value = ComposeState.Sending
+        viewModelScope.launch {
+            var destroyed = false
+            try {
+                val credentials = credentials()
+                    ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
+                destroyReplacedServerDraft(credentials, id)
+                destroyed = true
+                _localDraftDeleted.tryEmit(Unit)
+            } catch (t: Throwable) {
+                _state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName, whileSaving = true)
+            } finally {
+                localDraftLeaseAfterDelete(_editingLocalDraftId.value, destroyed)?.let { releaseLocalDraftEdit(it) }
+            }
+        }
+    }
+
+    /**
+     * The lease on this phone's own draft row as this composer holds it, or null when it holds none
+     * or may not act — ⛔ **read, never cleared**. Who gets the row back is a decision taken at the
+     * END of the gesture ([localDraftLeaseAfterDelete]) and it cannot be taken on a field this
+     * function has already emptied: that is exactly how a failed deletion came to leave the row
+     * `EDITING` with nobody to release it.
+     *
+     * It still refuses twice, and both refusals are the useful half of [takeEditingDraft]'s one-shot
+     * (#127): during a send, which consumes this very row itself (INV-6), and on a lease the close
+     * has already handed back — the X and the trash landing in the same frame.
+     */
+    private fun heldEditingLocalDraft(): String? {
+        if (_state.value is ComposeState.Sending) return null
+        return _editingLocalDraftId.value
+    }
+
+    /**
+     * Say a draft of the PHONE's own store could not be opened because no account resolved (#95).
+     *
+     * ⛔ No new string, and no new meaning: `compose_draft_load_failed` is what the SERVER reopen
+     * answers for this same cause (`draftLoadNoticeFor(offline = false)` resolves to this very id)
+     * and what [noticeLocalDraftBusy] says two arms below. It is not "offline": the link may be
+     * perfect, no account resolved.
+     *
+     * ⚠ **What that sentence is worth here, plainly.** The dominant case is transitory — the store
+     * is between writes, or the screen opened before an account was current — and "Close this
+     * screen and try opening it again" then works. But [credentials] answers null when NO account
+     * resolves and the store is empty besides, which is also what a deleted or signed-out account
+     * looks like, and there the sentence invites a gesture that will return nothing. Stated debt,
+     * not a demonstration: a tenth string across nine locales was judged too dear for a path this
+     * narrow, and telling those two apart from here is not free either.
+     *
+     * ⭐ On [_draftLoadFailed], like every other verdict of this route: that is the flow
+     * [draftReopenView] turns into `DeadEnd`, i.e. the one that stops the editor being drawn.
+     */
+    private fun noticeLocalDraftNoAccount() {
+        _draftLoadFailed.value = R.string.compose_draft_load_failed
+    }
+
+    /**
+     * Say the draft the phone was keeping is not on the phone any more (#95) — the upload worker
+     * consumed it between the Drafts list being drawn and the tap landing, or it was thrown away.
+     *
+     * ⛔ **The one new string of this branch, and it had to be new.** `compose_draft_load_failed`
+     * ("… Close this screen and try opening it again") asks for something that CANNOT work: there
+     * is no row left to reopen. `compose_draft_offline` would accuse a network that has nothing to
+     * do with it. And `compose_prefill_failed` means "the quoted original of a reply is missing" —
+     * a third meaning would leave it saying nothing at all. The sentence is true of the dominant
+     * case (the uploader took it to the server, where it is in Drafts) and deliberately promises
+     * nothing about the other one.
+     *
+     * ⭐ On [_draftLoadFailed], for the same reason as its two neighbours: a verdict on
+     * `_attachmentStatus` is a line of status under an editor that is still drawn, still editable,
+     * and still offering Save over a draft this screen does not hold — which is how a second draft
+     * gets written.
+     */
+    private fun noticeLocalDraftGone() {
+        _draftLoadFailed.value = R.string.compose_local_draft_gone
+    }
+
+    /**
+     * Say the draft is on the phone but not this composer's to open right now — its files are being
+     * staged, or the worker is uploading it (`localDraftMayBeTakenForEdit`). ⭐ An `EDITING` row is
+     * NOT one of these: it is this phone's own stale lease and it is taken back, not refused.
+     *
+     * ⛔ A DIFFERENT sentence from [noticeLocalDraftGone]'s, and no new string:
+     * `compose_draft_load_failed` ("… Close this screen and open it again."), already translated
+     * into the nine locales, and here it is exactly true — both states are transitory, and
+     * reopening really does work. On a row that is GONE the same words would be an instruction that
+     * cannot be obeyed, which is why that one has a sentence of its own.
+     *
+     * ⭐ On `_draftLoadFailed`, so that ONCE THIS VERDICT IS OUT the editor is not drawn
+     * (`draftReopenView`, whose `DeadEnd` arm this reaches while `applied` is still false). That is
+     * the point rather than the wording: a blank composer with a live Save over a draft this screen
+     * does not hold is the "second draft on the server" the same flow was introduced to end.
+     *
+     * ⭐ **The debt this used to state is paid.** The time BEFORE the verdict was the other half of
+     * the same defect: `_draftLoading` was never raised on the local route, so `draftReopenView`
+     * answered `Editor` throughout `credentials()` and the lease take, and Save was live over an
+     * empty composer for as long as those took. The LOCAL arm of [prepare] now raises the flag
+     * before its coroutine and lowers it from a `finally`, so this verdict is drawn on a screen
+     * that was waiting, not on one that was inviting a save. The price is a spinner on a path that
+     * is normally instantaneous (a Room read).
+     */
+    private fun noticeLocalDraftBusy() {
+        _draftLoadFailed.value = R.string.compose_draft_load_failed
+    }
+
+    /**
+     * Take the reopened local draft away — ⛔ **its row AND its staged files** — because the
+     * composer has just committed the message somewhere else (#95): queued for sending, scheduled,
+     * or emptied out by the user (#69).
+     *
+     * ⛔ **Never on its own.** On the send routes it is [commitThenConsumeLocalDraft]'s `consume`,
+     * so it runs strictly after the outbox (or scheduled) row exists and never on a commit that
+     * threw. Left undone, the row stays at the top of Drafts with its "not on the server yet" pill
+     * after the message has gone, `SternaApplication` puts it back to `PENDING` at the next launch,
+     * and the worker files a copy of an already-sent message in the server's Drafts, for good.
+     *
+     * The lease is dropped synchronously with it: there is nothing left to give back.
+     */
+    private suspend fun consumeEditingLocalDraft(id: String) {
+        val account = editingLocalDraftAccountId ?: return
+        _editingLocalDraftId.value = null
+        repo.consumeLocalDraft(account, id)
+    }
+
+    /**
      * Leaving the composer without committing the message anywhere — the close button, the back
      * gesture, "Discard" in the unsaved-changes dialog. A message reopened from the outbox goes
      * straight back in the queue, exactly as it was (#70): closing an editor is not deleting a
@@ -968,11 +1416,21 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      *
      * App-scoped on purpose: the caller pops this screen right after, which kills [viewModelScope].
      */
-    fun abandon() {
-        // A send or a save already in flight owns the message and consumes the row itself when it
-        // lands; releasing it back to the queue from under that would deliver the mail twice.
-        if (_state.value is ComposeState.Sending) return
-        val id = editingOutboxId ?: return
+    fun abandon(emptying: Boolean = false) {
+        // Both releases are decided in one place, in values, and executed here (#95 × #70). A send
+        // in flight gives back NEITHER — it owns the message and consumes both itself — and outside
+        // one the two are independent: a composer with no queued row still hands its own draft row
+        // back to the upload worker. `abandonPlan` is executed in SendDraftTargetTest; both damages
+        // it prevents are written there — as is [emptying], the close that accompanies a deletion
+        // and must hand the phone's own row to nobody.
+        val plan = abandonPlan(
+            sending = _state.value is ComposeState.Sending,
+            emptying = emptying,
+            localDraftId = _editingLocalDraftId.value,
+            outboxId = editingOutboxId,
+        )
+        plan.localDraftToRelease?.let { releaseLocalDraftEdit(it) }
+        val id = plan.outboxToRelease ?: return
         editingOutboxId = null
         _editingOutbox.value = false
         // The row never left the queue — it only sat in EDITING — so giving it back is just flipping
@@ -980,6 +1438,27 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         appScope.launch {
             runCatching { repo.releaseOutboxEdit(id) }
                 .onFailure { android.util.Log.w("SternaCompose", "couldn't release the edited outbox item", it) }
+        }
+    }
+
+    /**
+     * Give back the lease taken by [prepareLocalDraft] (#95): the row goes from EDITING to PENDING
+     * and its upload is re-armed. The repository refuses to touch a row in any other state, so a
+     * save that has already re-written the row PENDING is not fought over.
+     *
+     * ⛔ App-scoped, for [abandon]'s reason and it is not a precaution: this runs as the screen is
+     * popped, and `viewModelScope` is cancelled with it — the write would simply never happen and
+     * the draft would sit EDITING until the next launch reverted it.
+     *
+     * ⛔ [id] is HANDED IN, by [abandonPlan]: read back off the field here, the plan's decision not
+     * to release anything during a send could be undone by a single call slipping past it.
+     */
+    private fun releaseLocalDraftEdit(id: String) {
+        val account = editingLocalDraftAccountId ?: return
+        _editingLocalDraftId.value = null
+        appScope.launch {
+            runCatching { repo.releaseLocalDraftEdit(account, id) }
+                .onFailure { android.util.Log.w("SternaCompose", "couldn't release the edited local draft", it) }
         }
     }
 
@@ -993,6 +1472,35 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         editingOutboxId = null
         _editingOutbox.value = false
         runCatching { repo.deleteOutbox(id) }
+    }
+
+    /**
+     * Park the queued row this composer was editing in [state] (#95 × #70) — the other end of
+     * [consumeEditingOutbox], for a save that committed the message somewhere the row's own copy is
+     * not: the draft is on the PHONE, the upload never happened, so nothing may be destroyed on its
+     * strength and nothing may be sent either.
+     *
+     * ⛔ Leaving the row as the composer found it (EDITING) was the defect: no screen shows an
+     * EDITING row, and the next launch gives it back to the queue and delivers the pre-edit text.
+     * [state] comes from `draftSaveParksTheQueuedRowAs`, and the wording the user reads is resolved
+     * by the Outbox screen FROM that state (`outboxStateLabel`) — no reason text travels here, and
+     * none is written over the row's own `lastError`.
+     *
+     * ⛔ App-scoped, for the same reason as [abandon] and it is not a precaution: the save runs in
+     * `viewModelScope` (through [submit]), and the back gesture during the saving spinner cancels
+     * it. A park scheduled on that scope would simply never write, leaving the row EDITING — the
+     * defect, restored, on the one path where the user is not looking. The id is read and cleared
+     * SYNCHRONOUSLY, before the launch, so ordering against [consumeEditingOutbox] does not depend
+     * on when a coroutine is scheduled.
+     */
+    private fun parkEditingOutbox(state: OutboxState) {
+        val id = editingOutboxId ?: return
+        editingOutboxId = null
+        _editingOutbox.value = false
+        appScope.launch {
+            runCatching { repo.parkOutboxEdit(id, state) }
+                .onFailure { android.util.Log.w("SternaCompose", "couldn't park the edited outbox item", it) }
+        }
     }
 
     /**
@@ -1072,31 +1580,59 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 } else {
                     null
                 }
+                // Which server draft this send replaces, and under which numbering — ⛔ ONE answer
+                // for both, and the same one for the outbox row and for the record an undone send
+                // reopens from. For a draft reopened off this phone's own store the composer holds
+                // the ROW's id, which names nothing a server can destroy; the server copy the row
+                // stands in for is named on the row, and without it the send unmasks that copy and
+                // puts the pre-edit text back in Drafts (#95). Executed in SendDraftTargetTest.
+                val sendTarget = sendDraftTarget(
+                    editingDraftId = editingDraftId,
+                    editingDraftUidValidity = editingDraftUidValidity,
+                    replacedServerDraftId = replacedServerDraftId,
+                    replacedServerDraftUidValidity = replacedServerDraftUidValidity,
+                )
                 // Persist the send held for the undo window; the worker delivers it after.
-                val id = repo.enqueueSend(
-                    credentials, recipients, subject, textBody, replyTo, refs,
-                    attachments, htmlBody, identity?.name, identity?.email, ccList, bccList,
-                    holdMs = SendOutbox.HOLD_MS,
-                    pgpMode = mode.takeIf { it != PgpMode.OFF },
-                    prebuiltEntity = pgpEntity,
-                    // Editing a saved draft (#63): once this send is delivered, the worker
-                    // destroys the draft it came from, so Drafts keeps no stale duplicate —
-                    draftEmailId = editingDraftId,
-                    // …under the numbering frozen when this composer read that id (#99). It is
-                    // persisted with the row because the destroy runs at DELIVERY: an offline send
-                    // leaves when the network returns, and the folder may have been renumbered by
-                    // then. Handing `null` here would destroy nothing; handing a fresh read would
-                    // destroy the wrong message.
-                    draftUidValidity = editingDraftUidValidity,
-                    // — and ONLY against proof: the composer's own verdict rides along, and
-                    // enqueueSend leaves the id off the row when it (or the addressing read)
-                    // cannot show the send reproduces the draft. The message still goes out;
-                    // the original then survives in Drafts instead of being destroyed behind
-                    // a send that silently dropped what this editor could not carry.
-                    bodyIsLossy = editingDraftLossy,
-                    // Asked for on this screen, written at DELIVERY time by a headless worker —
-                    // so it has to be on the row, not in this process.
-                    requestReceipt = args.requestReceipt,
+                //
+                // ⛔ And ONLY THEN take the phone's own draft row away, if this composer was
+                // reopened from one (#95). The order is the correction, and it is grid rule 1: that
+                // row is the only copy of the text and the line below is what makes a second one.
+                // Left behind instead, it stays at the top of Drafts with its "not on the server
+                // yet" pill after the message has gone, and the next launch re-arms it — the worker
+                // then files a copy of an already-sent message in the server's Drafts, for good.
+                val id = commitThenConsumeLocalDraft(
+                    localDraftId = _editingLocalDraftId.value,
+                    commit = {
+                        repo.enqueueSend(
+                            credentials, recipients, subject, textBody, replyTo, refs,
+                            attachments, htmlBody, identity?.name, identity?.email, ccList, bccList,
+                            holdMs = SendOutbox.HOLD_MS,
+                            pgpMode = mode.takeIf { it != PgpMode.OFF },
+                            prebuiltEntity = pgpEntity,
+                            // Editing a saved draft (#63): once this send is delivered, the worker
+                            // destroys the draft it came from, so Drafts keeps no stale duplicate —
+                            // ⛔ and NEVER one of this phone's own draft ids, which names nothing a
+                            // server could be asked to destroy (`sendDraftTarget`).
+                            draftEmailId = sendTarget.emailId,
+                            // …under the numbering frozen when that id was read (#99), and taken
+                            // from the SAME answer as the id: the two halves are meaningful only
+                            // together. It is persisted with the row because the destroy runs at
+                            // DELIVERY: an offline send leaves when the network returns, and the
+                            // folder may have been renumbered by then. Handing `null` here would
+                            // destroy nothing; handing a fresh read would destroy the wrong message.
+                            draftUidValidity = sendTarget.uidValidity,
+                            // — and ONLY against proof: the composer's own verdict rides along, and
+                            // enqueueSend leaves the id off the row when it (or the addressing read)
+                            // cannot show the send reproduces the draft. The message still goes out;
+                            // the original then survives in Drafts instead of being destroyed behind
+                            // a send that silently dropped what this editor could not carry.
+                            bodyIsLossy = editingDraftLossy,
+                            // Asked for on this screen, written at DELIVERY time by a headless
+                            // worker — so it has to be on the row, not in this process.
+                            requestReceipt = args.requestReceipt,
+                        )
+                    },
+                    consume = { local -> consumeEditingLocalDraft(local) },
                 )
                 // The edits are queued now under this fresh row, so the row taken out for editing is
                 // consumed — dropped from the queue rather than given back (#70).
@@ -1109,10 +1645,14 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     attachments = attachments, inReplyTo = replyTo, references = refs,
                     forwardedText = forwarded?.text, forwardedHtml = forwarded?.html,
                     pgpMode = mode.takeIf { it != PgpMode.OFF }?.name,
-                    draftEmailId = editingDraftId,
+                    // ⛔ The same answer as the row above, and deliberately the same VALUE: undoing
+                    // this send reopens the composer from THIS record, whose local row has already
+                    // been consumed — the server draft it stood in for can only be named here now.
+                    // A `local-draft:` id restored here would be handed straight back to the queue.
+                    draftEmailId = sendTarget.emailId,
                     // Undoing this send reopens the composer from THIS record: without the frozen
                     // numbering the reopened message could no longer destroy the draft it replaces.
-                    draftUidValidity = editingDraftUidValidity,
+                    draftUidValidity = sendTarget.uidValidity,
                     draftBodyIsLossy = editingDraftLossy,
                     requestReceipt = args.requestReceipt,
                 )
@@ -1178,37 +1718,61 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 require(recipients.isNotEmpty()) { getApplication<Application>().getString(R.string.status_add_recipient) }
                 val identity = selectedIdentity()
                 val (textBody, htmlBody) = bodiesForSend(body, identity)
-                val id = repo.insertScheduledSend(
-                    ScheduledSendEntity(
-                        accountId = credentials.id,
-                        recipients = recipients.joinToString(","),
-                        cc = parseAddrs(cc).joinToString(",").ifBlank { null },
-                        bcc = parseAddrs(bcc).joinToString(",").ifBlank { null },
-                        subject = subject,
-                        textBody = textBody,
-                        htmlBody = htmlBody,
-                        fromName = identity?.name,
-                        fromEmail = identity?.email,
-                        inReplyTo = inReplyTo.joinToString(" ").ifBlank { null },
-                        references = references.joinToString(" ").ifBlank { null },
-                        sendAtMillis = sendAtMillis,
-                        // A scheduled send of an edited draft still replaces it (#63), but this
-                        // row cannot carry the fidelity verdict (no column). So the id itself is
-                        // the carrier: written only when the composer's verdict is clean,
-                        // withheld — original kept, duplicate in Drafts — when it is not.
-                        // ScheduledSendWorker relies on exactly this when it re-enters
-                        // enqueueSend with bodyIsLossy = false.
-                        draftEmailId = editingDraftId.takeUnless { editingDraftLossy },
-                        // The row waits for hours, so the frozen numbering waits with it (#99):
-                        // read at the hour the send fires it would be the number recorded after a
-                        // renumbering, and the expunge would land on another draft.
-                        draftUidValidity = editingDraftUidValidity,
-                        // The row waits for hours; the request has to wait with it, or the
-                        // hand-over to the outbox drops it (ScheduledSendWorker).
-                        requestReceipt = requestReceipt,
-                    ),
+                // The same one answer as the send above: id and numbering together, and the server
+                // draft named off the row when this composer was reopened from one (#95) — then
+                // withheld WHOLE when the composer cannot show the message reproduces the draft
+                // (#63). The scheduled row has nowhere to say so, so the id is the carrier; the
+                // numbering leaves with it, because the pair is one decision. Both executed in
+                // SendDraftTargetTest.
+                val sendTarget = sendDraftTarget(
+                    editingDraftId = editingDraftId,
+                    editingDraftUidValidity = editingDraftUidValidity,
+                    replacedServerDraftId = replacedServerDraftId,
+                    replacedServerDraftUidValidity = replacedServerDraftUidValidity,
+                ).unlessBodyIsLossy(editingDraftLossy)
+                // ⛔ Same order as the send above, same reason (#95): the scheduled row is written
+                // and its worker booked FIRST, and only then does the phone's own draft row go.
+                commitThenConsumeLocalDraft(
+                    localDraftId = _editingLocalDraftId.value,
+                    commit = {
+                        val id = repo.insertScheduledSend(
+                            ScheduledSendEntity(
+                                accountId = credentials.id,
+                                recipients = recipients.joinToString(","),
+                                cc = parseAddrs(cc).joinToString(",").ifBlank { null },
+                                bcc = parseAddrs(bcc).joinToString(",").ifBlank { null },
+                                subject = subject,
+                                textBody = textBody,
+                                htmlBody = htmlBody,
+                                fromName = identity?.name,
+                                fromEmail = identity?.email,
+                                inReplyTo = inReplyTo.joinToString(" ").ifBlank { null },
+                                references = references.joinToString(" ").ifBlank { null },
+                                sendAtMillis = sendAtMillis,
+                                // A scheduled send of an edited draft still replaces it (#63), but
+                                // this row cannot carry the fidelity verdict (no column). So the id
+                                // itself is the carrier: written only when the composer's verdict
+                                // is clean, withheld — original kept, duplicate in Drafts — when it
+                                // is not. ScheduledSendWorker relies on exactly this when it
+                                // re-enters enqueueSend with bodyIsLossy = false. ⛔ And never one
+                                // of this phone's own ids, which names nothing to destroy — the two
+                                // guards answer different questions and neither replaces the other,
+                                // which is why both are taken above, on the PAIR.
+                                draftEmailId = sendTarget.emailId,
+                                // The row waits for hours, so the frozen numbering waits with it
+                                // (#99): read at the hour the send fires it would be the number
+                                // recorded after a renumbering, and the expunge would land on
+                                // another draft. Off the same answer as the id above.
+                                draftUidValidity = sendTarget.uidValidity,
+                                // The row waits for hours; the request has to wait with it, or the
+                                // hand-over to the outbox drops it (ScheduledSendWorker).
+                                requestReceipt = requestReceipt,
+                            ),
+                        )
+                        ScheduledSends.enqueue(getApplication(), id, sendAtMillis)
+                    },
+                    consume = { local -> consumeEditingLocalDraft(local) },
                 )
-                ScheduledSends.enqueue(getApplication(), id, sendAtMillis)
                 // The message now waits in the scheduled table instead; the outbox row it came from
                 // is consumed rather than given back, or it would send twice (#70).
                 consumeEditingOutbox()
@@ -1293,11 +1857,28 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             val original = editingDraftId
             // The numbering frozen when that id was read — carried, never re-read (#99).
             val originalUidValidity = editingDraftUidValidity
+            // ⛔ The phone's own row is handed back to NOBODY on this close, and the "nobody" is
+            // said to abandon() rather than by blanking the field: abandon() would hand the row
+            // back PENDING and RE-ARM its upload at the row's own instant — which for a draft saved
+            // with no network is now — so the pre-edit text of the draft the user has just emptied
+            // would race the delete below to the server. Blanking the field instead said it in a
+            // place that means something else, and a submit() that FAILS then left the row EDITING
+            // with nobody left to release it: never uploaded again, and nothing on screen about it.
+            // The lease therefore stays armed here; the row is destroyed a few lines down, or the
+            // next close gives it back for real.
             // Nothing is being saved, so a message reopened from the outbox is not being moved
             // anywhere: it goes back to the queue rather than evaporating on an empty save (#70).
-            abandon()
+            abandon(emptying = true)
             if (original == null) {
                 _state.value = ComposeState.Done
+            } else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {
+                // ⛔ NOT repo.discardDraft: for an id no server ever issued, `destroyableUnderNumbering`
+                // answers an empty list and the IMAP route destroys NOTHING — the screen closed as a
+                // success while the emptied draft stayed in the queue and went up on the next
+                // network. Its row and its staged files go together instead (#95 × #69) — ⛔ and so
+                // does the SERVER draft it was standing in front of, or that one is unmasked by the
+                // very act of taking the row away and comes back with its pre-edit text for good.
+                submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }
             } else {
                 submit(to) { credentials, _ -> repo.discardDraft(credentials, original, originalUidValidity) }
             }
@@ -1323,12 +1904,26 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 fromName = identity?.name, fromEmail = identity?.email,
                 requestReceipt = requestReceipt,
             )
-            if (outcome == DraftSaveOutcome.ORIGINAL_KEPT) {
+            // ⛔ Which outcomes are worth a word is decided in the data layer and EXECUTED there
+            // (draftSaveNeedsNotice): a draft kept on the phone because the network was down is a
+            // successful save (#95), and saying anything about it here would be the reported
+            // symptom with softer wording.
+            if (draftSaveNeedsNotice(outcome)) {
                 _notices.tryEmit(R.string.compose_draft_original_kept)
             }
-            // Saved: the message now lives in Drafts, so the queued row it came from is consumed
-            // (giving it back would send what the user chose to keep as a draft) (#70).
-            consumeEditingOutbox()
+            // ⛔ A queued row the save did NOT put on the server is PARKED, and parked FIRST: left
+            // as the composer found it (EDITING) it is on no screen at all, and the next launch
+            // hands it back to the queue and sends the pre-edit message with no undo window — after
+            // the user tapped "save as draft". Where it goes is decided in the data layer and
+            // EXECUTED here (draftSaveParksTheQueuedRowAs). Before the consume, because that one
+            // clears editingOutboxId (#95 × #70).
+            draftSaveParksTheQueuedRowAs(outcome)?.let { parkEditingOutbox(it) }
+            // ⛔ The queued row it came from is consumed — its row AND its staged files — only once
+            // the draft has really reached Drafts, and that too is decided in the data layer and
+            // EXECUTED here (draftSaveConsumesTheQueuedRow). Unconditional, a save made with no
+            // network destroyed the only copy the user could still see: KEPT_ON_DEVICE means the
+            // draft is on the phone alone, and nothing displays it yet (#95 × #70).
+            if (draftSaveConsumesTheQueuedRow(outcome)) consumeEditingOutbox()
         }
     }
 

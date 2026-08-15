@@ -103,15 +103,20 @@ class DraftReopenWiringTest {
      */
     @Test fun `every line that names the wait flag, declaration included`() {
         assertEquals(
-            "ComposeViewModel.kt must name _draftLoading on exactly these four lines: it is declared " +
-                "false, exposed read-only, raised once in the reopened-draft branch and lowered once " +
-                "in that branch's finally. A fifth line, or a declaration that starts true, raises it " +
+            "ComposeViewModel.kt must name _draftLoading on exactly these six lines: it is declared " +
+                "false, exposed read-only, and raised-then-lowered once per reopen route — the " +
+                "phone's own store first (#95), the server's second. A seventh line, or a " +
+                "declaration that starts true, raises it " +
                 "on paths that have no finally to lower it: the composer then hangs on a spinner with " +
                 "an empty bar and only the X — for a new message whose signature block is empty, for " +
-                "good.",
+                "good. And a raise DELETED from either route re-opens the window this rule's two " +
+                "branches exist for: an editor drawn, editable, with Save live, before the draft " +
+                "behind it is known to be readable at all.",
             listOf(
                 "private val _draftLoading = MutableStateFlow(false)",
                 "val draftLoading: StateFlow<Boolean> = _draftLoading.asStateFlow()",
+                "_draftLoading.value = true",
+                "try { prepareLocalDraft(draftId!!) } finally { _draftLoading.value = false }",
                 "_draftLoading.value = true",
                 "_draftLoading.value = false",
             ),
@@ -190,16 +195,25 @@ class DraftReopenWiringTest {
      */
     @Test fun `every line that names the failure notice, declaration included`() {
         assertEquals(
-            "ComposeViewModel.kt must name _draftLoadFailed on exactly these four lines: declared " +
-                "null, exposed read-only, and written once per failure inside the reopened-draft " +
-                "branch. Born non-null, or written anywhere else, the composer opens on the dead " +
-                "end's sentence with no editor at all — for a brand new message too, and with " +
-                "nothing on that path to clear it.",
+            "ComposeViewModel.kt must name _draftLoadFailed on exactly these seven lines: declared " +
+                "null, exposed read-only, written once per failure inside the reopened-draft " +
+                "branch, and once per failure of a reopen off the PHONE's own store (#95) — no " +
+                "account to resolve, the row already consumed by the uploader, and the row this " +
+                "composer may not open right now because its files are being staged or it is being " +
+                "uploaded (noticeLocalDraftBusy). Born non-null, or written anywhere " +
+                "else, the composer opens on the dead end's sentence with no editor at all — for a " +
+                "brand new message too, and with nothing on that path to clear it. A local verdict " +
+                "MISSING from this list is one that went back to _attachmentStatus: a status line " +
+                "under an editor that is still drawn and still offers Save over a draft this " +
+                "screen does not hold.",
             listOf(
                 "private val _draftLoadFailed = MutableStateFlow<Int?>(null)",
                 "val draftLoadFailed: StateFlow<Int?> = _draftLoadFailed.asStateFlow()",
                 "_draftLoadFailed.value = draftLoadNoticeFor(offline = false)",
                 "_draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))",
+                "_draftLoadFailed.value = R.string.compose_draft_load_failed",
+                "_draftLoadFailed.value = R.string.compose_local_draft_gone",
+                "_draftLoadFailed.value = R.string.compose_draft_load_failed",
             ),
             codeLines(COMPOSE_VIEW_MODEL).map { it.trim() }.filter { it.contains("_draftLoadFailed") },
         )
@@ -367,8 +381,24 @@ class DraftReopenWiringTest {
         return blockAfter(code.substring(at), "{")
     }
 
-    /** The `if (draftId != null) { … }` branch of `prepare`, braces balanced. */
-    private fun draftBranch(): String = blockAfter(prepareBody(), "if (draftId != null) {")
+    /**
+     * The arm of `prepare` that reopens a draft the SERVER holds, braces balanced.
+     *
+     * It used to be `if (draftId != null) {`. The local-draft store (#95) replaced that null check
+     * with a `when` over which store the id belongs to, and this is the arm that still goes to the
+     * network — the one every rule in this class is about.
+     *
+     * ⛔ The LOCAL arm is outside these rules, and NOT because it has nothing to wait for: it
+     * raises `_draftLoading` before its own coroutine and lowers it from its own `finally`, exactly
+     * as this one does. A Room read is fast, not instantaneous, and `credentials()` plus the lease
+     * take happen before a single field is filled — the window where an editor drawn anyway offers
+     * a Save that mints a SECOND draft. What holds that arm is `LocalDraftReopenWiringTest`: the
+     * whole arm line by line in `the composer routes a draft id by the pure decision, not by a null
+     * check`, its two failure verdicts in `the refused row and the missing row say different
+     * things`, and the words one of them shows in `TranslationParityTest`. So a rule of THIS class
+     * going green says nothing about that arm, in either direction.
+     */
+    private fun draftBranch(): String = blockAfter(prepareBody(), "DraftOpenRoute.SERVER -> {")
 
     /** The `finally { … }` of that branch, braces balanced. */
     private fun draftFinallyBlock(): String = blockAfter(draftBranch(), "} finally {")

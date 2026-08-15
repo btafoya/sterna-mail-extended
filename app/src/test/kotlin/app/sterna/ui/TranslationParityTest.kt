@@ -230,6 +230,58 @@ class TranslationParityTest {
     }
 
     /**
+     * WHAT A DRAFT THE PHONE NO LONGER HOLDS IS TOLD (#95), pinned whole — because that sentence
+     * IS what its branch delivers, and nothing else in the build reads it.
+     *
+     * The two wiring lints of that route pin the RESOURCE ID it writes
+     * (`_draftLoadFailed.value = R.string.compose_local_draft_gone`), the rules at the top of this
+     * file pin the key in the nine languages and its format arguments — so the English TEXT could
+     * be replaced by anything at all, including one of the two sentences it was written NOT to be,
+     * and the whole suite would stay green.
+     *
+     * The two it must not become, both of them strings this app already ships:
+     * `compose_draft_load_failed` ("Close this screen and try opening it again") asks for a gesture
+     * that CANNOT work here — the row the uploader consumed does not come back on a reopen — and
+     * `compose_draft_offline` accuses a network that had no part in this. So the sentence owes two
+     * statements and no third: the draft is not on this phone any more, and where to look for it if
+     * it got out. It asks for nothing, and it promises nothing about a draft that was thrown away.
+     *
+     * The forbidden screen runs FIRST on purpose: a reword that walked the sentence back to one of
+     * those two meanings should be told WHICH promise it broke, not merely that a pin stopped
+     * matching.
+     *
+     * Whole-value equality, because `contains` is blind to anything a reword appends.
+     *
+     * ⛔ The eight translations are NOT pinned here, and that is a decision, not an oversight:
+     * nobody on this side reads them, so freezing their text would block a translation fix while
+     * proving nothing about meaning. Their keys are held by the parity rule at the top of this file.
+     */
+    @Test
+    fun `the draft the phone lost asks for nothing, and blames no network`() {
+        val actual = valuesOf(File(res, "values/strings.xml"))
+            .filterKeys { it in LOCAL_DRAFT_GONE_ENGLISH }
+        // The screen runs FIRST, on what the file actually says.
+        val forbidden = actual.values.flatMap { value ->
+            FORBIDDEN_OF_A_LOST_DRAFT.filter { it in value.lowercase() }.map { "'$it' in \"$value\"" }
+        }
+        assertEquals(
+            "the sentence for a draft the phone no longer has must not ask for a gesture that " +
+                "cannot work — there is no row left to close and reopen — and must not blame a " +
+                "connection that had nothing to do with it. Found:",
+            emptyList<String>(),
+            forbidden,
+        )
+        assertEquals(
+            "the English text of compose_local_draft_gone changed. It owes exactly this and no " +
+                "more: the draft is no longer on this phone, and if the uploader got it out it is " +
+                "in Drafts on the server. That sentence is the whole deliverable of the branch " +
+                "that writes it; every other rule about it pins the resource id, not the words.",
+            LOCAL_DRAFT_GONE_ENGLISH,
+            actual,
+        )
+    }
+
+    /**
      * PARITY OF KEYS IS NOT PARITY OF MEANING, AND THIS SWITCH IS WHERE THAT BITES.
      *
      * `notificationsEnabled` reads like a display setting and is not one: five of the six places
@@ -520,6 +572,25 @@ class TranslationParityTest {
             "settings_read_receipt_subtitle" to "Some senders ask to be told when their message " +
                 "is displayed. Off, the request is ignored. On, the message you open offers to " +
                 "answer it, and nothing leaves unless you say so.",
+        )
+
+        /**
+         * The sentence shown when the draft the phone was keeping is not on the phone any more
+         * (#95), in English, whole.
+         */
+        val LOCAL_DRAFT_GONE_ENGLISH = mapOf(
+            "compose_local_draft_gone" to "This draft is no longer on this phone. If it reached " +
+                "the server, you\\'ll find it in Drafts.",
+        )
+
+        /**
+         * What that sentence may never say, in lower case: an instruction to repeat a gesture on a
+         * row that is gone, and any accusation of the link. Both are sentences this app already
+         * has for OTHER causes, which is what makes them the likely accident.
+         */
+        val FORBIDDEN_OF_A_LOST_DRAFT = listOf(
+            "close this screen", "open it again", "opening it again", "try again",
+            "connection", "offline", "network",
         )
 
         /** The two labels of the unreadable-accounts startup screen, in English, whole. */

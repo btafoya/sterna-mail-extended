@@ -178,6 +178,16 @@ fun ComposeScreen(
     val onlyCopy by viewModel.onlyCopy.collectAsStateWithLifecycle()
     val editingOutbox by viewModel.editingOutbox.collectAsStateWithLifecycle()
     val editingDraft by viewModel.editingDraft.collectAsStateWithLifecycle()
+    // The lease on a draft the PHONE is keeping and the server has not got (#95) — non-null only
+    // while this composer really holds the row. Not `draftId` and not the route it belongs to: on a
+    // row the upload worker consumed between the list being drawn and the tap landing, both still
+    // say "local draft" while this screen holds nothing, and the button would do nothing.
+    val editingLocalDraftId by viewModel.editingLocalDraftId.collectAsStateWithLifecycle()
+    // Whether deleting that row would LEAVE the server copy it masks behind (#95) — true only when
+    // this phone never read that copy whole, which is when the deletion deliberately spares it. The
+    // confirmation has to say so before the finger lands: the row goes, the mask lifts, and the
+    // draft from before the edit comes back at the top of Drafts.
+    val deleteKeepsServerCopy by viewModel.deleteKeepsServerCopy.collectAsStateWithLifecycle()
     // Whether a draft saved on the SERVER survives leaving — what the leave dialog may not announce
     // as destroyed (#35). Not `draftId != null`: an undone send reopens with restore=true and no
     // draftId in the route while its draft is still sitting in Drafts.
@@ -319,6 +329,17 @@ fun ComposeScreen(
             }
             onDone()
         }
+    }
+
+    // A draft the phone was keeping has just been deleted: leave the way the X leaves — a bare
+    // popBackStack() onto the Drafts list this composer was opened from, which is where the row was
+    // showing. ⛔ NOT through ComposeState.Done, which this branch used to end on: that plays the
+    // tern's flight above, an animation written for a message that went OUT, and then lands on the
+    // inbox. The signal comes from the ViewModel and not from the tap, because the destroy has to be
+    // durable, the server copy evicted and the row consumed first — a deletion that throws keeps
+    // this screen up, with its error banner.
+    LaunchedEffect(Unit) {
+        viewModel.localDraftDeleted.collect { onCancel() }
     }
 
     // Which field opens focused — decided once, from how this composer was opened, before the
@@ -573,16 +594,55 @@ fun ComposeScreen(
             // per-sender rule dialogs.
             text = {
                 Text(
-                    stringResource(R.string.compose_delete_draft_body),
+                    // ⛔ One title, two BODIES, because the object is not the same one (#95). The
+                    // server draft "goes to the Trash"; a draft the phone is keeping has never
+                    // reached a server, so there is no Trash for it to go to and no Undo behind
+                    // it — it and its files go at once. Saying "goes to the Trash" over it would
+                    // be the app promising a way back that does not exist.
+                    //
+                    // ⛔ And the local body states ONLY what is true of all three local cases: the
+                    // copy this phone holds, and its attachments, go straight away. It used to add
+                    // "this draft hasn't reached the server … this can't be undone", which is the
+                    // opposite of what happens when the row masks a server copy this phone never
+                    // read whole: that copy is deliberately KEPT (emptiedLocalDraftKeepsServerCopy)
+                    // and the pre-edit draft comes back at the top of Drafts the moment the row
+                    // goes. So that case says so HERE, before the finger — the sentence the empty
+                    // save posts afterwards, which names no gesture precisely because it now serves
+                    // two.
+                    listOfNotNull(
+                        stringResource(
+                            if (editingLocalDraftId != null) {
+                                R.string.compose_delete_draft_body_local
+                            } else {
+                                R.string.compose_delete_draft_body
+                            },
+                        ),
+                        if (deleteKeepsServerCopy) {
+                            stringResource(R.string.compose_emptied_draft_server_copy_kept)
+                        } else {
+                            null
+                        },
+                    ).joinToString("\n\n"),
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pendingDraftDelete = false
-                    // The message is taken INSIDE the navigation guard (see SternaApp): a tap the
-                    // guard refuses must not have consumed the draft on its way to being ignored.
-                    onDeleteDraft { viewModel.takeEditingDraft() }
+                    if (editingLocalDraftId != null) {
+                        // A draft the phone is keeping is deleted BY THE COMPOSER: there is no
+                        // server row for the list's move-to-Trash to act on, and the gesture is
+                        // the emptying one (#95 × #69) reached by a button — the server copy this
+                        // row replaced destroyed under its proofs, then the row and its files. The
+                        // screen closes on viewModel.localDraftDeleted above, with a bare pop —
+                        // never on ComposeState.Done, which is a message taking flight.
+                        viewModel.deleteEditingLocalDraft()
+                    } else {
+                        // The message is taken INSIDE the navigation guard (see SternaApp): a tap
+                        // the guard refuses must not have consumed the draft on its way to being
+                        // ignored.
+                        onDeleteDraft { viewModel.takeEditingDraft() }
+                    }
                 }) {
                     Text(stringResource(R.string.inbox_delete), color = MaterialTheme.colorScheme.error)
                 }
@@ -785,11 +845,13 @@ fun ComposeScreen(
                     // persists nothing, so it has no reason to disappear when the padlock closes.
                     // When it is offered is [draftDeleteOffered]; the message it acts on comes from
                     // the ViewModel, which refuses while a send is in flight (INV-6).
-                    if (draftDeleteOffered(restore, draftId, editingDraft != null)) {
+                    if (draftDeleteOffered(restore, draftId, editingDraft != null, editingLocalDraftId != null)) {
                         IconButton(
                             // Asks first (#127): everything typed since this composer opened is
-                            // unsaved, and the delete takes the SERVER copy — so the Undo restores
-                            // the draft as it was on the server, never the text on screen. The
+                            // unsaved, and on a server draft the delete takes the SERVER copy — so
+                            // the Undo restores the draft as it was on the server, never the text
+                            // on screen. On a draft the phone is keeping there is no Undo at all
+                            // (#95), which is what the dialog's own body says. The
                             // composer already asks before dropping those edits when the X is
                             // tapped; this button dropped them with no question at all.
                             onClick = { pendingDraftDelete = true },

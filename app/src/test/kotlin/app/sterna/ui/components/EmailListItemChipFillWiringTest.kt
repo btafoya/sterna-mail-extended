@@ -81,11 +81,13 @@ class EmailListItemChipFillWiringTest {
 
     /**
      * Every background painted in this file, in source order: the row itself, the account chip's
-     * two-branch block, then the two pills. Mutation 5, and mutation 1 for the pills.
+     * two-branch block, then the three pills — the thread count, "not uploaded" (#95) and
+     * "(Draft)". Mutation 5, and mutation 1 for the pills.
      */
     private val expectedBackgrounds = listOf(
         ".background(rowColor)",
         ".background(",
+        ".background(fill)",
         ".background(fill)",
         ".background(fill)",
     )
@@ -159,6 +161,21 @@ class EmailListItemChipFillWiringTest {
             "DraftLabel must declare 'private fun DraftLabel(fill: Color) {'.",
             1,
             codeLines().count { it == "private fun DraftLabel(fill: Color) {" },
+        )
+    }
+
+    /** Site 4, added with #95: the "not uploaded" chip, which sits right next to site 3. */
+    @Test fun `the not-uploaded label is given the row's fill too`() {
+        assertEquals(
+            "EmailListItem.kt must call the chip as 'NotUploadedLabel(fill = chipBackground)' — the " +
+                "whole line, for the same reason as the draft chip beside it.",
+            1,
+            codeLines().count { it == "NotUploadedLabel(fill = chipBackground)" },
+        )
+        assertEquals(
+            "NotUploadedLabel must declare 'private fun NotUploadedLabel(fill: Color) {'.",
+            1,
+            codeLines().count { it == "private fun NotUploadedLabel(fill: Color) {" },
         )
     }
 

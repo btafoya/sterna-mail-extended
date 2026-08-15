@@ -30,6 +30,10 @@ import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailBodyEntity
+import app.sterna.core.data.db.LocalDraftDao
+import app.sterna.core.data.db.LocalDraftEntity
+import app.sterna.core.data.db.LocalDraftState
+import app.sterna.core.data.db.MailboxUidValidityDao
 import app.sterna.core.data.db.OutboxAttachment
 import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.db.OutboxDao
@@ -182,8 +186,11 @@ private const val BODY_CACHE_CAP = 100
  * ⚠ What it bounds, exactly — and what it does NOT: the deadline is taken inside
  * [ImapMailService]'s `runWithRetry`, i.e. AFTER `withSession` has acquired the account's IMAP
  * mutex (`pooled.mutex.withLock { runWithRetry(...) }`). So it bounds the connect and the reads
- * themselves; it does not bound the WAIT for that mutex, and whatever holds it — a body fetch, an
- * APPEND of a draft, a sync pass, all of them `NO_BUDGET` — is bounded by nothing. This constant
+ * themselves; it does not bound the WAIT for that mutex, and whatever holds it — a body fetch, a
+ * sync pass, an APPEND made by the interactive save, all of them `NO_BUDGET` — is bounded by
+ * nothing. (⭐ The one exception is the DEFERRED draft upload, which since #95 installs an
+ * [ImapReadBudget] on its own coroutine — [LOCAL_DRAFT_UPLOAD_BUDGET_MS]; it was the worst of them,
+ * a whole `APPEND` with no bound at all.) This constant
  * therefore shortens the window the composer's text can sit in RAM, it does not close it; closing
  * it would take a deadline on the lock itself, which every other caller shares.
  *
@@ -442,6 +449,22 @@ internal fun requireSingleLineAddresses(addresses: List<String>) {
     require(addresses.none { addr -> addr.any { it == '\r' || it == '\n' } }) {
         "An address contains a line break."
     }
+}
+
+/**
+ * The composer's chosen `From:` as a header string, or null when no address was chosen.
+ *
+ * The From is a string-built header on the IMAP/SMTP path, so the display name must be RFC
+ * 5322-quoted (specials like the '@'/'.' of an email-address name) or RFC 2047-encoded (non-ASCII)
+ * here — [OutgoingMime.formatAddress] does that. JMAP sends a structured {name, email} and is
+ * unaffected (#77).
+ *
+ * Top-level so [localDraftOutgoing] can build a draft's MIME from the row without going through
+ * [MailRepository], which no JVM test can build.
+ */
+internal fun formatFromAddress(name: String?, email: String?): String? = when {
+    email.isNullOrBlank() -> null
+    else -> OutgoingMime.formatAddress(name, email)
 }
 
 /**
@@ -1213,7 +1236,19 @@ class MailRepository(
     private val outboxDao: OutboxDao,
     /** The frozen destroy list of a confirmed Empty trash (#99). */
     private val purgeSnapshotDao: PurgeSnapshotDao,
+    /** Drafts written on the phone and not yet on the server (#95). */
+    private val localDraftDao: LocalDraftDao,
+    /**
+     * The folder numbering each mailbox was last seen under. Read at the moment a draft is saved
+     * over another, so the row freezes the UIDVALIDITY its `replacesEmailId` was named in (#99).
+     */
+    private val mailboxUidValidityDao: MailboxUidValidityDao,
     private val outboxFilesDir: java.io.File,
+    /**
+     * Where a local draft's attachment bytes are staged. ⛔ Its own tree, not [outboxFilesDir]: an
+     * outbox item's files die with the send, a draft's wait as long as the draft does.
+     */
+    private val localDraftFilesDir: java.io.File,
     private val oauthClient: OAuthClient = OAuthClient(),
     /** OpenPGP operations (null = no provider wired; all PGP features disabled). */
     private val pgpEngine: PgpEngine? = null,
@@ -1228,6 +1263,13 @@ class MailRepository(
      * from any caller, including ones inside this module (e.g. an RSVP reply).
      */
     var outboxScheduler: OutboxScheduler? = null
+
+    /**
+     * The same seam for a draft the server could not be given (#95): [saveDraft] books the deferred
+     * upload itself, so a draft written with no network rejoins the server when the network comes
+     * back instead of waiting for the app to be started again. Set by the app layer at startup.
+     */
+    var localDraftScheduler: LocalDraftScheduler? = null
 
     /**
      * App-layer teardown for a linked sub-account pruned on reconcile (access revoked, issue #31):
@@ -3655,6 +3697,27 @@ class MailRepository(
         return recordedUidValidity(credentials, folder)
     }
 
+    /**
+     * The folder the SERVER draft [emailId] sits in — ⛔ **what a held-back destroy of it has to
+     * carry, or it destroys nothing in silence**: on JMAP `destroyAll` checks the ids against that
+     * folder wave by wave and spares everything when it is absent (#122).
+     *
+     * ⛔ **The two Room reads only** — WHICH of them wins is [draftDestroyFolder], a pure function a
+     * JVM test executes, because nothing here is instantiable and a `?:` written in this body is a
+     * rule that can be deleted with every suite still green. Resolved as [destroyDraft] and
+     * [recordedUidValidityForDraft] resolve it (the cached row's own folder, else the account's
+     * Drafts role), and account-scoped both times, because mailbox ids collide between two accounts
+     * of one server (#31).
+     *
+     * ⚠ Both reads happen, where the old `?:` short-circuited: one extra indexed lookup on a gesture
+     * a user makes by hand, in exchange for a decision that can be run and mutated.
+     */
+    suspend fun draftMailboxOf(credentials: AccountCredentials, emailId: String): String? =
+        draftDestroyFolder(
+            cachedMailboxId = emailDao.mailboxOf(credentials.id, emailId),
+            draftsRoleMailboxId = mailboxDao.idForRole(credentials.id, "drafts"),
+        )
+
     /** Move a message to an arbitrary mailbox (e.g. unarchive → Inbox, or move-to-folder).
      *  Returns the destination the message ended up in (null = a no-op, already there), so the
      *  caller can offer an Undo that both restores the row and reverses the count nudge. */
@@ -5561,7 +5624,7 @@ class MailRepository(
         bcc: List<String> = emptyList(),
         requestReceipt: Boolean,
     ): OutgoingMessage {
-        val from = formatFrom(fromName, fromEmail) ?: credentials.username
+        val from = formatFromAddress(fromName, fromEmail) ?: credentials.username
         // The read receipt is addressed to this very `from` string by OutgoingMime.build, so it is
         // covered by the check below (and by headerSafe there) without a field of its own.
         requireSingleLineAddresses(listOf(from) + recipients + cc + bcc)
@@ -5575,31 +5638,34 @@ class MailRepository(
             html = html,
             inReplyTo = inReplyTo.firstOrNull(),
             references = references.joinToString(" ").ifBlank { null },
-            messageId = "${java.util.UUID.randomUUID()}@${credentials.username.substringAfter('@', "localhost")}",
+            messageId = newMessageId(credentials.username),
             dateMillis = System.currentTimeMillis(),
             requestReceipt = requestReceipt,
         )
     }
 
-    // The From is a string-built header on the IMAP/SMTP path, so the display name must be
-    // RFC 5322-quoted (specials like the '@'/'.' of an email-address name) or RFC 2047-encoded
-    // (non-ASCII) here — OutgoingMime.formatAddress does that. JMAP sends a structured {name,
-    // email} and is unaffected (#77).
-    private fun formatFrom(name: String?, email: String?): String? = when {
-        email.isNullOrBlank() -> null
-        else -> OutgoingMime.formatAddress(name, email)
-    }
-
     /**
-     * Save a draft, carrying [attachments] (the chips compose shows) into it so a re-saved draft
-     * keeps its files. With [replacesEmailId] set (re-saving an opened draft, #63) the old server
-     * draft is destroyed once the new one is safely created, so saving never duplicates — but
-     * ONLY when the new draft reproduced the old one's content: every attachment made it in,
-     * [bodyIsLossy] is false, and the addressing it was sent to is provably still there.
-     * Otherwise the original survives and the caller is told
-     * ([DraftSaveOutcome.ORIGINAL_KEPT]), because losing attachments or an HTML body the user was
-     * just shown is irreversible while a duplicate is not. The destroy stays best-effort: a
-     * failure leaves a stale copy rather than failing the save.
+     * Save a draft — ⭐ **on the phone first, then on the server, always** (#95).
+     *
+     * The row goes into `local_drafts` before the first byte leaves, and the upload is attempted in
+     * the same call. It succeeds: the row is consumed, and everything below this line behaves as it
+     * always did. It fails — offline, a dropped socket, a server that said no: the row STAYS, this
+     * returns [DraftSaveOutcome.KEPT_ON_DEVICE] and ⛔ **does not throw**, which is the whole of the
+     * reported symptom ("could not save the draft" plus the raw transport error, and the typed text
+     * dying with the process).
+     *
+     * ⛔ The upload failing changes nothing about the SERVER: [finishDraftSave] is inside the upload,
+     * so the draft this one replaces is only ever destroyed by an upload that went through. Offline
+     * the original is intact, and it stays intact.
+     *
+     * Carries [attachments] (the chips compose shows) into it so a re-saved draft keeps its files.
+     * With [replacesEmailId] set (re-saving an opened draft, #63) the old server draft is destroyed
+     * once the new one is safely created, so saving never duplicates — but ONLY when the new draft
+     * reproduced the old one's content: every attachment made it in, [bodyIsLossy] is false, and the
+     * addressing it was sent to is provably still there. Otherwise the original survives and the
+     * caller is told ([DraftSaveOutcome.ORIGINAL_KEPT]), because losing attachments or an HTML body
+     * the user was just shown is irreversible while a duplicate is not. The destroy stays
+     * best-effort: a failure leaves a stale copy rather than failing the save.
      */
     suspend fun saveDraft(
         credentials: AccountCredentials,
@@ -5638,19 +5704,269 @@ class MailRepository(
          */
         requestReceipt: Boolean = false,
     ): DraftSaveOutcome {
-        val ccTrimmed = cc.map { it.trim() }.filter { it.isNotEmpty() }
-        val bccTrimmed = bcc.map { it.trim() }.filter { it.isNotEmpty() }
+        val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
+        // ⭐ The row this save is about, minted or reloaded BEFORE anything is attempted. A re-save
+        // lands on the row already holding the draft (one local row per draft), and keeps the id
+        // and the creation time it was written under. ⛔ NOT its `Message-ID`: that names the
+        // version of the text, and a save writes a new one (see `localDraftMessageId`).
+        // ⭐ Found by BOTH keys: `(accountId, id)` for the phone's own draft, and
+        // `(accountId, replacesEmailId)` for a server draft this phone already holds a row for —
+        // without the second, every re-save of an edited server draft with no network added a row,
+        // a Message-ID, an upload and an attempt to destroy the same original.
+        val target = localDraftTarget(
+            replacesEmailId,
+            byId = { localDraftDao.byId(credentials.id, it) },
+            forServerDraft = { localDraftDao.forServerDraft(credentials.id, it) },
+        )
+        val existing = target.existing
+        // ⛔ A local id is not a server id: it names nothing the server could be asked to destroy.
+        val serverReplaced = serverDraftReplacedBy(replacesEmailId)
+        val row = localDraftRow(
+            accountId = credentials.id,
+            id = target.id,
+            messageId = localDraftMessageId(existing) { newMessageId(credentials.username) },
+            to = recipients,
+            cc = cc,
+            bcc = bcc,
+            subject = subject,
+            body = body,
+            fromName = fromName,
+            fromEmail = fromEmail,
+            inReplyTo = inReplyTo,
+            references = references,
+            replacesEmailId = serverReplaced,
+            // Read now, while it is still true: this row may wait weeks, and by then the folder
+            // may have been renumbered under the UID `serverReplaced` ends in (#99).
+            replacesUidValidity = localDraftUidValidity(serverReplaced) { mailboxId ->
+                mailboxUidValidityDao.recorded(credentials.id, mailboxId)
+            },
+            bodyIsLossy = bodyIsLossy,
+            requestReceipt = requestReceipt,
+            existing = existing,
+            nowMillis = System.currentTimeMillis(),
+        )
+        return saveDraftLocalFirst(
+            row = row,
+            // ⛔ The row that was there BEFORE this save, and what the rollback of a failed staging
+            // turns on: `discard` takes the whole DRAFT away, files included, so run on a re-save
+            // it deletes the text of the save that worked (see saveDraftLocalFirst).
+            existing = existing,
+            nowMillis = System.currentTimeMillis(),
+            upsert = { localDraftDao.upsert(it) },
+            stage = { stageLocalDraftAttachments(localDraftDir(it.id), attachments) },
+            discard = { discardLocalDraft(credentials.id, it.id) },
+            upload = { saved -> uploadDraft(credentials, saved, attachments) },
+            record = { saved, attempt ->
+                localDraftDao.recordAttempt(
+                    credentials.id, saved.id, LocalDraftState.PENDING, attempt.attemptCount, attempt.error,
+                    attempt.atMillis, attempt.notBeforeMillis,
+                )
+            },
+            // ⭐ And the draft's own work item, at the instant the attempt just wrote — the outbox's
+            // seam, copied. Without it a draft saved with no network waits for the next START of
+            // the app, which is the promise of this volet unkept and nothing on screen says so.
+            // ⛔ NOT a suspending lambda, and `LocalDraftScheduler.schedule` is not one either: this
+            // also runs from a coroutine the composer has just cancelled, where every suspension
+            // point throws. A `localDraftDao.…` call added here would not compile — keep it so.
+            schedule = { job -> localDraftScheduler?.schedule(job.accountId, job.id, job.delayMillis) },
+        )
+    }
+
+    /** The accounts holding a draft the server has not got — what a startup re-arm walks (#95). */
+    suspend fun accountsWithLocalDrafts(): List<String> = localDraftDao.accountsWithDrafts()
+
+    /**
+     * One account's local drafts, newest edit first — what the Drafts list draws on top (#95).
+     *
+     * ⛔ No state filter, and that is the decision: a `STAGING` row is shown like any other. Its text
+     * is on the phone, and the whole point of the volet is that the user can see what she typed.
+     */
+    fun observeLocalDrafts(accountId: String): Flow<List<LocalDraftEntity>> =
+        localDraftDao.observeForAccount(accountId)
+
+    /**
+     * Open one of this phone's own drafts in the composer (#95): hand back the row, and hold it out
+     * of the upload worker's way while the composer has it ([LocalDraftState.EDITING]).
+     *
+     * ⛔ **No network, and nothing from the cache.** The id names a row no server has ever heard of.
+     * The whole reopen is the row, projected by [localDraftPrefill]; the decisions are executed in
+     * `LocalDraftReopenTest`, this is only the Room they cannot reach.
+     *
+     * ⛔ Whether the row may be taken at all is [localDraftMayBeTakenForEdit]'s answer, and a
+     * refused row is answered [LocalDraftEdit.Busy] without a single write. ⚠ Nothing here is
+     * executable by any test — no `androidTest` exists in this repo and this class needs Room, a
+     * Context and a live session — so `LocalDraftLeaseWiringTest` pins these lines as text.
+     */
+    suspend fun takeLocalDraftForEdit(accountId: String, id: String): LocalDraftEdit =
+        takeLocalDraftEdit(
+            id,
+            load = { localDraftDao.byId(accountId, it) },
+            setState = { localDraftDao.setState(accountId, id, it) },
+        )
+
+    /**
+     * Give a row taken with [takeLocalDraftForEdit] back to the upload worker — the composer was
+     * closed. Modelled on [releaseOutboxEdit], down to the re-arm: the work item that would have
+     * uploaded this draft may well have fired while the composer held it, found the row EDITING and
+     * gone away, so without a fresh one the draft waits for the next START of the app.
+     *
+     * The row keeps whatever backoff it had: a draft whose last attempt failed is not made to retry
+     * sooner because it was opened and closed.
+     */
+    suspend fun releaseLocalDraftEdit(accountId: String, id: String) =
+        giveLocalDraftEditBack(
+            id,
+            nowMillis = System.currentTimeMillis(),
+            load = { localDraftDao.byId(accountId, it) },
+            setState = { localDraftDao.setState(accountId, id, it) },
+            schedule = { delay -> localDraftScheduler?.schedule(accountId, id, delay) },
+        )
+
+    /**
+     * Take one of this phone's own drafts away — ⛔ **the row AND the files staged with it** —
+     * because the composer has committed its text somewhere else (#95): a send now queued in the
+     * outbox, a scheduled send now in its own table, or a draft the user emptied out (#69).
+     *
+     * ⛔ **Only ever after that other row exists**, which is [commitThenConsumeLocalDraft]'s whole
+     * job; this is the Room half it cannot reach. Called before, or from a `finally`, it deletes
+     * the only copy of the text on the failure this volet exists to survive.
+     */
+    suspend fun consumeLocalDraft(accountId: String, id: String) = discardLocalDraft(accountId, id)
+
+    /**
+     * Bring ONE account's rows back from a process death mid-edit or mid-upload (#95).
+     *
+     * ⛔ Per account, never a global `UPDATE`: another account's composer may be open on an EDITING
+     * row, and flipping that back to PENDING hands the text being typed to the upload worker. The
+     * scope is the DAO's; this is only the name the app layer calls it by.
+     */
+    suspend fun revertUnfinishedLocalDrafts(accountId: String) =
+        localDraftDao.revertUnfinishedToPending(accountId)
+
+    /**
+     * Every row of one account still owed to the server — ⛔ **backed-off rows included**, which is
+     * what `Long.MAX_VALUE` is doing there.
+     *
+     * A startup re-arm is the safety net for the work items a reboot lost, so it has to see the rows
+     * that are NOT due yet: asked at the current instant, a draft that failed ten minutes ago comes
+     * back empty-handed and is left with no work item at all — waiting for a save that may never
+     * come. [localDraftUploadJobs] turns each row's own `notBeforeMillis` into its delay.
+     */
+    suspend fun localDraftsAwaitingUpload(accountId: String): List<LocalDraftEntity> =
+        localDraftDao.pending(accountId, Long.MAX_VALUE)
+
+    /**
+     * One deferred attempt at the local draft [id] (#95) — what the upload worker calls when the
+     * network comes back.
+     *
+     * The order and every decision are [uploadLocalDraftOnce]'s, which a JVM test executes; this
+     * hands it the real store. The upload itself is [uploadDraft], the same function the save uses,
+     * so a deferred upload carries exactly the same guards about destroying the original (#63, #99)
+     * — there is no second path to the server.
+     */
+    suspend fun uploadLocalDraft(credentials: AccountCredentials, id: String): LocalDraftUploadResult {
+        val now = System.currentTimeMillis()
+        return uploadLocalDraftOnce(
+            row = localDraftDao.byId(credentials.id, id),
+            nowMillis = now,
+            markUploading = { localDraftDao.setState(credentials.id, id, LocalDraftState.UPLOADING) },
+            // ⭐ TWO bounds, at two levels, and neither replaces the other.
+            //  - the inner one is per READ ([LOCAL_DRAFT_UPLOAD_BUDGET_MS]): `appendDraft` names no
+            //    budget of its own, so without it the socket blocks for ever on a link cut
+            //    mid-APPEND. It is what lets the attempt finish PROPERLY, with the transport's own
+            //    words on the row;
+            //  - the outer one is per ATTEMPT ([LOCAL_DRAFT_ATTEMPT_BUDGET_MS]), because the reads
+            //    are not the only thing that blocks: the wait for the account's IMAP mutex has no
+            //    budget at all, and 6 min 29 of it was measured behind a retrying `loadFolder` —
+            //    row stuck UPLOADING, `attemptCount` frozen, no cause, no backoff, and the read
+            //    budget never even started. ⛔ It is [withLocalDraftAttemptBudget], not a bare
+            //    `withTimeout`: the expiry has to arrive here as an ORDINARY failure, or the
+            //    `record` below is skipped exactly as it was before.
+            // ⛔ The interactive save (`saveDraftLocalFirst`) is bounded by neither: its reads stay
+            // blocking, as the debt already written there says.
+            upload = { row ->
+                withLocalDraftAttemptBudget(LOCAL_DRAFT_ATTEMPT_BUDGET_MS) {
+                    withContext(ImapReadBudget(LOCAL_DRAFT_UPLOAD_BUDGET_MS)) {
+                        uploadDraft(credentials, row, localDraftUploadAttachments(row.attachmentsJson))
+                    }
+                }
+            },
+            discard = { discardLocalDraft(credentials.id, it.id) },
+            record = { attempt ->
+                localDraftDao.recordAttempt(
+                    credentials.id, id, LocalDraftState.PENDING, attempt.attemptCount, attempt.error,
+                    attempt.atMillis, attempt.notBeforeMillis,
+                )
+            },
+        )
+    }
+
+    /** Where one local draft's attachment bytes live — its own tree, never the outbox's (#95). */
+    private fun localDraftDir(id: String): java.io.File =
+        java.io.File(localDraftFilesDir, localDraftDirName(id))
+
+    /**
+     * Consume a local draft: the row and the files staged with it, together.
+     *
+     * ⛔ Best-effort on BOTH halves. This runs on the success path, i.e. after the draft is on the
+     * server and after the original it replaced has been destroyed — a throw here would surface as
+     * "couldn't save the draft" on a save that fully succeeded, which is the reported symptom of #95
+     * with the network working. A row that outlives its upload is at worst a second copy in Drafts,
+     * and a duplicate is recoverable while a false error sends the user hunting for lost text.
+     */
+    private suspend fun discardLocalDraft(accountId: String, id: String) {
+        runCatching { localDraftDao.deleteById(accountId, id) }
+        runCatching { localDraftDir(id).deleteRecursively() }
+    }
+
+    /**
+     * Put a saved draft on the server, exactly as this repository always has. Reached only from
+     * [saveDraftLocalFirst], which has already made [row] durable — so everything here may throw,
+     * and a throw means "still only on the phone", not "lost".
+     *
+     * [attachments] is what the composer was showing, and stays the source for the upload: it is
+     * still in hand in this same call. What it is counted against — [draftReplacementIsFaithful] —
+     * is unchanged, and so is every guard around destroying the original.
+     */
+    private suspend fun uploadDraft(
+        credentials: AccountCredentials,
+        row: LocalDraftEntity,
+        attachments: List<EmailBodyPart>,
+    ): DraftSaveOutcome {
+        val ccTrimmed = localDraftAddresses(row.cc)
+        val bccTrimmed = localDraftAddresses(row.bcc)
+        val replacesEmailId = row.replacesEmailId
+        // Read off the ROW, never off the composer or the folder: both guards below outlive the
+        // screen that answered them. `requestReceipt` is what this very save asks for, and
+        // `replacesUidValidity` is the numbering the composer read `replacesEmailId` under — frozen
+        // when the row was minted (#99), because an upload deferred by #95 can leave days later,
+        // when a fresh read would name whatever message now holds that UID.
+        val requestReceipt = row.requestReceipt
+        val replacesUidValidity = row.replacesUidValidity
         if (credentials.protocol == MailProtocol.IMAP) {
-            val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
             val drafts = mailboxDao.idForRole(credentials.id, "drafts") ?: error("This account has no Drafts folder.")
             val parts = imapDraftAttachments(attachments)
-            imap.appendDraft(
-                credentials, drafts,
-                outgoing(
-                    credentials, recipients, subject, body, inReplyTo, references,
-                    fromName = fromName, fromEmail = fromEmail, cc = ccTrimmed, bcc = bccTrimmed,
-                    requestReceipt = requestReceipt,
-                ).copy(attachments = parts),
+            // ⭐ The bytes go out at most once per ATTEMPT, and a retry asks first: an APPEND whose
+            // answer was lost to a dead link leaves a copy the phone cannot see, and every later
+            // attempt used to add another. The `Message-ID` searched for names this VERSION of the
+            // text (`localDraftMessageId`), so "found" means the server holds what is about to be
+            // sent, not merely something that was once this draft. ⛔ A search that FAILS appends
+            // anyway, and so does a save the user makes after an earlier version got through: both
+            // cost a duplicate in Drafts rather than text that exists nowhere. ⛔ `appendDraft`
+            // itself does not replay inside its session — see it.
+            appendDraftUnlessAlreadyThere(
+                row = row,
+                alreadyThere = { messageId ->
+                    imap.draftIsAlreadyThere(credentials = credentials, draftsMailbox = drafts, messageId = messageId)
+                },
+                append = {
+                    imap.appendDraft(
+                        credentials, drafts,
+                        // ⭐ Built from the ROW, so the `Message-ID` that reaches the server is the
+                        // one the phone kept. Minted here instead, as it used to be, it named nothing.
+                        localDraftOutgoing(row, credentials.username, parts, System.currentTimeMillis()),
+                    )
+                },
             )
             // What the copy about to be destroyed was addressed to, read back from the server —
             // the composer cannot vouch for it here. Reopening an IMAP draft rebuilds it from the
@@ -5669,10 +5985,19 @@ class MailRepository(
             val addressingIsCarried = draftAddressingIsCarried(
                 replacesEmailId = replacesEmailId,
                 replacement = ccTrimmed.toSet(),
-                // NO_BUDGET, explicitly: the save's read keeps the blocking behaviour it has
-                // always had. Its own hang window (a silent server under a Save) predates this
-                // parameter and is tracked as its own question — only the SEND's read, which
-                // runs while the message exists nowhere durable, carries a deadline.
+                // NO_BUDGET, explicitly, and it now means two different things depending on WHO
+                // is uploading — because `uploadDraft` serves both:
+                //  - under the interactive save, it is what it always was: a blocking read, whose
+                //    own hang window predates this parameter and is tracked as its own question;
+                //  - under the DEFERRED upload, the coroutine carries an ImapReadBudget (#95), and
+                //    an ambient budget cannot tell "I said nothing" from "I said zero on purpose":
+                //    this read is therefore bounded by LOCAL_DRAFT_UPLOAD_BUDGET_MS too.
+                // ⭐ That is wanted, and it is safe in the only direction that matters: an expired
+                // read is UNKNOWN, `draftAddressingIsCarried` reads unknown as "not proven", and a
+                // destroy that is not proven does not happen — at worst a visible duplicate in
+                // Drafts. Left blocking it would have reproduced the very symptom the budget
+                // exists for, one read further along.
+                // ⛔ Only the SEND's read carries a deadline written at its own call site.
                 originalAddressing = { id -> imapDraftAddressing(credentials, id, ImapBudget.NO_BUDGET) },
             )
             // The same question for the read receipt the original may have asked for: the header
@@ -5686,7 +6011,7 @@ class MailRepository(
             val outcome = finishDraftSave(
                 credentials, replacesEmailId,
                 faithful = draftReplacementIsFaithful(
-                    attachments.size, parts.size, bodyIsLossy,
+                    attachments.size, parts.size, row.bodyIsLossy,
                     addressingIsCarried = addressingIsCarried,
                     receiptRequestIsCarried = receiptIsCarried,
                 ),
@@ -5700,14 +6025,14 @@ class MailRepository(
             return outcome
         }
         val ctx = connect(credentials)
-        val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }.map { EmailAddress(email = it) }
+        val recipients = localDraftAddresses(row.toAddresses).map { EmailAddress(email = it) }
         // The From is the composer's chosen identity, falling back to the account's stored
         // identities and finally the signed-in address — never a live Identity/get: that method
         // is member-only and refused on a delegated sub-account ("You are not an owner",
         // issue #31; Stalwart answers a method-level "forbidden" for a shared account), and
         // connect() refreshes the stored server identities anyway.
-        val from = if (!fromEmail.isNullOrBlank()) {
-            EmailAddress(name = fromName, email = fromEmail)
+        val from = if (!row.fromEmail.isNullOrBlank()) {
+            EmailAddress(name = row.fromName, email = row.fromEmail)
         } else {
             val stored = accountStore.identities(credentials.id).firstOrNull()
             EmailAddress(name = stored?.name, email = stored?.email ?: credentials.username)
@@ -5715,6 +6040,8 @@ class MailRepository(
         val draftsId = ctx.rolesToMailboxId["drafts"]
             ?: error("This account has no Drafts folder.")
         val blobs = jmapDraftAttachments(credentials, attachments)
+        val inReplyTo = row.inReplyTo?.split(" ")?.filter { it.isNotBlank() }.orEmpty()
+        val references = row.references?.split(" ")?.filter { it.isNotBlank() }.orEmpty()
         val savedId = client.saveDraft(
             session = ctx.session,
             accountId = ctx.accountId,
@@ -5723,25 +6050,32 @@ class MailRepository(
             to = recipients,
             cc = ccTrimmed.map { EmailAddress(email = it) },
             bcc = bccTrimmed.map { EmailAddress(email = it) },
-            subject = subject,
-            textBody = body,
+            subject = row.subject,
+            textBody = row.textBody,
             draftMailboxId = draftsId,
             inReplyTo = inReplyTo,
             references = references,
             attachments = blobs,
-            requestReceipt = requestReceipt,
+            requestReceipt = row.requestReceipt,
         )
         // Optimistically cache the just-saved draft so the Drafts list (a Room-backed
         // PagingSource) reflects it at once instead of waiting for a pull-to-refresh (#63).
         // Keyed on the server-returned id, so the next sync replaces it in place — no duplicate.
+        //
+        // ⛔ Best-effort, like the IMAP branch's refresh() above and for a sharper reason: the
+        // draft IS on the server by this line. A Room write that failed here used to propagate out
+        // of the upload, be caught as KEPT_ON_DEVICE and keep the local row — so the next attempt
+        // uploaded the same draft a second time. A missing cache row costs a pull-to-refresh.
         if (savedId != null) {
-            cacheSavedDraft(
-                credentials, savedId, draftsId, from, recipients,
-                cc = ccTrimmed.map { EmailAddress(email = it) },
-                bcc = bccTrimmed.map { EmailAddress(email = it) },
-                subject, body,
-                inReplyTo, references, hasAttachment = blobs.isNotEmpty(),
-            )
+            runCatching {
+                cacheSavedDraft(
+                    credentials, savedId, draftsId, from, recipients,
+                    cc = ccTrimmed.map { EmailAddress(email = it) },
+                    bcc = bccTrimmed.map { EmailAddress(email = it) },
+                    row.subject, row.textBody,
+                    inReplyTo, references, hasAttachment = blobs.isNotEmpty(),
+                )
+            }
         }
         // Unlike the addressing below, this one IS a read on JMAP too: reopening a draft brings
         // its recipients back through Email/get, but not the state of the receipt checkbox (D1),
@@ -5756,7 +6090,7 @@ class MailRepository(
         return finishDraftSave(
             credentials, replacesEmailId,
             faithful = draftReplacementIsFaithful(
-                attachments.size, blobs.size, bodyIsLossy,
+                attachments.size, blobs.size, row.bodyIsLossy,
                 // True, and not a read like the IMAP branch above: reopening a JMAP draft goes
                 // through Email/get, which returns to/cc/bcc from the server, so the composer's
                 // fields ARE the original's addressing — there is nothing left to prove. The one
@@ -6361,6 +6695,27 @@ class MailRepository(
         if (next != OutboxState.QUEUED) return
         // Held or scheduled items keep whatever is left of their wait; everything else goes now.
         outboxScheduler?.schedule(id, (row.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0))
+    }
+
+    /**
+     * Park a row taken out with [takeOutboxForEdit] in [state] instead of giving it back to the
+     * queue (#95 × #70). The composer saved the message as a draft the upload could not place on
+     * the server: the row must stay visible, and it must NOT leave on its own. Which state, and
+     * why a value of its own, is [app.sterna.core.data.mail.draftSaveParksTheQueuedRowAs].
+     *
+     * ⛔ The state, and NOTHING else. `attemptCount` is not forced to [OutboxLogic.MAX_ATTEMPTS] —
+     * that was a ruse needed only while the parked state was FAILED, so [OutboxLogic.stateAfterEdit]
+     * would keep it parked; a state of its own is not EDITING, so no reopen path looks at it at
+     * all. And `lastError` is left alone: a row that genuinely failed to send BEFORE it was
+     * reopened keeps the cause of that failure, which happened and is still true.
+     *
+     * Only an EDITING row is parked, exactly as in [releaseOutboxEdit]: anything else means this
+     * composer no longer owns the row, and writing over it would fight whoever does.
+     */
+    suspend fun parkOutboxEdit(id: Long, state: OutboxState) {
+        val row = outboxDao.byId(id) ?: return
+        if (row.state != OutboxState.EDITING) return
+        outboxDao.setState(id, state)
     }
 
     /**

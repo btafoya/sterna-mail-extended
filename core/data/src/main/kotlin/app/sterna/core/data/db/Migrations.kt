@@ -446,3 +446,77 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
         db.execSQL("ALTER TABLE `scheduled_sends` ADD COLUMN `draftUidValidity` INTEGER")
     }
 }
+
+/**
+ * SQL that creates the `local_drafts` table ([LocalDraftEntity]) — drafts written on the phone and
+ * not yet on the server (#95). Kept as ONE constant, on the model of [OUTBOX_CREATE_SQL], so the
+ * 23→24 migration and the JVM test build the exact same table instead of two copies that drift.
+ *
+ * ⭐ Every column of the entity is here, the ones the first volet does not read included. The table
+ * is created EMPTY, so no `DEFAULT` is needed to add a NOT NULL column — and none is written, which
+ * keeps this shape identical to the one Room's own `createAllTables` gives a fresh install. The
+ * entity declares no `@ColumnInfo(defaultValue = …)` either: a Kotlin default is not a column
+ * default, and declaring one would make Room compare defaults at open time (b/136515305).
+ *
+ * The types are not decoration. Room's `TableInfo.Column.equals` compares the affinity and the
+ * nullability of every column at open time, so `String` → `TEXT NOT NULL`, `String?` → `TEXT`,
+ * `Long`/`Int`/`Boolean` → `INTEGER NOT NULL`, and the enum → `TEXT NOT NULL`. A column of the
+ * right name and the wrong shape fails `validateMigration` on EVERY launch, and the user's only way
+ * out is a reinstall — which takes the outbox with it.
+ *
+ * `PRIMARY KEY(accountId, id)`, in that order, like `emails` since issue #31: two accounts of one
+ * server each mint ids in their own space.
+ */
+const val LOCAL_DRAFTS_CREATE_SQL: String =
+    "CREATE TABLE IF NOT EXISTS `local_drafts` (" +
+        "`accountId` TEXT NOT NULL, " +
+        "`id` TEXT NOT NULL, " +
+        "`messageId` TEXT NOT NULL, " +
+        "`toAddresses` TEXT NOT NULL, " +
+        "`cc` TEXT, " +
+        "`bcc` TEXT, " +
+        "`subject` TEXT NOT NULL, " +
+        "`textBody` TEXT NOT NULL, " +
+        "`htmlBody` TEXT, " +
+        "`fromName` TEXT, " +
+        "`fromEmail` TEXT, " +
+        "`inReplyTo` TEXT, " +
+        "`references` TEXT, " +
+        "`attachmentsJson` TEXT NOT NULL, " +
+        "`replacesEmailId` TEXT, " +
+        "`replacesUidValidity` INTEGER, " +
+        "`bodyIsLossy` INTEGER NOT NULL, " +
+        "`requestReceipt` INTEGER NOT NULL, " +
+        "`createdAtMillis` INTEGER NOT NULL, " +
+        "`updatedAtMillis` INTEGER NOT NULL, " +
+        "`notBeforeMillis` INTEGER NOT NULL, " +
+        "`attemptCount` INTEGER NOT NULL, " +
+        "`lastError` TEXT, " +
+        "`lastAttemptMillis` INTEGER, " +
+        "`state` TEXT NOT NULL, " +
+        "PRIMARY KEY(`accountId`, `id`))"
+
+/**
+ * Additive 23→24: the `local_drafts` table (#95), where a draft saved with no network waits for
+ * one instead of dying with the process that held it.
+ *
+ * Purely additive, on the model of [MIGRATION_17_18]: no existing table is read or touched, so
+ * nothing can be lost on the way up. The table starts empty, which is the correct state — an
+ * install coming from v23 has no draft that was ever kept locally, because there was nowhere to
+ * keep one.
+ *
+ * ⚠ Why the table exists at all rather than a flagged row in `emails`: four cache-pruning paths
+ * delete a row `emails` holds that the server does not know about — the reconcile, the ghost sweep
+ * (which takes the body too), the retention prune — and the only shield any of them honours is a
+ * 45-second recently-mutated window that no draft path arms. See [LocalDraftEntity].
+ *
+ * ⛔ Written is not registered. This step missing from [SternaDatabase.ALL_MIGRATIONS] does not
+ * degrade anything: `SternaDatabase.build` ends with `fallbackToDestructiveMigration()`, so Room
+ * finds no 23→24 path and DROPS every table — `outbox` and `scheduled_sends` included, i.e. mail
+ * the user wrote and that never left the phone.
+ */
+val MIGRATION_23_24 = object : Migration(23, 24) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(LOCAL_DRAFTS_CREATE_SQL)
+    }
+}

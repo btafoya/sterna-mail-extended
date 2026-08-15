@@ -64,7 +64,12 @@ class SelectAllWiringTest {
                 "results = search.results?.map { it.emailKey() }",
                 "loading = search.loading",
                 "complete = search.complete",
-                "folderKeys = repo.selectableIds(currentScopes(), filtered)",
+                // The folder read, minus the server rows a local draft is standing in for (#95):
+                // those are taken OUT of the list but are still filed in `emails`, so the read
+                // hands them over like any other and the bulk action would reach a message that
+                // was never on screen — #126 re-opened from the app's own side. The subtraction
+                // wraps the read rather than replacing it: `filtered` still has to be in there.
+                "folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered), hidden)",
             ),
             arguments(call),
         )

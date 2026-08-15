@@ -141,24 +141,28 @@ class ReadReceiptWiringTest {
         )
     }
 
-    @Test fun `the IMAP draft append asks the caller for its receipt`() {
-        val calls = callsOf(bodyOf("saveDraft"), "outgoing(")
-        assertTrue("saveDraft no longer appends a draft — did the path move?", calls.isNotEmpty())
+    @Test fun `the saved draft row is what carries the receipt to both protocols`() {
+        // ⚠ Moved by #95. The draft is written to `local_drafts` before either protocol is tried,
+        // and BOTH uploads then read the row — so this one argument is now the single hop, and
+        // `requestReceipt = false` here mutes the header on IMAP and on JMAP at once.
+        // What the IMAP APPEND makes of it is EXECUTED in LocalDraftSaveTest.
+        val calls = callsOf(bodyOf("saveDraft"), "localDraftRow(")
+        assertEquals("saveDraft must still build its row with localDraftRow", 1, calls.size)
         assertEquals(
-            "the appended draft must say what the message would ask for, so the server copy is " +
-                "honest about what is going to be sent",
-            List(calls.size) { "requestReceipt" },
-            calls.map { it["requestReceipt"] },
+            "the row the phone keeps must say what the message would ask for; both the APPEND and " +
+                "Email/set are built from it",
+            "requestReceipt",
+            calls.single()["requestReceipt"],
         )
     }
 
-    @Test fun `the JMAP draft save asks the caller for its receipt`() {
-        val calls = callsOf(bodyOf("saveDraft"), "client.saveDraft(")
-        assertEquals("saveDraft must still create the draft through client.saveDraft", 1, calls.size)
+    @Test fun `the JMAP draft save asks the row for its receipt`() {
+        val calls = callsOf(bodyOf("uploadDraft"), "client.saveDraft(")
+        assertEquals("uploadDraft must still create the draft through client.saveDraft", 1, calls.size)
         assertEquals(
             "the JMAP draft must carry the header too — the copy on the server is what the user " +
                 "will reopen and send",
-            "requestReceipt",
+            "row.requestReceipt",
             calls.single()["requestReceipt"],
         )
     }

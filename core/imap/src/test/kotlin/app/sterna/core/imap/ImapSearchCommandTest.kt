@@ -95,6 +95,34 @@ class ImapSearchCommandTest {
         assertEquals("BEFORE 16-Jun-2026", keys(ImapSearchCriteria(beforeMillis = endOfDayMillis(2026, 6, 15))))
     }
 
+    // ---- no HEADER key comes out of here, whatever is asked for (#95) ----
+
+    /**
+     * ⛔ The witness for the key this builder no longer has. A `HEADER "Message-ID"` key was how a
+     * draft kept on the phone used to be looked for, and Stalwart answers every shape of it with an
+     * empty `* SEARCH` while answering `HEADER "Subject"` perfectly — a "no" that cannot be told
+     * apart from "not there", so a second copy of the same text was appended. The question moved to
+     * `UID SEARCH ALL` plus an envelope read; this states that no criteria combination can put a
+     * `HEADER` key back on the wire by accident.
+     */
+    @Test
+    fun `no combination of criteria emits a HEADER key`() {
+        // Every field the class still has, at once; the exact key list this builds is pinned by
+        // `a full query combines every key, free text last`. Here: not one HEADER among them.
+        val everything = keys(
+            ImapSearchCriteria(
+                text = "invoice",
+                from = "alex@masto.top",
+                recipient = "team@masto.top",
+                subject = "Half written",
+                flagged = true,
+                afterMillis = dayMillis(2026, 6, 1),
+                beforeMillis = endOfDayMillis(2026, 6, 15),
+            ),
+        )
+        assertFalse("no search key of Sterna's asks a server about a header: $everything", everything.contains("HEADER"))
+    }
+
     // ---- the defect this replaces ----
 
     @Test

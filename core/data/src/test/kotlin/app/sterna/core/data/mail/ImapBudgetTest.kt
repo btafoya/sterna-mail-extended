@@ -59,6 +59,34 @@ class ImapBudgetTest {
         assertEquals(1, ImapBudget.remaining(deadline, deadline - 1))
     }
 
+    @Test fun `an ambient budget serves the callers that named none, and overrules nobody`() {
+        // ⭐ The rule behind [ImapReadBudget] (#95): `appendDraft` passes no budget of its own — it
+        // cannot, it is the same function the interactive save uses — so the deferred upload
+        // installs one on the COROUTINE, and this is where the two meet.
+
+        // ⛔ A caller that named a budget keeps EXACTLY what it named, shorter or longer than the
+        // ambient one. `min` would compile here and would quietly shorten `ENUMERATE_BUDGET_MS`.
+        assertEquals(10_000, ImapBudget.effective(10_000, 60_000))
+        assertEquals(90_000, ImapBudget.effective(90_000, 60_000))
+        assertEquals(15_000, ImapBudget.effective(15_000, ImapBudget.NO_BUDGET))
+
+        // The case the whole element exists for: nothing at the call site, a budget in the context.
+        assertEquals(60_000, ImapBudget.effective(ImapBudget.NO_BUDGET, 60_000))
+
+        // ⛔ And with neither, NO_BUDGET — i.e. every existing caller, in every coroutine that
+        // installs no element, exactly as blocking as it has always been.
+        assertEquals(
+            ImapBudget.NO_BUDGET,
+            ImapBudget.effective(ImapBudget.NO_BUDGET, ImapBudget.NO_BUDGET),
+        )
+    }
+
+    // ⛔ There was a second test here, and it was a fake: it recomposed `deadline(effective(…))`
+    // itself and checked a subtraction, i.e. it re-derived the rule it was meant to be watching and
+    // touched neither `runWithRetry`, nor `ImapReadBudget`, nor a socket. What it pretended to prove
+    // — that a budget installed on a coroutine reaches `soTimeout` — is proven by
+    // [ImapAmbientBudgetReachesTheSocketTest], which drives a real service against a mute server.
+
     @Test fun `an absurd budget cannot wrap around into a timeout`() {
         // Int arithmetic on millis is where a "very long" budget silently becomes a negative
         // one; the socket would then be handed a nonsense value.

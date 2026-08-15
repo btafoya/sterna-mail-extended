@@ -25,8 +25,11 @@ object OutboxLogic {
     fun isReadyToSend(state: OutboxState, notBeforeMillis: Long, now: Long): Boolean = when (state) {
         OutboxState.HELD -> now >= notBeforeMillis
         OutboxState.QUEUED, OutboxState.SENDING -> true
-        // Parked (manual only) or open in the composer (#70): the worker must never send either.
-        OutboxState.FAILED, OutboxState.EDITING -> false
+        // Parked (manual only, #70), saved as a draft on the phone (#95) or open in the composer
+        // (#70): the worker must never send any of the three on its own. KEPT_AS_DRAFT is the one
+        // that would be a data loss rather than a nuisance — the user tapped "save as a draft", and
+        // sending is precisely what they did not ask for.
+        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING -> false
     }
 
     /** After a failed attempt: retry while under the cap, otherwise give up (park as FAILED). */
@@ -77,7 +80,10 @@ object OutboxLogic {
     fun canEdit(pgpMode: String?, state: OutboxState, carriesUnreplayablePrebuiltEntity: Boolean): Boolean =
         !carriesUnreplayablePrebuiltEntity && !pgpMode.equals("ENCRYPT", ignoreCase = true) &&
             when (state) {
-                OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED -> true
+                // KEPT_AS_DRAFT reopens like the rest (#95): the row is the copy of that message
+                // the Outbox screen is showing, and refusing Edit on it would leave the user
+                // looking at a line they cannot act on.
+                OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT -> true
                 OutboxState.SENDING, OutboxState.EDITING -> false
             }
 
@@ -134,7 +140,11 @@ object OutboxLogic {
         // An item open in the composer (#70) is being handled right now, not waiting to send:
         // keep it off the badge, exactly as the queue keeps it off the send worker.
         OutboxState.EDITING -> false
-        OutboxState.FAILED -> true
+        // Both count AT ONCE, and for the same reason: neither is on its way anywhere, so no delay
+        // would make the silence any truer. KEPT_AS_DRAFT is not an alarm — it is the only thing on
+        // screen saying where that message went (#95) — which is why it counts on the badge while
+        // it deliberately stays off the failure banner ([needsFailureBanner]).
+        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT -> true
         OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING ->
             now >= item.notBeforeMillis + BADGE_GRACE_MILLIS
     }
@@ -175,10 +185,23 @@ object OutboxLogic {
      * ahead. FAILED already counts and EDITING never does, so neither has a wake-up to schedule.
      */
     fun nextBadgeChange(items: List<OutboxBadgeItem>, now: Long): Long? = items
-        .filter { it.state != OutboxState.FAILED && it.state != OutboxState.EDITING }
+        .filter { countsOnlyAfterTheGrace(it.state) }
         .map { it.notBeforeMillis + BADGE_GRACE_MILLIS }
         .filter { it > now }
         .minOrNull()
+
+    /**
+     * Whether a row's place on the badge still depends on the clock — the only rows with a wake-up
+     * to schedule. Written as an exhaustive `when` and not as a list of `!=` so that a new state
+     * has to answer the question out loud: a value quietly falling on the wrong side here books a
+     * pointless wake-up (harmless) or, the other way round, never books the one it needed.
+     */
+    private fun countsOnlyAfterTheGrace(state: OutboxState): Boolean = when (state) {
+        OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING -> true
+        // These three are already settled: FAILED and KEPT_AS_DRAFT count from the first emission,
+        // EDITING never counts at all. See [countsAt].
+        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING -> false
+    }
 
     /**
      * The badge count over time. Room re-emits on every outbox change, and each emission schedules
@@ -203,6 +226,26 @@ object OutboxLogic {
         }
         .distinctUntilChanged()
 
+    /**
+     * Whether one row is what the Inbox's "Some messages didn't send. Tap to review." banner is
+     * about — a genuine send failure, and nothing else.
+     *
+     * ⛔ [OutboxState.KEPT_AS_DRAFT] is NOT one (#95), and this is the whole reason it is a state of
+     * its own rather than a reuse of [OutboxState.FAILED]. Nothing failed: the user asked for a
+     * draft and got one, on the phone. The banner sits across the Inbox, tints the outbox dot red
+     * and is cleared by nothing — there is no deferred upload whose success could ever take it down
+     * again — so a message saved exactly as asked would leave a permanent alarm behind it.
+     *
+     * Exhaustive on purpose: a sixth state has to answer this out loud rather than inherit an
+     * answer from an `else`.
+     */
+    fun needsFailureBanner(state: OutboxState): Boolean = when (state) {
+        OutboxState.FAILED -> true
+        OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING,
+        OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING,
+        -> false
+    }
+
     /** Items needing the failure banner. */
-    fun failedCount(states: List<OutboxState>): Int = states.count { it == OutboxState.FAILED }
+    fun failedCount(states: List<OutboxState>): Int = states.count { needsFailureBanner(it) }
 }

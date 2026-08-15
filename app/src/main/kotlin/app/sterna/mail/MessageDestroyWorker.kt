@@ -11,6 +11,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.await
 import androidx.work.workDataOf
 import app.sterna.container
 import java.util.concurrent.TimeUnit
@@ -159,6 +160,26 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
             cancelDestroy(context, accountId)
             destroyRequests(accountId, folders, delayMs = 0L)
                 .forEach { WorkManager.getInstance(context).enqueue(it) }
+        }
+
+        /**
+         * Destroy [folders] as soon as there is a network, ⛔ **without taking the account's unique
+         * work slot** — for a gesture that has no undo window of its own (emptying a draft the phone
+         * kept, #95 × #69).
+         *
+         * ⛔ NOT [schedule]: that one enqueues under `destroyWorkName(accountId)` with
+         * `ExistingWorkPolicy.REPLACE`, so it would silently DROP a permanent delete the user
+         * confirmed seconds earlier and is still inside the undo window of. This is [flushNow]'s
+         * shape — the same [destroyRequests], no delay — minus its `cancelDestroy`, which is the
+         * other half of the same hazard.
+         *
+         * ⭐ Suspends until WorkManager has WRITTEN the request: the caller's next act destroys the
+         * only local trace of what is being destroyed, so "enqueued" has to mean "on disk". A bare
+         * `enqueue` returns before the write and a process death in that window loses the order.
+         */
+        suspend fun destroyDurably(context: Context, accountId: String, folders: List<FolderDestroy>) {
+            destroyRequests(accountId, folders, delayMs = 0L)
+                .forEach { WorkManager.getInstance(context).enqueue(it).await() }
         }
 
         /** Undo: cancel the held-back destroy for [accountId] (nothing was destroyed yet). */

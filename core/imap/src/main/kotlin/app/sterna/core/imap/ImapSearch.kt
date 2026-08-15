@@ -20,6 +20,14 @@ import java.util.Locale
  *
  * [afterMillis]/[beforeMillis] are epoch-millis bounds; IMAP compares them against the
  * server's INTERNALDATE with DAY granularity, so they are rendered as calendar days (UTC).
+ *
+ * ⛔ **No `HEADER` key here, and none is to be added back.** The draft de-duplication of #95 used
+ * one (`HEADER "Message-ID"`) and it does not work: Stalwart answers an EMPTY `* SEARCH` to every
+ * shape of that key — naked value, bracketed, substring, on a delivered message — while answering
+ * `HEADER "Subject"` and `HEADER "To"` perfectly. An empty answer cannot be told apart from "there
+ * is nothing there", so the guard appended a second copy of text the server already held. That
+ * question is now asked with `UID SEARCH ALL` plus an envelope read ([ImapSession.newestUids]),
+ * `ALL` being the one key every server implements.
  */
 data class ImapSearchCriteria(
     val text: String = "",
@@ -82,7 +90,8 @@ fun buildImapSearch(criteria: ImapSearchCriteria): ImapSearchCommand {
     // Full-text last: it is the most expensive key, and servers evaluate left to right.
     if (text.isNotEmpty()) keys += "TEXT ${quote(text)}"
 
-    val needsUtf8 = listOf(text, from, recipient, subject).any { value -> value.any { it.code > 127 } }
+    val needsUtf8 = listOf(text, from, recipient, subject)
+        .any { value -> value.any { it.code > 127 } }
     return ImapSearchCommand(keys = keys.joinToString(" ").ifEmpty { "ALL" }, needsUtf8 = needsUtf8)
 }
 
