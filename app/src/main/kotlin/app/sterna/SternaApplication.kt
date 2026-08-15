@@ -116,8 +116,9 @@ class AppContainer(context: Context) {
             runCatching { storageRepository.purgeOrphanedAccounts { accountStore.accounts().map { it.id } } }
                 .onFailure { android.util.Log.w("Sterna", "orphaned-cache sweep failed; retried next start", it) }
         }
-        // One-shot on crossing ONE version threshold (BODY_CACHE_PURGE_VERSION), not on every
-        // update: drop the cached message bodies, because the unsubscribe headers needed it once.
+        // One-shot on crossing a version THRESHOLD (BODY_CACHE_PURGE_VERSION{,_2} — two so far:
+        // the unsubscribe headers, then the read receipts of #148), never on every update: drop
+        // the cached message bodies. A third need adds a third constant, it does not raise one.
         // A body serialised by an older build is short of whatever field the new one learned to
         // read, and openMessage serves the cache before looking at anything — so without this, a
         // new reader feature is invisible on precisely the mail already in the cache: the twenty

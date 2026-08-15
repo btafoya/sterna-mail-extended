@@ -18,6 +18,42 @@ import android.content.Context
 const val BODY_CACHE_PURGE_VERSION = 168
 
 /**
+ * The SECOND such version — the second constant the KDoc above prescribes rather than raising the
+ * first one, because 168 is a fact about an upgrade that has already happened and must keep
+ * answering for it.
+ *
+ * **Why 170 needs the bodies gone.** The release that publishes the read-receipt work (#148) reads
+ * `Disposition-Notification-To` off the message (`Email.dispositionNotificationTo`). A body
+ * serialised by 1.4.9 simply has no such field, and `openMessage` serves the cached body before
+ * reading anything off the message — so the banner offering to answer a read receipt cannot appear
+ * on mail already in the cache, and no amount of reopening brings the field back. Worse than after
+ * 168: whoever ran 1.4.9 recorded `purgedForVersion = 169`, so the first threshold can never be
+ * crossed again by anyone. Without a second one, that user never purges again for the life of the
+ * install, and the prefetch keeps precisely the twenty newest inbox messages — the ones they will
+ * try it on — warm and fieldless.
+ *
+ * ⚠ **170 must be the `versionCode` of the cut that CARRIES #148**, not merely the next number.
+ * `versionCode` is 169 (1.4.9) as this is written, so the next cut is 170 — but a cut that skips
+ * #148 breaks this. Late is harmless: with no 170 ever published, 169 → 171 still crosses 170 and
+ * purges (`jumping over the second threshold purges on arrival`). ⛔ **The dangerous case is an
+ * INTERLEAVED release**: ship a corrective 1.4.10 as `versionCode` 170 WITHOUT #148, and the 1.4.9
+ * user purges their bodies for nothing, records 170, then gets #148 in 171 — no threshold left to
+ * cross, no banner, ever, in silence and with the suite green from end to end.
+ *
+ * So `/release` checks one thing: this value is the `versionCode` of the release that publishes
+ * #148. If an unrelated cut takes 170 first, this constant moves up to the one that does carry it.
+ */
+const val BODY_CACHE_PURGE_VERSION_2 = 170
+
+/**
+ * The thresholds, in the order they were needed. Crossing ANY of them purges once.
+ *
+ * ⛔ A list of one-off answers, never a policy: nothing here is derived from the current build
+ * number, so no entry ever appears on its own when the version moves.
+ */
+private val BODY_CACHE_PURGE_VERSIONS = listOf(BODY_CACHE_PURGE_VERSION, BODY_CACHE_PURGE_VERSION_2)
+
+/**
  * Which version to record after dropping the cached message bodies at startup, or null when
  * there is nothing to do — the whole decision behind [BodyCachePurge], as one executed function.
  *
@@ -33,15 +69,22 @@ const val BODY_CACHE_PURGE_VERSION = 168
  * A cache is the one store where this is free: it refills itself from the server on the next open.
  * Hence no migration, no column, no schema change — a DELETE and a number in a preference file.
  *
- * **A threshold CROSSED, not a version bump.** Purge if and only if the cache has not yet been
- * purged for [BODY_CACHE_PURGE_VERSION] and the build now running is that version or later.
- * Crossed, not equalled: someone who skips from 1.4.6 straight to 1.4.9 must purge once on
- * arrival, and someone already past the threshold must never purge again, at 169, at 170, or at
- * any version this app ever ships.
+ * **A threshold CROSSED, not a version bump.** Purge if and only if AT LEAST ONE threshold in
+ * [BODY_CACHE_PURGE_VERSIONS] has not yet been purged for and the build now running is that
+ * version or later. Crossed, not equalled: someone who skips from 1.4.6 straight to 1.4.9 must
+ * purge once on arrival, and someone who jumps 169 → 171 must purge once for 170 they never ran.
+ *
+ * **Once per threshold, and nothing in between.** What gets recorded is `currentVersion`, not the
+ * threshold: a launch at 171 that crossed 170 records 171, so every threshold at or below it is
+ * settled for good and no later launch can purge for it twice. A version bump that crosses no
+ * threshold — 168 to 169, 170 to 999 — does nothing at all, which is the whole difference between
+ * this and "purge on every version bump".
  */
 fun bodyCachePurgeVersion(purgedForVersion: Int, currentVersion: Int): Int? =
     currentVersion.takeIf {
-        purgedForVersion < BODY_CACHE_PURGE_VERSION && it >= BODY_CACHE_PURGE_VERSION
+        BODY_CACHE_PURGE_VERSIONS.any { threshold ->
+            purgedForVersion < threshold && it >= threshold
+        }
     }
 
 /**
