@@ -85,6 +85,38 @@ object MailNotificationText {
     )
 
     /**
+     * The line a send-failure banner may put under its title ([Notifications.notifySendFailed]),
+     * or null when it may show none.
+     *
+     * That banner was the one notification in the app that never asked this question. It posted
+     * the subject collapsed AND expanded, at IMPORTANCE_HIGH: reply from the shade with the
+     * setting on "Sender only", let the send fail, and "Re: <the real subject>" arrived on the
+     * lock screen — precisely what the user had asked never to appear there.
+     *
+     * Read on what is DISPLAYED, exactly as [resolve] and [Notifications.actionsFor] are: the two
+     * positions that already show a subject may show this one, the two that hide it show nothing.
+     * A `when` and not a test against NONE, so a position added later stops the compiler instead
+     * of quietly taking the subject.
+     *
+     * Null is not a loss: the title ("Message not sent") already says what happened, and the
+     * notification stays tappable — its `mailto:` still carries the real subject and the salvaged
+     * text into the composer. A PendingIntent shows nobody its Intent; a banner does.
+     *
+     * [noSubject] is the stand-in for a message with no subject at all, passed in because nothing
+     * here resolves resources — same reason [generic] is passed to [resolve].
+     */
+    fun sendFailureLine(
+        content: NotificationContent,
+        subject: String,
+        noSubject: String,
+    ): String? = when (content) {
+        NotificationContent.BODY_PREVIEW,
+        NotificationContent.SENDER_AND_SUBJECT,
+        -> subject.ifBlank { noSubject }
+        NotificationContent.SENDER_ONLY, NotificationContent.NONE -> null
+    }
+
+    /**
      * How much of a body a notification may carry: 256 characters, which is the length of the
      * preview the JMAP server already returns, so two accounts on two protocols look alike side by
      * side rather than one of them being visibly more talkative.

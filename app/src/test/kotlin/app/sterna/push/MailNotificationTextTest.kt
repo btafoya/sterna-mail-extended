@@ -169,7 +169,69 @@ class MailNotificationTextTest {
         }
     }
 
+    // -- the send-failure banner ------------------------------------------------------------------
+
+    /**
+     * A send that failed is announced by a banner of its own, and it used to name the message
+     * unconditionally: reply from the shade with the setting on "Sender only", let the send fail,
+     * and "Re: <the real subject>" arrived at IMPORTANCE_HIGH, collapsed line and lock screen
+     * alike — the one thing the user had asked never to show there.
+     *
+     * The table is written out position by position rather than derived: a test that recomputes
+     * the rule to decide what it expects agrees with any rule at all, including the inverted one.
+     */
+    @Test fun `what a failed send may name, position by position`() {
+        val expected = mapOf(
+            NotificationContent.BODY_PREVIEW to SUBJECT,
+            NotificationContent.SENDER_AND_SUBJECT to SUBJECT,
+            NotificationContent.SENDER_ONLY to null,
+            NotificationContent.NONE to null,
+        )
+        assertEquals(
+            "a position was added to the setting without deciding what a failed send may name there",
+            NotificationContent.entries.toSet(),
+            expected.keys,
+        )
+        assertEquals(
+            expected,
+            NotificationContent.entries.associateWith {
+                MailNotificationText.sendFailureLine(it, SUBJECT, NO_SUBJECT)
+            },
+        )
+    }
+
+    @Test fun `a failed send names the message where subjects already show`() {
+        assertEquals(SUBJECT, MailNotificationText.sendFailureLine(NotificationContent.BODY_PREVIEW, SUBJECT, NO_SUBJECT))
+        assertEquals(
+            SUBJECT,
+            MailNotificationText.sendFailureLine(NotificationContent.SENDER_AND_SUBJECT, SUBJECT, NO_SUBJECT),
+        )
+    }
+
+    @Test fun `a failed send names nothing where the subject is hidden`() {
+        assertNull(
+            "the banner named the message at SENDER_ONLY",
+            MailNotificationText.sendFailureLine(NotificationContent.SENDER_ONLY, SUBJECT, NO_SUBJECT),
+        )
+        assertNull(
+            "the banner named the message at NONE",
+            MailNotificationText.sendFailureLine(NotificationContent.NONE, SUBJECT, NO_SUBJECT),
+        )
+    }
+
+    /** The stand-in is passed IN — this function resolves no resources — and only where a line shows. */
+    @Test fun `a blank subject falls back to the stand-in, and only where a line is shown`() {
+        assertEquals(NO_SUBJECT, MailNotificationText.sendFailureLine(NotificationContent.BODY_PREVIEW, "", NO_SUBJECT))
+        assertEquals(
+            NO_SUBJECT,
+            MailNotificationText.sendFailureLine(NotificationContent.SENDER_AND_SUBJECT, "   ", NO_SUBJECT),
+        )
+        assertNull(MailNotificationText.sendFailureLine(NotificationContent.SENDER_ONLY, "", NO_SUBJECT))
+        assertNull(MailNotificationText.sendFailureLine(NotificationContent.NONE, "   ", NO_SUBJECT))
+    }
+
     private companion object {
+        const val NO_SUBJECT = "(no subject)"
         const val SENDER = "Jordan Lee"
         const val SUBJECT = "Blood test results"
         const val GENERIC = "New message"

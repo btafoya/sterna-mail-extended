@@ -68,9 +68,29 @@ class QuickReplyWiringTest {
             listOf(
                 "QuickReplyAct.DoNothing -> Unit",
                 "QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, notifId)",
-                "is QuickReplyAct.HandBack -> Notifications.notifySendFailed(context, act.subject, act.body)",
+                "is QuickReplyAct.HandBack -> {",
             ),
             codeLinesNaming(body, "QuickReplyAct."),
+        )
+        assertEquals(
+            "the hand-back banner is posted with the setting this path READ — a constant, or the " +
+                "old three-argument call under a restored default, is the subject back on the lock " +
+                "screen of a user who asked for 'Sender only'",
+            listOf("Notifications.notifySendFailed(context, act.subject, content, act.body)"),
+            codeLinesNaming(body, "notifySendFailed("),
+        )
+        assertEquals(
+            "and that read is GUARDED. The DataStore has no corruption handler, so `first()` can " +
+                "throw; onReceive's catch would swallow it and NO banner would be posted — the " +
+                "typed text, which lives in the broadcast intent and nowhere else, would die there",
+            listOf("val content = runCatching { settings.notificationContent.first() }"),
+            codeLinesNaming(body, "notificationContent"),
+        )
+        assertEquals(
+            "…and it falls back to the QUIETEST position: an unreadable setting must make the " +
+                "banner say too little, never too much",
+            listOf(".getOrDefault(NotificationContent.NONE)"),
+            codeLinesNaming(body, "getOrDefault(NotificationContent."),
         )
         assertEquals(
             "the whole file must cancel in ONE place, the helper that also refreshes the group " +
@@ -162,8 +182,12 @@ class QuickReplyWiringTest {
             codeLinesNaming(source, "mailto:"),
         )
         assertEquals(
-            "the new parameter is optional, so today's caller (ScheduledSendWorker) is untouched",
-            listOf("""fun notifySendFailed(context: Context, subject: String, body: String = "") {"""),
+            "the salvaged text stays optional (a scheduled send has none), but [content] must NOT " +
+                "get a default: a default is how a future caller leaks the subject in silence, and " +
+                "it is exactly how the snooze wake-up leaked sender and subject in #84",
+            listOf(
+                """fun notifySendFailed(context: Context, subject: String, content: NotificationContent, body: String = "") {""",
+            ),
             codeLinesNaming(source, "fun notifySendFailed"),
         )
         assertEquals(
@@ -190,6 +214,105 @@ class QuickReplyWiringTest {
                 "replace each other under FLAG_UPDATE_CURRENT, which loses the first",
             listOf("""val key = if (body.isBlank()) "sendfail:${'$'}subject" else "sendfail:${'$'}subject:${'$'}body""""),
             codeLinesNaming(source, "val key ="),
+        )
+    }
+
+    /**
+     * The banner of a failed send is the one notification that never asked what it was allowed to
+     * show: it put the subject in the collapsed line AND in the expanded one, at IMPORTANCE_HIGH,
+     * whatever the notification-content setting said. The DECISION is executed next door
+     * ([MailNotificationTextTest]); pinned here is that the banner is built from that decision's
+     * result and from nothing else — the leak cannot come back through the builder.
+     */
+    @Test fun `the failure banner shows the decided line, never the raw subject`() {
+        val body = bodyOf(NOTIFICATIONS, "notifySendFailed")
+        assertEquals(
+            "the stand-in is resolved here and handed IN: MailNotificationText holds no resources",
+            listOf("val noSubject = context.getString(R.string.message_no_subject)"),
+            codeLinesNaming(body, "message_no_subject"),
+        )
+        assertEquals(
+            "and the line is DECIDED, with the read setting and the real subject as arguments — " +
+                "pinning the call without its arguments would let `content` be swapped for a constant",
+            listOf("val line = MailNotificationText.sendFailureLine(content, subject, noSubject)"),
+            codeLinesNaming(body, "sendFailureLine("),
+        )
+        assertEquals(
+            "the collapsed line is the decided one. `subject` here is the leak itself",
+            listOf("setContentText(line)"),
+            codeLinesNaming(body, "setContentText("),
+        )
+        assertEquals(
+            "so is the expanded one — the lock screen reads THIS, and the first fix of this kind " +
+                "left bigText behind",
+            listOf("setStyle(NotificationCompat.BigTextStyle().bigText(line))"),
+            codeLinesNaming(body, "bigText("),
+        )
+        assertEquals(
+            "and when the decision says nothing may be shown, NEITHER line is set at all: the " +
+                "title alone already says the message was not sent",
+            listOf("if (line != null) {"),
+            codeLinesNaming(body, "if (line != null)"),
+        )
+        assertEquals(
+            "the title never varies — no new string was added for this, and none is needed",
+            listOf(".setContentTitle(context.getString(R.string.notif_send_failed_title))"),
+            codeLinesNaming(body, "setContentTitle("),
+        )
+        assertEquals(
+            "⛔ AND THIS IS THE WHOLE OF IT: every line of the builder that names `subject`, " +
+                "enumerated. The pins above hold the lines they name, and are blind by " +
+                "construction to a line ADDED beside them — `.setSubText(subject)` or " +
+                "`.setTicker(subject)` puts the subject back in the notification header, " +
+                "collapsed, expanded and on the lock screen, and would pass every other assertion " +
+                "in this file. The four lines below are the only ones allowed to touch it, and " +
+                "not one of them reaches the screen: an id, a mailto: inside a PendingIntent (which " +
+                "shows nobody its Intent), a resource name, and the argument handed to the decision",
+            listOf(
+                """val key = if (body.isBlank()) "sendfail:${'$'}subject" else "sendfail:${'$'}subject:${'$'}body"""",
+                "Intent(Intent.ACTION_VIEW, draftUri(subject, body), context, MainActivity::class.java)",
+                "val noSubject = context.getString(R.string.message_no_subject)",
+                "val line = MailNotificationText.sendFailureLine(content, subject, noSubject)",
+            ),
+            codeLinesNaming(body, "subject"),
+        )
+    }
+
+    /**
+     * Both callers, and the same failure for both: a scheduled send that gave up leaks the subject
+     * exactly as a quick reply does. The setting has to be READ at each of them — a constant
+     * compiles, reads as deliberate, and is invisible to the decision's own tests.
+     */
+    @Test fun `the scheduled send reads the setting too, and passes what it read`() {
+        val body = bodyOf(SCHEDULED, "doWork")
+        assertEquals(
+            "read from the settings repository, like every other notification path " +
+                "(NewMailNotifier.options) — never a constant, never a default. GUARDED, and for " +
+                "a reason of its own: this read sits INSIDE the catch, so a throw would escape " +
+                "doWork() and skip both the banner and the deleteScheduledSend under it, leaving " +
+                "the overdue row the comment above exists to clear",
+            listOf("val content = runCatching { container.settingsRepository.notificationContent.first() }"),
+            codeLinesNaming(body, "notificationContent"),
+        )
+        assertEquals(
+            "…and to the same quietest position as the quick-reply path: the two must not drift",
+            listOf(".getOrDefault(NotificationContent.NONE)"),
+            codeLinesNaming(body, "getOrDefault(NotificationContent."),
+        )
+        assertEquals(
+            "and handed to the banner as it was read",
+            listOf("Notifications.notifySendFailed(applicationContext, row.subject, content)"),
+            codeLinesNaming(body, "notifySendFailed("),
+        )
+        assertEquals(
+            "these two are the only callers in the whole app, BY FILE and not by count: a third " +
+                "written with a direct import (`import …Notifications.notifySendFailed`) names no " +
+                "`Notifications.` at all, and a count would never have seen it",
+            listOf("NotificationActionReceiver.kt", "Notifications.kt", "ScheduledSendWorker.kt"),
+            File(root, "app/src/main/kotlin").walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .filter { codeLinesNaming(it.readText(), "notifySendFailed").isNotEmpty() }
+                .map { it.name }.toList().sorted(),
         )
     }
 
@@ -222,6 +345,7 @@ class QuickReplyWiringTest {
         private const val RECEIVER_PATH = "$PUSH_SOURCES/NotificationActionReceiver.kt"
         private const val QUICK_REPLY_PATH = "$PUSH_SOURCES/QuickReply.kt"
         private const val NOTIFICATIONS_PATH = "$PUSH_SOURCES/Notifications.kt"
+        private const val SCHEDULED_PATH = "app/src/main/kotlin/app/sterna/send/ScheduledSendWorker.kt"
 
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
@@ -235,5 +359,6 @@ class QuickReplyWiringTest {
         private val RECEIVER: File by lazy { File(root, RECEIVER_PATH) }
         private val QUICK_REPLY: File by lazy { File(root, QUICK_REPLY_PATH) }
         private val NOTIFICATIONS: File by lazy { File(root, NOTIFICATIONS_PATH) }
+        private val SCHEDULED: File by lazy { File(root, SCHEDULED_PATH) }
     }
 }

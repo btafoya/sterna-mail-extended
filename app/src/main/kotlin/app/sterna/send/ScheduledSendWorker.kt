@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import app.sterna.container
+import app.sterna.core.data.settings.NotificationContent
 import app.sterna.push.Notifications
+import kotlinx.coroutines.flow.first
 
 /**
  * Fires a message scheduled for a future time. WorkManager persists and fires this (surviving app
@@ -60,8 +62,18 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 Result.retry()
             } else {
                 // Give up after retries — but notify instead of dropping it silently, and clear the
-                // now-overdue scheduled row so it doesn't linger.
-                Notifications.notifySendFailed(applicationContext, row.subject)
+                // now-overdue scheduled row so it doesn't linger. The banner names the message only
+                // as much as the notification-content setting allows: a scheduled send that failed
+                // leaked the subject to the lock screen exactly as a quick reply did.
+                //
+                // ⚠ GUARDED: this read sits INSIDE the catch, and the DataStore is declared with no
+                // corruption handler — a throw here would escape doWork() as a failure, skipping
+                // both the banner and the deleteScheduledSend below, and leaving the overdue row
+                // the comment above exists to clear. An unreadable setting falls back to the
+                // quietest position, exactly as the quick-reply path does.
+                val content = runCatching { container.settingsRepository.notificationContent.first() }
+                    .getOrDefault(NotificationContent.NONE)
+                Notifications.notifySendFailed(applicationContext, row.subject, content)
                 repo.deleteScheduledSend(id)
                 Result.success()
             }

@@ -8,11 +8,14 @@ import androidx.core.app.RemoteInput
 import app.sterna.SternaApplication
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.settings.NotificationContent
+import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.jmap.model.Email
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -46,8 +49,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 // text with it.
                 if (action == ACTION_REPLY) {
                     reply(
-                        appContext, container.mailRepository, credentials,
-                        accountId, emailId, notifId, replyText,
+                        appContext, container.mailRepository, container.settingsRepository,
+                        credentials, accountId, emailId, notifId, replyText,
                     )
                     return@launch
                 }
@@ -76,6 +79,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
     private suspend fun reply(
         context: Context,
         repo: MailRepository,
+        settings: SettingsRepository,
         credentials: AccountCredentials?,
         accountId: String,
         emailId: String,
@@ -91,7 +95,22 @@ class NotificationActionReceiver : BroadcastReceiver() {
         when (val act = quickReplyAct(outcome, queued)) {
             QuickReplyAct.DoNothing -> Unit
             QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, notifId)
-            is QuickReplyAct.HandBack -> Notifications.notifySendFailed(context, act.subject, act.body)
+            // Read here and not before: the setting is only needed on the end that posts a banner,
+            // and it decides how much of the message that banner may name (the subject used to go
+            // out whatever the user had chosen).
+            //
+            // ⚠ GUARDED, and that is not decoration: this read is the first thing on this arm that
+            // can throw. The DataStore is declared with no corruption handler (SettingsRepository),
+            // so a truncated preferences file surfaces as a throw from `first()` — which onReceive's
+            // `catch (_: Throwable)` then swallows, leaving the banner unposted. The text the user
+            // typed lives in the broadcast intent and NOWHERE else: closing a leak by dropping it
+            // would be the worse bug. An unreadable setting falls back to the QUIETEST position, so
+            // the failure mode is a banner that says too little, never one that says too much.
+            is QuickReplyAct.HandBack -> {
+                val content = runCatching { settings.notificationContent.first() }
+                    .getOrDefault(NotificationContent.NONE)
+                Notifications.notifySendFailed(context, act.subject, content, act.body)
+            }
         }
     }
 

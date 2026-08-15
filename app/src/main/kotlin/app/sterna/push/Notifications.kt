@@ -208,8 +208,19 @@ object Notifications {
      * already uses (#15), so giving the text back costs no new screen and no new string.
      * Deliberately no `to=` beside the body: the recipient is precisely what is missing here, and
      * MailTo.parse hands back an address with an empty body when both are given.
+     *
+     * [content] is the notification-content setting, and is deliberately WITHOUT a default — for
+     * the same reason [notifyNewMail]'s is. This banner used to name the message unconditionally,
+     * so a user on "Sender only" whose quick reply failed got "Re: <the real subject>" on the lock
+     * screen at IMPORTANCE_HIGH. What it may show is decided by
+     * [MailNotificationText.sendFailureLine]; when that is null the title stands alone.
+     *
+     * ⚠ [subject] itself keeps travelling in the notification's KEY and in the `mailto:` — those
+     * are identity and salvage, not display: a PendingIntent does not show its Intent, and cutting
+     * them would lose the subject the user gets back in the composer. Closing a leak by opening a
+     * loss of text is not a fix.
      */
-    fun notifySendFailed(context: Context, subject: String, body: String = "") {
+    fun notifySendFailed(context: Context, subject: String, content: NotificationContent, body: String = "") {
         ensureChannels(context)
         // Keyed on the body as well, or a second salvaged text would land on the first one's id
         // and replace it — losing exactly what this is here to save. Unchanged, to the character,
@@ -226,12 +237,20 @@ object Notifications {
             target.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val text = subject.ifBlank { context.getString(R.string.message_no_subject) }
+        val noSubject = context.getString(R.string.message_no_subject)
+        val line = MailNotificationText.sendFailureLine(content, subject, noSubject)
         val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
             .setSmallIcon(R.drawable.ic_stat_mail)
             .setContentTitle(context.getString(R.string.notif_send_failed_title))
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            // Nothing at all when the setting hides subjects: no collapsed line and no expanded
+            // one, rather than an empty one. "Message not sent" is the whole message then, and it
+            // needs no new string to be true.
+            .apply {
+                if (line != null) {
+                    setContentText(line)
+                    setStyle(NotificationCompat.BigTextStyle().bigText(line))
+                }
+            }
             // Auto-cancel only when there is nothing to lose. The mailto: above is consumed by the
             // NavHost's LaunchedEffect, which is composed only under a signed-in state, so a
             // hand-back raised for a signed-out account (the very case that produced it) opens
