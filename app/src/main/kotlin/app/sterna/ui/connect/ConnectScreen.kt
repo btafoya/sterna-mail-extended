@@ -718,6 +718,21 @@ fun ConnectScreen(
                             }
                         }
                     }
+                    // ⛔ The way OUT (#55). A domain that publishes an autoconfig AND an OAuth
+                    // document reaches this step with the invitation and nothing else: no
+                    // password field, one button, and a server that refuses this app's client
+                    // id. Back lands on the address step, which withholds "Set up manually"
+                    // because its verdict FOUND something — so the account was unaddable by any
+                    // gesture. Which pane owes a way out is [credentialsExit]'s call, executed by
+                    // a test; drawn here, under the closed guard, so it belongs to no branch.
+                    credentialsExit(credentialsPane(ask, state, handedOver))?.let { exit ->
+                        OutlinedButton(
+                            onClick = { rememberedStep = exit },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.connect_step_manual))
+                        }
+                    }
                 }
                 // ---- 3. The manual fallback — reached only when discovery came back empty -----
                 ConnectStep.MANUAL -> {

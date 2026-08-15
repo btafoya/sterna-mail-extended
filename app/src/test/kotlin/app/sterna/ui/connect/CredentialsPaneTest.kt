@@ -2,6 +2,7 @@ package app.sterna.ui.connect
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -120,6 +121,76 @@ class CredentialsPaneTest {
                 "this account signs in.",
             CredentialsPane.WAITING,
             credentialsPane(CredentialsAsk.Awaiting, ConnectState.Idle, handoverStarted = false),
+        )
+    }
+
+    // ---- credentialsExit: the way OUT of a step that asks nothing and hands over nothing ----
+
+    @Test fun `the invitation carries a way out to the manual form`() {
+        assertEquals(
+            "⛔ THE DEAD END (#55). A domain that publishes an autoconfig AND an OAuth document " +
+                "lands the reader here with the invitation and nothing else: the server refuses " +
+                "this app's client id, so the button fails every single time; there is no " +
+                "password field to fall back on; and the system Back returns to the address " +
+                "step, which offers no manual setup either because its verdict FOUND something. " +
+                "Without this exit the account cannot be added at all, by any gesture.",
+            ConnectStep.MANUAL,
+            credentialsExit(CredentialsPane.SIGN_IN_OFFER),
+        )
+    }
+
+    @Test fun `no way out is offered while a hand-over is in flight`() {
+        assertNull(
+            "⛔ The browser is open, or its panel is one frame from taking the screen. A manual " +
+                "form offered under a sign-in still running is a second account added behind " +
+                "the first, on a walk the reader thinks she left.",
+            credentialsExit(CredentialsPane.WAITING),
+        )
+    }
+
+    @Test fun `beside the password field the way out is the field itself`() {
+        assertNull(
+            "she can sign in right here, and a 'Set up manually' beside the field is the " +
+                "protocol question (JMAP? IMAP/SMTP?) walking back on screen for everyone — the " +
+                "one thing this whole walk exists to take off it.",
+            credentialsExit(CredentialsPane.PASSWORD),
+        )
+    }
+
+    @Test fun `the dead end of the report, composed the way the screen composes it`() {
+        val browser = CredentialsAsk.SignInAway(OAuthGrant.AUTHORIZATION_CODE)
+        assertEquals(
+            "⛔ #55 AS REPORTED, end to end: the server answered the hand-over with a refusal " +
+                "(unknown client id). Its message is drawn, and under it there must be a way to " +
+                "the manual form — otherwise the reader is looking at a button that cannot ever " +
+                "work, on a screen nothing leads out of.",
+            ConnectStep.MANUAL,
+            credentialsExit(
+                credentialsPane(browser, ConnectState.Error("invalid_client"), handoverStarted = true),
+            ),
+        )
+        assertEquals(
+            "and after Cancel on the panel, the same screen and the same need: the invitation " +
+                "is back, no password was ever asked for, and nothing else is on offer.",
+            ConnectStep.MANUAL,
+            credentialsExit(credentialsPane(browser, ConnectState.Idle, handoverStarted = true)),
+        )
+        assertNull(
+            "but NOT while the browser panel owns the screen: the sign-in she started is still " +
+                "running, and a manual form opened over it adds an account behind it.",
+            credentialsExit(
+                credentialsPane(
+                    browser,
+                    ConnectState.AwaitingBrowser("https://example.org/authorize"),
+                    handoverStarted = true,
+                ),
+            ),
+        )
+        assertNull(
+            "and not on the majority path, where the password field is already the way through.",
+            credentialsExit(
+                credentialsPane(CredentialsAsk.Password, ConnectState.Idle, handoverStarted = false),
+            ),
         )
     }
 
@@ -326,6 +397,52 @@ class HandoverBackWiringTest {
             emptyList<Pair<String, Int>>(), outside,
         )
     }
+
+    @Test fun `the way out of the dead end is drawn under the whole guard, not inside a branch`() {
+        assertPinned("credentialsExit(credentialsPane(ask, state, handedOver))?.let { exit ->")
+        assertPinned("onClick = { rememberedStep = exit },")
+        assertPinned("Text(stringResource(R.string.connect_step_manual))")
+        val exit = lines.indexOf("credentialsExit(credentialsPane(ask, state, handedOver))?.let { exit ->")
+        val lastBranch = branchLabels.maxOf { it.second }
+        val manualStep = lines.indexOf("ConnectStep.MANUAL -> {")
+        assertTrue(
+            "⛔ #55, AND WHERE IT IS DRAWN IS THE WHOLE OF IT. In $SCREEN the exit (line index " +
+                "$exit) must sit AFTER the last `CredentialsPane.` branch label (line index " +
+                "$lastBranch), i.e. under the closed `when`, and BEFORE the manual step's own " +
+                "branch (line index $manualStep), i.e. still inside the credentials step. Drop " +
+                "the whole block inside WAITING or PASSWORD instead — indentation and all, not " +
+                "one character of any line changed — and the guard above answers null in that " +
+                "branch, so the button is never drawn at all: the dead end of #55 is back, the " +
+                "executed tests below stay green because the decision itself is untouched, and " +
+                "every other pinned line in this repo stays green too. Inside SIGN_IN_OFFER it " +
+                "draws, but the offer's own branch then owns a decision that is made twice.",
+            lastBranch in 0 until exit && exit < manualStep,
+        )
+        val label = lines.indexOf("Text(stringResource(R.string.connect_step_manual))")
+        assertTrue(
+            "and the button (labelled at line index $label) belongs to that exit, not to some " +
+                "other block further down the column.",
+            exit < label && label < manualStep,
+        )
+        // ⛔ ORDER IS NOT ENOUGH, and this is where the mutation went through: PASSWORD is the
+        // LAST branch label of the guard, so the whole block dropped INSIDE it still sits after
+        // every label and before the manual step — and there it is never drawn, because the guard
+        // answers PASSWORD and the decision answers null. What tells the two apart is depth, read
+        // on the RAW line: under the closed `when` the exit stands at the guard's own indentation.
+        val depth = indent(exit)
+        val guardDepth = indent(lines.indexOf("when (credentialsPane(ask, state, handedOver)) {"))
+        assertEquals(
+            "the exit must stand at exactly the indentation of the `when` it follows " +
+                "($guardDepth spaces) in $SCREEN, and it stands at $depth. Deeper means it is " +
+                "inside a branch — inside PASSWORD or WAITING the decision answers null there and " +
+                "the button is never drawn, with every executed test and every other pin green.",
+            guardDepth, depth,
+        )
+    }
+
+    /** The leading spaces of the RAW line at [index] — trimmed lines cannot see a nesting change. */
+    private fun indent(index: Int): Int =
+        source(SCREEN).lines()[index].takeWhile { it == ' ' }.length
 
     /** The `when (credentialsPane(…))` branch labels of [SCREEN], as (label, line index). */
     private val branchLabels: List<Pair<String, Int>> by lazy {

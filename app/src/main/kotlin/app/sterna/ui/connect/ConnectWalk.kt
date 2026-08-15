@@ -436,6 +436,27 @@ internal fun credentialsPane(
 }
 
 /**
+ * The step the credentials step must offer as a way OUT under [pane], or null when it owes none.
+ *
+ * ⛔ A DISCOVERY THAT WORKED MUST NEVER TAKE A DOOR AWAY, and this is the half of that rule that was
+ * missing. [offersManualSetup] holds it at the address step, for a probe that found nothing; this
+ * holds it at the step a probe that FOUND something leads to. A domain publishing both an autoconfig
+ * and an RFC 8414 document lands the reader on [CredentialsPane.SIGN_IN_OFFER]: no password field
+ * (the server said OAuth), one button, and a server that refuses this app's client id — so the
+ * button fails every time. Back returns to the address step, whose "Set up manually" is withheld
+ * because the verdict is a `Found`. The account cannot be added by any gesture at all (#55).
+ *
+ * ⛔ UNDER THE OFFER ONLY, and the other two are refusals, not omissions:
+ *  - [CredentialsPane.WAITING] means something IS running — the browser is open, or its panel is one
+ *    frame away. A manual form reached from under a hand-over in flight adds a second account behind
+ *    the first;
+ *  - [CredentialsPane.PASSWORD] already has its way through, and it is the field. A second button
+ *    beside it is the protocol question (JMAP? IMAP/SMTP?) back on screen for everyone.
+ */
+internal fun credentialsExit(pane: CredentialsPane): ConnectStep? =
+    if (pane == CredentialsPane.SIGN_IN_OFFER) ConnectStep.MANUAL else null
+
+/**
  * Whether a hand-over panel (device code, or browser authorization) currently owns the screen.
  *
  * It is what makes the walk's Back reachable while one is up: those panels return out of the column
