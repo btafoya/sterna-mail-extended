@@ -49,6 +49,19 @@ data class ImapFolder(
     /** A normalised role ("inbox", "sent", "drafts", "trash", "junk", "archive") or null. */
     val role: String?,
     val delimiter: String,
+    /**
+     * The role this folder CLAIMED and did not get, because another folder of the same listing
+     * carried it already — null whenever [role] is non-null, and null for a folder that claimed
+     * nothing. A second `\Trash`, or a second mailbox the name table reads as a trash.
+     *
+     * A statement of fact, nothing more: this module reports what the listing said and decides
+     * nothing from it. What the app makes of a lost claim belongs to `:core:data`, which turns a
+     * lost `trash`/`junk` into a MARKED role (`~trash`, `~junk`, `MailRepository`'s
+     * `UNELECTED_ROLE_MARK`) so a second trash stays out of search and out of the index while
+     * remaining an ordinary folder everywhere else. The two modules do not depend on each other,
+     * so that convention lives in a comment on both sides and nowhere in code here.
+     */
+    val unelectedRole: String? = null,
 )
 
 /** One decoded envelope address (either part may be absent). */

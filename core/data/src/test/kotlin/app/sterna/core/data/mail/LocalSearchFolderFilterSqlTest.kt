@@ -175,6 +175,51 @@ class LocalSearchFolderFilterSqlTest {
         assertEquals(listOf("kept", "spam", "thrown"), indexedIds("token*"))
     }
 
+    /**
+     * The SECOND trash. An account with a personal `Trash` and a shared `Shared/…/Trash` gives the
+     * role to one of them (`ImapClient.assignRoles`); the loser is stored with the role MARKED
+     * (`~trash`, [imapMailboxEntity]) and must be hidden exactly like the elected one. Left
+     * role-less, as it was, its mail came back in every search result.
+     */
+    @Test fun aRowLabelledWithAnUnelectedTrashIsHiddenToo() {
+        folder("mb-inbox", role = "inbox")
+        folder("mb-trash", role = "trash")
+        folder("mb-shared-trash", role = "~trash")
+        index("thrown", "mb-inbox")
+        assertEquals(listOf("thrown"), search("token*"))
+
+        labelIndexRow("thrown", "mb-shared-trash")
+
+        assertEquals(emptyList<String>(), search("token*"))
+        assertEquals(listOf("thrown"), indexedIds("token*"))
+    }
+
+    @Test fun aRowLabelledWithAnUnelectedJunkIsHiddenToo() {
+        folder("mb-inbox", role = "inbox")
+        folder("mb-shared-junk", role = "~junk")
+        index("junked", "mb-inbox")
+        assertEquals(listOf("junked"), search("token*"))
+
+        labelIndexRow("junked", "mb-shared-junk")
+
+        assertEquals(emptyList<String>(), search("token*"))
+        assertEquals(listOf("junked"), indexedIds("token*"))
+    }
+
+    /**
+     * The witness for the two above: the mark is not a wildcard. A folder whose role merely STARTS
+     * with the mark, or that lost a claim on something else, is an ordinary folder and its mail is
+     * still found — otherwise the cases above would pass under a filter that hides too much.
+     */
+    @Test fun theMarkHidesTrashAndJunkAndNothingElse() {
+        folder("mb-sent", role = "~sent")
+        folder("mb-odd", role = "~")
+        index("sent", "mb-sent")
+        index("odd", "mb-odd")
+
+        assertEquals(listOf("odd", "sent"), search("token*").sorted())
+    }
+
     @Test fun aHitWhoseFolderIsNotCachedYetIsStillReturned() {
         // Index and folder list fill in independently. An unknown folder must not turn "not synced
         // yet" into "no results" while the user is typing: local search stays monotonic.

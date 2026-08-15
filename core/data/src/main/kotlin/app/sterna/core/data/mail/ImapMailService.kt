@@ -9,6 +9,7 @@ import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.imap.IMAP_FOLDER_PAGE
 import app.sterna.core.imap.IMAP_PREVIEW_FETCH_BYTES
 import app.sterna.core.imap.ImapClient
+import app.sterna.core.imap.ImapFolder
 import app.sterna.core.imap.ImapFolderWalk
 import app.sterna.core.imap.ImapIdleConnection
 import app.sterna.core.imap.ImapMailboxStatus
@@ -617,15 +618,7 @@ class ImapMailService(
     suspend fun listMailboxes(credentials: AccountCredentials): List<MailboxEntity> =
         withSession(credentials) { session ->
             session.listFolders().mapIndexed { index, folder ->
-                MailboxEntity(
-                    accountId = credentials.id,
-                    id = folder.path,
-                    name = folder.name,
-                    role = folder.role,
-                    sortOrder = rolePriority(folder.role) * 1000 + index,
-                    totalEmails = 0,
-                    unreadEmails = 0,
-                )
+                imapMailboxEntity(credentials.id, folder, index)
             }
         }
 
@@ -666,15 +659,7 @@ class ImapMailService(
         return withSession(credentials) { session ->
             val folders = session.listFolders()
             val mailboxes = folders.mapIndexed { index, folder ->
-                MailboxEntity(
-                    accountId = credentials.id,
-                    id = folder.path,
-                    name = folder.name,
-                    role = folder.role,
-                    sortOrder = rolePriority(folder.role) * 1000 + index,
-                    totalEmails = 0,
-                    unreadEmails = 0,
-                )
+                imapMailboxEntity(credentials.id, folder, index)
             }
             val target = folders.firstOrNull { it.path == requestedMailboxId }
                 ?: folders.firstOrNull { it.role == "inbox" }
@@ -1058,16 +1043,6 @@ class ImapMailService(
         ConnectionSecurity.NONE -> MailSecurity.NONE
     }
 
-    private fun rolePriority(role: String?): Int = when (role) {
-        "inbox" -> 0
-        "archive" -> 1
-        "sent" -> 2
-        "drafts" -> 3
-        "junk" -> 4
-        "trash" -> 5
-        else -> 6
-    }
-
     companion object {
         /**
          * Wall-clock budget for a whole-folder enumeration ([allUids]), reconnect included.
@@ -1117,6 +1092,59 @@ class ImapMailService(
             return if (parts.size >= 4) parts.subList(2, parts.size - 1).joinToString(":") else null
         }
     }
+}
+
+/**
+ * ⭐ The ONE place a listed IMAP folder becomes a cache row, for BOTH callers ([listMailboxes] and
+ * [loadFolder] built it twice, identically, and a rule applied in one copy and not the other is
+ * the defect this was extracted to make impossible).
+ *
+ * The decision it carries: a folder that CLAIMED trash or junk and lost the role to another folder
+ * of the account (`ImapFolder.unelectedRole` — a personal `Trash` plus a shared `Shared/…/Trash`)
+ * is stored with its role MARKED, `~trash` / `~junk` ([UNELECTED_ROLE_MARK]). That, and only that,
+ * puts it in [NOT_SEARCHED_ROLES], so the second trash stays out of search results and out of the
+ * FTS crawl — it used to be searched and indexed, and a cache purge could not clear it.
+ *
+ * ⛔ The mark does not leave `:core:data`. It is erased at the crossing to the UI model
+ * ([MailboxEntity.toMailbox]) and dropped from [folderRoleMap], so every screen sees the same
+ * role-less folder it saw before this fix: raw name, no trash icon, renameable, deletable, never
+ * the destination of a delete. That erasure is load-bearing, not tidiness — `ui.inbox.InboxScreen`
+ * gates Rename and Delete on `role == null`, and a mark reaching it costs the user the ⋮ menu of
+ * her shared trash.
+ *
+ * ⛔ A lost claim on any OTHER role stays null, exactly as before: nothing anywhere gives a `~sent`
+ * a meaning, and marking one would only put an unreadable value in the cache row.
+ *
+ * A file-level function rather than a private method so a JVM test can EXECUTE the decision:
+ * [ImapMailService] needs a session and Android, and a decision no test can run is a decision
+ * nobody checks.
+ */
+internal fun imapMailboxEntity(accountId: String, folder: ImapFolder, index: Int): MailboxEntity {
+    val role = folder.role
+        ?: folder.unelectedRole
+            ?.takeIf { it in NOT_SEARCHED_BASE_ROLES }
+            ?.let { UNELECTED_ROLE_MARK + it }
+    return MailboxEntity(
+        accountId = accountId,
+        id = folder.path,
+        name = folder.name,
+        role = role,
+        // A marked role falls in the `else`, where a role-less folder already fell: the drawer's
+        // order does not change for a folder that lost its claim.
+        sortOrder = rolePriority(role) * 1000 + index,
+        totalEmails = 0,
+        unreadEmails = 0,
+    )
+}
+
+private fun rolePriority(role: String?): Int = when (role) {
+    "inbox" -> 0
+    "archive" -> 1
+    "sent" -> 2
+    "drafts" -> 3
+    "junk" -> 4
+    "trash" -> 5
+    else -> 6
 }
 
 /**

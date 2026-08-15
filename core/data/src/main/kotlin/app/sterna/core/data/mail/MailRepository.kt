@@ -294,7 +294,44 @@ internal fun searchableFolderIds(folders: List<MailboxIdRole>): List<String> =
 internal fun excludedSearchFolderIds(folders: List<MailboxIdRole>): List<String> =
     folders.filter { it.role?.trim()?.lowercase() in NOT_SEARCHED_ROLES }.map { it.id }
 
-internal val NOT_SEARCHED_ROLES = setOf("trash", "junk", "spam")
+/** The roles a search never walks, as a server or a name table names them. */
+internal val NOT_SEARCHED_BASE_ROLES = setOf("trash", "junk", "spam")
+
+/**
+ * What a role carries when its folder CLAIMED it and another folder of the same account was
+ * elected to it — an account with both a personal `Trash` and a shared `Shared/…/Trash` has two
+ * trashes, and only one can be THE trash (`ImapClient.assignRoles`, which reports the loss as
+ * `ImapFolder.unelectedRole`).
+ *
+ * The mark exists so a losing trash can be excluded from search without being a trash. Two things
+ * bound it, and both are code, not prose:
+ *
+ * 1. It is a value of the CACHE ROW and of nothing else. It is erased at the one crossing to the
+ *    UI model ([MailboxEntity.toMailbox]) and dropped from [folderRoleMap], so outside `:core:data`
+ *    a folder that lost its claim is byte for byte the role-less folder it was before this fix —
+ *    same icon, same name, same rank in the drawer, same ⋮ menu with Rename and Delete in it.
+ * 2. Inside `:core:data` its ONE difference from a role-less folder is membership of
+ *    [NOT_SEARCHED_ROLES] below. Everything else there compares roles by exact equality with an
+ *    `else` (the role→mailbox lookups, the snooze rule, `deleteWouldDestroy`), so a marked folder
+ *    is never the destination of a delete and never answers as a trash.
+ *
+ * ⛔ Only the roles of [NOT_SEARCHED_BASE_ROLES] are ever marked ([imapMailboxEntity]) — a `~sent`
+ * has no meaning anywhere and nothing would give it one.
+ */
+internal const val UNELECTED_ROLE_MARK = "~"
+
+/**
+ * The stored role as anything OTHER than the search filters may act on it: a marked role
+ * ([UNELECTED_ROLE_MARK]) answers as no role at all, which is what the folder had before this fix.
+ *
+ * Pure, and shared by the two places the mark must not cross ([MailboxEntity.toMailbox] and
+ * [folderRoleMap]) so there is one erasure to test and not two that can drift apart.
+ */
+internal fun unmarkedRole(role: String?): String? =
+    role?.takeUnless { it.startsWith(UNELECTED_ROLE_MARK) }
+
+internal val NOT_SEARCHED_ROLES =
+    NOT_SEARCHED_BASE_ROLES + NOT_SEARCHED_BASE_ROLES.map { UNELECTED_ROLE_MARK + it }
 
 /** What an action that MOVED NOTHING does with the search-index row — see [noOpEvictionFor]. */
 internal enum class NoOpEviction {
@@ -834,10 +871,19 @@ internal fun listRowsWhereSql(scopeCount: Int, unreadOnly: Boolean): String {
  * to a blank: absent means "unknown, fall back", and a blank would mean "not outgoing", which is an
  * answer this map has no business giving.
  *
+ * A MARKED role ([UNELECTED_ROLE_MARK]) is left out for the same reason ([unmarkedRole]): the mark
+ * says a folder CLAIMED trash or junk and lost it, which is a fact about search and nothing else,
+ * and the row's own SQL cannot drop it (`observeRoles` keeps every non-null role). Handing `~trash`
+ * out would put a value no caller knows in a map whose contract is "what I hold, I am sure of" —
+ * the same shape of defect as `InboxScreen`'s folder menu, which read a marked role as "a role" and
+ * took Rename and Delete off a user's shared trash. Today's three callers all compare by exact
+ * equality and would fall through, so nothing changes on screen; the invariant is written down here
+ * and this is what makes it true.
+ *
  * Its own function so a test can run it beside the statement that feeds it (`FolderRolesSqlTest`).
  */
 internal fun folderRoleMap(rows: List<AccountMailboxRole>): Map<Pair<String, String>, String> =
-    rows.mapNotNull { row -> row.role?.let { (row.accountId to row.id) to it } }.toMap()
+    rows.mapNotNull { row -> unmarkedRole(row.role)?.let { (row.accountId to row.id) to it } }.toMap()
 
 /**
  * The keys "Select all" may take from the folder behind the list: the same rows [pagingSql]

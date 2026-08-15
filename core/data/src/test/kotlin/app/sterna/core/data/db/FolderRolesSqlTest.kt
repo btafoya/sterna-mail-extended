@@ -102,6 +102,35 @@ class FolderRolesSqlTest {
         assertEquals(mapOf(("acc" to "f1") to "inbox"), roles(listOf("acc")))
     }
 
+    @Test fun `a folder that claimed the trash and lost it is left out too`() {
+        // `~trash` is the mark a second trash is stored with (a personal Trash plus a shared
+        // Shared/…/Trash) so search skips it. The statement CANNOT drop it — it keeps every
+        // non-null role — so the mapping is what holds this map's contract: what it hands out is a
+        // role a caller knows. Handing "~trash" over would be an answer nobody can read, the same
+        // shape of defect as the folder menu that read the mark as a role and took Rename and
+        // Delete off a user's shared trash.
+        folder("acc", "f1", "inbox")
+        folder("acc", "f2", "~trash")
+        folder("acc", "f3", "~junk")
+        folder("acc", "f4", "sent")
+
+        assertEquals(
+            mapOf(("acc" to "f1") to "inbox", ("acc" to "f4") to "sent"),
+            roles(listOf("acc")),
+        )
+    }
+
+    @Test fun `the elected trash is in the map, mark or no mark`() {
+        // The witness: the erasure keys on the mark, not on the word "trash".
+        folder("acc", "f1", "trash")
+        folder("acc", "f2", "junk")
+
+        assertEquals(
+            mapOf(("acc" to "f1") to "trash", ("acc" to "f2") to "junk"),
+            roles(listOf("acc")),
+        )
+    }
+
     @Test fun `an account outside the scope contributes nothing`() {
         folder("acc", "f1", "inbox")
         folder("other", "f1", "sent")

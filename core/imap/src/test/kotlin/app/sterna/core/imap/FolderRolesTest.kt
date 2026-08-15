@@ -171,18 +171,84 @@ class FolderRolesTest {
     @Test fun theDecisionTakesTheWholeListAndAnswersOneRolePerFolder() {
         assertEquals(
             listOf(null, "trash", null, "archive", "junk", null),
-            assignRoles(
-                listOf(
-                    listing("Корзина"), // guessed trash, but the server states one below
-                    listing("Vieux courrier", "\\Trash"),
-                    listing("Archiwum"), // guessed archive, but the server states one below
-                    listing("Oude post", "\\Archive", "\\HasNoChildren"),
-                    listing("Wiadomości-śmieci"), // nothing states a junk: the name gets it
-                    listing("Spam"), // second junk candidate, and junk is taken
-                ),
-            ),
+            assignRoles(sixFolderListing()).map { it.elected },
         )
     }
+
+    // ─────────────────────── the claim that lost, reported and not thrown away ───────────────────
+    //
+    // A folder that lost a role is an ordinary folder in the drawer, and that is right. But a
+    // SECOND TRASH is not ordinary mail: an account with a personal "Trash" and a shared
+    // "Shared/…/Trash" has two, the loser was left role-less, and a role-less folder is searched
+    // and crawled into the local index — thrown-away mail came back in every search result and
+    // survived a cache purge. So the decision reports WHAT was claimed and lost; `:core:data` is
+    // what does something with it. Nothing here knows which roles a search skips.
+
+    @Test fun theSameListingSaysWhichClaimEachLoserLost() {
+        assertEquals(
+            listOf("trash", null, "archive", null, null, "junk"),
+            assignRoles(sixFolderListing()).map { it.unelected },
+        )
+    }
+
+    @Test fun aSecondStatedTrashReportsTheTrashItClaimed() {
+        // The server itself marked both `\Trash`. The second is elected to nothing, and what it
+        // claimed is the trash — not the "archive" its name would have guessed (rule 1 stands).
+        val loser = folders(
+            "* LIST (\\Trash) \".\" \"Trash\"\r\n",
+            "* LIST (\\Trash) \".\" \"Archiv\"\r\n",
+        )[1]
+        assertEquals(null, loser.role)
+        assertEquals("trash", loser.unelectedRole)
+    }
+
+    @Test fun aSecondStatedJunkReportsTheJunkItClaimed() {
+        // The same branch, on the OTHER role a lost claim is acted on. A server that states
+        // SPECIAL-USE on a personal `Junk` and on the junk of a shared mailbox: restrict the
+        // reporting of a stated-but-unelected claim to the trash and this is what stops being
+        // signalled — the shared spam folder goes back to being searched and crawled into the
+        // index, where a cache purge cannot clear it.
+        val listed = folders(
+            "* LIST (\\Junk) \".\" \"Junk\"\r\n",
+            "* LIST (\\Junk) \".\" \"Shared/team/Junk\"\r\n",
+        )
+        assertEquals(listOf("junk", null), listed.map { it.role })
+        assertEquals(listOf(null, "junk"), listed.map { it.unelectedRole })
+    }
+
+    @Test fun aSecondTrashGuessedFromItsNameReportsTheTrashItClaimed() {
+        // A server mute on SPECIAL-USE: both are read by the name table, and only the first is
+        // elected. German, because that is where the name table earns its keep.
+        val listed = mute("Papierkorb", "Papierkorb")
+        assertEquals(listOf("trash", null), listed.map { it.role })
+        assertEquals(listOf(null, "trash"), listed.map { it.unelectedRole })
+    }
+
+    @Test fun aSecondJunkReportsTheJunkItClaimed() {
+        val listed = mute("Junk", "Spam")
+        assertEquals(listOf("junk", null), listed.map { it.role })
+        assertEquals(listOf(null, "junk"), listed.map { it.unelectedRole })
+    }
+
+    @Test fun aFolderThatWonItsRoleOrClaimedNothingReportsNoLostClaim() {
+        // The witness that keeps the case above from passing on a field that is simply always set.
+        assertEquals(
+            listOf(null, null, null),
+            mute("Trash", "Papierkorb-Archiv 2019", "Projekte").map { it.unelectedRole },
+        )
+        assertEquals(listOf("trash", null, null), mute("Trash", "Papierkorb-Archiv 2019", "Projekte").map { it.role })
+    }
+
+    /** The listing of [theDecisionTakesTheWholeListAndAnswersOneRolePerFolder], read twice: once
+     *  for the role each folder was elected to, once for the claim each loser lost. */
+    private fun sixFolderListing() = listOf(
+        listing("Корзина"), // guessed trash, but the server states one below
+        listing("Vieux courrier", "\\Trash"),
+        listing("Archiwum"), // guessed archive, but the server states one below
+        listing("Oude post", "\\Archive", "\\HasNoChildren"),
+        listing("Wiadomości-śmieci"), // nothing states a junk: the name gets it
+        listing("Spam"), // second junk candidate, and junk is taken
+    )
 
     private fun listing(name: String, vararg attrs: String) =
         ListedFolder(name = name, path = name, delimiter = ".", attrs = attrs.toList())

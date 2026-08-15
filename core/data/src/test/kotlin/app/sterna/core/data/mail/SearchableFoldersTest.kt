@@ -57,6 +57,41 @@ class SearchableFoldersTest {
         assertEquals(emptyList<String>(), excludedSearchFolderIds(folders("i" to "inbox", "x" to null)))
     }
 
+    // A folder that CLAIMED trash or junk and lost the role to another folder of the account is
+    // stored with the role marked (`~trash`, `~junk` — imapMailboxEntity). It is an ordinary folder
+    // everywhere else, but a search must skip it just as it skips the elected one: a shared
+    // `Shared/…/Trash` holds mail the user threw away.
+    @Test fun aTrashThatLostTheRoleIsStillLeftOut() {
+        assertEquals(
+            listOf("i", "a"),
+            searchableFolderIds(folders("i" to "inbox", "a" to "archive", "t" to "trash", "s" to "~trash")),
+        )
+    }
+
+    @Test fun aJunkThatLostTheRoleIsStillLeftOut() {
+        assertEquals(listOf("i"), searchableFolderIds(folders("i" to "inbox", "s" to "~junk")))
+    }
+
+    @Test fun excludedReturnsTheFoldersThatLostTheirClaimToo() {
+        assertEquals(
+            listOf("t", "s", "j"),
+            excludedSearchFolderIds(
+                folders("i" to "inbox", "t" to "trash", "s" to "~trash", "j" to "~junk", "x" to null),
+            ),
+        )
+    }
+
+    // The witness: the mark is not a wildcard. Only the roles a search already skipped are marked
+    // (imapMailboxEntity marks nothing else), so a role that merely begins with the mark is a
+    // folder like any other — otherwise the three cases above would pass under a rule that hides
+    // every folder whose role starts with '~'.
+    @Test fun aMarkOnAnyOtherRoleDoesNotLeaveAFolderOutOfASearch() {
+        assertEquals(
+            listOf("i", "s", "a", "m"),
+            searchableFolderIds(folders("i" to "inbox", "s" to "~sent", "a" to "~archive", "m" to "~")),
+        )
+    }
+
     @Test fun searchableAndExcludedPartitionTheFolders() {
         val all = folders("i" to "inbox", "a" to "archive", "j" to "junk", "t" to "trash", "x" to null)
         assertEquals(listOf("i", "a", "x"), searchableFolderIds(all))

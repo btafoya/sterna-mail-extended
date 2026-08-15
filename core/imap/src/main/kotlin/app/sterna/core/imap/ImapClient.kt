@@ -1323,7 +1323,13 @@ internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> {
     }
     val roles = assignRoles(listed)
     return listed.mapIndexed { i, folder ->
-        ImapFolder(name = folder.name, path = folder.path, role = roles[i], delimiter = folder.delimiter)
+        ImapFolder(
+            name = folder.name,
+            path = folder.path,
+            role = roles[i].elected,
+            delimiter = folder.delimiter,
+            unelectedRole = roles[i].unelected,
+        )
     }
 }
 
@@ -1353,27 +1359,54 @@ internal data class ListedFolder(
  *    name would let a second `\Trash` called "Archiv" come back as the ARCHIVE — the app would
  *    file archived mail into a folder the server purges. The server has spoken; where its word
  *    cannot be honoured the folder keeps no role rather than a contradicting guess.
- * 2. A role is carried ONCE. A second candidate keeps a null role, INBOX included — INBOX is
+ * 2. A role is carried ONCE. A second candidate is not ELECTED to it, INBOX included — INBOX is
  *    unique by definition (RFC 3501 §5.1), so a second folder whose leaf reads "Inbox" is a user
  *    folder. Two folders sharing a role means two Trashes in the drawer and a `roleMailboxId`
  *    that returns whichever the query hands back first: the delete lands in one of them and the
- *    user empties the other. A folder left role-less loses nothing but its icon — it stays
- *    listed, searchable, renameable and deletable.
+ *    user empties the other.
+ *
+ *    A folder that lost its claim stays an ORDINARY folder: listed, under its own name, with no
+ *    trash icon, renameable, deletable, and never the destination of a delete. That is not a
+ *    property of the marked role `:core:data` stores for it — it holds because the mark is ERASED
+ *    at the crossing to the UI model (`MailboxMapper.toMailbox`, and dropped from `folderRoleMap`),
+ *    so nothing above `:core:data` can tell that folder from a role-less one. What it does NOT
+ *    stay is searchable when what it claimed was the trash or the junk. A mailbox the server
+ *    itself marked `\Trash`, or one the name table reads as a trash, holds mail the user threw
+ *    away — an account with a personal `Trash` and a shared `Shared/…/Trash` has two of them, and
+ *    the loser used to come back in every search result and to be crawled into the local index,
+ *    where a cache purge could not clear it. So the loss is REPORTED
+ *    ([ImapFolder.unelectedRole]) rather than thrown away. This module states the fact and
+ *    decides nothing: `:core:data` is what turns a lost `trash`/`junk` into a marked role
+ *    (`~trash`, `~junk` — `MailRepository.UNELECTED_ROLE_MARK`) that its single
+ *    `NOT_SEARCHED_ROLES` source excludes from search and from the index. No list of searched or
+ *    unsearched roles exists here.
  */
-internal fun assignRoles(listed: List<ListedFolder>): List<String?> {
+internal fun assignRoles(listed: List<ListedFolder>): List<FolderRole> {
     val stated = listed.map { roleFromAttributes(it.attrs) }
     val roles = MutableList<String?>(listed.size) { null }
+    val unelected = MutableList<String?>(listed.size) { null }
     val taken = mutableSetOf<String>()
     stated.forEachIndexed { i, role ->
         if (role != null && taken.add(role)) roles[i] = role
     }
     listed.forEachIndexed { i, folder ->
-        if (stated[i] != null) return@forEachIndexed
+        if (stated[i] != null) {
+            // It stated a recognised role and was not elected to it: the claim is what it stated,
+            // and the name table stays out of it (rule 1).
+            if (roles[i] == null) unelected[i] = stated[i]
+            return@forEachIndexed
+        }
         val guessed = roleFromName(folder.name) ?: return@forEachIndexed
-        if (taken.add(guessed)) roles[i] = guessed
+        if (taken.add(guessed)) roles[i] = guessed else unelected[i] = guessed
     }
-    return roles
+    return List(listed.size) { FolderRole(elected = roles[it], unelected = unelected[it]) }
 }
+
+/**
+ * What [assignRoles] settled for one folder: the role it was ELECTED to, and the role it CLAIMED
+ * and lost to another folder of the same listing. At most one of the two is non-null.
+ */
+internal data class FolderRole(val elected: String?, val unelected: String?)
 
 /** The role a server STATED with an RFC 6154 SPECIAL-USE attribute — the only one it did not
  *  have to be guessed. */
