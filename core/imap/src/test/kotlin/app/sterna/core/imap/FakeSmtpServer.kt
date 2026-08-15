@@ -177,7 +177,10 @@ internal class FakeSmtpServer(
                         line.startsWith("RCPT TO", ignoreCase = true) -> canned("250", "2.1.5 recipient ok")
                         line.equals("DATA", ignoreCase = true) -> {
                             inData = true
-                            listOf("354 end with <CRLF>.<CRLF>")
+                            // Canned like every other reply, so [multiline] reaches it too: a real
+                            // server's answer to DATA may be multi-line, and a literal here made
+                            // that the ONE response no test could give more than a single line.
+                            canned("354", "end with <CRLF>.<CRLF>")
                         }
                         line.equals("QUIT", ignoreCase = true) -> listOf("221 2.0.0 bye")
                         else -> canned("250", "2.0.0 ok")

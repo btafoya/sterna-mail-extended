@@ -225,6 +225,40 @@ class SmtpClient {
                 return line
             }
 
+            /**
+             * The acknowledgement of the message BODY, and that read alone: the same reply reader
+             * as [read], with the one tolerance a cut connection makes mandatory THERE and nowhere
+             * else.
+             *
+             * RFC 5321 § 4.2.1: every line of a reply carries the same code, so a server that has
+             * written `250-…` has already taken the message. Refusing a reply cut after that line
+             * would surface as a failed send, `OutboxWorker` would retry it (`OutboxLogic
+             * .shouldRetry` exempts nothing), and the recipient would get the message TWICE —
+             * which nothing later can take back. So a cut after a continuation hands the last line
+             * read back, and the CODE decides at the call site exactly as it does for a complete
+             * reply: a cut `421-service closing` is still a failure.
+             *
+             * ⛔ A cut BEFORE any line still throws, like everywhere else: an acknowledgement the
+             * server never began writing is not an acceptance, and counting it as one would lose
+             * the message — irreversible the other way round.
+             *
+             * ⛔ Why [read] keeps its refusal: there a truncated reply must stay a failure. A cut
+             * EHLO returned as a success has its capabilities read off a PARTIAL list, and the
+             * failure surfaces far later on a step that is not the cause.
+             */
+            fun readBodyAck(): String {
+                var line = reader.readLine() ?: throw SmtpException("Connection closed")
+                while (line.length >= 4 && line[3] == '-') {
+                    // ⭐ The tolerant exit, and the only one in this client. Its own `val` on
+                    // purpose: `line = reader.readLine() ?: return line` hands back the OLD value
+                    // while reading as if it handed back the new one, and this decision — send
+                    // once, or send twice — has to be legible at a glance.
+                    val next = reader.readLine() ?: return line
+                    line = next
+                }
+                return line
+            }
+
             fun expect(prefix: String, what: String) {
                 val resp = read()
                 if (!resp.startsWith(prefix)) throw SmtpException("$what: $resp")
@@ -325,7 +359,10 @@ class SmtpClient {
             // TWICE. A line of code is cheaper than the hypothesis.
             plain.soTimeout = SMTP_BLOCKING_READ
             socket.soTimeout = SMTP_BLOCKING_READ
-            expect("250", "message body")
+            // ⛔ Not `expect`: a reply cut after a `250-` is an ACCEPTED message here, and only
+            // here — see [readBodyAck]. The prefix test stays, so the code still decides.
+            val ack = readBodyAck()
+            if (!ack.startsWith("250")) throw SmtpException("message body: $ack")
 
             runCatching { write("QUIT") }
             Unit

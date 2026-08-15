@@ -255,14 +255,34 @@ class SmtpCapabilityOrderLintTest {
         onlyIndexOf("val lastResponse = mutableListOf<String>()")
     }
 
+    /**
+     * ⛔ The `clear()` stays counted over the WHOLE of `send()`, and that is the point of the test.
+     * A second `lastResponse.clear()` dropped anywhere else in `send()` — say between the EHLO that
+     * follows STARTTLS and the line that reads its capabilities — empties the offered mechanisms,
+     * `chooseAuthMechanism` then falls back to LOGIN, and every server that offers only PLAIN
+     * refuses the sign-in: Codeberg #145, exactly. No behaviour test can see it (no fixture here
+     * speaks TLS), so this count is the only thing standing in its way. Narrowing it to `read()`
+     * would let that mutation through.
+     *
+     * ⚠ What DID have to move is the read: `readBodyAck` opens on the same line as `read` (the
+     * acknowledgement of the message body tolerates a cut after a `250-`, because the server has
+     * then already taken the message). So there are two of them now, pinned as two, and the one
+     * the `clear()` must precede is the FIRST.
+     */
     @Test
     fun `each response resets the accumulator before reading`() {
         val clear = onlyIndexOf("lastResponse.clear()")
-        val firstRead = onlyIndexOf("var line = reader.readLine() ?: throw SmtpException(\"Connection closed\")")
+        val firstReads = indicesOf("var line = reader.readLine() ?: throw SmtpException(\"Connection closed\")")
+        assertEquals(
+            "send() no longer opens exactly two readers on that line (read, readBodyAck) — a third " +
+                "one would not be covered by the rule below:\n" + body.joinToString("\n"),
+            2,
+            firstReads.size,
+        )
         assertTrue(
-            "the accumulator is not cleared before the response is read (clear=$clear, read=$firstRead):\n" +
-                body.joinToString("\n"),
-            clear < firstRead,
+            "the accumulator is not cleared before the response is read (clear=$clear, " +
+                "reads=$firstReads):\n" + body.joinToString("\n"),
+            clear < firstReads.first(),
         )
     }
 

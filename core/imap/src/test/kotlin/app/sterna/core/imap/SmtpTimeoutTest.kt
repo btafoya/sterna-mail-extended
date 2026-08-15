@@ -328,7 +328,11 @@ class SmtpTimeoutLintTest {
             ),
             body.filter { "soTimeout" in it },
         )
-        val ack = onlyIndexOf("expect(\"250\", \"message body\")")
+        // ⚠ The line moved from `expect("250", "message body")` to a dedicated reader, because a
+        // reply CUT after its first line is an accepted message here (SmtpCutConnectionTest J2).
+        // The claim below is unchanged: whatever reads the body's acknowledgement, there is one of
+        // it and it comes straight after the two statements that unbound the socket.
+        val ack = onlyIndexOf("val ack = readBodyAck()")
         assertEquals(
             "the body's acknowledgement is no longer read right after the two statements that " +
                 "unbound it:\n" + body.joinToString("\n"),
