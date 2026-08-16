@@ -578,6 +578,212 @@ class PushWatchTest {
         )
     }
 
+    // --- issue #130: a stale arm must not overwrite the live handle, and a stale close must
+    // --- still retract its own entry ---------------------------------------------------------
+    //
+    // The arm's generation guard is read ONCE, at the top of watch(), and what follows it is a full
+    // baseline pass over the group — tens of seconds on a real mailbox. A concurrent onStartCommand
+    // during that pass retires this arm, but the pass finished, and the handle it came away with used
+    // to be written into `connections` regardless, on top of the one the CURRENT generation had just
+    // put there. When that stale socket then died, its onClosed found gen != generation and did
+    // nothing at all: no retraction, no reschedule. The entry then survived until the next arm — and
+    // nothing on this path triggers one, since no reconnect was scheduled — so PushService.isConnected
+    // kept answering true and MailFetchWorker kept skipping the account: no packet, no line.
+    //
+    // The retraction is the part with a trap in it, which is why it is a pure function executed here
+    // rather than read. A close callback is ASYNCHRONOUS: close() returns at once and the callback
+    // lands later, on the transport's own thread, so a socket retired at the top of reconnectAll can
+    // call back long after the next generation stored ITS handle under the same key. A retraction by
+    // bare key (`connections.remove(loginId)`) would expel that live connection — a worse defect than
+    // the one being fixed. Pairing with the value is the whole rule, and these tests pin values,
+    // never a recomputation of it.
+
+    /** Stands in for a connection handle. A data class on purpose: see the identity test below. */
+    private data class Handle(val name: String)
+
+    /** The trap, executed: a late close callback must not expel the generation that replaced it. */
+    @Test fun `another arm's handle under the same login survives a stale retraction`() {
+        val live = Handle("live")
+        val connections = mutableMapOf("login" to live)
+        val retracted = retractOwnConnection(connections, "login", mine = Handle("stale"))
+        assertFalse("a stale handle must retract nothing, it reported: $retracted", retracted)
+        assertEquals(mapOf("login" to live), connections)
+    }
+
+    @Test fun `a handle retracts its own entry`() {
+        val mine = Handle("mine")
+        val connections = mutableMapOf("login" to mine)
+        val retracted = retractOwnConnection(connections, "login", mine)
+        assertTrue("the owning handle must retract its entry, it reported: $retracted", retracted)
+        assertEquals(emptyMap<String, Handle>(), connections)
+    }
+
+    /** The arm gave up before storing anything: there is no entry of its own to take away. */
+    @Test fun `a handle that was never stored retracts nothing`() {
+        val live = Handle("live")
+        val connections = mutableMapOf("login" to live)
+        val retracted = retractOwnConnection(connections, "login", mine = null)
+        assertFalse("an unstored handle must retract nothing, it reported: $retracted", retracted)
+        assertEquals(mapOf("login" to live), connections)
+    }
+
+    /**
+     * The same "nothing stored" case with an EMPTY slot, which is the common one in production: the
+     * arm has not stored its handle yet and the map was just cleared by a fresh arm. Every other test
+     * here passes a non-empty map, so dropping the `mine == null` clause left the whole suite green
+     * while the function answered true for a removal it had not made — a mutation that survived until
+     * this test existed. Nothing was removed, so the answer is false.
+     */
+    @Test fun `nothing stored and nothing under the key reports nothing removed`() {
+        val connections = mutableMapOf<String, Handle>()
+        val retracted = retractOwnConnection(connections, "login", mine = null)
+        assertFalse("an empty slot cannot have been retracted, it reported: $retracted", retracted)
+        assertEquals(emptyMap<String, Handle>(), connections)
+    }
+
+    /**
+     * The pairing is by IDENTITY, not by equals: two handles that compare equal are still two
+     * different sockets, and only the one actually recorded may be taken out. [Handle] is a data
+     * class precisely so this distinction is expressible — a real transport handle compares by
+     * identity anyway, which is what would let `!=` pass unnoticed here.
+     */
+    @Test fun `an equal but different handle does not retract the entry`() {
+        val live = Handle("same")
+        val connections = mutableMapOf("login" to live)
+        val twin = Handle("same")
+        assertEquals("the fixture is pointless unless the two handles compare equal", live, twin)
+        val retracted = retractOwnConnection(connections, "login", mine = twin)
+        assertFalse("an equal-but-different handle must retract nothing, it reported: $retracted", retracted)
+        assertEquals(mapOf("login" to live), connections)
+    }
+
+    /** Connections are keyed by LOGIN (issues #31, #61) and a retraction touches exactly one key. */
+    @Test fun `retracting one login leaves the other logins connected`() {
+        val mine = Handle("mine")
+        val other = Handle("other")
+        val connections = mutableMapOf("login" to mine, "other-login" to other)
+        assertTrue(retractOwnConnection(connections, "login", mine))
+        assertEquals(mapOf("other-login" to other), connections)
+    }
+
+    @Test fun `retracting a login with no entry at all reports nothing removed`() {
+        val connections = mutableMapOf("other-login" to Handle("other"))
+        val retracted = retractOwnConnection(connections, "login", mine = Handle("mine"))
+        assertFalse("nothing was there to retract, it reported: $retracted", retracted)
+        assertEquals(1, connections.size)
+    }
+
+    // The ONE new line of this fix, pinned literally like the two abandonments above. Both
+    // generations are DIFFERENT numbers on purpose: with gen == current, dropping either from the
+    // sentence would still print the right text and nothing here would notice.
+    //
+    // There is deliberately no line in onClosed. That path fires on EVERY arm (reconnectAll closes
+    // every socket before it re-arms), so a line there would print once per healthy arm while being
+    // unable to tell the race apart from a routine re-arm — the silence the section above this file's
+    // reconnect tests already argued for, and it stands.
+
+    @Test fun `the dropped handle line names the login, both generations and the missing retry`() {
+        assertEquals(
+            "Stale push connection dropped for login acc-1 (generation 3, service is at 5), nothing rescheduled",
+            PushController.retiredHandleDroppedLine("acc-1", gen = 3, current = 5),
+        )
+    }
+
+    /**
+     * Three renouncements now, and a logcat reader has only the sentence to tell them apart: nothing
+     * opened, a retry dropped, a handle opened, stored for an instant and taken back out. Same
+     * arguments, so only the wording can carry the difference.
+     */
+    @Test fun `none of the three abandonments print the same sentence`() {
+        val lines = listOf(
+            PushController.abandonedArmLine("acc-1", gen = 3, current = 5),
+            PushController.abandonedReconnectLine("acc-1", gen = 3, current = 5),
+            PushController.retiredHandleDroppedLine("acc-1", gen = 3, current = 5),
+        )
+        assertEquals("two of the abandonment lines print the same sentence: $lines", 3, lines.toSet().size)
+    }
+
+    /**
+     * SOURCE RULE, same weakness and same reason as the ones above: [PushService] is an Android
+     * [android.app.Service] and cannot be instantiated in this module, so the wiring of the pure
+     * decisions into watch() is pinned by reading the statements that carry it, WHOLE — a substring
+     * check is blind to anything appended, which is exactly how a second condition or an extra
+     * argument would come back. The decision itself is executed by the tests above.
+     *
+     * What this window pins is an ORDER, and the order is the fix: store, THEN read the generation
+     * once, and on a retired one retract the entry (paired with this very handle), close it, say so.
+     * Checking before the write would only narrow the defect — the map can be cleared between the
+     * read and the put — so the `val after = generation` sitting after `connections[loginId] =
+     * handle` is the whole point, and moving it back above turns this red.
+     *
+     * `Log.w`, never `Log.d`/`Log.v` (proguard-rules.pro strips those in the release build reports
+     * come from), and no [Throwable] argument: an abandonment is a fact the app already knows, and
+     * Log's cause chain would print the server and device IPs of an OkHttp ConnectException.
+     */
+    @Test fun `the arm checks the generation after storing, and takes its handle back out`() {
+        assertEquals(
+            "expected exactly one retiredHandleDroppedLine occurrence in PushService",
+            1,
+            pushServiceOccurrencesOf("retiredHandleDroppedLine"),
+        )
+        assertEquals(
+            "expected exactly one post-pass generation re-read in PushService",
+            1,
+            pushServiceOccurrencesOf("val after = generation"),
+        )
+        val watch = pushServiceStatementsOf(WATCH_SIGNATURE)
+        assertEquals(
+            listOf(
+                "mine.set(handle)",
+                "connections[loginId] = handle",
+                "val after = generation",
+                "if (gen != after) {",
+                "retractOwnConnection(connections, loginId, handle)",
+                "runCatching { handle.close() }",
+                "Log.w(TAG, PushController.retiredHandleDroppedLine(loginId, gen, after))",
+                "}",
+            ),
+            watch.dropWhile { it != "mine.set(handle)" }.take(8),
+        )
+    }
+
+    /**
+     * The other half, same rule: onClosed retracts ITS OWN entry — the call is read whole, so a slip
+     * back to `connections.remove(loginId)`, which would expel the live handle of a later generation,
+     * cannot hide — and then reschedules exactly as it did before this fix, on the current generation
+     * only, with nothing else in the callback. `mine` is an AtomicReference and not a captured `var`:
+     * this callback runs on the transport's thread.
+     *
+     * The retraction sits OUTSIDE the generation check, which is the second half of the fix: a stale
+     * connection that dies must still take its entry away, or the map keeps advertising it.
+     */
+    @Test fun `a connection that dies retracts its own entry, whatever its generation`() {
+        assertEquals(
+            "expected three retractOwnConnection occurrences in PushService (declaration, close callback, arm)",
+            3,
+            pushServiceOccurrencesOf("retractOwnConnection"),
+        )
+        val watch = pushServiceStatementsOf(WATCH_SIGNATURE)
+        assertEquals(
+            listOf(
+                "val mine = AtomicReference<Closeable?>(null)",
+                "runCatching {",
+            ),
+            watch.dropWhile { !it.startsWith("val mine =") }.take(2),
+        )
+        assertEquals(
+            listOf(
+                "onClosed = {",
+                "retractOwnConnection(connections, loginId, mine.get())",
+                "if (gen == generation) {",
+                "scheduleReconnect(loginId, group, gen)",
+                "}",
+                "},",
+            ),
+            watch.dropWhile { it != "onClosed = {" }.take(6),
+        )
+    }
+
     /**
      * The statements of one function of [PushService], in order, trimmed, with comments and blank
      * lines dropped. Ends at the closing brace written at member indentation, which is how every
@@ -599,6 +805,9 @@ class PushWatchTest {
         File(repoRoot, "app/src/main/kotlin/app/sterna/push/PushService.kt").readText()
 
     private companion object {
+        const val WATCH_SIGNATURE =
+            "private suspend fun watch(loginId: String, group: List<AccountCredentials>, gen: Int, userInitiated: Boolean) {"
+
         val repoRoot: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
                 .firstOrNull { File(it, "app/src/main/res/values/strings.xml").isFile }

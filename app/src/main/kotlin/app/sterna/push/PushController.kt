@@ -152,6 +152,89 @@ object PushController {
         "Push arm found nothing to watch: 0 of $candidates account(s) need a direct connection, stopping"
 
     /**
+     * The line the 30-minute fallback cycle ([MailFetchWorker]) writes when its account list is
+     * empty and the loop never runs. Same shape of ambiguity as [nothingToWatchLine]: the worker has
+     * one `Result.success()`, so a cycle that fetched nothing and a cycle that fetched everything
+     * print the same WorkManager SUCCESS. What arrives here, though, is not one fact but four, and
+     * counting alone cannot separate them — which is why this branches instead of interpolating.
+     *
+     * [accountsUnreadable] is asked FIRST and comes from a fresh `AccountStore.accountsUnreadable()`
+     * read, exactly as `FetchAndNotify` and `MailRepository` ask it through
+     * [app.sterna.core.data.mail.accountGoneCause]: an unreadable account blob makes
+     * `AccountStore.accounts()` answer an empty list, indistinguishable from an install with no
+     * account, so without this the storage failure would print the sentence of an empty phone.
+     * [stored] then separates the genuinely empty install from credentials that did not materialise
+     * — `allCredentials()` is a `mapNotNull` and drops an account whose secret failed to decrypt,
+     * silently. Only the last branch is a CHOICE: accounts, credentials, and notifications off.
+     *
+     * ⚠ The third sentence says "for the watched set" and not "for all of them" on purpose: with
+     * "push for all accounts" off, the watched set is the current account alone, so [stored] can be
+     * three while exactly one credential was ever asked for.
+     *
+     * Deliberately worded apart from [nothingToWatchLine], which lands in the same logcat: that one
+     * is a service that stops, this one is a poll cycle that ends having polled nothing. Nothing is
+     * claimed here about why mail is missing on any given device — these lines make a silence
+     * readable, they diagnose nothing. Pure so the wording is pinned by unit tests; the worker
+     * itself needs an Application, a container and WorkManager, so no test in this module runs it.
+     */
+    fun nothingToPollLine(stored: Int, candidates: Int, accountsUnreadable: Boolean): String = when {
+        accountsUnreadable ->
+            "Fallback poll found nothing to fetch: the stored account list could not be read, " +
+                "so no account was polled (not an empty install)"
+        stored == 0 ->
+            "Fallback poll found nothing to fetch: no account is configured, so there was nothing to poll"
+        candidates == 0 ->
+            "Fallback poll found nothing to fetch: $stored account(s) configured, but no credentials " +
+                "came back for the watched set, so no account was polled (not a choice)"
+        else ->
+            "Fallback poll found nothing to fetch: 0 of $candidates watched account(s) have notifications on, cycle over"
+    }
+
+    /**
+     * The line the fallback cycle writes when it skips one account whole: [shouldPollInbox] says its
+     * inbox is not owed a poll and [hasExtrasToPoll] finds nothing else worth a fetch. That
+     * `continue` is the widest of the worker's silent exits — on JMAP `hasExtrasToPoll` is false by
+     * construction, so every JMAP account whose handle is held is skipped entirely, with nothing in
+     * logcat between the worker starting and its SUCCESS.
+     *
+     * ⛔ "A handle is HELD", never "a connection is open", and the difference is the same one
+     * [armSummary] spells out nine lines above: `PushService.isConnected` answers true for a
+     * [java.io.Closeable] we believe in, and a socket that died without telling us still answers
+     * true (said again in [shouldPollInbox]'s own KDoc). A line claiming an open connection would
+     * assert, in the reporter's logcat, the very thing under suspicion.
+     *
+     * The facts that carried the decision are printed rather than summarised: the protocol, because
+     * it is what makes the watched extras irrelevant on JMAP and relevant on IMAP, and their
+     * [watchedFolders] count. ⚠ The sentence says those folders are LEFT TO the handle, not that
+     * there are none and not that they were fetched: on JMAP they are left to the handle whatever
+     * their number, on IMAP this line only prints when the number is zero.
+     *
+     * One line per account per cycle, ~48 a day for one account: the accepted price of being able
+     * to tell a cycle that decided to skip from a cycle that did nothing.
+     *
+     * [accountId] is the internal UUID, never an address or a URL — a reporter's logcat is pasted in
+     * public. Pure, so the wording is pinned by unit tests instead of rebuilt in an assertion.
+     */
+    fun pollSkippedLine(accountId: String, protocol: MailProtocol, watchedFolders: Int): String =
+        "Fallback poll skipped account $accountId whole: a push connection handle is held for it, " +
+            "so its inbox and its $watchedFolders watched extra folder(s) are left to that handle ($protocol)"
+
+    /**
+     * The half-skip, and the one that costs mail if the handle is lying: the cycle does run a fetch
+     * for this account, but with `includeInbox = false`. It is the IMAP counterpart of
+     * [pollSkippedLine] — same decision ([shouldPollInbox] false, a handle held), same risk — and
+     * until this line existed it left the friendliest possible trace: a fetch that ran and
+     * succeeded, with no way to see that the inbox was not part of it.
+     *
+     * Worded apart from [pollSkippedLine] because the two are different events and a logcat reader
+     * has only the sentence: there, nothing was fetched at all; here, the watched extras were, and
+     * only the inbox was left out. Same ⛔ on "held" versus "open" as above.
+     */
+    fun inboxSkippedLine(accountId: String, protocol: MailProtocol, watchedFolders: Int): String =
+        "Fallback poll left account $accountId's inbox unfetched: a push connection handle is held " +
+            "for it, so only its $watchedFolders watched extra folder(s) were polled ($protocol)"
+
+    /**
      * The line the service writes when it drops an arm because the generation moved on. The guard
      * itself is right — a socket opened for a retired generation would be a leak after an account
      * switch — but giving up used to cost nothing in logcat, so a service holding no connection at
@@ -173,6 +256,24 @@ object PushController {
      */
     fun abandonedReconnectLine(loginId: String, gen: Int, current: Int): String =
         "Stale push reconnect abandoned for login $loginId (generation $gen, service is at $current)"
+
+    /**
+     * Third renouncement, and the only one that had something in its hands: the baseline pass ran
+     * long enough for a concurrent arm to retire this generation, so the handle the transport
+     * returned is taken back out of the connection map and closed. Distinct from [abandonedArmLine],
+     * which gave up BEFORE opening anything — here a socket was really opened and really closed,
+     * which is also what the server's session log will show, and only the sentence says so.
+     *
+     * Left in place it would have stood on top of the handle the current generation had just
+     * recorded, and the map would have gone on reporting a connection that no longer exists — the
+     * account then reads "Direct" while nothing is listening and nothing polls it either (#130).
+     * "nothing rescheduled" is part of the sentence because that is the operative fact for whoever
+     * reads the log: this login gets no retry from this arm, the current generation owns it now.
+     *
+     * Both generations, same rule as the lines above: only their difference says why.
+     */
+    fun retiredHandleDroppedLine(loginId: String, gen: Int, current: Int): String =
+        "Stale push connection dropped for login $loginId (generation $gen, service is at $current), nothing rescheduled"
 
     /** The read-only status line for one account (hidden by UI when notifications are off). */
     fun statusFor(context: Context, accountId: String): PushStatus {

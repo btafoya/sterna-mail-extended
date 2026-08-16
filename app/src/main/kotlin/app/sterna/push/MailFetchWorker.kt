@@ -46,6 +46,24 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
         // per-folder baselines dedupe against push-driven fetches, cost is one delta.
         val up = container.unifiedPushManager
         up.reconcileDistributorPresence()
+        // The loop below never runs, and until this line the cycle ended on the same SUCCESS as a
+        // cycle that fetched everything. Four different things arrive here and only one is a choice:
+        // an unreadable account blob, a secret that failed to decrypt, an install with no account,
+        // or notifications off everywhere — AccountStore drops the first two without a word, and
+        // both answer like an empty phone. So the three facts that separate them are read here and
+        // handed to the line: the stored count, the watched count BEFORE the notifications filter,
+        // and a fresh unreadable-blob verdict (the same one FetchAndNotify asks accountGoneCause).
+        if (accounts.isEmpty()) {
+            Log.i(
+                TAG,
+                PushController.nothingToPollLine(
+                    stored = store.accounts().size,
+                    candidates = watched.size,
+                    accountsUnreadable = store.accountsUnreadable(),
+                ),
+            )
+            return Result.success()
+        }
         for (credentials in accounts) {
             // FAILED registrations retry on this cadence (cooldown inside the manager).
             runCatching { up.ensureRegistered(credentials) }
@@ -73,11 +91,28 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
             // to poll: a wasted delta costs a request, a wrong skip costs mail.
             val connected = PushService.isConnected(credentials.id)
             val pollInbox = shouldPollInbox(connected, linked)
+            // Read once, so the count the line reports is the one the decision was taken on.
+            val watchedFolders = store.watchedFolders(credentials.id)
             val pollExtras = hasExtrasToPoll(
                 isImap = credentials.protocol == MailProtocol.IMAP,
-                watchedFolders = store.watchedFolders(credentials.id),
+                watchedFolders = watchedFolders,
             )
-            if (!pollInbox && !pollExtras) continue
+            // The widest of the silent exits: on JMAP [hasExtrasToPoll] is false by construction, so
+            // an account we hold a handle for is skipped WHOLE, and the cycle showed nothing between
+            // its start and its SUCCESS. Nothing is claimed here about whether that handle is
+            // carrying anything — only that this is what the worker decided, and on which facts.
+            if (!pollInbox && !pollExtras) {
+                Log.i(TAG, PushController.pollSkippedLine(credentials.id, credentials.protocol, watchedFolders.size))
+                continue
+            }
+            // The half-skip, and the one that costs mail if the handle is lying (IMAP only: this is
+            // reachable exactly when pollExtras carried the account past the guard above). The fetch
+            // below runs and succeeds while the INBOX is left out of it, which is the friendliest
+            // trace a missed inbox can leave. Said before the fetch, so the order in logcat is the
+            // order of events.
+            if (!pollInbox) {
+                Log.i(TAG, PushController.inboxSkippedLine(credentials.id, credentials.protocol, watchedFolders.size))
+            }
             runCatching {
                 FetchAndNotify.run(applicationContext, credentials, includeInbox = pollInbox)
             }.onFailure { Log.w(TAG, "Fallback fetch failed for account ${credentials.id}", it) }

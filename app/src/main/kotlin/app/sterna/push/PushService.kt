@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Foreground service holding JMAP EventSource (SSE) connections so new mail
@@ -147,6 +148,10 @@ class PushService : Service() {
         val repo = application.container.mailRepository
         val currentId = application.container.accountStore.currentId()
         val unified = PushController.unifiedInboxVisible
+        // The handle this arm ends up holding — filled in at the moment it is stored, never before.
+        // An AtomicReference and not a captured `var`: onClosed fires on the transport's own thread
+        // (OkHttp's event-source reader on JMAP, the idle thread on IMAP), not on this one.
+        val mine = AtomicReference<Closeable?>(null)
         runCatching {
             // Seed/announce baselines for every account in the group. The silent reseed is decided
             // per ACCOUNT, not per arm: one arm covers every watched account, but only the inbox on
@@ -166,19 +171,49 @@ class PushService : Service() {
             // Any credential in the group reaches the shared session; prefer the login's own.
             val owner = group.firstOrNull { it.id == loginId } ?: group.first()
             val watchedJmapIds = group.mapNotNull { it.jmapAccountId }.toSet()
-            connections[loginId] = repo.openAccountPush(
+            val handle = repo.openAccountPush(
                 owner,
                 onChanged = { if (gen == generation) scope.launch { group.forEach { onAccountChanged(it) } } },
                 onClosed = {
+                    // Drop the dead connection now, not at the delayed retry: the status line reads
+                    // isConnected and must say "connecting", not "direct". Done whatever the
+                    // generation — a retired socket that leaves its entry behind keeps isConnected
+                    // answering true until the next arm, and on this path nothing triggers one
+                    // (#130). Paired with the handle, NEVER connections.remove(loginId): this
+                    // callback is asynchronous (close() returns at once, the callback lands later on
+                    // the transport's own thread), so it can fire well after the NEXT generation has
+                    // stored ITS handle under this same key, and a bare removal would expel a live
+                    // connection with nothing left to reschedule it.
+                    retractOwnConnection(connections, loginId, mine.get())
+                    // Deliberately silent when the generation is retired, and that was already the
+                    // rule here: this callback fires on every arm (reconnectAll closes every socket
+                    // first), so a line would print once per healthy arm while saying nothing about
+                    // the race — which the arm's own check below does report, once, where it happens.
                     if (gen == generation) {
-                        // Drop the dead connection now, not at the delayed retry: the status
-                        // line reads isConnected and must say "connecting", not "direct".
-                        runCatching { connections.remove(loginId)?.close() }
                         scheduleReconnect(loginId, group, gen)
                     }
                 },
                 watchedJmapAccountIds = watchedJmapIds,
             )
+            // Store first, check after — whoever writes LAST checks LAST. The baseline pass above
+            // can run for tens of seconds, long enough for a concurrent onStartCommand to retire
+            // this arm, and checking BEFORE the write only narrows the defect (#130): the map can be
+            // swept between the read and the put, and the retired handle lands in it anyway.
+            // Reading after the write closes that order. Whatever the interleaving, the map ends up
+            // either holding the current generation's live handle or holding nothing at all, never a
+            // dead handle: if the current generation stored its own after ours, the retraction below
+            // is paired and leaves it alone; if it stored before and we overwrote it, we take our
+            // own entry back out and the login ends with no entry — isConnected then answers false
+            // and the fallback worker fetches, the safe side (a wasted delta costs a request, a
+            // wrong skip costs mail). ONE read, and it is the one the line prints.
+            mine.set(handle)
+            connections[loginId] = handle
+            val after = generation
+            if (gen != after) {
+                retractOwnConnection(connections, loginId, handle)
+                runCatching { handle.close() }
+                Log.w(TAG, PushController.retiredHandleDroppedLine(loginId, gen, after))
+            }
         }.onFailure {
             Log.e(TAG, "Push watch failed for login $loginId", it)
             scheduleReconnect(loginId, group, gen)
@@ -297,3 +332,37 @@ internal fun isCarriedByOpenConnection(
     carriedBy: Map<String, String>,
     openConnections: Set<String>,
 ): Boolean = (carriedBy[accountId] ?: accountId) in openConnections
+
+/**
+ * Take [loginId] out of [connections] only if the entry sitting there IS [mine] — the handle the
+ * caller opened — and say whether anything was removed.
+ *
+ * A closing connection must drop its own entry, or the map keeps claiming a socket that is gone:
+ * [isConnected] then answers true until the next arm clears the map, and on the path this fixes
+ * nothing triggers one — no reconnect is scheduled, so the account is "connected" with no socket for
+ * an unbounded time (#130).
+ *
+ * The obvious `connections.remove(loginId)` is the wrong way to do it, and worse than the defect it
+ * fixes. A close callback is ASYNCHRONOUS: `close()` returns immediately and the callback lands later
+ * on the transport's own thread, so a socket retired at the top of [PushService.reconnectAll] can
+ * call back long after the next generation has stored ITS handle under the same key. A removal by key
+ * alone would then expel a live connection, silently, with nothing left to reschedule it.
+ *
+ * Pairing is by IDENTITY: two handles that compare equal are still two sockets, and only the one
+ * actually recorded may be taken away. [mine] null means the caller never got as far as storing
+ * anything, so it owns no entry and removes none.
+ *
+ * The read and the removal are two steps, so a handle swapped in between them survives — the safe way
+ * round: a live connection is kept, and at worst a dead entry waits for the next arm, which clears the
+ * map wholesale. Pure and generic so the rule is executed by unit tests instead of being read off a
+ * service this module cannot instantiate.
+ */
+internal fun <T : Any> retractOwnConnection(
+    connections: MutableMap<String, T>,
+    loginId: String,
+    mine: T?,
+): Boolean {
+    if (mine == null || connections[loginId] !== mine) return false
+    connections.remove(loginId)
+    return true
+}
