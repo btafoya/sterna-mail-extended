@@ -104,7 +104,7 @@ class DraftNumberingFreezeWiringTest {
             "and the discard call must be handed that captured value — nothing else, and no `null` " +
                 "placeholder: `null` destroys nothing, so an emptied draft would come back on the " +
                 "next sync. Body was:\n${save.joinToString("\n")}",
-            listOf("submit(to) { credentials, _ -> repo.discardDraft(credentials, original, originalUidValidity) }"),
+            listOf("repo.discardDraft(credentials, original, originalUidValidity)"),
             save.filter { "repo.discardDraft(" in it },
         )
         assertEquals(

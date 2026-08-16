@@ -40,6 +40,46 @@ class DestroyChecksTheFolderWiringTest {
         )
     }
 
+    /**
+     * The door the fix of #122 left open: the destroy of ONE draft. `destroyDraft`'s JMAP branch
+     * ended on a naked `jmapDestroyAll(connect(credentials), listOf(emailId))` — no folder asked
+     * for, nothing opposed — on the argument that a JMAP id survives everything a folder can go
+     * through. That property is the CAUSE of #122, not its alibi: the id still names the message
+     * after another client (or a server-side rule) has moved the draft out of Drafts, so the
+     * destroy takes it out of the folder it was moved INTO, where the user could still see it.
+     *
+     * Since #95 the draft's upload is deferred, so this destroy fires from `finishDraftSave` in a
+     * headless worker whenever the network comes back: the window between "the composer read the
+     * id" and "the destroy goes out" is measured in days, not milliseconds.
+     *
+     * The expected folder is the draft's own — [draftDestroyFolder], run by [DraftDestroyFolderTest]
+     * — read through `draftMailboxOf`, which is what the "emptied local draft" route already
+     * opposes to its own destroy of the same server copy. Going through `destroyAll` itself is what
+     * makes the check the SAME one: it re-branches on protocol, asks the server where the id is,
+     * spares what is not in that folder alone, and logs the refusal. A refusal is silent here — the
+     * result is dropped, exactly like the three IMAP refusals of this path.
+     */
+    @Test fun aDraftIsDestroyedThroughTheSameCheck_neverStraightOnTheWire() {
+        val body = bodyOf("destroyDraft")
+        assertEquals(
+            "destroyDraft's JMAP branch must destroy through `destroyAll`, naming the DRAFT'S OWN " +
+                "folder (`draftMailboxOf`, i.e. the cached row's mailbox else the Drafts role) so " +
+                "a draft moved out of Drafts since the composer read its id is spared instead of " +
+                "destroyed in its new folder. Whole line, arguments included: handing `null`, the " +
+                "Drafts role alone, or a folder read from anywhere else is the defect back. " +
+                "Body was:\n$body",
+            listOf("destroyAll(credentials, listOf(emailId), draftMailboxOf(credentials, emailId))"),
+            codeLinesNaming(body, "destroyAll("),
+        )
+        assertEquals(
+            "and nothing on this path may reach the unchecked destroyer: `jmapDestroyAll` opposes " +
+                "NOTHING, and calling it here — even after computing the guard — destroys the " +
+                "draft wherever it now is. Body was:\n$body",
+            emptyList<String>(),
+            codeLinesNaming(body, "jmapDestroyAll("),
+        )
+    }
+
     @Test fun everyWaveIsCheckedAgainstTheServerBeforeItIsDestroyed() {
         assertEquals(
             "destroyAll must locate its ids on the server, with the folder the caller expects, " +

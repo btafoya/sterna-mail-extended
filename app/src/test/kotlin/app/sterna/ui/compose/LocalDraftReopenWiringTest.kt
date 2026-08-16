@@ -484,7 +484,18 @@ class LocalDraftReopenWiringTest {
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
                 "submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }",
                 "} else {",
-                "submit(to) { credentials, _ -> repo.discardDraft(credentials, original, originalUidValidity) }",
+                // ⛔ …and the SERVER route reads the same fidelity verdict this one does: a draft
+                // the composer never read whole keeps its server copy and the screen says so
+                // (emptiedServerDraftIsKept, EmptiedServerDraftTest). Unconditional, the expunge
+                // below took a draft made of one inline image on the first save — draftHasContent
+                // draws it EMPTY, since it counts neither inline images nor calendar parts.
+                "submit(to) { credentials, _ ->",
+                "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
+                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
+                "} else {",
+                "repo.discardDraft(credentials, original, originalUidValidity)",
+                "}",
+                "}",
                 "}",
                 "return",
                 "}",

@@ -6458,7 +6458,36 @@ class MailRepository(
             }
             return
         }
-        jmapDestroyAll(connect(credentials), listOf(emailId))
+        // The JMAP half of the same trade, and the door the fix of #122 did not close: this used to
+        // end on a naked `jmapDestroyAll(connect(credentials), listOf(emailId))`, on the argument
+        // that a JMAP id survives everything a folder can go through. That property is the CAUSE of
+        // #122, not the alibi: the id still names the draft after another client — or a server-side
+        // rule — has moved it OUT of Drafts, so the destroy takes it out of the folder it was moved
+        // into, where the user could still see it. Since #95 this fires from the deferred upload
+        // (`uploadDraft` → `finishDraftSave`), in a worker running whenever the network comes back:
+        // the window between the composer reading the id and the destroy going out is days wide.
+        //
+        // Through `destroyAll` so it is literally the same check (it re-branches on protocol, asks
+        // the server where the id is, spares what is not in that folder ALONE, and logs the sparing
+        // — the one line that tells a guard doing its job from a server that stopped reporting
+        // `mailboxIds`). The folder is the draft's own, resolved by `draftDestroyFolder` exactly as
+        // the emptied-local-draft route resolves it for its destroy of this same server copy.
+        //
+        // ⚠ **What this folder is worth, exactly.** It is READ here, not frozen when the composer
+        // read the id — the same live read the emptied-local-draft route has always opposed to its
+        // own destroy of this same server copy. So it catches a move this phone has NOT learned
+        // yet, and not one it has: let a background sync rewrite the cached row with the new folder
+        // (opening that folder in the app is enough) and expected agrees with located, so the
+        // destroy goes out there. Freezing it means a folder carried on the outbox row beside
+        // `draftUidValidity`, i.e. a schema change, and it would have to be paid on BOTH draft
+        // routes at once or it just moves the hole — see
+        // `ai-work/issues/findings/finding-dossier-attendu-lu-au-lieu-d-etre-gele.md`.
+        //
+        // ⛔ REFUSED IS NOT FAILED, and it is silent: the result is dropped, like the three IMAP
+        // refusals above. No new string, no new exception into the "could not save" banner. A
+        // transport failure still throws, from the location read or from the destroy, and the
+        // caller (`runCatching` in `performSend`, the composer's `submit`) decides as before.
+        destroyAll(credentials, listOf(emailId), draftMailboxOf(credentials, emailId))
     }
 
     // ---- outbox (persistent send queue) ----
@@ -6814,8 +6843,10 @@ class MailRepository(
         // sync last recorded, so a Drafts folder renumbered in between is compared with itself,
         // reads "same", and the expunge destroys whichever message now holds that UID. On IMAP a
         // `null` — a row queued before v23 — destroys nothing, which is the safe half of the trade.
-        // On JMAP it is always null and the draft is destroyed all the same: `destroyDraft` ends on
-        // `jmapDestroyAll`, which opposes nothing because a JMAP id needs nothing opposed.
+        // On JMAP it is always null because there is no numbering to oppose there — which is not
+        // the same as nothing being opposed: a JMAP id survives a move, so a destroy firing days
+        // after the composer read it would take the draft out of the folder it was moved INTO
+        // (#122). `destroyDraft`'s JMAP branch opposes the FOLDER instead, through `destroyAll`.
         item.draftEmailId?.let {
             runCatching { destroyDraft(credentials, it, item.draftUidValidity) }
         }

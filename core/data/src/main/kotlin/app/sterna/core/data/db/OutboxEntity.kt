@@ -122,10 +122,26 @@ data class OutboxEntity(
      * duplicate in Drafts is visible and can be deleted; an expunge under an unknown numbering
      * cannot be undone.
      *
-     * On JMAP it is ALWAYS null and the draft IS destroyed all the same — there is nothing to
-     * oppose because a JMAP id survives everything a folder can go through, so `destroyDraft` takes
-     * its own branch (`jmapDestroyAll`) and never asks about numbering. ⛔ Do not read the null as
-     * "JMAP drafts are left behind": they are not, and "fixing" that is fixing a non-bug.
+     * On JMAP it is ALWAYS null, because there is no numbering there to oppose: an `Email/set`
+     * destroy names the message by id, and a JMAP id does not change with the folder. ⛔ Do not
+     * read the null as "JMAP drafts are left behind": they are not, and "fixing" that is fixing a
+     * non-bug.
+     *
+     * ⛔ Nor as "nothing is opposed on JMAP". That an id survives a move is the reason a destroy
+     * fired days later can take the draft out of the folder someone moved it INTO (#122), so
+     * `destroyDraft`'s JMAP branch goes through `destroyAll` and opposes the FOLDER: the server is
+     * asked where the id is, and an id it does not report in the expected folder ALONE is spared,
+     * in silence.
+     *
+     * ⚠ **And be exact about what that folder is worth.** It is `draftMailboxOf`, i.e. the cached
+     * row's own mailbox falling back on the Drafts role — READ at the moment of the destroy, not
+     * frozen when the composer read the id. So it catches the move this phone has not learned yet,
+     * and NOT the move it has already synced: once a background sync has rewritten the cached row
+     * with the new folder, expected and located agree and the destroy goes out there. This is the
+     * same live read the emptied-local-draft route has always opposed to its own destroy of the
+     * same server copy; closing it means carrying a FROZEN folder on this row, next to
+     * [draftUidValidity], and that is a schema change nobody has paid for yet
+     * (`findings/finding-dossier-attendu-lu-au-lieu-d-etre-gele.md`).
      */
     val draftUidValidity: Long? = null,
     /**

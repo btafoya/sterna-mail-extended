@@ -218,7 +218,19 @@ class ComposeViewModelWiringTest {
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
                 "submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }",
                 "} else {",
-                "submit(to) { credentials, _ -> repo.discardDraft(credentials, original, originalUidValidity) }",
+                // ⛔ And the server route reads the SAME verdict the local one does: a draft this
+                // composer never read whole keeps its server copy and the screen says so
+                // (emptiedServerDraftIsKept). Unconditional, this line expunged a draft made of one
+                // inline image the instant it was saved — drawn empty, because draftHasContent
+                // counts neither inline images nor calendar parts. The notice sits INSIDE the
+                // lambda: submit() reaches Done after it returns.
+                "submit(to) { credentials, _ ->",
+                "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
+                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
+                "} else {",
+                "repo.discardDraft(credentials, original, originalUidValidity)",
+                "}",
+                "}",
                 "}",
                 "return",
                 "}",

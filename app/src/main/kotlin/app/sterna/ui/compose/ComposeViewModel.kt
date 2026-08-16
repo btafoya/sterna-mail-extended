@@ -1880,7 +1880,22 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // very act of taking the row away and comes back with its pre-edit text for good.
                 submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }
             } else {
-                submit(to) { credentials, _ -> repo.discardDraft(credentials, original, originalUidValidity) }
+                // ⛔ …and the SERVER route asks the same question the route above asks, because it
+                // is the same draft and the same expunge: a draft this composer never read WHOLE
+                // keeps its server copy (emptiedServerDraftIsKept, the twin of the decision
+                // planForEmptiedLocalDraft takes). "Empty" here is draftHasContent's answer, and it
+                // counts neither an inline image nor a calendar part — so a draft written elsewhere
+                // and made of one inline image is DRAWN empty, and destroying it on that reading
+                // expunges, for ever, what was never shown. The word is owed, and it is emitted
+                // INSIDE the lambda: submit() reaches Done after this returns, and a notice posted
+                // to a screen already gone is a notice nobody reads.
+                submit(to) { credentials, _ ->
+                    if (emptiedServerDraftIsKept(editingDraftLossy)) {
+                        _notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)
+                    } else {
+                        repo.discardDraft(credentials, original, originalUidValidity)
+                    }
+                }
             }
             return
         }

@@ -223,6 +223,15 @@ class ImapDestroyUnderNumberingTest {
      * number frozen belongs to another folder: opposed to Drafts it reads CHANGED and every
      * discard is refused for ever, or worse it happens to match and licenses the expunge the
      * guard exists to stop.
+     *
+     * ⚠ The needle stays the bare `mailboxOf(`, and it is deliberately WIDER than the two lines it
+     * pins: any other way of resolving a folder in these bodies — `mailboxDao.mailboxOf(`, a bare
+     * `mailboxOf(`, a helper named for one — lands in the list and fails the comparison, which is
+     * the whole point of comparing whole lists rather than searching inside them. It was briefly
+     * narrowed to `emailDao.mailboxOf(` on the argument that the JMAP branch's `draftMailboxOf(`
+     * matched inside it; that argument is false — [codeLinesNaming] is case-sensitive and
+     * `draftMailboxOf(` carries a capital M — so the narrowing bought nothing and cost the rule its
+     * reach. ⛔ Do not narrow it again without running the needle over the body first.
      */
     @Test fun `the numbering is frozen for the very folder the destroy will select`() {
         val resolution = listOf(
