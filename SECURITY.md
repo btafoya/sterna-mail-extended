@@ -100,6 +100,36 @@ Out of scope:
   and `eventSourceUrl` a server advertises are called with your credentials, whichever host
   they name. An `http://` URL advertised over a session that was itself fetched over HTTPS is
   rewritten to `https://` rather than followed in the clear.
+- **The OAuth calls that carry a secret follow no redirect at all.** The four POSTs of the
+  OAuth flows (device authorization, device-token polling, the authorization-code exchange,
+  and every token refresh) use a client of their own, not the JMAP one, built with
+  `followRedirects(false)` and `followSslRedirects(false)`. Their URLs are already resolved
+  when they are called (they come from the metadata just fetched, or are hard-coded for
+  Microsoft), so they have no discovery hop left to make and a 3xx there could only move a
+  secret to another host: OkHttp replays a POST body verbatim on a 307/308, and on the refresh
+  path that body is the long-lived refresh token, sent at every sync; a 301/302/303 becomes a
+  bodyless GET whose answer the caller would then read as a token grant, which would let the
+  redirect target choose the access token the app uses. Such a response is surfaced as a
+  failure instead, and the target is never contacted.
+- **Metadata discovery is the deliberate exception, and it decides who receives the tokens.**
+  `discoverMetadata` keeps the shared JMAP client and does follow 3xx: it is a GET that
+  carries no secret, and real servers behind a proxy or a vhost answer a redirect there
+  (Codeberg #54, #137). Worth stating plainly, because it is the same trade as the JMAP
+  discovery above: that lookup is what names the token endpoint, so whoever answers it,
+  redirects included, chooses the host the token POSTs then go to over HTTPS. Refusing to
+  follow redirects protects the hops that carry a secret; it does not constrain the choice of
+  who receives one.
+- **Autoconfiguration follows redirects by hand, and only within your own domain.** The
+  published-config lookup (`autoconfig.<domain>`, then the `.well-known` path on the domain
+  itself) also uses a client of its own, with `followRedirects(false)`: OkHttp's built-in
+  following pins the scheme but not the host, and a single 302 would be enough to carry the
+  lookup to a third party such as Mozilla's ISPDB, which the privacy policy says the app never
+  contacts. 3xx answers are walked in code instead, at most five hops per URL, and a hop is
+  taken only if it either stays on the very origin already reached (a path-only redirect,
+  which opens no new connection) or passes an explicit test: HTTPS, and a host that is the
+  domain itself or a subdomain of it, matched case-insensitively with the leading dot in
+  place, so `evil-<domain>` and `<domain>.evil.tld` are refused. A refused redirect ends that
+  lookup with nothing, and the refused target is never contacted at all.
 - **Cleartext is never a default and never silent.** The sign-in screen offers no cleartext
   option: an account is created over TLS or STARTTLS. The account editor does offer
   `ConnectionSecurity.NONE`, because a bridge on 127.0.0.1 (Proton Bridge and the like) is a
@@ -179,20 +209,34 @@ Out of scope:
 
 ### Android platform surface
 
-- Two components are exported. The first is the launcher `MainActivity`, and it does read
-  untrusted input: `mailto:` deep links (VIEW+BROWSABLE and SENDTO filters) plus
-  `ACTION_SEND` / `ACTION_SEND_MULTIPLE` in `*/*`, from which it reads `EXTRA_SUBJECT`,
-  `EXTRA_TEXT` and `EXTRA_STREAM`. All of it is treated as compose-screen prefill and nothing
-  more. A `mailto:` is parsed with the platform `MailTo` parser inside a `runCatching`, so a
-  malformed or hostile URI opens nothing at all; the text extras only fill the subject and
-  body fields; and of the shared URIs, **only `content:` ones are accepted**, so no app can
-  hand over a `file:` path and have Sterna read its own private storage on the sender's
-  behalf. No filesystem path is derived from a shared URI, and the display name is
-  CR/LF-filtered before it can reach a MIME header. No intent extra selects an account,
-  grants a permission, or sends anything, an address carrying a line break is refused before
-  submission, and a consumed payload is stripped from the retained intent so it cannot replay
-  on the next read. Push service, the notification receiver, and the FileProvider are not
-  exported.
+- Two components are exported. The first is the launcher `MainActivity`, and it reads
+  untrusted input from three kinds of entry point. Two of them are compose-screen prefill:
+  `mailto:` deep links (VIEW+BROWSABLE and SENDTO filters) plus `ACTION_SEND` /
+  `ACTION_SEND_MULTIPLE` in `*/*`, from which it reads `EXTRA_SUBJECT`, `EXTRA_TEXT` and
+  `EXTRA_STREAM`. All of it is treated as prefill and nothing more. A `mailto:`
+  is parsed with the platform `MailTo` parser inside a `runCatching`, so a malformed or
+  hostile URI opens nothing at all; the text extras only fill the subject and body fields; and
+  of the shared URIs, **only `content:` ones are accepted**, so no app can hand over a `file:`
+  path and have Sterna read its own private storage on the sender's behalf. No filesystem path
+  is derived from a shared URI, and the display name is CR/LF-filtered before it can reach a
+  MIME header. No intent extra selects an account, grants a permission, or sends anything, an
+  address carrying a line break is refused before submission, and a consumed payload is
+  stripped from the retained intent so it cannot replay on the next read. The third entry
+  point is not prefill: a further VIEW+BROWSABLE filter registers `<applicationId>://oauth`,
+  the address a browser returns to at the end of an OAuth authorization-code sign-in, and the
+  answer arrives as the intent's data URI (carrying `code`, `state` and `error`) rather than
+  as an extra. It is the one exported input that can end with an account being added, so what
+  happens to it is decided before any network call, in this order. If no sign-in of this app's
+  own is in flight, the redirect is refused and says so on screen: the PKCE verifier that
+  alone can redeem a code is held in memory only and never persisted, so a process death
+  during the browser trip leaves nothing to redeem. If something is in flight, the `state` in
+  the URI is compared against the one this app drew for that request, and a redirect that does
+  not match is refused without its `code` or `error` being looked at, so a URI fired by
+  another app cannot get an authorization code of its own choosing exchanged against this
+  client. A mismatch deliberately leaves the pending request armed, so an outside link cannot
+  cancel a sign-in the user really started; a redirect that passes is consumed, and the same
+  one delivered twice finds nothing in flight. Push service, the notification receiver, and
+  the FileProvider are not exported.
 - The second is `BootReceiver`, which restarts the push connection after a reboot or an
   in-place update. It has to be exported: a manifest-declared receiver that is not exported
   never sees a system broadcast at all. Its filter carries `BOOT_COMPLETED` and

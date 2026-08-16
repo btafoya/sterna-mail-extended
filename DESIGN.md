@@ -54,7 +54,7 @@ Three principles:
 
 | Component | Treatment |
 |---|---|
-| Top bar | `LargeTopAppBar` that collapses on scroll; search + settings as actions; hamburger opens the folder drawer. |
+| Top bar | `MediumTopAppBar` that collapses on scroll; an unread-only filter, sort, search and an overflow menu as actions; hamburger opens the folder drawer, and Settings sits at the foot of that drawer rather than in the bar. |
 | Message row | monogram (a setting) · sender + time · subject · preview (0 to 5 lines, a setting) · an account chip, tinted with the account's own colour when one is set, where rows come from several accounts (unified inbox, search) · paperclip and favourite star at the end. **Unread is shown by weight, never by a status dot**: sender, time and subject go bold, and the row also takes `surfaceContainerHighest` unless the reader turns that background off — bold alone read too faint in the dark scheme. |
 | Folder drawer | `ModalNavigationDrawer` (the M3 drawer I kept): account header, folder tree, selected item in `secondaryContainer`. |
 | Compose FAB | `FloatingActionButton` (extended) that shrinks to icon-only on scroll. |
@@ -100,24 +100,31 @@ configuration is reachable, but general settings stay on the surface.
 
 ```
 Settings (hub)
-├─ Accounts
-│   ├─ <account>            → per-account detail
-│   ├─ …
-│   └─ + Add account        → existing connect flow
-├─ Appearance               → theme, dynamic colour, list density
-├─ Notifications            → push scope, new-mail, quiet hours
-├─ Reading                  → swipe actions, threading, mark-as-read
-├─ Writing                  → signatures/identities, undo send, receipts, quote
-├─ Privacy & Security       → remote images, app lock, link safety
-├─ Storage & Sync           → cache, attachment download policy, export/import
-└─ About                    → version, source, licences, privacy, report issue
+├─ Accounts                     → per-account detail, add an account, server settings
+├─ App
+│   ├─ Appearance               → language, theme, dynamic colour, message list
+│   ├─ Reading and writing      → conversations, message, swipe actions, signature
+│   ├─ Notifications            → delivery, new mail, notification content, quiet hours
+│   ├─ Privacy & security       → app lock, links, read receipts, quoted dates,
+│   │                             remote images, recipient suggestions
+│   ├─ Storage                  → on-device usage, cached messages, mailbox quota
+│   └─ Backup & restore         → export / import the app's settings
+├─ This account · <name>        → server-side, and only for the account in use
+│   ├─ Vacation responder       → auto-reply while you're away
+│   └─ Filters                  → server-side rules (Sieve)
+└─ About                        → version, source, licence, author
 ```
+
+`App`, the account group and `About` are section headers, not screens: About is
+four rows the hub draws itself (version, source, licence, author). The account
+group carries the name of the account in use, so switching account is what
+changes which server its two screens write to.
 
 ### Global vs per-account
 
 | Per-account (Accounts → detail) | Global (top-level categories) |
 |---|---|
-| Display name, account colour, signature override, per-account notifications, server info (read-only), **Sign out** | Theme, density, dynamic colour, default signature, undo-send, receipts, swipe actions, remote-image policy, app lock, cache/sync, about |
+| Display name, account colour, signature override, per-account notifications, server info (read-only), **Sign out** | Theme, density, dynamic colour, default signature, undo-send, swipe actions, remote-image policy, read receipts, link safety, app lock, cache/sync, about |
 
 Sign out lives in the per-account detail (not the inbox top bar), consistent with
 the hub model.
@@ -141,7 +148,8 @@ Reuse the existing `SettingSwitch`; add a small, consistent kit:
   `onSurfaceVariant`, summary line in `bodyMedium` / `onSurfaceVariant`.
 - **Detail screens:** sectioned lists; section headers in the single accent
   (`labelLarge`); separation by whitespace, not boxes; `LargeTopAppBar` that
-  collapses on scroll (same pattern as the inbox).
+  collapses on scroll (the inbox collapses the same way, from a
+  `MediumTopAppBar`).
 - Controls use the accent colour; single-choice settings use an M3 dialog or
   bottom sheet.
 - Motion follows the table above: ≤ 250ms, `FastOutSlowIn`, damped (no overshoot).
@@ -155,4 +163,5 @@ figures are about the device; the server's mailbox quota is a separate number.
 
 App preferences are backed by a reactive DataStore `SettingsRepository`
 (`Flow` per setting), separate from `AccountStore`, which keeps accounts,
-credentials, and per-account metadata. See the implementation plan for details.
+credentials, and per-account metadata. Both are listed in
+[Storage & retention](ARCHITECTURE.md#storage--retention).

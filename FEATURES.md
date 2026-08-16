@@ -50,7 +50,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Sterna brand identity, Arctic (light) / Pelagic (dark) palette, a calm sea-teal action colour with a coral accent (the tern's beak); Material You is an opt-in toggle; coastal line-art empty states; calmer microcopy
 - ✅ Per-account colour (avatar + unified-inbox chip); ✅ accessibility pass v1 (screen-reader labels, font scaling, system-bar contrast); 💡 home-screen widget(s), fuller TalkBack audit
 - ✅ Bundled/grouped notifications (per-account summary) + quiet hours (silent nightly window)
-- ✅ Settings export/import (app preferences → JSON file via SAF; excludes accounts/credentials); ✅ `/.well-known/jmap` autodiscovery (email → server); ✅ OAuth2 device-flow sign-in (RFC 8628)
+- ✅ Settings export/import (app preferences → JSON file via SAF; excludes accounts/credentials); ✅ `/.well-known/jmap` autodiscovery (email → server); ✅ password-free OAuth2 sign-in (device flow, RFC 8628; authorization code + PKCE, RFC 6749 §4.1 + RFC 7636, for servers with no device endpoint)
 
 ---
 
@@ -78,14 +78,14 @@ The categories further down list the full feature set; this is the order of work
   so they read as written instead of one run-on block or mid-sentence wraps
 - ✅ Offline reading (Room cache)
 - ✅ Mark read/unread, star, archive, delete *(M3; JMAP + IMAP)*
-- ✅ Optional "mark as read when deleting" (Settings → Reading), so deleted mail doesn't sit unread in Trash
+- ✅ Optional "mark as read when deleting" (Settings → Reading and writing), so deleted mail doesn't sit unread in Trash
 - ✅ Unread shown by bold text (not a status dot)
 - ✅ Folder navigation drawer; view any mailbox *(M3)*
-- ✅ ⭐ Conversation threading, JMAP native `Thread` objects. The list collapses a thread into one row with a message-count badge (Settings → Reading → Conversation view, on by default; toggle off for a flat list); opening a row shows the thread view. Grouping is done in SQL (representative = latest message, unread if any in the thread). Threads come from the server, so the setting groups messages on a **JMAP** account and leaves one row per message on an **IMAP** account; the switch says so and is never greyed out
-- ✅ Unarchive on reply (Settings → Reading), on **JMAP**: when a new reply arrives, the conversation's archived messages come back to the Inbox. IMAP has no server thread ids, so the setting does nothing there
+- ✅ ⭐ Conversation threading, JMAP native `Thread` objects. The list collapses a thread into one row with a message-count badge (Settings → Reading and writing → Conversation view, on by default; toggle off for a flat list); opening a row shows the thread view. Grouping is done in SQL (representative = latest message, unread if any in the thread). Threads come from the server, so the setting groups messages on a **JMAP** account and leaves one row per message on an **IMAP** account; the switch says so and is never greyed out
+- ✅ Unarchive on reply (Settings → Reading and writing), on **JMAP**: when a new reply arrives, the conversation's archived messages come back to the Inbox. IMAP has no server thread ids, so the setting does nothing there
 - ✅ Pull-to-refresh
 - ✅ Swipe actions (configurable) with an Undo snackbar for delete/archive; "Empty trash" (Trash overflow menu) destroys, behind the same held-back Undo, at most the messages the folder held when you confirmed, mail filed there afterwards is not touched
-- ✅ Configurable swipe actions (left/right, in Settings → Reading), fired at about half the distance the finger used to travel, and a quick flick triggers them on its own, as in K-9 and Thunderbird; a long press into multi-select gives a short haptic tick
+- ✅ Configurable swipe actions (left/right, in Settings → Reading and writing), fired at about half the distance the finger used to travel, and a quick flick triggers them on its own, as in K-9 and Thunderbird; a long press into multi-select gives a short haptic tick
 - ✅ Sort (newest/oldest, subject, sender, unread-first, starred-first) + Mark-all-read
 - ✅ Multi-select (long-press / select-all): bulk read/unread toggle (keeps the
   selection), archive (Unarchive → Inbox from the Archive folder), move-to-folder, delete
@@ -131,18 +131,18 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Multiple sending identities per account (name + address), **each with its own
   signature** (plain text or HTML, with HTML-file import); a "From" picker in compose
   chooses which to send as (matched to a server `Identity` for JMAP submission)
-- 💡 Read-receipt request and response
+- ✅ Read-receipt request and response: asking for one is an entry in the composer's ⋮ menu (a `Disposition-Notification-To` header on the message you send); answering someone else's is a strip on the opened message, governed by a single switch (Settings → Privacy & security → Read-receipt requests) that is off by default, and nothing is sent without a tap
 
 ## Accounts & setup
 
 - ✅ Encrypted account persistence (AndroidKeyStore)
 - ✅ Multiple accounts, add / switch / sign out, with migration
 - ✅ Multiple JMAP accounts under one login (RFC 8620 §1.6.2), when a single sign-in exposes several mail accounts (delegated / shared / team mailboxes), each is surfaced as its own account in the drawer switcher, with its own inbox, folders, unread count, mail cache and new-mail notifications, all sharing the one stored credential. Sending from a sub-account uses that account's own server identities. Discovered automatically on connect: Sterna asks the server for that account's mailboxes before adding it and leaves it out when the server refuses, so a share that carries no mail is not turned into an account, and an account the login stops exposing is dropped on the next connect. An account already added by an earlier version stays until you sign out of it and add it again. One push subscription per login carries changes for every account it reaches. A login that exposes a single mail account behaves exactly as before
-- ✅ JMAP **and** IMAP/SMTP account setup (protocol picker; host/port/security), IMAP setup has quick-setup presets (Gmail, Yahoo, iCloud, Fastmail, Proton Bridge, Yandex, Mail.ru) that prefill host/port/security, with a reminder that most providers need an app-specific password (not the normal one); a rejected IMAP login repeats that hint. Password fields have a show/hide toggle. (Outlook/Microsoft uses OAuth instead of a password, see the XOAUTH2 item below.)
+- ✅ JMAP **and** IMAP/SMTP account setup, led by the address: the first step asks for the email address alone and probes what its domain publishes, the next step asks only for the secret that answer needs, and the protocol is never a question put to the reader (JMAP is tried first on that secret, the published IMAP/SMTP settings only if no JMAP server answers). The manual form (protocol picker; host/port/security) is the fallback, and what decides whether it is offered is the IMAP/SMTP autoconfig verdict alone: a domain that publishes an OAuth server but no autoconfig and no TLS-valid `imap.`/`mail.` host still lands there. IMAP setup has quick-setup presets (Gmail, Yahoo, iCloud, Fastmail, Proton Bridge, Yandex, Mail.ru) that prefill host/port/security, with a reminder that most providers need an app-specific password (not the normal one); a rejected IMAP login repeats that hint. Password fields have a show/hide toggle. (Outlook/Microsoft uses OAuth instead of a password, see the XOAUTH2 item below.)
 - ✅ Account management panel, per-account editable server settings (protocol-aware: JMAP URL, or IMAP/SMTP host/port/security; username, password), with a "Test connection" button that validates the (edited) settings before saving
 - ✅ Optional account display name (falls back to the address when unset)
-- ✅ Onboarding via `/.well-known/jmap` autodiscovery, enter just email + password; Sterna probes the email domain's well-known endpoint (and mail./jmap. subdomains, following redirects, which can legitimately land on another host, which is then given the credentials over HTTPS) to find the JMAP server, with a manual-server fallback; 💡 DNS SRV (`_jmap._tcp`)
-- ✅ OAuth2 / Bearer auth, "Sign in with OAuth" uses the OAuth 2.0 Device Authorization Grant (RFC 8628): discovers the server's `/.well-known/oauth-authorization-server`, shows a user code to enter in the browser, polls for tokens, and stores an encrypted refresh token (auto-refreshed). No password handled by the app. Verified against Stalwart.
+- ✅ Onboarding by autodiscovery, enter just email + password; Sterna probes the email domain's `/.well-known/jmap` endpoint on four candidates (the bare domain, then the `mail.`, `jmap.` and `api.` subdomains, following redirects, which can legitimately land on another host, which is then given the credentials over HTTPS) to find the JMAP server, and it also reads the IMAP/SMTP settings a domain publishes for itself (Thunderbird autoconfig format, at `autoconfig.<domain>` then `<domain>/.well-known/autoconfig/…`, both on your own domain and nowhere else: no third-party configuration directory is ever contacted), with a manual-server fallback; 💡 DNS SRV (`_jmap._tcp`)
+- ✅ OAuth2 / Bearer auth, Sterna reads the server's `/.well-known/oauth-authorization-server` and drives whichever grant it advertises. The **Device Authorization Grant** (RFC 8628) wins whenever a server offers one, and nothing leaves the app: a user code is shown to type into a browser, and tokens are polled for (verified against Stalwart). A server with **no** device endpoint is signed into with the **Authorization Code Grant + PKCE** (RFC 6749 §4.1 + RFC 7636) instead: a browser opens on the server's own sign-in page and the answer comes back to the app on its own redirect (`<application id>://oauth`). Either way the refresh token is stored encrypted and auto-refreshed, and no password is handled by the app.
 - ✅ **Outlook / Microsoft OAuth2 + XOAUTH2**, "Sign in with Microsoft" via the OAuth 2.0 Device Authorization Grant (a code typed into the browser), against a registered public Azure client; the access token is presented to the IMAP **and** SMTP servers with the **XOAUTH2** SASL mechanism (no password handled or stored; refresh token encrypted and auto-refreshed). Outlook is a provider chip in Add account, with server fields hidden. **Personal Outlook/Hotmail works.** Two limits, both gatekeeping rather than code: **work/school (org) accounts** need the organisation's admin to consent, or a Microsoft "verified publisher" badge I cannot obtain from a personal Microsoft account (investigated, paused); and a brand-new, not-yet-provisioned Outlook mailbox can fail (K-9 fails on it too, it's the account, not the client).
 - 🔜 **Gmail / Google OAuth2 + XOAUTH2** *(planned)*, the XOAUTH2 plumbing above (IMAP + SMTP) is provider-agnostic and reusable; what is missing is a Google OAuth provider (Google client id + endpoints + the `https://mail.google.com/` scope). The real blocker is **Google's verification for restricted Gmail scopes** (a recurring third-party security assessment), not the code. Until then Gmail works with an **app-specific password**, like Yahoo/iCloud/Fastmail.
 - ✅ Per-account colour coding (picker in account settings; tints the account avatar + the unified-inbox account chip)
@@ -164,9 +164,9 @@ The categories further down list the full feature set; this is the order of work
 
 - ✅ Remote image / tracking-pixel blocking by default
 - ✅ App lock, biometric / face, with screen PIN/pattern/password fallback
-- ✅ Per-sender "always load images" allowlist (add from a message's ⋮ menu, or add/remove individual senders + clear all in Settings → Privacy)
+- ✅ Per-sender "always load images" allowlist (add from a message's ⋮ menu, or add/remove individual senders + clear all in Settings → Privacy & security)
 - ✅ Visible no-telemetry stance, [PRIVACY.md](PRIVACY.md) + the README privacy section
-- ✅ Strip tracking parameters from tapped links (Settings → Privacy, on by default); ✅ confirm before opening external links (Settings → Privacy → Links, opt-in; dialog shows the destination, with a Copy button)
+- ✅ Strip tracking parameters from tapped links (Settings → Privacy & security, on by default); ✅ confirm before opening external links (Settings → Privacy & security → Links, opt-in; dialog shows the destination, with a Copy button)
 - ✅ The composer asks the keyboard not to learn from what is being written (`IME_FLAG_NO_PERSONALIZED_LEARNING`), so names, addresses and medical or legal terms typed in a message do not end up in the keyboard's personal dictionary
 
 ## Encryption
@@ -192,8 +192,8 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Theme toggle (auto / light / dark)
 - ✅ Message-list density (compact / normal / spaced)
 - ✅ Row preview length (subject only / 1 / 3 / 5 lines)
-- ✅ Message text size (small / normal / large / huge), scales the message-body WebView (Settings → Reading → Message)
-- ✅ Reply bar toggle (Settings → Reading → Message), hides the Reply and Forward buttons at the bottom of a message; Reply stays in the toolbar at the top, Forward in its menu
+- ✅ Message text size (small / normal / large / huge), scales the message-body WebView (Settings → Reading and writing → Message)
+- ✅ Reply bar toggle (Settings → Reading and writing → Message), hides the Reply and Forward buttons at the bottom of a message; Reply stays in the toolbar at the top, Forward in its menu
 - ✅ Compact inbox top bar showing folder + account
 - ✅ About section in Settings, version (with release date), source code, license and author links
 - 💡 Home-screen widget(s) (unread count / inbox)

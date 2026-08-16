@@ -112,7 +112,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md). In short:
 - `:app`, Android app: Compose UI, ViewModels, push services and workers,
   notifications, OpenKeychain binding, app lock.
 - `:core:jmap`, Kotlin JVM library: JMAP client, session, typed RFC 8620/8621
-  models, EventSource push, OAuth device flow (unit-tested without Android).
+  models, EventSource push, OAuth device flow and authorization code + PKCE
+  (unit-tested without Android).
 - `:core:imap`, Kotlin JVM library: IMAP/SMTP clients, IDLE, MIME parser and
   builder, PGP/MIME, XOAUTH2 (unit-tested without Android).
 - `:core:data`, Android library: `MailRepository`, Room cache, account store,

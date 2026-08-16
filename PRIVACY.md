@@ -45,6 +45,20 @@ token comes from. The rest stays here:
   clear the cache or sign the account out. You can clear it at any time from
   Settings, under Storage, with **Clear cache**, and signing the account out
   clears it too.
+- **Drafts you write on the phone.** A draft's subject, text and recipients are
+  written to the device before anything goes to your server, and they stay there
+  until it has been uploaded, which with no network can be days. Until that
+  upload your server has not seen those. A file you attach is treated
+  differently depending on the account: on a JMAP account it is uploaded to your
+  server the moment you attach it, so the server holds it from then on and the
+  draft keeps only a reference; on an IMAP account, and on a JMAP account with
+  PGP switched on, its bytes are copied into the app's own storage beside the
+  draft instead, so the draft still has them when it finally leaves. The draft
+  and any copies beside it are removed once it reaches the server. One thing
+  outlives that: on those same two kinds of account, the bytes were first staged
+  in the app's cache as you attached them, and that staged copy is cleared when
+  you use **Clear cache** or sign the account out, not when the message goes.
+  Signing out removes all of it.
 - **Settings** — your preferences (e.g. notification scope).
 
 This data is removed when you remove the account or uninstall the app, subject to
@@ -53,44 +67,86 @@ normal Android storage behaviour.
 ## Network connections
 
 Sterna has no server of its own, so every connection it makes goes to a host you
-chose, or to one named in a message you received. There are five, each with what
+chose, or to one named in a message you received. There are six, each with what
 sets it off.
 
 1. **Your mail server**, over **JMAP** or over **IMAP/SMTP**, depending on what
    your account uses. This is where mail is read, searched, sent and synced, and
    where a JMAP EventSource or an IMAP IDLE connection is held open, or a
    periodic check made, to learn about new mail.
-2. **The domain of the address you type**, while you are adding an account, so
-   you do not have to know your server's name. Sterna requests
-   `/.well-known/jmap` over HTTPS on that domain and on its conventional `mail.`,
-   `jmap.` and `api.` subdomains, and each of those requests carries the address
-   and password you just typed, in an HTTPS `Authorization` header. This is how
-   JMAP autodiscovery works: a candidate only counts if it hands back a session
-   for your account, which it cannot do without authenticating you. So each of
-   those four hosts, all derived from your own address's domain, is offered your
-   credentials, and so is any host one of them redirects to. The probe stops at
-   the first candidate that returns a session holding a mail account. Answering
-   is not enough to stop it: a host that refuses the sign-in, or that serves
-   something which is not a JMAP session, is passed over and the next candidate
-   is tried. It happens on the setup screen only, never afterwards.
-3. **Your provider's sign-in service**, and only if your account signs in with
-   OAuth. It is the service that asks you to approve the sign-in and hands back
-   the token. Sterna also goes back to it on its own: an access token expires, so
-   the stored refresh token is sent to the same token endpoint for a fresh one
-   whenever a sync, a send or a push check needs a valid token, screen off and
-   nobody watching. Accounts using a
-   password or an app password never reach it.
-4. **The unsubscribe address the sender put in a newsletter**, and only when you
+2. **The domain of the address you type, and its mail-named subdomains**, asked
+   when you leave the address field or tap Continue, so you do not have to know
+   your server's name. This happens at the address step, before there is any
+   password to send, and all three questions below are asked again if you open
+   the manual server form without filling it in. **None of these requests
+   carries a credential**: they ask the domain how mail is configured for it,
+   not who you are. Three questions are asked, all of them derived from your own
+   address's domain, and each of them may find nothing, in which case you fill
+   the server details in yourself:
+   - **What the domain publishes for mail clients**, fetched over HTTPS from
+     `autoconfig.<domain>/mail/config-v1.1.xml`, then from
+     `<domain>/.well-known/autoconfig/mail/config-v1.1.xml`. A redirect is
+     followed only over HTTPS and only to `<domain>` itself or a subdomain of it,
+     at most five hops, so this fetch cannot be carried off to a third party's
+     configuration database. A refused redirect is never contacted at all.
+   - **The conventional server names**, tried only when the domain published
+     nothing usable: Sterna opens a TLS connection to `imap.<domain>` then
+     `mail.<domain>` on port 993, and to `smtp.<domain>` then `mail.<domain>` on
+     port 465, and keeps a name only if the certificate offered is valid for that
+     exact name. These are connections rather than web requests, and nothing of
+     yours travels over them: the handshake is the whole of the question, and it
+     is asked so that a password is never prefilled towards a host that cannot
+     prove its own name.
+   - **How the domain signs users in**, an HTTPS `GET` of
+     `/.well-known/oauth-authorization-server` on `mail.<domain>`, `jmap.<domain>`
+     and `api.<domain>`. At this step the bare domain is deliberately not asked,
+     because it is usually the organisation's website and its answer would speak
+     for the website rather than for the mail; the "Sign in with OAuth" button on
+     the manual server form does ask it, along with the other three, because
+     there you have said yourself that the server signs in that way. This one is
+     asked for **every** address,
+     whatever it turns out to sign in with, and its answer is what decides
+     whether the next screen offers you a password field or a hand-over to your
+     provider. Redirects are followed here, on purpose, so the answer may come
+     from wherever those three hosts point.
+3. **The same domain again, with your credentials, once you have typed a
+   password.** Sterna requests `/.well-known/jmap` over HTTPS on that domain and
+   on its conventional `mail.`, `jmap.` and `api.` subdomains, and each of those
+   requests carries the address and password you just typed, in an HTTPS
+   `Authorization` header. This is how JMAP autodiscovery works: a candidate only
+   counts if it hands back a session for your account, which it cannot do without
+   authenticating you. So each of those four hosts, all derived from your own
+   address's domain, is offered your credentials, and so is any host one of them
+   redirects to. The probe stops at the first candidate that returns a session
+   holding a mail account. Answering is not enough to stop it: a host that
+   refuses the sign-in, or that serves something which is not a JMAP session, is
+   passed over and the next candidate is tried. It happens on the setup screen
+   only, never afterwards.
+4. **Your provider's sign-in service**, on an account that signs in with OAuth.
+   It is the service that asks you to approve the sign-in and hands back the
+   token. Which host that is comes from the discovery in point 2, which is run
+   for every address; what only ever happens on an OAuth account is the token
+   itself travelling. Worth stating plainly: that host is the one the discovery
+   document named, and the discovery follows redirects, so it need not sit under
+   the domain of your own address. The one exception is the Outlook / Microsoft
+   option, which is not discovered at all: it signs in against Microsoft's own
+   fixed address, `login.microsoftonline.com`. Sterna also goes back to it on its own: an
+   access token expires, so the stored refresh token is sent to the same token
+   endpoint for a fresh one whenever a sync, a send or a push check needs a
+   valid token, screen off and nobody watching. An account using a password or
+   an app password sends it nothing, though its domain was still asked point 2's
+   question.
+5. **The unsubscribe address the sender put in a newsletter**, and only when you
    tap Unsubscribe on that message. Sterna sends that address one HTTPS request
    whose content is fixed by the standard for one-click unsubscribe (RFC 8058).
    It carries none of your credentials, nothing is added to it about you, and no
    page is loaded from it.
-5. **The hosts a sender chose for the remote images in their message**, and only
+6. **The hosts a sender chose for the remote images in their message**, and only
    for a message whose remote content you allowed. That is your doing, once per
    message or once per sender; see "Remote content is blocked by default" below
    for what allowing lets through.
 
-Beyond these five, Sterna opens no connection of its own initiative: no update
+Beyond these six, Sterna opens no connection of its own initiative: no update
 check, no license check, no reporting endpoint.
 
 **A UnifiedPush distributor** (ntfy, NextPush…) sits on the path too, when your
@@ -133,6 +189,13 @@ remote image those messages contain is then fetched, tracking pixels
 included: Sterna does not sort the good from the bad once loading is allowed, and
 nothing in the app filters those pixels out. Allow a sender only when you accept
 that they learn you opened the message.
+
+Reading a message as plain text loads nothing remote at all, including from a
+sender you have allowed: the block stays on for that message, and the text
+Sterna renders in place of the HTML carries no image to fetch in the first
+place. That reading mode is a switch in Settings, under **Reading and writing**,
+off until you turn it on, and the menu in an open message switches the message
+in hand either way.
 
 The rest of a message's remote content stays blocked whatever you allow. Sterna
 puts a content policy on every message it renders, which permits images and media

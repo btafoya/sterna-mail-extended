@@ -33,9 +33,9 @@ mail, on the server *you* choose.
 > every single year. I liked the idea of mail that travels light and always finds
 > its way home._
 
-> **Status: 1.4, and shipping.** Sterna is a complete, daily-drivable email
-> client: read, organise, search, write, schedule, and send mail (with
-> attachments) over JMAP or IMAP/SMTP, across multiple accounts, fully
+> **Status: released, and under active development.** Sterna is a complete,
+> daily-drivable email client: read, organise, search, write, schedule, and send
+> mail (with attachments) over JMAP or IMAP/SMTP, across multiple accounts, fully
 > offline-capable, with OpenPGP encryption, push notifications, and remote
 > content blocked by default. Hit a rough edge? Please tell me about it!
 
@@ -132,8 +132,9 @@ Running your own server, with a free certificate or one you issued yourself? See
 
 **🔑 Accounts & setup**
 - Add an account with just email + password (`/.well-known/jmap` autodiscovery),
-  password-free **OAuth 2.0** sign-in (device flow), or manual IMAP/SMTP with
-  provider presets; a "test connection" button before saving
+  password-free **OAuth 2.0** sign-in (device flow, or the authorization code
+  grant with PKCE through the browser where a server has no device endpoint), or
+  manual IMAP/SMTP with provider presets; a "test connection" button before saving
 - Per-account colour, sync window, and a "Sync new mail" switch governing that
   account's background fetch and its notifications; encrypted credential
   storage (AndroidKeyStore); app lock (biometric / PIN)
