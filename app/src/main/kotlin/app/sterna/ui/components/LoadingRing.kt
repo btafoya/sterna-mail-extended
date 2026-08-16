@@ -62,8 +62,9 @@ fun LoadingRing(
         // incoming measurement Constraints do not allow it" — so it lands at 24 dp, exactly as it
         // did when the caller's modifier was chained onto the indicator directly. No explicit size
         // is forced here: doing so would either freeze the default 40 dp or stretch the ring for a
-        // caller passing fill/min constraints. (All fifteen sites pass align(), size(24.dp) or
-        // nothing; align() is parent data and is read off the Box, which is now the child.)
+        // caller passing fill/min constraints. (The sites pass align(), size(24.dp), padding() or
+        // nothing; align() is parent data and is read off the Box, which is now the child, and
+        // padding on the Box spaces the ring exactly as it spaced the indicator before.)
         Box(
             modifier.clearAndSetSemantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate },
             contentAlignment = Alignment.Center,

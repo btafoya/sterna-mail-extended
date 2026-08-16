@@ -361,7 +361,10 @@ class HandoverBackWiringTest {
     }
 
     @Test fun `the wheel is what WAITING draws, and it is drawn on the label's own line`() {
-        assertPinned("CredentialsPane.WAITING -> CircularProgressIndicator()")
+        // LoadingRing, not a raw CircularProgressIndicator: with the system animations off,
+        // Material 3's indeterminate arc is left on screen as a few pixels of stroke and stops
+        // reading as "waiting" at all (#63).
+        assertPinned("CredentialsPane.WAITING -> LoadingRing()")
     }
 
     @Test fun `the credentials step has three branches, and they bound each other`() {

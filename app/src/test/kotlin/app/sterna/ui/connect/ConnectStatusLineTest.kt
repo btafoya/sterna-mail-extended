@@ -237,10 +237,12 @@ class ConnectStatusWiringTest {
     @Test fun `each branch draws its own body`() {
         assertRun(
             listOf(
-                "StatusLine.Working -> CircularProgressIndicator()",
+                "StatusLine.Working -> LoadingRing()",
             ),
             "the wheel, on the label's own line — a body cannot be swapped away from a label it " +
-                "shares a line with.",
+                "shares a line with. It is LoadingRing, not a raw CircularProgressIndicator: with " +
+                "the system animations off Material 3's indeterminate arc is left on screen as a " +
+                "few pixels of stroke and stops reading as \"working\" (#63).",
         )
         assertRun(
             listOf(

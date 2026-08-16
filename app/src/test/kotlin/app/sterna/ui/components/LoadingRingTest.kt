@@ -144,13 +144,13 @@ class LoadingRingTest {
         )
     }
 
-    // -- 4. the nine other converted sites ----------------------------------------------------------
+    // -- 4. the thirteen other converted sites -------------------------------------------------------
 
     /**
-     * ⚠ SOURCE LINT, and the widest one: fifteen screens were converted from a raw
-     * `CircularProgressIndicator` to [LoadingRing], and six of them are held by the tests above and
+     * ⚠ SOURCE LINT, and the widest one: nineteen screens now draw a [LoadingRing] instead of a raw
+     * `CircularProgressIndicator`, and six of them are held by the tests above and
      * by the wiring tests (`RootRefreshWiringTest`, `NotificationsGateWiringTest`,
-     * `MailBySenderWiringTest`). These are the other nine. None can be rendered in this module, so
+     * `MailBySenderWiringTest`). These are the other thirteen. None can be rendered in this module, so
      * each is pinned by its WHOLE trimmed source line — never `in`/`contains`, which is blind to
      * anything appended — and by the line having to appear EXACTLY ONCE in its file.
      *
@@ -179,6 +179,117 @@ class LoadingRingTest {
         )
     }
 
+    // -- 5. the guard-rail: no full-size Material 3 indicator outside LoadingRing ---------------------
+
+    /**
+     * The four tests below EXECUTE [fullSizeIndicatorSites] on synthetic sources. The table in §4
+     * only sees a site it already knows about; nothing there — and nothing anywhere else in this
+     * module before today — stopped a NEW `CircularProgressIndicator(` from being written full
+     * size on a screen. That happened three times in this one cut (ConnectScreen twice,
+     * ComposeScreen once), suite green each time, which is why the sweep exists.
+     */
+    @Test fun `a bare indicator is a full-size site`() {
+        assertEquals(
+            "an indicator with no size constraint at all draws Material 3's default 40 dp ring, " +
+                "which is a full-size loading indicator and must go through LoadingRing.",
+            listOf(2),
+            fullSizeIndicatorSites(
+                """
+                Box(Modifier.fillMaxSize()) {
+                    CircularProgressIndicator()
+                }
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    @Test fun `a small indicator written on one line passes`() {
+        assertEquals(
+            "a 20 dp indicator sits in a button or a list row; those keep Material 3's arc on " +
+                "purpose and the lint must not touch them.",
+            emptyList<Int>(),
+            fullSizeIndicatorSites(
+                """
+                Row {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(Modifier.height(20.dp).width(20.dp))
+                }
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    @Test fun `a small indicator spread over several lines passes, 28 dp included`() {
+        assertEquals(
+            "the size constraint is read from the WHOLE argument list, balanced from the opening " +
+                "parenthesis — most of the small indicators in the app are written over four or " +
+                "five lines, and reading only the line the call starts on would flag every one of " +
+                "them. 28 dp is the boundary and is small.",
+            emptyList<Int>(),
+            fullSizeIndicatorSites(
+                """
+                item {
+                    CircularProgressIndicator(
+                        Modifier.size(28.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    @Test fun `an indicator above the boundary is a full-size site`() {
+        assertEquals(
+            "40 dp is a centred, full-size loading ring however it is written; the size being " +
+                "spelled out does not make it a small one.",
+            listOf(2),
+            fullSizeIndicatorSites(
+                """
+                Box(Modifier.fillMaxSize()) {
+                    CircularProgressIndicator(
+                        Modifier.size(40.dp),
+                        strokeWidth = 4.dp,
+                    )
+                }
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    /**
+     * ⚠ SOURCE LINT, run over the whole of `app/src/main/kotlin/`. §4 pins the sites we know; this
+     * one refuses the sites nobody has thought of yet, which is the only thing that closes the
+     * relapse.
+     */
+    @Test fun `no screen draws a full-size Material 3 indicator of its own`() {
+        val root = repoRoot()
+        val offenders = File(root, MAIN_SOURCES).walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".kt") }
+            .map { it to it.relativeTo(root).path.replace(File.separatorChar, '/') }
+            .filter { (_, rel) -> rel != LOADING_RING }
+            .sortedBy { (_, rel) -> rel }
+            .flatMap { (file, rel) ->
+                fullSizeIndicatorSites(file.readText()).map { line ->
+                    "$rel:$line — full-size CircularProgressIndicator; draw it with LoadingRing()"
+                }
+            }
+            .toList()
+        assertEquals(
+            "a full-size Material 3 indicator is drawn outside LoadingRing. Each line below is a " +
+                "screen that, with the system animations off, shows a few pixels of arc on the " +
+                "circumference instead of anything that reads as \"loading\" (#63). Replace the " +
+                "call with LoadingRing(...), keeping the modifier as it is — LoadingRing carries " +
+                "it on its Box. If the indicator really is a small one inside a button or a list " +
+                "row, give it its size literally (Modifier.size(N.dp), .width(N.dp) or " +
+                ".height(N.dp), N ≤ $MAX_SMALL_DP) and it stops being a full-size site. Only " +
+                "$LOADING_RING may hold a bare one.",
+            emptyList<String>(),
+            offenders,
+        )
+    }
+
     // -- helpers ------------------------------------------------------------------------------------
 
     /**
@@ -195,31 +306,139 @@ class LoadingRingTest {
     }
 
     /** The file's lines, trimmed, without comments or blanks — a rule must not be met by prose. */
-    private fun codeLines(path: String): List<String> {
-        val root = generateSequence(File("").absoluteFile) { it.parentFile }
-            .firstOrNull { File(it, path).isFile }
-            ?: error("cannot locate the repo root from ${File("").absolutePath}")
-        return File(root, path).readLines()
+    private fun codeLines(path: String): List<String> =
+        File(repoRoot(), path)
+            // ⛔ Not a bare readLines(): a pinned screen that gets renamed or deleted would die on a
+            // FileNotFoundException naming neither the site nor what to do about it, and the whole
+            // point of the lints below is the sentence they fail with.
+            .also { require(it.isFile) { "$path is not in the tree any more. A screen was renamed " +
+                "or removed: point the entry in this file at its new path, or drop it if the " +
+                "loading indicator went away with the screen." } }
+            .readLines()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*") }
-    }
+
+    private fun repoRoot(): File =
+        generateSequence(File("").absoluteFile) { it.parentFile }
+            .firstOrNull { File(it, LOADING_RING).isFile }
+            ?: error("cannot locate the repo root from ${File("").absolutePath}")
 
     /** One converted spinner: the screen it is on, and the whole source line that draws it. */
     private class RingSite(val path: String, val what: String, val line: String)
 
     private companion object {
+        const val MAIN_SOURCES = "app/src/main/kotlin"
         const val LOADING_RING = "app/src/main/kotlin/app/sterna/ui/components/LoadingRing.kt"
         const val MESSAGE_SCREEN = "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt"
         const val INBOX_SCREEN = "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt"
         const val SEARCH_SCREEN = "app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt"
         const val FILTERS_SCREEN = "app/src/main/kotlin/app/sterna/ui/settings/FiltersScreen.kt"
         const val SETTINGS_SCREEN = "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt"
+        const val CONNECT_SCREEN = "app/src/main/kotlin/app/sterna/ui/connect/ConnectScreen.kt"
+        const val COMPOSE_SCREEN = "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt"
 
         /**
-         * The nine converted sites nothing else holds. The six left out are held elsewhere and are
-         * deliberately NOT repeated here: MessageScreen's fetch and body-layout rings (the two
+         * Where the line is drawn between the centred ring the reporter filmed and the small
+         * indicators that keep Material 3's arc on purpose. The biggest small one in the app is the
+         * paging-append spinner of `InboxScreen` at 28 dp, so 28 is inside; Material 3's own
+         * default, and every centred ring, is 40.
+         */
+        const val MAX_SMALL_DP = 28.0
+
+        private const val CALL = "CircularProgressIndicator("
+
+        /** `Modifier.size(20.dp)`, `.width(20.dp)`, `.height(20.dp)` — a size written out in dp. */
+        private val SIZE_CONSTRAINT = Regex("""\.(?:size|width|height)\(\s*(\d+(?:\.\d+)?)\s*\.dp\s*\)""")
+
+        /**
+         * THE RULE, as a pure function: the 1-based line numbers of every full-size
+         * `CircularProgressIndicator(` in [source].
+         *
+         * A call is small — and left alone — when its argument list constrains it to
+         * [MAX_SMALL_DP] or less. The arguments are read by BALANCING parentheses from the call's
+         * own `(`, not off the line it starts on: most small indicators in this app are written
+         * over four or five lines, and a per-line reading would call every one of them full size.
+         * Comments and literals are blanked first, so neither prose nor a string can meet the rule
+         * or unbalance it.
+         *
+         * A size the lint cannot read as a dp literal counts as full size. That is deliberate: the
+         * false positive costs one literal, the false negative costs an unreadable loading screen.
+         */
+        fun fullSizeIndicatorSites(source: String): List<Int> {
+            val code = codeMask(source)
+            val sites = mutableListOf<Int>()
+            var at = code.indexOf(CALL)
+            while (at >= 0) {
+                val before = if (at == 0) ' ' else code[at - 1]
+                if (!before.isLetterOrDigit() && before != '_') {
+                    val sizes = SIZE_CONSTRAINT
+                        .findAll(argumentsAt(code, at + CALL.length - 1))
+                        .map { it.groupValues[1].toDouble() }
+                        .toList()
+                    if (sizes.isEmpty() || sizes.any { it > MAX_SMALL_DP }) {
+                        sites += code.take(at).count { it == '\n' } + 1
+                    }
+                }
+                at = code.indexOf(CALL, at + 1)
+            }
+            return sites
+        }
+
+        /** The text between the `(` at [open] and its matching `)`. */
+        private fun argumentsAt(code: String, open: Int): String {
+            var depth = 0
+            for (i in open until code.length) {
+                when (code[i]) {
+                    '(' -> depth++
+                    ')' -> if (--depth == 0) return code.substring(open + 1, i)
+                }
+            }
+            return code.substring(open + 1)
+        }
+
+        /**
+         * [source] with comments, strings and char literals replaced by spaces, line breaks kept so
+         * line numbers still hold.
+         */
+        private fun codeMask(source: String): String {
+            val out = StringBuilder(source)
+            val n = source.length
+            var i = 0
+            while (i < n) {
+                val opener: Int
+                val closer: String
+                when {
+                    source.startsWith("//", i) -> { opener = 2; closer = "\n" }
+                    source.startsWith("/*", i) -> { opener = 2; closer = "*/" }
+                    source.startsWith("\"\"\"", i) -> { opener = 3; closer = "\"\"\"" }
+                    source[i] == '"' -> { opener = 1; closer = "\"" }
+                    source[i] == '\'' -> { opener = 1; closer = "'" }
+                    else -> { i++; continue }
+                }
+                var j = i + opener
+                while (j < n) {
+                    if (opener == 1 && source[j] == '\\') { j += 2; continue }
+                    if (source.startsWith(closer, j)) break
+                    j++
+                }
+                val end = minOf(n, if (j >= n) n else j + if (closer == "\n") 0 else closer.length)
+                while (i < end) {
+                    if (source[i] != '\n') out[i] = ' '
+                    i++
+                }
+            }
+            return out.toString()
+        }
+
+        /**
+         * The thirteen converted sites nothing else holds. The six left out are held elsewhere and
+         * are deliberately NOT repeated here: MessageScreen's fetch and body-layout rings (the two
          * tests above), SternaApp's two root rings (RootRefreshWiringTest), the notifications gate
          * (NotificationsGateWiringTest) and the by-sender list (MailBySenderWiringTest).
+         *
+         * The last four arrived AFTER the conversion of #63 and were still raw Material 3
+         * indicators: two on the connect walk, two in the composer. They are the reason §5 exists —
+         * the table only ever holds what someone thought to add to it.
          */
         val RING_SITES = listOf(
             RingSite(
@@ -267,6 +486,26 @@ class LoadingRingTest {
                 MESSAGE_SCREEN,
                 "the reader's \"all headers\" sheet, while the headers load",
                 ") { LoadingRing() }",
+            ),
+            RingSite(
+                CONNECT_SCREEN,
+                "the credentials step, while the browser hand-over is running",
+                "CredentialsPane.WAITING -> LoadingRing()",
+            ),
+            RingSite(
+                CONNECT_SCREEN,
+                "the connect walk's status line, while the server is being probed",
+                "StatusLine.Working -> LoadingRing()",
+            ),
+            RingSite(
+                COMPOSE_SCREEN,
+                "the composer, while a reopened draft is being read back",
+                "DraftReopenView.Waiting -> LoadingRing(Modifier.align(Alignment.Center))",
+            ),
+            RingSite(
+                COMPOSE_SCREEN,
+                "the composer, while the message is being sent",
+                "if (sending) LoadingRing(Modifier.padding(horizontal = 16.dp))",
             ),
         )
     }

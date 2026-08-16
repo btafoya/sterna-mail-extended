@@ -89,6 +89,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import app.sterna.R
 import app.sterna.core.data.autoconfig.MailAutoconfigResult
 import app.sterna.ui.components.AppPasswordHelpLink
+import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.PendingImportAccountsSection
 import app.sterna.ui.components.autofill
 import app.sterna.ui.rememberLeaveOnce
@@ -643,7 +644,7 @@ fun ConnectScreen(
                     // hand-over is over, the ask has not changed, and this step used to spin for
                     // ever over nothing. [credentialsPane] decides, a test executes it.
                     when (credentialsPane(ask, state, handedOver)) {
-                        CredentialsPane.WAITING -> CircularProgressIndicator()
+                        CredentialsPane.WAITING -> LoadingRing()
                         // The hand-over is over without an account (cancelled, or failed — the
                         // message is drawn below): the step goes back to being an invitation, and
                         // waits for HER gesture. ⛔ It does not restart on its own: that is what
@@ -948,7 +949,7 @@ fun ConnectScreen(
             val status = statusLine(state, walkStep)
             Column(modifier = Modifier.bringIntoViewRequester(statusReveal)) {
                 when (status) {
-                    StatusLine.Working -> CircularProgressIndicator()
+                    StatusLine.Working -> LoadingRing()
                     StatusLine.ServerNotFound -> Text(
                         text = stringResource(R.string.connect_server_not_found),
                         color = MaterialTheme.colorScheme.error,

@@ -56,7 +56,6 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,6 +129,7 @@ import app.sterna.util.isValidEmail
 import app.sterna.ui.FORCE_ONBOARDING_PREVIEW
 import app.sterna.ui.rememberMotionEnabled
 import app.sterna.ui.components.ContactAvatar
+import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.drawTern
 import app.sterna.contacts.ContactSuggestion
 
@@ -943,7 +943,7 @@ fun ComposeScreen(
         when (reopen) {
           // Still reading the draft. No sentence: a spinner already says "wait", and a line of text
           // under it would be read as a verdict on a fetch that has not answered.
-          DraftReopenView.Waiting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+          DraftReopenView.Waiting -> LoadingRing(Modifier.align(Alignment.Center))
           // Read and failed. One sentence and the X, nothing else: there is no draft to edit, and
           // an editor here would invite a save that adds a second draft beside the first.
           is DraftReopenView.DeadEnd -> Text(
@@ -1158,7 +1158,7 @@ fun ComposeScreen(
                 )
             }
             // Above the body so they stay visible while it fills the rest of the screen.
-            if (sending) CircularProgressIndicator(Modifier.padding(horizontal = 16.dp))
+            if (sending) LoadingRing(Modifier.padding(horizontal = 16.dp))
             (state as? ComposeState.Error)?.let {
                 Text(
                     text = stringResource(

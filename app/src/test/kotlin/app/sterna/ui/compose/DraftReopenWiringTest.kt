@@ -346,7 +346,7 @@ class DraftReopenWiringTest {
             "the composer's body must branch on draftReopenView's answer, one screen per case. " +
                 "Block was:\n$block",
             listOf(
-                "DraftReopenView.Waiting -> CircularProgressIndicator(Modifier.align(Alignment.Center))",
+                "DraftReopenView.Waiting -> LoadingRing(Modifier.align(Alignment.Center))",
                 "is DraftReopenView.DeadEnd -> Text(",
                 "DraftReopenView.Editor ->",
             ),
