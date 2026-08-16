@@ -1,4 +1,4 @@
-# `site/` — the sternamail.org brochure
+# `site/`: the sternamail.org brochure
 
 One page, nine languages, no CMS, no framework, no build chain. `build.py` reads the texts that
 already exist in the repository, fills `template.html`, and writes a finished site into `_out/`.
@@ -7,13 +7,13 @@ Decisions behind all this live in the maintainer's notes, outside this repositor
 
 ```
 site/
-├── build.py            # the generator — standard library only
+├── build.py            # the generator, standard library only
 ├── template.html       # the page, and the repeated blocks it is made of
 ├── style.css           # hand-written, copied verbatim
 ├── i18n/<lang>.txt     # the page's own strings, `key = value`
 ├── assets/screens/     # screenshots, resized once (see below)
-├── nginx-snippet.conf  # GENERATED — the outgoing redirects
-└── _out/               # GENERATED — what gets deployed (not in git)
+├── nginx-snippet.conf  # GENERATED, the outgoing redirects
+└── _out/               # GENERATED, what gets deployed (not in git)
 ```
 
 ## Build

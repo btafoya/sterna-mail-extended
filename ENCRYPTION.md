@@ -53,15 +53,15 @@ OpenKeychain prompts you when it needs your passphrase.
 
 So the setup is two apps:
 
-1. **Sterna** — your mail client (this app).
-2. **OpenKeychain** — your keyring.
+1. **Sterna**: your mail client (this app).
+2. **OpenKeychain**: your keyring.
 
 Install OpenKeychain from
 [F-Droid](https://f-droid.org/packages/org.sufficientlysecure.keychain/) (or
 from inside Sterna: **Settings → your account → OpenPGP encryption → Get
 OpenKeychain**).
 
-## Step 1 — Create your key in OpenKeychain
+## Step 1: Create your key in OpenKeychain
 
 Open OpenKeychain and either create a new key or import one you already have.
 
@@ -79,7 +79,7 @@ Open OpenKeychain and either create a new key or import one you already have.
 key server), use OpenKeychain's **import** option instead and point it at the
 file or key.
 
-## Step 2 — Connect the key to your account in Sterna
+## Step 2: Connect the key to your account in Sterna
 
 1. In Sterna, go to **Settings → your account → OpenPGP encryption**.
 2. Turn on **Use OpenPGP**.
@@ -91,7 +91,7 @@ file or key.
 
 That is the whole setup. You only do it once per account.
 
-## Step 3 — Send signed / encrypted mail
+## Step 3: Send signed / encrypted mail
 
 When composing, a **padlock button** in the toolbar cycles through three modes,
 and a short banner explains each as you switch:
@@ -114,7 +114,7 @@ Discard or Cancel, and says why: there is nowhere the message could be kept
 without handing your text to the server in the clear. Your own **Sent** copy
 stays readable, because Sterna also encrypts it to your own key.
 
-## Step 4 — Read encrypted / signed mail
+## Step 4: Read encrypted / signed mail
 
 When you open an OpenPGP message, Sterna asks OpenKeychain to decrypt and verify
 it (OpenKeychain may prompt for your passphrase the first time). Above the body
@@ -122,12 +122,12 @@ you will see the result:
 
 - a **padlock** if the message was encrypted, and
 - a **signature badge** coloured by trust:
-  - 🟢 **green** — valid signature from a confirmed key.
-  - 🟡 **yellow** — valid, but from a key you have not confirmed, or the signer
+  - 🟢 **green**: valid signature from a confirmed key.
+  - 🟡 **yellow**: valid, but from a key you have not confirmed, or the signer
     does not match the sender address.
-  - 🔴 **red** — the signature does not verify: the content may have been
+  - 🔴 **red**: the signature does not verify: the content may have been
     altered, or the key is revoked / expired / insecure.
-  - ⚪ **grey** — the signer's public key is not in OpenKeychain, so the
+  - ⚪ **grey**: the signer's public key is not in OpenKeychain, so the
     signature cannot be checked. Import their key to verify it.
 
 Sterna also reads legacy **inline PGP** messages, not just modern PGP/MIME.

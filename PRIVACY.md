@@ -7,12 +7,12 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-08-13.
+explains exactly what that means, in plain terms. Last updated: 2026-08-16.
 
 ## What Sterna does NOT do
 
 - **No analytics or telemetry.** No usage statistics, no event tracking, nothing
-  phoned home — ever.
+  phoned home, ever.
 - **No advertising and no ad SDKs.**
 - **No third-party trackers.** The app contains no tracking or profiling
   libraries.
@@ -33,10 +33,10 @@ credentials to your mail server, which is how it knows you, and, on an OAuth acc
 the stored refresh token to your provider's sign-in service, which is where a new access
 token comes from. The rest stays here:
 
-- **Account credentials** — stored encrypted, protected by the Android KeyStore.
-- **Cached mail** — messages, threads, and mailboxes are cached locally so the
+- **Account credentials**: stored encrypted, protected by the Android KeyStore.
+- **Cached mail**: messages, threads, and mailboxes are cached locally so the
   app works offline. This cache is removed when you sign the account out.
-- **Attachments you open** — an attachment you open is written to the app's own
+- **Attachments you open**: an attachment you open is written to the app's own
   storage until the cache is cleared, including one that arrived encrypted, since
   it has to be decrypted to be opened. The cache is pruned when you open the next
   attachment, and only then: files older than 30 days go first, then the oldest
@@ -59,10 +59,16 @@ token comes from. The rest stays here:
   in the app's cache as you attached them, and that staged copy is cleared when
   you use **Clear cache** or sign the account out, not when the message goes.
   Signing out removes all of it.
-- **Settings** — your preferences (e.g. notification scope).
+- **Settings**: your preferences (e.g. notification scope).
+- **Addresses you have written to.** When you send a message, its recipients are
+  kept in a local list so the To field can complete them as you type. The list
+  holds addresses only, never message content, and it is the one item here that
+  is not filed under an account.
 
-This data is removed when you remove the account or uninstall the app, subject to
-normal Android storage behaviour.
+Everything above is removed when you remove the account or uninstall the app,
+subject to normal Android storage behaviour, with one exception: because the list
+of addresses you have written to is not filed under an account, removing one
+account leaves it in place. Uninstalling the app removes it.
 
 ## Network connections
 
@@ -205,7 +211,7 @@ submissions. JavaScript is off in the message view at all times.
 ## What your mail server can see
 
 Sterna cannot make your email provider private. Whatever server you connect to
-necessarily processes your messages and sees your requests — that is true of any
+necessarily processes your messages and sees your requests, and that is true of any
 email client. If this matters to you, connect Sterna to a server you trust or one
 you run yourself (for example, a self-hosted [Stalwart](https://stalw.art/)
 instance). Choosing and trusting your provider is the one privacy decision Sterna
@@ -219,7 +225,7 @@ Sterna's own manifest declares seven permissions, the minimum the app needs:
 |---|---|
 | `INTERNET` | Reach your mail provider over the network. |
 | `ACCESS_NETWORK_STATE` | Notice whether the device is online. It drives the offline state, the resync once the connection comes back, and whether a failed request is reported as being offline. Sterna reads the connection status, never what travels over it. |
-| `POST_NOTIFICATIONS` | Show new-mail notifications (Android 13+). Optional — you can deny it. |
+| `POST_NOTIFICATIONS` | Show new-mail notifications (Android 13+). Optional; you can deny it. |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` | Keep the push connection alive to deliver new mail without Google's FCM. |
 | `RECEIVE_BOOT_COMPLETED` | Hear that the device has finished booting, or that Sterna was updated in place, so the push connection is restored without opening the app. Granted at install; nothing is asked of you. |
 | `READ_CONTACTS` | Optional and **off by default.** It is requested in two places, both on your say-so: the recipient-autocomplete switch in Settings, and a one-time offer the first time you write a message, which you can decline (it is then never offered again). Contacts are only ever read locally to suggest addresses while composing, and are never uploaded. |

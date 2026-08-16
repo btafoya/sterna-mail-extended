@@ -1,4 +1,4 @@
-# CI — self-hosted Forgejo runner
+# CI: self-hosted Forgejo runner
 
 Codeberg's *hosted* Actions runners are alpha and only for lightweight jobs, so
 Sterna's CI (an Android build) runs on a **self-hosted Forgejo runner**. The
@@ -28,11 +28,11 @@ and on pull requests.
 ## How it works
 
 - The runner advertises the label **`docker`**, mapped to the image
-  `catthehacker/ubuntu:act-22.04` (has `apt`, `curl`, `git` — enough for a
+  `catthehacker/ubuntu:act-22.04` (has `apt`, `curl`, `git`, enough for a
   shell-based checkout and Android SDK install).
 - The workflow installs JDK 17 + the Android SDK (API 36) with plain shell, so it
   doesn't depend on third-party actions being mirrored by Codeberg.
-- **The workflow uses no `uses:` steps at all, deliberately — including for the
+- **The workflow uses no `uses:` steps at all, deliberately, including for the
   checkout.** See the troubleshooting entry below before "simplifying" that back
   to `actions/checkout`.
 
@@ -55,11 +55,11 @@ Upgrading the runner does **not** fix it (checked on 12.13.2): the assumption
 lives in act's copy. The path is a hash, so it cannot be pre-created in the
 image either. **The fix is to use no actions**: a workflow made only of `run:`
 steps has nothing to copy. That is why the checkout here is a hand-rolled
-`git init` + `git fetch --depth 1` + `git checkout` — see the comment at the top
+`git init` + `git fetch --depth 1` + `git checkout`, see the comment at the top
 of the workflow. Hit on 2026-07-31, hours after an unattended upgrade took the
 host from Docker 29.6.2 to 29.7.0.
 
-**"registration token not found"** — registration tokens are **single-use**. If a
+**"registration token not found"**: registration tokens are **single-use**. If a
 previous attempt already consumed it, get a fresh one (and delete any half-created
 runner) in Codeberg → Settings → Actions → Runners, then re-register cleanly:
 
@@ -70,12 +70,12 @@ rm -rf ./data              # drop any partial .runner state
 docker compose up -d
 ```
 
-**"all predefined address pools have been fully subnetted"** — Docker is out of
+**"all predefined address pools have been fully subnetted"**: Docker is out of
 network subnets (a busy host). This setup avoids creating networks
 (`network_mode: bridge` + the generated config's `container.network: "bridge"`).
 Reclaim unused ones too: `docker network prune -f`.
 
-> The runner config is generated **inside** the container — there is no
+> The runner config is generated **inside** the container, there is no
 > `config.yml` to bind-mount (an earlier version did, which could create a stray
 > `config.yml/` directory if the file was missing). `git pull` to get this fix.
 

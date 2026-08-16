@@ -27,18 +27,18 @@ instance is the easiest safe target.
 
 In scope:
 
-- **Malicious email content** — HTML/CSS, MIME structure, headers, attachments, inline
+- **Malicious email content**: HTML/CSS, MIME structure, headers, attachments, inline
   images. Assume the sender is hostile and the message is crafted to exploit the client.
-- **Malicious or compromised mail server / network attacker** — a hostile server, or an
+- **Malicious or compromised mail server / network attacker**: a hostile server, or an
   active man-in-the-middle on the network path, feeding crafted protocol responses or
   attempting to downgrade/intercept the connection.
-- **Local attacker with brief physical access** — recents/screenshots, device backups,
+- **Local attacker with brief physical access**: recents/screenshots, device backups,
   and another app on the device attempting IPC against Sterna's components.
 
 Out of scope:
 
 - The security of the mail server you choose (Sterna cannot make a hostile provider
-  private — see [PRIVACY.md](PRIVACY.md)).
+  private, see [PRIVACY.md](PRIVACY.md)).
 - A fully compromised device / OS, root malware, or hardware attacks.
 - Physical attacks with unlimited time against a powered-off device beyond what the
   Android KeyStore provides.
@@ -49,7 +49,7 @@ Out of scope:
 
 - **TLS hostname verification is enforced.** The hand-rolled IMAP/SMTP clients enable
   RFC 2818 endpoint identification (`endpointIdentificationAlgorithm = "HTTPS"`) on every
-  `SSLSocket` — for implicit TLS and after every STARTTLS upgrade — so a certificate that
+  `SSLSocket`, for implicit TLS and after every STARTTLS upgrade, so a certificate that
   chains to a valid CA but does not match the server hostname is rejected. Credentials are
   only ever sent after the TLS handshake completes.
 - **Certificate authorities installed by the user count as valid.** Since Android 7 an app

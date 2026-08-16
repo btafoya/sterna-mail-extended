@@ -1,4 +1,4 @@
-# Push v2 — multi-folder watch (#16) and UnifiedPush transport (#17)
+# Push v2: multi-folder watch (#16) and UnifiedPush transport (#17)
 
 > **Historical document.** This is the design written before the work; it is kept
 > for the reasoning, not as a description of the app. The work shipped in 1.2.0,
@@ -10,12 +10,12 @@
 Design document for the `feature/push-v2` work. Three phases, each independently
 shippable and device-testable; `main` stays releasable throughout.
 
-- **Phase A** — watch folders beyond the Inbox on the existing pipeline
+- **Phase A**: watch folders beyond the Inbox on the existing pipeline
   ([#16](https://codeberg.org/emon/sterna-mail/issues/16)).
-- **Phase B** — UnifiedPush transport for JMAP accounts behind automatic
+- **Phase B**: UnifiedPush transport for JMAP accounts behind automatic
   transport selection ([#17](https://codeberg.org/emon/sterna-mail/issues/17)).
   Zero behavior change when no distributor is installed.
-- **Phase C** — the single "New mail delivery: Instant / Battery saver" setting,
+- **Phase C**: the single "New mail delivery: Instant / Battery saver" setting,
   which also becomes the designated periodic mode for IMAP.
 
 ## New mail delivery: Instant vs Battery saver (user-facing behavior)
@@ -75,7 +75,7 @@ transports**.
 5. Folder selection (#16) is a **simple per-folder switch** in the folder UI. No
    configuration matrix.
 6. Decided during design review:
-   - In Battery saver, **UnifiedPush subscriptions stay active and renewed** —
+   - In Battery saver, **UnifiedPush subscriptions stay active and renewed**:
      they cost Sterna zero battery (the distributor owns the single shared
      connection and runs regardless). "Battery saver" means *Sterna holds no
      persistent connection*; the status line makes the actual behavior visible.
@@ -85,30 +85,30 @@ transports**.
    - Notification **grouping stays per account**; non-Inbox mail shows the
      folder name as notification sub-text. Inbox notifications are unchanged.
 
-## Current pipeline (shipped 1.1.8) — what I build on
+## Current pipeline (shipped 1.1.8): what I build on
 
 All in `app/src/main/kotlin/app/sterna/push/`:
 
-- **`PushService`** — `specialUse` foreground service. One connection per
+- **`PushService`**: `specialUse` foreground service. One connection per
   account (`ConcurrentHashMap<accountId, Closeable>`), a `generation` counter
   retiring stale connections. `watch()` refreshes the inbox
   (`repo.refreshAccountInbox`), seeds or diffs the notification baseline, then
   opens the push connection via `repo.openAccountPush(credentials, onChanged,
-  onClosed)` — JMAP EventSource (SSE) or IMAP IDLE. `onAccountChanged()`
+  onClosed)`: JMAP EventSource (SSE) or IMAP IDLE. `onAccountChanged()`
   re-fetches **the inbox only**; the JMAP `StateChange` event carries no mailbox
   granularity and IMAP IDLE is bound to INBOX
   (`ImapMailService.openIdle` hardcodes `"INBOX"`).
-- **`MailFetchWorker`** — 30-min periodic fallback (`"mail-fetch-fallback"`).
+- **`MailFetchWorker`**: 30-min periodic fallback (`"mail-fetch-fallback"`).
   **No-ops entirely while `PushService.isRunning`.** Otherwise fetches the inbox
   per account and diffs the baseline.
-- **`NewMailNotifier`** — persisted baseline in SharedPreferences
+- **`NewMailNotifier`**: persisted baseline in SharedPreferences
   `"push_baselines"`: key = `accountId`, value = the set of email ids already
   seen. "New" = `id !in baseline && !isSeen`. Shared by the service and the
   worker so they never double-notify.
-- **`Notifications`** — per-account grouping (`"mail:" + accountId`), reply /
+- **`Notifications`**: per-account grouping (`"mail:" + accountId`), reply /
   mark-read / delete actions, quiet hours.
 - **Repository** (`core/data`): `refreshAccountInbox` is inbox-hardcoded but
-  built on two generic pieces — `resolve()` (context-free session + mailbox
+  built on two generic pieces: `resolve()` (context-free session + mailbox
   list, safe for background multi-account work) and `syncMailbox(localAccountId,
   mailboxId)` (delta engine using `Email/queryChanges` + `Email/changes`, full
   query as fallback). Its `syncStates` cursors are **in-memory only**.
@@ -121,7 +121,7 @@ All in `app/src/main/kotlin/app/sterna/push/`:
 
 ---
 
-# Phase A — multi-folder watch (#16)
+# Phase A: multi-folder watch (#16)
 
 Goal: Sieve-filtered (or any) folders can trigger notifications, on the existing
 transports. JMAP gets live coverage; IMAP non-Inbox folders are covered by the
@@ -170,7 +170,7 @@ data class FolderRefresh(
 )
 
 /** Refresh the inbox (unless [includeInbox] is false) plus [extraFolderIds],
- *  context-free — safe for background push across accounts. Watched ids no
+ *  context-free, safe for background push across accounts. Watched ids no
  *  longer present on the server are omitted and reported via [onMissing]. */
 suspend fun refreshAccountFolders(
     credentials: AccountCredentials,
@@ -185,14 +185,14 @@ suspend fun refreshAccountFolders(
   extra id present in the resolved mailbox list; `syncMailbox` per target
   (cheap deltas), then read back from the DAO. One session fetch for N folders.
 - **IMAP**: new `ImapMailService.loadWatchedFolders(credentials, extraPaths,
-  includeInbox, limit)` — a single session: `listFolders()` once, then
+  includeInbox, limit)`: a single session: `listFolders()` once, then
   sequential `SELECT` + fetch per folder on the pooled connection.
-- **Missing folders** (deleted/renamed server-side): auto-prune — the caller
+- **Missing folders** (deleted/renamed server-side): auto-prune, the caller
   drops the watch flag and clears that folder's baseline. A folder deleted
   elsewhere means the watch intent is gone; no error surfaced.
 - I deliberately do **not** reuse `refresh(credentials, mailboxId, …)`: it
   mutates the cached single-account context and rewrites the global mailbox
-  cache — wrong for background multi-account work.
+  cache, wrong for background multi-account work.
 
 ## A3. Per-folder baselines (+ migration)
 
@@ -225,16 +225,16 @@ Non-inbox folders start with no baseline → first sight is a **silent seed**
   (if `resetBaseline` or no baseline) or `notifyDiff(..., mailboxId,
   folderName-if-not-inbox, emails)`. Transport wiring untouched.
 - `onAccountChanged()`:
-  - **JMAP**: re-sync the whole watched set — `StateChange` has no per-mailbox
+  - **JMAP**: re-sync the whole watched set, since `StateChange` has no per-mailbox
     granularity, and per-folder deltas make the fan-out cheap.
-  - **IMAP**: inbox only (`extraFolderIds = emptySet()`) — IDLE only ever
+  - **IMAP**: inbox only (`extraFolderIds = emptySet()`): IDLE only ever
     signals INBOX; other folders belong to the worker (A5). No opportunistic
     polling of other folders on inbox activity.
 - Toggling a folder watch re-arms the service via the existing
   `PushService.start(context)` idiom; the generation bump runs
   `watch(resetBaseline = true)`, which seeds silently.
 
-## A5. MailFetchWorker — coverage matrix
+## A5. MailFetchWorker: coverage matrix
 
 The all-or-nothing `if (PushService.isRunning) return success` gate is replaced
 by per-account coverage, because live push does **not** cover non-Inbox IMAP
@@ -260,7 +260,7 @@ reconnect) is unchanged.
   notifications are unchanged pixel-for-pixel.
 - Quiet hours: unchanged (already inside `notifyDiff`).
 
-## A7. Folder UI — the watch switch
+## A7. Folder UI: the watch switch
 
 Navigation drawer, `InboxScreen.kt`. The existing per-folder overflow
 `DropdownMenu` (currently gated `role == null`) is un-gated to **every folder
@@ -285,7 +285,7 @@ except inbox, sent, drafts, trash and junk**:
   auto-prune (the watch silently drops). Accepted loss.
 - **Folder delete**: drop the flag + clear the folder baseline.
 - **Sign-out**: `NewMailNotifier.clear(accountId)` is added to the sign-out path
-  (also fixes a pre-existing leak — baselines currently survive sign-out).
+  (also fixes a pre-existing leak, baselines currently survive sign-out).
   Watch flags die with the `StoredAccount`.
 - **Watched folder vanishes server-side**: auto-prune (A2).
 
@@ -314,7 +314,7 @@ Device, on the Stalwart test server:
 
 ---
 
-# Phase B — UnifiedPush transport (#17)
+# Phase B: UnifiedPush transport (#17)
 
 Goal: JMAP accounts get push without any persistent connection (no foreground
 service, no permanent notification) whenever a UnifiedPush distributor is
@@ -323,14 +323,14 @@ present. **Without a distributor, behavior is byte-identical to Phase A.**
 ## B1. Dependency & manifest
 
 - `org.unifiedpush.android:connector:3.1.2` (Maven Central, **Apache-2.0**, no
-  Google dependencies — satisfies the FOSS-only rule). App module only. The
+  Google dependencies, satisfies the FOSS-only rule). App module only. The
   `embedded-fcm-distributor` artifact is explicitly **not** added. (Pinned to
   3.1.2, not the latest 3.3.x: 3.2.0+ is built with Kotlin 2.2/2.3 whose metadata
-  the project's Kotlin 2.1 toolchain can't read — bump alongside the Kotlin
+  the project's Kotlin 2.1 toolchain can't read, so bump alongside the Kotlin
   upgrade. See `libs.versions.toml`.)
 - The connector does all the WebPush cryptography: it generates the P-256
   keypair + auth secret per registration (`PushEndpoint.pubKeySet` →
-  `p256dh` / `auth`) and **decrypts** incoming RFC 8188/8291 payloads —
+  `p256dh` / `auth`) and **decrypts** incoming RFC 8188/8291 payloads:
   `onMessage` delivers cleartext JSON. Sterna implements **no crypto**.
 - Manifest:
 
@@ -343,7 +343,7 @@ present. **Without a distributor, behavior is byte-identical to Phase A.**
 ```
 
 `UnifiedPushReceiver` subclasses the connector's abstract
-`org.unifiedpush.android.connector.PushService` (imported by FQN — it collides
+`org.unifiedpush.android.connector.PushService` (imported by FQN, it collides
 by name with Sterna's own `PushService`).
 
 ## B2. core/jmap additions (pure JVM)
@@ -389,20 +389,20 @@ suspend fun destroyPushSubscription(session, auth, id)
 present it is passed to `UnifiedPush.register(vapid = …)`. Stalwart does not
 ship VAPID yet; ntfy/NextPush don't require it. Nothing breaks either way.
 
-## B3. App side — receiver, state machine, fetch path
+## B3. App side: receiver, state machine, fetch path
 
-**`UnifiedPushReceiver`** — thin: each callback delegates to
+**`UnifiedPushReceiver`** is thin: each callback delegates to
 `UnifiedPushManager` with `instance` = local account id (one UP registration per
 account).
 
-**`UnifiedPushStateStore`** — SharedPreferences `"unifiedpush_state"`, one JSON
+**`UnifiedPushStateStore`**: SharedPreferences `"unifiedpush_state"`, one JSON
 blob per account: `deviceClientId` (UUID per install+account), `endpoint`,
 `subscriptionId`, `status` (`NONE / REGISTERING / VERIFYING / ACTIVE / FAILED`),
 `expiresAtMillis`, `statusSinceMillis`, `lastError`. Deliberately **not** in
 `StoredAccount`: endpoints/subscription ids are device-transport state and must
 never travel in account backups.
 
-**`UnifiedPushManager`** — the state machine:
+**`UnifiedPushManager`**: the state machine:
 
 - `ensureRegistered(credentials)`: `NONE/FAILED` → `UnifiedPush.register(ctx,
   instance = accountId, vapid?)` → `REGISTERING`.
@@ -421,11 +421,11 @@ never travel in account backups.
   lands within two worker cycles, update it (recreate on error). The server may
   cap the requested value; store what it returns.
 - Verification watchdog: `VERIFYING` older than 2 min counts as `FAILED`,
-  evaluated lazily at the next `apply()`/worker run — no timer.
+  evaluated lazily at the next `apply()`/worker run, no timer.
 - `teardown(credentials)` on sign-out: `UnifiedPush.unregister(instance)` +
   best-effort `destroyPushSubscription` + state cleared.
 
-**`PushFetchWorker`** — expedited one-shot `OneTimeWorkRequest`
+**`PushFetchWorker`**: expedited one-shot `OneTimeWorkRequest`
 (`RUN_AS_NON_EXPEDITED_WORK_REQUEST_COMPATIBLE`), unique per account, policy
 KEEP (a queued fetch covers coalesced pushes). Body = the shared per-account
 fetch+notify helper:
@@ -442,7 +442,7 @@ three delivery paths can never drift apart. A worker (not an inline fetch in the
 connector service) gives retry semantics, survives the connector service's short
 lifetime, and behaves under Doze (the push already opened a network window).
 
-## B4. Auto-selection — `PushController`
+## B4. Auto-selection: `PushController`
 
 Single orchestration entry point; every current `PushService.start(context)`
 call site becomes `PushController.apply(context)`:
@@ -461,7 +461,7 @@ fun transportFor(credentials) = when {
 `apply(context)`:
 
 1. Eligible accounts = the existing watched set (`pushAllAccounts` / current) ∩
-   `notificationsEnabled` — unchanged.
+   `notificationsEnabled`, unchanged.
 2. JMAP accounts with a distributor: `ensureRegistered(...)`.
 3. Accounts on a **direct** transport remaining? → `PushService.start`; none →
    `PushService.stop`. `PushService.reconnectAll` additionally filters out
@@ -478,11 +478,11 @@ Key behaviors:
   transient double-trigger just causes one redundant delta sync; baselines
   dedupe notifications.
 - **Mixed accounts**: the FGS runs holding connections only for direct accounts.
-  **All-UP**: no FGS at all — the headline win of the phase (no permanent
+  **All-UP**: no FGS at all, the headline win of the phase (no permanent
   notification).
 - **Failure re-evaluation**: UP callbacks, every `apply()` call site (app open,
   settings, account changes), every 30-min worker run (which also calls
-  `renewIfNeeded` and re-checks the distributor — distributor uninstalled while
+  `renewIfNeeded` and re-checks the distributor: a distributor uninstalled while
   the app was closed flips back to EventSource within ≤30 min, with mail still
   flowing via the worker meanwhile).
 
@@ -510,11 +510,10 @@ cleared by `resetSyncState()`. Every UP wakeup is then a true delta.
 
 ## B7. Status line (ships with B)
 
-Account detail screen, under the notifications switch — read-only text from
+Account detail screen, under the notifications switch: read-only text from
 `PushController.statusFor(account)`: "Push: UnifiedPush (ntfy)" (distributor app
-label) / "Push: direct connection" (EventSource and IDLE alike — the protocol
-distinction is not user-relevant) / "Push: connecting…" / "Push: unavailable —
-checking every 30 min".
+label) / "Push: direct connection" (EventSource and IDLE alike, the protocol
+distinction is not user-relevant) / "Push: connecting…" / "Push: unavailable, checking every 30 min".
 
 ## B8. Files touched (Phase B)
 
@@ -538,7 +537,7 @@ create/verify/renew/destroy (no `accountId`, `using=[core]`), response parsing,
 
 Device (Stalwart + ntfy):
 
-1. **No distributor**: byte-identical behavior — FGS notification present,
+1. **No distributor**: byte-identical behavior: FGS notification present,
    EventSource connected, no PushSubscription created server-side.
 2. Install ntfy → reopen app → subscription created + verified; FGS gone
    (single JMAP account); send mail → notification with the app swiped away.
@@ -552,7 +551,7 @@ Device (Stalwart + ntfy):
 
 ---
 
-# Phase C — "Instant / Battery saver" + IMAP periodic mode
+# Phase C: "Instant / Battery saver" + IMAP periodic mode
 
 ## C1. The setting
 
@@ -567,11 +566,11 @@ suspend fun setDeliveryMode(mode: DeliveryMode)
 Default `INSTANT` → existing installs keep their behavior, no migration.
 Included in the settings backup (quiet-hours precedent).
 
-UI — Notifications settings screen, first section, two radio rows:
+UI: Notifications settings screen, first section, two radio rows:
 
-- **Instant** — "Mail arrives as it lands. May keep a background connection
+- **Instant**: "Mail arrives as it lands. May keep a background connection
   open."
-- **Battery saver** — "Checks for mail every 30 minutes. No background
+- **Battery saver**: "Checks for mail every 30 minutes. No background
   connection."
 
 Nothing else. No transport vocabulary. Changing it persists then calls
@@ -585,7 +584,7 @@ Nothing else. No transport vocabulary. Changing it persists then calls
 - **BATTERY_SAVER**: the FGS is never started (`PushService.stop` enforced at
   every `apply()` call site, so it is sticky across boot/app-open). Direct
   accounts (JMAP without distributor, all IMAP) are served solely by the 30-min
-  worker — this *is* the designated IMAP periodic mode; it already exists as the
+  worker: this *is* the designated IMAP periodic mode; it already exists as the
   fallback path, C makes it a first-class outcome. **UnifiedPush subscriptions
   are kept and renewed** (decided): UP costs Sterna zero battery, dropping it
   would degrade delivery for no gain. `Transport` gains `PERIODIC`; in battery
@@ -602,7 +601,7 @@ Final worker coverage matrix:
 ## C3. Status line, final wording
 
 "Push: UnifiedPush (ntfy)" · "Push: direct connection" · "Checked every 30
-minutes (battery saver)" · "Push: connecting…" · "Push: unavailable — checking
+minutes (battery saver)" · "Push: connecting…" · "Push: unavailable, checking
 every 30 min".
 
 ## C4. Files touched (Phase C)
@@ -618,7 +617,7 @@ reboot in battery saver → no FGS after first app open, worker alive.
 
 ---
 
-# Phase B field notes — Stalwart interop quirks (found on-device, 2026-07-17)
+# Phase B field notes: Stalwart interop quirks (found on-device, 2026-07-17)
 
 Both worked around in `UnifiedPushManager`; both worth reporting upstream:
 
@@ -637,7 +636,7 @@ Both worked around in `UnifiedPushManager`; both worth reporting upstream:
 
 Also learned the hard way (now encoded in the state machine): a failed
 create/verify must NOT retrigger registration through the transport-changed
-callback — without the 15-min FAILED cooldown the loop hammered the mail server
+callback, and without the 15-min FAILED cooldown the loop hammered the mail server
 with register+create attempts at double-digit Hz.
 
 # Risks
@@ -647,7 +646,7 @@ with register+create attempts at double-digit Hz.
    servers that cannot compute `queryChanges` (falls back to a full query per
    folder per event).
 2. **Expedited-work quotas** under heavy push volume: degrades to regular work
-   via the compat policy — delivery slightly delayed, never lost.
+   via the compat policy: delivery slightly delayed, never lost.
 3. **Connector 3.x API drift**: pinned to 3.1.2; all connector calls are
    isolated inside `UnifiedPushManager` so surface changes localize.
 4. **Stalwart's ~1-min verification window** vs slow distributor delivery:

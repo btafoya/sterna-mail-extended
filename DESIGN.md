@@ -9,7 +9,7 @@ for building the Compose UI so screens stay consistent. It complements
 
 **Material Expressive, kept restrained.** I use Material 3 Expressive's
 components and motion physics, but dial back colour and bounce. The feel I am
-after is **sober, elegant, and responsive (réactif)** — lively, never busy.
+after is **sober, elegant, and responsive (réactif)**: lively, never busy.
 
 Three principles:
 
@@ -29,7 +29,7 @@ Three principles:
   (wallpaper-derived colour) is an **opt-in setting**, not the direction. No
   multi-colour cards.
 - Convey hierarchy through elevation and spacing rather than hue.
-- Dark mode uses a near-black `surfaceContainerLowest` — elegant, and
+- Dark mode uses a near-black `surfaceContainerLowest`, elegant and
   power-frugal on an OLED panel.
 
 ### Typography
@@ -40,7 +40,7 @@ Three principles:
 
 ### Shape & spacing
 
-- Moderate corner radii (12–16dp). **No card per message row** — use airy rows
+- Moderate corner radii (12–16dp). **No card per message row**: use airy rows
   separated by whitespace. Reserve a card for the opened message only.
 - 8dp grid, generous 16dp margins. Sobriety comes from the whitespace.
 
@@ -55,14 +55,14 @@ Three principles:
 | Component | Treatment |
 |---|---|
 | Top bar | `MediumTopAppBar` that collapses on scroll; an unread-only filter, sort, search and an overflow menu as actions; hamburger opens the folder drawer, and Settings sits at the foot of that drawer rather than in the bar. |
-| Message row | monogram (a setting) · sender + time · subject · preview (0 to 5 lines, a setting) · an account chip, tinted with the account's own colour when one is set, where rows come from several accounts (unified inbox, search) · paperclip and favourite star at the end. **Unread is shown by weight, never by a status dot**: sender, time and subject go bold, and the row also takes `surfaceContainerHighest` unless the reader turns that background off — bold alone read too faint in the dark scheme. |
+| Message row | monogram (a setting) · sender + time · subject · preview (0 to 5 lines, a setting) · an account chip, tinted with the account's own colour when one is set, where rows come from several accounts (unified inbox, search) · paperclip and favourite star at the end. **Unread is shown by weight, never by a status dot**: sender, time and subject go bold, and the row also takes `surfaceContainerHighest` unless the reader turns that background off, because bold alone read too faint in the dark scheme. |
 | Folder drawer | `ModalNavigationDrawer` (the M3 drawer I kept): account header, folder tree, selected item in `secondaryContainer`. |
 | Compose FAB | `FloatingActionButton` (extended) that shrinks to icon-only on scroll. |
 | Opened message | The one place a card is used; HTML in a WebView with remote content blocked. |
 
 **Read receipts, on both sides.** Asking for one is a per-message entry in the composer's overflow
 menu, not an icon of its own: it is a choice read before it is ticked rather than a glyph one
-recognises. Answering someone else's request is a strip on the opened message — it asks, one tap puts
+recognises. Answering someone else's request is a strip on the opened message: it asks, one tap puts
 an answer in the outbox, and nothing leaves without that tap. The single switch that governs the
 strip sits in Privacy & security, is off by default, and has no position that answers on its own.
 
@@ -90,7 +90,7 @@ is [FEATURES.md](FEATURES.md), and there is only one of it.
 ### Model
 
 Settings is a **single hub** with global categories plus a **per-account
-section** — the K-9/Gmail two-tier model. The folder drawer keeps only quick
+section**, the K-9/Gmail two-tier model. The folder drawer keeps only quick
 account switching and folders; full account management lives in Settings. The hub
 itself stays short and scannable (icon · title · summary of the current value);
 depth lives in detail screens. This is **progressive disclosure**: complete

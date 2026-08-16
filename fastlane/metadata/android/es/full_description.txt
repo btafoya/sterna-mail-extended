@@ -1,4 +1,4 @@
-Sterna Mail es un cliente de correo privado y moderno para Android, creado para JMAP, el sucesor más rápido de IMAP, y con soporte completo también para IMAP/SMTP clásico. Usted elige el protocolo al añadir una cuenta, de modo que Sterna Mail funciona con servidores JMAP como Stalwart igual que con cualquier proveedor de correo estándar.
+Sterna Mail es un cliente de correo privado y moderno para Android, creado para JMAP, el sucesor más rápido de IMAP, y con soporte completo también para IMAP/SMTP clásico. Añadir una cuenta empieza solo por su dirección de correo: Sterna Mail deduce el resto de lo que publica su dominio, y recurre a un formulario manual con el protocolo y los datos del servidor cuando no publica nada. Funciona con servidores JMAP como Stalwart igual que con cualquier proveedor de correo estándar.
 
 Es privado por defecto, agradable de usar y software totalmente libre (GPLv3). Sin rastreo, sin publicidad, sin analíticas y sin necesidad de servicios de Google.
 
