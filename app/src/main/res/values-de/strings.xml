@@ -450,6 +450,8 @@
     <string name="settings_smtp_server_label">SMTP-Server</string>
     <string name="settings_smtp_port_label">SMTP-Port</string>
     <string name="settings_smtp_security_title">SMTP-Sicherheit</string>
+    <string name="settings_upload_sent_title">Gesendete Nachrichten hochladen</string>
+    <string name="settings_upload_sent_subtitle">Legt eine Kopie jeder gesendeten Nachricht im Ordner „Gesendet“ ab. Schalte dies aus, wenn dein Server gesendete Nachrichten bereits selbst ablegt.</string>
     <string name="settings_server_url_label">Server-URL</string>
     <string name="settings_username_label">Benutzername</string>
     <string name="settings_password_label">Passwort (leer lassen, um aktuelles beizubehalten)</string>

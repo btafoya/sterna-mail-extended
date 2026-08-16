@@ -450,6 +450,8 @@
     <string name="settings_smtp_server_label">Serwer SMTP</string>
     <string name="settings_smtp_port_label">Port SMTP</string>
     <string name="settings_smtp_security_title">Zabezpieczenia SMTP</string>
+    <string name="settings_upload_sent_title">Przesyłaj wysłane wiadomości</string>
+    <string name="settings_upload_sent_subtitle">Zapisuje kopię każdej wysłanej wiadomości w folderze Wysłane. Wyłącz tę opcję, jeśli serwer sam zapisuje już wysłane wiadomości.</string>
     <string name="settings_server_url_label">Adres URL serwera</string>
     <string name="settings_username_label">Nazwa użytkownika</string>
     <string name="settings_password_label">Hasło (pozostaw puste, aby zachować bieżące)</string>

@@ -553,6 +553,15 @@ class AccountStore(context: Context) {
         saveAccounts(accounts().map { if (it.id == id) it.copy(notificationsEnabled = enabled) else it })
     }
 
+    /** Whether the app files a copy of a sent message in the account's Sent folder (defaults to true). */
+    fun uploadSentCopy(id: String): Boolean = account(id)?.uploadSentCopy ?: true
+
+    /** Enable/disable the app's Sent-folder copy for an account. No-op if the id is unknown. */
+    @Synchronized
+    fun setUploadSentCopy(id: String, enabled: Boolean) {
+        saveAccounts(accounts().map { if (it.id == id) it.copy(uploadSentCopy = enabled) else it })
+    }
+
     /** Extra folders watched for new mail (beyond the Inbox, which is always watched). */
     fun watchedFolders(id: String): Set<String> = account(id)?.watchedFolders ?: emptySet()
 

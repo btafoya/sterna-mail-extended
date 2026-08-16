@@ -6897,7 +6897,17 @@ class MailRepository(
                 attachments = if (prebuiltEntity != null) emptyList() else outAttachments,
                 prebuiltEntity = prebuiltEntity,
             )
-            imap.send(credentials, message, mailboxDao.idForRole(credentials.id, "sent"))
+            // The Sent copy is a SECOND write, and some submission servers file it themselves —
+            // the account then ends up with two. Which folder (if any) reaches the APPEND is
+            // decided by sentMailboxToUpload, here: this is the layer that knows the account.
+            imap.send(
+                credentials,
+                message,
+                sentMailboxToUpload(
+                    accountStore.uploadSentCopy(credentials.id),
+                    mailboxDao.idForRole(credentials.id, "sent"),
+                ),
+            )
             return
         }
         val attachments = stored.map { a ->

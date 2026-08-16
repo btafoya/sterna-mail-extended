@@ -29,6 +29,13 @@ data class StoredAccount(
     /** Whether new-mail notifications fire for this account (per-account opt-out). */
     val notificationsEnabled: Boolean = true,
     /**
+     * Whether a sent message is APPENDed into this account's Sent folder by the app (IMAP only).
+     * Off for a submission server that files the sent copy itself, which otherwise ends up with
+     * two. Defaults to true: a record written before this field existed decodes to the behaviour
+     * it was written under, and a missing copy is invisible where a duplicate is not.
+     */
+    val uploadSentCopy: Boolean = true,
+    /**
      * Extra folders watched for new mail, by mailbox id (JMAP id / IMAP path).
      * The Inbox is always watched and never stored here; empty = inbox only.
      */

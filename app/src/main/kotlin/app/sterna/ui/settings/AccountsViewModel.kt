@@ -184,6 +184,16 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         PushController.apply(getApplication(), userInitiated = true)
     }
 
+    /**
+     * Turn the app's Sent-folder copy on/off for an account (IMAP only). Written at the toggle, not
+     * at Save: this screen's Save button belongs to the text fields, and a switch that waited for it
+     * would lose the choice to a back gesture.
+     */
+    fun setUploadSentCopy(id: String, enabled: Boolean) {
+        store.setUploadSentCopy(id, enabled)
+        refresh()
+    }
+
     /** Load this account's cached-message count into [cacheCount]. */
     fun loadCacheCount(id: String) {
         viewModelScope.launch { _cacheCount.value = storage.accountMessageCount(id) }

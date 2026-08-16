@@ -607,6 +607,8 @@
     <string name="settings_smtp_server_label">SMTP server</string>
     <string name="settings_smtp_port_label">SMTP port</string>
     <string name="settings_smtp_security_title">SMTP security</string>
+    <string name="settings_upload_sent_title">Upload sent messages</string>
+    <string name="settings_upload_sent_subtitle">Saves a copy of each message you send in the Sent folder. Turn this off if your server already files sent messages itself.</string>
     <string name="settings_server_url_label">Server URL</string>
     <string name="settings_username_label">Username</string>
     <string name="settings_password_label">Password (leave blank to keep current)</string>

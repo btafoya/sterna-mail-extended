@@ -450,6 +450,8 @@
     <string name="settings_smtp_server_label">Server SMTP</string>
     <string name="settings_smtp_port_label">Porta SMTP</string>
     <string name="settings_smtp_security_title">Sicurezza SMTP</string>
+    <string name="settings_upload_sent_title">Caricare i messaggi inviati</string>
+    <string name="settings_upload_sent_subtitle">Salva una copia di ogni messaggio inviato nella cartella Inviati. Disattiva questa opzione se il tuo server archivia già da solo i messaggi inviati.</string>
     <string name="settings_server_url_label">URL del server</string>
     <string name="settings_username_label">Nome utente</string>
     <string name="settings_password_label">Password (lascia vuoto per mantenere quella attuale)</string>

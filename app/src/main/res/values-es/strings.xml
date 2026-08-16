@@ -450,6 +450,8 @@
     <string name="settings_smtp_server_label">Servidor SMTP</string>
     <string name="settings_smtp_port_label">Puerto SMTP</string>
     <string name="settings_smtp_security_title">Seguridad SMTP</string>
+    <string name="settings_upload_sent_title">Subir los mensajes enviados</string>
+    <string name="settings_upload_sent_subtitle">Guarda una copia de cada mensaje que envías en la carpeta Enviados. Desactiva esta opción si tu servidor ya guarda por su cuenta los mensajes enviados.</string>
     <string name="settings_server_url_label">URL del servidor</string>
     <string name="settings_username_label">Nombre de usuario</string>
     <string name="settings_password_label">Contraseña (deja en blanco para conservar la actual)</string>

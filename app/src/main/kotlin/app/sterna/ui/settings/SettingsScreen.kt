@@ -1415,6 +1415,7 @@ private fun AccountDetailScreen(
     var syncWindow by remember(accountId) { mutableStateOf(account.syncWindow) }
     var colorArgb by remember(accountId) { mutableStateOf(account.color) }
     var notificationsEnabled by remember(accountId) { mutableStateOf(account.notificationsEnabled) }
+    var uploadSentCopy by remember(accountId) { mutableStateOf(account.uploadSentCopy) }
     var imapHost by remember(accountId) { mutableStateOf(account.imapHost) }
     var imapPort by remember(accountId) { mutableStateOf(account.imapPort.toString()) }
     var imapSecurity by remember(accountId) { mutableStateOf(account.imapSecurity) }
@@ -1701,6 +1702,19 @@ private fun AccountDetailScreen(
                         onSelect = { smtpSecurity = it; markEdited() },
                     )
                     PlaintextSecurityWarning(smtpSecurity)
+                    // IMAP only: sending is SMTP + an APPEND into Sent, and the APPEND is the half
+                    // this switches off for a server that files the sent copy itself. Written at
+                    // the toggle (the Save button below belongs to the text fields); JMAP has no
+                    // second write to cut, so the row stays inside this branch.
+                    SettingSwitch(
+                        title = stringResource(R.string.settings_upload_sent_title),
+                        subtitle = stringResource(R.string.settings_upload_sent_subtitle),
+                        checked = uploadSentCopy,
+                        onCheckedChange = {
+                            uploadSentCopy = it
+                            viewModel.setUploadSentCopy(accountId, it)
+                        },
+                    )
                 } else {
                     SettingTextField(
                         label = stringResource(R.string.settings_server_url_label),
