@@ -1,0 +1,40 @@
+Ajouter un compte
+
+- L'ajout d'un compte part maintenant de votre adresse : Sterna cherche les réglages que votre domaine de courrier publie, au lieu de vous les demander. Le formulaire manuel reste là quand rien n'est publié.
+- Un compte JMAP peut se connecter par le navigateur quand son serveur le demande, avec une preuve PKCE. Le formulaire manuel reste atteignable quand le serveur renvoie la connexion au navigateur.
+
+Lecture
+
+- Les messages peuvent s'ouvrir en texte brut plutôt qu'en HTML. Un interrupteur est dans Réglages, Lecture et écriture, Message, éteint par défaut, et le menu d'un message ouvert bascule dans les deux sens.
+- Sur un corps de message plus large que l'écran, le glissement latéral appartient au corps. Pour changer de message, revenez à la liste.
+- Un bandeau signale désormais que les images distantes d'un message ont été retenues, et propose de les afficher.
+- Les indicateurs de chargement centrés restent immobiles quand les animations du système sont désactivées.
+
+Écriture
+
+- Un brouillon peut être enregistré sans aucun réseau. Il reste sur l'appareil et il est porté jusqu'au serveur à une synchro ultérieure.
+- Un brouillon enregistré localement ne peut plus finir dans un état dont il ne revient pas.
+- Vous pouvez demander un accusé de lecture sur le message que vous rédigez.
+- Sterna peut aussi répondre à une demande d'accusé de lecture reçue. C'est éteint par défaut (Confidentialité et sécurité). Allumé, le message ouvert propose de répondre, et rien ne part sans votre geste.
+- La date de la ligne de citation d'une réponse, et celle de l'en-tête d'un message transféré, peuvent s'écrire en UTC plutôt qu'à l'heure locale de l'appareil (Confidentialité et sécurité).
+- Davantage des chemins qui détruisent un brouillon demandent maintenant la preuve que la copie a bien été reproduite avant.
+- Un accusé du serveur coupé après sa première ligne n'est plus compté comme un envoi échoué.
+
+Comptes et dossiers
+
+- Un compte peut cesser d'écrire sa propre copie dans Envoyés, pour un serveur IMAP qui y range lui-même le courrier envoyé (Compte, Réglages du serveur, Téléverser les messages envoyés). Cela reste allumé par défaut.
+- Le sélecteur de dossier de destination est trié par chemin de dossier, après les dossiers standard qui gardent leur rang.
+
+Notifications et arrière-plan
+
+- Un quatrième choix de ce qu'affiche une notification : l'expéditeur, l'objet et le début du message. Ce n'est pas le choix par défaut.
+- L'écran des réglages de notification affiche les réglages enregistrés, et non les valeurs par défaut, et un envoi échoué s'annonce sans nommer ce que le réglage masque.
+- Une connexion de push IMAP dont le pair était parti relisait la fin du flux au lieu d'échouer. Elle échoue désormais, et la connexion est rouverte.
+- Une relève d'arrière-plan qui n'a rien lu ne remonte plus les notifications de la journée.
+- Un tirer-pour-rafraîchir qui ne revient jamais s'arrête maintenant au bout de trois minutes, et le dit.
+
+Ailleurs
+
+- Le titre des réglages ne déborde plus du bord droit de l'écran.
+- Les listes de choix des réglages défilent, pour que leurs dernières options soient atteignables.
+- Reporter ou déplacer une sélection faite depuis une recherche porte sur toute la sélection, et dit ce qui n'a pas pu être fait.

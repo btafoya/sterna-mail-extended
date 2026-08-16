@@ -1,0 +1,40 @@
+Adding an account
+
+- Adding an account now starts from your address: Sterna looks for the settings your mail domain publishes, instead of asking you for them. The manual form is still there when nothing is published.
+- A JMAP account can sign in through your browser when its server asks for that, with a PKCE proof. The manual form stays reachable when the server hands sign-in over to the browser.
+
+Reading
+
+- Messages can be opened as plain text instead of their HTML. There is a switch in Settings, Reading and writing, Message, off by default, and an item in an open message's menu that goes either way.
+- On a message body wider than the screen, the sideways swipe belongs to the body. To change message, go back to the list.
+- A banner now says when a message's remote pictures were held back, and offers to show them.
+- The centred loading indicators hold still when system animations are turned off.
+
+Writing
+
+- A draft can be saved with no network at all. It stays on the device and is carried up to the server on a later sync.
+- A locally saved draft can no longer end up in a state it cannot come back from.
+- You can ask for a read receipt on the message you are composing.
+- Sterna can also answer a read-receipt request it receives. This is off by default (Privacy & security). Turned on, an open message offers to answer, and nothing is sent unless you tap.
+- The date in a reply's quote line and in a forwarded message's header can be written in UTC instead of this device's local time (Privacy & security).
+- More of the paths that destroy a draft now ask for proof that the copy was reproduced first.
+- A server acknowledgement cut off after its first line is no longer counted as a failed send.
+
+Accounts and folders
+
+- An account can stop writing its own copy into Sent, for an IMAP server that files sent mail there itself (Account, Server settings, Upload sent messages). It stays on by default.
+- The move-to-folder picker is sorted by folder path, after the standard folders keep their ranks.
+
+Notifications and background
+
+- A fourth choice of what a notification shows: the sender, the subject and the start of the message. It is not the default.
+- The notification settings screen shows the settings that are stored, rather than the defaults, and a failed send is announced without naming what the setting hides.
+- An IMAP push connection whose peer had gone kept re-reading the end of the stream instead of failing. It now fails, and the connection is re-opened.
+- A background pass that read nothing no longer raises the day's notifications again.
+- A pull-to-refresh that never comes back now stops after three minutes and says so.
+
+Elsewhere
+
+- The settings title no longer runs off the right edge of the screen.
+- The settings choice dialogs scroll, so their last options can be reached.
+- Snoozing or moving a selection made from a search acts on the whole selection, and says what it could not do.
