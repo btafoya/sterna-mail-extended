@@ -1157,12 +1157,16 @@ fun InboxScreen(
                     MediumTopAppBar(
                         title = {
                             Column {
-                                // Localize the title for standard folders; the unified view
-                                // (no selected id) keeps its already-resolved label.
+                                // Both titles are resolved HERE, not in the ViewModel: a ViewModel outlives a
+                                // configuration change, so a label resolved upstream would stay in the old language.
                                 val selectedRole = ui.mailboxes
                                     .firstOrNull { it.id == ui.selectedMailboxId }?.role
                                 Text(
-                                    mailboxDisplayName(selectedRole, ui.mailboxName),
+                                    if (ui.unified) {
+                                        stringResource(R.string.inbox_all_inboxes)
+                                    } else {
+                                        mailboxDisplayName(selectedRole, ui.mailboxName)
+                                    },
                                     // titleMedium (not titleLarge) so the folder + account
                                     // both fit the Medium bar's title area at large font scales.
                                     style = MaterialTheme.typography.titleMedium,
