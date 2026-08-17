@@ -1716,10 +1716,7 @@ fun InboxScreen(
                                         Modifier.fillMaxWidth().padding(16.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        CircularProgressIndicator(
-                                            Modifier.size(28.dp),
-                                            strokeWidth = 2.dp,
-                                        )
+                                        LoadingRing(Modifier.size(28.dp), strokeWidth = 2.dp)
                                     }
                                 }
                                 is LoadState.Error -> item(key = "append-error") {

@@ -144,13 +144,13 @@ class LoadingRingTest {
         )
     }
 
-    // -- 4. the thirteen other converted sites -------------------------------------------------------
+    // -- 4. the fourteen other converted sites -------------------------------------------------------
 
     /**
-     * ⚠ SOURCE LINT, and the widest one: nineteen screens now draw a [LoadingRing] instead of a raw
+     * ⚠ SOURCE LINT, and the widest one: twenty sites now draw a [LoadingRing] instead of a raw
      * `CircularProgressIndicator`, and six of them are held by the tests above and
      * by the wiring tests (`RootRefreshWiringTest`, `NotificationsGateWiringTest`,
-     * `MailBySenderWiringTest`). These are the other thirteen. None can be rendered in this module, so
+     * `MailBySenderWiringTest`). These are the other fourteen. None can be rendered in this module, so
      * each is pinned by its WHOLE trimmed source line — never `in`/`contains`, which is blind to
      * anything appended — and by the line having to appear EXACTLY ONCE in its file.
      *
@@ -219,20 +219,41 @@ class LoadingRingTest {
         )
     }
 
-    @Test fun `a small indicator spread over several lines passes, 28 dp included`() {
+    @Test fun `a small indicator spread over several lines passes, 24 dp included`() {
         assertEquals(
             "the size constraint is read from the WHOLE argument list, balanced from the opening " +
                 "parenthesis — most of the small indicators in the app are written over four or " +
                 "five lines, and reading only the line the call starts on would flag every one of " +
-                "them. 28 dp is the boundary and is small.",
+                "them (the size below sits on none of them). 24 dp is the boundary and is small.",
             emptyList<Int>(),
+            fullSizeIndicatorSites(
+                """
+                item {
+                    CircularProgressIndicator(
+                        Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    @Test fun `an indicator at the old 28 dp boundary is a full-size site now`() {
+        assertEquals(
+            "28 dp used to pass, because the inbox's paging-append footer was raw at that size. " +
+                "That footer draws a LoadingRing now and the ceiling came down to 24 with it: a " +
+                "28 dp indicator written by hand today is a full-size site and must be flagged. " +
+                "If this one is green, the ceiling never moved and the footer could go back to a " +
+                "raw Material 3 arc unnoticed.",
+            listOf(2),
             fullSizeIndicatorSites(
                 """
                 item {
                     CircularProgressIndicator(
                         Modifier.size(28.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
                 """.trimIndent(),
@@ -339,11 +360,15 @@ class LoadingRingTest {
 
         /**
          * Where the line is drawn between the centred ring the reporter filmed and the small
-         * indicators that keep Material 3's arc on purpose. The biggest small one in the app is the
-         * paging-append spinner of `InboxScreen` at 28 dp, so 28 is inside; Material 3's own
-         * default, and every centred ring, is 40.
+         * indicators that keep Material 3's arc on purpose. The biggest small one left in the app
+         * is the 24 dp spinner of `SettingsScreen`, alone in its column while a device-flow sign-in
+         * runs, so 24 is inside; Material 3's own default, and every centred ring, is 40.
+         *
+         * It was 28 while the inbox's paging-append footer was still raw at that size. That footer
+         * is a [LoadingRing] now, so nothing in the app needs 28 to pass any more, and the ceiling
+         * comes down with it: 28 dp is a full-size site again.
          */
-        const val MAX_SMALL_DP = 28.0
+        const val MAX_SMALL_DP = 24.0
 
         private const val CALL = "CircularProgressIndicator("
 
@@ -431,7 +456,7 @@ class LoadingRingTest {
         }
 
         /**
-         * The thirteen converted sites nothing else holds. The six left out are held elsewhere and
+         * The fourteen converted sites nothing else holds. The six left out are held elsewhere and
          * are deliberately NOT repeated here: MessageScreen's fetch and body-layout rings (the two
          * tests above), SternaApp's two root rings (RootRefreshWiringTest), the notifications gate
          * (NotificationsGateWiringTest) and the by-sender list (MailBySenderWiringTest).
@@ -451,6 +476,11 @@ class LoadingRingTest {
                 "the inbox's centred refresh indicator (a paging refresh, the one on the " +
                     "reporter's screenshot)",
                 "refreshLoading -> LoadingRing(Modifier.align(Alignment.Center))",
+            ),
+            RingSite(
+                INBOX_SCREEN,
+                "the inbox's paging-append footer, while the server page loads",
+                "LoadingRing(Modifier.size(28.dp), strokeWidth = 2.dp)",
             ),
             RingSite(
                 SEARCH_SCREEN,
