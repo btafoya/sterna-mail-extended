@@ -32,10 +32,19 @@ import java.sql.DriverManager
 class LocalSearchFolderFilterSqlTest {
     private lateinit var db: Connection
 
-    /** The DAO's own statement, with `:match` / `:excludedRoles` / `:limit` turned into `?`. */
-    private val searchSql = DaoQuerySource.bindOrder(
+    /**
+     * The DAO's own statement, with `:match` / `:excludedRoles` / `:accountIds` /
+     * `:accountScopeCount` / `:limit` turned into `?`.
+     *
+     * Built per call rather than once: Room expands `IN (:accountIds)` into as many `?` as the
+     * scope holds, so the statement depends on [accountScope]'s size.
+     */
+    private fun searchSql(accountScope: List<String>) = DaoQuerySource.bindOrder(
         DaoQuerySource.daoQuery("EmailFtsDao", "search"),
-        listParams = mapOf("excludedRoles" to NOT_SEARCHED_ROLES.size),
+        listParams = mapOf(
+            "excludedRoles" to NOT_SEARCHED_ROLES.size,
+            "accountIds" to accountScope.size,
+        ),
     )
 
     @Before fun setUp() {
@@ -102,16 +111,25 @@ class LocalSearchFolderFilterSqlTest {
         }
     }
 
-    /** The ids the shipped search query returns for [match]. */
-    private fun search(match: String, limit: Int = 50): List<String> {
-        val (sql, order) = searchSql
+    /**
+     * The ids the shipped search query returns for [match], scoped to [accountScope].
+     *
+     * [accountScope] defaults to the empty list — no account filter at all, which is what the
+     * repository passes when the stored account list cannot be read, and what keeps every case
+     * written before the scope existed answering the same rows.
+     */
+    private fun search(match: String, limit: Int = 50, accountScope: List<String> = emptyList()): List<String> {
+        val (sql, order) = searchSql(accountScope)
         val roles = NOT_SEARCHED_ROLES.toList()
         var role = 0
+        var account = 0
         return db.prepareStatement(sql).use { ps ->
             order.forEachIndexed { i, name ->
                 when (name) {
                     "match" -> ps.setString(i + 1, match)
                     "excludedRoles" -> ps.setString(i + 1, roles[role++])
+                    "accountIds" -> ps.setString(i + 1, accountScope[account++])
+                    "accountScopeCount" -> ps.setInt(i + 1, accountScope.size)
                     "limit" -> ps.setInt(i + 1, limit)
                     else -> error("Unexpected parameter ':$name' in EmailFtsDao.search")
                 }
@@ -237,6 +255,64 @@ class LocalSearchFolderFilterSqlTest {
         index("b1", "mb-7", accountId = "accB")
 
         assertEquals(listOf("a1"), search("token*"))
+        assertEquals(listOf("a1", "b1"), indexedIds("token*"))
+    }
+
+    /**
+     * A row indexed under an account that is GONE stays cherchable otherwise: the index carries no
+     * foreign key to anything, and removing an account does not sweep it. The scope is what hides
+     * it, and the witness says the row is still there — so it is the QUERY doing the work, not a
+     * cleanup that happened to run.
+     */
+    @Test fun aRowOfAnAccountThatIsGoneIsHiddenWhileStayingInTheIndex() {
+        folder("mb-inbox", role = "inbox", accountId = "accA")
+        index("live", "mb-inbox", accountId = "accA")
+        index("ghost", "mb-inbox", accountId = "accGhost")
+
+        assertEquals(listOf("live"), search("token*", accountScope = listOf("accA")))
+        assertEquals(listOf("ghost", "live"), indexedIds("token*"))
+    }
+
+    /**
+     * The inverse witness for the case above: name BOTH accounts and both hits come back. Without
+     * it, a scope clause that matched nothing at all — or one bound to the wrong column — would
+     * pass by returning an empty answer.
+     */
+    @Test fun everyAccountNamedInTheScopeIsSearched() {
+        folder("mb-inbox", role = "inbox", accountId = "accA")
+        index("live", "mb-inbox", accountId = "accA")
+        index("ghost", "mb-inbox", accountId = "accGhost")
+
+        assertEquals(listOf("ghost", "live"), search("token*", accountScope = listOf("accA", "accGhost")).sorted())
+    }
+
+    /**
+     * An EMPTY scope filters nothing, deliberately. `AccountStore.accounts()` answers with an empty
+     * list both for "no account" and for "the stored blob could not be decoded"; filtering on the
+     * second would switch local search off entirely on a healthy install, the same failure the
+     * unknown-folder rule above refuses.
+     */
+    @Test fun anEmptyScopeFiltersNoAccountAtAll() {
+        folder("mb-inbox", role = "inbox", accountId = "accA")
+        index("live", "mb-inbox", accountId = "accA")
+        index("ghost", "mb-inbox", accountId = "accGhost")
+
+        assertEquals(listOf("ghost", "live"), search("token*", accountScope = emptyList()).sorted())
+    }
+
+    /**
+     * The scope does not make the role join's own account match redundant. Two accounts of one
+     * login (issue #31) can mint the SAME mailbox id, and here BOTH are configured, so the scope
+     * keeps both rows: only `mailboxes.accountId = email_fts.accountId` stops account B's trash
+     * from hiding account A's inbox message. Drop that condition and this case is what turns red.
+     */
+    @Test fun accountScopeDoesNotReplaceTheRoleJoinsAccountMatch() {
+        folder("mb-7", role = "inbox", accountId = "accA")
+        folder("mb-7", role = "trash", accountId = "accB")
+        index("a1", "mb-7", accountId = "accA")
+        index("b1", "mb-7", accountId = "accB")
+
+        assertEquals(listOf("a1"), search("token*", accountScope = listOf("accA", "accB")))
         assertEquals(listOf("a1", "b1"), indexedIds("token*"))
     }
 

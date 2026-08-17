@@ -218,17 +218,31 @@ class DeletedMailLeavesTheIndexSqlTest {
         }
     }
 
-    /** The ids the shipped `EmailFtsDao.search` returns — the local half of a user's search. */
-    private fun search(match: String = "token*", limit: Int = 50): List<String> {
+    /**
+     * The ids the shipped `EmailFtsDao.search` returns — the local half of a user's search, scoped
+     * to [accountScope]. Empty by default: no account filter, which is what these cases (all about
+     * un-indexing on delete, not about scope) were written against.
+     */
+    private fun search(
+        match: String = "token*",
+        limit: Int = 50,
+        accountScope: List<String> = emptyList(),
+    ): List<String> {
         val roles = NOT_SEARCHED_ROLES.toList()
         val sql = DaoQuerySource.daoQuery("EmailFtsDao", "search")
-        val (statement, order) = DaoQuerySource.bindOrder(sql, mapOf("excludedRoles" to roles.size))
+        val (statement, order) = DaoQuerySource.bindOrder(
+            sql,
+            mapOf("excludedRoles" to roles.size, "accountIds" to accountScope.size),
+        )
         var role = 0
+        var account = 0
         return db.prepareStatement(statement).use { ps ->
             order.forEachIndexed { i, name ->
                 when (name) {
                     "match" -> ps.setString(i + 1, match)
                     "excludedRoles" -> ps.setString(i + 1, roles[role++])
+                    "accountIds" -> ps.setString(i + 1, accountScope[account++])
+                    "accountScopeCount" -> ps.setInt(i + 1, accountScope.size)
                     "limit" -> ps.setInt(i + 1, limit)
                     else -> error("Unexpected parameter ':$name' in EmailFtsDao.search")
                 }

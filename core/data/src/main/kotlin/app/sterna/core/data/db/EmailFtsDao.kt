@@ -121,15 +121,33 @@ interface EmailFtsDao {
      * search stays instant and offline. A hit whose folder is NOT cached is KEPT: the index and the
      * folder list fill in independently, and an unknown folder must not turn "not synced yet" into
      * "no results" while the user is still typing.
+     *
+     * The ACCOUNT is scoped by [accountIds], a list of ids bound as a parameter rather than joined:
+     * there is no `accounts` table to join against — accounts live in a JSON blob in
+     * `SharedPreferences` (`AccountStore`), so the caller reads them and hands them over. An index
+     * row written under an account that has since been removed is otherwise still searchable, and
+     * came back as a hit belonging to nobody. An EMPTY list filters nothing, deliberately
+     * ([accountScopeCount] is what says so, since Room expands `IN (:accountIds)` into as many `?`
+     * as the list holds): `AccountStore.accounts()` answers with an empty list both for "no
+     * account" and for "the stored blob could not be decoded", and filtering on the second would
+     * turn local search off entirely on a healthy install — the same refusal as the unknown folder
+     * above.
      */
     @Query(
         "SELECT emailId, accountId, mailboxId, threadId, subject, preview, receivedAt, " +
             "fromName, fromEmail, seen, flagged, hasAttachment " +
             "FROM email_fts WHERE email_fts MATCH :match " +
+            "AND (:accountScopeCount = 0 OR email_fts.accountId IN (:accountIds)) " +
             "AND NOT EXISTS (SELECT 1 FROM mailboxes " +
             "WHERE mailboxes.id = email_fts.mailboxId AND mailboxes.accountId = email_fts.accountId " +
             "AND LOWER(TRIM(COALESCE(mailboxes.role, ''))) IN (:excludedRoles)) " +
             "ORDER BY sortKey DESC LIMIT :limit",
     )
-    suspend fun search(match: String, excludedRoles: Collection<String>, limit: Int): List<FtsHit>
+    suspend fun search(
+        match: String,
+        excludedRoles: Collection<String>,
+        accountIds: Collection<String>,
+        accountScopeCount: Int,
+        limit: Int,
+    ): List<FtsHit>
 }

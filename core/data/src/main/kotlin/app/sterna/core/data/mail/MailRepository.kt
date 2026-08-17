@@ -2402,10 +2402,16 @@ class MailRepository(
      * That filter only sees rows LABELLED with an excluded folder; a message that was indexed in
      * the Inbox and then deleted keeps the Inbox as its label forever, and is kept out by
      * `EmailDao.deleteById`/`deleteByIds` un-indexing it as it goes. See `EmailFtsDao.search`.
+     *
+     * Results are bounded to the accounts that are configured RIGHT NOW, read on every call: the
+     * sub-account reconcile (issue #31) adds and prunes accounts mid-session, so a list cached
+     * anywhere would search an account that is gone or miss one that just arrived.
      */
     suspend fun searchIndex(query: String, limit: Int = LOCAL_SEARCH_LIMIT): List<Email> {
         val match = ftsMatch(query) ?: return emptyList()
-        return emailFtsDao.search(match, NOT_SEARCHED_ROLES, limit).map { it.toEmail() }
+        val accountIds = accountStore.accounts().map { it.id }
+        return emailFtsDao.search(match, NOT_SEARCHED_ROLES, accountIds, accountIds.size, limit)
+            .map { it.toEmail() }
     }
 
     /** Build an FTS4 MATCH expression: each word becomes a prefix term, AND-combined ("eco* log*"). */
