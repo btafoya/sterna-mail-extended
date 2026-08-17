@@ -861,6 +861,18 @@
     <string name="status_trash_emptied">Emptying Trash…</string>
     <string name="status_message_archived">Message archived</string>
     <string name="status_message_moved">Message moved</string>
+    <plurals name="status_selection_deleted">
+        <item quantity="one">%1$d message deleted</item>
+        <item quantity="other">%1$d messages deleted</item>
+    </plurals>
+    <plurals name="status_selection_archived">
+        <item quantity="one">%1$d message archived</item>
+        <item quantity="other">%1$d messages archived</item>
+    </plurals>
+    <plurals name="status_selection_moved">
+        <item quantity="one">%1$d message moved</item>
+        <item quantity="other">%1$d messages moved</item>
+    </plurals>
     <string name="status_message_unarchived">Message unarchived</string>
     <string name="status_conversation_deleted">Conversation deleted</string>
     <string name="status_conversation_archived">Conversation archived</string>

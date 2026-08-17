@@ -679,6 +679,24 @@
     <string name="status_message_deleted_forever">Trwałe usuwanie…</string>
     <string name="status_message_archived">Wiadomość zarchiwizowana</string>
     <string name="status_message_moved">Wiadomość przeniesiona</string>
+    <plurals name="status_selection_deleted">
+        <item quantity="one">%1$d wiadomość usunięta</item>
+        <item quantity="few">%1$d wiadomości usunięte</item>
+        <item quantity="many">%1$d wiadomości usuniętych</item>
+        <item quantity="other">%1$d wiadomości usuniętych</item>
+    </plurals>
+    <plurals name="status_selection_archived">
+        <item quantity="one">%1$d wiadomość zarchiwizowana</item>
+        <item quantity="few">%1$d wiadomości zarchiwizowane</item>
+        <item quantity="many">%1$d wiadomości zarchiwizowanych</item>
+        <item quantity="other">%1$d wiadomości zarchiwizowanych</item>
+    </plurals>
+    <plurals name="status_selection_moved">
+        <item quantity="one">%1$d wiadomość przeniesiona</item>
+        <item quantity="few">%1$d wiadomości przeniesione</item>
+        <item quantity="many">%1$d wiadomości przeniesionych</item>
+        <item quantity="other">%1$d wiadomości przeniesionych</item>
+    </plurals>
     <string name="status_message_unarchived">Cofnięto archiwizację wiadomości</string>
     <string name="status_conversation_deleted">Rozmowa usunięta</string>
     <string name="status_conversation_archived">Rozmowa zarchiwizowana</string>

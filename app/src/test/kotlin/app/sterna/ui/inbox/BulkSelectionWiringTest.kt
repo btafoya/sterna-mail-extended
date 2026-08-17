@@ -219,15 +219,70 @@ class BulkSelectionWiringTest {
                 listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
                 codeLinesNaming(body, "selectionUndoEntries("),
             )
-            assertEquals(
-                "and offer them unchanged, only when there are some. Body was:\n$body",
-                listOf(
-                    "if (undoLabel != null && undoEntries.isNotEmpty()) {",
-                    "_undo.value = UndoAction(undoEntries, undoLabel)",
-                ),
-                codeLinesNaming(body, "undoEntries") - listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
-            )
         }
+    }
+
+    /**
+     * And offer them unchanged, only when there are some. The two bodies diverge here since the
+     * batched path's banner counts, so they are pinned apart.
+     *
+     * The snooze path keeps the plain label: its only caller passes none, so no banner of its ever
+     * reaches a screen.
+     */
+    @Test fun `the snooze path offers its entries under a fixed label`() {
+        val body = body(INBOX_VIEW_MODEL, "bulk")
+        assertEquals(
+            "bulk() must offer the entries unchanged, only when there are some. Body was:\n$body",
+            listOf(
+                "if (undoLabel != null && undoEntries.isNotEmpty()) {",
+                "_undo.value = UndoAction(undoEntries, undoLabel)",
+            ),
+            codeLinesNaming(body, "undoEntries") - listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
+        )
+    }
+
+    /**
+     * The batched path is the one the user reaches with a selection, so its banner is a plural and
+     * BOTH halves of it are the batch's business:
+     *
+     *  - WHETHER there is a banner at all — never one without Undo entries behind it, or a success
+     *    bar sits there with no button on it;
+     *  - WHAT it counts — the messages the SERVER wrote, not the entries. `selectionUndoEntries`
+     *    returns an empty list as soon as one row is untrusted and drops every row naming no
+     *    folder, while those messages left the folder all the same: counting entries announces
+     *    "4 messages deleted" for ten deleted.
+     *
+     * Both live in [selectionBanner], which [SelectionUndoTest] executes; this only says the body
+     * still asks it, with the candidates, and formats the answer with the count it gave back.
+     */
+    @Test fun `the batched path offers its entries under a counted plural`() {
+        val body = body(INBOX_VIEW_MODEL, "bulkBatched")
+        assertEquals(
+            "bulkBatched() must ask selectionBanner() — with the CANDIDATES, which is where the " +
+                "count comes from — and offer the entries unchanged under its answer. Body was:\n$body",
+            listOf(
+                "selectionBanner(undoLabelRes, undoCandidates, undoEntries)?.let { banner ->",
+                "_undo.value = UndoAction(undoEntries, label)",
+            ),
+            codeLinesNaming(body, "undoEntries") - listOf("val undoEntries = selectionUndoEntries(undoCandidates)"),
+        )
+        assertEquals(
+            "and the plural is resolved with that count TWICE: once to pick the CLDR category, " +
+                "once to fill %1\$d. Dropping the second argument prints a bare 'messages " +
+                "deleted'; passing anything else than banner.count makes the sentence disagree " +
+                "with the category. Body was:\n$body",
+            listOf("val label = resources.getQuantityString(banner.labelRes, banner.count, banner.count)"),
+            codeLinesNaming(body, "getQuantityString"),
+        )
+        assertEquals(
+            "nothing else may read off the banner, and no count of its own may be built here. " +
+                "Body was:\n$body",
+            listOf(
+                "selectionBanner(undoLabelRes, undoCandidates, undoEntries)?.let { banner ->",
+                "val label = resources.getQuantityString(banner.labelRes, banner.count, banner.count)",
+            ),
+            codeLinesNaming(body, "banner"),
+        )
     }
 
     /** What each path collects for that decision: the TARGET (trust included), and the destination. */
@@ -296,6 +351,34 @@ class BulkSelectionWiringTest {
             "the batched delete takes the plan's move leg. Body was:\n$body",
             listOf("keys = plan.move.mapTo(mutableSetOf()) { it.emailKey() },"),
             codeLinesNaming(body, "plan.move.mapTo"),
+        )
+        // And the label it delegates stays CONDITIONAL. Dropping `.takeIf` leaves a mixed
+        // destroy+move delete showing a counted "3 messages deleted" on top of "Deleting
+        // permanently…" on the one snackbar host, under an Undo that covers only the moved leg.
+        // Whole line, never `in`: a substring rule would accept the takeIf being dropped.
+        assertEquals(
+            "the batched delete's label must be withheld while a destruction is pending — the " +
+                "held-back destroy owns the bar in that case. Body was:\n$body",
+            listOf("undoLabelRes = R.plurals.status_selection_deleted.takeIf { plan.destroy.isEmpty() },"),
+            codeLinesNaming(body, "undoLabelRes"),
+        )
+    }
+
+    /**
+     * The archive is the one selection path with no body of its own to read — a single expression,
+     * so the two rules above have nothing to bite on. Pinned whole here instead, because nothing
+     * else in the suite names it: `undoLabelRes = null` there silently drops the archive's banner
+     * AND its Undo button (the regression Codeberg #23 closed), and the delete's plural there
+     * announces "3 messages deleted" for three archived. Both stay green everywhere else.
+     */
+    @Test fun `the archive delegates under its own plural, and offers an Undo`() {
+        assertEquals(
+            "archiveSelected() must be exactly this delegation. Source was:\n$INBOX_VIEW_MODEL",
+            listOf(
+                "fun archiveSelected() = bulkBatched(undoLabelRes = R.plurals.status_selection_archived) " +
+                    "{ c, ids -> repo.archiveAll(c, ids) }",
+            ),
+            codeLinesNaming(INBOX_VIEW_MODEL.readText(), "fun archiveSelected()"),
         )
     }
 
@@ -416,7 +499,7 @@ class BulkSelectionWiringTest {
                 "either counter is a move that left half the selection in place and said it " +
                 "worked. Arguments were:\n$call",
             listOf(
-                "undoLabel = getApplication<Application>().getString(R.string.status_message_moved)",
+                "undoLabelRes = R.plurals.status_selection_moved",
                 "keys = movable.toMutableSet()",
                 "attemptedBefore = skipped.size",
                 "failedBefore = skipped.size",
@@ -473,11 +556,14 @@ class BulkSelectionWiringTest {
         assertEquals(
             "and it must come AFTER the delegation, never before it. Body was:\n$body",
             listOf(
-                "undoLabel = getApplication<Application>().getString(R.string.status_message_moved),",
+                "undoLabelRes = R.plurals.status_selection_moved,",
                 "_message.value = getApplication<Application>()" +
                     ".getString(R.string.status_move_other_account)",
             ),
-            codeLinesNaming(body, "R.string."),
+            // `R.` and not `R.string.`: the move's own label is a <plurals> now, so a rule reading
+            // `R.string.` alone would see one line, be satisfied by it, and stop saying anything
+            // about the order the two are written in.
+            codeLinesNaming(body, "R."),
         )
         assertEquals(
             "no message-writing helper may be called here: reportActionFailed() writes _message " +

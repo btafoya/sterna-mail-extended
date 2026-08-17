@@ -2,6 +2,7 @@ package app.sterna.ui.inbox
 
 import app.sterna.core.jmap.model.Email
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -105,5 +106,62 @@ class SelectionUndoTest {
     @Test
     fun `nothing written means nothing to offer`() {
         assertEquals(emptyList<UndoEntry>(), selectionUndoEntries(emptyList()))
+    }
+
+    // -- the success banner's count ------------------------------------------------------------
+
+    /** Any Int stands in for a plurals id: the decision never resolves it, it only carries it. */
+    private val label = 4711
+
+    @Test
+    fun `three messages written are announced as three`() {
+        val wrote = listOf(trusted("m1"), trusted("m2"), trusted("m3"))
+        val entries = selectionUndoEntries(wrote)
+        assertEquals("all three are undoable here", 3, entries.size)
+        assertEquals(SelectionBanner(4711, 3), selectionBanner(label, wrote, entries))
+    }
+
+    /** The number is written out even at one: in ru/pl the CLDR `one` form also covers 21 and 101. */
+    @Test
+    fun `one message written still carries its count`() {
+        val wrote = listOf(trusted("m1"))
+        assertEquals(SelectionBanner(4711, 1), selectionBanner(label, wrote, selectionUndoEntries(wrote)))
+    }
+
+    /**
+     * The confusion this exists to kill: ten messages left the folder, only four of them can be
+     * put back (six rows name no folder), and the banner must still say TEN — the other six are
+     * gone from the server all the same.
+     */
+    @Test
+    fun `the count is what was written, not what can be undone`() {
+        val wrote = (1..4).map { trusted("m$it") } + (5..10).map { trusted("m$it", mailbox = "") }
+        val entries = selectionUndoEntries(wrote)
+        assertEquals("six rows name no folder, so only four are undoable", 4, entries.size)
+        assertEquals(SelectionBanner(4711, 10), selectionBanner(label, wrote, entries))
+    }
+
+    /**
+     * And when the whole batch's Undo is withheld (one untrusted row), there is no banner at all:
+     * a success bar with no Undo button on it is a bar the user cannot take back.
+     */
+    @Test
+    fun `no Undo entries means no banner, however much was written`() {
+        val wrote = (1..9).map { trusted("m$it") } + untrusted("m10")
+        val entries = selectionUndoEntries(wrote)
+        assertEquals("one untrusted row withholds them all", 0, entries.size)
+        assertNull("nine messages written, but nothing to put back", selectionBanner(label, wrote, entries))
+    }
+
+    /** No label, no banner: this is the mixed destroy+move delete, whose Undo is the held-back one. */
+    @Test
+    fun `a batch with no label announces nothing`() {
+        val wrote = listOf(trusted("m1"), trusted("m2"))
+        assertNull("no label, no banner", selectionBanner(null, wrote, selectionUndoEntries(wrote)))
+    }
+
+    @Test
+    fun `nothing written, nothing announced`() {
+        assertNull("nothing written", selectionBanner(label, emptyList(), emptyList()))
     }
 }

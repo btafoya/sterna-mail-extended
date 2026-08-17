@@ -677,6 +677,21 @@
     <string name="status_message_deleted_forever">Suppression définitive…</string>
     <string name="status_message_archived">Message archivé</string>
     <string name="status_message_moved">Message déplacé</string>
+    <plurals name="status_selection_deleted">
+        <item quantity="one">%1$d message supprimé</item>
+        <item quantity="many">%1$d de messages supprimés</item>
+        <item quantity="other">%1$d messages supprimés</item>
+    </plurals>
+    <plurals name="status_selection_archived">
+        <item quantity="one">%1$d message archivé</item>
+        <item quantity="many">%1$d de messages archivés</item>
+        <item quantity="other">%1$d messages archivés</item>
+    </plurals>
+    <plurals name="status_selection_moved">
+        <item quantity="one">%1$d message déplacé</item>
+        <item quantity="many">%1$d de messages déplacés</item>
+        <item quantity="other">%1$d messages déplacés</item>
+    </plurals>
     <string name="status_message_unarchived">Message désarchivé</string>
     <string name="status_conversation_deleted">Conversation supprimée</string>
     <string name="status_conversation_archived">Conversation archivée</string>

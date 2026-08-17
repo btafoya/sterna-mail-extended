@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import android.app.Application
+import androidx.annotation.PluralsRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
@@ -1901,7 +1902,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun bulkBatched(
         clearAfter: Boolean = true,
-        undoLabel: String? = null,
+        @PluralsRes undoLabelRes: Int? = null,
         keys: Set<EmailKey>? = null,
         attemptedBefore: Int = 0,
         failedBefore: Int = 0,
@@ -1934,7 +1935,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                             MailRepository.BulkResult(emptySet(), group.mapTo(mutableSetOf()) { e -> e.email.id })
                         }
                     failedKeys += group.filter { it.email.id in result.failed }.map { it.email.emailKey() }
-                    if (undoLabel != null) {
+                    if (undoLabelRes != null) {
                         group.forEach { target ->
                             if (target.email.id in result.succeeded) undoCandidates += UndoCandidate(target, result.dest)
                         }
@@ -1951,8 +1952,13 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             // read off a row that only exists on screen sends the message somewhere it never was
             // and strips every other folder it is in, with no way back.
             val undoEntries = selectionUndoEntries(undoCandidates)
-            if (undoLabel != null && undoEntries.isNotEmpty()) {
-                _undo.value = UndoAction(undoEntries, undoLabel)
+            // What the banner says is [selectionBanner]'s decision too, and it counts the CANDIDATES:
+            // a batch that wrote ten messages of which only four can be put back still deleted ten.
+            selectionBanner(undoLabelRes, undoCandidates, undoEntries)?.let { banner ->
+                val resources = getApplication<Application>().resources
+                // Twice on purpose: the first picks the CLDR plural category, the second fills %1$d.
+                val label = resources.getQuantityString(banner.labelRes, banner.count, banner.count)
+                _undo.value = UndoAction(undoEntries, label)
             }
             // Partial and total are not the same news: a select-all past the server's
             // maxObjectsInSet used to archive most of the selection and still say "Couldn't
@@ -2002,7 +2008,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 // The whole selection travels with the delegation — the destroyed messages were
                 // attempts too — so the single message it prints is about the whole delete.
                 bulkBatched(
-                    undoLabel = getApplication<Application>().getString(R.string.status_message_deleted).takeIf { plan.destroy.isEmpty() },
+                    undoLabelRes = R.plurals.status_selection_deleted.takeIf { plan.destroy.isEmpty() },
                     keys = plan.move.mapTo(mutableSetOf()) { it.emailKey() },
                     attemptedBefore = plan.destroy.size + lost,
                     failedBefore = lost,
@@ -2019,7 +2025,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    fun archiveSelected() = bulkBatched(undoLabel = getApplication<Application>().getString(R.string.status_message_archived)) { c, ids -> repo.archiveAll(c, ids) }
+    fun archiveSelected() = bulkBatched(undoLabelRes = R.plurals.status_selection_archived) { c, ids -> repo.archiveAll(c, ids) }
 
     /**
      * Move the selection to [targetMailboxId] (used for unarchive → Inbox and move-to-folder).
@@ -2046,7 +2052,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 // were not moved — so the ONE message that comes out counts the whole selection
                 // instead of a second toast racing the first on the same StateFlow.
                 bulkBatched(
-                    undoLabel = getApplication<Application>().getString(R.string.status_message_moved),
+                    undoLabelRes = R.plurals.status_selection_moved,
                     keys = movable.toMutableSet(),
                     attemptedBefore = skipped.size,
                     failedBefore = skipped.size,

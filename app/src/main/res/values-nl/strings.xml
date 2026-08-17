@@ -675,6 +675,18 @@
     <string name="status_message_deleted_forever">Definitief verwijderen…</string>
     <string name="status_message_archived">Bericht gearchiveerd</string>
     <string name="status_message_moved">Bericht verplaatst</string>
+    <plurals name="status_selection_deleted">
+        <item quantity="one">%1$d bericht verwijderd</item>
+        <item quantity="other">%1$d berichten verwijderd</item>
+    </plurals>
+    <plurals name="status_selection_archived">
+        <item quantity="one">%1$d bericht gearchiveerd</item>
+        <item quantity="other">%1$d berichten gearchiveerd</item>
+    </plurals>
+    <plurals name="status_selection_moved">
+        <item quantity="one">%1$d bericht verplaatst</item>
+        <item quantity="other">%1$d berichten verplaatst</item>
+    </plurals>
     <string name="status_message_unarchived">Bericht uit archief gehaald</string>
     <string name="status_conversation_deleted">Gesprek verwijderd</string>
     <string name="status_conversation_archived">Gesprek gearchiveerd</string>

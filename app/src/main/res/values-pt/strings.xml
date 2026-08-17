@@ -677,6 +677,18 @@
     <string name="status_message_deleted_forever">Excluindo permanentemente…</string>
     <string name="status_message_archived">Mensagem arquivada</string>
     <string name="status_message_moved">Mensagem movida</string>
+    <plurals name="status_selection_deleted">
+        <item quantity="one">%1$d mensagem excluída</item>
+        <item quantity="other">%1$d mensagens excluídas</item>
+    </plurals>
+    <plurals name="status_selection_archived">
+        <item quantity="one">%1$d mensagem arquivada</item>
+        <item quantity="other">%1$d mensagens arquivadas</item>
+    </plurals>
+    <plurals name="status_selection_moved">
+        <item quantity="one">%1$d mensagem movida</item>
+        <item quantity="other">%1$d mensagens movidas</item>
+    </plurals>
     <string name="status_message_unarchived">Mensagem desarquivada</string>
     <string name="status_conversation_deleted">Conversa excluída</string>
     <string name="status_conversation_archived">Conversa arquivada</string>

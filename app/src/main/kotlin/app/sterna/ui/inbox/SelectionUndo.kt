@@ -1,5 +1,7 @@
 package app.sterna.ui.inbox
 
+import androidx.annotation.PluralsRes
+
 /**
  * One message a bulk action actually wrote, and where the forward action put it ([destMailboxId],
  * null when nothing moved — a snooze — so the drawer-count nudge has nothing to reverse).
@@ -37,4 +39,34 @@ internal fun selectionUndoEntries(succeeded: List<UndoCandidate>): List<UndoEntr
         val source = email.mailboxId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
         UndoEntry(email.id, email.accountId, source, candidate.destMailboxId)
     }
+}
+
+/** What a batch's success banner announces, or null when there is no banner. */
+internal data class SelectionBanner(@PluralsRes val labelRes: Int, val count: Int)
+
+/**
+ * The success banner a finished batch shows, or null when it shows none — no label asked for one
+ * (the mixed destroy+move delete, whose Undo is the held-back destroy's), or there is nothing to
+ * put back and a success bar with no Undo button on it is a bar the user cannot take back.
+ *
+ * The count is [wrote], the messages the batch SUCCEEDED on — never [entries].
+ * [selectionUndoEntries] returns an empty list as soon as one row is untrusted, and drops every
+ * row naming no folder, while those messages left the folder all the same: counting entries
+ * announces "4 messages deleted" for ten deleted.
+ *
+ * ⚠ Succeeded is not quite "written": over IMAP, `archiveAll` and `moveAllToMailbox` count a
+ * message already sitting in the destination as a success without sending anything
+ * (MailRepository.kt:4120, :4217), while `deleteAll` leaves that case out of both sets. So the
+ * banner says what the action settled, not what crossed the wire — do not promise otherwise.
+ *
+ * Plain data rather than the snackbar itself, for the same reason as [selectionUndoEntries]: this
+ * decision then runs in a JVM test, which an `AndroidViewModel` cannot.
+ */
+internal fun selectionBanner(
+    @PluralsRes labelRes: Int?,
+    wrote: List<UndoCandidate>,
+    entries: List<UndoEntry>,
+): SelectionBanner? {
+    if (labelRes == null || entries.isEmpty()) return null
+    return SelectionBanner(labelRes, wrote.size)
 }
