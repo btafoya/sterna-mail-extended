@@ -29,11 +29,11 @@ This document describes how Sterna is built. It is aimed at developers.
 
 | Module              | Type            | Responsibility                                       |
 |---------------------|-----------------|------------------------------------------------------|
-| `:app`              | Android app     | Compose UI, ViewModels, push services/workers, notifications, OpenKeychain binding, app lock. |
+| `:app`              | Android app     | Compose UI, ViewModels, push services/workers, notifications, OpenPGP provider binding, app lock. |
 | `:core:jmap`        | Kotlin JVM lib  | JMAP client, session, batched method calls, typed RFC 8620/8621 models, EventSource push, OAuth device flow (RFC 8628). |
 | `:core:imap`        | Kotlin JVM lib  | IMAP/SMTP clients, protocol parsing, IDLE, MIME parser/builder, PGP/MIME, XOAUTH2. |
 | `:core:data`        | Android library | `MailRepository` (the one seam the UI talks to), Room cache, account store, settings, PGP seam, storage caps. |
-| `:libs:openpgp-api` | Android library | Vendored openpgp-api client (Java), for the OpenKeychain bound service. |
+| `:libs:openpgp-api` | Android library | Vendored openpgp-api client (Java), for the bound OpenPGP provider service. |
 
 ## Mail sync
 
@@ -169,7 +169,7 @@ outbox-bearing tables migrate additively.
   (`excludedSearchFolderIds`), so a deleted or spam message never surfaces in
   results whatever the protocol; a message also filed outside Trash is still
   found through its other folder.
-- **OpenPGP:** via the OpenKeychain app over the vendored openpgp-api bound
+- **OpenPGP:** via an external OpenPGP app over the vendored openpgp-api bound
   service, behind the `PgpEngine` seam. Encrypt-at-compose (JMAP uploads the
   ciphertext blob + `Email/import`; IMAP builds PGP/MIME); decrypted plaintext
   lives only in memory, never in the cache, except an attachment you open, which

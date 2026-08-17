@@ -110,7 +110,7 @@ systemProp.jdk.http.auth.tunneling.disabledSchemes=
 See [ARCHITECTURE.md](ARCHITECTURE.md). In short:
 
 - `:app`, Android app: Compose UI, ViewModels, push services and workers,
-  notifications, OpenKeychain binding, app lock.
+  notifications, OpenPGP provider binding, app lock.
 - `:core:jmap`, Kotlin JVM library: JMAP client, session, typed RFC 8620/8621
   models, EventSource push, OAuth device flow and authorization code + PKCE
   (unit-tested without Android).
@@ -119,7 +119,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md). In short:
 - `:core:data`, Android library: `MailRepository`, Room cache, account store,
   settings, PGP seam, storage caps.
 - `:libs:openpgp-api`, Android library: vendored openpgp-api client (Java), for
-  the OpenKeychain bound service. It carries no tests of its own.
+  the bound OpenPGP provider service. It carries no tests of its own.
 
 ## Conventions
 

@@ -194,10 +194,19 @@ Out of scope:
 
 ### OpenPGP (end-to-end encryption)
 
-- OpenPGP is delegated to the **OpenKeychain** app over the standard `openpgp-api`
-  bound-service interface: private keys and passphrases live in OpenKeychain and never
-  enter Sterna's process. Reading decrypts + verifies; composing signs and/or encrypts
-  as PGP/MIME (RFC 3156), on both JMAP and IMAP/SMTP.
+- OpenPGP is delegated to an **external OpenPGP app** over the standard `openpgp-api`
+  bound-service interface, found by querying that interface's service intent: private
+  keys and passphrases live in that app and never enter Sterna's process. Reading
+  decrypts + verifies; composing signs and/or encrypts as PGP/MIME (RFC 3156), on both
+  JMAP and IMAP/SMTP.
+- **Sterna does not verify who it is talking to.** Any installed app answering that
+  service intent can be bound. One package is refused by the vendored api library
+  itself, for an incompatible implementation of the interface rather than out of
+  suspicion; there is no signature, publisher or certificate check, before or after
+  binding. What the user controls is which OpenPGP apps are installed, and, when more
+  than one is present, which of them Sterna talks to; with a single one there is
+  nothing to pick and it is bound without being asked. The trust placed in that app is
+  the user's to place.
 - **Decrypted content is never persisted**: plaintext of an encrypted message is held in
   an in-memory cache only, never written to the Room body cache and never added to the
   local search index (which indexes headers only). An encrypted message in the outbox

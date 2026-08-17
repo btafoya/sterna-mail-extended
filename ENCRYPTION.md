@@ -43,27 +43,34 @@ Two limits worth knowing up front:
 
 ## What you need: two apps
 
-Sterna does not handle your secret keys itself. Instead it talks to
+Sterna does not handle your secret keys itself. Instead it talks to a dedicated
+OpenPGP app over Android's OpenPGP interface (the same one K-9 Mail /
+Thunderbird for Android uses). Your private key and its passphrase stay inside
+that app and never enter Sterna's process. Sterna only ever asks it to sign,
+encrypt, or decrypt on its behalf, and the OpenPGP app prompts you when it needs
+your passphrase.
+
+The OpenPGP app most people use is
 **[OpenKeychain](https://f-droid.org/packages/org.sufficientlysecure.keychain/)**,
-a dedicated, open-source key-manager app, over Android's OpenPGP interface (the
-same one K-9 Mail / Thunderbird for Android uses). Your private key and its
-passphrase stay inside OpenKeychain and never enter Sterna's process. Sterna
-only ever asks OpenKeychain to sign, encrypt, or decrypt on its behalf, and
-OpenKeychain prompts you when it needs your passphrase.
+an open-source key manager, and it is the one this page follows as its example.
+It is not the only one that can be used: Sterna looks for the OpenPGP apps
+installed on the device, and does not require a particular one.
 
 So the setup is two apps:
 
 1. **Sterna**: your mail client (this app).
-2. **OpenKeychain**: your keyring.
+2. **An OpenPGP app**: your keyring.
 
 Install OpenKeychain from
 [F-Droid](https://f-droid.org/packages/org.sufficientlysecure.keychain/) (or
 from inside Sterna: **Settings → your account → OpenPGP encryption → Get
 OpenKeychain**).
 
-## Step 1: Create your key in OpenKeychain
+## Step 1: Create your key in your OpenPGP app
 
-Open OpenKeychain and either create a new key or import one you already have.
+The steps below are OpenKeychain's; another OpenPGP app names the same things
+its own way. Open OpenKeychain and either create a new key or import one you
+already have.
 
 **To create one:**
 
@@ -83,13 +90,18 @@ file or key.
 
 1. In Sterna, go to **Settings → your account → OpenPGP encryption**.
 2. Turn on **Use OpenPGP**.
-3. Tap **Your signing key → Choose key**. Sterna asks OpenKeychain to show your
+3. Tap **Your Key ID → Choose key**. Sterna asks the OpenPGP app to show your
    keys; pick the one for this account. (This does not copy the key into Sterna,
    it just records which key to use.)
 4. Optionally turn on **Encrypt by default** so new messages start with
    encryption on whenever every recipient's public key is available.
 
 That is the whole setup. You only do it once per account.
+
+If more than one OpenPGP app is installed, a row named **OpenPGP app** on that
+same screen says which one Sterna uses and lets you change it; switching clears
+every account's recorded key, since a key from one keyring means nothing in
+another, so pick your key again afterwards.
 
 ## Step 3: Send signed / encrypted mail
 
@@ -104,8 +116,8 @@ and a short banner explains each as you switch:
 
 To **encrypt**, Sterna needs a public key for every recipient. A recipient
 without a known key is flagged, and you will not be able to send encrypted until
-their key is imported into OpenKeychain (ask them for it, or fetch it from a key
-server). **Signing** has no such requirement: you can sign to anyone.
+their key is imported into your OpenPGP app (ask them for it, or fetch it from a
+key server). **Signing** has no such requirement: you can sign to anyone.
 
 A few things behave differently while a message is set to encrypt: it cannot be
 saved as a plaintext draft, and scheduled send is unavailable (both would put
@@ -116,9 +128,9 @@ stays readable, because Sterna also encrypts it to your own key.
 
 ## Step 4: Read encrypted / signed mail
 
-When you open an OpenPGP message, Sterna asks OpenKeychain to decrypt and verify
-it (OpenKeychain may prompt for your passphrase the first time). Above the body
-you will see the result:
+When you open an OpenPGP message, Sterna asks the OpenPGP app to decrypt and
+verify it (that app may prompt for your passphrase the first time). Above the
+body you will see the result:
 
 - a **padlock** if the message was encrypted, and
 - a **signature badge** coloured by trust:
@@ -127,17 +139,18 @@ you will see the result:
     does not match the sender address.
   - 🔴 **red**: the signature does not verify: the content may have been
     altered, or the key is revoked / expired / insecure.
-  - ⚪ **grey**: the signer's public key is not in OpenKeychain, so the
+  - ⚪ **grey**: the signer's public key is not in your OpenPGP app, so the
     signature cannot be checked. Import their key to verify it.
 
 Sterna also reads legacy **inline PGP** messages, not just modern PGP/MIME.
 
 ## Troubleshooting
 
-- **"OpenKeychain is not installed."** Install it from
+- **"No OpenPGP app installed"**. Install one: the button in Sterna's settings
+  offers OpenKeychain, from
   [F-Droid](https://f-droid.org/packages/org.sufficientlysecure.keychain/).
-- **Can't turn on encryption for a recipient.** Their public key isn't in
-  OpenKeychain yet. Import it (from a file they sent, or a key server) and try
+- **Can't turn on encryption for a recipient.** Their public key isn't in your
+  OpenPGP app yet. Import it (from a file they sent, or a key server) and try
   again.
 - **Grey signature badge.** You don't have the sender's public key. Import it to
   turn the check green (or yellow until you confirm it).
