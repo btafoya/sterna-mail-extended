@@ -687,6 +687,7 @@
     <string name="status_attach_offline">Du bist offline. Ein Anhang braucht eine Verbindung, versuche es erneut, sobald du zurück bist.</string>
     <string name="status_open_attachment">Anhang öffnen</string>
     <string name="status_removed_account">Konto entfernt</string>
+    <string name="status_attach_vanished">Anhänge, die auf diesem Telefon nicht mehr verfügbar sind, wurden entfernt.</string>
     <string name="status_attaching">Wird angehängt…</string>
     <string name="status_read_file_failed">Die ausgewählte Datei konnte nicht gelesen werden.</string>
     <string name="status_open_attachment_failed">Anhang konnte nicht geöffnet werden: %1$s</string>

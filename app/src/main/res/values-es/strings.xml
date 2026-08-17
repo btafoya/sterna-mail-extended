@@ -689,6 +689,7 @@
     <string name="status_attach_offline">Estás sin conexión. Adjuntar un archivo requiere conexión, inténtalo de nuevo cuando vuelvas.</string>
     <string name="status_open_attachment">Abrir adjunto</string>
     <string name="status_removed_account">Cuenta eliminada</string>
+    <string name="status_attach_vanished">Se han quitado los archivos adjuntos que ya no están disponibles en este teléfono.</string>
     <string name="status_attaching">Adjuntando…</string>
     <string name="status_read_file_failed">No se pudo leer el archivo seleccionado.</string>
     <string name="status_open_attachment_failed">No se pudo abrir el adjunto: %1$s</string>

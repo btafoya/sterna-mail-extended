@@ -196,8 +196,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * Whether the user added or removed an attachment (#70/#94). The unsaved-changes guard needs
      * "did the user change anything", not "are there any attachments": a message reopened from the
      * outbox or a forward opens WITH attachments already, and counting those as an edit made the
-     * discard dialog fire on a close the user never edited. Only [attach]/[removeAttachment] flip
-     * this; the prefill paths populate [_attachments] without it.
+     * discard dialog fire on a close the user never edited. [attach], [removeAttachment] and
+     * [dropVanishedAttachments] flip this; the prefill paths populate [_attachments] without it.
+     *
+     * ⛔ Read in exactly one place — the discard-changes guard (`ComposeScreen` →
+     * `ComposeDirty.isDirty`). It decides nothing at save time: the save reads [_attachments].
      */
     val attachmentsTouched: StateFlow<Boolean> = _attachmentsTouched.asStateFlow()
 
@@ -733,6 +736,54 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     fun removeAttachment(part: EmailBodyPart) {
         _attachments.value = _attachments.value.filterNot { it == part }
         _attachmentsTouched.value = true
+    }
+
+    /**
+     * Take off the list every attachment whose staged bytes are no longer there, and say so.
+     *
+     * Called as the composer comes back to the front (`ComposeScreen`'s ON_START observer), because
+     * that is when it can have happened: the user leaves for Settings → Apps → Sterna → Storage →
+     * Clear cache, or Android evicts `cacheDir` under storage pressure, and neither closes this
+     * screen. Until now the chip stayed drawn over nothing and the save was what found out — a red
+     * "Could not save the draft: …" with a raw English detail behind it, and no draft written.
+     *
+     * The DECISION is [sweepStagedAttachments], out in ComposeText where a JVM test can execute it;
+     * this method supplies the two things only it has: where staging lives, and the real
+     * filesystem. ⛔ The staging root is what keeps a JMAP composer's attachments — they have no
+     * file on this phone to lose (see that function).
+     *
+     * ⛔⛔ IT DOES NOT RUN AT ALL WHILE THIS COMPOSER HOLDS THE ONLY COPY OF SOMETHING, i.e. when it
+     * was opened on a server draft ([editingDraftId]) or on a queued outbox item
+     * ([editingOutboxId]). Both of those destroy their original once the composer has committed the
+     * message, and both destructions are held back by a COUNT of what came through: a server draft
+     * by `draftReplacementIsFaithful(attachments.size, parts.size, …)`, whose mismatch is what keeps
+     * the original (#63), and a queued item by `persistAttachments` refusing to shorten, which is
+     * what keeps `consumeEditingOutbox` from deleting the still-whole durable copy (#70). A sweep
+     * that removes the part from the INPUT side of those counts makes them agree, and the guard
+     * that existed to save the original waves the destruction through. Standing down leaves both
+     * paths exactly as they were before this method existed: the chip stays, the save or send fails
+     * with its red banner, and nothing on the server or in the queue is touched. ⚠ The reported
+     * symptom therefore survives on those two paths, and that is the accepted price — a duplicate
+     * is recoverable, a destroyed original is not.
+     *
+     * [_attachmentsTouched] is armed exactly as [removeAttachment] arms it. That flag has one
+     * reader — the unsaved-changes guard behind the "discard changes?" dialog (`ComposeScreen` →
+     * `ComposeDirty.isDirty`) — and a sweep IS a change to the attachment list, made without the user
+     * touching it, so leaving the screen afterwards must ask. ⛔ It governs nothing at save time:
+     * the save reads [_attachments] directly.
+     *
+     * ⛔ The sentence does not go through `isOfflineFailure`: nothing here was on the network, and
+     * `status_attach_offline` would tell the reader to come back when connected, which brings
+     * nothing back.
+     */
+    fun dropVanishedAttachments() {
+        if (editingDraftId != null || editingOutboxId != null) return
+        val app = getApplication<Application>()
+        val sweep = sweepStagedAttachments(_attachments.value, File(app.cacheDir, "outgoing"), File::exists)
+        if (sweep.gone.isEmpty()) return
+        _attachments.value = sweep.kept
+        _attachmentsTouched.value = true
+        _attachmentStatus.value = app.getString(R.string.status_attach_vanished)
     }
 
     /**

@@ -691,6 +691,7 @@
     <string name="status_attach_offline">Вы не в сети. Для вложения нужно подключение, попробуйте снова, когда вернётесь в сеть.</string>
     <string name="status_open_attachment">Открыть вложение</string>
     <string name="status_removed_account">Аккаунт удалён</string>
+    <string name="status_attach_vanished">Вложения, которых больше нет на этом телефоне, удалены.</string>
     <string name="status_attaching">Прикрепление…</string>
     <string name="status_read_file_failed">Не удалось прочитать выбранный файл.</string>
     <string name="status_open_attachment_failed">Не удалось открыть вложение: %1$s</string>

@@ -7,8 +7,10 @@ import app.sterna.core.data.text.htmlEscapeMultiline
 import app.sterna.core.data.text.htmlToText
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
+import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.send.SendOutbox
 import app.sterna.util.isValidEmail
+import java.io.File
 import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
@@ -1166,3 +1168,67 @@ internal suspend fun resolveOutgoingDateZone(
     quotedDatesUtc: Flow<Boolean>,
     deviceZone: ZoneId = ZoneId.systemDefault(),
 ): ZoneId = outgoingDateZone(quotedDatesUtc.first(), deviceZone)
+
+/** What a sweep of the composer's attachment list found: [kept] stays on screen, [gone] leaves it. */
+internal data class StagedAttachmentSweep(
+    val kept: List<EmailBodyPart>,
+    val gone: List<EmailBodyPart>,
+)
+
+/**
+ * Which of the composer's [attachments] still have bytes behind them, and which are now a chip and
+ * nothing else.
+ *
+ * A picked file is copied into `cacheDir/outgoing` before it is anything else
+ * (`ComposeViewModel.stageOutgoing`), and `cacheDir` is not ours to keep: it is the directory
+ * Settings → Apps → Sterna → Storage → Clear cache empties on request, and the one Android evicts
+ * on its own when the phone runs short of room. Neither of those closes the composer. The chip
+ * stays drawn over a file that is gone, and the first thing to notice is the save — a red banner
+ * with a raw English detail in nine locales, and no draft written. Swept on the way back to the
+ * screen, the chip goes instead, and the composer says so.
+ *
+ * ⛔ ONLY PATHS UNDER [outgoingRoot] ARE ASKED ABOUT, and that guard is the whole difficulty. A
+ * `partId` exists only for a part staged on this phone — IMAP, or JMAP once PGP is on. Plain JMAP
+ * uploads a blob and comes back with `partId = null` (`MailRepository.uploadAttachment`), and a
+ * reopened draft or outbox item rebuilds its parts from the same descriptors
+ * (`localDraftUploadAttachments`), where the same field is either a staged path or nothing. Ask the
+ * filesystem about the rest and it answers "gone" for all of them, which empties the attachment
+ * list of a composer that has lost nothing whatsoever. Anything this function is not sure about is
+ * KEPT: a chip that is a little stale is a nuisance, a chip silently deleted is the user's file.
+ *
+ * ⛔ AN INLINE PART THAT CARRIES A `cid` IS KEPT WHATEVER THE FILESYSTEM SAYS, and not even asked
+ * about. On a forward, inline images are staged like any other attachment and enter the list with
+ * `disposition = "inline"` and a `cid` (`ComposeViewModel.kt:2063-2075`), while the forwarded HTML
+ * that references them through `<img src="cid:…">` is built ONCE, from `carriedCids`, and reused
+ * as-is at send. Taking such a part off the list would leave a `cid:` pointing at nothing and the
+ * recipient would get a broken image; before this sweep existed the send simply REFUSED
+ * (`MailRepository.persistAttachments`, "refuse rather than shorten") and nothing went out. The
+ * chip therefore stays, and that refusal is what the user meets — the pre-existing behaviour for
+ * this case, unchanged. Rebuilding the forwarded HTML would be a new mechanism for an edge case.
+ *
+ * ⛔ It does NOT touch the filesystem itself: [exists] is handed in, so the decision can be executed
+ * on the JVM rather than described by a test that recomputes it (`StagedAttachmentSweepTest`).
+ *
+ * This says nothing about the moment of saving. Bytes can still go away between this sweep and the
+ * tap, and what covers that is the invariant that has always covered it: refuse rather than write a
+ * truncated message (#70).
+ */
+internal fun sweepStagedAttachments(
+    attachments: List<EmailBodyPart>,
+    outgoingRoot: File,
+    exists: (File) -> Boolean,
+): StagedAttachmentSweep {
+    // A separator on the end, so a sibling directory whose name merely starts the same
+    // ("outgoing-old") is not read as being inside the staging root.
+    val root = outgoingRoot.path.trimEnd(File.separatorChar) + File.separatorChar
+    val (kept, gone) = attachments.partition { part ->
+        // The body points at this one; the same two-legged test the repository writes its own
+        // inline parts with (MailRepository.imapDraftAttachments, OutboxEdit.take).
+        if (part.disposition.equals("inline", ignoreCase = true) && !part.cid.isNullOrBlank()) {
+            return@partition true
+        }
+        val staged = part.partId?.takeIf { it.startsWith(root) } ?: return@partition true
+        exists(File(staged))
+    }
+    return StagedAttachmentSweep(kept = kept, gone = gone)
+}

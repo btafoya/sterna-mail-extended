@@ -76,6 +76,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -120,6 +121,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
@@ -244,6 +248,21 @@ fun ComposeScreen(
             app.container.pendingShareUris = emptyList()
             shared.forEach { viewModel.attach(it) }
         }
+    }
+
+    // A picked file is staged in cacheDir, which is not ours to keep: Settings → Apps → Sterna →
+    // Storage → Clear cache empties it on request, and Android evicts it on its own when the phone
+    // runs short of room. Neither closes this screen, so the chip went on being drawn over nothing
+    // and the save was what found out, with a red banner and no draft written. Swept ON_START —
+    // the composer coming back to the front is the only moment it can be noticed, and a
+    // LaunchedEffect(Unit) would have run once, before any of it happened.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) viewModel.dropVanishedAttachments()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // --- Contacts permission priming (offered once, on first compose) ---

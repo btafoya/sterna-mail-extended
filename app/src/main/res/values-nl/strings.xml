@@ -687,6 +687,7 @@
     <string name="status_attach_offline">Je bent offline. Een bijlage heeft verbinding nodig, probeer het opnieuw zodra je weer verbonden bent.</string>
     <string name="status_open_attachment">Bijlage openen</string>
     <string name="status_removed_account">Account verwijderd</string>
+    <string name="status_attach_vanished">Bijlagen die niet meer beschikbaar zijn op deze telefoon, zijn verwijderd.</string>
     <string name="status_attaching">Bijvoegen…</string>
     <string name="status_read_file_failed">Kon het geselecteerde bestand niet lezen.</string>
     <string name="status_open_attachment_failed">Kon bijlage niet openen: %1$s</string>

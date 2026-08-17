@@ -689,6 +689,7 @@
     <string name="status_attach_offline">Sei offline. Allegare un file richiede una connessione, riprova non appena torni online.</string>
     <string name="status_open_attachment">Apri allegato</string>
     <string name="status_removed_account">Account rimosso</string>
+    <string name="status_attach_vanished">Gli allegati che non sono più disponibili su questo telefono sono stati rimossi.</string>
     <string name="status_attaching">Allegando…</string>
     <string name="status_read_file_failed">Impossibile leggere il file selezionato.</string>
     <string name="status_open_attachment_failed">Impossibile aprire l\'allegato: %1$s</string>
