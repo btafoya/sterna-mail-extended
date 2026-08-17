@@ -505,6 +505,7 @@
     <string name="settings_storage_section">Armazenamento</string>
     <string name="settings_cached_messages">Mensagens em cache</string>
     <string name="settings_clear_account_cache">Limpar o cache desta conta</string>
+    <string name="settings_clear_account_cache_help">Limpar o cache desta conta remove as mensagens baixadas dela. Os anexos não são guardados por conta, então os anexos baixados de todas as suas contas também são removidos. Suas contas permanecem conectadas e os e-mails são baixados novamente ao abrir.</string>
     <string name="settings_pgp_section">Criptografia OpenPGP</string>
     <string name="settings_pgp_enable_title">Usar o OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Assinar, criptografar e ler mensagens com o OpenKeychain</string>

@@ -85,13 +85,28 @@ class StorageRepository(
         emailDao.countForAccount(accountId)
     }
 
-    /** Purge one account's cached messages. Snoozes are user intent, not cache — kept. */
+    /**
+     * Purge one account's cached messages. Snoozes are user intent, not cache — kept.
+     *
+     * ⛔ **The attachment FILES go too**, and that is the point of the last line: this used to
+     * delete five tables' rows and not one byte on disk. An attachment is written into the cache
+     * decrypted — an OpenPGP part included — and `enforceAttachmentCap` has no other caller, so the
+     * only thing that ever removed that file was downloading the next one. The user pressed the
+     * button carrying her account's name and the decrypted PDF stayed on the phone indefinitely.
+     *
+     * ⚠ The tree is flat and NOT namespaced per account, so this clears every account's cached
+     * attachments, not just this one's. Accepted deliberately: they are re-downloadable bytes, and
+     * carving per-account sub-directories would break [enforceAttachmentCap] (`isFile`),
+     * [clearAttachments] (`delete()` on a non-empty directory fails silently) and [usage]
+     * (`length()` of a directory) all three, in silence. The settings screen says so.
+     */
     suspend fun clearAccountCache(accountId: String) = withContext(Dispatchers.IO) {
         emailDao.deleteForAccount(accountId)
         emailFtsDao.clearAccount(accountId)
         emailBodyDao.deleteForAccount(accountId)
         mailboxDao.deleteForAccount(accountId)
         mailboxUidValidityDao.deleteForAccount(accountId)
+        clearAttachments()
     }
 
     /**
@@ -242,10 +257,7 @@ class StorageRepository(
     }
 
     private fun clearAttachments() {
-        attachmentsDir.listFiles()?.forEach { it.delete() }
-        // The outgoing staging dir is re-downloadable/re-stageable cache too (#70): a queued send
-        // already holds its own durable copy, so clearing the orphaned staged files loses nothing.
-        outgoingDir.listFiles()?.forEach { it.delete() }
+        clearAttachmentTrees(attachmentsDir, outgoingDir)
     }
 
     private fun File.safeLength(): Long = if (exists()) length() else 0L
@@ -255,4 +267,22 @@ class StorageRepository(
         const val MAX_ATTACHMENT_BYTES = 200L * 1024 * 1024 // 200 MB
         const val MAX_AGE_MS = 30L * 24 * 60 * 60 * 1000 // 30 days
     }
+}
+
+/**
+ * Empty the two attachment CACHE trees — the downloaded attachments and compose's outgoing staging
+ * dir. Extracted out of `StorageRepository` (which needs a `Context` and eight Room DAOs, so no JVM
+ * test can build one) purely so the sweep itself can be executed by a test, exactly as
+ * `purgeLocalDraftsOfAccount` is.
+ *
+ * The outgoing staging dir is re-downloadable/re-stageable cache too (#70): a queued send already
+ * holds its own durable copy, so clearing the orphaned staged files loses nothing.
+ *
+ * ⛔ Neither tree holds a local draft's staged bytes (#95) — those are text the server never
+ * received and go on sign-out alone. Both directories are flat: `listFiles()` is null when the tree
+ * has never been created, and `delete()` would silently fail on a sub-directory.
+ */
+internal fun clearAttachmentTrees(attachmentsDir: File, outgoingDir: File) {
+    attachmentsDir.listFiles()?.forEach { it.delete() }
+    outgoingDir.listFiles()?.forEach { it.delete() }
 }

@@ -505,6 +505,7 @@
     <string name="settings_storage_section">Stockage</string>
     <string name="settings_cached_messages">Messages en cache</string>
     <string name="settings_clear_account_cache">Vider le cache de ce compte</string>
+    <string name="settings_clear_account_cache_help">Vider le cache de ce compte supprime ses messages téléchargés. Les pièces jointes ne sont pas rangées par compte : celles de tous vos comptes sont donc supprimées aussi. Vos comptes restent connectés et les messages se retéléchargent à l\'ouverture.</string>
     <string name="settings_pgp_section">Chiffrement OpenPGP</string>
     <string name="settings_pgp_enable_title">Utiliser OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Signer, chiffrer et lire les messages avec OpenKeychain</string>

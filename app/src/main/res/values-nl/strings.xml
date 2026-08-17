@@ -505,6 +505,7 @@
     <string name="settings_storage_section">Opslag</string>
     <string name="settings_cached_messages">Berichten in cache</string>
     <string name="settings_clear_account_cache">Cache van dit account wissen</string>
+    <string name="settings_clear_account_cache_help">Bij het wissen van de cache van dit account worden de gedownloade berichten ervan verwijderd. Bijlagen worden niet per account opgeslagen, dus de gedownloade bijlagen van al je accounts worden ook verwijderd. Je accounts blijven aangemeld en e-mail wordt opnieuw gedownload als je deze opent.</string>
     <string name="settings_pgp_section">OpenPGP-versleuteling</string>
     <string name="settings_pgp_enable_title">OpenPGP gebruiken</string>
     <string name="settings_pgp_enable_subtitle">E-mails ondertekenen, versleutelen en lezen met OpenKeychain</string>

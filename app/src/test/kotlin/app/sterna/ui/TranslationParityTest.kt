@@ -282,6 +282,179 @@ class TranslationParityTest {
     }
 
     /**
+     * The help line under "Clear this account's cache", by name in the nine languages.
+     *
+     * Named keys rather than the general parity rule at the top of this file: that rule compares
+     * whatever `values/` happens to carry, so it stays green on a sentence that was never added
+     * anywhere at all — which is exactly the state this button was in.
+     *
+     * Left in English, eight of nine readers meet the only warning they get about the button
+     * erasing another account's downloaded files in a language they did not choose, one tap before
+     * the files go.
+     */
+    @Test
+    fun `the nine languages all carry the account-cache help line`() {
+        val files = listOf(File(res, "values/strings.xml")) + translations()
+        val missing = files.associate { it.parentFile.name to (ACCOUNT_CACHE_ENGLISH.keys - keysOf(it)) }
+            .filterValues { it.isNotEmpty() }
+        assertEquals(
+            "the account-cache button says nothing about what it erases in",
+            emptyMap<String, Set<String>>(),
+            missing,
+        )
+        // ⛔ A key is not a sentence. `keysOf` matches the tag, so `<string name="…"></string>` and
+        // the English text pasted into `values-de` both satisfy the rule above — the first leaves the
+        // button with a blank line where its only warning should be, the second warns eight readers
+        // out of nine in a language they did not choose. Neither can be seen from a key list.
+        val blank = files.filter { valuesOf(it)[ACCOUNT_CACHE_HELP_KEY].isNullOrBlank() }
+        assertEquals("the account-cache help line is present but EMPTY in", emptyList<String>(), blank.map { it.parentFile.name })
+        val english = valuesOf(File(res, "values/strings.xml"))[ACCOUNT_CACHE_HELP_KEY]
+        val untranslated = translations().filter { valuesOf(it)[ACCOUNT_CACHE_HELP_KEY] == english }
+        assertEquals(
+            "the account-cache help line is the ENGLISH text, untranslated, in",
+            emptyList<String>(),
+            untranslated.map { it.parentFile.name },
+        )
+    }
+
+    /**
+     * ⛔ WHAT THE BUTTON ERASES, PINNED WHOLE — and the one claim that would make the sentence
+     * worse than no sentence at all.
+     *
+     * The attachment cache is ONE flat directory shared by every account (`StorageRepository`'s
+     * `attachmentsDir`), so "Clear this account's cache" deletes the downloaded attachments of all
+     * of them. The sentence owes three statements: the MESSAGES that go are this account's, the
+     * ATTACHMENTS that go are every account's, and nothing is lost for good — the accounts stay
+     * signed in and the bytes come back on opening.
+     *
+     * The claim it must never make is the reassuring one: that the attachments erased are this
+     * account's. A reader who believes that keeps her other account's files on the phone in her
+     * head only; there is no undo and no warning dialog (deliberately, none was added). And it must
+     * never mention a background purge — the 30-day sweep is `pruneOldMessages`, which no button on
+     * this screen calls, so "automatically" or "30 days" here describes a mechanism that does not
+     * run.
+     *
+     * The forbidden screen runs FIRST on purpose: a reword that walked the sentence back to the
+     * reassuring version should be told WHAT it now promises, not merely that a pin stopped
+     * matching.
+     *
+     * Whole-value equality, because `contains` is blind to anything a reword appends.
+     *
+     * ⛔ The eight translations are NOT pinned here, and that is a decision: nobody on this side
+     * reads them, so freezing their text would block a translation fix while proving nothing. Their
+     * keys are held by the rule above. Stated as debt: that the eight say "all your accounts" and
+     * not "this account".
+     */
+    @Test
+    fun `the account-cache help says the attachments of every account go, never only this one's`() {
+        val actual = valuesOf(File(res, "values/strings.xml"))
+            .filterKeys { it in ACCOUNT_CACHE_ENGLISH }
+        // The screen runs FIRST, on what the file actually says. Backslashes are dropped so that
+        // `account\'s` and `account's` screen the same: whether the apostrophe is escaped is the
+        // rewriter's business, what it says is not.
+        val forbidden = actual.values.flatMap { value ->
+            val text = value.lowercase().replace("\\", "")
+            FORBIDDEN_OF_AN_ACCOUNT_CACHE.filter { it in text }.map { "'$it' in \"$value\"" }
+        }
+        assertEquals(
+            "the help line under \"Clear this account's cache\" must not tell the reader that the " +
+                "attachments it deletes are THIS account's — the cache directory is flat and " +
+                "shared, so every account's downloaded attachments go, and there is neither an " +
+                "undo nor a confirmation dialog. It must not promise a background purge either; " +
+                "nothing on this screen runs one. Found:",
+            emptyList<String>(),
+            forbidden,
+        )
+        assertEquals(
+            "the English text of settings_clear_account_cache_help changed. It owes exactly three " +
+                "statements: the MESSAGES that go are this account's, the ATTACHMENTS that go are " +
+                "those of ALL accounts (the cache tree is not per account), and the MAIL comes back " +
+                "on opening with the accounts still signed in. ⛔ Never that EVERYTHING comes back: " +
+                "the sweep also empties cacheDir/outgoing, where compose stages the bytes of an " +
+                "attachment picked on the phone, and those are not on any server to re-download.",
+            ACCOUNT_CACHE_ENGLISH,
+            actual,
+        )
+    }
+
+    /**
+     * ⛔ AND THAT THE SCREEN ACTUALLY SHOWS IT. Everything above reads XML; nothing in it touches a
+     * call site, so the sentence can exist, translated nine times, and be read by nobody — which
+     * leaves the button erasing the other account's downloaded files in silence, the state this
+     * branch exists to end.
+     *
+     * Source text as the last resort, for `SettingsScreen.kt`'s reason: the account detail screen
+     * is a `@Composable` taking a `ViewModel`, so no JVM test can render it. Whole lines are
+     * compared, arguments included — a `contains` on a fragment is blind to every mutation that
+     * lengthens a line.
+     *
+     * ⛔ THE ORDER, and it is not a taste: the line comes BEFORE the button, as the global one does.
+     * In linear navigation — TalkBack, a keyboard — a warning placed after the control is reached
+     * after it, and this button purges on first activation with no confirmation dialog.
+     *
+     * ⛔ AND ADJACENCY, because "somewhere later in the file" is not a position: with only a
+     * relative index compared, the whole `Text(…)` block moves into the vacation-responder form
+     * 400 lines down and every assertion here still passes, leaving the purge button bare again.
+     *
+     * ⛔ AND THE WHOLE BLOCK, arguments included: pinning the `stringResource` line alone leaves
+     * `color = Color.Transparent` (or `Modifier.height(0.dp)`) green — a warning that is present,
+     * translated nine times, and invisible.
+     *
+     * ⛔ Still deliberately NOT pinned: the padding values and that the block sits in the storage
+     * section rather than elsewhere in the same screen. Slicing a composable body by counting braces
+     * is too brittle to be a guard; where it LOOKS right is the bench relevé's business.
+     */
+    @Test
+    fun `the account detail screen shows the account-cache help line, visible, just above the button`() {
+        val lines = codeLines(SETTINGS_SCREEN.readText())
+        assertEquals(
+            "the account detail screen must READ settings_clear_account_cache_help — with the " +
+                "string translated nine times and no call site, the button still erases every " +
+                "account's downloaded attachments without a word",
+            listOf("stringResource(R.string.settings_clear_account_cache_help),"),
+            lines.filter { ACCOUNT_CACHE_HELP_KEY in it },
+        )
+        val help = lines.indexOfFirst { ACCOUNT_CACHE_HELP_KEY in it }
+        assertEquals(
+            "⛔ the help line must be a VISIBLE Text: pinned whole, arguments included, because a " +
+                "transparent colour or a zero height would leave the only warning this button has " +
+                "present in the tree and unreadable on the screen",
+            listOf(
+                "Text(",
+                "stringResource(R.string.settings_clear_account_cache_help),",
+                "style = MaterialTheme.typography.bodyMedium,",
+                "color = MaterialTheme.colorScheme.onSurfaceVariant,",
+                "modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),",
+                ")",
+            ),
+            lines.subList(help - 1, help + 5),
+        )
+        val button = lines.indexOfFirst { it == "Text(stringResource(R.string.settings_clear_account_cache))" }
+        assertTrue(
+            "the button's own label line is gone from the screen (looked for " +
+                "`Text(stringResource(R.string.settings_clear_account_cache))`), so nothing here " +
+                "says where the help line sits",
+            button >= 0,
+        )
+        // ⛔ BEFORE the button, and NEXT to it. The gap is this block's remaining lines plus the
+        // button's own; anything wider means the two are no longer one thing on the screen.
+        assertTrue(
+            "the help line must come just BEFORE the button it warns about (linear navigation " +
+                "reaches it first, and the button purges on first activation): help at code line " +
+                "$help, button at $button",
+            button - help in 1..12,
+        )
+    }
+
+    /** The code lines of a source file, comments and bare braces dropped, in source order. */
+    private fun codeLines(source: String): List<String> =
+        source.lines().map { it.trim() }
+            .filterNot {
+                it.isEmpty() || it == "{" || it == "}" ||
+                    it.startsWith("//") || it.startsWith("*") || it.startsWith("/*")
+            }
+
+    /**
      * PARITY OF KEYS IS NOT PARITY OF MEANING, AND THIS SWITCH IS WHERE THAT BITES.
      *
      * `notificationsEnabled` reads like a display setting and is not one: five of the six places
@@ -593,6 +766,50 @@ class TranslationParityTest {
             "connection", "offline", "network",
         )
 
+        const val ACCOUNT_CACHE_HELP_KEY = "settings_clear_account_cache_help"
+
+        /**
+         * The help line of the per-account "Clear this account's cache" button, in English, whole.
+         *
+         * ⚠ It is NOT the global button's line (`settings_clear_cache_help`), which says "from this
+         * device" and is true of the global button. This one has to say the harder thing: the
+         * messages are this account's, the attachments are everybody's.
+         */
+        val ACCOUNT_CACHE_ENGLISH = mapOf(
+            ACCOUNT_CACHE_HELP_KEY to "Clearing this account\\'s cache removes its downloaded " +
+                "messages. Attachments are not stored per account, so downloaded attachments from " +
+                "all your accounts are cleared too. Your accounts stay signed in, and your mail " +
+                "re-downloads when you open it.",
+        )
+
+        /**
+         * What that line may never say, in lower case, screened with backslashes removed.
+         *
+         * Two families. The first is the reassuring lie: any wording that attributes the deleted
+         * attachments to THIS account. It is the likely accident, because the button, its label and
+         * the whole screen are about one account, and it is the worst possible one — the reader
+         * would leave believing her other account's downloaded files are still on the phone, and
+         * there is no undo and no confirmation dialog to catch her.
+         *
+         * The second is any claim of a background purge. `pruneOldMessages` and its 30 days exist,
+         * but nothing on this screen calls them; a sentence that mentions them describes a
+         * mechanism the reader cannot observe.
+         *
+         * ⚠ None of these is a substring of the shipped text: "removes its downloaded messages"
+         * contains "its downloaded" and stops there, on purpose.
+         */
+        val FORBIDDEN_OF_AN_ACCOUNT_CACHE = listOf(
+            "attachments from this account", "attachments of this account",
+            "this account's attachments", "this account's downloaded attachments",
+            "its attachments", "its downloaded attachments", "only this account",
+            "30 days", "automatically", "in the background",
+            // ⛔ The third family, and the first draft of this line said it: that EVERYTHING comes
+            // back. The sweep also empties `cacheDir/outgoing`, where compose stages the bytes of an
+            // attachment picked on the phone for an IMAP or a PGP send — no server holds those, so
+            // nothing re-downloads them. The mail comes back; "everything" does not.
+            "everything re-downloads", "everything is downloaded again", "everything comes back",
+        )
+
         /** The two labels of the unreadable-accounts startup screen, in English, whole. */
         val UNREADABLE_ENGLISH = mapOf(
             "accounts_unreadable_title" to "Your accounts could not be read",
@@ -627,6 +844,16 @@ class TranslationParityTest {
         val TRANSLATED = mapOf(
             "values-fr" to mapOf("settings_account_notifications_section" to "Notifications"),
         )
+
+        /**
+         * The settings screen, read as TEXT — the one call site this file looks at, and only
+         * because a string nobody displays is the defect the account-cache lint exists for.
+         */
+        val SETTINGS_SCREEN: File by lazy {
+            File(res.parentFile, "kotlin/app/sterna/ui/settings/SettingsScreen.kt").also {
+                if (!it.isFile) error("SettingsScreen.kt is not at ${it.path} — was it moved?")
+            }
+        }
 
         /** Repo root, found by walking up from the module's working directory. */
         val res: File by lazy {

@@ -662,6 +662,7 @@
     <string name="settings_storage_section">Storage</string>
     <string name="settings_cached_messages">Cached messages</string>
     <string name="settings_clear_account_cache">Clear this account\'s cache</string>
+    <string name="settings_clear_account_cache_help">Clearing this account\'s cache removes its downloaded messages. Attachments are not stored per account, so downloaded attachments from all your accounts are cleared too. Your accounts stay signed in, and your mail re-downloads when you open it.</string>
     <string name="settings_pgp_section">OpenPGP encryption</string>
     <string name="settings_pgp_enable_title">Use OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Sign, encrypt and read mail with OpenKeychain</string>

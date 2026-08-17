@@ -505,6 +505,7 @@
     <string name="settings_storage_section">Speicher</string>
     <string name="settings_cached_messages">Zwischengespeicherte Nachrichten</string>
     <string name="settings_clear_account_cache">Cache dieses Kontos leeren</string>
+    <string name="settings_clear_account_cache_help">Beim Leeren des Caches dieses Kontos werden seine heruntergeladenen Nachrichten entfernt. Anhänge werden nicht pro Konto gespeichert, daher werden auch die heruntergeladenen Anhänge aller Konten entfernt. Deine Konten bleiben angemeldet und E-Mails werden beim Öffnen erneut heruntergeladen.</string>
     <string name="settings_pgp_section">OpenPGP-Verschlüsselung</string>
     <string name="settings_pgp_enable_title">OpenPGP verwenden</string>
     <string name="settings_pgp_enable_subtitle">E-Mails mit OpenKeychain signieren, verschlüsseln und lesen</string>

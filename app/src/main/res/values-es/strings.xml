@@ -505,6 +505,7 @@
     <string name="settings_storage_section">Almacenamiento</string>
     <string name="settings_cached_messages">Mensajes en caché</string>
     <string name="settings_clear_account_cache">Vaciar la caché de esta cuenta</string>
+    <string name="settings_clear_account_cache_help">Vaciar la caché de esta cuenta elimina sus mensajes descargados. Los adjuntos no se guardan por cuenta, así que también se eliminan los adjuntos descargados de todas tus cuentas. Tus cuentas siguen conectadas y el correo se vuelve a descargar al abrirlo.</string>
     <string name="settings_pgp_section">Cifrado OpenPGP</string>
     <string name="settings_pgp_enable_title">Usar OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Firmar, cifrar y leer mensajes con OpenKeychain</string>

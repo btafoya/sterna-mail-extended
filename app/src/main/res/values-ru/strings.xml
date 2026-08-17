@@ -505,6 +505,7 @@
     <string name="settings_storage_section">Хранилище</string>
     <string name="settings_cached_messages">Письма в кеше</string>
     <string name="settings_clear_account_cache">Очистить кеш этого аккаунта</string>
+    <string name="settings_clear_account_cache_help">Очистка кеша этого аккаунта удаляет загруженные письма этого аккаунта. Вложения не хранятся отдельно по аккаунтам, поэтому загруженные вложения всех аккаунтов тоже удаляются. Аккаунты остаются в системе, а письма загружаются заново при открытии.</string>
     <string name="settings_pgp_section">Шифрование OpenPGP</string>
     <string name="settings_pgp_enable_title">Использовать OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Подписывать, шифровать и читать письма через OpenKeychain</string>

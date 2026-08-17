@@ -2105,6 +2105,20 @@ private fun AccountDetailScreen(
             }
             SettingsSection(stringResource(R.string.settings_storage_section)) {
                 StorageStatRow(stringResource(R.string.settings_cached_messages), "$cacheCount")
+                // ⛔ BEFORE the button, as the global one has it (`settings_clear_cache_help`), and
+                // it is not decoration: the attachment cache is ONE flat directory shared by every
+                // account, so this button deletes the downloaded attachments of all of them. There
+                // is no confirmation dialog (decided against), so this line is the only warning the
+                // reader gets and it has to reach her before the tap — in linear navigation
+                // (TalkBack, a keyboard) a warning placed after the button is reached after the
+                // control it warns about, and the button purges on first activation.
+                // `TranslationParityTest` pins the sentence, this call site and this order.
+                Text(
+                    stringResource(R.string.settings_clear_account_cache_help),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
                 OutlinedButton(
                     onClick = { viewModel.clearAccountCache(accountId) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),

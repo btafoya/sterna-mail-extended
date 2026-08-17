@@ -505,6 +505,7 @@
     <string name="settings_storage_section">Pamięć</string>
     <string name="settings_cached_messages">Wiadomości w pamięci podręcznej</string>
     <string name="settings_clear_account_cache">Wyczyść pamięć podręczną tego konta</string>
+    <string name="settings_clear_account_cache_help">Wyczyszczenie pamięci podręcznej tego konta usuwa jego pobrane wiadomości. Załączniki nie są przechowywane osobno dla każdego konta, więc usuwane są też pobrane załączniki wszystkich kont. Twoje konta pozostają zalogowane, a wiadomości pobierają się ponownie po otwarciu.</string>
     <string name="settings_pgp_section">Szyfrowanie OpenPGP</string>
     <string name="settings_pgp_enable_title">Używaj OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Podpisuj, szyfruj i odczytuj wiadomości za pomocą OpenKeychain</string>
