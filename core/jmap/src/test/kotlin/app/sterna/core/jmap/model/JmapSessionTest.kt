@@ -57,7 +57,7 @@ class JmapSessionTest {
               "accounts": {
                 "a": { "name": "me@example.com",
                        "accountCapabilities": { "${Jmap.MAIL_CAPABILITY}": {} } },
-                "b": { "name": "shared@example.com", "isPersonal": false,
+                "b": { "name": "shared@example.com",
                        "accountCapabilities": { "${Jmap.MAIL_CAPABILITY}": {} } }
               }
             }

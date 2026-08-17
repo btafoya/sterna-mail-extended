@@ -98,8 +98,6 @@ data class JmapSession(
 @Serializable
 data class JmapAccount(
     val name: String,
-    val isPersonal: Boolean = false,
-    val isReadOnly: Boolean = false,
     /**
      * The data types this account exposes (RFC 8620 §2), e.g. the mail capability for a mailbox.
      * Used to tell mail accounts apart from contacts/calendar-only accounts in a shared session.

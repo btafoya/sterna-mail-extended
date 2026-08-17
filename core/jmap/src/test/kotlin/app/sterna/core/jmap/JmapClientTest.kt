@@ -1779,7 +1779,7 @@ class JmapClientTest {
                 "urn:ietf:params:jmap:mail": {}
               },
               "accounts": {
-                "acc1": { "name": "admin@masto.top", "isPersonal": true, "isReadOnly": false }
+                "acc1": { "name": "admin@masto.top" }
               },
               "primaryAccounts": { "urn:ietf:params:jmap:mail": "acc1" },
               "username": "admin@masto.top",
@@ -1813,7 +1813,7 @@ class JmapClientTest {
                 "urn:ietf:params:jmap:mail": {}
               },
               "accounts": {
-                "acc1": { "name": "admin@masto.top", "isPersonal": true, "isReadOnly": false }
+                "acc1": { "name": "admin@masto.top" }
               },
               "primaryAccounts": { "urn:ietf:params:jmap:mail": "acc1" },
               "username": "admin@masto.top",
