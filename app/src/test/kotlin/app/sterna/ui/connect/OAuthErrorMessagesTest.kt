@@ -158,6 +158,26 @@ class OAuthErrorMessagesTest {
         )
     }
 
+    // ---- A wait that ran out: WHICH END went quiet (#55) ----
+
+    @Test fun `a deadline reached on answered polls is an expiry`() {
+        assertEquals(
+            "⛔ Every poll of that wait was answered and the code simply expired: \"The sign-in " +
+                "request expired. Try again.\" is the true sentence, and telling this reader to " +
+                "check her connection points at the one thing that was working.",
+            R.string.connect_oauth_expired, oauthRanOutMessage(everReachedAServer = true),
+        )
+    }
+
+    @Test fun `a deadline reached without ever reaching a server names the connection`() {
+        assertEquals(
+            "⛔ #55: nothing answered for the whole life of the device code, so \"expired… try " +
+                "again\" sends her back to a server she never spoke to for another thirty minutes. " +
+                "The state on screen must be true about what she can act on — her connection.",
+            R.string.connect_oauth_network, oauthRanOutMessage(everReachedAServer = false),
+        )
+    }
+
     // ---- Discovery: "no OAuth here" and "OAuth, but not this flow" are different facts ----
 
     @Test fun `no metadata means the server has no OAuth`() {

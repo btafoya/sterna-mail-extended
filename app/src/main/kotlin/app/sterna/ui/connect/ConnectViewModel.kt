@@ -19,14 +19,12 @@ import app.sterna.core.imap.ImapException
 import app.sterna.core.data.mail.OAuthProvider
 import app.sterna.core.jmap.BearerAuth
 import app.sterna.core.jmap.DeviceAuthorization
-import app.sterna.core.jmap.DeviceTokenResult
 import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.OAuthMetadata
 import app.sterna.net.hasUsableNetwork
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -582,6 +580,13 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Wait for approval, then say what the wait concluded.
+     *
+     * ⛔ The waiting itself is [pollDeviceGrant]'s, not this function's, and that is what makes it
+     * testable at all: nothing in this repo can build this ViewModel, so while the loop lived here
+     * it was executed by no test. This body is the mapping from verdict to screen, and nothing else.
+     */
     private suspend fun pollForToken(
         host: String,
         metadata: OAuthMetadata,
@@ -589,52 +594,54 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         email: String,
         accountName: String,
     ) {
-        var interval = device.interval.coerceAtLeast(1).toLong()
-        val deadline = System.currentTimeMillis() + device.expiresIn * 1000L
-        while (System.currentTimeMillis() < deadline) {
-            delay(interval * 1000)
-            // A poll the client could not read at all now rises instead of passing for a dead
-            // network (it used to be swallowed into `Failed("network error")`). It must not leave
-            // this coroutine: an uncaught throw in viewModelScope takes the app down mid sign-in.
-            val result = try {
-                container.mailRepository.pollDeviceToken(metadata, device.deviceCode)
-            } catch (cancelled: CancellationException) {
-                // Leaving the screen cancels the poll: not something to show an error for.
-                throw cancelled
-            } catch (t: Throwable) {
-                val spec = oauthFailureSpec(
-                    error = (t as? JmapException)?.oauthError.orEmpty(),
-                    description = "",
-                    aadstsCode = null,
-                    fallbackRes = R.string.connect_oauth_failed,
-                )
-                _state.value = ConnectState.Error(
-                    if (spec.arg == null) string(spec.resId) else string(spec.resId, spec.arg),
-                )
-                return
-            }
-            when (result) {
-                is DeviceTokenResult.Success -> {
-                    _state.value = ConnectState.Connecting
-                    val outcome = runCatching {
-                        container.mailRepository.addOAuthAccount(host, email, metadata, result.tokens, accountName)
-                    }
-                    _state.value = outcome.fold(
-                        onSuccess = { ConnectState.Connected },
-                        onFailure = { ConnectState.Error(it.message ?: it.javaClass.simpleName) },
-                    )
-                    return
-                }
-                DeviceTokenResult.Pending -> Unit
-                DeviceTokenResult.SlowDown -> interval += 5
-                is DeviceTokenResult.Failed -> {
-                    // Not every terminal poll is a refusal by the reader: say what the server said.
-                    _state.value = ConnectState.Error(oauthFailureMessage(getApplication<Application>(), result))
-                    return
-                }
-            }
+        // A poll the client could not read at all rises instead of passing for a dead network (it
+        // used to be swallowed into `Failed("network error")`). It must not leave this coroutine:
+        // an uncaught throw in viewModelScope takes the app down mid sign-in. ⛔ The guard is HERE
+        // and not inside the loop: pollDeviceGrant catches nothing, so cancelling the screen still
+        // ends the wait instead of leaving it alive for the rest of the device code's half hour.
+        val verdict = try {
+            pollDeviceGrant(
+                // ⛔ No clamp here: the one-second floor is pollDeviceGrant's, where a test runs it.
+                intervalSeconds = device.interval.toLong(),
+                expiresInSeconds = device.expiresIn.toLong(),
+            ) { container.mailRepository.pollDeviceToken(metadata, device.deviceCode) }
+        } catch (cancelled: CancellationException) {
+            // Leaving the screen cancels the poll: not something to show an error for.
+            throw cancelled
+        } catch (t: Throwable) {
+            val spec = oauthFailureSpec(
+                error = (t as? JmapException)?.oauthError.orEmpty(),
+                description = "",
+                aadstsCode = null,
+                fallbackRes = R.string.connect_oauth_failed,
+            )
+            _state.value = ConnectState.Error(
+                if (spec.arg == null) string(spec.resId) else string(spec.resId, spec.arg),
+            )
+            return
         }
-        _state.value = ConnectState.Error(string(R.string.connect_oauth_expired))
+        when (verdict) {
+            is DevicePollVerdict.Approved -> {
+                _state.value = ConnectState.Connecting
+                val outcome = runCatching {
+                    container.mailRepository.addOAuthAccount(host, email, metadata, verdict.tokens, accountName)
+                }
+                _state.value = outcome.fold(
+                    onSuccess = { ConnectState.Connected },
+                    onFailure = { ConnectState.Error(it.message ?: it.javaClass.simpleName) },
+                )
+            }
+            is DevicePollVerdict.Refused -> {
+                // Not every terminal poll is a refusal by the reader: say what the server said.
+                _state.value = ConnectState.Error(oauthFailureMessage(getApplication<Application>(), verdict.failure))
+            }
+            // WHICH END went quiet, and both sentences already exist in nine languages. ⛔ The
+            // choice is oauthRanOutMessage's, not this screen's: written here as an `if`, it was
+            // held by nothing — no test can build this ViewModel, so the two resources could be
+            // swapped back and the whole suite stayed green.
+            is DevicePollVerdict.RanOut ->
+                _state.value = ConnectState.Error(string(oauthRanOutMessage(verdict.everReachedAServer)))
+        }
     }
 
     /**

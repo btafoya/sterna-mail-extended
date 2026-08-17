@@ -10,9 +10,11 @@ import java.io.File
  * [ConnectPrimingWiringTest]: it reads a file as text and proves nothing about what runs.
  * `ConnectViewModel` is an `AndroidViewModel` wired to the app container, so this module (no
  * Robolectric, no instrumented tests) cannot instantiate it, and no test in this repo executes the
- * OAuth screen. The DECISION it now defers to is covered for real, by execution, in
- * [OAuthErrorMessagesTest]; what is left to hold is that the screen actually defers to it, and
- * reading the source is the only way to hold that.
+ * OAuth screen. The DECISIONS it defers to are covered for real, by execution: which sentence a
+ * failure gets, and which one a wait that ran out gets, in [OAuthErrorMessagesTest]; how long the
+ * device-grant wait goes on — the loop `pollForToken` used to hold itself — in [DeviceGrantPollTest].
+ * What is left to hold is that the screen actually defers to them, and reading the source is the
+ * only way to hold that.
  *
  * The rule: when an OAuth sign-in fails, the screen must say what the server said. Three sentences
  * used to be written here instead — "Sign-in was declined or cancelled." for every terminal poll
@@ -58,17 +60,22 @@ class OAuthWiringTest {
     }
 
     /**
-     * A terminal poll outcome carries the server's `error` (and, for Microsoft, an AADSTS code);
-     * the branch must hand that whole result to the shared mapper rather than render a sentence of
-     * its own.
+     * A refusal carries the server's `error` (and, for Microsoft, an AADSTS code); the branch must
+     * hand that whole failure to the shared mapper rather than render a sentence of its own.
+     *
+     * ⚠ The arm MOVED, and this rule moved with it. `pollForToken` no longer matches on
+     * `DeviceTokenResult` at all — the loop lives in `pollDeviceGrant`, which answers a
+     * [DevicePollVerdict] — so what is read here is the `is DevicePollVerdict.Refused ->` arm, and
+     * the failure it must route is `verdict.failure`. The other end of the wait, `RanOut`, has a
+     * rule of its own below.
      */
     @Test fun `the poll failure says what the server said`() {
         val branch = failedBranch()
         assertTrue(
-            "the `is DeviceTokenResult.Failed ->` branch of pollForToken must set the error state " +
-                "with oauthFailureMessage(<context>, result) — one whole line, matching " +
+            "the `is DevicePollVerdict.Refused ->` branch of pollForToken must set the error state " +
+                "with oauthFailureMessage(<context>, verdict.failure) — one whole line, matching " +
                 "${POLL_ROUTES.pattern}. Anything else is this screen choosing the words again, " +
-                "and `result` is the only thing carrying the server's reason. Branch was:\n" +
+                "and `verdict.failure` is the only thing carrying the server's reason. Branch was:\n" +
                 branch.joinToString("\n"),
             branch.any { POLL_ROUTES.matches(it) },
         )
@@ -77,6 +84,36 @@ class OAuthWiringTest {
             "and it must not ALSO set the state from a hard-coded string: a second " +
                 "ConnectState.Error(string(R.string.…)) in this branch either overwrites the " +
                 "routed message or is what actually runs. Found:\n" + hardCoded.joinToString("\n"),
+            emptyList<String>(), hardCoded,
+        )
+    }
+
+    /**
+     * A wait that ran out has two endings — the code expired under polls that were being answered,
+     * or nothing was ever reached — and WHICH SENTENCE that is belongs to `oauthRanOutMessage`,
+     * executed in [OAuthErrorMessagesTest]. Written as an `if` in this arm it was held by nothing at
+     * all: the two resources could be swapped and the suite stayed green, putting "The sign-in
+     * request expired. Try again." back in front of someone who never reached a server.
+     *
+     * ⚠ The argument is pinned, not just the call: `oauthRanOutMessage(true)` also *calls* the
+     * function and is exactly how the distinction is thrown away again.
+     */
+    @Test fun `the deadline's sentence is not this screen's to choose`() {
+        val body = functionBody("pollForToken")
+        assertTrue(
+            "the `is DevicePollVerdict.RanOut ->` arm of pollForToken must take its sentence from " +
+                "oauthRanOutMessage(<verdict>.everReachedAServer), as a whole line matching " +
+                "${RAN_OUT_ROUTES.pattern}. Body was:\n$body",
+            body.lineSequence().map { it.trim() }.any { RAN_OUT_ROUTES.matches(it) },
+        )
+        val hardCoded = body.lines().withIndex()
+            .filter { (_, line) -> RAN_OUT_SENTENCES.containsMatchIn(line) }
+            .map { (i, line) -> "${i + 1}: ${line.trim()}" }
+        assertEquals(
+            "and pollForToken must not name R.string.connect_oauth_expired or " +
+                "R.string.connect_oauth_network itself: they are the two answers oauthRanOutMessage " +
+                "picks between, and naming one here is this screen deciding again which end went " +
+                "quiet — the defect (#55), restored. Found:\n" + hardCoded.joinToString("\n"),
             emptyList<String>(), hardCoded,
         )
     }
@@ -109,7 +146,7 @@ class OAuthWiringTest {
     // -- reading the file --------------------------------------------------------------------------
 
     /**
-     * The lines of the `is DeviceTokenResult.Failed ->` arm of `pollForToken`, trimmed: from the
+     * The lines of the `is DevicePollVerdict.Refused ->` arm of `pollForToken`, trimmed: from the
      * arm itself to the line that closes it, by counting braces — the same raw counting as
      * [ConnectPrimingWiringTest], sound only while the file's string literals carry no braces.
      */
@@ -117,7 +154,7 @@ class OAuthWiringTest {
         val lines = functionBody("pollForToken").lines()
         val start = lines.indexOfFirst { FAILED_ARM.containsMatchIn(it) }
         check(start >= 0) {
-            "pollForToken no longer has an `is DeviceTokenResult.Failed ->` arm: this lint would " +
+            "pollForToken no longer has an `is DevicePollVerdict.Refused ->` arm: this lint would " +
                 "read an empty branch and pass. Rename it here too rather than let the rule go blind."
         }
         val out = mutableListOf<String>()
@@ -174,11 +211,15 @@ class OAuthWiringTest {
         val DENIED = Regex("""\bR\.string\.connect_oauth_denied\b""")
         val UNSUPPORTED = Regex("""\bR\.string\.connect_oauth_unsupported\b""")
         val ERROR_FROM_RESOURCE = Regex("""ConnectState\.Error\(\s*string\(R\.string\.""")
+        val RAN_OUT_SENTENCES = Regex("""\bR\.string\.connect_oauth_(expired|network)\b""")
 
         /** Required shapes: whole trimmed lines, anchored, so a longer line is a different line. */
-        val POLL_ROUTES = Regex("""^_state\.value = ConnectState\.Error\(oauthFailureMessage\(.+, result\)\)$""")
+        val POLL_ROUTES = Regex("""^_state\.value = ConnectState\.Error\(oauthFailureMessage\(.+, verdict\.failure\)\)$""")
         val DISCOVERY_VERDICT = Regex("""^val [A-Za-z]\w* = oauthDiscoveryFailure\([A-Za-z]\w*\)$""")
+        val RAN_OUT_ROUTES = Regex(
+            """^_state\.value = ConnectState\.Error\(string\(oauthRanOutMessage\([A-Za-z]\w*\.everReachedAServer\)\)\)$""",
+        )
 
-        val FAILED_ARM = Regex("""\bis DeviceTokenResult\.Failed\s*->""")
+        val FAILED_ARM = Regex("""\bis DevicePollVerdict\.Refused\s*->""")
     }
 }

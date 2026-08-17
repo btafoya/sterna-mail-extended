@@ -54,6 +54,23 @@ fun oauthFailureSpec(
     else -> OAuthMessage(fallbackRes)
 }
 
+/**
+ * Which sentence a device-grant wait that ran out of time gets — pure, no `Context`, so a test can
+ * EXECUTE the choice instead of reading the screen that shows it. [everReachedAServer]: at least one
+ * poll of that wait was answered by a server.
+ *
+ * ⛔ "The sign-in request expired. Try again." goes ONLY to someone whose polls were being answered.
+ * The device code did expire in both cases — that much is true of the protocol — but the state on
+ * screen has to be true about what the reader can DO, and for someone who reached nothing for half
+ * an hour the fact is her connection, not the delay: "try again" sends her back to a server she
+ * never spoke to, to wait out another thirty minutes. That is the defect (#55) this whole change
+ * exists for, and it lives here rather than in the `when` arm because a branch inside
+ * `ConnectViewModel` is executed by no test in this repo and can be inverted without a red.
+ */
+@StringRes
+fun oauthRanOutMessage(everReachedAServer: Boolean): Int =
+    if (everReachedAServer) R.string.connect_oauth_expired else R.string.connect_oauth_network
+
 /** RFC 6749 §5.2 error codes are `*( %x20-21 / %x23-5B / %x5D-7E )` in practice lower snake_case,
  *  plus the `http_<status>` tokens this app makes up when the server sent no `error` field. */
 private val OAUTH_ERROR_TOKEN = Regex("""^[a-z][a-z0-9_]{0,39}$|^http_\d{3}$""")
