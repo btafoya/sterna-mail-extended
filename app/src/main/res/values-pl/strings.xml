@@ -694,6 +694,7 @@
     <string name="status_attachment_too_large">Ten załącznik jest za duży, aby go otworzyć.</string>
     <string name="status_inline_images_too_large">Niektóre obrazy w tej wiadomości są za duże, aby je wyświetlić.</string>
     <string name="status_message_too_large">Ta wiadomość jest za duża, aby ją wyświetlić.</string>
+    <string name="status_message_unavailable">Serwer nie zwrócił tej wiadomości. Spróbuj ponownie później.</string>
     <string name="status_action_failed">Nie udało się wykonać akcji.</string>
     <string name="status_restore_failed">Nie udało się przywrócić niektórych wiadomości.</string>
     <string name="status_moved_to_folder">Przeniesiono do %1$s</string>

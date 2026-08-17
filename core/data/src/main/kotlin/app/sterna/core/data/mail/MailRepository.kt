@@ -3015,12 +3015,45 @@ class MailRepository(
         return email
     }
 
-    /** IMAP message open: fetch the raw source, parse the body, mark seen when [markRead]. */
+    /**
+     * IMAP message open: fetch the raw source, parse the body, mark seen when [markRead].
+     *
+     * ⭐ The envelope comes from the cache when there is one and FROM THE SERVER when there is not
+     * (#159). A hit of a server-side search lives in a folder no sync ever walked, so no row exists
+     * for it — and the open used to end there, on "Message is not in the cache." over a blank
+     * screen, while the body two lines down was being read off the server anyway.
+     *
+     * ⛔ No row of `emails` is written here. We go and get the envelope to show it, we do not file
+     * it: a row of a never-synced folder would be exposed to the next `reconcileMailbox` (which
+     * deletes what its walk did not see), to the drawer counts and to the FTS index. The BODY is
+     * another matter and is unchanged — [openMessage] caches it in `email_bodies` for this open
+     * exactly as it does for any other.
+     */
     private suspend fun openEmailImap(credentials: AccountCredentials, emailId: String, markRead: Boolean = true): Email {
-        val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()?.toEmail()
-            ?: error("Message is not in the cache.")
-        val mailboxId = cached.mailboxId ?: error("Unknown mailbox for message.")
+        // ⛔ FIRST, before the cache is even read. This is the sanction for an id that is not an
+        // IMAP message at all, and until #159 what actually enforced it was the cache miss below —
+        // which now goes to the SERVER instead. A `local-draft:` id sent down this path
+        // (LocalDraftReopen.kt:41, ComposeViewModel.kt:1093 both document that mistake) is the one
+        // copy of a text that exists nowhere else; it must not buy a SELECT of a folder named
+        // after a UUID.
         val uid = ImapMailService.uidOf(emailId) ?: error("Not an IMAP message.")
+        // Nullable on purpose now: a miss is a question to put to the server, not the end.
+        val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()?.toEmail()
+        val fetched = if (cached != null) null else try {
+            imap.fetchById(credentials, emailId)?.toEmail()
+        } catch (cancelled: CancellationException) {
+            // ⛔ Rethrown as-is, which is why this is a `try` and not a `runCatching`:
+            // AccountGoneException IS a CancellationException, and dressing a sign-out up as
+            // "could not load this message" both lies to the reader and stops the cancellation
+            // from doing its job upstream.
+            throw cancelled
+        } catch (failure: Throwable) {
+            throw MessageUnavailableException("Could not fetch $emailId from the server.", failure)
+        }
+        // A fetch that came back empty is a message the server no longer holds: same answer.
+        val envelope = cached ?: fetched
+            ?: throw MessageUnavailableException("Message $emailId is not in the cache and the server did not return it.")
+        val mailboxId = envelope.mailboxId ?: error("Unknown mailbox for message.")
         val raw = imap.fetchSource(credentials, mailboxId, uid)
         val body = MimeParser.parseBody(raw)
         // Refused before parsing: say so rather than render a blank message (the reader turns
@@ -3032,7 +3065,7 @@ class MailRepository(
                 maxBytes = MimeParser.MAX_BODY_CHARS.toLong(),
             )
         }
-        if (markRead && !cached.isSeen) {
+        if (markRead && !envelope.isSeen) {
             runCatching { setRead(credentials, emailId, seen = true) }
         }
         // The cache holds no threading headers; lift them from the source so a reply
@@ -3047,7 +3080,7 @@ class MailRepository(
         // one. Accepted for this lot: both are the sender's own, and picking one of two is not
         // the failure mode worth a second parser.
         val unsubscribe = unsubscribeHeadersOf(raw)
-        return cached.withBody(body).copy(
+        return envelope.withBody(body).copy(
             messageId = headerIds(MimeParser.headerOf(raw, "Message-ID")),
             references = headerIds(MimeParser.headerOf(raw, "References")),
             listUnsubscribe = unsubscribe.first,
@@ -3609,12 +3642,9 @@ class MailRepository(
         advanceEmailState(newState, credentials.id, mb)
     }
 
-    /** Source (mailbox path, UID) for an IMAP message id, or null if not parseable. */
-    private fun imapTarget(emailId: String): Pair<String, Long>? {
-        val mb = ImapMailService.mailboxOf(emailId) ?: return null
-        val uid = ImapMailService.uidOf(emailId) ?: return null
-        return mb to uid
-    }
+    /** Source (mailbox path, UID) for an IMAP message id, or null if not parseable — the ONE
+     *  derivation, shared with [ImapMailService.fetchById] and executable in a JVM test. */
+    private fun imapTarget(emailId: String): Pair<String, Long>? = ImapMailService.targetOf(emailId)
 
     /**
      * Archive a message: move it to the account's archive location and drop it from the list.

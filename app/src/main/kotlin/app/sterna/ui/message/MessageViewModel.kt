@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.content.FileProvider
 import app.sterna.core.data.mail.MessageCrypto
+import app.sterna.core.data.mail.MessageUnavailableException
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.imap.CryptoKind
 import androidx.lifecycle.AndroidViewModel
@@ -368,6 +369,28 @@ internal const val CONFIRM_LINKS_UNLOADED = true
  *  default, or the reader would see a flash of text on every message swiped past. See
  *  [plainTextForImages] and [plainTextForBody], which are what execute both. */
 internal const val PLAIN_TEXT_UNLOADED_FOR_IMAGES = true
+
+/**
+ * Which failure to open a message earns a sentence of OUR own, and which keeps the text it carries.
+ *
+ * Null means "no sentence": the exception's own message reaches the screen. A resource means the
+ * technical text is REPLACED — not completed: the strings these exceptions carry name the account
+ * UUID, the folder path and the uid, in English, and none of that belongs on a reader's screen
+ * (#159). What a bug report needs is then in logcat and nowhere else, which is why the catch in
+ * [MessageViewModel.load] logs the throwable before showing any of this.
+ *
+ * Pure, and at file level, because [MessageViewModel.readFailureText] needs an `Application` and no
+ * JVM test can run it. This is the decision itself, so a test can execute it.
+ */
+internal fun readFailureStringRes(t: Throwable): Int? = when (t) {
+    is ContentTooLargeException -> R.string.status_message_too_large
+    // ⛔ ONE sentence, naming no cause. Offline, destroyed server-side and a renumbered folder are
+    // the expected three, but the repository wraps EVERY failure of that fetch — an expired
+    // password and a bad certificate land here too, and a wording that guessed "deleted, or your
+    // connection is down" would be telling those readers something false.
+    is MessageUnavailableException -> R.string.status_message_unavailable
+    else -> null
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MessageViewModel(application: Application) : AndroidViewModel(application) {
@@ -1134,21 +1157,23 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 // banner that outlives its message is one that never goes away.
                 _readReceiptOffer.value = null
                 _readReceiptState.value = ReadReceiptState.Idle
+                // The screen gets a sentence that names no cause, and for
+                // MessageUnavailableException it REPLACES the technical text (#159) — so unless the
+                // throwable is written here, the reason this message would not open exists nowhere.
+                android.util.Log.w("SternaMessage", "message load failed: $emailId", t)
                 _state.value = MessageState.Error(readFailureText(t))
             }
         }
     }
 
     /**
-     * What to show when a message won't open. A refusal on our own terms (its source is past what
-     * we are willing to parse) gets a plain sentence; anything else keeps its technical text,
-     * which is what a bug report needs.
+     * What to show when a message won't open: the sentence [readFailureStringRes] picks, and
+     * failing that the exception's own technical text. Either way the throwable itself is logged by
+     * the caller's catch — this is a screen, not a report.
      */
-    private fun readFailureText(t: Throwable): String = when (t) {
-        is ContentTooLargeException ->
-            getApplication<Application>().getString(R.string.status_message_too_large)
-        else -> t.message ?: t.javaClass.simpleName
-    }
+    private fun readFailureText(t: Throwable): String =
+        readFailureStringRes(t)?.let { getApplication<Application>().getString(it) }
+            ?: (t.message ?: t.javaClass.simpleName)
 
     /** The anchor as displayed: shown read once it has been settled on (else its true state). */
     private fun anchorDisplay(anchor: Email): Email = if (anchorMarked) anchor.markRead() else anchor

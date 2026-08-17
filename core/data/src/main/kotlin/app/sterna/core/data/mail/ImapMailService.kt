@@ -925,11 +925,46 @@ class ImapMailService(
         MimeParser.decodeBytes(session.fetchSection(uid, section), encoding)
     }
 
-    /** Fetch one message by UID into a cache entity (used to restore after an undo). */
+    /**
+     * One message's ENVELOPE, by folder and UID, as a cache row — `null` when the folder does not
+     * hold that UID (destroyed since we last looked).
+     *
+     * ⚠ Its doc used to say "used to restore after an undo"; the undo goes through [fetchByUids]
+     * (plural) and this had no production caller at all. Its caller is [fetchById], i.e. opening a
+     * message the cache does not hold (#159).
+     */
     suspend fun fetchByUid(credentials: AccountCredentials, mailboxId: String, uid: Long): EmailEntity? =
         onMailbox(credentials, mailboxId) { session, _ ->
             session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId)
         }
+
+    /**
+     * The envelope of a message named by CACHE ID ALONE, fetched from the server (#159).
+     *
+     * What it is for: a hit of a server-side search lives in a folder no sync ever walked, so the
+     * `emails` table holds no row for it — and the id already names the folder and the UID
+     * ([targetOf]), which is everything the fetch needs. `null` for an id that is not IMAP's, and
+     * ⛔ nothing goes on the wire for one: a `local-draft:` id is the only copy of a text, and it
+     * has no business becoming a SELECT of a folder named after a UUID.
+     *
+     * ⛔ **Through [fetchByUid], hence through [onMailbox].** That is where the UIDVALIDITY check
+     * that closes #99 lives, and a UID means nothing outside the numbering it belongs to: under a
+     * new one, the same number names a DIFFERENT message. A bare `withSession { select(…) }` here
+     * would save a lookup and hand the reader somebody else's mail.
+     *
+     * ⛔ **And the id must belong to [credentials].** The cache read this fetch stands in for was
+     * also the account partition — `emailsByIds(credentials.id, …)` finds nothing for another
+     * account's id and the open failed there. Nothing else re-states it: `MessageViewModel` opens
+     * with the CURRENT account whenever the intent carries no account id (a notification without
+     * `EXTRA_OPEN_ACCOUNT_ID`), so on a phone holding two IMAP accounts an unchecked id would send
+     * account B's folder and UID down account A's connection and show the wrong mail under the
+     * right header. Refused before a single packet.
+     */
+    suspend fun fetchById(credentials: AccountCredentials, emailId: String): EmailEntity? {
+        if (accountOf(emailId) != credentials.id) return null
+        val (mailboxId, uid) = targetOf(emailId) ?: return null
+        return fetchByUid(credentials, mailboxId, uid)
+    }
 
     /**
      * The cc+bcc addresses of one message, straight off the envelope — `null` when the message is
@@ -1090,6 +1125,39 @@ class ImapMailService(
             if (!emailId.startsWith("imap:")) return null
             val parts = emailId.split(':')
             return if (parts.size >= 4) parts.subList(2, parts.size - 1).joinToString(":") else null
+        }
+
+        /**
+         * The ACCOUNT encoded in a cache id, or null when the id is not IMAP's.
+         *
+         * ⭐ The segment [targetOf] throws away, and the one that carries the partition: an id is
+         * only meaningful under the account it was built for, and the folder + UID it also carries
+         * are perfectly valid coordinates on somebody else's server. [fetchById] compares it before
+         * it dials.
+         */
+        fun accountOf(emailId: String): String? {
+            if (!emailId.startsWith("imap:")) return null
+            val parts = emailId.split(':')
+            return if (parts.size >= 4) parts[1] else null
+        }
+
+        /**
+         * Folder path and UID to ask the server for, from an id alone; null when the id is not
+         * IMAP's (a `local-draft:` id, a JMAP id, a truncated one).
+         *
+         * ⚠ It says nothing about WHOSE account the id belongs to — see [accountOf]. Every caller
+         * that goes to a server with this pair owes that comparison; `MailRepository.imapTarget`'s
+         * six call sites already hold an id they read out of their own account's cache.
+         *
+         * ⭐ The ONE place that derivation is made, for both callers: [fetchById] and
+         * `MailRepository.imapTarget`, which built it twice, identically. A rule applied in one
+         * copy and not the other is the defect this exists to make impossible — and it is a pure
+         * function so that a test can EXECUTE the decision instead of re-deriving it.
+         */
+        fun targetOf(emailId: String): Pair<String, Long>? {
+            val mailbox = mailboxOf(emailId) ?: return null
+            val uid = uidOf(emailId) ?: return null
+            return mailbox to uid
         }
     }
 }

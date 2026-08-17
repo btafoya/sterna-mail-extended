@@ -8,6 +8,7 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * A scripted IMAP server on loopback, for `core/data`.
@@ -42,6 +43,17 @@ internal class ScriptedImapServer(
     /** The payload of every literal received, in order — an APPEND's MIME, verbatim. */
     val literals: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
 
+    /**
+     * How many connections have been ACCEPTED, over the life of this server.
+     *
+     * ⭐ [issued] cannot answer "did this call dial at all?": it filters the `LOGIN` line out (its
+     * arguments are credentials), so a caller that connects, logs in and then asks nothing looks
+     * exactly like one that never opened a socket. A refusal that is supposed to cost NOTHING is
+     * read here, and only here. Incremented before the greeting is written, so any client that got
+     * past `connect` has already been counted.
+     */
+    val connections = AtomicInteger(0)
+
     val host: String = server.inetAddress.hostAddress ?: "127.0.0.1"
     val port: Int = server.localPort
 
@@ -50,7 +62,10 @@ internal class ScriptedImapServer(
     private fun serve() {
         runCatching {
             while (true) {
-                server.accept().use { socket -> converse(socket) }
+                server.accept().use { socket ->
+                    connections.incrementAndGet()
+                    converse(socket)
+                }
             }
         }
     }
