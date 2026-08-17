@@ -189,6 +189,7 @@
     <string name="message_retry">Erneut versuchen</string>
     <string name="message_unknown_sender">(unbekannter Absender)</string>
     <string name="message_no_subject">(kein Betreff)</string>
+    <string name="message_no_content">(kein Inhalt)</string>
     <string name="list_to_recipients">An: %1$s</string>
     <string name="message_attachments">Anhänge (%1$d)</string>
     <string name="message_attachment_fallback">Anhang</string>

@@ -687,13 +687,15 @@ private fun MessageActions(
     // Is the reading-mode entry worth offering on THIS message (#149)? On mail with no HTML part —
     // a mailing-list post, a git notification — both modes build the same <pre>, and the entry only
     // ever flipped its own label. The verdict comes from building both bodies (see
-    // [readingModesDiffer]), so it needs the same localised notice the page renders. Remembered on
-    // the message and that notice: it renders the body twice and must not do so on every
+    // [readingModesDiffer]), so it needs the same localised strings the page renders — the derived
+    // line AND the "no content" line, which a body-less message puts on both sides. Remembered on
+    // the message and those strings: it renders the body twice and must not do so on every
     // recomposition of the menu. Before the body arrives the state holds the cached header, which
     // has no body at all — the entry stands down until there is something to switch.
     val derivedNotice = stringResource(R.string.message_plain_text_derived)
-    val readingModeUseful = remember(loaded.email, derivedNotice) {
-        readingModesDiffer(loaded.email, derivedNotice)
+    val noContent = stringResource(R.string.message_no_content)
+    val readingModeUseful = remember(loaded.email, derivedNotice, noContent) {
+        readingModesDiffer(loaded.email, derivedNotice, noContent)
     }
     // Follow (flag) toggle, promoted from the overflow menu to the bar now that
     // the subject no longer takes the title space (Codeberg #44).
@@ -1559,19 +1561,20 @@ private fun ConversationBody(
                 // scroll above it, so the bar covered the end. In dark mode the spacer is transparent
                 // (buildHtmlDocument) so it shows the native surface and doesn't invert to an off-black box.
                 val bottomSpacerCssPx = (bottomInsetPx / density.density).roundToInt()
-                // The "derived text" line is resolved here, where a Composable can read resources,
-                // and handed to the document already localised.
+                // The "derived text" and "no content" lines are resolved here, where a Composable
+                // can read resources, and handed to the document already localised.
                 val derivedNotice = stringResource(R.string.message_plain_text_derived)
+                val noContent = stringResource(R.string.message_no_content)
                 // plainText is part of the key, or the toggle would change the mode and re-render
                 // the SAME document; the rebuilt document then differs, which is what makes
                 // EmailWebView's loadKey reload the page.
                 val html = remember(
                     full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx,
-                    plainText, derivedNotice,
+                    plainText, derivedNotice, noContent,
                 ) {
                     buildHtmlDocument(
                         full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx,
-                        plainText, derivedNotice,
+                        plainText, derivedNotice, noContent,
                     )
                 }
                 EmailWebView(
@@ -4125,10 +4128,15 @@ internal fun buildHtmlDocument(
     bottomSpacerCssPx: Int = 0,
     plainText: Boolean = false,
     derivedNotice: String = "",
+    // ⛔ NO DEFAULT, unlike every parameter above it. A default of "" would let a caller — in
+    // practice a test — build the document of a body-less message and get `<p></p>` back: the empty
+    // screen this string exists to prevent, produced in silence by the very code meant to prevent
+    // it. Whoever builds a document says what the reader is told when there is nothing to show.
+    noContent: String,
 ): String {
     // Which part of the message the document carries, and what that implies for the page, is
     // decided in ONE place a test can run — see [readerBody].
-    val body = readerBody(email, plainText, derivedNotice)
+    val body = readerBody(email, plainText, derivedNotice, noContent)
     var inner = body.fragment
     // The two rewrites below UNDO MARKUP the message wrote, so they apply only while the document
     // actually carries that markup — [ReaderBody.richHtml], NOT "the message has HTML" (#149). A

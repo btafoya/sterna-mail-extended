@@ -21,6 +21,14 @@ class ReaderBodyTest {
     /** The line the reader puts above a flattened body, standing in for the localised string. */
     private val notice = "NOTICE"
 
+    /**
+     * What the reader says when there is no body, standing in for the localised string — and
+     * deliberately NOT the shipped English text. Asserting "(no content)" would pass just as well
+     * against a literal left hard-coded in [readerBody], i.e. against a reader that says it in
+     * English to the eight users out of nine who read the app in another language.
+     */
+    private val noContent = "NO-CONTENT-SENTINEL"
+
     @Test
     fun `a genuine text part is what plain-text mode shows, and it is not called derived`() {
         val email = email(
@@ -28,7 +36,7 @@ class ReaderBodyTest {
             html = part("h", "text/html") to "<p>SOMETHING ELSE</p>",
         )
 
-        val body = readerBody(email, plainText = true, derivedNotice = notice)
+        val body = readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent)
 
         assertEquals("<pre class=\"plain\">Bonjour\nligne deux</pre>", body.fragment)
         assertFalse("a real text/plain part must not be announced as derived", body.derived)
@@ -42,7 +50,7 @@ class ReaderBodyTest {
         // one. Escaping THAT into a <pre> would show the reader the markup as if it were the mail.
         val email = email(text = part("t", "text/html") to "<p>Hello <b>world</b></p>")
 
-        val body = readerBody(email, plainText = true, derivedNotice = notice)
+        val body = readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent)
 
         assertEquals(
             "<p class=\"s-note\">NOTICE</p><pre class=\"plain\">Hello world</pre>",
@@ -60,7 +68,7 @@ class ReaderBodyTest {
                 "<p>One</p><table><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>",
         )
 
-        val body = readerBody(email, plainText = true, derivedNotice = notice)
+        val body = readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent)
 
         assertEquals(
             "<p class=\"s-note\">NOTICE</p><pre class=\"plain\">One\nA B\nC D</pre>",
@@ -74,13 +82,13 @@ class ReaderBodyTest {
         val text = email(text = part("t", "text/plain") to "Just text")
         val html = email(html = part("h", "text/html") to "<p>Hi</p>")
 
-        assertFalse(notice in readerBody(text, plainText = true, derivedNotice = notice).fragment)
-        assertFalse(notice in readerBody(html, plainText = false, derivedNotice = notice).fragment)
-        assertTrue(notice in readerBody(html, plainText = true, derivedNotice = notice).fragment)
+        assertFalse(notice in readerBody(text, plainText = true, derivedNotice = notice, noContent = noContent).fragment)
+        assertFalse(notice in readerBody(html, plainText = false, derivedNotice = notice, noContent = noContent).fragment)
+        assertTrue(notice in readerBody(html, plainText = true, derivedNotice = notice, noContent = noContent).fragment)
         // An empty notice puts no empty paragraph in the document.
         assertEquals(
             "<pre class=\"plain\">Hi</pre>",
-            readerBody(html, plainText = true, derivedNotice = "").fragment,
+            readerBody(html, plainText = true, derivedNotice = "", noContent = noContent).fragment,
         )
     }
 
@@ -88,17 +96,17 @@ class ReaderBodyTest {
     fun `a message that is already text renders identically in both modes`() {
         val email = email(text = part("t", "text/plain") to "Just text")
 
-        assertEquals("<pre class=\"plain\">Just text</pre>", readerBody(email, false, notice).fragment)
-        assertEquals("<pre class=\"plain\">Just text</pre>", readerBody(email, true, notice).fragment)
-        assertFalse(readerBody(email, true, notice).derived)
+        assertEquals("<pre class=\"plain\">Just text</pre>", readerBody(email, false, notice, noContent).fragment)
+        assertEquals("<pre class=\"plain\">Just text</pre>", readerBody(email, true, notice, noContent).fragment)
+        assertFalse(readerBody(email, true, notice, noContent).derived)
     }
 
     @Test
     fun `text is escaped in both modes, so markup in a text body stays text`() {
         val email = email(text = part("t", "text/plain") to "a < b & c > d")
 
-        assertEquals("<pre class=\"plain\">a &lt; b &amp; c &gt; d</pre>", readerBody(email, false, notice).fragment)
-        assertEquals("<pre class=\"plain\">a &lt; b &amp; c &gt; d</pre>", readerBody(email, true, notice).fragment)
+        assertEquals("<pre class=\"plain\">a &lt; b &amp; c &gt; d</pre>", readerBody(email, false, notice, noContent).fragment)
+        assertEquals("<pre class=\"plain\">a &lt; b &amp; c &gt; d</pre>", readerBody(email, true, notice, noContent).fragment)
     }
 
     @Test
@@ -108,20 +116,108 @@ class ReaderBodyTest {
         // band, which is the "white band in dark theme" bug from the other side.
         val email = email(html = part("h", "text/html") to "<p>Hi</p>")
 
-        val asHtml = readerBody(email, plainText = false, derivedNotice = notice)
+        val asHtml = readerBody(email, plainText = false, derivedNotice = notice, noContent = noContent)
         assertEquals("<p>Hi</p>", asHtml.fragment)
         assertTrue(asHtml.richHtml)
 
-        assertFalse(readerBody(email, plainText = true, derivedNotice = notice).richHtml)
+        assertFalse(readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent).richHtml)
     }
 
     @Test
     fun `a message with neither body falls back to its preview`() {
         val email = Email(id = "1", preview = "a < b")
 
-        assertEquals("<p>a &lt; b</p>", readerBody(email, false, notice).fragment)
-        assertEquals("<pre class=\"plain\">a &lt; b</pre>", readerBody(email, true, notice).fragment)
-        assertFalse(readerBody(email, true, notice).derived)
+        assertEquals("<p>a &lt; b</p>", readerBody(email, false, notice, noContent).fragment)
+        assertEquals("<pre class=\"plain\">a &lt; b</pre>", readerBody(email, true, notice, noContent).fragment)
+        assertFalse(readerBody(email, true, notice, noContent).derived)
+    }
+
+    // -- a body part that is PRESENT and BLANK (#corps-vide) --------------------------------------
+    //
+    // `Email.htmlContent()` / `Email.textContent()` filter nothing: a part that exists with an empty
+    // value hands back "", which is not null, so each step of the cascade claimed the body and
+    // skipped the fallback that alone knows what to say when there is nothing. HTML mode rendered a
+    // white screen while plain-text mode said "no content" — the two modes contradicting each other
+    // on the same message. The preview fallback had the same defect one level down: it tested null,
+    // and the server computes the preview FROM the body, so an empty body gives "" and `<p></p>`.
+    //
+    // The string is passed IN, and every expectation below pins the SENTINEL that was passed, not
+    // the shipped English text: an assertion on "(no content)" would be satisfied by a literal left
+    // hard-coded in the function, and nothing would show that the reader speaks only English there.
+
+    @Test
+    fun `a text_html part that is present and blank is not a body`() {
+        val email = email(html = part("h", "text/html") to "")
+
+        val body = readerBody(email, plainText = false, derivedNotice = notice, noContent = noContent)
+
+        assertEquals("<p>$noContent</p>", body.fragment)
+        assertFalse(
+            "an empty part must not be rendered as the message's own HTML: the page would be " +
+                "inverted in dark theme and the reader would get a white screen",
+            body.richHtml,
+        )
+    }
+
+    @Test
+    fun `a text_plain part that is present and blank is not a body either`() {
+        val email = email(text = part("t", "text/plain") to "")
+
+        assertEquals("<p>$noContent</p>", readerBody(email, plainText = false, derivedNotice = notice, noContent = noContent).fragment)
+        assertEquals(
+            "<pre class=\"plain\">$noContent</pre>",
+            readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent).fragment,
+        )
+    }
+
+    @Test
+    fun `a blank part still lets the preview speak — the fallback is not a shortcut`() {
+        val email = Email(
+            id = "1",
+            textBody = listOf(part("t", "text/plain")),
+            bodyValues = mapOf("t" to EmailBodyValue(value = "")),
+            preview = "Something",
+        )
+
+        assertEquals("<p>Something</p>", readerBody(email, plainText = false, derivedNotice = notice, noContent = noContent).fragment)
+        assertEquals(
+            "<pre class=\"plain\">Something</pre>",
+            readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent).fragment,
+        )
+    }
+
+    @Test
+    fun `a preview that is present and blank is not a preview`() {
+        // ⭐ The third site, and the one that gets forgotten: the server computes the preview from
+        // the body, so a message with no body at all can carry preview = "" — not null. Testing
+        // null there put `<p></p>` on the screen, which is the very white screen being fixed.
+        val email = Email(id = "1", preview = "")
+
+        assertEquals("<p>$noContent</p>", readerBody(email, plainText = false, derivedNotice = notice, noContent = noContent).fragment)
+        assertEquals(
+            "<pre class=\"plain\">$noContent</pre>",
+            readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent).fragment,
+        )
+    }
+
+    @Test
+    fun `a message that really has a body is untouched by the blank guard`() {
+        // The guard must not widen: a real body still renders, still counts as rich HTML in HTML
+        // mode, and still says nothing about "no content".
+        val email = email(
+            text = part("t", "text/plain") to "Bonjour",
+            html = part("h", "text/html") to "<p>Bonjour <b>en gras</b></p>",
+        )
+
+        val asHtml = readerBody(email, plainText = false, derivedNotice = notice, noContent = noContent)
+        assertEquals("<p>Bonjour <b>en gras</b></p>", asHtml.fragment)
+        assertTrue(asHtml.richHtml)
+        assertEquals(
+            "<pre class=\"plain\">Bonjour</pre>",
+            readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent).fragment,
+        )
+        assertFalse(noContent in asHtml.fragment)
+        assertTrue("the toggle stays offered on a message that really has both", readingModesDiffer(email, notice, noContent))
     }
 
     @Test
@@ -233,14 +329,14 @@ class ReaderBodyTest {
             html = part("h", "text/html") to "<p>Bonjour <b>en gras</b></p>",
         )
 
-        assertTrue(readingModesDiffer(email, notice))
+        assertTrue(readingModesDiffer(email, notice, noContent))
     }
 
     @Test
     fun `an HTML-only message is worth switching`() {
         val email = email(html = part("h", "text/html") to "<p>Hello <b>world</b></p>")
 
-        assertTrue(readingModesDiffer(email, notice))
+        assertTrue(readingModesDiffer(email, notice, noContent))
     }
 
     @Test
@@ -250,12 +346,12 @@ class ReaderBodyTest {
         assertFalse(
             "with no HTML part the two modes build the same <pre>: offering 'Show HTML' there is " +
                 "an entry that changes nothing but its own label",
-            readingModesDiffer(email, notice),
+            readingModesDiffer(email, notice, noContent),
         )
         // Said the other way round: the entry stands down because the documents are equal.
         assertEquals(
-            readerBody(email, plainText = false, derivedNotice = notice).fragment,
-            readerBody(email, plainText = true, derivedNotice = notice).fragment,
+            readerBody(email, plainText = false, derivedNotice = notice, noContent = noContent).fragment,
+            readerBody(email, plainText = true, derivedNotice = notice, noContent = noContent).fragment,
         )
     }
 
@@ -270,7 +366,7 @@ class ReaderBodyTest {
         assertTrue(
             "hiding the entry here would remove the toggle exactly where it is most useful: the " +
                 "reader is being shown raw markup",
-            readingModesDiffer(email, notice),
+            readingModesDiffer(email, notice, noContent),
         )
     }
 
@@ -278,23 +374,32 @@ class ReaderBodyTest {
     fun `a message with no body at all is NOT worth switching`() {
         // Both modes show the same preview; only the element WE wrap it in differs, and a wrapper
         // we chose is not a change the reader asked for.
-        assertFalse(readingModesDiffer(Email(id = "1", preview = "a < b"), notice))
-        assertFalse(readingModesDiffer(Email(id = "1"), notice))
+        assertFalse(readingModesDiffer(Email(id = "1", preview = "a < b"), notice, noContent))
+        assertFalse(readingModesDiffer(Email(id = "1"), notice, noContent))
     }
 
     @Test
-    fun `an empty text part IS worth switching, because the preview takes its place`() {
-        // Neither mode carries markup here, so the flags agree — what differs is the TEXT: HTML
-        // mode renders the empty part, plain-text mode refuses a blank body and falls to the
-        // preview. Switching really does put something else on the screen.
-        val email = Email(
+    fun `an empty text part is NOT worth switching, because both modes now say the same thing`() {
+        // This test used to assert the opposite, and it was pinning the bug (#corps-vide): HTML
+        // mode rendered the empty part as the body (a white screen) while plain-text mode refused
+        // a blank body and fell to the preview, so the two modes "differed" and the entry was
+        // offered. Now that a blank part is not a body in either mode, both render the same thing —
+        // and offering a switch towards an identical rendering is exactly the dead action
+        // [readingModesDiffer] exists to prevent.
+        val withPreview = Email(
             id = "1",
             textBody = listOf(part("t", "text/plain")),
             bodyValues = mapOf("t" to EmailBodyValue(value = "")),
             preview = "Something",
         )
+        val withoutPreview = Email(
+            id = "1",
+            textBody = listOf(part("t", "text/plain")),
+            bodyValues = mapOf("t" to EmailBodyValue(value = "")),
+        )
 
-        assertTrue(readingModesDiffer(email, notice))
+        assertFalse(readingModesDiffer(withPreview, notice, noContent))
+        assertFalse(readingModesDiffer(withoutPreview, notice, noContent))
     }
 
     @Test
@@ -302,13 +407,13 @@ class ReaderBodyTest {
         val email = email(html = part("h", "text/html") to "<p>Hi</p>")
         val dark = EmailTheme(background = "#101010", text = "#eeeeee", link = "#8ab4f8", dark = true)
 
-        val asHtml = buildHtmlDocument(email, theme = dark)
+        val asHtml = buildHtmlDocument(email, theme = dark, noContent = noContent)
         assertTrue(
             "rich HTML in dark theme is rendered light and the whole page inverted",
             "invert(1)" in asHtml,
         )
 
-        val asText = buildHtmlDocument(email, theme = dark, plainText = true, derivedNotice = notice)
+        val asText = buildHtmlDocument(email, theme = dark, plainText = true, derivedNotice = notice, noContent = noContent)
         assertFalse(
             "text we paint in the app's own colours must NOT be inverted — that is the white band",
             "invert(1)" in asText,
@@ -323,10 +428,10 @@ class ReaderBodyTest {
         val light = EmailTheme(background = "#ffffff", text = "#111111", link = "#0b5fff", dark = false)
 
         // Rich HTML is pinned to its light design; text we paint follows the app's theme.
-        assertTrue("content=\"only light\"" in buildHtmlDocument(email, theme = light))
+        assertTrue("content=\"only light\"" in buildHtmlDocument(email, theme = light, noContent = noContent))
         assertTrue(
             "content=\"light\"" in
-                buildHtmlDocument(email, theme = light, plainText = true, derivedNotice = ""),
+                buildHtmlDocument(email, theme = light, plainText = true, derivedNotice = "", noContent = noContent),
         )
     }
 
@@ -335,7 +440,7 @@ class ReaderBodyTest {
         val email = email(html = part("h", "text/html") to "<p>Hi</p>")
         val theme = EmailTheme(background = "#ffffff", text = "#111111", link = "#0b5fff", dark = false)
 
-        val doc = buildHtmlDocument(email, theme = theme, plainText = true, derivedNotice = notice)
+        val doc = buildHtmlDocument(email, theme = theme, plainText = true, derivedNotice = notice, noContent = noContent)
         assertTrue("the CSP must be on the text document too", "default-src 'none'" in doc)
         assertTrue("frame-src 'none'" in doc)
         assertTrue("object-src 'none'" in doc)
@@ -355,7 +460,7 @@ class ReaderBodyTest {
 
         val asText = buildHtmlDocument(
             email(text = part("t", "text/plain") to css),
-            theme = light, plainText = true, derivedNotice = notice,
+            theme = light, plainText = true, derivedNotice = notice, noContent = noContent,
         )
         assertTrue("the reader's own text was rewritten: $asText", css in asText)
         assertFalse("max-width:0px" in asText)
@@ -365,7 +470,7 @@ class ReaderBodyTest {
         // variant and our invert would turn it light again.
         val asHtml = buildHtmlDocument(
             email(html = part("h", "text/html") to "<style>@media (prefers-color-scheme: dark){body{background:#000}}</style>"),
-            theme = light,
+            theme = light, noContent = noContent,
         )
         assertTrue("prefers-color-scheme:dark) and (max-width:0px" in asHtml)
     }
@@ -374,7 +479,7 @@ class ReaderBodyTest {
     fun `a cid reference in the message TEXT stays text and is not turned into an image`() {
         val asText = buildHtmlDocument(
             email(text = part("t", "text/plain") to "the logo lives at cid:logo, ask me"),
-            inlineImages = images, theme = light, plainText = true, derivedNotice = notice,
+            inlineImages = images, theme = light, plainText = true, derivedNotice = notice, noContent = noContent,
         )
         assertTrue("the reader's own text was rewritten: $asText", "at cid:logo, ask" in asText)
         assertFalse("data:image/png" in asText)
@@ -382,7 +487,7 @@ class ReaderBodyTest {
         // In the message's own HTML the reference is markup, and is still inlined.
         val asHtml = buildHtmlDocument(
             email(html = part("h", "text/html") to "<img src=\"cid:logo\">"),
-            inlineImages = images, theme = light,
+            inlineImages = images, theme = light, noContent = noContent,
         )
         assertTrue("<img src=\"data:image/png;base64,AAAA\">" in asHtml)
     }
@@ -446,18 +551,48 @@ class ReaderBodyTest {
             "the reading-mode entry must be offered only when the two renderings of THIS message " +
                 "differ, and the verdict computed from the message itself, not from a label",
             1,
-            lines(source, """val readingModeUseful = remember\(loaded\.email, derivedNotice\) \{"""),
+            lines(source, """val readingModeUseful = remember\(loaded\.email, derivedNotice, noContent\) \{"""),
         )
         assertEquals(
-            "the menu must call readingModesDiffer(loaded.email, derivedNotice) — the message the " +
-                "toolbar has settled on, and the notice the page actually renders",
+            "the menu must call readingModesDiffer(loaded.email, derivedNotice, noContent) — the " +
+                "message the toolbar has settled on, and BOTH localised lines the page actually " +
+                "renders: a body-less message puts the 'no content' line on both sides, so a menu " +
+                "that passed a different string there would answer for a document nobody renders",
             1,
-            lines(source, """readingModesDiffer\(loaded\.email, derivedNotice\)"""),
+            lines(source, """readingModesDiffer\(loaded\.email, derivedNotice, noContent\)"""),
         )
         assertEquals(
             "the entry AND the divider above it hang on that verdict",
             1,
             lines(source, """if \(readingModeUseful\) \{"""),
+        )
+    }
+
+    /**
+     * SOURCE CHECK, same weakness as the two above, for the string this branch adds. Both
+     * Composable sites — the overflow menu and the page — must resolve `message_no_content` and
+     * hand THAT to the decision; neither can be reached from a JVM test.
+     *
+     * What it closes: `noContent` has no default in [buildHtmlDocument], so a site cannot silently
+     * omit it, but it CAN pass `""` — and "" is what puts `<p></p>` back on the screen, in
+     * production only, with every test in this file still green. And the page's `remember` key must
+     * carry it too, or a locale change would keep the previously built document.
+     */
+    @Test
+    fun `both Composable sites resolve the no-content string and hand it to the document`() {
+        val source = messageScreenSource()
+
+        assertEquals(
+            "the menu and the page must each resolve message_no_content — a literal handed to " +
+                "readerBody is a reader that says '(no content)' in nine languages",
+            2,
+            lines(source, """val noContent = stringResource\(R\.string\.message_no_content\)"""),
+        )
+        assertEquals(
+            "the page must pass noContent to buildHtmlDocument AND keep it in the remember key: " +
+                "passing \"\" renders <p></p>, which is the empty screen this string exists for",
+            2,
+            lines(source, """plainText, derivedNotice, noContent,"""),
         )
     }
 

@@ -43,16 +43,34 @@ internal data class ReaderBody(
  * reader the message's markup as if it were the message.
  *
  * [derivedNotice] is the already-localised line to put above a flattened body; it is inserted only
- * when the body really was flattened.
+ * when the body really was flattened. [noContent] is the already-localised line for a message that
+ * carries no body at all — both are passed IN because this is a pure function and cannot read a
+ * resource, which is also what lets a test pin that the reader speaks the user's language here.
+ *
+ * ⭐ Every step tests `isNotBlank`, not null. `htmlContent()` and `textContent()` filter nothing: a
+ * part that EXISTS with an empty value hands back "", which is not null, so each step claimed the
+ * body and skipped the fallback that alone knows what to say. In HTML mode that was a white screen,
+ * while plain-text mode said "no content" — the two modes contradicting each other on the same
+ * message. The preview has the same trap one level down: the server computes it FROM the body, so
+ * an empty body gives an empty preview, and `preview ?: noContent` rendered `<p></p>`, the same
+ * white screen. The three sites close together or the defect just moves down the cascade.
  */
-internal fun readerBody(email: Email, plainText: Boolean, derivedNotice: String): ReaderBody {
+internal fun readerBody(
+    email: Email,
+    plainText: Boolean,
+    derivedNotice: String,
+    noContent: String,
+): ReaderBody {
     if (!plainText) {
-        email.htmlContent()?.let { return ReaderBody(it, richHtml = true, derived = false) }
-        email.textContent()?.let { return ReaderBody(plainFragment(it, null), false, false) }
-        return ReaderBody("<p>${htmlEscape(email.preview ?: NO_CONTENT)}</p>", false, false)
+        email.htmlContent()?.takeIf { it.isNotBlank() }
+            ?.let { return ReaderBody(it, richHtml = true, derived = false) }
+        email.textContent()?.takeIf { it.isNotBlank() }
+            ?.let { return ReaderBody(plainFragment(it, null), false, false) }
+        val fallback = email.preview?.takeIf { it.isNotBlank() } ?: noContent
+        return ReaderBody("<p>${htmlEscape(fallback)}</p>", false, false)
     }
     val (raw, isHtml) = bodySource(email)
-    val text = (if (isHtml) htmlToText(raw) else raw).ifBlank { NO_CONTENT }
+    val text = (if (isHtml) htmlToText(raw) else raw).ifBlank { noContent }
     return ReaderBody(
         fragment = plainFragment(text, if (isHtml) derivedNotice else null),
         richHtml = false,
@@ -76,9 +94,9 @@ internal fun readerBody(email: Email, plainText: Boolean, derivedNotice: String)
  * So the question is answered by BUILDING both bodies and comparing them; it cannot be derived from
  * the message's parts, because [readerBody] is what decides, and this is only allowed to read it.
  */
-internal fun readingModesDiffer(email: Email, derivedNotice: String): Boolean {
-    val asHtml = readerBody(email, plainText = false, derivedNotice)
-    val asText = readerBody(email, plainText = true, derivedNotice)
+internal fun readingModesDiffer(email: Email, derivedNotice: String, noContent: String): Boolean {
+    val asHtml = readerBody(email, plainText = false, derivedNotice, noContent)
+    val asText = readerBody(email, plainText = true, derivedNotice, noContent)
     // One document carries the message's own markup, or the other had to flatten it away: two
     // different pages by construction, whatever text they end up holding.
     if (asHtml.richHtml || asText.derived) return true
@@ -151,5 +169,3 @@ private fun plainFragment(text: String, notice: String?): String {
     val body = "<pre class=\"plain\">${htmlEscape(reflowFormatFlowed(text))}</pre>"
     return if (notice.isNullOrBlank()) body else "<p class=\"s-note\">${htmlEscape(notice)}</p>$body"
 }
-
-private const val NO_CONTENT = "(no content)"
