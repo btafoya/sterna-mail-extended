@@ -89,7 +89,7 @@
     <string name="up_picker_title">Benachrichtigungen zustellen über</string>
     <string name="inbox_delete_folder_recursive_title">Auch Unterordner löschen?</string>
     <string name="inbox_delete_folder_recursive_body">„%1$s“ enthält Unterordner. Sie werden alle mitsamt ihren Nachrichten gelöscht.</string>
-    <string name="inbox_folder_deleted">Ordner „%1$s“ gelöscht</string>
+    <string name="inbox_folder_deleted">Ordner „%1$s“ wird gelöscht…</string>
     <string name="inbox_settings">Einstellungen</string>
     <string name="inbox_cancel_selection">Auswahl aufheben</string>
     <string name="inbox_selected_count">%1$d ausgewählt</string>
@@ -672,7 +672,7 @@
     <string name="status_no_saved_account">Kein gespeichertes Konto.</string>
     <string name="status_add_recipient">Füge mindestens einen Empfänger hinzu.</string>
     <string name="status_message_deleted">Nachricht gelöscht</string>
-    <string name="status_message_deleted_forever">Nachricht endgültig gelöscht</string>
+    <string name="status_message_deleted_forever">Wird endgültig gelöscht…</string>
     <string name="status_message_archived">Nachricht archiviert</string>
     <string name="status_message_moved">Nachricht verschoben</string>
     <string name="status_message_unarchived">Nachricht aus Archiv geholt</string>
@@ -863,7 +863,7 @@
     <string name="empty_unread_body">Hier ist alles gelesen. Schalte den Ungelesen-Filter aus, um alle E-Mails zu sehen.</string>
     <string name="empty_unread_action">Alle anzeigen</string>
     <string name="inbox_empty_trash">Papierkorb leeren</string>
-    <string name="status_trash_emptied">Papierkorb geleert</string>
+    <string name="status_trash_emptied">Papierkorb wird geleert…</string>
 
     <!-- Onboarding: privacy welcome + contacts priming -->
     <string name="welcome_body">Keine Werbung, kein Tracking, keine Google-Dienste. Auf dem Server deiner Wahl.</string>

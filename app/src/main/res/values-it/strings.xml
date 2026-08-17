@@ -89,7 +89,7 @@
     <string name="up_picker_title">Recapita le notifiche tramite</string>
     <string name="inbox_delete_folder_recursive_title">Eliminare anche le sottocartelle?</string>
     <string name="inbox_delete_folder_recursive_body">"%1$s" contiene sottocartelle. Verranno eliminate tutte insieme ai loro messaggi.</string>
-    <string name="inbox_folder_deleted">Cartella "%1$s" eliminata</string>
+    <string name="inbox_folder_deleted">Eliminazione della cartella "%1$s"…</string>
     <string name="inbox_settings">Impostazioni</string>
     <string name="inbox_cancel_selection">Annulla selezione</string>
     <string name="inbox_selected_count">%1$d selezionati</string>
@@ -674,7 +674,7 @@
     <string name="status_no_saved_account">Nessun account salvato.</string>
     <string name="status_add_recipient">Aggiungi almeno un destinatario.</string>
     <string name="status_message_deleted">Messaggio eliminato</string>
-    <string name="status_message_deleted_forever">Messaggio eliminato definitivamente</string>
+    <string name="status_message_deleted_forever">Eliminazione definitiva…</string>
     <string name="status_message_archived">Messaggio archiviato</string>
     <string name="status_message_moved">Messaggio spostato</string>
     <string name="status_message_unarchived">Archiviazione annullata</string>
@@ -869,7 +869,7 @@
     <string name="empty_unread_body">Hai letto tutto qui. Disattiva il filtro non letti per vedere tutta la posta.</string>
     <string name="empty_unread_action">Mostra tutti</string>
     <string name="inbox_empty_trash">Svuota cestino</string>
-    <string name="status_trash_emptied">Cestino svuotato</string>
+    <string name="status_trash_emptied">Svuotamento del cestino…</string>
 
     <!-- Onboarding: privacy welcome + contacts priming -->
     <string name="welcome_body">Niente pubblicità, nessun tracciamento, nessun servizio Google. Sul server che preferisci.</string>

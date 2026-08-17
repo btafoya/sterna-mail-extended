@@ -89,7 +89,7 @@
     <string name="up_picker_title">Entregar as notificações através de</string>
     <string name="inbox_delete_folder_recursive_title">Eliminar também as subpastas?</string>
     <string name="inbox_delete_folder_recursive_body">"%1$s" contém subpastas. Serão todas eliminadas, juntamente com as suas mensagens.</string>
-    <string name="inbox_folder_deleted">Pasta "%1$s" eliminada</string>
+    <string name="inbox_folder_deleted">Eliminando a pasta "%1$s"…</string>
     <string name="inbox_settings">Configurações</string>
     <string name="inbox_cancel_selection">Cancelar seleção</string>
     <string name="inbox_selected_count">%1$d selecionada(s)</string>
@@ -674,7 +674,7 @@
     <string name="status_no_saved_account">Nenhuma conta salva.</string>
     <string name="status_add_recipient">Adicione pelo menos um destinatário.</string>
     <string name="status_message_deleted">Mensagem excluída</string>
-    <string name="status_message_deleted_forever">Mensagem excluída permanentemente</string>
+    <string name="status_message_deleted_forever">Excluindo permanentemente…</string>
     <string name="status_message_archived">Mensagem arquivada</string>
     <string name="status_message_moved">Mensagem movida</string>
     <string name="status_message_unarchived">Mensagem desarquivada</string>
@@ -873,7 +873,7 @@
     <string name="empty_unread_body">Já leu tudo aqui. Desative o filtro de não lidas para ver todo o correio.</string>
     <string name="empty_unread_action">Mostrar tudo</string>
     <string name="inbox_empty_trash">Esvaziar lixeira</string>
-    <string name="status_trash_emptied">Lixeira esvaziada</string>
+    <string name="status_trash_emptied">Esvaziando a lixeira…</string>
 
     <!-- Onboarding: privacy welcome + contacts priming -->
     <string name="welcome_body">Sem anúncios, sem rastreio, sem serviços Google. No servidor que você escolher.</string>

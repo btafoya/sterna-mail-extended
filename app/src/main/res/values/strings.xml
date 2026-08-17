@@ -102,7 +102,7 @@
     <string name="up_picker_title">Deliver notifications through</string>
     <string name="inbox_delete_folder_recursive_title">Also delete subfolders?</string>
     <string name="inbox_delete_folder_recursive_body">\"%1$s\" contains subfolders. They will all be deleted, along with their messages.</string>
-    <string name="inbox_folder_deleted">Folder \"%1$s\" deleted</string>
+    <string name="inbox_folder_deleted">Deleting folder \"%1$s\"…</string>
     <string name="inbox_settings">Settings</string>
     <string name="inbox_cancel_selection">Cancel selection</string>
     <string name="inbox_selected_count">%1$d selected</string>
@@ -857,8 +857,8 @@
     <string name="status_no_saved_account">No saved account.</string>
     <string name="status_add_recipient">Add at least one recipient.</string>
     <string name="status_message_deleted">Message deleted</string>
-    <string name="status_message_deleted_forever">Message deleted permanently</string>
-    <string name="status_trash_emptied">Trash emptied</string>
+    <string name="status_message_deleted_forever">Deleting permanently…</string>
+    <string name="status_trash_emptied">Emptying Trash…</string>
     <string name="status_message_archived">Message archived</string>
     <string name="status_message_moved">Message moved</string>
     <string name="status_message_unarchived">Message unarchived</string>

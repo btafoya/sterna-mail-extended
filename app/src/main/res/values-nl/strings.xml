@@ -89,7 +89,7 @@
     <string name="up_picker_title">Meldingen bezorgen via</string>
     <string name="inbox_delete_folder_recursive_title">Ook submappen verwijderen?</string>
     <string name="inbox_delete_folder_recursive_body">"%1$s" bevat submappen. Ze worden allemaal verwijderd, samen met hun berichten.</string>
-    <string name="inbox_folder_deleted">Map "%1$s" verwijderd</string>
+    <string name="inbox_folder_deleted">Map "%1$s" verwijderen…</string>
     <string name="inbox_settings">Instellingen</string>
     <string name="inbox_cancel_selection">Selectie annuleren</string>
     <string name="inbox_selected_count">%1$d geselecteerd</string>
@@ -672,7 +672,7 @@
     <string name="status_no_saved_account">Geen opgeslagen account.</string>
     <string name="status_add_recipient">Voeg ten minste één ontvanger toe.</string>
     <string name="status_message_deleted">Bericht verwijderd</string>
-    <string name="status_message_deleted_forever">Bericht definitief verwijderd</string>
+    <string name="status_message_deleted_forever">Definitief verwijderen…</string>
     <string name="status_message_archived">Bericht gearchiveerd</string>
     <string name="status_message_moved">Bericht verplaatst</string>
     <string name="status_message_unarchived">Bericht uit archief gehaald</string>
@@ -866,7 +866,7 @@
     <string name="empty_unread_body">Je hebt hier alles gelezen. Schakel het filter voor ongelezen berichten uit om alle e-mail te zien.</string>
     <string name="empty_unread_action">Alles tonen</string>
     <string name="inbox_empty_trash">Prullenbak legen</string>
-    <string name="status_trash_emptied">Prullenbak geleegd</string>
+    <string name="status_trash_emptied">Prullenbak legen…</string>
 
     <!-- Onboarding: privacy welcome + contacts priming -->
     <string name="welcome_body">Geen advertenties, geen tracking, geen Google-diensten. Op de server die jij kiest.</string>

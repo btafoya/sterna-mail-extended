@@ -89,7 +89,7 @@
     <string name="up_picker_title">Dostarczaj powiadomienia przez</string>
     <string name="inbox_delete_folder_recursive_title">Usunąć także podfoldery?</string>
     <string name="inbox_delete_folder_recursive_body">„%1$s” zawiera podfoldery. Wszystkie zostaną usunięte razem z wiadomościami.</string>
-    <string name="inbox_folder_deleted">Usunięto folder „%1$s”</string>
+    <string name="inbox_folder_deleted">Usuwanie folderu „%1$s”…</string>
     <string name="inbox_settings">Ustawienia</string>
     <string name="inbox_cancel_selection">Anuluj zaznaczenie</string>
     <string name="inbox_selected_count">Zaznaczono: %1$d</string>
@@ -676,7 +676,7 @@
     <string name="status_no_saved_account">Brak zapisanego konta.</string>
     <string name="status_add_recipient">Dodaj co najmniej jednego odbiorcę.</string>
     <string name="status_message_deleted">Wiadomość usunięta</string>
-    <string name="status_message_deleted_forever">Wiadomość usunięta trwale</string>
+    <string name="status_message_deleted_forever">Trwałe usuwanie…</string>
     <string name="status_message_archived">Wiadomość zarchiwizowana</string>
     <string name="status_message_moved">Wiadomość przeniesiona</string>
     <string name="status_message_unarchived">Cofnięto archiwizację wiadomości</string>
@@ -875,7 +875,7 @@
     <string name="empty_unread_body">Wszystko tutaj przeczytane. Wyłącz filtr nieprzeczytanych, aby zobaczyć całą pocztę.</string>
     <string name="empty_unread_action">Pokaż wszystkie</string>
     <string name="inbox_empty_trash">Opróżnij kosz</string>
-    <string name="status_trash_emptied">Kosz opróżniony</string>
+    <string name="status_trash_emptied">Opróżnianie kosza…</string>
 
     <!-- Onboarding: privacy welcome + contacts priming -->
     <string name="welcome_body">Żadnych reklam, żadnego śledzenia, żadnych usług Google. Na serwerze, który wybierzesz.</string>
