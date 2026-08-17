@@ -233,6 +233,20 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_SIGNATURE_DELIMITER] = enabled }
     }
 
+    /** The OpenPGP app the user picked, by package name; `null` = no choice expressed, which is
+     *  every user upgrading into this build (#151). null is NOT "no provider": it means the app
+     *  decides, and the decision is `PgpProviders.resolve`. Only ever set from the Settings row
+     *  that appears when two or more providers are installed — with one, there is nothing to pick.
+     *
+     *  ⛔ Deliberately absent from [SettingsBackup]: a package name is a fact about ONE device.
+     *  Restored onto a phone that does not have that app, it would name a provider that cannot be
+     *  bound, and the honest answer there is to let discovery decide again. */
+    val pgpProvider: Flow<String?> = dataStore.data.map { it[KEY_PGP_PROVIDER] }
+
+    suspend fun setPgpProvider(packageName: String) {
+        dataStore.edit { it[KEY_PGP_PROVIDER] = packageName }
+    }
+
     /** Whether the reader shows the Reply/Forward bar along the bottom of a message. ON by default
      *  — it is what the app has always done. Off, both of its actions are still one tap away in the
      *  top bar (Reply has its own icon; Reply all and Forward open the menu beside it), so nothing
@@ -504,6 +518,7 @@ class SettingsRepository(context: Context) {
         private val KEY_SIGNATURE_ON_REPLIES = booleanPreferencesKey("signature_on_replies")
         private val KEY_SIGNATURE_BELOW_QUOTE = booleanPreferencesKey("signature_below_quote")
         private val KEY_SIGNATURE_DELIMITER = booleanPreferencesKey("signature_delimiter")
+        private val KEY_PGP_PROVIDER = stringPreferencesKey("pgp_provider")
         private val KEY_MESSAGE_TEXT_SIZE = stringPreferencesKey("message_text_size")
         private val KEY_CONTACT_SUGGESTIONS = booleanPreferencesKey("contact_suggestions")
         private val KEY_HAS_SEEN_WELCOME = booleanPreferencesKey("has_seen_welcome")

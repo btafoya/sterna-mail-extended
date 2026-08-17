@@ -45,7 +45,8 @@ class AppContainer(context: Context) {
     }
 
     /** OpenPGP via the OpenKeychain provider (binds lazily; harmless when not installed). */
-    val pgpEngine: OpenKeychainPgpEngine = OpenKeychainPgpEngine(context.applicationContext)
+    val pgpEngine: OpenKeychainPgpEngine =
+        OpenKeychainPgpEngine(context.applicationContext, settingsRepository)
     private val dataLayer =
         DataFactory.create(context.applicationContext, jmapClient, accountStore, pgpEngine, settingsRepository)
     val mailRepository: MailRepository = dataLayer.mailRepository
