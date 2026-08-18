@@ -192,6 +192,25 @@ fun ComposeScreen(
     // confirmation has to say so before the finger lands: the row goes, the mask lifts, and the
     // draft from before the edit comes back at the top of Drafts.
     val deleteKeepsServerCopy by viewModel.deleteKeepsServerCopy.collectAsStateWithLifecycle()
+    // The trash icon's confirmation (#127). Unconditional, unlike the leave dialog: this one is not
+    // about unsaved changes, it is about removing the draft itself — the message the user came here
+    // to edit — and the Undo it leaves behind restores the SERVER copy, not the screen.
+    //
+    // ⭐ A flag lives where what it acts on lives, so it is the ViewModel's and not a `remember`
+    // here: a rotation recreates MainActivity and a bare `remember` fell back to false, taking the
+    // dialog off screen without a word. ⛔ And not `rememberSaveable` either — see the field's own
+    // KDoc: that one outlives the process, while the draft this dialog names does not. The flag's
+    // real lifetime is this composer's NAVIGATION ENTRY — see the field's KDoc before quoting it.
+    val pendingDraftDelete by viewModel.pendingDraftDelete.collectAsStateWithLifecycle()
+    // The leave dialog (#35, #127) and the two chained pre-send guards. ⭐ All three are the
+    // ViewModel's for exactly the reason above: a rotation recreates MainActivity, the composition
+    // restarts, and a bare `remember` fell back to false — the question left the screen without a
+    // word, as if it had been answered. ⛔ Not `rememberSaveable` either; the fields' KDoc says what
+    // their real lifetime is, the composer's NAVIGATION ENTRY. The local names stay what the rest of
+    // this file already calls them.
+    val showDiscard by viewModel.pendingDiscard.collectAsStateWithLifecycle()
+    val showForgotAttachment by viewModel.pendingForgotAttachment.collectAsStateWithLifecycle()
+    val showManyRecipients by viewModel.pendingManyRecipients.collectAsStateWithLifecycle()
     // Whether a draft saved on the SERVER survives leaving — what the leave dialog may not announce
     // as destroyed (#35). Not `draftId != null`: an undone send reopens with restore=true and no
     // draftId in the route while its draft is still sitting in Drafts.
@@ -529,16 +548,10 @@ fun ComposeScreen(
         requestReceipt = requestReceipt, initialRequestReceipt = initialRequestReceipt,
         attachmentsTouched = attachmentsTouched,
     )
-    var showDiscard by remember { mutableStateOf(false) }
-    val attemptClose = { if (dirty && !sending) showDiscard = true else cancel() }
-    // The trash icon's confirmation (#127). Unconditional, unlike the leave dialog above: this one
-    // is not about unsaved changes, it is about removing the draft itself — the message the user
-    // came here to edit — and the Undo it leaves behind restores the SERVER copy, not the screen.
-    var pendingDraftDelete by remember { mutableStateOf(false) }
+    val attemptClose = { if (dirty && !sending) viewModel.askDiscard() else cancel() }
 
-    // Pre-send guards, chained: "forgot attachment?" then "many recipients?".
-    var showForgotAttachment by remember { mutableStateOf(false) }
-    var showManyRecipients by remember { mutableStateOf(false) }
+    // Pre-send guards, chained: "forgot attachment?" then "many recipients?". Both flags are read
+    // from the ViewModel at the top of this composable, so each gate is opened and closed through it.
     val recipientCount = listOf(to, cc, bcc).sumOf { field -> field.split(',', ';').count { it.isNotBlank() } }
     // Can send only with at least one To recipient and every entered address valid.
     val allRecipients = listOf(to, cc, bcc).flatMap { recipientTokens(it) }
@@ -548,11 +561,11 @@ fun ComposeScreen(
     val canSend = recipientTokens(to).isNotEmpty() && allRecipients.all(::isValidEmail) && keysReady
     val sendNow = { viewModel.send(to, cc, bcc, subject.text, body.text, requestReceipt) }
     val proceedAfterAttachment = {
-        if (recipientCount >= MANY_RECIPIENTS) showManyRecipients = true else sendNow()
+        if (recipientCount >= MANY_RECIPIENTS) viewModel.askManyRecipients() else sendNow()
     }
     val attemptSend = {
         if (attachments.isEmpty() && mentionsAttachment("${subject.text}\n${body.text}")) {
-            showForgotAttachment = true
+            viewModel.askForgotAttachment()
         } else {
             proceedAfterAttachment()
         }
@@ -560,17 +573,17 @@ fun ComposeScreen(
 
     if (showForgotAttachment) {
         AlertDialog(
-            onDismissRequest = { showForgotAttachment = false },
+            onDismissRequest = { viewModel.clearForgotAttachment() },
             title = { Text(stringResource(R.string.compose_forgot_attachment_title)) },
             text = { Text(stringResource(R.string.compose_forgot_attachment_message)) },
             confirmButton = {
                 TextButton(onClick = {
-                    showForgotAttachment = false
+                    viewModel.clearForgotAttachment()
                     proceedAfterAttachment()
                 }) { Text(stringResource(R.string.compose_forgot_attachment_send)) }
             },
             dismissButton = {
-                TextButton(onClick = { showForgotAttachment = false }) {
+                TextButton(onClick = { viewModel.clearForgotAttachment() }) {
                     Text(stringResource(R.string.compose_forgot_attachment_back))
                 }
             },
@@ -579,17 +592,17 @@ fun ComposeScreen(
 
     if (showManyRecipients) {
         AlertDialog(
-            onDismissRequest = { showManyRecipients = false },
+            onDismissRequest = { viewModel.clearManyRecipients() },
             title = { Text(stringResource(R.string.compose_many_recipients_title)) },
             text = { Text(stringResource(R.string.compose_many_recipients_message, recipientCount)) },
             confirmButton = {
                 TextButton(onClick = {
-                    showManyRecipients = false
+                    viewModel.clearManyRecipients()
                     sendNow()
                 }) { Text(stringResource(R.string.compose_many_recipients_send)) }
             },
             dismissButton = {
-                TextButton(onClick = { showManyRecipients = false }) {
+                TextButton(onClick = { viewModel.clearManyRecipients() }) {
                     Text(stringResource(R.string.compose_forgot_attachment_back))
                 }
             },
@@ -603,7 +616,7 @@ fun ComposeScreen(
         // Cancel) — but NOT its words: that message has never been sent and exists nowhere else,
         // while this draft goes to the Trash exactly as it would from the list.
         AlertDialog(
-            onDismissRequest = { pendingDraftDelete = false },
+            onDismissRequest = { viewModel.clearDraftDelete() },
             title = { Text(stringResource(R.string.compose_delete_draft_title)) },
             // Material's text slot is a height-bounded box with no scrolling of its own: a bare
             // Text in it is CUT, without an ellipsis and without anything on screen saying so. At
@@ -647,7 +660,7 @@ fun ComposeScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    pendingDraftDelete = false
+                    viewModel.clearDraftDelete()
                     if (editingLocalDraftId != null) {
                         // A draft the phone is keeping is deleted BY THE COMPOSER: there is no
                         // server row for the list's move-to-Trash to act on, and the gesture is
@@ -667,7 +680,7 @@ fun ComposeScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDraftDelete = false }) {
+                TextButton(onClick = { viewModel.clearDraftDelete() }) {
                     Text(stringResource(R.string.inbox_cancel))
                 }
             },
@@ -701,7 +714,7 @@ fun ComposeScreen(
             },
         )
         AlertDialog(
-            onDismissRequest = { showDiscard = false },
+            onDismissRequest = { viewModel.clearDiscard() },
             title = {
                 Text(
                     stringResource(
@@ -765,17 +778,17 @@ fun ComposeScreen(
                         when (choice) {
                             // Back to the composer, text intact, still encrypted if it was. This is
                             // what tapping outside the dialog has always done; it now has a button.
-                            DiscardChoice.CANCEL -> TextButton(onClick = { showDiscard = false }, enabled = enabled) {
+                            DiscardChoice.CANCEL -> TextButton(onClick = { viewModel.clearDiscard() }, enabled = enabled) {
                                 Text(stringResource(R.string.compose_discard_cancel))
                             }
                             DiscardChoice.DISCARD -> TextButton(onClick = {
-                                showDiscard = false
+                                viewModel.clearDiscard()
                                 // Discards the edits, not the queued message: that one goes back
                                 // (#70), and a saved draft stays in Drafts (#35, #127).
                                 cancel()
                             }, enabled = enabled) { Text(discardLabel, color = MaterialTheme.colorScheme.error) }
                             DiscardChoice.SAVE_DRAFT -> TextButton(onClick = {
-                                showDiscard = false
+                                viewModel.clearDiscard()
                                 viewModel.saveDraft(to, cc, bcc, subject.text, body.text, requestReceipt)
                             }, enabled = enabled) { Text(stringResource(R.string.compose_discard_save)) }
                         }
@@ -873,7 +886,7 @@ fun ComposeScreen(
                             // (#95), which is what the dialog's own body says. The
                             // composer already asks before dropping those edits when the X is
                             // tapped; this button dropped them with no question at all.
-                            onClick = { pendingDraftDelete = true },
+                            onClick = { viewModel.askDraftDelete() },
                             enabled = !sending,
                         ) {
                             Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.message_delete))

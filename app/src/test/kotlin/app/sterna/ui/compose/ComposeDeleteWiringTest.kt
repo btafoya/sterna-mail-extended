@@ -144,12 +144,14 @@ class ComposeDeleteWiringTest {
         )
         val block = balanced(screen, screen.indexOf('{', at), '{', '}')
         assertTrue(
-            "the trash icon must only RAISE the confirmation (pendingDraftDelete = true): what was " +
-                "typed since the composer opened is unsaved, the delete takes the server copy, and " +
-                "the Undo behind it restores that copy — not the screen. Deleting straight from " +
-                "the icon drops the editing with no question and no way back, while the same " +
-                "screen asks before dropping it when the X is tapped (#127). Block was:\n$block",
-            Regex("""onClick = \{ pendingDraftDelete = true }""")
+            "the trash icon must only RAISE the confirmation (viewModel.askDraftDelete()): what " +
+                "was typed since the composer opened is unsaved, the delete takes the server copy, " +
+                "and the Undo behind it restores that copy — not the screen. Deleting straight " +
+                "from the icon drops the editing with no question and no way back, while the same " +
+                "screen asks before dropping it when the X is tapped (#127). The flag is the " +
+                "ViewModel's, so that it survives the rotation that recreates MainActivity — see " +
+                "[DialogFlagsSurviveRotationTest]. Block was:\n$block",
+            Regex("""onClick = \{ viewModel\.askDraftDelete\(\) }""")
                 .containsMatchIn(block.replace(Regex("""\s+"""), " ")),
         )
         assertTrue(
@@ -182,7 +184,7 @@ class ComposeDeleteWiringTest {
         assertTrue(
             "there must be a Cancel that only closes the dialog: the way back to the draft. " +
                 "Dialog was:\n$dialog",
-            Regex("""dismissButton = \{ TextButton\(onClick = \{ pendingDraftDelete = false }\)""")
+            Regex("""dismissButton = \{ TextButton\(onClick = \{ viewModel\.clearDraftDelete\(\) }\)""")
                 .containsMatchIn(flat),
         )
     }
@@ -266,7 +268,7 @@ class ComposeDeleteWiringTest {
                 "must stay word for word what it was, taker included, since that one really does " +
                 "own a cached row to move to the Trash. Block was:\n" + click.joinToString("\n"),
             listOf(
-                "pendingDraftDelete = false",
+                "viewModel.clearDraftDelete()",
                 "if (editingLocalDraftId != null) {",
                 "viewModel.deleteEditingLocalDraft()",
                 "} else {",

@@ -119,9 +119,11 @@ class DiscardDialogWiringTest {
         )
         assertTrue(
             "the CANCEL arm must only close the dialog — it is the way BACK to the message, so it " +
-                "may neither save nor discard. Block was:\n$block",
+                "may neither save nor discard. The close goes through the ViewModel: the flag is " +
+                "its, so that the dialog survives the rotation that recreates MainActivity — see " +
+                "[DialogFlagsSurviveRotationTest]. Block was:\n$block",
             Regex(
-                """DiscardChoice\.CANCEL\s*->\s*TextButton\(onClick\s*=\s*\{\s*showDiscard\s*=\s*false\s*}[^)]*\)""",
+                """DiscardChoice\.CANCEL\s*->\s*TextButton\(onClick\s*=\s*\{\s*viewModel\.clearDiscard\(\)\s*}\s*,\s*enabled\s*=\s*enabled\s*\)""",
             ).containsMatchIn(block),
         )
     }

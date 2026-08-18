@@ -245,6 +245,121 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private val _deleteKeepsServerCopy = MutableStateFlow(false)
     val deleteKeepsServerCopy: StateFlow<Boolean> = _deleteKeepsServerCopy.asStateFlow()
 
+    /**
+     * Whether the trash icon's confirmation is up (#127) — the gate in front of the delete, not
+     * something the user typed.
+     *
+     * ⛔ HERE and not in a `rememberSaveable` on the screen, and that is the whole point: the flag
+     * belongs where what it acts on lives. A bare `remember` fell back to false on every rotation
+     * (no `configChanges` in the manifest, so `MainActivity` is recreated) and the dialog vanished
+     * without a word. But `rememberSaveable` survives PROCESS DEATH too, which [editingDraft] and
+     * [editingLocalDraftId] do not: after a kill the flag would redraw the dialog over a loading or
+     * dead-end screen, with the wrong body, and its Delete would reach the branch where
+     * [takeEditingDraft] returns null — nothing deleted, nothing said.
+     *
+     * ⚠ Be exact about the lifetime, because the wrong claim is easy to make here: this is scoped
+     * to the composer's NAVIGATION ENTRY, not to the process. It survives a configuration change
+     * (which is the fix) and it dies when the entry is popped — but it also outlives the composer
+     * merely leaving the composition, so a notification or a `mailto:` opened over the composer and
+     * then dismissed comes back to the confirmation still up. That is deliberate as far as this
+     * change goes: the question really is still unanswered. It is NOT the same interval as
+     * [editingDraft]'s, and anything written about it should say "the navigation entry", never
+     * "the process".
+     */
+    private val _pendingDraftDelete = MutableStateFlow(false)
+    val pendingDraftDelete: StateFlow<Boolean> = _pendingDraftDelete.asStateFlow()
+
+    /** Raise the delete confirmation. Only ever asks — the deletion itself is a separate tap. */
+    fun askDraftDelete() {
+        _pendingDraftDelete.value = true
+    }
+
+    /** Close it, whichever way out was taken (Cancel, a tap outside, or the confirmed delete). */
+    fun clearDraftDelete() {
+        _pendingDraftDelete.value = false
+    }
+
+    /**
+     * Whether the leave dialog is up — "You haven't saved your changes" (#35, #127), the question
+     * the X and the system Back put in front of dropping what was typed.
+     *
+     * ⛔ HERE for the same reason as [pendingDraftDelete], and with the same refusal of
+     * `rememberSaveable` — read that field's KDoc before touching either. A bare `remember` on the
+     * screen fell back to false on every rotation and the question left the screen without a word,
+     * as if it had been answered.
+     *
+     * ⚠ This flag says only WHETHER the dialog is up. What it then says, and which buttons it
+     * offers, is decided on the screen by `discardWording` and `discardChoices` from live values —
+     * including the refusal to offer "Save draft" while encrypting, which is the 1.4.3 plaintext
+     * leak and does not live here.
+     *
+     * ⚠ Lifetime: the composer's NAVIGATION ENTRY. It survives a configuration change (which is the
+     * fix) and dies when the entry is popped. ⛔ Never restate that as "the process" — a longer
+     * interval, and the difference is observable.
+     */
+    private val _pendingDiscard = MutableStateFlow(false)
+    val pendingDiscard: StateFlow<Boolean> = _pendingDiscard.asStateFlow()
+
+    /** Raise the leave dialog. Only ever asks — leaving is a separate tap, on one of its buttons. */
+    fun askDiscard() {
+        _pendingDiscard.value = true
+    }
+
+    /** Close it, whichever way out was taken (Cancel, a tap outside, Discard, or Save draft). */
+    fun clearDiscard() {
+        _pendingDiscard.value = false
+    }
+
+    /**
+     * Whether the pre-send "did you forget an attachment?" question is up — raised when the text
+     * mentions one and nothing is attached.
+     *
+     * ⛔ HERE for the same reason as [pendingDraftDelete], same refusal of `rememberSaveable`.
+     * Turning the phone with this question on screen took it away and left the message unsent, with
+     * nothing said about why the tap on Send had come to nothing.
+     *
+     * ⚠ The two pre-send guards are CHAINED, never up together: this one's Send lowers this flag
+     * and only then asks [pendingManyRecipients], which lowers itself before the send goes out. ⛔ Do
+     * not merge them into one combined state, and do not leave either raised while a message is in
+     * flight — the double-send guard in [send]'s path is a separate thing and stays where it is.
+     *
+     * ⚠ Lifetime: the composer's NAVIGATION ENTRY, as above — never "the process".
+     */
+    private val _pendingForgotAttachment = MutableStateFlow(false)
+    val pendingForgotAttachment: StateFlow<Boolean> = _pendingForgotAttachment.asStateFlow()
+
+    /** Raise the forgotten-attachment question. Only ever asks — the send is the next tap. */
+    fun askForgotAttachment() {
+        _pendingForgotAttachment.value = true
+    }
+
+    /** Close it (Back to the message, a tap outside, or on the way to the next guard). */
+    fun clearForgotAttachment() {
+        _pendingForgotAttachment.value = false
+    }
+
+    /**
+     * Whether the pre-send "this goes to many recipients" question is up — the second link of the
+     * chain, raised once the attachment question has been answered.
+     *
+     * ⛔ HERE for the same reason as [pendingDraftDelete], same refusal of `rememberSaveable`; and
+     * ⚠ see [pendingForgotAttachment] for the chaining, which is an order, not a combined state.
+     *
+     * ⚠ Lifetime: the composer's NAVIGATION ENTRY, as above — never "the process".
+     */
+    private val _pendingManyRecipients = MutableStateFlow(false)
+    val pendingManyRecipients: StateFlow<Boolean> = _pendingManyRecipients.asStateFlow()
+
+    /** Raise the many-recipients question. Only ever asks — the send is the next tap. */
+    fun askManyRecipients() {
+        _pendingManyRecipients.value = true
+    }
+
+    /** Close it (Back to the message, a tap outside, or just before the send goes out). */
+    fun clearManyRecipients() {
+        _pendingManyRecipients.value = false
+    }
+
     /** Every identity across all accounts, and the chosen one (which sets the sending account). */
     private val _fromOptions = MutableStateFlow<List<FromOption>>(emptyList())
     val fromOptions: StateFlow<List<FromOption>> = _fromOptions.asStateFlow()
