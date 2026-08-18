@@ -10,6 +10,7 @@ import app.sterna.core.data.mail.LocalDraftScheduler
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OutboxScheduler
 import app.sterna.core.data.mail.localDraftUploadJobs
+import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.storage.StorageRepository
 import app.sterna.core.jmap.JmapClient
@@ -22,6 +23,9 @@ import app.sterna.send.Outbox
 import app.sterna.send.SendOutbox
 import app.sterna.ui.connect.OAuthCodeSignIn
 import app.sterna.ui.connect.OutlookSignIn
+import app.sterna.widget.UnreadWidgetDraw
+import app.sterna.widget.UnreadWidgetPresence
+import app.sterna.widget.UnreadWidgetPush
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -179,6 +183,31 @@ class AppContainer(context: Context) {
                     ).forEach { LocalDraftUploads.enqueue(appContext, it.accountId, it.id, it.delayMillis) }
                 }
             }.onFailure { Log.w("Sterna", "local-draft re-arm failed; retried next start", it) }
+        }
+        // The home-screen widget's number, pushed as the mail moves (#112). The widget polls
+        // nothing, so without this it only redraws when the system asks — at placement, at boot,
+        // after an update — and sits on a stale figure while the drawer next to it decrements.
+        // ONE collection covers everything that happens while the process lives: the fifteen-odd
+        // read/unread, swipe, delete and multi-select writes in MailRepository, live push, and the
+        // foreground refresh. Wiring those call sites one by one is the alternative, and it is a
+        // list that would go out of date the first time a gesture is added.
+        //
+        // ⛔ Gated on a widget being PLACED, and that gate is the point: collecting the unified
+        // total for the life of every process subscribes two global Room aggregates on behalf of
+        // the large majority who will never place a widget. UnreadWidgetPresence follows the
+        // system's own onEnabled/onDisabled, so the gate opens and closes without a restart, and
+        // UnreadWidgetPush drops the subscription when the last cell goes.
+        //
+        // rethrowIfCancelled: a draw that fails is a stale cell and nothing more, but the app
+        // scope being cancelled must not be counted as one more failed draw.
+        appScope.launch {
+            UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {
+                mailRepository.observeUnifiedInboxUnread()
+            }.collect { unread ->
+                runCatching { UnreadWidgetDraw.redraw(appContext, unread) }
+                    .rethrowIfCancelled()
+                    .onFailure { Log.w("Sterna", "unread widget not redrawn; the cell keeps its number", it) }
+            }
         }
     }
 }

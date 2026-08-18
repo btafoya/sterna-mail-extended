@@ -950,13 +950,14 @@ class AccountStore(context: Context) {
 
     // ---- unified inbox (all accounts) ----
 
-    /** Known inbox mailbox ids across every account (those synced at least once). */
-    fun allInboxMailboxIds(): List<String> = accounts().mapNotNull { it.inboxId }
-
     /** (account id, inbox id) pairs across every account — for reads that must stay
-     *  account-scoped even when same-server accounts' mailbox ids collide. */
-    fun allInboxScopes(): List<Pair<String, String>> =
-        accounts().mapNotNull { a -> a.inboxId?.let { a.id to it } }
+     *  account-scoped even when same-server accounts' mailbox ids collide. The rule itself is
+     *  [UnifiedInbox.scopes], which this only feeds the stored list: one copy, one place to break.
+     *  ⛔ There is no bare-id twin of this any more (it was Codeberg #121 waiting for a caller);
+     *  a reader outside this module — the home-screen widget — does not reach [UnifiedInbox] at
+     *  all, since it is `internal` to `core:data`: it asks
+     *  `MailRepository.observeUnifiedInboxUnread()` for the finished number. */
+    fun allInboxScopes(): List<Pair<String, String>> = UnifiedInbox.scopes(accounts())
 
     /** Combined unread count across every account, for the unified-inbox header. */
     fun totalUnreadCount(): Int = accounts().sumOf { it.unread }

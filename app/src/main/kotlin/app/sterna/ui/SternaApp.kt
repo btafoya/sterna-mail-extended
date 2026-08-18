@@ -154,6 +154,8 @@ fun SternaApp(
     onMailtoConsumed: () -> Unit = {},
     pendingEmailOpen: EmailOpenTarget? = null,
     onEmailOpenConsumed: () -> Unit = {},
+    pendingUnifiedOpen: Boolean = false,
+    onUnifiedOpenConsumed: () -> Unit = {},
     viewModel: RootViewModel = viewModel(),
 ) {
     RequestNotificationPermission()
@@ -203,6 +205,8 @@ fun SternaApp(
                 onMailtoConsumed = onMailtoConsumed,
                 pendingEmailOpen = pendingEmailOpen,
                 onEmailOpenConsumed = onEmailOpenConsumed,
+                pendingUnifiedOpen = pendingUnifiedOpen,
+                onUnifiedOpenConsumed = onUnifiedOpenConsumed,
             )
         }
         if (locked) LockScreen(onUnlocked = appLock::unlock)
@@ -232,6 +236,8 @@ private fun MainNavHost(
     onMailtoConsumed: () -> Unit = {},
     pendingEmailOpen: EmailOpenTarget? = null,
     onEmailOpenConsumed: () -> Unit = {},
+    pendingUnifiedOpen: Boolean = false,
+    onUnifiedOpenConsumed: () -> Unit = {},
 ) {
     val nav = rememberNavController()
     // A tapped mailto: link opens the compose screen prefilled with the parsed fields
@@ -294,6 +300,67 @@ private fun MainNavHost(
         val list = listViewModel ?: return@LaunchedEffect
         pendingFolderOpen = null
         list.showFolderFromNotification(target.accountId.orEmpty(), target.mailboxId.orEmpty())
+    }
+    // A tapped home-screen widget puts the list on the unified inbox (Codeberg #112) — the widget
+    // only asks for it when the app has that view at all, i.e. from two accounts up (UnreadWidgetTap).
+    //
+    // ⛔ Through selectUnified(), the drawer's own call, never a hand-rolled equivalent. Not for
+    // the push flag — PushController.unifiedInboxVisible is set by a collector on `selection`
+    // (InboxViewModel's init), so ANY path that moves the selection sets it. For everything else
+    // selectUnified() does around that assignment: it collapses expanded threads, re-derives the
+    // unified inbox scopes from the account store, rewrites the header meta to the "All inboxes"
+    // label and total, and calls refresh() so every account is actually fetched. A hand-rolled
+    // "just move the selection" compiles and leaves the screen showing the previous folder's name
+    // and count over a list nothing re-fetched.
+    //
+    // The order is CONSUMED FIRST and kept here until the list exists, never waited for in place:
+    // [listViewModel] is looked up imperatively above (no snapshot state is read), so on a COLD
+    // start the NavHost has not composed its start destination in the composition that receives
+    // the tap, and an effect that returned there returned for good — nothing recomposed this host
+    // again, and the activity's flag stayed true, turning every later tap into a true → true
+    // assignment with no recomposition at all. Consuming is the state write that BRINGS the
+    // composition where the list exists; [heldUnifiedOpen] is what stops that consumption from
+    // throwing the tap away. [WidgetTapRelay] owns the three-way verdict, alone and executable.
+    //
+    // ⛔ remember, NEVER rememberSaveable. A held `true` that survived a rotation, a locale or a
+    // font-size change would re-navigate to "All inboxes" over whatever the user is reading — the
+    // very thing MainActivity's `savedInstanceState == null` guard exists to prevent, let back in
+    // through the side door. A tap that did not outlive its own process is a tap not worth replaying.
+    //
+    // ⚠ And while it is held this is the ONLY copy: consuming clears the activity's flag AND strips
+    // the intent, so a host that leaves composition in between — a sign-out, an account list that
+    // became unreadable — drops the tap. That is the trade taken here, deliberately: what is lost is
+    // a tap, never a byte, and the alternative is an order that outlives the screen it was meant for.
+    var heldUnifiedOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(pendingUnifiedOpen, heldUnifiedOpen, listViewModel) {
+        when (WidgetTapRelay.step(pendingUnifiedOpen, heldUnifiedOpen, listViewModel != null)) {
+            WidgetTapStep.Ignore -> return@LaunchedEffect
+            WidgetTapStep.Hold -> {
+                onUnifiedOpenConsumed()
+                heldUnifiedOpen = true
+            }
+            WidgetTapStep.Deliver -> {
+                onUnifiedOpenConsumed()
+                heldUnifiedOpen = false
+                val list = listViewModel ?: return@LaunchedEffect
+                list.selectUnified()
+                // selectUnified() moves the LIST, and the list is a destination BELOW whatever is
+                // on screen: with the reader open the switch happened where nobody could see it,
+                // and the user met it later, on Back. So the reader is unwound too — and ONLY the
+                // reader. ⛔ THE WHOLE STACK is handed over, not the top entry: popBackStack("inbox")
+                // drops EVERYTHING above the list, so `inbox → search → message` would take the
+                // search results with it and `inbox → compose → message` the live draft.
+                // [WidgetTapNavigation] owns that verdict, alone and executable; do not inline it
+                // back into a condition here.
+                val stack = nav.currentBackStack.value.map { it.destination.route }
+                if (WidgetTapNavigation.from(stack) == WidgetTapReturn.BackToList) {
+                    // unguarded: a one-shot order, already consumed above — navigateOnce's
+                    // de-duplication would drop it on a mid-transition tap rather than protect
+                    // anything. Same reason as the mailto: and notification effects above.
+                    nav.popBackStack("inbox", inclusive = false)
+                }
+            }
+        }
     }
     // Devices that SIGSEGV'd inside a message fade (the #10 GL-functor bug) have the fade
     // latched off by the crash sentinel — they navigate instantly instead of crashing.

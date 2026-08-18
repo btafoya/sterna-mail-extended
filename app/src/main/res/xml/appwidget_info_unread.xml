@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    ⛔ updatePeriodMillis="0" — the widget polls NOTHING, and never may. Any other value asks the
+    system to wake this app on a timer (30 minutes at the very least, whether or not a single
+    message moved) to redraw a number that has not changed. The widget is redrawn when the system
+    asks: when it is placed, after a reboot and after an app update. A collector that pushes a new
+    number as mail moves is the next piece of work, and it will not need this attribute either.
+
+    android:description and android:previewLayout are API 31+, so they live in res/xml-v31 rather
+    than under a tools:targetApi here. Below API 31 the picker falls back to the app's icon and
+    shows no description: less pretty, and nothing else.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_unread"
+    android:minHeight="40dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

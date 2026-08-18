@@ -1,0 +1,236 @@
+package app.sterna.widget
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+import java.io.File
+
+/**
+ * SOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and the same disclaimer as
+ * [app.sterna.ui.inbox.UnifiedUnreadWiringLintTest] and [UnreadWidgetDeclarationTest]. The decision
+ * itself is EXECUTED, next door, by [UnreadWidgetPushTest]: it runs `UnreadWidgetPush.redraws` and
+ * pins when the count is asked for. This file holds the one thing that test cannot see — where the
+ * shipped app actually plugs it in, and what it plugs in.
+ *
+ * Neither end can be built in this suite: `AppContainer` wants a `Context`, the Keystore and a
+ * database; `FetchAndNotify.run` wants all of that plus a server. There is no Robolectric here.
+ *
+ * ⛔ Whole lines, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
+ * the line. The price is that reformatting either call reddens this test — loud, and one line to fix.
+ */
+class UnreadWidgetPushWiringLintTest {
+
+    /**
+     * The case the app-scoped collection cannot cover: a process the DELIVERY woke. Mail lands, the
+     * banner goes up, nobody opens the app — and the widget keeps the number it was last drawn with.
+     * `FetchAndNotify.run` is the funnel every arrival goes through (live push, UnifiedPush, the
+     * fallback poll, the foreground refresh), so the redraw sits at the end of it.
+     *
+     * Pinned as the LAST lines of `run`, not merely as lines somewhere in the file: the position is
+     * half the claim. Inside the `try`, a cancellation coming out of the redraw would be caught by
+     * the `AccountGoneException` arm and logged as a sign-out that never happened; before the
+     * notifications, a failed draw could cost one.
+     */
+    @Test fun `the delivery pass redraws the widget, last, and outside its sign-out arm`() {
+        assertEquals(
+            "FetchAndNotify.run must END with a best-effort widget redraw, outside its try. " +
+                "Without it, mail that arrives on a dead process notifies and leaves the cell " +
+                "showing the old number until something else opens the app (#112).",
+            listOf(
+                "runCatching { UnreadWidgetDraw.refresh(context) }",
+                ".rethrowIfCancelled()",
+                ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"unread widget not redrawn after the pass\", it) }",
+            ),
+            functionBody(FETCH_AND_NOTIFY, "suspend fun run(").takeLast(3),
+        )
+    }
+
+    /**
+     * The other half: everything that moves while the process LIVES — a message read, a swipe, a
+     * delete, a multi-select, a push arriving with the app open. One collection instead of the
+     * fifteen-odd write sites in `MailRepository` that would each have to be wired by hand.
+     *
+     * ⛔ And it is GATED. The whole block is pinned, not just the launch, because the gate is what
+     * keeps this from being paid by every install: `UnreadWidgetPush.redraws(…)` collected on a
+     * flow that is not `UnreadWidgetPresence.placed(…)` — a `flowOf(true)`, say — compiles, keeps
+     * every other test in this repository green, and subscribes two global Room aggregates for the
+     * life of every process on earth for a widget nobody placed.
+     */
+    @Test fun `AppContainer collects the push, gated on a widget being placed`() {
+        assertEquals(
+            "AppContainer.init must launch UnreadWidgetPush.redraws over " +
+                "UnreadWidgetPresence.placed(appContext), collecting into UnreadWidgetDraw.redraw. " +
+                "Dropped, the widget stops following the mail the user is reading; ungated, every " +
+                "install pays for a widget it does not have.",
+            listOf(
+                "appScope.launch {",
+                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {",
+                "mailRepository.observeUnifiedInboxUnread()",
+                "}.collect { unread ->",
+                "runCatching { UnreadWidgetDraw.redraw(appContext, unread) }",
+                ".rethrowIfCancelled()",
+                ".onFailure { Log.w(\"Sterna\", \"unread widget not redrawn; the cell keeps its number\", it) }",
+                "}",
+                "}",
+            ),
+            blockContaining(STERNA_APPLICATION, "UnreadWidgetPush.redraws(", "appScope.launch {"),
+        )
+    }
+
+    /**
+     * ⛔ THE GATE'S THREE WRITERS, whole lines, because two of them are `override fun`s the system
+     * calls and nothing in this suite can invoke.
+     *
+     * [anyWidgetPlaced] is executed by `UnreadWidgetPresenceTest`, and so is `set`. What no test in
+     * a JVM can reach is whether the PROVIDER still hands those calls the right argument, or hands
+     * them at all. Delete `onDisabled`, or make it `set(true)`, and the app goes on collecting the
+     * unified total for the life of every process after the user removed their last cell — the one
+     * expense this whole mechanism exists to refuse, invisible on screen, and green everywhere else.
+     * Delete `onEnabled` and a cell placed on a running process never starts following the mail.
+     *
+     * The seed is pinned for the same reason with one twist: it is the only line that turns the
+     * widget manager's answer into the gate's, and inverting it there (`!anyWidgetPlaced(…)`) breaks
+     * both directions at once without touching a function any test runs.
+     */
+    @Test fun `the provider opens and closes the gate, and the seed reads it the right way round`() {
+        assertEquals(
+            "UnreadWidgetProvider.onEnabled must open the gate. Without it, a widget placed while " +
+                "the app is running never starts the collection and its number stands still until " +
+                "the process is replaced.",
+            listOf(
+                "override fun onEnabled(context: Context) {",
+                "UnreadWidgetPresence.set(true)",
+            ),
+            functionBody(PROVIDER, "override fun onEnabled(context: Context)"),
+        )
+        assertEquals(
+            "UnreadWidgetProvider.onDisabled must CLOSE it, with false. Dropped — or handed true — " +
+                "the app keeps two global Room aggregates subscribed for a widget the user removed, " +
+                "for as long as the process lives, and nothing on screen ever says so.",
+            listOf(
+                "override fun onDisabled(context: Context) {",
+                "UnreadWidgetPresence.set(false)",
+            ),
+            functionBody(PROVIDER, "override fun onDisabled(context: Context)"),
+        )
+        assertEquals(
+            "the seed must ask the widget manager and pass its answer through anyWidgetPlaced " +
+                "unchanged. A negation here shuts the gate for everyone who has a widget and opens " +
+                "it for everyone who has not, and it is one character.",
+            listOf(
+                "fun placed(context: Context): StateFlow<Boolean> {",
+                "if (!seeded) {",
+                "seeded = true",
+                "set(anyWidgetPlaced(UnreadWidgetDraw.placedIds(context)))",
+                "}",
+                "return state",
+            ),
+            functionBody(WIDGET_DRAW, "fun placed(context: Context)"),
+        )
+    }
+
+    // The third rule that lived here — "nothing in the widget package sets a PendingIntent yet" —
+    // was a temporary guard, explicitly held only until the pane that adds a tap arrived. It has:
+    // its replacement is [UnreadWidgetTapWiringLintTest], which pins what the shipped PendingIntent
+    // must BE (its own action, the guards it enters, the call it ends in) rather than its absence.
+
+    /**
+     * The lines of [file], comments dropped whole and trailing `//` cut, blanks removed. Without
+     * this every rule below would also match the prose written to explain it.
+     */
+    private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
+        val code = line.trim()
+        if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) null
+        else withoutTrailingComment(code).takeIf { it.isNotBlank() }
+    }
+
+    /** [line] up to its `//` comment, ignoring a `//` inside a string literal. */
+    private fun withoutTrailingComment(line: String): String {
+        var inString = false
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            when {
+                inString && c == '\\' -> i++
+                c == '"' -> inString = !inString
+                !inString && c == '/' && line.getOrNull(i + 1) == '/' -> return line.substring(0, i).trimEnd()
+            }
+            i++
+        }
+        return line.trimEnd()
+    }
+
+    /**
+     * The code lines of the function opening with [signature], its own closing brace excluded, so a
+     * rule can pin what the function ENDS with. Fails loudly when the signature is gone: a rename
+     * must redden the rule rather than satisfy it against an empty list.
+     */
+    private fun functionBody(file: File, signature: String): List<String> {
+        val lines = codeLines(file)
+        val start = lines.indexOfFirst { it.startsWith(signature) }
+        check(start >= 0) { "${file.name} no longer declares `$signature` — was it renamed?" }
+        val body = mutableListOf<String>()
+        var depth = 0
+        var opened = false
+        for (i in start until lines.size) {
+            val line = lines[i]
+            val next = depth + line.count { it == '{' } - line.count { it == '}' }
+            if (opened && next == 0) return body
+            body += line
+            depth = next
+            if (depth > 0) opened = true
+        }
+        error("`$signature` in ${file.name} never closes — the slice would be the rest of the file")
+    }
+
+    /**
+     * The whole brace-balanced block that opens with [opener] and contains [marker] — the launch
+     * and everything under it, so a rule pins the collection AND what it is collected from.
+     *
+     * Deliberately returns an empty list when [marker] is nowhere in the file: dropping the block
+     * is the mutation the caller exists to catch, and an assertion that shows the expected lines
+     * against `[]` says more than an exception would.
+     */
+    private fun blockContaining(file: File, marker: String, opener: String): List<String> {
+        val lines = codeLines(file)
+        val at = lines.indexOfFirst { marker in it }
+        if (at < 0) return emptyList()
+        val start = (at downTo 0).firstOrNull { lines[it] == opener }
+            ?: error("no `$opener` above `$marker` in ${file.name}")
+        val block = mutableListOf<String>()
+        var depth = 0
+        for (i in start until lines.size) {
+            val line = lines[i]
+            block += line
+            depth += line.count { it == '{' } - line.count { it == '}' }
+            if (depth == 0) return block
+        }
+        error("`$opener` in ${file.name} never closes")
+    }
+
+    private companion object {
+        const val ANCHOR = "app/src/main/kotlin/app/sterna/SternaApplication.kt"
+
+        /** Repo root, walked up from the module's working directory. */
+        val ROOT: File by lazy {
+            generateSequence(File("").absoluteFile) { it.parentFile }
+                .firstOrNull { File(it, ANCHOR).isFile }
+                ?: error(
+                    "cannot locate the repo root from ${File("").absolutePath} — this test reads " +
+                        "the source as text and needs a working directory inside the checkout",
+                )
+        }
+
+        val STERNA_APPLICATION: File by lazy { File(ROOT, ANCHOR) }
+        val FETCH_AND_NOTIFY: File by lazy {
+            File(ROOT, "app/src/main/kotlin/app/sterna/push/FetchAndNotify.kt")
+        }
+        val PROVIDER: File by lazy {
+            File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetProvider.kt")
+        }
+
+        /** Holds `UnreadWidgetPresence` and `anyWidgetPlaced` as well as the draw itself. */
+        val WIDGET_DRAW: File by lazy {
+            File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetDraw.kt")
+        }
+    }
+}

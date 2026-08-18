@@ -949,4 +949,10 @@
     <string name="settings_about_source">Source code</string>
     <string name="settings_about_license">License</string>
     <string name="settings_about_author">Author</string>
+
+    <!-- Home-screen widget. The title is what the system's widget picker lists; the description
+         is shown under it from Android 12 on (res/xml-v31). Neither is drawn by the widget
+         itself, which wears the drawer's own "All inboxes" strings. -->
+    <string name="widget_unread_title">Unread count</string>
+    <string name="widget_unread_description">Shows how many unread messages are waiting.</string>
 </resources>

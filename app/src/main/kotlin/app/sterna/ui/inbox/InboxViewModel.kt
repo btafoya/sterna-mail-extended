@@ -925,9 +925,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     // read (mode-aware: unread threads in conversation view, unread messages in flat view),
     // so the two numbers in the drawer agree by construction for JMAP; IMAP inboxes keep
     // contributing their stored server counter (their windowed cache would under-count).
-    private val unifiedUnread = unifiedInboxScopes.flatMapLatest { scopes ->
-        repo.observeUnifiedInboxUnread(scopes)
-    }
+    // The no-argument overload derives its own scopes from the stored accounts, so the drawer
+    // reads this number the same way a home-screen widget will — one derivation, not two.
+    private val unifiedUnread = repo.observeUnifiedInboxUnread()
 
     /** Codeberg #65: the offline empty state promises a resync, so watch the network — the
      *  transports *and* the route this app is given, so a VPN tunnel coming back counts — and

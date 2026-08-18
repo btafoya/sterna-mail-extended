@@ -34,9 +34,16 @@ android {
         // so without -PtestApp the merged manifest still reads android:label="@string/app_name"
         // (localised as before).
         manifestPlaceholders["appLabel"] = "@string/app_name"
+        // The home-screen widget's name in the system widget picker. Same trick and same reason as
+        // appLabel above: without -PtestApp the merged manifest still reads
+        // android:label="@string/widget_unread_title" (localised as before), so the production
+        // build is byte-for-byte what it was. With it, the picker lists two distinguishable
+        // entries instead of two identical ones, which is what makes a bench pass playable.
+        manifestPlaceholders["widgetLabel"] = "@string/widget_unread_title"
         if (testApp) {
             applicationIdSuffix = ".test"
             manifestPlaceholders["appLabel"] = "Sterna (test)"
+            manifestPlaceholders["widgetLabel"] = "Unread count (test)"
             // About row reads e.g. "1.3.13-test": tells the two apart from the inside.
             // A suffix only — versionName/versionCode themselves are never bumped for a test.
             versionNameSuffix = "-test"

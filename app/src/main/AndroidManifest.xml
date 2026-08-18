@@ -145,6 +145,25 @@
             </intent-filter>
         </receiver>
 
+        <!-- The home-screen unread counter. Same family as the boot receiver above: it listens to
+             one system broadcast and nothing else. Exported because a manifest receiver that is
+             not exported never sees a system broadcast at all; APPWIDGET_UPDATE is a protected
+             broadcast, so no other app can send it, and the receiver reads nothing from the intent.
+             The label is a build placeholder so the test app (-PtestApp) gets its own entry in the
+             widget picker: without it the bench offers two identical entries and cannot tell which
+             install it is about to put on the home screen. -->
+        <receiver
+            android:name=".widget.UnreadWidgetProvider"
+            android:exported="true"
+            android:label="${widgetLabel}">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_info_unread" />
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

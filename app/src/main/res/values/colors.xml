@@ -9,4 +9,12 @@
     <!-- Splash tern silhouette: dark teal on the light field, soft teal (the dark-mode
          primary) on the dark one. -->
     <color name="sterna_splash_tern">#17414C</color>
+    <!-- Home-screen widget. Drawn by RemoteViews in the launcher's process, so none of the
+         in-app palette is reachable: the app's theme is chosen in Compose at runtime and the
+         widget cannot see it. It follows the SYSTEM day/night mode through values-night instead,
+         which means it ignores the app's own theme setting and the pure-black option (#117).
+         Written down as debt, not to be worked around from here. -->
+    <color name="widget_unread_background">#F4F6F8</color>
+    <color name="widget_unread_count">#17414C</color>
+    <color name="widget_unread_label">#4A5B61</color>
 </resources>

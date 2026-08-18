@@ -912,4 +912,9 @@
     <string name="settings_about_source">Codice sorgente</string>
     <string name="settings_about_license">Licenza</string>
     <string name="settings_about_author">Autore</string>
+
+    <!-- Home-screen widget: the entry in the system widget picker, and its
+         description (Android 12+). Neither is drawn by the widget itself. -->
+    <string name="widget_unread_title">Contatore non letti</string>
+    <string name="widget_unread_description">Mostra quanti messaggi non letti sono in attesa.</string>
 </resources>

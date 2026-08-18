@@ -917,4 +917,9 @@
     <string name="settings_about_source">Code source</string>
     <string name="settings_about_license">Licence</string>
     <string name="settings_about_author">Auteur</string>
+
+    <!-- Home-screen widget: the entry in the system widget picker, and its
+         description (Android 12+). Neither is drawn by the widget itself. -->
+    <string name="widget_unread_title">Compteur de non-lus</string>
+    <string name="widget_unread_description">Affiche le nombre de messages non lus en attente.</string>
 </resources>

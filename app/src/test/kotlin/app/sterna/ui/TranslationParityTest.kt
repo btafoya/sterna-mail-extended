@@ -58,6 +58,24 @@ class TranslationParityTest {
     }
 
     /**
+     * The home-screen widget's two texts, by name in the nine languages — the general rule at the
+     * top compares against `values/`, so it would go green on a widget never translated at all.
+     *
+     * They are the only strings the widget contributes, and they are read in the one place the app
+     * cannot explain itself: the system's widget picker, a list of every app's widgets side by
+     * side. Left in English there, eight of nine readers pick from a list where one entry is in a
+     * language they did not choose, before the app has drawn anything.
+     */
+    @Test
+    fun `the nine languages all name the unread widget`() {
+        val files = listOf(File(res, "values/strings.xml")) + translations()
+        val expected = setOf("widget_unread_title", "widget_unread_description")
+        val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }
+            .filterValues { it.isNotEmpty() }
+        assertEquals("the widget picker's entry is untranslated in", emptyMap<String, Set<String>>(), missing)
+    }
+
+    /**
      * The rules above compare against whatever `values-*` happen to exist, so they say nothing
      * about a language that disappears — and nothing about the label added last. Both are pinned
      * here: the nine directories the app ships, by name, and the black-background switch (#117),

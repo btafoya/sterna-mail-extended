@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The widget's own surface. Rounded by a fixed radius rather than by
+    @android:dimen/system_app_widget_background_radius, which is API 31+ and would need a second
+    variant of this file for a corner nobody measures.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="16dp" />
+    <solid android:color="@color/widget_unread_background" />
+</shape>

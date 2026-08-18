@@ -8,6 +8,7 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.mail.AccountGoneException
 import app.sterna.core.data.mail.accountGoneCause
 import app.sterna.core.data.rethrowIfCancelled
+import app.sterna.widget.UnreadWidgetDraw
 import kotlinx.coroutines.flow.first
 
 /**
@@ -173,6 +174,28 @@ object FetchAndNotify {
                 gone,
             )
         }
+        // The home-screen widget, redrawn once the pass is over (#112). This is the case the
+        // app-scoped collection in `AppContainer` cannot cover: a process the DELIVERY woke — mail
+        // lands, a banner goes up, and nobody opens the app. The collection did start with the
+        // process, but the number it drew was already drawn by the widget's own update; what moved
+        // it is what this pass just wrote, and only a redraw after the writes says so.
+        //
+        // ⛔ OUTSIDE the try, on purpose, and not merely at the end of it: the arm above claims a
+        // CancellationException is a sign-out and prints it as one. A widget redraw that came out
+        // of the try cancelled — a timeout, the pass being torn down — would be logged as "signed
+        // out, dropped" for an account nobody signed out of, which is exactly the misattribution
+        // #130 took out of this log. ([UnreadWidgetDraw.refresh] uses withTimeoutOrNull for the
+        // same reason: its own timeout must not reach `rethrowIfCancelled` below.)
+        //
+        // Best-effort like every other side effect here: a draw that fails costs a stale cell and
+        // never a notification — it runs after all of them. `rethrowIfCancelled` is not decoration:
+        // `runCatching` would otherwise turn the pass being cancelled into a normal return.
+        // With no widget placed it costs ONE binder call and stops there: `refresh` asks the widget
+        // manager for the placed ids first and returns on an empty answer, so it subscribes no
+        // aggregate, opens no database and reaches the container not at all.
+        runCatching { UnreadWidgetDraw.refresh(context) }
+            .rethrowIfCancelled()
+            .onFailure { android.util.Log.w("FetchAndNotify", "unread widget not redrawn after the pass", it) }
     }
 
     /**

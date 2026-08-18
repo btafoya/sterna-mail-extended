@@ -35,6 +35,11 @@ class MainActivity : AppCompatActivity() {
      *  singleTask/onNewIntent plumbing as [pendingMailto]. */
     private val pendingEmailOpen = androidx.compose.runtime.mutableStateOf<EmailOpenTarget?>(null)
 
+    /** A home-screen widget tap waiting to put the list on the unified inbox (Codeberg #112).
+     *  Same singleTask/onNewIntent plumbing as the two above, and the same one-shot discipline:
+     *  it is an order carried out once, not a state the activity is in. */
+    private val pendingUnifiedOpen = androidx.compose.runtime.mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -46,6 +51,7 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             pendingMailto.value = parseMailto(intent) ?: parseShare(intent)
             pendingEmailOpen.value = parseEmailOpen(intent)
+            pendingUnifiedOpen.value = parseUnifiedOpen(intent)
             consumeOAuthRedirect()
         }
         val settings = application.container.settingsRepository
@@ -83,6 +89,11 @@ class MainActivity : AppCompatActivity() {
                             pendingEmailOpen.value = null
                             stripEmailOpenPayload()
                         },
+                        pendingUnifiedOpen = pendingUnifiedOpen.value,
+                        onUnifiedOpenConsumed = {
+                            pendingUnifiedOpen.value = false
+                            stripUnifiedOpenPayload()
+                        },
                     )
                 }
             }
@@ -94,6 +105,11 @@ class MainActivity : AppCompatActivity() {
         setIntent(intent)
         (parseMailto(intent) ?: parseShare(intent))?.let { pendingMailto.value = it }
         parseEmailOpen(intent)?.let { pendingEmailOpen.value = it }
+        // The widget's usual path, not an edge case: the app is normally already running when a
+        // home-screen cell is tapped, singleTask hands the intent here, and onCreate never runs
+        // again. Set only when the extra is there, like the two above — a bare assignment would
+        // clear a request that arrived a moment ago and has not been consumed yet.
+        if (parseUnifiedOpen(intent)) pendingUnifiedOpen.value = true
         consumeOAuthRedirect()
     }
 
@@ -128,6 +144,23 @@ class MainActivity : AppCompatActivity() {
         i.removeExtra(EXTRA_OPEN_ACCOUNT_ID)
         i.removeExtra(EXTRA_OPEN_MAILBOX_ID)
     }
+
+    /**
+     * The same one-shot strip for the home-screen widget's request (#112), and its OWN function on
+     * purpose — see [stripEmailOpenPayload]'s note. Folded into that one, opening a message would
+     * also discard a widget tap that had just arrived and not yet been carried out; the reverse
+     * holds too. Belt to the `savedInstanceState == null` guard: without it, whatever re-reads the
+     * retained intent later would find an order already obeyed and re-select the unified inbox
+     * over the folder the user has since chosen.
+     */
+    private fun stripUnifiedOpenPayload() {
+        val i = intent ?: return
+        i.removeExtra(EXTRA_OPEN_UNIFIED)
+    }
+
+    /** Does this intent carry a home-screen widget tap? (#112) */
+    private fun parseUnifiedOpen(intent: Intent?): Boolean =
+        intent?.getBooleanExtra(EXTRA_OPEN_UNIFIED, false) == true
 
     private fun stripMailtoPayload() {
         val i = intent ?: return
@@ -224,6 +257,14 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_OPEN_EMAIL_ID = "app.sterna.OPEN_EMAIL_ID"
         const val EXTRA_OPEN_ACCOUNT_ID = "app.sterna.OPEN_ACCOUNT_ID"
         const val EXTRA_OPEN_MAILBOX_ID = "app.sterna.OPEN_MAILBOX_ID"
+
+        /**
+         * Open the cross-account unified inbox — set by the home-screen widget (#112), and only
+         * when the app actually HAS that view (two accounts or more; see `UnreadWidgetTap`). With
+         * one account or none the widget sends no extra at all and the app opens where it already
+         * opens: that account's inbox, or its sign-in route.
+         */
+        const val EXTRA_OPEN_UNIFIED = "app.sterna.OPEN_UNIFIED"
     }
 }
 

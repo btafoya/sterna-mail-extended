@@ -17,6 +17,7 @@ import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.OAuthCredentials
 import app.sterna.core.data.account.StoredIdentity
+import app.sterna.core.data.account.UnifiedInbox
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.FilterScriptStatus
 import app.sterna.core.data.filter.SieveCodec
@@ -1969,6 +1970,31 @@ class MailRepository(
                 .associate { it.mailboxId to it.count }
         }
     }
+
+    /**
+     * The SAME number as the overload below, deriving its own scopes from the stored accounts —
+     * the one call a new caller (the home-screen widget) should ever need, and the reason the
+     * drawer now makes it too. Passing the scopes in was an invitation to compute them a second
+     * way, or to reach for
+     * [AccountStore.totalUnreadCount], which sums a server-side counter that stopped matching the
+     * drawer when the unified header moved to the live per-inbox aggregates.
+     *
+     * What re-subscribing on [AccountStore.accountsFlow] FIXES. IMAP inboxes contribute
+     * `accountStore.account(id)?.unread` — a flat read inside the `combine` block below, which
+     * nothing wakes: Room does not observe `SharedPreferences`, so an IMAP badge only moved when
+     * something else happened to re-emit. `accountsFlow` is published by `saveAccounts`, the single
+     * funnel that `saveInboxMetaFor` and `adjustInboxUnread` both go through, so the stored counter
+     * changing now re-runs the count — for the drawer and the widget alike.
+     *
+     * ⛔ What it does NOT fix, on purpose: how FRESH that IMAP value is. Mail that arrives while the
+     * app is closed writes Room rows, and the IMAP branch deliberately ignores them (a windowed
+     * cache would under-count — see the note above). The drawer is already stale in that case; the
+     * widget will be stale by exactly as much, never by more. That is a pre-existing defect with a
+     * write of its own, not something to correct from here.
+     */
+    fun observeUnifiedInboxUnread(): Flow<Int> = UnifiedInbox.unreadCount(
+        accountStore.accountsFlow,
+    ) { scopes -> observeUnifiedInboxUnread(scopes) }
 
     /**
      * Live unread total across every account's inbox, for the drawer's "All inboxes (N)"

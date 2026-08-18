@@ -6,4 +6,9 @@
     <color name="sterna_splash_background">#0E1A1F</color>
     <!-- The tern flips to the Pelagic primary (soft teal) to stay visible on the dark field. -->
     <color name="sterna_splash_tern">#6FB1AB</color>
+    <!-- The widget in the system's dark mode: the Pelagic surface, with the soft teal on it.
+         This file is the ONLY thing that darkens the widget — see the note in values/colors.xml. -->
+    <color name="widget_unread_background">#0E1A1F</color>
+    <color name="widget_unread_count">#6FB1AB</color>
+    <color name="widget_unread_label">#A7B8BD</color>
 </resources>
