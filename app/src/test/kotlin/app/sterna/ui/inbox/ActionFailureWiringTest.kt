@@ -24,7 +24,13 @@ import org.junit.Test
  * ahead of ERROR (#65) — an order this fix leaves alone. What this arm owes is therefore narrow
  * and worth stating plainly: no raw resolver text, and never an empty banner.
  *
- * Both arms are compared WHOLE, flattened, not searched for fragments: a `contains` rule is blind
+ * A third arm joined them: the batched bulk's total failure, which used to print the generic
+ * sentence unconditionally while the swipe beside it said "you are offline". It is not shaped like
+ * the other two — the throwable is caught in a `getOrElse`, kept in `batchFailure`, and read by the
+ * `when` below — so [SITES] carries how each arm is cut and what its throwable is called, and the
+ * rules run over all three.
+ *
+ * Both `.onFailure` arms are compared WHOLE, flattened, not searched for fragments: a `contains` rule is blind
  * to every mutation that makes the line LONGER — `online = hasUsableNetwork(app) && false`, an
  * `?: it.message` tacked on the end — and that is the shape this fix would come undone in. A
  * legitimate refactor of either arm reddens this file; that direction of error is loud and one line
@@ -53,47 +59,65 @@ class ActionFailureWiringTest {
         )
     }
 
-    @Test fun `neither arm puts the exception's own text on screen`() {
-        for ((name, header) in SITES) {
-            val text = arm(header)
+    @Test fun `no arm puts the exception's own text on screen`() {
+        for (site in SITES) {
+            val text = arm(site)
             assertFalse(
-                "$name must not read `it.message` at all: that string is the platform resolver's, " +
-                    "in English whatever the app's language, and it is exactly what this fix takes " +
-                    "off the screen. Arm was:\n$text",
+                "${site.name} must not read `it.message` at all: that string is the platform " +
+                    "resolver's, in English whatever the app's language, and it is exactly what " +
+                    "this fix takes off the screen. Arm was:\n$text",
                 READS_THE_MESSAGE.containsMatchIn(text),
             )
         }
     }
 
-    @Test fun `both sites ask the shared decision, and nowhere else does`() {
+    @Test fun `every site asks the shared decision, and nowhere else does`() {
         val calls = Regex("""(?<!fun )\bactionFailureMessage\(""").findAll(code()).count()
         assertEquals(
-            "actionFailureMessage must be CALLED exactly twice in InboxViewModel — the swipe and " +
-                "the Undo. A third caller is another site quietly changing its wording through " +
-                "this one; fewer means one of the two went back to its own rule. Found $calls.",
-            2, calls,
+            "actionFailureMessage must be CALLED exactly three times in InboxViewModel — the " +
+                "swipe, the Undo and the batched bulk's total failure. A fourth caller is another " +
+                "site quietly changing its wording through this one; fewer means one of the three " +
+                "went back to its own rule. Found $calls.",
+            3, calls,
         )
-        for ((name, header) in SITES) {
-            val text = arm(header)
+        for (site in SITES) {
+            val text = arm(site)
             assertTrue(
-                "$name must call actionFailureMessage(it, online = hasUsableNetwork(app)) — the " +
-                    "failure itself and the device's LIVE connectivity reading. Arm was:\n$text",
-                DECIDES_ON_LIVE_CONNECTIVITY.containsMatchIn(text),
+                "${site.name} must call actionFailureMessage(${site.failure}, online = " +
+                    "hasUsableNetwork(app)) — the failure itself and the device's LIVE " +
+                    "connectivity reading. Arm was:\n$text",
+                decidesOnLiveConnectivity(site).containsMatchIn(text),
             )
         }
     }
 
-    @Test fun `neither site hard-codes whether the device is online`() {
-        for ((name, header) in SITES) {
-            val text = arm(header)
+    @Test fun `no site hard-codes whether the device is online`() {
+        for (site in SITES) {
+            val text = arm(site)
             assertFalse(
-                "$name must not pass a constant for `online`. `online = true` is one word, " +
+                "${site.name} must not pass a constant for `online`. `online = true` is one word, " +
                     "compiles, and gives every offline swipe the generic sentence again — with " +
                     "the whole suite green if the rule only looked for the call by name. Arm " +
                     "was:\n$text",
                 CONSTANT_CONNECTIVITY.containsMatchIn(text),
             )
         }
+    }
+
+    /**
+     * The batched bulk loops over ACCOUNTS, so it can be handed several failures. The one that
+     * decides the sentence is the FIRST — the one that cut the gesture; the last is whatever the
+     * accounts behind it answered once the link was already gone. `batchFailure = it` on every
+     * turn compiles and stays green under a rule that only looks for an assignment.
+     */
+    @Test fun `the batched bulk keeps the first failure, not the last`() {
+        val site = SITES.first { it.cut == Cut.CAUGHT_THEN_TOLD }
+        val text = arm(site)
+        assertTrue(
+            "${site.name} must keep the first escaped throwable and never overwrite it. Arm " +
+                "was:\n$text",
+            KEEPS_THE_FIRST_FAILURE.containsMatchIn(text),
+        )
     }
 
     @Test fun `the undo banner can never be left empty`() {
@@ -107,11 +131,11 @@ class ActionFailureWiringTest {
         )
     }
 
-    @Test fun `both sites write the technical text to the log, with the throwable`() {
-        for ((name, header) in SITES) {
-            val text = arm(header)
+    @Test fun `every site writes the technical text to the log, with the throwable`() {
+        for (site in SITES) {
+            val text = arm(site)
             assertTrue(
-                "$name must call android.util.Log.w(tag, message, it), passing the THROWABLE as " +
+                "${site.name} must call android.util.Log.w(tag, message, it), passing the THROWABLE as " +
                     "the third argument — not `it.message`, or the stack trace that says which " +
                     "layer failed is gone from the bug report too. The text is not lost by this " +
                     "fix, it changes surface. Arm was:\n$text",
@@ -137,6 +161,36 @@ class ActionFailureWiringTest {
      * its arm cannot be found, so a rename reddens these rules rather than satisfying them against
      * an empty string.
      */
+    private fun arm(site: Site): String = when (site.cut) {
+        Cut.ON_FAILURE -> arm(site.header)
+        Cut.CAUGHT_THEN_TOLD -> caughtThenTold(site.header)
+    }
+
+    /**
+     * The two halves of the batched bulk's arm, joined: the `getOrElse { … }` that logs the
+     * failure and keeps it, and the `BulkOutcome.TOTAL ->` branch that turns it into a sentence
+     * twenty lines below. They are read together because the rules span them — the log lives in
+     * the first, the decision in the second, and a rule reading one alone would pass while the
+     * other went missing.
+     */
+    private fun caughtThenTold(header: String): String {
+        val text = code()
+        val start = text.indexOf(header)
+        check(start >= 0) { "InboxViewModel.kt declares no '$header' — did it get renamed?" }
+        val declaration = balanced(text, start, '{', '}')
+        val caught = declaration.indexOf(".getOrElse {")
+        check(caught >= 0) { "'$header' no longer catches its batch failure in a getOrElse arm." }
+        check(declaration.indexOf(".getOrElse {", caught + 1) < 0) {
+            "'$header' now has more than one getOrElse arm; this rule pins one."
+        }
+        val told = declaration.indexOf("BulkOutcome.TOTAL ->")
+        check(told >= 0) { "'$header' has no BulkOutcome.TOTAL branch — where did the message go?" }
+        val end = declaration.indexOf("BulkOutcome.", told + 1).let {
+            if (it < 0) declaration.length else it
+        }
+        return flat(balanced(declaration, caught, '{', '}')) + " " + flat(declaration.substring(told, end))
+    }
+
     private fun arm(header: String): String {
         val text = code()
         val start = text.indexOf(header)
@@ -197,11 +251,35 @@ class ActionFailureWiringTest {
 
     companion object {
 
-        /** The two arms this fix owns, by the declaration each lives in. */
+        /** The three arms this fix owns, by the declaration each lives in. */
         private val SITES = listOf(
-            "swipeRemove" to "private fun swipeRemove(",
-            "undo()" to "fun undo()",
+            Site("swipeRemove", "private fun swipeRemove(", Cut.ON_FAILURE, "it"),
+            Site("undo()", "fun undo()", Cut.ON_FAILURE, "it"),
+            Site("bulkBatched()", "private fun bulkBatched(", Cut.CAUGHT_THEN_TOLD, "failure"),
         )
+
+        /**
+         * `actionFailureMessage(<this arm's throwable>, online = hasUsableNetwork(app))` — and, on
+         * the two `.onFailure` arms, the `app.getString(…)` that wraps it, exactly as [DECISION]
+         * demanded before a third site joined them. Dropping the resolver for all three would make
+         * this rule cover LESS than it did on `main`, which is the one direction a lint must never
+         * move. The batched bulk cannot take the resolver: its `getString(` sits outside an `if`,
+         * so the two are not adjacent there — its branch is pinned WHOLE by equality instead, in
+         * BulkOutcomeWiringTest and in BulkSelectionWiringTest.
+         */
+        private fun decidesOnLiveConnectivity(site: Site) = Regex(
+            """\bactionFailureMessage\(${Regex.escape(site.failure)}, online = hasUsableNetwork\(app\)\)"""
+                .let { call -> if (site.cut == Cut.ON_FAILURE) """app\.getString\($call\)""" else call },
+        )
+
+        /**
+         * The capture that survives a second failing account. ONE spelling, not an alternation:
+         * `batchFailure = batchFailure ?: it` reads the same and would satisfy a looser rule, but
+         * BulkSelectionWiringTest pins that line word for word — so an alternation here would
+         * promise a freedom the suite does not grant. Deliberately pinned twice: a legitimate
+         * rewrite reddens both, loudly, and that is the direction of error this file wants.
+         */
+        private val KEEPS_THE_FIRST_FAILURE = Regex("""if \(batchFailure == null\) batchFailure = it\b""")
 
         private const val DECISION =
             """app\.getString\(actionFailureMessage\(it, online = hasUsableNetwork\(app\)\)\)"""
@@ -232,8 +310,6 @@ class ActionFailureWiringTest {
         /** Any read of the exception's own text — the thing that used to reach the screen. */
         private val READS_THE_MESSAGE = Regex("""\bit\.message\b""")
 
-        private val DECIDES_ON_LIVE_CONNECTIVITY = Regex(DECISION)
-
         /** `online = true` / `online = false`, and the two literals on their own anywhere in the arm. */
         private val CONSTANT_CONNECTIVITY = Regex("""online\s*=\s*(true|false)\b""")
 
@@ -263,4 +339,21 @@ class ActionFailureWiringTest {
 
         private val INBOX_VIEW_MODEL: File by lazy { File(root, INBOX_VIEW_MODEL_PATH) }
     }
+}
+
+/**
+ * One failure arm this fix owns: where it lives, how it is cut out of the source, and the name the
+ * `Throwable` goes by inside it. The batched bulk needed all three — it has no `.onFailure` block
+ * (it catches in a `runCatching { }.getOrElse { }` and decides in a `when` further down), and its
+ * throwable is not called `it`.
+ */
+private data class Site(val name: String, val header: String, val cut: Cut, val failure: String)
+
+/** How a site's arm is cut out of its declaration. */
+private enum class Cut {
+    /** The declaration's single `.onFailure { … }` block. */
+    ON_FAILURE,
+
+    /** Its `getOrElse { … }` and its `BulkOutcome.TOTAL ->` branch, joined. */
+    CAUGHT_THEN_TOLD,
 }

@@ -439,7 +439,23 @@ class BulkSelectionWiringTest {
             listOf("when (bulkOutcome(attempted = targetKeys.size + attemptedBefore, failed = failed)) {"),
             codeLinesNaming(body, "bulkOutcome("),
         )
-        assertEquals(expectedOutcomeBranches, codeLinesNaming(body, "BulkOutcome."))
+        assertEquals(
+            "and the total failure asks the shared decision which sentence it owes — but only " +
+                "when a throwable actually escaped a batch. Body was:\n$body",
+            expectedBatchedOutcomeBranches,
+            codeLinesNaming(body, "BulkOutcome."),
+        )
+        assertEquals(
+            "the throwable it decides on is the FIRST a batch let escape, and it is never " +
+                "overwritten: the loop is per account, and the failure that cut the gesture is " +
+                "the one that came first. Body was:\n$body",
+            listOf(
+                "var batchFailure: Throwable? = null",
+                "if (batchFailure == null) batchFailure = it",
+                "val failure = batchFailure",
+            ),
+            codeLinesNaming(body, "batchFailure"),
+        )
     }
 
     /**
@@ -618,6 +634,22 @@ class BulkSelectionWiringTest {
             codeLinesNaming(body, ".partition"),
         )
     }
+
+    /**
+     * bulkBatched's own, kept apart from [expectedOutcomeBranches] on purpose: it is the only one
+     * of the four holding the throwable that failed, so it is the only one whose total failure may
+     * say "you are offline". The other three keep the constant below word for word — counting
+     * failures is not a connectivity reading, and a refusal, an over-quota or an unconfirmed
+     * numbering all arrive there with no exception at all.
+     */
+    private val expectedBatchedOutcomeBranches = listOf(
+        "BulkOutcome.NONE -> Unit",
+        "BulkOutcome.TOTAL -> _message.value = app.getString(if (failure == null) " +
+            "R.string.status_action_failed else actionFailureMessage(failure, online = " +
+            "hasUsableNetwork(app)))",
+        "BulkOutcome.PARTIAL -> _message.value = getApplication<Application>()" +
+            ".getString(R.string.status_action_partly_failed)",
+    )
 
     private val expectedOutcomeBranches = listOf(
         "BulkOutcome.NONE -> Unit",

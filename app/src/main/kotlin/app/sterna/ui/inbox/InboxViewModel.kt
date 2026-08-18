@@ -2191,6 +2191,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             dropSearchResults(targets.mapTo(mutableSetOf()) { it.email.emailKey() })
             val failedKeys = mutableSetOf<EmailKey>()
             val undoCandidates = mutableListOf<UndoCandidate>()
+            // The FIRST throwable a batch lets escape, kept for the message at the end. First and
+            // not last: the loop below is per ACCOUNT, so the failure that cut the gesture is the
+            // one that came first, and the accounts behind it fail against a link that was already
+            // gone. Null is the ordinary case — a server refusal, an over-quota, a numbering the
+            // server would not confirm all come back as `BulkResult.failed`, with no exception.
+            var batchFailure: Throwable? = null
             hidingThreadMembers(targetKeys) {
                 // AccountCredentials is a data class, so all of an account's messages group
                 // together — and each account's batch receives exactly ITS ids, never a
@@ -2200,6 +2206,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                     val result = runCatching { batchOp(credentials, group.map { it.email.id }) }
                         .getOrElse {
                             android.util.Log.w("SternaBulk", "batch op failed for ${credentials.id}", it)
+                            if (batchFailure == null) batchFailure = it
                             MailRepository.BulkResult(emptySet(), group.mapTo(mutableSetOf()) { e -> e.email.id })
                         }
                     failedKeys += group.filter { it.email.id in result.failed }.map { it.email.emailKey() }
@@ -2234,9 +2241,19 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             // resolved for was attempted and failed, or a batch that reached none of its messages
             // would land on `failed <= 0 -> NONE` and stay silent (see [bulkOutcome]).
             val failed = failedKeys.size + resolved.unresolved.size + failedBefore
+            // And which sentence a TOTAL failure gets is the same decision the swipe makes, asked
+            // the same way: the throwable that failed, plus the device's live connectivity. Offline
+            // there is no queue at all, so the bulk simply fails — and it used to say "Couldn't
+            // complete the action" while the swipe beside it, and the banner above the list, both
+            // said the device was offline. Only when a throwable escaped, and only here: PARTIAL
+            // cannot be an outage (offline nothing succeeds by halves), and the COUNT of failures
+            // says nothing about the transport — a refusal, an over-quota or an unconfirmed
+            // numbering fails every message of a batch without any exception at all.
+            val app = getApplication<Application>()
+            val failure = batchFailure
             when (bulkOutcome(attempted = targetKeys.size + attemptedBefore, failed = failed)) {
                 BulkOutcome.NONE -> Unit
-                BulkOutcome.TOTAL -> _message.value = getApplication<Application>().getString(R.string.status_action_failed)
+                BulkOutcome.TOTAL -> _message.value = app.getString(if (failure == null) R.string.status_action_failed else actionFailureMessage(failure, online = hasUsableNetwork(app)))
                 BulkOutcome.PARTIAL -> _message.value = getApplication<Application>().getString(R.string.status_action_partly_failed)
             }
         }

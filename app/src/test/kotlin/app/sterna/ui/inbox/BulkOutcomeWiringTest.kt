@@ -11,9 +11,9 @@ import java.io.File
  * this module has neither Robolectric nor instrumented tests, so the decision itself is executed by
  * [BulkOutcomeTest] and only its PLUG is checked here.
  *
- * What it pins is the pairing, not the presence: which string resource each outcome reaches for.
- * Swap the two and this goes red — "Couldn't complete the action" on a mostly-successful bulk is
- * exactly the lie this lot exists to stop telling.
+ * What it pins is what each outcome DOES, whole: swap two branches and this goes red — "Couldn't
+ * complete the action" on a mostly-successful bulk is exactly the lie this lot exists to stop
+ * telling — and so does a total failure that stops asking which of the two sentences it owes.
  */
 class BulkOutcomeWiringTest {
 
@@ -59,24 +59,56 @@ class BulkOutcomeWiringTest {
         )
     }
 
+    /**
+     * ⭐ WHOLE BRANCHES, not the first `R.string` each names. The total-failure branch no longer
+     * reaches for one sentence: it asks the shared decision when a batch let a throwable escape,
+     * and falls back to the generic sentence when none did (a server refusal, an over-quota, a
+     * numbering the server would not confirm — none of them a transport failure). A rule reading
+     * only the first resource in the branch would have kept passing with the decision deleted, or
+     * with `online = false` tacked into it, which is the shape this fix comes undone in.
+     *
+     * PARTIAL is pinned unchanged on purpose: offline nothing succeeds by halves, so a partial
+     * failure is never an outage and "you are offline" there would be a second lie.
+     */
     @Test fun eachOutcomeReachesForItsOwnString() {
-        val body = bulkBatchedBody()
-        // Each `BulkOutcome.X ->` branch, up to the next one, and the string it names (if any):
-        // the branch bodies span several lines, so the segment — not the line — is what is read.
-        val branch = Regex("""BulkOutcome\.(\w+)\s*->((?:(?!BulkOutcome\.)[\s\S])*)""")
-        val pairs = branch.findAll(body).mapNotNull { m ->
-            Regex("""R\.string\.(\w+)""").find(m.groupValues[2])
-                ?.let { m.groupValues[1] to it.groupValues[1] }
-        }.toMap()
-
         assertEquals(
-            "the two failure outcomes must not share a message",
+            "each outcome must reach for its own sentence, the total-failure branch pinned whole",
             mapOf(
-                "TOTAL" to "status_action_failed",
-                "PARTIAL" to "status_action_partly_failed",
+                "NONE" to "Unit",
+                "TOTAL" to "_message.value = app.getString(if (failure == null) " +
+                    "R.string.status_action_failed else actionFailureMessage(failure, online = " +
+                    "hasUsableNetwork(app)))",
+                "PARTIAL" to "_message.value = getApplication<Application>()" +
+                    ".getString(R.string.status_action_partly_failed)",
             ),
-            pairs,
+            outcomeBranches(),
         )
+    }
+
+    /**
+     * The branches of `bulkBatched`'s `when (bulkOutcome(…))`, braces balanced so the last one
+     * stops at the `when` and not at the end of the function, comment lines dropped, whitespace
+     * squeezed: a wrapped branch reads as one string.
+     */
+    private fun outcomeBranches(): Map<String, String> {
+        val body = bulkBatchedBody()
+        val start = body.indexOf("when (bulkOutcome(")
+        assertTrue("bulkBatched no longer decides through when (bulkOutcome(…)) — renamed?", start >= 0)
+        var i = body.indexOf('{', start)
+        val blockStart = i + 1
+        var depth = 0
+        do {
+            when (body[i]) {
+                '{' -> depth++
+                '}' -> depth--
+            }
+            i++
+        } while (depth > 0)
+        val block = body.substring(blockStart, i - 1).lines()
+            .filterNot { it.trimStart().startsWith("//") }.joinToString("\n")
+        return Regex("""BulkOutcome\.(\w+)\s*->((?:(?!BulkOutcome\.)[\s\S])*)""")
+            .findAll(block)
+            .associate { m -> m.groupValues[1] to m.groupValues[2].trim().replace(Regex("""\s+"""), " ") }
     }
 
     private companion object {
