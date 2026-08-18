@@ -1,6 +1,8 @@
 package app.sterna.ui.connect
 
 import android.app.Application
+import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.sterna.R
@@ -11,6 +13,8 @@ import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
+import app.sterna.core.data.account.accountKeyOf
+import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.autoconfig.MailAutoconfigResult
 import app.sterna.core.data.autoconfig.discoverMailAutoconfig
 import app.sterna.core.data.mail.MailRepository
@@ -59,6 +63,27 @@ internal fun isFastmailTarget(email: String, server: String): Boolean {
 
 /** The account an add resolved to: its id, and whether this add is what created it. */
 internal data class AddedAccount(val id: String, val created: Boolean)
+
+/**
+ * WHAT AN ADD SAYS WHEN IT IS OVER, as a pure function — null for "say nothing".
+ *
+ * An add that resolved onto an account already stored under the same identity refreshes it in
+ * place (`AccountStore.add` / `AccountStore.addOAuth`) instead of minting a second one. Two routes
+ * then said "Account added" over an account nobody added, and four said nothing at all: the state
+ * on screen has to be true about what just happened, so a re-add says it was a re-add.
+ *
+ * ⛔ Written here rather than as an `if` in the six routes, and that is the point. No test in this
+ * module can build `ConnectViewModel`, `OAuthCodeSignIn` or `OutlookSignIn` (an Application, a
+ * container, a repository), so a branch written in a route is held by NOTHING — the two resources
+ * could be swapped and the whole suite would stay green. Same reasoning, same shape, as
+ * [oauthRanOutMessage].
+ *
+ * [createdRes] is what THIS route says when it really did create an account, and null means "this
+ * route says nothing on a create" — the four that were silent stay silent, no noise is added.
+ */
+@StringRes
+internal fun accountAddedToast(created: Boolean, @StringRes createdRes: Int?): Int? =
+    if (created) createdRes else R.string.connect_account_refreshed
 
 /**
  * Whether an IMAP sign-in failure means the server LOOKED AT the credentials and said no —
@@ -455,12 +480,13 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             val address = runCatching {
                 container.mailRepository.sessionIdentity(resolved, BearerAuth(token))
             }.getOrNull() ?: email
-            // Re-adding the same token (whatever email was typed) resolves to the same
-            // server + adopted address: refresh that account in place, never a duplicate.
-            val existing = container.accountStore.accounts().firstOrNull {
-                it.protocol == MailProtocol.JMAP && it.authType == AuthType.API_TOKEN &&
-                    it.server.equals(resolved, ignoreCase = true) && it.username.equals(address, ignoreCase = true)
-            }
+            // Re-adding the same mailbox (whatever email was typed) resolves to the same
+            // server + adopted address: the store refreshes that account in place, never a
+            // duplicate. Asked BEFORE the network round-trip, and only to know what to SAY —
+            // ⛔ not filtered on authType any more: the same address added by password and then by
+            // token is one account, and the old filter made the token re-add mint a second one.
+            val stored = container.accountStore.accounts()
+            val created = resolveExistingLogin(stored, accountKeyOf(MailProtocol.JMAP, resolved, "", address)) == null
             // Blank id on purpose, even when re-adding: the real id comes back from the persist
             // step below and [addAccountThenPrime] stamps it onto the credentials it primes with,
             // so a brand-new token account can no longer cache its inbox under no account (#121).
@@ -468,24 +494,22 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             val added = addAccountThenPrime(
                 probe = probe,
                 validate = { container.mailRepository.testConnection(it).getOrThrow() },
+                // One call, whether or not the account is already there: add() refreshes the
+                // login stored under this identity and hands back ITS id, atomically.
                 persist = {
-                    if (existing != null) {
-                        container.accountStore.updatePassword(existing.id, token)
-                        container.accountStore.setCurrent(existing.id)
-                        AddedAccount(existing.id, created = false)
-                    } else {
-                        AddedAccount(
-                            container.accountStore.add(resolved, address, token, accountName.trim(), authType = AuthType.API_TOKEN),
-                            created = true,
-                        )
-                    }
+                    AddedAccount(
+                        container.accountStore.add(resolved, address, token, accountName.trim(), authType = AuthType.API_TOKEN),
+                        created = created,
+                    )
                 },
                 prime = { primeInbox(it) },
             )
             warnIfNotPrimed(added)
             // Surface linked sub-accounts before navigating, like the password path (#31):
             // a token login's sub-accounts resolve Bearer auth via the login.
-            container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
+            // ⛔ ONLY on a real creation. See [finishJmapConnect] for why a re-add must not.
+            if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
+            accountAddedToast(created, null)?.let { toast(it) }
             _state.value = ConnectState.Connected
         } catch (cancelled: CancellationException) {
             // Leaving the screen cancels this coroutine: not something to show an error for.
@@ -627,7 +651,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                     container.mailRepository.addOAuthAccount(host, email, metadata, verdict.tokens, accountName)
                 }
                 _state.value = outcome.fold(
-                    onSuccess = { ConnectState.Connected },
+                    onSuccess = { created ->
+                        accountAddedToast(created, null)?.let { toast(it) }
+                        ConnectState.Connected
+                    },
                     onFailure = { ConnectState.Error(it.message ?: it.javaClass.simpleName) },
                 )
             }
@@ -980,6 +1007,18 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         _state.value is ConnectState.AwaitingApproval ||
         _state.value is ConnectState.AwaitingBrowser
 
+    /**
+     * Say [resId] out loud, on the Application — the same instrument as `OAuthCodeSignIn.toast` /
+     * `OutlookSignIn.toast`, because the sentence has to survive the screen navigating away the
+     * moment an add succeeds. LENGTH_LONG: it is a full sentence, not a word.
+     */
+    private fun toast(@StringRes resId: Int) {
+        Toast.makeText(app, string(resId), Toast.LENGTH_LONG).show()
+    }
+    // ⛔ Two lines, and both are pinned whole by ConnectPrimingWiringTest: this helper is the last
+    // stretch between accountAddedToast's answer and the reader. Naming a resource here instead of
+    // showing [resId] puts the same sentence on every add again — the defect, one floor lower.
+
     private fun string(resId: Int) = getApplication<Application>().getString(resId)
     private fun string(resId: Int, vararg args: Any) = getApplication<Application>().getString(resId, *args)
 
@@ -1014,6 +1053,11 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     /** Validate against [server], persist on success. Runs in the caller's coroutine. */
     private suspend fun finishJmapConnect(server: String, username: String, password: String, accountName: String) {
         try {
+            // Was this add the one that CREATED the account? Asked before the network
+            // round-trip, on the same identity the store keys on: add() refreshes a login already
+            // there, so afterwards the answer is always "it exists".
+            val stored = container.accountStore.accounts()
+            val created = resolveExistingLogin(stored, accountKeyOf(MailProtocol.JMAP, server, "", username)) == null
             // Blank id on purpose: this copy only ever proves the credentials. The cache is
             // primed from the id-stamped copy [addAccountThenPrime] builds (#121).
             val probe = AccountCredentials(server, username.trim(), password)
@@ -1025,7 +1069,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 persist = {
                     AddedAccount(
                         container.accountStore.add(server, username, password, accountName.trim()),
-                        created = true,
+                        created = created,
                     )
                 },
                 prime = { primeInbox(it) },
@@ -1033,7 +1077,22 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             warnIfNotPrimed(added)
             // Surface linked sub-accounts before navigating, so the accounts list the flow
             // lands on is already complete (#31).
-            container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
+            //
+            // ⛔ ONLY when this add CREATED the account. A re-add now lands on the login that was
+            // already there — with its sub-accounts — instead of minting a second one, and it may
+            // have just moved that login from OAuth to a password. Reconciling there hands
+            // `diffLinkedAccounts` a session of the other auth family, and eviction reads the RAW
+            // discovered list (AccountStore.kt:155): a session that lists the login's own account
+            // but not the shares would prune every sub-account and purge its five tables — a real
+            // shared mailbox deleted, which is the destruction #129 exists to prevent.
+            //
+            // Nothing is lost by skipping it: this call is an optimisation that reuses the cached
+            // session so the accounts screen is complete without a round trip, and the connect()
+            // hook reconciles anyway (see [MailRepository.reconcileLinkedAccountsAfterAdd]). On a
+            // re-add the list is already complete, so the only thing at stake is a share granted
+            // between the last refresh and this re-add appearing one refresh later.
+            if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
+            accountAddedToast(created, null)?.let { toast(it) }
             _state.value = ConnectState.Connected
         } catch (cancelled: CancellationException) {
             // Leaving the screen cancels this coroutine: not something to show an error for.
@@ -1068,6 +1127,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         _state.value = ConnectState.Connecting
         viewModelScope.launch {
             try {
+                // Was this add the one that CREATED the account? An IMAP account is keyed on
+                // its IMAP host, not on the (blank) server. Asked before the network round-trip.
+                val stored = container.accountStore.accounts()
+                val created = resolveExistingLogin(stored, accountKeyOf(MailProtocol.IMAP, "", imapHost, username)) == null
                 // Blank id on purpose: proving credentials only. See [addAccountThenPrime] (#121).
                 val probe = AccountCredentials(
                     server = "",
@@ -1096,12 +1159,13 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                                 smtpPort = smtpPort,
                                 smtpSecurity = smtpSecurity,
                             ),
-                            created = true,
+                            created = created,
                         )
                     },
                     prime = { primeInbox(it) },
                 )
                 warnIfNotPrimed(added)
+                accountAddedToast(created, null)?.let { toast(it) }
                 _state.value = ConnectState.Connected
             } catch (cancelled: CancellationException) {
                 // Leaving the screen cancels this coroutine: not something to show an error for.

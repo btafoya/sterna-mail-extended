@@ -613,6 +613,7 @@
     <string name="connect_oauth_error_reason">El servidor rechazó el inicio de sesión (%1$s). Inténtalo de nuevo o usa el correo y la contraseña.</string>
     <string name="connect_oauth_network">No se pudo contactar con el servidor mientras se esperaba la aprobación. Comprueba tu conexión e inténtalo de nuevo.</string>
     <string name="connect_account_added">Cuenta añadida</string>
+    <string name="connect_account_refreshed">Cuenta ya configurada. Conexión actualizada.</string>
     <string name="connect_oauth_code_step1">Para iniciar sesión, abre la página de inicio de sesión en el navegador y vuelve después a Sterna.</string>
     <string name="connect_oauth_code_waiting">Esperando a que termines en el navegador y vuelvas…</string>
     <string name="connect_oauth_no_browser">Ninguna aplicación de este dispositivo puede abrir la página de inicio de sesión. Instala un navegador e inténtalo de nuevo.</string>

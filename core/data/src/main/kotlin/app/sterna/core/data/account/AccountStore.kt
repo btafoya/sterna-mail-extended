@@ -323,7 +323,9 @@ class AccountStore(context: Context) {
     }
 
     /** Add an account (encrypting its password — or, for an API_TOKEN account, its
-     *  token, protected identically) and make it current. Returns its id. */
+     *  token, protected identically) and make it current. Returns its id — the id of the account
+     *  ALREADY stored under the same identity when there is one ([addOrRefresh]), so adding the
+     *  same mailbox twice refreshes one row instead of growing a second. */
     @Synchronized
     fun add(
         server: String,
@@ -340,7 +342,6 @@ class AccountStore(context: Context) {
         smtpSecurity: ConnectionSecurity = ConnectionSecurity.TLS,
     ): String {
         val id = UUID.randomUUID().toString()
-        writePassword(id, password)
         val account = StoredAccount(
             id = id,
             server = server.trim(),
@@ -355,15 +356,14 @@ class AccountStore(context: Context) {
             smtpPort = smtpPort,
             smtpSecurity = smtpSecurity,
         )
-        saveAccounts(accounts() + account)
-        prefs.edit().putString(KEY_CURRENT, id).apply()
-        return id
+        return addOrRefresh(account, password)
     }
 
     /**
      * Add a JMAP account authenticated via OAuth and make it current. The refresh
      * token (the long-lived secret) is encrypted into the password slot; the
-     * short-lived access token is cached in the account record. Returns its id.
+     * short-lived access token is cached in the account record. Returns its id — or the id of the
+     * account already stored under the same identity, which it refreshes ([addOrRefresh]).
      */
     @Synchronized
     fun addOAuth(
@@ -384,7 +384,6 @@ class AccountStore(context: Context) {
         smtpSecurity: ConnectionSecurity = ConnectionSecurity.STARTTLS,
     ): String {
         val id = UUID.randomUUID().toString()
-        writePassword(id, refreshToken)
         val account = StoredAccount(
             id = id,
             server = server.trim(),
@@ -403,7 +402,40 @@ class AccountStore(context: Context) {
             smtpPort = smtpPort,
             smtpSecurity = smtpSecurity,
         )
-        saveAccounts(accounts() + account)
+        return addOrRefresh(account, refreshToken)
+    }
+
+    /**
+     * Store [proven] as a new login, or REFRESH the login that already carries the same identity,
+     * and make it current either way. Returns the id the account lives under — the EXISTING id when
+     * one was found, which is why neither [add] nor [addOAuth] may assume it gets back the UUID it
+     * minted.
+     *
+     * Why here and not in a ViewModel. Six creation routes write an account and only one guarded
+     * itself; worse, a route reads the account list BEFORE its network validation and persists
+     * AFTER it (`ConnectViewModel` :461 then :478), so a guard up there leaves a window in which
+     * two adds both see "not there yet". This is the only atomic floor: [add] and [addOAuth] are
+     * `@Synchronized`, and a seventh route inherits the guard by construction.
+     *
+     * It never throws and never returns null: three of the six routes would show the raw failure on
+     * screen. A re-add is a legitimate gesture (fixing a password, moving to OAuth), so it succeeds
+     * and updates, it does not refuse.
+     *
+     * The secret is written under the id the account will actually be stored as, because that id is
+     * the AAD the password slot is bound to; writing it under the freshly minted UUID would leave
+     * the account borrowing a slot no one wrote.
+     */
+    private fun addOrRefresh(proven: StoredAccount, secret: String): String {
+        val list = accounts()
+        val existing = resolveExistingLogin(list, accountKeyOf(proven))
+        val id = existing?.id ?: proven.id
+        writePassword(id, secret)
+        val stored = if (existing == null) {
+            list + proven
+        } else {
+            list.map { if (it.id == id) refreshedWith(it, proven) else it }
+        }
+        saveAccounts(stored)
         prefs.edit().putString(KEY_CURRENT, id).apply()
         return id
     }
@@ -829,15 +861,13 @@ class AccountStore(context: Context) {
     @Synchronized
     fun importAccounts(incoming: List<StoredAccount>): Int {
         val existing = accounts()
-        // IMAP accounts carry a blank server (the endpoint is the IMAP host); JMAP keys on server.
-        fun endpoint(a: StoredAccount) = if (a.protocol == MailProtocol.IMAP) a.imapHost else a.server
-        fun key(a: StoredAccount) =
-            Triple(a.protocol, endpoint(a).trim().lowercase(), a.username.trim().lowercase())
-        val seen = existing.map(::key).toMutableSet()
+        // One shared identity, in AccountIdentity.kt: a null key means an incoming record with a
+        // blank endpoint or username, which is skipped rather than merged with anything.
+        val seen = existing.mapNotNull(::accountKeyOf).toMutableSet()
         val added = mutableListOf<StoredAccount>()
         for (a in incoming) {
-            val k = key(a)
-            if (endpoint(a).isBlank() || a.username.isBlank() || k in seen) continue
+            val k = accountKeyOf(a) ?: continue
+            if (k in seen) continue
             seen += k
             added += a.copy(
                 id = UUID.randomUUID().toString(),

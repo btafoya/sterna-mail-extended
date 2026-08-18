@@ -613,6 +613,7 @@
     <string name="connect_oauth_error_reason">Der Server hat die Anmeldung abgelehnt (%1$s). Versuchen Sie es erneut oder verwenden Sie E-Mail-Adresse und Passwort.</string>
     <string name="connect_oauth_network">Der Server war beim Warten auf die Bestätigung nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.</string>
     <string name="connect_account_added">Konto hinzugefügt</string>
+    <string name="connect_account_refreshed">Konto bereits eingerichtet. Verbindung aktualisiert.</string>
     <string name="connect_oauth_code_step1">Öffne zum Anmelden die Anmeldeseite im Browser und kehre danach zu Sterna zurück.</string>
     <string name="connect_oauth_code_waiting">Warte darauf, dass du im Browser fertig wirst und zurückkommst…</string>
     <string name="connect_oauth_no_browser">Keine App auf diesem Gerät kann die Anmeldeseite öffnen. Installiere einen Browser und versuche es erneut.</string>

@@ -76,8 +76,13 @@ class OutlookSignIn(
                         is DeviceTokenResult.Success -> {
                             _progress.value = OutlookProgress.Connecting
                             runCatching { repo.addOAuthImapAccount(provider, email, result.tokens, accountName) }
-                                .onSuccess {
-                                    toast(appContext.getString(R.string.connect_outlook_added))
+                                .onSuccess { created ->
+                                    // Same rule as every other add route: an add that landed on
+                                    // an account already there says so. The choice belongs to
+                                    // accountAddedToast, which a test can execute; this class
+                                    // cannot be built in a unit test.
+                                    accountAddedToast(created, R.string.connect_outlook_added)
+                                        ?.let { toast(appContext.getString(it)) }
                                     _outcomes.emit(OutlookOutcome.Success)
                                 }
                                 .onFailure {

@@ -160,8 +160,12 @@ class OAuthCodeSignIn(
                 // The account is persisted by the path the device flow already uses, untouched:
                 // it stores the token endpoint and client id per account, so the refresher is
                 // generic and knows nothing about which grant created the account.
-                repo.addOAuthAccount(request.host, request.email, request.metadata, tokens, request.accountName)
-                toast(string(R.string.connect_account_added))
+                val created = repo.addOAuthAccount(request.host, request.email, request.metadata, tokens, request.accountName)
+                // ⛔ "Account added" is no longer the only thing this can say: the add resolves
+                // onto an account already stored under the same identity and refreshes it, and
+                // this toast is all the reader gets. WHICH sentence is accountAddedToast's, not
+                // this driver's — nothing here can be executed by a test.
+                accountAddedToast(created, R.string.connect_account_added)?.let { toast(string(it)) }
                 _outcomes.emit(OAuthCodeOutcome.Success)
                 _progress.value = OAuthCodeProgress.Idle
             } catch (cancelled: CancellationException) {

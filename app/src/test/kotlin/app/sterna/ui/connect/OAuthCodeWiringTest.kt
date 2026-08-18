@@ -143,6 +143,46 @@ class OAuthCodeWiringTest {
         )
     }
 
+    /**
+     * WHAT THESE TWO SAY WHEN THE ADD IS OVER. Both are app-scoped drivers whose toast is the only
+     * thing the reader gets — the connect screen may be gone by then — and both used to announce
+     * "Account added" / "Outlook account added" unconditionally. The add now resolves onto an
+     * account already stored under the same identity and refreshes it, so that sentence is a lie
+     * about half the sign-ins: the reader is told she has a new account when the list will show
+     * her exactly the ones she had.
+     *
+     * ⛔ WHICH sentence is [accountAddedToast]'s, executed in [AccountAddedToastTest]. Neither
+     * driver may name `connect_account_refreshed` itself: written here, the choice sits in a class
+     * this module cannot instantiate — a repository, a scope, a Context — where the two resources
+     * can be swapped without a red test. Whole trimmed lines, in order, so a mutation that
+     * lengthens either one is a different line.
+     */
+    @Test fun `both app-scoped sign-ins let the shared choice pick the sentence`() {
+        listOf(
+            Triple(SIGN_IN, "exchange", CODE_SAYS_IT),
+            Triple(OUTLOOK, "start", OUTLOOK_SAYS_IT),
+        ).forEach { (file, function, required) ->
+            val lines = functionBody(file, function).lines().map { it.trim() }
+            val at = lines.indexOf(required.first())
+            assertTrue(
+                "${file.name}.$function must say what happened through the shared choice, as " +
+                    "these whole lines:\n  " + required.joinToString("\n  ") +
+                    "\nWithout them a sign-in that only refreshed an account already installed " +
+                    "still reads \"added\", and the reader goes looking for a second account that " +
+                    "was never created. Lines were:\n" + lines.joinToString("\n"),
+                at >= 0 && lines.subList(at, minOf(at + required.size, lines.size)) == required,
+            )
+            val offenders = lines.filter { REFRESHED_SENTENCE.containsMatchIn(it) }
+            assertEquals(
+                "and ${file.name}.$function must not name R.string.connect_account_refreshed " +
+                    "itself: it is one of the two answers accountAddedToast picks between, and " +
+                    "naming it here takes the decision back into a class no test can build. " +
+                    "Found:\n" + offenders.joinToString("\n"),
+                emptyList<String>(), offenders,
+            )
+        }
+    }
+
     // -- reading the files -------------------------------------------------------------------------
 
     /** The body of a named function, as text. Braces counted raw, as the other source lints do. */
@@ -171,6 +211,20 @@ class OAuthCodeWiringTest {
         val REDIRECT = repoFile("app/src/main/kotlin/app/sterna/ui/connect/OAuthRedirect.kt")
         val VIEW_MODEL = repoFile("app/src/main/kotlin/app/sterna/ui/connect/ConnectViewModel.kt")
         val MAIN_ACTIVITY = repoFile("app/src/main/kotlin/app/sterna/MainActivity.kt")
+        val OUTLOOK = repoFile("app/src/main/kotlin/app/sterna/ui/connect/OutlookSignIn.kt")
+
+        /** The end of the code-grant add: its own sentence on a create, the shared choice on both. */
+        val CODE_SAYS_IT = listOf(
+            "accountAddedToast(created, R.string.connect_account_added)?.let { toast(string(it)) }",
+        )
+
+        /** The same, on the Outlook driver, whose call is wrapped over two lines. */
+        val OUTLOOK_SAYS_IT = listOf(
+            "accountAddedToast(created, R.string.connect_outlook_added)",
+            "?.let { toast(appContext.getString(it)) }",
+        )
+
+        val REFRESHED_SENTENCE = Regex("""\bR\.string\.connect_account_refreshed\b""")
 
         const val HANDS_OVER = "if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {"
         /**

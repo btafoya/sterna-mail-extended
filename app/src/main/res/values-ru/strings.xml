@@ -613,6 +613,7 @@
     <string name="connect_oauth_error_reason">Сервер отклонил вход (%1$s). Повторите попытку или используйте адрес электронной почты и пароль.</string>
     <string name="connect_oauth_network">Не удалось связаться с сервером во время ожидания подтверждения. Проверьте подключение и повторите попытку.</string>
     <string name="connect_account_added">Учётная запись добавлена</string>
+    <string name="connect_account_refreshed">Учётная запись уже настроена. Подключение обновлено.</string>
     <string name="connect_oauth_code_step1">Чтобы войти, откройте страницу входа в браузере, затем вернитесь в Sterna.</string>
     <string name="connect_oauth_code_waiting">Ожидание, пока вы завершите вход в браузере и вернётесь…</string>
     <string name="connect_oauth_no_browser">На этом устройстве нет приложения, способного открыть страницу входа. Установите браузер и попробуйте ещё раз.</string>

@@ -28,6 +28,29 @@ class ConnectPrimingWiringTest {
     /** The three add paths, by the function each one lives in. */
     private val addPaths = listOf("finishJmapConnect", "finishTokenConnect", "connectImap")
 
+    /**
+     * The identity each add path must ask about, spelled out whole. The ARGUMENTS are the rule: an
+     * IMAP account is recognised by its IMAP host (its `server` is blank), a JMAP one by its
+     * server, and a route that hands over the wrong pair is told "this account is new" about an
+     * account it is about to refresh — the silence this change exists to end.
+     */
+    private val addGuards = mapOf(
+        "finishTokenConnect" to
+            """val created = resolveExistingLogin(stored, accountKeyOf(MailProtocol.JMAP, resolved, "", address)) == null""",
+        "finishJmapConnect" to
+            """val created = resolveExistingLogin(stored, accountKeyOf(MailProtocol.JMAP, server, "", username)) == null""",
+        "connectImap" to
+            """val created = resolveExistingLogin(stored, accountKeyOf(MailProtocol.IMAP, "", imapHost, username)) == null""",
+    )
+
+    /**
+     * Every path that has to SAY which of the two happened — the three add paths plus the device
+     * grant, whose account is minted inside `MailRepository` and which therefore appears in none
+     * of the rules above. It said nothing at all before this change, and a re-add through the
+     * browser round-trip is the one that was actually caught on the bench.
+     */
+    private val sayingPaths = addPaths + "pollForToken"
+
     /** The two paths that probe for a server before any account exists. */
     private val discoveryPaths = listOf("connectAuto", "connectToken")
 
@@ -385,17 +408,162 @@ class ConnectPrimingWiringTest {
         )
     }
 
-    @Test fun `the token path still re-authenticates an existing account instead of duplicating it`() {
+    /**
+     * ⚠ REWRITTEN. This test used to read two fragments of the token path's hand-written re-add
+     * branch — `container.accountStore.updatePassword(existing.id, token)` and
+     * `AddedAccount(existing.id, created = false)` — with `in body`, which is the blindness this
+     * repo has paid for three times: any mutation that LENGTHENS those lines matched happily. And
+     * the branch itself is gone: the store recognises the account and refreshes it inside a
+     * `@Synchronized` add, so the route makes ONE call whether or not the account was there. What
+     * is left to hold is that the route no longer writes the account store by hand around it —
+     * `updatePassword` + `setCurrent` outside `persist` is a write before the credentials are
+     * proven, and it was gated on `authType == API_TOKEN`, so the same address added by password
+     * and then by token walked straight past it into a second account.
+     */
+    @Test fun `the token path leaves the re-add to the store instead of writing it by hand`() {
         val body = functionBody("finishTokenConnect")
-        assertTrue(
-            "the token path must keep updating the account it found in place (#54): re-adding the " +
-                "same token must never mint a second account. Body was:\n$body",
-            "container.accountStore.updatePassword(existing.id, token)" in body,
+        val offenders = body.lines().map { it.trim() }.filter { UPDATE_PASSWORD.containsMatchIn(it) }
+        assertEquals(
+            "finishTokenConnect must not update a password / set the current account itself: the " +
+                "one call it makes (container.accountStore.add) refreshes the account already " +
+                "stored under this identity and hands back ITS id, atomically. Doing it here " +
+                "again writes the token twice, and the hand-written search it used to sit behind " +
+                "filtered on authType — so re-adding by token an address added by password left " +
+                "the reader with two rows for one mailbox. Found:\n" + offenders.joinToString("\n") +
+                "\nBody was:\n$body",
+            emptyList<String>(), offenders,
         )
-        assertTrue(
-            "and it must mark that account as one this add did NOT create, so a failure while " +
-                "priming cannot delete an account the user already had. Body was:\n$body",
-            "AddedAccount(existing.id, created = false)" in body,
+    }
+
+    /**
+     * WHICH ACCOUNT IS ALREADY THERE is one shared decision (`resolveExistingLogin` +
+     * `accountKeyOf`), and each route must ASK it, with the identity it is actually adding. The
+     * arguments are pinned, not the call: `accountKeyOf(MailProtocol.JMAP, server, "", username)`
+     * and `accountKeyOf(MailProtocol.IMAP, "", imapHost, username)` are different questions, and a
+     * route that asks the wrong one gets "no, it is new" for an account it is about to refresh.
+     *
+     * ⛔ Whole trimmed lines, compared for equality. `contains` on `resolveExistingLogin(` is blind
+     * to every mutation that lengthens the line — `… == null || true` being exactly that.
+     */
+    @Test fun `each add path asks the shared identity whether the account is already there`() {
+        val offenders = addGuards.filterNot { (path, required) ->
+            functionBody(path).lines().map { it.trim() }.contains(required)
+        }.map { (path, required) -> "$path: expected\n  $required" }
+        assertEquals(
+            "each add path must decide from the shared identity, before it goes to the network, " +
+                "whether this add creates the account or lands on one already installed. Without " +
+                "it the screen cannot tell the reader which of the two happened, and the sign-in " +
+                "ends exactly as a first one does — on a phone that now shows one account where " +
+                "she believes she added a second. Missing:\n" + offenders.joinToString("\n"),
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * And the answer must be USED. `created = true` written into `AddedAccount` is the state the
+     * whole change removes: it says "this add created the account" on every add, including the
+     * ones that refreshed one.
+     */
+    @Test fun `no add path declares itself the creator regardless of what it found`() {
+        val offenders = addPaths.flatMap { path ->
+            functionBody(path).lines().map { it.trim() }.filter { CREATED_TRUE.containsMatchIn(it) }
+                .map { "$path: $it" }
+        }
+        assertEquals(
+            "an add path must carry the answer it got (created = created), never a hard-coded " +
+                "true: with true, a re-add is reported as a creation and the reader is told an " +
+                "account was added that was already installed. Found:\n" + offenders.joinToString("\n"),
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * And it must be SAID. The sentence itself is chosen by `accountAddedToast`, executed in
+     * [AccountAddedToastTest] — these routes only call it.
+     */
+    @Test fun `each add path says which of the two happened`() {
+        val offenders = sayingPaths.filterNot { path ->
+            functionBody(path).lines().map { it.trim() }.contains(SAYS_IT)
+        }
+        assertEquals(
+            "each add path must end on `$SAYS_IT`: the whole point of asking whether the account " +
+                "was already there is telling the reader. Without this line a re-add succeeds in " +
+                "silence, which is what made the same mailbox be added over and over. Missing " +
+                "in:\n" + offenders.joinToString("\n"),
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * ⛔ Sub-account reconciliation runs on a CREATION only, and this is the rule that keeps it
+     * there. A re-add now lands on the login that was already there — with whatever shared
+     * sub-accounts it carries — and it may have just moved that login from OAuth onto a password.
+     * `diffLinkedAccounts` derives its evictions from the RAW discovered list, so a session that
+     * lists the login's own account but not the shares prunes every sub-account and purges its
+     * five tables: a real shared mailbox deleted (#129). Ungated, that destruction becomes
+     * reachable from the Add account screen.
+     *
+     * ⛔ Whole trimmed line: `contains` on `reconcileLinkedAccountsAfterAdd(` matches the gated and
+     * the ungated call alike, which is the whole difference.
+     */
+    @Test fun `sub-account reconciliation only runs when the add created the account`() {
+        val gated = "if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)"
+        val offenders = listOf("finishTokenConnect", "finishJmapConnect").flatMap { path ->
+            functionBody(path).lines().map { it.trim() }
+                .filter { RECONCILE.containsMatchIn(it) && it != gated }
+                .map { "$path: $it" }
+        }
+        assertEquals(
+            "reconcileLinkedAccountsAfterAdd must sit behind `if (created)`. On a re-add it hands " +
+                "the #129 diff a session of possibly the other auth family, over a login that " +
+                "already has sub-accounts — and eviction there deletes a real shared mailbox with " +
+                "its cache. Nothing is lost by the gate: the call is an optimisation and the " +
+                "connect() hook reconciles anyway. Found:\n" + offenders.joinToString("\n"),
+            emptyList<String>(), offenders,
+        )
+    }
+
+    /**
+     * ⛔ The last stretch, which every one of the four routes above goes through. `accountAddedToast`
+     * is executed by a test and hands back the right resource id; NOTHING followed that id to the
+     * Toast until this rule. Written `Toast.makeText(app, string(R.string.connect_account_added), …)`
+     * the helper puts "Account added" on every re-add — the exact sentence this change removes —
+     * and every other test stays green, because the call lines above are untouched and no test in
+     * this module can build a ConnectViewModel.
+     *
+     * ⛔ Whole trimmed lines, as a contiguous block: `contains` on `Toast.makeText(` is blind to
+     * every mutation that lengthens it.
+     */
+    @Test fun `the toast helper shows the resource it was handed, and names none of its own`() {
+        assertEquals(
+            "ConnectViewModel.toast must show the resource accountAddedToast chose. Naming a " +
+                "resource here, or dropping the call, is the same defect one floor down: a re-add " +
+                "reported as \"Account added\", or said nothing about at all.",
+            listOf(
+                "private fun toast(@StringRes resId: Int) {",
+                "Toast.makeText(app, string(resId), Toast.LENGTH_LONG).show()",
+                "}",
+            ),
+            functionBody("toast").lines().map { it.trim() }.filter { it.isNotEmpty() },
+        )
+    }
+
+    /**
+     * ⛔ And no route may name the re-add sentence itself. That is the reproach `OAuthWiringTest`
+     * already makes of `oauthRanOutMessage`: naming one of the two answers on the spot is taking
+     * the decision back from the function that is tested, into a route no test can run.
+     */
+    @Test fun `no add path picks the re-add sentence itself`() {
+        val offenders = sayingPaths.flatMap { path ->
+            functionBody(path).lines().map { it.trim() }.filter { REFRESHED_SENTENCE.containsMatchIn(it) }
+                .map { "$path: $it" }
+        }
+        assertEquals(
+            "R.string.connect_account_refreshed is one of the two answers accountAddedToast picks " +
+                "between. Named inside a route, the choice moves back into a function nothing in " +
+                "this module can execute — where \"Account added\" and \"already set up here\" can " +
+                "be swapped without a single red test. Found:\n" + offenders.joinToString("\n"),
+            emptyList<String>(), offenders,
         )
     }
 
@@ -513,5 +681,16 @@ class ConnectPrimingWiringTest {
 
         /** The one thing an add path may prime with — see the test that reads it. */
         const val PRIME_LAMBDA = "prime = { primeInbox(it) }"
+
+        /** How an add path says which of the two happened. Whole line, arguments included. */
+        const val SAYS_IT = "accountAddedToast(created, null)?.let { toast(it) }"
+
+        /** Forbidden tokens: a substring search is sound here — a longer line still carries them. */
+        val CREATED_TRUE = Regex("""created = true""")
+        val REFRESHED_SENTENCE = Regex("""\bR\.string\.connect_account_refreshed\b""")
+        val UPDATE_PASSWORD = Regex("""container\.accountStore\.(updatePassword|setCurrent)\(""")
+
+        /** Any call of the #129 reconcile, gated or not — the test compares the WHOLE line. */
+        val RECONCILE = Regex("""reconcileLinkedAccountsAfterAdd\(""")
     }
 }

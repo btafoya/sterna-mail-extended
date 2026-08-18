@@ -134,6 +134,81 @@ class AccountStoreGateWiringTest {
         )
     }
 
+    @Test fun `importAccounts decides with the shared account key, not a rule of its own`() {
+        // The duplicate-account defect is one rule re-derived per creation route. importAccounts is
+        // the route that already had it right; it now CALLS AccountIdentity.kt instead of holding a
+        // private copy, so V2 cannot fix the other routes against a different notion of "same
+        // account". A local `fun key(...)` reappearing here is the defect coming back.
+        assertEquals(
+            "importAccounts no longer keys on accountKeyOf. Either it re-derived its own key " +
+                "(the duplicate-account defect, one rule per route again), or it stopped skipping " +
+                "the record whose key is null and now merges half-filled accounts together.",
+            listOf(
+                "fun importAccounts(incoming: List<StoredAccount>): Int {",
+                "val existing = accounts()",
+                "val seen = existing.mapNotNull(::accountKeyOf).toMutableSet()",
+                "val added = mutableListOf<StoredAccount>()",
+                "for (a in incoming) {",
+                "val k = accountKeyOf(a) ?: continue",
+                "if (k in seen) continue",
+                "seen += k",
+            ),
+            accountStoreBlock("fun importAccounts(", 8),
+        )
+    }
+
+    @Test fun `both creation routes go through the one add-or-refresh helper`() {
+        // The duplicate-account defect in one place: the two writing routes (six creation flows
+        // above them) resolve the account already stored under this identity and REFRESH it,
+        // instead of minting a second record around a fresh UUID. It has to live here rather than
+        // in a ViewModel: the routes read the account list BEFORE their network validation and
+        // persist AFTER it, so a guard up there leaves a window where two adds both see "absent".
+        assertEquals(
+            "AccountStore.addOrRefresh changed shape. Either the existing login is no longer " +
+                "resolved (adding the same mailbox twice puts a second identical line in " +
+                "Settings > Accounts again), or the secret is no longer written under the id the " +
+                "account is stored as (the account is then signed in against a slot nothing " +
+                "reads), or the existing record is replaced instead of refreshed (her account " +
+                "name, colour, watched folders and identities are gone).",
+            listOf(
+                "private fun addOrRefresh(proven: StoredAccount, secret: String): String {",
+                "val list = accounts()",
+                "val existing = resolveExistingLogin(list, accountKeyOf(proven))",
+                "val id = existing?.id ?: proven.id",
+                "writePassword(id, secret)",
+                "val stored = if (existing == null) {",
+                "list + proven",
+                "} else {",
+                "list.map { if (it.id == id) refreshedWith(it, proven) else it }",
+                "}",
+                "saveAccounts(stored)",
+                "prefs.edit().putString(KEY_CURRENT, id).apply()",
+                "return id",
+                "}",
+            ),
+            accountStoreBlock("private fun addOrRefresh(", 14),
+        )
+    }
+
+    @Test fun `add ends on the helper, so a password re-add refreshes one account`() {
+        assertEquals(
+            "add() no longer ends on addOrRefresh. Adding an account that is already there makes " +
+                "a SECOND identical line in Settings > Accounts, with its own copy of the mail.",
+            listOf("return addOrRefresh(account, password)"),
+            accountStoreBlock("return addOrRefresh(account, password)", 1),
+        )
+    }
+
+    @Test fun `addOAuth ends on the same helper, so an OAuth re-add refreshes one account`() {
+        assertEquals(
+            "addOAuth() no longer ends on addOrRefresh. Signing in again through OAuth makes a " +
+                "SECOND identical line in Settings > Accounts instead of refreshing the tokens of " +
+                "the account already there.",
+            listOf("return addOrRefresh(account, refreshToken)"),
+            accountStoreBlock("return addOrRefresh(account, refreshToken)", 1),
+        )
+    }
+
     /**
      * [count] consecutive CODE lines of `AccountStore.kt` from the single one starting with
      * [prefix], trimmed. Comments and blank lines are dropped first — a mutation cannot hide in a

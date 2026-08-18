@@ -613,6 +613,7 @@
     <string name="connect_oauth_error_reason">Il server ha rifiutato l\'accesso (%1$s). Riprova oppure usa email e password.</string>
     <string name="connect_oauth_network">Non è stato possibile raggiungere il server durante l\'attesa dell\'approvazione. Controlla la connessione e riprova.</string>
     <string name="connect_account_added">Account aggiunto</string>
+    <string name="connect_account_refreshed">Account già configurato. Connessione aggiornata.</string>
     <string name="connect_oauth_code_step1">Per accedere, apri la pagina di accesso nel browser, poi torna in Sterna.</string>
     <string name="connect_oauth_code_waiting">In attesa che tu concluda nel browser e torni qui…</string>
     <string name="connect_oauth_no_browser">Nessuna app di questo dispositivo può aprire la pagina di accesso. Installa un browser e riprova.</string>

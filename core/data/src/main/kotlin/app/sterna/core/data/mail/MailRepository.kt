@@ -18,6 +18,8 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.OAuthCredentials
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.UnifiedInbox
+import app.sterna.core.data.account.accountKeyOf
+import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.FilterScriptStatus
 import app.sterna.core.data.filter.SieveCodec
@@ -2717,6 +2719,11 @@ class MailRepository(
      * Validate freshly granted OAuth [tokens] against the JMAP server at [host],
      * then persist the account and prime its inbox cache. Throws (persisting
      * nothing) if the token doesn't authenticate or the user has no mail account.
+     *
+     * Returns true when THIS add is what created the account, false when it landed on one already
+     * stored under the same identity and refreshed it. ⛔ A fact, not a sentence: nothing here
+     * chooses words or throws on a re-add — the screens above decide what to say (this layer has
+     * no resources), and a re-add is a legitimate gesture that must succeed.
      */
     suspend fun addOAuthAccount(
         host: String,
@@ -2724,10 +2731,16 @@ class MailRepository(
         metadata: OAuthMetadata,
         tokens: OAuthTokens,
         accountName: String,
-    ) {
+    ): Boolean {
         val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
         client.fetchSession(Jmap.sessionUrlFor(host), BearerAuth(tokens.accessToken)).mailAccountId()
             ?: error("This user has no JMAP mail account.")
+        // Asked BEFORE the store writes, on the very values handed to it: addOAuth refreshes the
+        // login already stored under this identity, so afterwards the answer is always "it exists".
+        val created = resolveExistingLogin(
+            accountStore.accounts(),
+            accountKeyOf(MailProtocol.JMAP, host, "", email),
+        ) == null
         val id = accountStore.addOAuth(
             server = host,
             username = email,
@@ -2742,6 +2755,7 @@ class MailRepository(
         val meta = refresh(credentials)
         accountStore.saveInboxMeta(meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount)
         reconcileLinkedAccountsAfterAdd(id)
+        return created
     }
 
     /** Begin the device flow for a built-in OAuth provider (Microsoft, …). */
@@ -2783,13 +2797,17 @@ class MailRepository(
      * Validate freshly granted OAuth [tokens] by connecting to [provider]'s IMAP server
      * with XOAUTH2, then persist an IMAP/SMTP account and prime its inbox cache. Throws
      * (persisting nothing) if the token is rejected.
+     *
+     * Returns true when THIS add is what created the account, false when it refreshed one already
+     * stored under the same identity — see [addOAuthAccount] for why that is a fact and not a
+     * sentence.
      */
     suspend fun addOAuthImapAccount(
         provider: OAuthProvider,
         email: String,
         tokens: OAuthTokens,
         accountName: String,
-    ) {
+    ): Boolean {
         val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
         // Microsoft IMAP wants the account's exact primary address as the XOAUTH2 user=,
         // not whatever alias the user typed — take it from the signed-in identity (id_token).
@@ -2815,6 +2833,12 @@ class MailRepository(
         } finally {
             runCatching { imap.disconnect("") }
         }
+        // ⚠ On the values the store is actually given: the IMAP host is the endpoint an IMAP
+        // account is keyed on, and `username` is the address the id_token named, not the typed one.
+        val created = resolveExistingLogin(
+            accountStore.accounts(),
+            accountKeyOf(MailProtocol.IMAP, "", provider.imap.host, username),
+        ) == null
         val id = accountStore.addOAuth(
             server = "",
             username = username,
@@ -2835,6 +2859,7 @@ class MailRepository(
         val credentials = accountStore.credentials(id) ?: error("Account could not be loaded after creation.")
         val meta = refresh(credentials)
         accountStore.saveInboxMeta(meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount)
+        return created
     }
 
     /** Complete OAuth sign-in for an already-imported (inert) account [accountId] using freshly

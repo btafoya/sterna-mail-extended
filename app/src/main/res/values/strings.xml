@@ -799,6 +799,7 @@
     <string name="connect_oauth_error_reason">The server refused the sign-in (%1$s). Try again, or use email and password instead.</string>
     <string name="connect_oauth_network">Couldn\'t reach the server while waiting for approval. Check your connection, then try again.</string>
     <string name="connect_account_added">Account added</string>
+    <string name="connect_account_refreshed">Account already set up. Connection refreshed.</string>
     <string name="connect_oauth_code_step1">To sign in, open the sign-in page in your browser, then come back to Sterna.</string>
     <string name="connect_oauth_code_waiting">Waiting for you to finish in the browser and come back…</string>
     <string name="connect_oauth_no_browser">No app on this device can open the sign-in page. Install a browser, then try again.</string>

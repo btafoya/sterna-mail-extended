@@ -613,6 +613,7 @@
     <string name="connect_oauth_error_reason">Serwer odrzucił logowanie (%1$s). Spróbuj ponownie lub użyj adresu e-mail i hasła.</string>
     <string name="connect_oauth_network">Nie udało się połączyć z serwerem podczas oczekiwania na zatwierdzenie. Sprawdź połączenie i spróbuj ponownie.</string>
     <string name="connect_account_added">Konto dodane</string>
+    <string name="connect_account_refreshed">Konto już skonfigurowane. Połączenie odświeżone.</string>
     <string name="connect_oauth_code_step1">Aby się zalogować, otwórz stronę logowania w przeglądarce, a potem wróć do Sterny.</string>
     <string name="connect_oauth_code_waiting">Oczekiwanie na zakończenie logowania w przeglądarce i powrót…</string>
     <string name="connect_oauth_no_browser">Żadna aplikacja na tym urządzeniu nie może otworzyć strony logowania. Zainstaluj przeglądarkę i spróbuj ponownie.</string>
