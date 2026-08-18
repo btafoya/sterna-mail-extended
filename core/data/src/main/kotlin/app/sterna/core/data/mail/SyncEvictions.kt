@@ -32,6 +32,39 @@ internal fun deltaEvictions(
 ): List<String> = ((removed.toSet() - added).toList() + destroyed).filterNot(isProtected)
 
 /**
+ * Which of a delta's [candidates] may actually be DELETED from the cache: only those the cache
+ * still holds IN THAT MAILBOX ([cachedInMailbox]).
+ *
+ * [deltaEvictions] answers a question about one folder — "the server says this id is no longer in
+ * the query of mailbox X". The delete it feeds answers a wider one: a cached row is keyed
+ * `(accountId, id)`, one row per message per account, with the folder written in a COLUMN
+ * (`EmailEntity.mailboxId`), and `EmailDao.deleteByIds` names no folder in its `WHERE`. So evicting
+ * an id whose row has meanwhile moved to another folder deletes the message from the folder it is
+ * actually in — plus its FTS entry — although the server never said it was gone.
+ *
+ * Measured on the bench, 2026-08-17: unarchive a message (Archive → Inbox), let it settle in the
+ * Inbox, then pull to refresh the unread view, which syncs Archive as well. Archive's delta
+ * correctly reports the id as removed FROM ARCHIVE; the row, already saying "Inbox", is deleted.
+ * The message survives no refresh and no cold start: 10 messages on the server, 5 rows in the app.
+ *
+ * The gate closes the other direction too, and that is wanted: a message moved Inbox → Archive by
+ * another client was lost whenever the Archive delta (which adds it) ran BEFORE the Inbox delta
+ * (which removes it) — the order the folders happened to be synced in decided whether mail
+ * survived.
+ *
+ * ⚠ What this deliberately spares as well: a `destroyed` id whose row has already moved on. The
+ * message really is gone server-side, so the row it leaves behind is a ghost — but only a ghost,
+ * and the existence sweep of the folder it now sits in ([ghostEvictions]) removes it, whereas
+ * telling the two shapes apart here would mean trusting `changes.destroyed` with a folderless
+ * delete, which is exactly the statement that lost the mail above. Keeping too much heals; deleting
+ * too much does not.
+ */
+internal fun mailboxScopedEvictions(
+    candidates: List<String>,
+    cachedInMailbox: Set<String>,
+): List<String> = candidates.filter { it in cachedInMailbox }
+
+/**
  * Which of [candidates] the SERVER confirms have really left [mailboxId] — the gate a notification
  * banner has to pass before it is taken down (Codeberg #134).
  *

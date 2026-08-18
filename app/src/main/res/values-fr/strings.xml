@@ -72,6 +72,8 @@
     <string name="inbox_switch_account">Changer de compte</string>
     <string name="inbox_all_inboxes">Toutes les boîtes de réception</string>
     <string name="inbox_all_inboxes_unread">Toutes les boîtes de réception  (%1$d)</string>
+    <string name="inbox_unread_view">Non lus</string>
+    <string name="inbox_unread_view_unread">Non lus  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
     <string name="inbox_folder_options">Options du dossier</string>
     <string name="inbox_folder_watch">Notifier les nouveaux messages</string>
@@ -886,6 +888,7 @@
     <string name="empty_search_body">Aucun résultat. Essayez d\'autres mots.</string>
     <string name="empty_unread_title">Aucun message non lu</string>
     <string name="empty_unread_body">Vous avez tout lu ici. Désactivez le filtre « non lus » pour voir tout le courrier.</string>
+    <string name="empty_unread_view_body">Vous avez tout lu dans vos dossiers.</string>
     <string name="empty_unread_action">Tout afficher</string>
     <string name="inbox_empty_trash">Vider la corbeille</string>
     <string name="status_trash_emptied">Vidage de la corbeille…</string>

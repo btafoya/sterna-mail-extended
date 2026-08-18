@@ -151,7 +151,7 @@ class LocalDraftListWiringLintTest {
             listOf(
                 "isLocalDraftRow(email.id) -> onEditDraft(email.id, email.accountId)",
                 "selectionActive -> if (expandable) viewModel.toggleSelectThread(email) else viewModel.toggleSelect(email)",
-                "!fromSearch && !expandable && isDraftsContext(ui) -> onEditDraft(email.id, email.accountId)",
+                "!fromSearch && !expandable && isDraftsContext(rowRole) -> onEditDraft(email.id, email.accountId)",
                 "else -> {",
             ),
             functionBody(INBOX_SCREEN, "onClick = {", after = "val emailRow:").filter { "->" in it },
@@ -301,7 +301,10 @@ class LocalDraftListWiringLintTest {
             listOf(
                 "_selectionActive.value = true",
                 "val search = searchState.value",
-                "val filtered = unreadOnly.value",
+                // The list's own unread filter, not the raw funnel: a scope that forces the filter
+                // on (Sel.Unread) and a selection that reads the toggle is #126 rebuilt. One
+                // source, executed in ListUnreadOnlyTest.
+                "val filtered = listUnreadOnly(selection.value, unreadOnly.value)",
                 "val hidden = localDraftRows.value.replacedServerIds",
                 "viewModelScope.launch {",
                 "_selectedKeys.value = selectAllKeys(",

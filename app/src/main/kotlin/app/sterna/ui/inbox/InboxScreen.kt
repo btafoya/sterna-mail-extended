@@ -193,6 +193,7 @@ import app.sterna.ui.components.Monogram
 import app.sterna.ui.components.accountColorOf
 import app.sterna.ui.components.verticalScrollbar
 import app.sterna.ui.isOutgoingFolder
+import app.sterna.ui.messageFolderRole
 import app.sterna.ui.rememberMotionEnabled
 import app.sterna.ui.showsDraftBadge
 import app.sterna.ui.showsRecipients
@@ -866,6 +867,24 @@ fun InboxScreen(
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
                 }
+                // ⭐ Outside the guard above, deliberately: this is one account's unread mail across
+                // its own folders, so it means exactly as much on a single-account install — where
+                // the drawer is the only way in.
+                val unreadLabel = if (ui.unreadViewCount > 0) {
+                    stringResource(R.string.inbox_unread_view_unread, ui.unreadViewCount)
+                } else {
+                    stringResource(R.string.inbox_unread_view)
+                }
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.MarkEmailUnread, contentDescription = null) },
+                    label = { Text(unreadLabel) },
+                    selected = ui.unreadView,
+                    onClick = {
+                        viewModel.selectUnread()
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
                 mailboxTree(ui.mailboxes, collapsedFolders).forEach { node ->
                     val mailbox = node.mailbox
                     val displayName = mailboxDisplayName(mailbox.role, mailbox.name)
@@ -1027,7 +1046,10 @@ fun InboxScreen(
                             IconButton(onClick = { viewModel.deleteSelected() }) {
                                 // In Trash the button destroys, not moves-to-Trash — so a Trash-can
                                 // icon is misleading; show "delete forever" instead (Codeberg #23).
-                                val trash = isTrashContext(ui)
+                                // The SELECTION bar acts on many rows at once and has no single
+                                // row to be judged by, so it keeps the view's role — like the
+                                // folder menu above it, and unlike the per-row affordances.
+                                val trash = isTrashContext(visibleFolderRole(ui))
                                 Icon(
                                     if (trash) Icons.Filled.DeleteForever else Icons.Filled.Delete,
                                     contentDescription = stringResource(if (trash) R.string.inbox_delete_forever else R.string.inbox_delete),
@@ -1106,7 +1128,13 @@ fun InboxScreen(
                         title = {
                             val searchRole = ui.mailboxes
                                 .firstOrNull { it.id == ui.selectedMailboxId }?.role
-                            val scopeLabel = if (ui.unified) {
+                            // The hint says what the search covers. In the unread view that is the
+                            // whole account, while ui.mailboxName still holds the Inbox's name —
+                            // "Search in Inbox" over a search of everything. Same string as the
+                            // title, no tenth translation of the same word.
+                            val scopeLabel = if (ui.unreadView) {
+                                stringResource(R.string.inbox_unread_view)
+                            } else if (ui.unified) {
                                 stringResource(R.string.inbox_all_inboxes)
                             } else {
                                 mailboxDisplayName(searchRole, ui.mailboxName)
@@ -1166,7 +1194,12 @@ fun InboxScreen(
                                 val selectedRole = ui.mailboxes
                                     .firstOrNull { it.id == ui.selectedMailboxId }?.role
                                 Text(
-                                    if (ui.unified) {
+                                    // The unread view selects no folder either, so without an arm
+                                    // of its own the title would name the LAST FOLDER VISITED over
+                                    // a list that spans the account.
+                                    if (ui.unreadView) {
+                                        stringResource(R.string.inbox_unread_view)
+                                    } else if (ui.unified) {
                                         stringResource(R.string.inbox_all_inboxes)
                                     } else {
                                         mailboxDisplayName(selectedRole, ui.mailboxName)
@@ -1194,12 +1227,18 @@ fun InboxScreen(
                             }
                         },
                         actions = {
-                            IconButton(onClick = { viewModel.toggleUnreadOnly() }) {
-                                Icon(
-                                    Icons.Filled.FilterList,
-                                    contentDescription = stringResource(R.string.inbox_unread_only),
-                                    tint = if (ui.unreadOnly) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-                                )
+                            // Hidden in the unread view: listUnreadOnly forces the filter on there,
+                            // so the funnel would sit in its OFF colour (it reads ui.unreadOnly,
+                            // which the scope does not touch) over a filtered list, and tapping it
+                            // would change nothing.
+                            if (!ui.unreadView) {
+                                IconButton(onClick = { viewModel.toggleUnreadOnly() }) {
+                                    Icon(
+                                        Icons.Filled.FilterList,
+                                        contentDescription = stringResource(R.string.inbox_unread_only),
+                                        tint = if (ui.unreadOnly) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                    )
+                                }
                             }
                             var sortOpen by remember { mutableStateOf(false) }
                             // Boxed with its button for the anchoring reason spelled out on the
@@ -1387,14 +1426,20 @@ fun InboxScreen(
                 // unfolded (and paged) the sibling account's homonymous conversation (#92).
                 val threadKey = viewModel.threadKeyOf(email)
                 val isExpanded = expandable && threadKey in expandedThreads
+                // ⭐ The role of the folder THIS ROW is filed in, not the one on screen: a list can
+                // span several folders of one account, where "Delete permanently" and "Unarchive"
+                // are true of some rows and false of the ones beside them. Falls back to the view's
+                // role whenever the row's folder cannot be believed, so the single-folder and
+                // unified views answer exactly what they answered before ([rowFolderRole]).
+                val rowRole = rowFolderRole(email, ui, folderRoles, folderTrusted = !fromSearch)
                 SwipeableEmailRow(
                     email = email,
                     accountLabel = ownerAccount?.label(),
                     accountColor = accountColorOf(ownerAccount?.color),
                     rightAction = swipe.right,
                     leftAction = swipe.left,
-                    unarchiveContext = isUnarchiveContext(ui),
-                    trashContext = isTrashContext(ui),
+                    unarchiveContext = isUnarchiveContext(rowRole),
+                    trashContext = isTrashContext(rowRole),
                     // Search results keep the sender line whatever folder they came from.
                     // Otherwise: the shared decision, so this row and the reader it opens say the
                     // same thing. Sent/Drafts by folder (#59), a self-authored mail moved to the
@@ -1425,8 +1470,8 @@ fun InboxScreen(
                     ),
                     // A collapsed conversation acts on the whole thread; a flat row on its one message.
                     onSwipe = { action ->
-                        if (expandable) performThreadSwipe(action, email, viewModel, ui)
-                        else performSwipe(action, email, viewModel, ui)
+                        if (expandable) performThreadSwipe(action, email, viewModel, ui, rowRole)
+                        else performSwipe(action, email, viewModel, ui, rowRole)
                     },
                     onClick = {
                         when {
@@ -1442,7 +1487,7 @@ fun InboxScreen(
                             selectionActive -> if (expandable) viewModel.toggleSelectThread(email) else viewModel.toggleSelect(email)
                             // In the Drafts folder a tap EDITS the draft (#63): open it in
                             // compose, prefilled — not in the read-only reader.
-                            !fromSearch && !expandable && isDraftsContext(ui) -> onEditDraft(email.id, email.accountId)
+                            !fromSearch && !expandable && isDraftsContext(rowRole) -> onEditDraft(email.id, email.accountId)
                             else -> {
                                 viewModel.onEmailOpened(email.id)
                                 onOpenEmail(email.id, email.accountId, entryIndex, fromSearch)
@@ -1523,8 +1568,8 @@ fun InboxScreen(
                         accounts = accounts,
                         rightAction = swipe.right,
                         leftAction = swipe.left,
-                        unarchiveContext = isUnarchiveContext(ui),
-                        trashContext = isTrashContext(ui),
+                        unarchiveContextFor = { child -> isUnarchiveContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },
+                        trashContextFor = { child -> isTrashContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },
                         // Per child, through the SAME decision as the top-level row and the reader
                         // — on the child's OWN folder, because an unfolded conversation spans the
                         // viewed folder(s) plus Sent and the folder on screen says nothing about
@@ -1563,7 +1608,9 @@ fun InboxScreen(
                             val childIndex = order.indexOfFirst { it.first == child.id }
                             onOpenThreadMessage(child.id, child.accountId, threadKey, childIndex.coerceAtLeast(0))
                         },
-                        onSwipeChild = { action, child -> performSwipe(action, child, viewModel, ui) },
+                        onSwipeChild = { action, child ->
+                            performSwipe(action, child, viewModel, ui, rowFolderRole(child, ui, folderRoles, folderTrusted = true))
+                        },
                         onToggleChildFavourite = { child -> viewModel.toggleChildFlag(child) },
                         onEnterSelectionChild = { child -> viewModel.enterSelection(child) },
                         onToggleSelectChild = { child -> viewModel.toggleSelect(child) },
@@ -1800,49 +1847,37 @@ fun InboxScreen(
                         }
                     }
                     else -> {
-                        // Pick the scene + voice by what's empty: the inbox (hero),
-                        // the trash, or any other folder.
+                        // Which scene, which words, and whether a way out is offered: one decision,
+                        // taken by emptyListScene and run by EmptyListSceneTest — the inbox (hero),
+                        // the trash, any other folder, the unread filter, or the unread VIEW, which
+                        // selects no folder and would otherwise inherit the unified inbox's scene.
                         val role = ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role
-                        val art = when {
-                            ui.unified || ui.selectedMailboxId == null || role == "inbox" -> EmptyArt.INBOX_ZERO
-                            role == "trash" -> EmptyArt.TRASH
-                            else -> EmptyArt.FOLDER
-                        }
-                        // The list can be empty merely because the unread-only filter hid every
-                        // (read) message — say so, rather than the misleading "folder is empty".
-                        val unreadFiltered = ui.unreadOnly
-                        val titleRes = when {
-                            unreadFiltered -> R.string.empty_unread_title
-                            art == EmptyArt.TRASH -> R.string.empty_trash_title
-                            art == EmptyArt.FOLDER -> R.string.empty_folder_title
-                            else -> R.string.empty_inbox_title
-                        }
-                        val bodyRes = when {
-                            unreadFiltered -> R.string.empty_unread_body
-                            art == EmptyArt.TRASH -> R.string.empty_trash_body
-                            art == EmptyArt.FOLDER -> R.string.empty_folder_body
-                            else -> R.string.empty_inbox_body
-                        }
+                        val scene = emptyListScene(
+                            unreadView = ui.unreadView,
+                            unreadToggle = ui.unreadOnly,
+                            unified = ui.unified,
+                            selectedMailboxId = ui.selectedMailboxId,
+                            folderRole = role,
+                        )
                         // Empty list still pulls to refresh; tapping the empty space opens the
                         // drawer (the only navigation when there are no rows to act on).
                         PullableCenter(onClick = { scope.launch { drawerState.open() } }) {
                             EmptyState(
-                                art = art,
-                                title = stringResource(titleRes),
-                                body = stringResource(bodyRes),
+                                art = scene.art,
+                                title = stringResource(scene.title),
+                                body = stringResource(scene.body),
                                 modifier = Modifier.align(Alignment.Center),
                                 // Filtered-empty offers a one-tap way out (clear the filter). A
                                 // genuinely empty inbox has no button here — the corner Compose FAB
                                 // already covers it, so this avoids two compose buttons (Codeberg #25).
-                                action = when {
-                                    unreadFiltered -> {
-                                        {
-                                            Button(onClick = { viewModel.toggleUnreadOnly() }) {
-                                                Text(stringResource(R.string.empty_unread_action))
-                                            }
+                                action = if (scene.clearsFilter) {
+                                    {
+                                        Button(onClick = { viewModel.toggleUnreadOnly() }) {
+                                            Text(stringResource(R.string.empty_unread_action))
                                         }
                                     }
-                                    else -> null
+                                } else {
+                                    null
                                 },
                             )
                         }
@@ -2375,23 +2410,73 @@ private fun CoroutineScope.commitSwipe(
 }
 
 /**
- * True when the visible folder is one where an "archive" swipe should instead unarchive:
- * the Archive folder, or a Gmail-style "All Mail" (role "all").
+ * True when [role] is one where an "archive" swipe should instead unarchive: the Archive folder,
+ * or a Gmail-style "All Mail" (role "all").
  */
-private fun isUnarchiveContext(ui: MailUi): Boolean {
-    val role = ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role
-    return role == "archive" || role == "all"
-}
+private fun isUnarchiveContext(role: String?): Boolean = role == "archive" || role == "all"
 
-/** True when the current view is the Trash folder, where a delete destroys instead of moving
- *  there — so the affordance should read "delete permanently", not the Trash-can (Codeberg #23). */
-private fun isTrashContext(ui: MailUi): Boolean =
-    ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role == "trash"
+/** True when [role] is the Trash, where a delete destroys instead of moving there — so the
+ *  affordance should read "delete permanently", not the Trash-can (Codeberg #23). */
+private fun isTrashContext(role: String?): Boolean = role == "trash"
 
 /** The role of the folder on screen, or null in the unified view (which selects none) and for a
  *  folder whose role the server never gave. */
 private fun visibleFolderRole(ui: MailUi): String? =
     ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role
+
+/**
+ * The role of the folder THE ROW is filed in — what "delete permanently", "unarchive" and "a tap
+ * edits the draft" must be decided by.
+ *
+ * Until now those three read the role of the VIEW, which is the same answer only as long as every
+ * row on screen lives in the folder on screen. That holds in a single folder and (vacuously, no
+ * folder being selected) in the unified inbox; it stops holding the moment a list spans several
+ * folders of one account, where the row under the finger may be in the Archive while the one above
+ * it is in the Inbox.
+ *
+ * ⭐ [roles] is `InboxViewModel.folderRoles` — the (account, folder) → role map the folder cache
+ * already publishes for every configured account, and which the screen already collects. It is
+ * account-qualified, and that is not decoration: servers number mailboxes per account (#31/#121), so
+ * a bare folder id would borrow a sibling account's role and offer to destroy a message sitting in
+ * its Inbox.
+ *
+ * ⭐ The single fallback to [visibleFolderRole] is what makes this change behaviour-constant on the
+ * two existing views. It fires on everything [messageFolderRole] cannot answer:
+ *
+ *  - no `mailboxId`, or a blank one: a row drawn from the search index carries a folder frozen at
+ *    crawl time, which may be empty (see `SelectionTargets.folderTrusted`);
+ *  - no `accountId`;
+ *  - a pair the role map has no entry for — a role-less folder, an account whose folders have not
+ *    synced, and above all the first frames of the screen, where the map is still `emptyMap`
+ *    (`folderRoles` is `WhileSubscribed`, seeded empty). Answering null there would take
+ *    "Delete permanently" off the Trash for as long as the query takes.
+ *
+ * In each of those the answer is exactly what shipped before this function existed.
+ *
+ * ⛔ ONE clause on purpose. A separate `takeIf { it.isNotBlank() }` guard for the blank `mailboxId`
+ * was written first and DELETED when a mutation survived it: [roles] is keyed on real folder rows,
+ * so a blank id has no entry either and lands on the very same fallback. An unreachable guard is a
+ * line no test can hold.
+ *
+ * ⛔ [folderTrusted] is FALSE for a search hit, and it is not optional. `SelectionTargets` says it
+ * in as many words: "a non-empty `Email.mailboxId` is not evidence of anything" — a row drawn from
+ * the FTS index carries the folder it was crawled in, which the server may have contradicted since.
+ * Believing it costs mail: a message archived, indexed, then moved to `Projets` from another client
+ * is still `archive` to the index, so an "archive" swipe on its search hit unarchives, and
+ * `moveToMailbox` rewrites the whole mailbox set — taking it OUT of `Projets` with no way back. In
+ * the unified list the same stale role picks the unarchive destination out of `ui.mailboxes`, i.e.
+ * the SELECTED account's Inbox, and files another account's message there (#92/#121). A search hit
+ * therefore keeps reading the view's role, which is exactly what shipped before this function.
+ */
+internal fun rowFolderRole(
+    email: Email,
+    ui: MailUi,
+    roles: Map<Pair<String, String>, String>,
+    folderTrusted: Boolean,
+): String? {
+    if (!folderTrusted) return visibleFolderRole(ui)
+    return messageFolderRole(email.accountId, email.mailboxId, roles) ?: visibleFolderRole(ui)
+}
 
 /**
  * True when [from] (a message's sender) is one of the user's own send-as [identities], matched
@@ -2417,9 +2502,8 @@ private fun sendAsIdentities(email: Email, accounts: List<StoredAccount>): List<
     }
 }
 
-/** True when the visible folder is Drafts, where tapping a row edits it in compose (#63). */
-private fun isDraftsContext(ui: MailUi): Boolean =
-    ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role == "drafts"
+/** True when [role] is Drafts, where tapping a row edits it in compose (#63). */
+private fun isDraftsContext(role: String?): Boolean = role == "drafts"
 
 /** The string resource shown on the swipe background for [action] on [email] (0 = none). */
 private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext: Boolean, trashContext: Boolean): Int = when (action) {
@@ -2432,7 +2516,7 @@ private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext
 }
 
 /** Dispatch a configured swipe action to the view model for [email]. */
-private fun performSwipe(action: SwipeAction, email: Email, viewModel: InboxViewModel, ui: MailUi) {
+private fun performSwipe(action: SwipeAction, email: Email, viewModel: InboxViewModel, ui: MailUi, rowRole: String?) {
     // ⛔ A draft only this phone holds is inert (#95): repo.delete / archive / moveToMailbox read a
     // UID out of an id that carries none — a silent no-op on IMAP, an error on JMAP — and none of
     // them removes the local row. Left through, a "delete" swipe would announce a deletion that did
@@ -2448,7 +2532,7 @@ private fun performSwipe(action: SwipeAction, email: Email, viewModel: InboxView
         // told apart from an archived one without per-message membership data, so it unarchives
         // too; refining that is tracked as a follow-up.
         SwipeAction.ARCHIVE -> {
-            if (isUnarchiveContext(ui)) {
+            if (isUnarchiveContext(rowRole)) {
                 ui.mailboxes.firstOrNull { it.role == "inbox" }?.id?.let { viewModel.unarchive(email, it) }
             } else {
                 viewModel.archive(email)
@@ -2459,13 +2543,13 @@ private fun performSwipe(action: SwipeAction, email: Email, viewModel: InboxView
 }
 
 /** Dispatch a configured swipe action to the whole conversation behind a collapsed row. */
-private fun performThreadSwipe(action: SwipeAction, rep: Email, viewModel: InboxViewModel, ui: MailUi) {
+private fun performThreadSwipe(action: SwipeAction, rep: Email, viewModel: InboxViewModel, ui: MailUi, rowRole: String?) {
     when (action) {
         SwipeAction.NONE -> Unit
         SwipeAction.TOGGLE_READ -> viewModel.toggleReadThread(rep)
         SwipeAction.DELETE -> viewModel.deleteThread(rep)
         SwipeAction.ARCHIVE -> {
-            if (isUnarchiveContext(ui)) {
+            if (isUnarchiveContext(rowRole)) {
                 ui.mailboxes.firstOrNull { it.role == "inbox" }?.id?.let { viewModel.unarchiveThread(rep, it) }
             } else {
                 viewModel.archiveThread(rep)
@@ -2489,8 +2573,11 @@ private fun ThreadChildren(
     accounts: List<app.sterna.core.data.account.StoredAccount>,
     rightAction: SwipeAction,
     leftAction: SwipeAction,
-    unarchiveContext: Boolean,
-    trashContext: Boolean,
+    /** Decided per child, like the two below and for the same reason: an unfolded conversation
+     *  spans the viewed folder(s) PLUS Sent, so the folder on screen says nothing about the message
+     *  inside it — and "Delete permanently" must be true of the row it is drawn on. */
+    unarchiveContextFor: (Email) -> Boolean,
+    trashContextFor: (Email) -> Boolean,
     /** Decided per child so a self reply in an incoming conversation shows "To: …" (Codeberg #69). */
     showRecipientsFor: (Email) -> Boolean,
     /** Decided per child too: the "(Draft)" chip reads the child's own folder, not the one on
@@ -2533,8 +2620,8 @@ private fun ThreadChildren(
                             accountColor = accountColorOf(ownerAccount?.color),
                             rightAction = rightAction,
                             leftAction = leftAction,
-                            unarchiveContext = unarchiveContext,
-                            trashContext = trashContext,
+                            unarchiveContext = unarchiveContextFor(child),
+                            trashContext = trashContextFor(child),
                             showRecipients = showRecipientsFor(child),
                             showDraftBadge = showDraftBadgeFor(child),
                             onSwipe = { action -> onSwipeChild(action, child) },

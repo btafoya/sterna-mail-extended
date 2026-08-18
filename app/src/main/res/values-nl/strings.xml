@@ -72,6 +72,8 @@
     <string name="inbox_switch_account">Account wisselen</string>
     <string name="inbox_all_inboxes">Alle postvakken IN</string>
     <string name="inbox_all_inboxes_unread">Alle postvakken IN  (%1$d)</string>
+    <string name="inbox_unread_view">Ongelezen</string>
+    <string name="inbox_unread_view_unread">Ongelezen  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
     <string name="inbox_folder_options">Mapopties</string>
     <string name="inbox_folder_watch">Melden bij nieuwe e-mail</string>
@@ -878,6 +880,7 @@
     <string name="empty_search_body">Niets gevonden. Probeer andere woorden.</string>
     <string name="empty_unread_title">Geen ongelezen berichten</string>
     <string name="empty_unread_body">Je hebt hier alles gelezen. Schakel het filter voor ongelezen berichten uit om alle e-mail te zien.</string>
+    <string name="empty_unread_view_body">Je hebt alles in je mappen gelezen.</string>
     <string name="empty_unread_action">Alles tonen</string>
     <string name="inbox_empty_trash">Prullenbak legen</string>
     <string name="status_trash_emptied">Prullenbak legen…</string>

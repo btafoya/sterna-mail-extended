@@ -376,7 +376,7 @@ class ConversationScopeWiringTest {
         )
     }
 
-    @Test fun `both pagers are built from the resolution the chip is counted over`() {
+    @Test fun `every pager is built from the resolution the chip is counted over`() {
         // The mutation the unfold's rules cannot see: hand the PAGER an empty Sent scope and the
         // divergence comes back the other way round — an unfold of 3 under a chip of 2 — with every
         // other rule here satisfied. The repository's parameter has no default precisely so that
@@ -388,12 +388,14 @@ class ConversationScopeWiringTest {
             "sentScopes(" in body,
         )
         assertTrue(
-            "both pagers must be given that resolution and nothing else. Body was:\n$body",
+            "every pager must be given that resolution and nothing else. Body was:\n$body",
             "conversationView, sent)" in body,
         )
         assertEquals(
-            "exactly two pagers, one per selection, both fed the same way. Body was:\n$body",
-            2,
+            "exactly three pagers, one per Sel variant — a folder, the unified inbox, the unread " +
+                "scope — all fed the same way. A fourth selection added without a Sent scope of its " +
+                "own is a chip that counts fewer messages than the row unfolds into. Body was:\n$body",
+            3,
             Regex("""repo\.paged\w+\(""").findAll(body).count(),
         )
         assertTrue(

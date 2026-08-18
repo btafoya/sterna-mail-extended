@@ -72,6 +72,8 @@
     <string name="inbox_switch_account">Сменить аккаунт</string>
     <string name="inbox_all_inboxes">Все входящие</string>
     <string name="inbox_all_inboxes_unread">Все входящие  (%1$d)</string>
+    <string name="inbox_unread_view">Непрочитанные</string>
+    <string name="inbox_unread_view_unread">Непрочитанные  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
     <string name="inbox_folder_options">Параметры папки</string>
     <string name="inbox_folder_watch">Уведомлять о новых письмах</string>
@@ -896,6 +898,7 @@
     <string name="empty_search_body">Ничего не нашлось. Попробуйте другие слова.</string>
     <string name="empty_unread_title">Нет непрочитанных сообщений</string>
     <string name="empty_unread_body">Здесь всё прочитано. Отключите фильтр непрочитанных, чтобы увидеть всю почту.</string>
+    <string name="empty_unread_view_body">В ваших папках всё прочитано.</string>
     <string name="empty_unread_action">Показать все</string>
     <string name="inbox_empty_trash">Очистить корзину</string>
     <string name="status_trash_emptied">Очистка корзины…</string>

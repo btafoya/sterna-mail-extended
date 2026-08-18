@@ -85,6 +85,8 @@
     <string name="inbox_switch_account">Switch account</string>
     <string name="inbox_all_inboxes">All inboxes</string>
     <string name="inbox_all_inboxes_unread">All inboxes  (%1$d)</string>
+    <string name="inbox_unread_view">Unread</string>
+    <string name="inbox_unread_view_unread">Unread  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
     <string name="inbox_folder_options">Folder options</string>
     <string name="inbox_folder_watch">Notify about new mail</string>
@@ -221,6 +223,7 @@
     <!-- Shown when the unread-only filter is on but everything in view is already read. -->
     <string name="empty_unread_title">No unread messages</string>
     <string name="empty_unread_body">You\'ve read everything here. Turn off the unread filter to see all mail.</string>
+    <string name="empty_unread_view_body">You\'ve read everything in your folders.</string>
     <string name="empty_unread_action">Show all</string>
     <string name="inbox_sort_newest_first">Newest first</string>
     <string name="inbox_sort_oldest_first">Oldest first</string>

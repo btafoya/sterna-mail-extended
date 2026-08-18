@@ -51,7 +51,10 @@ class UnifiedTitleWiringLintTest {
                 "under a drawer entry that is translated. It is resolved HERE and not in the " +
                 "ViewModel because a ViewModel outlives a configuration change and would keep the " +
                 "old language after a hot locale switch. Compared as the whole argument, because " +
-                "'if (ui.unified)' is contained in 'if (ui.unified && false)'. Title block was:" +
+                "'if (ui.unified)' is contained in 'if (ui.unified && false)'. The unread view is " +
+                "the same problem read from the other end: it selects no mailbox either, so without " +
+                "an arm of its own the title falls through to mailboxDisplayName and names THE LAST " +
+                "FOLDER VISITED over a list that spans the account. Title block was:" +
                 "\n$block",
             EXPECTED_TITLE_ARGUMENT,
             firstArgumentAt(block, texts.first().range.first),
@@ -68,7 +71,9 @@ class UnifiedTitleWiringLintTest {
                 "longer excludes the unified view prints the title twice, one line under the other. " +
                 "Compared as the whole condition — 'if (!ui.unified && ui.accountName.isNotBlank())' " +
                 "is contained in a longer condition that adds a third term, and a null below means " +
-                "the guard was dropped altogether. Conditions found in the title block: " +
+                "the guard was dropped altogether. The unread view KEEPS the line, which is why no " +
+                "third term belongs here: it is a view of one account, and that line is the only " +
+                "thing on screen saying which. Conditions found in the title block: " +
                 "$conditions\nTitle block was:\n$block",
             EXPECTED_SUBTITLE_CONDITION,
             conditions.singleOrNull { it.contains("accountName") },
@@ -231,9 +236,10 @@ class UnifiedTitleWiringLintTest {
     }
 
     companion object {
-        /** The only title the top bar may spell, both arms of it. */
+        /** The only title the top bar may spell, all three arms of it. */
         private const val EXPECTED_TITLE_ARGUMENT =
-            "if (ui.unified) { stringResource(R.string.inbox_all_inboxes) } " +
+            "if (ui.unreadView) { stringResource(R.string.inbox_unread_view) } " +
+                "else if (ui.unified) { stringResource(R.string.inbox_all_inboxes) } " +
                 "else { mailboxDisplayName(selectedRole, ui.mailboxName) }"
 
         /** The guard that keeps the account line off the unified view. */

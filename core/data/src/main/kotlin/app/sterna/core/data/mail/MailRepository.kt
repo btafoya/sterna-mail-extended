@@ -1556,7 +1556,21 @@ class MailRepository(
                     protectionVerdict.getOrPut(id) { isRecentlyMutated(localAccountId, id) }
                 }
                 val toRemove = deltaEvictions(queryChanges.removed, added, changes.destroyed, isProtected)
-                if (toRemove.isNotEmpty()) emailDao.deleteByIds(localAccountId, toRemove)
+                // "Gone from THIS folder" is not "gone". The cached row is keyed (accountId, id),
+                // one per message per account, and `deleteByIds` names no mailbox in its WHERE —
+                // so evicting a candidate whose row has already moved deletes the message from the
+                // folder it is NOW in. Bench 2026-08-17: unarchive a message, then pull to refresh
+                // the unread view (which syncs Archive too) and it left the Inbox, and the FTS
+                // index, for good. So the delete is bounded by what this folder still holds.
+                //
+                // ⛔ NOT `cachedIds` further down: that one is read AFTER the delete on purpose
+                // (it feeds `deltaFetches`, which must see the cache as the delta left it). This
+                // read has to happen BEFORE, and only when there is a candidate, so an ordinary
+                // delta still pays no extra query.
+                val inThisMailbox =
+                    if (toRemove.isEmpty()) emptySet() else emailDao.idsForMailbox(localAccountId, mailboxId).toSet()
+                val toDelete = mailboxScopedEvictions(toRemove, inThisMailbox)
+                if (toDelete.isNotEmpty()) emailDao.deleteByIds(localAccountId, toDelete)
                 // Every eviction the recently-mutated spare skipped, named and motivated. A
                 // `destroy` here is the one-shot loss [deltaEvictions] documents: the row survives
                 // a message the server no longer has, and only the ghost sweep can still remove it.
@@ -1606,10 +1620,15 @@ class MailRepository(
                 // a refresh is either a sweep that ran and did not prune it, or a sweep that never
                 // ran at all, and only this distinguishes them. `sweep=floor/idle` is the #107 fix
                 // doing its work: an existence check on an account whose deltas reported nothing.
+                // `moved=` counts the candidates NOT deleted because their cached row no longer
+                // sits in this folder: a message spared by [mailboxScopedEvictions] and said
+                // nowhere is indistinguishable from a delta that named nothing. ⛔ It is not only
+                // moves — a `destroyed` id whose row has moved on is counted here too, and the
+                // field is named for the common case, not for all of it.
                 android.util.Log.i(
                     "MailSync",
-                    "incremental $localAccountId/$mailboxId: +${toFetch.size} -${toRemove.size} " +
-                        "spared=${spared.size} sweep=${claim.reason}",
+                    "incremental $localAccountId/$mailboxId: +${toFetch.size} -${toDelete.size} " +
+                        "moved=${toRemove.size - toDelete.size} spared=${spared.size} sweep=${claim.reason}",
                 )
                 val swept = if (claim.sweep) {
                     val ghosts = pruneGhostRows(session, accountId, auth, mailboxId, localAccountId)
@@ -1631,6 +1650,11 @@ class MailRepository(
                 // Both come from the server, so a banner may be cancelled on them (#134) — and
                 // `toRemove`, never `queryChanges.removed`, because a favourited message is
                 // reported removed-and-added by a reorder and its banner must survive that.
+                //
+                // ⚠ And `toRemove`, NOT `toDelete`: the two are deliberately different. The server
+                // did say those ids left THIS mailbox, which is all a banner cancellation claims,
+                // and it is `confirmDepartures` that asks where they went. Only the local DELETE is
+                // bounded by the folder, because only it can destroy a row. Do not "harmonise" them.
                 return MailboxSync(fetchedIds = toFetch, departedIds = toRemove + swept)
             }
         }

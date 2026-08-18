@@ -64,6 +64,13 @@ data class MailUi(
     val selectedMailboxId: String?,
     /** True when showing the cross-account unified inbox (no single folder selected). */
     val unified: Boolean,
+    /** True when showing THIS account's unread mail across its folders ([Sel.Unread]) — no single
+     *  folder selected either, so nothing else on screen can tell that view from the unified one. */
+    val unreadView: Boolean = false,
+    /** For the drawer entry that leads to the view above: the same aggregate the folder rows are
+     *  badged with, summed over the folders that view pages ([unreadViewCount], which says what it
+     *  does not promise). Zero means the entry carries no number at all. */
+    val unreadViewCount: Int = 0,
     /** True when the current view is the inbox home (unified, or the account's Inbox folder).
      *  Drives Back: from any other folder, Back returns here instead of leaving the app. */
     val atInbox: Boolean = true,
@@ -92,6 +99,9 @@ private data class Base(
     val mailboxes: List<Mailbox>,
     val selectedMailboxId: String?,
     val unified: Boolean,
+    val unreadView: Boolean,
+    /** Folded in after the five-flow combine below, so it is seeded here and copied there. */
+    val unreadViewCount: Int = 0,
     val atInbox: Boolean,
     val accountName: String,
     val mailboxName: String,
@@ -116,6 +126,32 @@ private const val SERVER_SEARCH_DEBOUNCE_MS = 350L
 
 /** Max hits requested from the server search (per query). */
 private const val SERVER_SEARCH_LIMIT = 200
+
+/**
+ * How many recent messages the "unread" view's pull-to-refresh looks at PER FOLDER
+ * ([InboxViewModel.refreshUnreadScope]). The default of
+ * `MailRepository.refreshAccountFolders`, spelled out because this caller passes it deliberately.
+ *
+ * ⛔ NOT the account's sync window, and the difference is not a preference — it is the heap. That
+ * refresh syncs N folders in ONE pass, and its IMAP branch reads each folder as a single
+ * `fetchPage(offset = 0, limit = limit)` whose envelopes are all held until every folder has been
+ * read (`MailRepository.kt` writes after the loop). `ImapClient` and `ImapFolderWalk` both say in
+ * as many words that a whole folder is not holdable on a phone's heap. A window of "Everything"
+ * (10 000) times a dozen folders is that warning, twelve times over, on the weakest device in the
+ * fleet — and it would ALSO downgrade the inbox, which reaches this view through the same one-shot
+ * page instead of the write-as-you-go walk `repo.refresh` uses.
+ *
+ * ⭐ Bounding it truncates NOTHING that was kept before, which is the only reason a bound is safe
+ * here: on JMAP the caller does not size the retained set at all — `SyncPaging.fullQuerySizing`
+ * reads the account's window from the store and says so explicitly — and on IMAP this path only
+ * upserts, it deletes nothing. The number means "how much recent mail to LOOK AT per folder", not
+ * "how much to keep".
+ *
+ * ⚠ The cost, stated: in a folder that was never opened, only the 50 most recent messages enter the
+ * cache per pull, so an older unread message is not in this view yet. That is already what the push
+ * pass does for a watched folder, with this very same default.
+ */
+internal const val UNREAD_SCOPE_FOLDER_LIMIT = 50
 
 /** The actions bound to the two swipe directions (from Settings → Reading). */
 data class SwipeConfig(val right: SwipeAction, val left: SwipeAction)
@@ -616,6 +652,19 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val selection = MutableStateFlow<Sel>(Sel.Folder(store.inboxMailboxId()))
     private val currentAccountId = MutableStateFlow(store.currentId())
     private val unifiedInboxScopes = MutableStateFlow(store.allInboxScopes())
+
+    /**
+     * The folders the "unread" view ([Sel.Unread]) pages — the current account's, minus Trash,
+     * Junk/Spam, Sent and Drafts. The decision is [unreadViewScopes]'s, which a JVM test runs; this
+     * only holds its answer.
+     *
+     * Starts EMPTY rather than from a synchronous read of the store: the store knows the account,
+     * not its folder list, and an empty scope list is what [MailRepository.pagedMailbox] answers
+     * `PagingData.empty()` to. Filled from the [mailboxes] flow's existing `onEach` — declared
+     * before it, because that is where it is written.
+     */
+    private val unreadScopes = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+
     private val meta = MutableStateFlow(
         Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()),
     )
@@ -646,6 +695,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         // about to select is never first bounced to the Inbox for being the previous account's.
         applyNotificationFolder(folders)
         if (selectionIsGone((selection.value as? Sel.Folder)?.id, folders)) showInbox()
+        // The "unread" view's scope, recomputed from the folder list that just arrived — a folder
+        // created, deleted or given a role by the server changes what that view pages. One more
+        // line in THIS onEach, deliberately, and never a second collector of [mailboxes]: this
+        // flow carries side effects (#91's parked notification folder, #89's vanished-folder
+        // fallback) and a second collection would replay them.
+        unreadScopes.value = unreadViewScopes(currentAccountId.value, folders)
     }
 
     /**
@@ -736,6 +791,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         pageKeyFlow(
             selection = selection,
             unifiedInboxScopes = unifiedInboxScopes,
+            unreadViewScopes = unreadScopes,
             sortOrder = settings.sortOrder,
             unreadOnly = unreadOnly,
             conversationView = settings.conversationView,
@@ -754,7 +810,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                         // resolved reactively from the folder cache — account-pinned pairs —
                         // so a fresh install's chips pick it up on the first folder sync.
                         sentScopes(key, listOf(credentials.id)).flatMapLatest { sent ->
-                            repo.pagedFolder(credentials, id, key.sort, key.unreadOnly, key.conversationView, sent)
+                            repo.pagedFolder(credentials, id, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)
                         }
                     }
                 }
@@ -762,7 +818,18 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                     // The accounts the key was built from, not a fresh read of the store: the
                     // pager's rows and its Sent scope must describe the same set of accounts.
                     sentScopes(key, key.unifiedScopes.map { it.first }.distinct()).flatMapLatest { sent ->
-                        repo.pagedMailbox(key.unifiedScopes, key.sort, key.unreadOnly, key.conversationView, sent)
+                        repo.pagedMailbox(key.unifiedScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)
+                    }
+                }
+                Sel.Unread -> {
+                    // ⭐ The unread filter is [listUnreadOnly]'s answer, not the key's raw toggle:
+                    // this scope is called "Unread" and forces it on whatever the funnel says
+                    // (WYSIWYG). The three branches ask the SAME function, and [selectAll] asks it
+                    // too — a filter decided twice is the destructive half of #126.
+                    // The account comes from the KEY, not from a fresh store read: the pager's rows
+                    // and its Sent scope must describe the same account — same rule as Unified.
+                    sentScopes(key, listOfNotNull(key.accountId)).flatMapLatest { sent ->
+                        repo.pagedMailbox(key.unreadScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)
                     }
                 }
             }
@@ -838,6 +905,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private fun viewedMailboxIds(key: PageKey): List<String> = when (val sel = key.sel) {
         is Sel.Folder -> listOfNotNull(sel.id)
         Sel.Unified -> key.unifiedScopes.map { it.second }.distinct()
+        Sel.Unread -> key.unreadScopes.map { it.second }.distinct()
     }
 
     /**
@@ -875,7 +943,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             mailboxes = mailboxes,
             selectedMailboxId = (sel as? Sel.Folder)?.id,
             unified = sel is Sel.Unified,
-            atInbox = sel is Sel.Unified || (sel as? Sel.Folder)?.id == store.inboxMailboxId(),
+            unreadView = sel is Sel.Unread,
+            // ⛔ Structural, not `(sel as? Sel.Folder)?.id == …`: that form answers null == null for
+            // ANY selection that is not a folder as soon as the account's inbox has never been
+            // synced, and atInbox true means the system Back gesture LEAVES THE APP — from a view
+            // the reader chose. Sel.Folder(null) keeps the answer it always had.
+            atInbox = sel is Sel.Unified || (sel is Sel.Folder && sel.id == store.inboxMailboxId()),
             accountName = meta.accountName,
             mailboxName = meta.mailboxName,
             unread = if (sel is Sel.Unified) unifiedUnread else meta.unread,
@@ -884,13 +957,31 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    val state: StateFlow<MailUi> = combine(baseState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
+    /**
+     * The drawer's unread badge, folded into [baseState] rather than combined into [state]: the
+     * typed `combine` stops at five flows and both are already at five.
+     *
+     * The folder list comes back out of [Base] and is NOT collected again — [mailboxes] carries side
+     * effects (#91's parked notification folder, #89's vanished-folder fallback) that a second
+     * collector would replay. The count is [unreadViewCount]'s, run by `UnreadViewCountTest`, and it
+     * is handed the same scope the pager is built from — so the entry offers the folders the list
+     * pages, and carries the same aggregate as the folder rows under it. ⛔ Not "the number of rows
+     * you will see": in conversation view a thread unread in two folders of the scope is summed
+     * twice here and drawn once. See [unreadViewCount].
+     */
+    private val badgedState = combine(baseState, unreadScopes, currentAccountId) { base, scopes, accountId ->
+        base.copy(unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))
+    }
+
+    val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
         MailUi(
             accountName = base.accountName,
             mailboxName = base.mailboxName,
             unreadCount = base.unread,
             selectedMailboxId = base.selectedMailboxId,
             unified = base.unified,
+            unreadView = base.unreadView,
+            unreadViewCount = base.unreadViewCount,
             atInbox = base.atInbox,
             searchResults = search.results.orEmpty(),
             searchComplete = search.complete,
@@ -1000,6 +1091,10 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         currentAccountId.value = store.currentId()
         selection.value = Sel.Folder(store.inboxMailboxId())
         unifiedInboxScopes.value = store.allInboxScopes()
+        // Cleared, not recomputed: the folder list in hand is the PREVIOUS account's, and pairs
+        // built from it under the new account's id would page a sibling account's folders (#121).
+        // The [mailboxes] flow re-scopes on currentAccountId and refills this within the tick.
+        unreadScopes.value = emptyList()
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refreshWatchedFolders()
         refresh()
@@ -1020,6 +1115,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 val outcome = refreshWithin {
                     when (val sel = selection.value) {
                         Sel.Unified -> refreshUnified()
+                        Sel.Unread -> refreshUnreadScope()
                         is Sel.Folder -> refreshFolder(sel.id)
                     }
                 }
@@ -1073,6 +1169,80 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         meta.value = Meta(updated.accountName, updated.mailboxName, updated.unreadCount)
     }
 
+    /**
+     * Pull-to-refresh in the "unread" view: the account's inbox AND every other folder the view
+     * pages, in one pass.
+     *
+     * ⭐ Why every folder. This view pages the `emails` cache, and that cache only ever holds the
+     * inbox, the folders the user has actually VISITED, and the IMAP watched ones. A user folder
+     * never opened is simply not in it, so a refresh that synced the inbox alone would leave the
+     * view true by construction and false in fact: it would show nothing from a folder it never
+     * asked the server about, under a title promising the account's unread mail.
+     *
+     * ⭐ ONE call, [app.sterna.core.data.mail.MailRepository.refreshAccountFolders], because it is
+     * the only entry point that covers both protocols — IMAP through `imap.loadWatchedFolders`,
+     * JMAP through one `syncMailbox` per target — and both write the same `emails` cache the pager
+     * reads. A JMAP-only path written here would be a second thing to keep in step with the first.
+     *
+     * ⛔ The `limit` is [UNREAD_SCOPE_FOLDER_LIMIT] and NOT the account's sync window, unlike
+     * [refreshFolder]'s, because it does not mean the same thing here: one folder's window is "how
+     * much of it to keep", this one is "how much recent mail to LOOK AT in each of N folders read
+     * in a single pass that holds them all". The whole reason, and why bounding it truncates
+     * nothing, is written on the constant.
+     *
+     * ⛔ It does NOT write [selection] and it does NOT write [meta], and that is the whole reason it
+     * is a separate function rather than a call to [refreshFolder]: that one ends on
+     * `selection.value = Sel.Folder(updated.mailboxId)`, so the first pull-to-refresh in this view
+     * would drop the user into the Inbox folder — the view ejecting the reader who opened it. The
+     * cache is what this fills; the pager reacts to the cache on its own.
+     *
+     * ⛔ `onMissing` is left at its no-op default. Its production caller ([FetchAndNotify]) uses it
+     * to prune the account's WATCHED flag for a folder the server no longer lists — that flag is a
+     * user intent about push, not this view's business, and turning it off because a list built for
+     * a different purpose could not find the folder would be the view spending somebody else's
+     * setting. The folder simply drops out of the scope on the next folder sync.
+     *
+     * ⚠ Two things this deliberately does NOT do, both of which [refreshFolder] does. It writes no
+     * `saveInboxMeta` (`refreshAccountFolders` returns folder pages, not an unread count — the count
+     * on the account row stays whatever the last inbox sync left, and the drawer's own counters are
+     * written by the repository). And it applies no AGE PURGE: `pruneBefore` is a parameter of
+     * `repo.refresh` and there is none here. ⛔ That is not the same as "this path deletes nothing"
+     * — on JMAP `syncMailbox` removes rows by three routes of its own (a server-stated deletion, the
+     * ghost sweep, the mailbox reconcile), and what it RETAINS is sized by the account's window read
+     * from the store, never by [UNREAD_SCOPE_FOLDER_LIMIT] (`SyncPaging.fullQuerySizing`).
+     */
+    private suspend fun refreshUnreadScope() {
+        val credentials = store.load() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
+        // ⚠ [refreshAccountFolders] opens on `rekeyWatchedFolders`, which PERSISTS the account (a
+        // `saveAccounts`, hence an `accountsFlow` emission) for every id whose `decodeMailboxPath`
+        // differs from itself. Nearly always none: the IMAP ids in the folder cache are already that
+        // same function's output (`ImapClient.parseListFolders`) and JMAP ids carry no `&`. A cache
+        // written by a version that stored the raw wire form and not re-listed since is the case
+        // where it does fire — one account write per pull until the next folder listing, and no loss
+        // either way: `AccountStore.replaceWatchedFolder` maps over the watched set that EXISTS, so
+        // it can rename an entry but can never add a watch this view invented.
+        // The set itself is [unreadRefreshTargets]'s decision, which `UnreadRefreshTargetsTest` runs.
+        val refreshes = repo.refreshAccountFolders(
+            credentials,
+            extraFolderIds = unreadRefreshTargets(credentials.id, unreadScopes.value, store.inboxMailboxId()),
+            includeInbox = true,
+            limit = UNREAD_SCOPE_FOLDER_LIMIT,
+        )
+        // Codeberg #50: a reply landed by THIS refresh must trigger unarchive-on-reply too, exactly
+        // as [refreshFolder] and [refreshUnified] do — with the app in the foreground this is the
+        // path new mail arrives by, so leaving it out would stop the re-file for as long as the
+        // reader stays in this view, and say nothing.
+        // ⛔ The inbox is CHOSEN out of what came back ([refreshedInboxId]), not taken as the first
+        // refresh: that ordering is an invariant of another module, and this hook writes — a wrong
+        // aim advances another folder's notification baseline and re-files its threads. Same
+        // question `refreshFolder` asks at its own hook, asked of a list.
+        // Never fails the refresh; no-op unless the toggle is on.
+        val refreshedInbox = refreshedInboxId(refreshes.map { it.mailboxId }, store.inboxMailboxId())
+        if (refreshedInbox != null) {
+            runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, refreshedInbox) }
+        }
+    }
+
     private suspend fun refreshUnified() {
         val credentials = store.allCredentials()
         val result = repo.refreshAllInboxes(credentials)
@@ -1100,6 +1270,31 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         selection.value = Sel.Unified
         unifiedInboxScopes.value = store.allInboxScopes()
         meta.value = Meta(UNIFIED_LABEL, UNIFIED_LABEL, store.totalUnreadCount())
+        refresh()
+    }
+
+    /**
+     * Switch to this account's unread mail across its folders ([Sel.Unread]).
+     *
+     * Threads are collapsed like every other switch of scope: an unfolded conversation belongs to
+     * the list it was unfolded in, and its members are streamed for that list's folders.
+     *
+     * ⭐ [meta] is REWRITTEN, and the account label is the whole reason. This view keeps the top
+     * bar's second line — it is a view of one account and that line is the only thing on screen
+     * saying which — while `meta.accountName` holds the internal literal `UNIFIED_LABEL` for as long
+     * as the unified inbox was the last thing shown. Arriving here from it, the subtitle would read
+     * "All inboxes", in English, under a title that promises one account's mail.
+     *
+     * ⛔ The scope itself is NOT recomputed here. It is written in one place, the [mailboxes]
+     * `onEach`, from the folder list that flow was scoped to, and it is already current — a second
+     * resolution, from whatever the store says at this instant, is the #121 mistake and would be a
+     * third writer of a value `PageKeyWiringLintTest` pins to two.
+     */
+    fun selectUnread() {
+        if (selection.value is Sel.Unread) return
+        collapseThreads()
+        selection.value = Sel.Unread
+        meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refresh()
     }
 
@@ -1718,6 +1913,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private fun currentMailboxIds(): List<String> = when (val sel = selection.value) {
         is Sel.Folder -> listOfNotNull(sel.id)
         Sel.Unified -> unifiedInboxScopes.value.map { it.second }.distinct()
+        Sel.Unread -> unreadScopes.value.map { it.second }.distinct()
     }
 
     /** (account id, mailbox id) scopes backing the current view: the current account's folder,
@@ -1730,6 +1926,15 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             if (accountId != null && sel.id != null) listOf(accountId to sel.id) else emptyList()
         }
         Sel.Unified -> store.allInboxScopes()
+        // ⚠ The LIVE value, and it can differ from the one the pager on screen was built with:
+        // the `mailboxes` onEach rewrites it as soon as a folder list arrives, while the pager is
+        // still being rebuilt. So a gesture landing in that window acts over a folder that appeared
+        // seconds ago and is not yet drawn. That is accepted, and it is only acceptable because
+        // [listUnreadOnly] forces the filter on for this scope: what the window can add is UNREAD
+        // mail of a folder this view covers — exactly what the view claims to show — never read
+        // mail and never a folder outside the scope. The alternative, [listScope], is not safer:
+        // it keeps the PREVIOUS view's folders until the new pager emits, which is staler.
+        Sel.Unread -> unreadScopes.value
     }
 
     // ---- sort / filter / bulk ----
@@ -1840,7 +2045,11 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun selectAll() {
         _selectionActive.value = true
         val search = searchState.value
-        val filtered = unreadOnly.value
+        // ⭐ The SAME decision the pager was built with ([listUnreadOnly]), never the raw toggle:
+        // in a scope that forces the filter on, reading the funnel here asks selectableIds for the
+        // folders UNFILTERED and hands "Delete" every read message of every folder in scope — mail
+        // that was never on screen, which is the destructive half of #126.
+        val filtered = listUnreadOnly(selection.value, unreadOnly.value)
         val hidden = localDraftRows.value.replacedServerIds
         viewModelScope.launch {
             _selectedKeys.value = selectAllKeys(
@@ -2403,6 +2612,8 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     /** The accounts the current view searches over (unified inbox → all, single folder → current). */
     private fun searchAccounts(): List<AccountCredentials> = when (selection.value) {
         Sel.Unified -> store.allCredentials()
+        // One account's folders, so one account's search — same answer as a single folder.
+        Sel.Unread -> listOfNotNull(store.load())
         is Sel.Folder -> listOfNotNull(store.load())
     }
 

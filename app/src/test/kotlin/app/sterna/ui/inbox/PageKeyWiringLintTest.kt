@@ -100,20 +100,131 @@ class PageKeyWiringLintTest {
     // -- 2. what the ViewModel actually hands pageKeyFlow ---------------------------------------
 
     @Test
-    fun `the browse list passes each of the six flows to its own parameter`() {
+    fun `the browse list passes each of the seven flows to its own parameter`() {
         val arguments = pageKeyFlowArguments()
         assertEquals(
-            "InboxViewModel must hand pageKeyFlow these six flows and no others, each NAMED and each " +
+            "InboxViewModel must hand pageKeyFlow these seven flows and no others, each NAMED and each " +
                 "matched with its own parameter. Compared as whole pairs, because the parameter name " +
                 "on its own proves nothing: 'currentAccountId = selectionAccountId' contains " +
                 "'currentAccountId =' and would satisfy a looser rule, while selectionAccountId is " +
                 "null until something is selected and never moves on an account switch — two " +
                 "same-server accounts sharing a mailbox id would then build an EQUAL key, the dedupe " +
                 "would swallow it, and the list would keep showing the other account's mail (#121). " +
-                "The same comparison is what stops the two Flow<Boolean> being swapped. Call site was:" +
+                "The same comparison is what stops the two Flow<Boolean> being swapped, and the two " +
+                "Flow<List<Pair<String, String>>> with it — unifiedInboxScopes and unreadScopes are " +
+                "the same type and adjacent in the key, so the swap compiles and the unread view " +
+                "would page every account's Inbox. Call site was:" +
                 "\n${arguments.joinToString("\n")}",
             EXPECTED_ARGUMENTS.sorted(),
             arguments.sorted(),
+        )
+    }
+
+    /**
+     * ⛔ SOURCE LINT, and the guard on the destructive half of Codeberg #126.
+     *
+     * What the list SHOWS and what "Select all" TAKES have to be the same set, and the only way to
+     * be sure of that is for both to ask one function. [ListUnreadOnlyTest] runs that function; this
+     * rule is the only thing that can see whether the two call sites use it, because `pagedEmails`
+     * and `selectAll` both live in an `AndroidViewModel`.
+     *
+     * The mutation it exists for is `listUnreadOnly(selection.value, unreadOnly.value)` →
+     * `unreadOnly.value` in `selectAll`. It compiles, it reads like the line that was there for
+     * years, and every other test in this module stays green: the list draws twelve unread rows
+     * while `selectableIds` is asked for the folders UNFILTERED, and "Select all" then "Delete"
+     * moves every read message of the Inbox, the Archive and each user folder to the Trash — mail
+     * nobody was shown. Whole lines, because a fragment match cannot tell the two apart.
+     */
+    @Test
+    fun `the list's unread filter is decided once, and the selection asks the same question`() {
+        val readers = codeText(INBOX_VIEW_MODEL).map { it.trim() }
+            .filter { "unreadOnly.value" in it || "listUnreadOnly(" in it }
+        assertEquals(
+            "Every place that describes WHAT THE LIST SHOWS must ask listUnreadOnly(...) — the three " +
+                "pager branches and selectAll's `filtered`. The only line allowed to touch " +
+                "unreadOnly.value on its own is the toolbar toggle, which describes the BUTTON. A " +
+                "raw read in selectAll is the destructive half of #126 rebuilt. Lines found were:" +
+                "\n${readers.joinToString("\n")}",
+            listOf(
+                "repo.pagedFolder(credentials, id, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)",
+                "repo.pagedMailbox(key.unifiedScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)",
+                "repo.pagedMailbox(key.unreadScopes, key.sort, listUnreadOnly(key.sel, key.unreadOnly), key.conversationView, sent)",
+                "unreadOnly.value = !unreadOnly.value",
+                "val filtered = listUnreadOnly(selection.value, unreadOnly.value)",
+            ),
+            readers.sorted(),
+        )
+    }
+
+    /**
+     * ⛔ SOURCE LINT. The rule above pins that the unread view's scope is HANDED to the paging key;
+     * this one pins that anything ever puts a value in it. Drop the one line in the `mailboxes`
+     * `onEach` that fills it and every other rule here stays green while the view pages an empty
+     * scope list for ever — `pagedMailbox` answers `PagingData.empty()`, so the screen is simply
+     * blank and nothing fails.
+     *
+     * Whole assignments, arguments included. `unreadViewScopes(store.currentId(), folders)` would
+     * compile and read plausibly, and it is the #121 mistake: the folder list in hand belongs to the
+     * account the flow was scoped to, and `store.currentId()` is whatever the store says NOW.
+     *
+     * ⛔ It must also stay TWO. A third writer is a third resolution, and the clearing one exists
+     * only because `onAccountChanged` holds the previous account's folder list.
+     */
+    @Test
+    fun `the unread scope has exactly two writers, and each says what it writes`() {
+        val writes = codeText(INBOX_VIEW_MODEL).map { it.trim() }.filter { it.startsWith("unreadScopes.value") }
+        assertEquals(
+            "InboxViewModel must fill the unread view's scope from the folder list the [mailboxes] " +
+                "flow just delivered, with the account THAT FLOW is scoped to (currentAccountId.value, " +
+                "not a fresh store read — #121), and clear it on an account switch, where the folder " +
+                "list in hand is still the previous account's. Nothing else may write it. Writes " +
+                "found were:\n${writes.joinToString("\n")}",
+            listOf(
+                "unreadScopes.value = emptyList()",
+                "unreadScopes.value = unreadViewScopes(currentAccountId.value, folders)",
+            ),
+            writes.sorted(),
+        )
+    }
+
+    /**
+     * ⛔ SOURCE LINT, and a LAST RESORT — read this before trusting it.
+     *
+     * What it pins is the DECISION of the `Sel.Unread` branch of `pagedEmails`: which scope list the
+     * pager is built from, and that its unread filter is the literal `true` rather than the toolbar's
+     * toggle. That decision cannot be executed here — `pagedEmails` is a property of an
+     * `AndroidViewModel`, and the pager under it needs Room. What CAN be executed is the scope the
+     * branch is handed ([unreadViewScopes], run in `UnreadViewScopesTest`) and the key it is handed it
+     * through ([pageKeyFlow], run in `PageKeyFlowTest`); this rule is the one link between them that
+     * no JVM test can reach, and it is written as a whole ARGUMENT LIST, never as "the call exists".
+     *
+     * The forced `true` is the point. This view is called "Unread": with the funnel off, `key.unreadOnly`
+     * is false and the very same screen lists the account's whole mail under that name (WYSIWYG). The
+     * mutation `unreadOnly = true` → `key.unreadOnly` compiles, changes nothing anywhere else, and is
+     * exactly the defect — so it has to redden something, and this is the only thing it can redden.
+     */
+    @Test
+    fun `each multi-folder pager is built from its own scope list, and the unread one forces the filter`() {
+        assertEquals(
+            "InboxViewModel must build exactly two multi-folder pagers — the unified inbox and the " +
+                "unread scope — with these arguments. Compared as whole lists: 'key.unifiedScopes' in " +
+                "the unread branch pages every account's Inbox under a name that promises one " +
+                "account's unread mail, and 'key.unreadOnly' in place of listUnreadOnly(...) lists " +
+                "that account's READ mail too the moment the toolbar funnel is off. Calls found were:" +
+                "\n${pagedMailboxCalls().joinToString("\n")}",
+            listOf(
+                listOf(
+                    "key.unifiedScopes", "key.sort", "listUnreadOnly(key.sel, key.unreadOnly)",
+                    "key.conversationView", "sent",
+                ),
+                listOf(
+                    "key.unreadScopes", "key.sort", "listUnreadOnly(key.sel, key.unreadOnly)",
+                    "key.conversationView", "sent",
+                ),
+            ),
+            // Sorted, so reordering the branches of the `when` is not an error — which of the two
+            // is written first says nothing.
+            pagedMailboxCalls().sortedBy { it.joinToString(",") },
         )
     }
 
@@ -136,7 +247,30 @@ class PageKeyWiringLintTest {
                 "key. Found ${calls.size}.",
             1, calls.size,
         )
-        val inside = balanced(text, calls.single().range.last)
+        return splitArguments(balanced(text, calls.single().range.last))
+    }
+
+    /**
+     * The arguments of EVERY `repo.pagedMailbox(` call in `InboxViewModel.kt`, one list per call, in
+     * source order. Fails loudly on anything but exactly two: the unified inbox's and the unread
+     * scope's. A third would be a third multi-folder view, which has to be judged here rather than
+     * silently ignored.
+     */
+    private fun pagedMailboxCalls(): List<List<String>> {
+        val text = codeText(INBOX_VIEW_MODEL).joinToString("\n")
+        val calls = Regex("""\brepo\.pagedMailbox\s*\(""").findAll(text).toList()
+        assertEquals(
+            "InboxViewModel is expected to build exactly two pagers over a list of (account, folder) " +
+                "scopes — the unified inbox and the unread scope. Found ${calls.size}.",
+            2, calls.size,
+        )
+        return calls.map { splitArguments(balanced(text, it.range.last)) }
+    }
+
+    /** [inside] split on the commas that sit at its own bracket depth, whitespace collapsed — so a
+     *  call the formatter spread over eight lines reads the same as one written on a line, and a
+     *  nested call's arguments cannot be mistaken for the call's own. */
+    private fun splitArguments(inside: String): List<String> {
         val pieces = mutableListOf<String>()
         val current = StringBuilder()
         var depth = 0
@@ -268,13 +402,14 @@ class PageKeyWiringLintTest {
         private val GLUED = Regex("""^\s*\??\.""")
 
         /**
-         * The six pairs the call site must spell. Whole pairs, and the ORDER is not compared: naming
+         * The seven pairs the call site must spell. Whole pairs, and the ORDER is not compared: naming
          * every argument is what makes the call readable, and a reordered named call is the same call.
          * What is compared is that each parameter gets its own flow and no other.
          */
         private val EXPECTED_ARGUMENTS = listOf(
             "selection = selection",
             "unifiedInboxScopes = unifiedInboxScopes",
+            "unreadViewScopes = unreadScopes",
             "sortOrder = settings.sortOrder",
             "unreadOnly = unreadOnly",
             "conversationView = settings.conversationView",

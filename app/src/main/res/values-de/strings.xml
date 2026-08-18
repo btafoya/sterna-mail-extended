@@ -72,6 +72,8 @@
     <string name="inbox_switch_account">Konto wechseln</string>
     <string name="inbox_all_inboxes">Alle Posteingänge</string>
     <string name="inbox_all_inboxes_unread">Alle Posteingänge  (%1$d)</string>
+    <string name="inbox_unread_view">Ungelesen</string>
+    <string name="inbox_unread_view_unread">Ungelesen  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
     <string name="inbox_folder_options">Ordneroptionen</string>
     <string name="inbox_folder_watch">Bei neuen E-Mails benachrichtigen</string>
@@ -875,6 +877,7 @@
     <string name="empty_search_body">Nichts gefunden. Versuch es mit anderen Worten.</string>
     <string name="empty_unread_title">Keine ungelesenen Nachrichten</string>
     <string name="empty_unread_body">Hier ist alles gelesen. Schalte den Ungelesen-Filter aus, um alle E-Mails zu sehen.</string>
+    <string name="empty_unread_view_body">In deinen Ordnern ist alles gelesen.</string>
     <string name="empty_unread_action">Alle anzeigen</string>
     <string name="inbox_empty_trash">Papierkorb leeren</string>
     <string name="status_trash_emptied">Papierkorb wird geleert…</string>

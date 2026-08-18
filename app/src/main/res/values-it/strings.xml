@@ -72,6 +72,8 @@
     <string name="inbox_switch_account">Cambia account</string>
     <string name="inbox_all_inboxes">Tutte le caselle di posta</string>
     <string name="inbox_all_inboxes_unread">Tutte le caselle di posta  (%1$d)</string>
+    <string name="inbox_unread_view">Non letti</string>
+    <string name="inbox_unread_view_unread">Non letti  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
     <string name="inbox_folder_options">Opzioni cartella</string>
     <string name="inbox_folder_watch">Notifica le nuove email</string>
@@ -881,6 +883,7 @@
     <string name="empty_search_body">Nessun risultato. Prova con parole diverse.</string>
     <string name="empty_unread_title">Nessun messaggio non letto</string>
     <string name="empty_unread_body">Hai letto tutto qui. Disattiva il filtro non letti per vedere tutta la posta.</string>
+    <string name="empty_unread_view_body">Hai letto tutto nelle tue cartelle.</string>
     <string name="empty_unread_action">Mostra tutti</string>
     <string name="inbox_empty_trash">Svuota cestino</string>
     <string name="status_trash_emptied">Svuotamento del cestino…</string>

@@ -33,10 +33,11 @@ import org.junit.Test
  *
  * Both directions matter, and the second one more:
  *  - an equal value re-emitted upstream must produce NOTHING (the bug);
- *  - a change in ANY ONE of the six members must produce a key (a dedupe that swallows a real change
- *    is worse than the bug it fixes: the list would keep showing another folder's, another account's
- *    or another sort's rows). That second half is also what pins [PageKey]'s value equality — a
- *    member added later without it, or added and never read here, reddens exactly one of the six.
+ *  - a change in ANY ONE of the seven members must produce a key (a dedupe that swallows a real
+ *    change is worse than the bug it fixes: the list would keep showing another folder's, another
+ *    account's or another sort's rows). That second half is also what pins [PageKey]'s value
+ *    equality — a member added later without it, or added and never read here, reddens exactly one
+ *    of the seven.
  *
  * The inputs are [MutableSharedFlow]s rather than `MutableStateFlow`s on purpose: a StateFlow
  * conflates an equal assignment all by itself, so it cannot even express the re-emission this is
@@ -70,6 +71,7 @@ class PageKeyFlowTest {
     // Fixed inputs — literals, never derived from the function under test.
     private val selection = Input<Sel>(Sel.Folder("inbox-a"))
     private val scopes = Input(listOf("a" to "inbox-a", "b" to "inbox-b"))
+    private val unreadScopes = Input(listOf("a" to "inbox-a", "a" to "archive-a"))
     private val sort = Input(SortOrder.DATE_DESC)
     private val unread = Input(false)
     private val conversation = Input(true)
@@ -83,6 +85,7 @@ class PageKeyFlowTest {
                 pageKeyFlow(
                     selection.flow,
                     scopes.flow,
+                    unreadScopes.flow,
                     sort.flow,
                     unread.flow,
                     conversation.flow,
@@ -98,13 +101,14 @@ class PageKeyFlowTest {
     }
 
     @Test
-    fun `the first collection yields exactly one key, built from the six inputs`() {
+    fun `the first collection yields exactly one key, built from the seven inputs`() {
         val seen = keys {}
         assertEquals("subscribing must produce one key, not none and not two: $seen", 1, seen.size)
         assertEquals(
             PageKey(
                 sel = Sel.Folder("inbox-a"),
                 unifiedScopes = listOf("a" to "inbox-a", "b" to "inbox-b"),
+                unreadScopes = listOf("a" to "inbox-a", "a" to "archive-a"),
                 sort = SortOrder.DATE_DESC,
                 unreadOnly = false,
                 conversationView = true,
@@ -125,6 +129,7 @@ class PageKeyFlowTest {
         val seen = keys {
             selection.again(); runCurrent()
             scopes.again(); runCurrent()
+            unreadScopes.again(); runCurrent()
             sort.again(); runCurrent()
             unread.again(); runCurrent()
             conversation.again(); runCurrent()
@@ -151,7 +156,7 @@ class PageKeyFlowTest {
         assertEquals(listOf(false, true, false), seen.map { it.unreadOnly })
     }
 
-    // -- the other direction: each of the six members must still rebuild the pager ---------------
+    // -- the other direction: each of the seven members must still rebuild the pager -------------
     //
     // One test per member, each moving a value that differs in that member ALONE. A guard that
     // stopped reading one of them, or a PageKey member that lost its value equality, reddens exactly
@@ -181,6 +186,71 @@ class PageKeyFlowTest {
         assertEquals("the unified scope set is part of the query: $seen", 2, seen.size)
         assertEquals(
             listOf(listOf("a" to "inbox-a", "b" to "inbox-b"), listOf("a" to "inbox-a")),
+            seen.map { it.unifiedScopes },
+        )
+    }
+
+    @Test
+    fun `switching to the unread scope rebuilds`() {
+        // The third variant is a data object like Sel.Unified, so it compares by value — and it
+        // pages a different query from either of the other two.
+        val seen = keys { selection.value = Sel.Unread }
+        assertEquals("Folder to Unread must be paged afresh: $seen", 2, seen.size)
+        assertEquals(listOf<Sel>(Sel.Folder("inbox-a"), Sel.Unread), seen.map { it.sel })
+    }
+
+    @Test
+    fun `a folder appearing in the unread scope rebuilds`() {
+        // The unread view's folder set is not fixed: a folder created, deleted, or given a role by
+        // the server changes what it pages, and that change reaches the pager only through this
+        // member. A key built without reading it — the stage dropped from the chain — leaves the
+        // list showing the folders the view had when it opened, for good.
+        val seen = keys { unreadScopes.value = listOf("a" to "inbox-a", "a" to "archive-a", "a" to "projets") }
+        assertEquals("the unread view's folder set is part of the query: $seen", 2, seen.size)
+        assertEquals(
+            listOf(
+                listOf("a" to "inbox-a", "a" to "archive-a"),
+                listOf("a" to "inbox-a", "a" to "archive-a", "a" to "projets"),
+            ),
+            seen.map { it.unreadScopes },
+        )
+    }
+
+    @Test
+    fun `an unread scope emptied on an account switch rebuilds`() {
+        // onAccountChanged clears this list rather than recomputing it from the folder list in
+        // hand, which is the PREVIOUS account's. That clearing has to reach the pager, or the list
+        // keeps paging the other account's folders under the new account's name (#121).
+        val seen = keys { unreadScopes.value = emptyList() }
+        assertEquals("emptying the unread scope must reach the pager: $seen", 2, seen.size)
+        assertEquals(emptyList<Pair<String, String>>(), seen.last().unreadScopes)
+    }
+
+    @Test
+    fun `the unread scope and the unified scope are separate members`() {
+        // Two lists of pairs of the same type, adjacent in the key and interchangeable to the
+        // compiler: the one mistake worth pinning is the two flows folded into one member. Moving
+        // ONLY the unified list must leave the unread one where it was, and the reverse.
+        val seen = keys {
+            scopes.value = listOf("a" to "inbox-a")
+            runCurrent()
+            unreadScopes.value = listOf("a" to "inbox-a")
+        }
+        assertEquals("each list moving on its own must rebuild once: $seen", 3, seen.size)
+        assertEquals(
+            listOf(
+                listOf("a" to "inbox-a", "a" to "archive-a"),
+                listOf("a" to "inbox-a", "a" to "archive-a"),
+                listOf("a" to "inbox-a"),
+            ),
+            seen.map { it.unreadScopes },
+        )
+        assertEquals(
+            listOf(
+                listOf("a" to "inbox-a", "b" to "inbox-b"),
+                listOf("a" to "inbox-a"),
+                listOf("a" to "inbox-a"),
+            ),
             seen.map { it.unifiedScopes },
         )
     }

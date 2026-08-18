@@ -78,14 +78,21 @@ class SelectAllWiringTest {
     @Test fun `the folder branch is read through the list's own filter`() {
         // The second half of #126: the navigation list is filtered in SQL by "unread only", so the
         // selection must be too, or the funnel plus Select all plus delete moves read mail that was
-        // never on screen to the Trash. `filtered` must be the LIVE funnel state — a call handed
-        // `false` satisfies the argument rule above only if that constant is written there, and
-        // this rule is what makes writing it impossible without going through the funnel.
+        // never on screen to the Trash. `filtered` must be what the LIST was built with — a call
+        // handed `false` satisfies the argument rule above only if that constant is written there,
+        // and this rule is what makes writing it impossible.
+        //
+        // ⚠ It used to demand the raw funnel (`val filtered = unreadOnly.value`), and that stopped
+        // being the list's filter when a third scope arrived: `Sel.Unread` forces the filter on
+        // whatever the funnel says, so the raw read reopened #126 by construction. The one source
+        // both the pager and this read now ask is `listUnreadOnly`, executed in ListUnreadOnlyTest
+        // and wired-checked whole-line in PageKeyWiringLintTest.
         val body = body(INBOX_VIEW_MODEL, "selectAll").replace(Regex("""\s+"""), " ")
         assertTrue(
-            "selectAll() must read the live 'unread only' state (val filtered = unreadOnly.value) " +
-                "and hand it to the folder read. Body was:\n$body",
-            "val filtered = unreadOnly.value" in body,
+            "selectAll() must take the list's own unread filter from listUnreadOnly(selection.value, " +
+                "unreadOnly.value) — the same decision the pager was built with — and hand it to the " +
+                "folder read. Body was:\n$body",
+            "val filtered = listUnreadOnly(selection.value, unreadOnly.value)" in body,
         )
         assertTrue(
             "selectAll() must not read the folder unfiltered: repo.cachedIds() is the whole folder, " +
