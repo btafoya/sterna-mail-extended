@@ -25,6 +25,7 @@ import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.EmailKey
+import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.InboxRow
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.MailSearchResult
@@ -2242,6 +2243,35 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * The IMAP numbering of every source folder [keys] name, as recorded RIGHT NOW — i.e. at the
+     * gesture, which is the only moment this may be read. Account first, then folder: the same
+     * mailbox id in two accounts is two different folders with two different numberings, and a
+     * unified selection spans both.
+     *
+     * The folder comes from the ID, exactly as `MailRepository` groups its batches by it — not
+     * from the cached row's `mailboxId`, which the sync writes and which can disagree with the id
+     * a batch will actually be routed by.
+     *
+     * One read per (account, folder), never per message: a select-all is thousands of ids over a
+     * handful of folders. Empty for a JMAP account — `recordedUidValidity` answers null there, an
+     * id surviving anything a mailbox can go through — and empty is what the batch then opposes,
+     * which on JMAP is nothing to oppose and nothing to refuse.
+     *
+     * Twin of [recordedNumbering], which does the same for the held-back destroy; kept apart
+     * because that one is keyed by the row's folder and this one by the id's.
+     */
+    private suspend fun selectionNumbering(keys: Collection<EmailKey>): Map<String, Map<String, Long?>> {
+        val byAccount = mutableMapOf<String, MutableMap<String, Long?>>()
+        keys.forEach { key ->
+            val credentials = credentialsFor(key) ?: return@forEach
+            val folder = ImapMailService.mailboxOf(key.emailId) ?: return@forEach
+            val folders = byAccount.getOrPut(credentials.id) { mutableMapOf() }
+            if (folder !in folders) folders[folder] = repo.recordedUidValidity(credentials, folder)
+        }
+        return byAccount
+    }
+
+    /**
      * Delete the selection: the subset whose delete would permanently destroy (in Trash, or no
      * Trash) is held back behind Undo exactly like a swipe delete — never destroyed inline — so
      * bulk delete is consistent (Codeberg #23); the rest keeps the move-to-Trash bulk path.
@@ -2255,6 +2285,11 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSelected() {
         val keys = _selectedKeys.value
         viewModelScope.launch {
+            // Frozen AT THE GESTURE, and carried into the batch: an IMAP UID means something only
+            // inside one numbering, and a bulk delete is a bulk MOVE to the Trash that runs after
+            // the whole selection has been resolved (#99). Read at execution instead, it would be
+            // the numbering of whatever the folder had become by then.
+            val numbering = selectionNumbering(keys)
             val resolved = resolveSelectionTargets(
                 keys = keys,
                 cached = repo.cachedEmailsByIds(keys),
@@ -2279,7 +2314,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                     keys = plan.move.mapTo(mutableSetOf()) { it.emailKey() },
                     attemptedBefore = plan.destroy.size + lost,
                     failedBefore = lost,
-                ) { c, batch -> repo.deleteAll(c, batch) }
+                ) { c, batch -> repo.deleteAll(c, batch, numbering[c.id].orEmpty()) }
             } else {
                 // Nothing to move: delegating an empty batch just to speak would drop the sync
                 // cursors and re-query the whole folder for an action that wrote nothing. Say it
@@ -2292,7 +2327,23 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    fun archiveSelected() = bulkBatched(undoLabelRes = R.plurals.status_selection_archived) { c, ids -> repo.archiveAll(c, ids) }
+    /** Archive the selection. A block, not an expression body: freezing the source folders'
+     *  numbering is a suspending read, and it has to happen HERE, at the tap (#99).
+     *
+     *  ⚠ The selection is cleared SYNCHRONOUSLY, before that read. `bulkBatched` clears it too,
+     *  but it now runs a suspension later: leaving the bar up in between lets a second tap fire
+     *  the whole batch again, on the same keys. */
+    fun archiveSelected() {
+        val keys = _selectedKeys.value
+        clearSelection()
+        viewModelScope.launch {
+            val numbering = selectionNumbering(keys)
+            bulkBatched(
+                undoLabelRes = R.plurals.status_selection_archived,
+                keys = keys,
+            ) { c, ids -> repo.archiveAll(c, ids, numbering[c.id].orEmpty()) }
+        }
+    }
 
     /**
      * Move the selection to [targetMailboxId] (used for unarchive → Inbox and move-to-folder).
@@ -2313,6 +2364,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             val (movable, skipped) = keys.partition { it.accountId == moveAccountId }
             clearSelection()
             if (movable.isNotEmpty()) {
+                // Frozen at the gesture, for the movable subset only — the other account's
+                // messages are not moved and have no folder here to oppose (#99).
+                val numbering = selectionNumbering(movable)
                 // Undoable like archive and delete: moving from the reader offers it (#73), and the
                 // same gesture in the list must not be the one you cannot take back.
                 // The set-aside messages travel with the delegation — they were attempts, and they
@@ -2323,7 +2377,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                     keys = movable.toMutableSet(),
                     attemptedBefore = skipped.size,
                     failedBefore = skipped.size,
-                ) { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId) }
+                ) { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId, numbering[c.id].orEmpty()) }
             } else if (skipped.isNotEmpty()) {
                 // Nothing movable: delegating an empty batch just to speak would drop the sync
                 // cursors and re-query the whole folder for an action that wrote nothing. Say it
@@ -2334,8 +2388,31 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun reportSpamSelected() = bulkBatched { c, ids -> repo.reportSpamAll(c, ids) }
-    fun notSpamSelected() = bulkBatched { c, ids -> repo.notSpamAll(c, ids) }
+    /**
+     * Report the selection as spam / take it back out of Junk — both MOVES on IMAP, and both were
+     * left out of the numbering freeze at first. That cost the whole gesture: with nothing frozen
+     * the batch refuses every id, the bar says the action failed, nothing moves — and
+     * `markReadOnMoveOutOfInbox` has already flagged them `\Seen` on the server (#99).
+     *
+     * Blocks, not expression bodies, for [archiveSelected]'s reason: freezing is a suspending read.
+     */
+    fun reportSpamSelected() {
+        val keys = _selectedKeys.value
+        clearSelection()
+        viewModelScope.launch {
+            val numbering = selectionNumbering(keys)
+            bulkBatched(keys = keys) { c, ids -> repo.reportSpamAll(c, ids, numbering[c.id].orEmpty()) }
+        }
+    }
+
+    fun notSpamSelected() {
+        val keys = _selectedKeys.value
+        clearSelection()
+        viewModelScope.launch {
+            val numbering = selectionNumbering(keys)
+            bulkBatched(keys = keys) { c, ids -> repo.notSpamAll(c, ids, numbering[c.id].orEmpty()) }
+        }
+    }
 
     /** Snooze the whole selection until [until] (hidden now, returns to the inbox then). */
     fun snoozeSelected(until: Long) = bulk { c, id ->

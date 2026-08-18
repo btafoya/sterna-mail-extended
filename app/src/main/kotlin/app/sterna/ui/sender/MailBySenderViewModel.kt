@@ -15,6 +15,7 @@ import app.sterna.core.data.filter.alreadyBlocked
 import app.sterna.core.data.filter.blockableSender
 import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.FilterRulesState
+import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.SenderVolume
 import app.sterna.core.jmap.model.Mailbox
@@ -240,7 +241,22 @@ internal fun restoreTargets(
  * differ from this one, and this one is the true one. There is deliberately no `total` field
  * here: a dialog that cannot reach the stale number cannot print it.
  */
-data class PendingDelete(val sender: SenderVolume, val ids: List<String>)
+data class PendingDelete(
+    val sender: SenderVolume,
+    val ids: List<String>,
+    /**
+     * The IMAP numbering each source folder of [ids] was recorded under WHEN THE IDS WERE READ,
+     * by folder — what the move to the Trash opposes to what the server then states (#99).
+     *
+     * ⛔ Frozen with the ids, in `askDelete`, and never re-read in `confirmDelete`. The dialog
+     * stays up for as long as the user leaves it, and a background pass that sees the folder
+     * renumbered meanwhile calls `UidValidityStore.invalidate`, which RECORDS the new number
+     * while the ids held here still belong to the old one. Read at the confirmation, the guard
+     * would oppose that new number to itself, conclude SAME, and the `UID MOVE` would go out on
+     * stale UIDs — on the one path in the app that has a confirmation to protect.
+     */
+    val numbering: Map<String, Long?> = emptyMap(),
+)
 
 /** One row of the screen. */
 data class MailBySenderUiState(
@@ -442,7 +458,12 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
         if (_state.value.working) return
         viewModelScope.launch {
             val ids = repo.senderMessageIds(credentials.id, sender.email)
-            _state.value = _state.value.copy(pending = PendingDelete(sender, ids))
+            // Frozen HERE, with the ids, not at the confirmation: see [PendingDelete.numbering].
+            // One read per distinct source folder, off the ids themselves — the key
+            // `MailRepository` will group the batch by.
+            val numbering = ids.mapNotNull { ImapMailService.mailboxOf(it) }.distinct()
+                .associateWith { repo.recordedUidValidity(credentials, it) }
+            _state.value = _state.value.copy(pending = PendingDelete(sender, ids, numbering))
         }
     }
 
@@ -468,7 +489,10 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 // the undo needs each message's source folder to move it back to.
                 val sources = repo.cachedEmailsByIds(ids.map { EmailKey(credentials.id, it) })
                     .associate { it.id to it.mailboxId }
-                val result = runCatching { repo.deleteAll(credentials, ids) }
+                // The numbering ARRIVES with the confirmation, exactly as the ids do, and is not
+                // read here: see [PendingDelete.numbering] for what a read at this point would
+                // answer, and why that is the value the guard exists to refuse (#99).
+                val result = runCatching { repo.deleteAll(credentials, ids, pending.numbering) }
                     .getOrElse { MailRepository.BulkResult(emptySet(), ids.toSet()) }
                 val targets = restoreTargets(result.succeeded, sources, result.dest)
                 // Partial and total are not the same news, and this screen used to tell both at

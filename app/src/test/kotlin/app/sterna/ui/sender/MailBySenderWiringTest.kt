@@ -488,9 +488,11 @@ class MailBySenderWiringTest {
         )
         assertTrue(
             "…and must hand that list WHOLE to the confirmation, as 'PendingDelete(sender, " +
-                "ids)': anything narrower is a gesture doing less than the row it came from " +
-                "says, with the dialog agreeing with itself all the way down. Body was:\n$body",
-            "PendingDelete(sender, ids)" in body,
+                "ids, numbering)': anything narrower is a gesture doing less than the row it came " +
+                "from says, with the dialog agreeing with itself all the way down. The third " +
+                "argument is the ids' frozen IMAP numbering, frozen HERE with them (#99, " +
+                "MoveNumberingAtTheGestureTest). Body was:\n$body",
+            "PendingDelete(sender, ids, numbering)" in body,
         )
     }
 

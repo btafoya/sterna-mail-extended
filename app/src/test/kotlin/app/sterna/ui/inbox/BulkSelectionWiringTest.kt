@@ -365,20 +365,37 @@ class BulkSelectionWiringTest {
     }
 
     /**
-     * The archive is the one selection path with no body of its own to read — a single expression,
-     * so the two rules above have nothing to bite on. Pinned whole here instead, because nothing
-     * else in the suite names it: `undoLabelRes = null` there silently drops the archive's banner
-     * AND its Undo button (the regression Codeberg #23 closed), and the delete's plural there
-     * announces "3 messages deleted" for three archived. Both stay green everywhere else.
+     * The archive stopped being a single expression the day its source folders' numbering had to be
+     * frozen at the tap (#99), so it is pinned WHOLE here rather than as one delegation line —
+     * nothing else in the suite names it, and three separate things must all hold at once.
+     *
+     * `undoLabelRes = null` there silently drops the archive's banner AND its Undo button (the
+     * regression Codeberg #23 closed), and the delete's plural there announces "3 messages deleted"
+     * for three archived: both stay green everywhere else. The freeze adds two more. The numbering
+     * is read HERE, at the tap, because read at execution it would be whatever the folder had
+     * become by then — the defect the whole of #99 is about. And `clearSelection()` is called
+     * SYNCHRONOUSLY, before the suspending read: `bulkBatched` clears the selection too, but it now
+     * does so a suspension later, and a bar left up in between lets a second tap fire the same
+     * batch again on the same keys.
      */
     @Test fun `the archive delegates under its own plural, and offers an Undo`() {
+        val body = body(INBOX_VIEW_MODEL, "archiveSelected")
         assertEquals(
-            "archiveSelected() must be exactly this delegation. Source was:\n$INBOX_VIEW_MODEL",
+            "archiveSelected() must read exactly this. Body was:\n$body",
             listOf(
-                "fun archiveSelected() = bulkBatched(undoLabelRes = R.plurals.status_selection_archived) " +
-                    "{ c, ids -> repo.archiveAll(c, ids) }",
+                "fun archiveSelected() {",
+                "val keys = _selectedKeys.value",
+                "clearSelection()",
+                "viewModelScope.launch {",
+                "val numbering = selectionNumbering(keys)",
+                "bulkBatched(",
+                "undoLabelRes = R.plurals.status_selection_archived,",
+                "keys = keys,",
+                ") { c, ids -> repo.archiveAll(c, ids, numbering[c.id].orEmpty()) }",
+                "}",
+                "}",
             ),
-            codeLinesNaming(INBOX_VIEW_MODEL.readText(), "fun archiveSelected()"),
+            body.lines().map { it.replace(Regex("""\s+"""), " ").trim() },
         )
     }
 
@@ -525,8 +542,10 @@ class BulkSelectionWiringTest {
         assertEquals(
             "and the batch it hands over is the move itself — the trailing lambda sits OUTSIDE " +
                 "the parentheses, so the argument list above never sees it, and swapping the repo " +
-                "call there sends the selection to another folder entirely. Body was:\n$body",
-            listOf(") { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId) }"),
+                "call there sends the selection to another folder entirely. The numbering " +
+                "argument is the source folders' frozen UIDVALIDITY (#99, MoveNumberingAtTheGestureTest). " +
+                "Body was:\n$body",
+            listOf(") { c, batch -> repo.moveAllToMailbox(c, batch, targetMailboxId, numbering[c.id].orEmpty()) }"),
             codeLinesNaming(body, "repo."),
         )
     }

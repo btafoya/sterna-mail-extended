@@ -1265,6 +1265,17 @@ private fun MessageContent(
         Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
         viewModel.clearSenderRuleStatus()
     }
+    // The word a failed action on the OPEN message leaves behind (#99). A toast and not the error
+    // screen: the message is still there, and still readable — see `readerActionFailureText`.
+    // ⛔ It belongs HERE, in the composable's own body, beside the effect above and outside every
+    // menu and dialog: moved inside one, it is disposed the moment the menu closes on the tap
+    // that caused the failure, and the refusal is never shown at all.
+    val actionStatus by viewModel.actionStatus.collectAsStateWithLifecycle()
+    LaunchedEffect(actionStatus) {
+        val status = actionStatus ?: return@LaunchedEffect
+        Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
+        viewModel.clearActionStatus()
+    }
     val senderRule = SenderRuleOffer(
         entryFor = { isSender, address ->
             senderRuleEntry(

@@ -116,6 +116,18 @@ data class ImapFolderHits(
     val mailbox: String,
     val messages: List<ImapMessage>,
     val incomplete: Boolean = false,
+    /**
+     * The folder's UIDVALIDITY as the SELECT of this walk stated it, or 0 when it stated none.
+     *
+     * ⭐ Reported, not acted on — nothing here refuses anything, and this file's rule is unchanged
+     * (see `UidValidityTest`, "a server announcing no numbering is not turned into a refusal").
+     * It is carried because the walk had already asked: `select()` returns it and this walk used
+     * to DROP it, so a folder reached only by a server-side search left no trace of its numbering
+     * anywhere. The caller then had nothing to freeze, and acting on a hit — archiving it, moving
+     * it, deleting it — was refused on a perfectly healthy server (Codeberg #99). Recording it is
+     * `ImapMailService.reconcileNumbering`'s job, one layer up.
+     */
+    val uidValidity: Long = 0L,
 )
 
 /** How many UIDs are fetched per `UID FETCH` while walking candidates for the attachment filter. */
@@ -167,8 +179,12 @@ fun ImapSession.searchFolders(
     val hits = mutableListOf<ImapFolderHits>()
     for (mailbox in mailboxes) {
         if (!stillWanted()) break
+        // What the SELECT states about this folder's numbering, kept instead of dropped: see
+        // [ImapFolderHits.uidValidity]. 0 for a folder whose SELECT failed — there is nothing to
+        // report about a folder that was never entered.
+        var observed = 0L
         val scan = try {
-            select(mailbox)
+            observed = select(mailbox).uidValidity
             searchOneFolder(command, requireAttachment, limit)
         } catch (t: Throwable) {
             onFolderError(mailbox, t)
@@ -176,7 +192,7 @@ fun ImapSession.searchFolders(
             continue
         }
         if (scan.messages.isNotEmpty() || scan.truncated) {
-            hits += ImapFolderHits(mailbox, scan.messages, incomplete = scan.truncated)
+            hits += ImapFolderHits(mailbox, scan.messages, incomplete = scan.truncated, uidValidity = observed)
         }
     }
     return hits

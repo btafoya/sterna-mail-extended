@@ -138,6 +138,60 @@ object UidValidity {
     }
 
     /**
+     * One leg of an Undo: everything ONE move-back needs, and nothing that has to be looked up.
+     *
+     * [frozenUidValidity] is [currentFolder]'s numbering AS `COPYUID` STATED IT when the forward
+     * move landed the mail there — the number [messages]' UIDs belong to, frozen with them.
+     */
+    data class ImapUndoRoute(
+        val currentFolder: String,
+        val sourceFolder: String,
+        val frozenUidValidity: Long?,
+        /** (UID in [currentFolder], emailId), in the order the targets came. */
+        val messages: List<Pair<Long, String>>,
+    ) {
+        val uids: List<Long> get() = messages.map { it.first }
+    }
+
+    /**
+     * How an Undo of a batch of moves splits into move-backs: by (folder the mail sits in NOW,
+     * folder it goes home to, numbering that folder stated when the mail landed in it).
+     *
+     * ⭐ THE NUMBERING IS PART OF THE KEY, and that is the decision this function exists to make
+     * executable. A UIDVALIDITY belongs to a folder AT A TIME, not to a folder: two waves moved
+     * into the same Trash either side of a renumbering carry UIDs of two different numberings, and
+     * a single `UID MOVE` can only oppose one of them. Merging them would mean either sending the
+     * older wave's UIDs out under the newer number — the exact #99 accident, moving whatever now
+     * holds those numbers — or refusing the newer wave along with the older. Splitting refuses
+     * only the lot that cannot be confirmed. It costs one extra command in a case that needs a
+     * renumbering mid-undo-window to happen at all.
+     *
+     * ⛔ An id [landedAt] knows nothing about is DROPPED, silently and without a route: no COPYUID
+     * came back for it, so nothing knows where it went or under what number — the case
+     * `ImapSession.move` documents as "the move still happened; only per-message Undo positioning
+     * is lost". It was already lost before this function existed; it must not become a refusal
+     * with a message, which would be a new noise on a path that was always mute. `restoreAll`
+     * reports it exactly as it did: the id is simply not among the restored ones.
+     *
+     * Pure, and separate from `MailRepository`, for [imapDestroyPlan]'s reason: the repository
+     * needs Room and a `Context`, so a routing left inside it is a routing no test can RUN — and
+     * a routing nothing runs is a routing a mutation walks through.
+     */
+    fun imapUndoRoutes(
+        targets: List<Pair<String, String>>,
+        landedAt: (String) -> ImapLoc?,
+    ): List<ImapUndoRoute> {
+        val byRoute = LinkedHashMap<Triple<String, String, Long?>, MutableList<Pair<Long, String>>>()
+        targets.forEach { (emailId, sourceFolder) ->
+            val loc = landedAt(emailId) ?: return@forEach
+            byRoute.getOrPut(Triple(loc.mailboxId, sourceFolder, loc.uidValidity)) { mutableListOf() } += loc.uid to emailId
+        }
+        return byRoute.map { (route, messages) ->
+            ImapUndoRoute(route.first, route.second, route.third, messages.toList())
+        }
+    }
+
+    /**
      * The `LIKE` pattern matching every cached id of one IMAP folder, with SQL's own wildcards
      * escaped: a folder called `a_b` would otherwise match `axb` too and take a neighbour's
      * cached bodies with it. Backslash first, or it would escape the escapes.
@@ -148,6 +202,22 @@ object UidValidity {
             .replace("%", "\\%")
             .replace("_", "\\_") + "%"
 }
+
+/**
+ * Where a forward IMAP move put a message, as `MailRepository.lastImapMove` holds it for the
+ * Undo — the destination folder, the UID the message got there, and THAT FOLDER'S NUMBERING at
+ * that instant, all three as one `COPYUID` stated them (Codeberg #99).
+ *
+ * ⭐ [uidValidity] is a freeze, never a reading. The Undo is a move OUT of [mailboxId], so
+ * [mailboxId]'s numbering is what it must oppose — and the app has no other way to know it: a
+ * `UID MOVE` never SELECTs its destination, and nothing else in the flow does either, so the
+ * value recorded for a Trash the user has never opened is null and the Undo of an ordinary delete
+ * was refused outright. Null here still means "nothing to oppose", which refuses; it is what a
+ * server that reports no COPYUID leaves behind.
+ *
+ * In memory only, exactly like the map that holds it: an Undo does not survive the process.
+ */
+data class ImapLoc(val mailboxId: String, val uid: Long, val uidValidity: Long?)
 
 /**
  * The server did not confirm [mailbox]'s numbering, so a destroy frozen under [expected] was

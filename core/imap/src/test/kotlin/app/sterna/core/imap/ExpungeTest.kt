@@ -3,8 +3,10 @@ package app.sterna.core.imap
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.SocketTimeoutException
 import java.util.Collections
 
 /**
@@ -366,7 +368,7 @@ class ExpungeTest {
             // The move itself still happened, in several chunks, and still reports its COPYUIDs.
             assertTrue("only one chunk: $issued", issued.setsOf("UID COPY").size > 1)
             assertEquals(manyUids, issued.uidsFlagged())
-            assertEquals(manyUids.associateWith { it }, mapping)
+            assertEquals(manyUids.associateWith { it }, mapping.uids)
         }
     }
 
@@ -420,6 +422,158 @@ class ExpungeTest {
             assertTrue("a search went out: $issued", issued.none { it.startsWith("UID SEARCH") })
             assertTrue("the capability was asked for nothing: $issued", issued.none { it.startsWith("CAPABILITY") })
             assertEquals(0, issued.bareExpunges())
+        }
+    }
+
+    /**
+     * The fallback is for a server that has no MOVE extension, and for nothing else. A server that
+     * ADVERTISES MOVE and still refuses the command is reporting a real error — over quota here —
+     * so the refusal must travel up untouched instead of being answered with a copy, a `\Deleted`
+     * flag and a purge of the source folder, which for "delete" is the inbox.
+     */
+    @Test
+    fun `a refused move is not answered with a copy when the server advertises MOVE`() {
+        FakeImapServer { tag, line ->
+            when {
+                line.startsWith("CAPABILITY") ->
+                    "* CAPABILITY IMAP4rev1 LITERAL+ MOVE UIDPLUS\r\n$tag OK capability completed\r\n"
+                line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
+                line.startsWith("UID MOVE") -> "$tag NO [OVERQUOTA] over quota\r\n"
+                line.startsWith("UID COPY") -> "$tag OK [COPYUID 1 1:3 7:9] copy completed\r\n"
+                else -> ok(tag)
+            }
+        }.use { server ->
+            val error = assertThrows(ImapException::class.java) {
+                server.session().use { session ->
+                    session.select("INBOX")
+                    session.move(listOf(1L, 2L, 3L), "Archive")
+                }
+            }
+
+            assertEquals("OVERQUOTA", error.responseCode)
+            val issued = server.issued()
+            assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
+            assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
+            assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
+            assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
+        }
+    }
+
+    /**
+     * The other half of the same decision, and the path that must NOT move: no MOVE in the
+     * capability list, so the very same refusal still takes the copy fallback — servers that
+     * answer `UID MOVE` with a flat refusal because they have never heard of it are why the
+     * fallback exists.
+     */
+    @Test
+    fun `a refused move still falls back to copy when the server does not advertise MOVE`() {
+        FakeImapServer { tag, line ->
+            when {
+                line.startsWith("CAPABILITY") ->
+                    "* CAPABILITY IMAP4rev1 LITERAL+ UIDPLUS\r\n$tag OK capability completed\r\n"
+                line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
+                line.startsWith("UID MOVE") -> "$tag NO [OVERQUOTA] over quota\r\n"
+                line.startsWith("UID COPY") -> "$tag OK [COPYUID 1 1:3 7:9] copy completed\r\n"
+                else -> ok(tag)
+            }
+        }.use { server ->
+            val mapping = server.session().use { session ->
+                session.select("INBOX")
+                session.move(listOf(1L, 2L, 3L), "Archive")
+            }
+
+            val issued = server.issued()
+            assertEquals("the copy did not go out: $issued", listOf("1:3"), issued.setsOf("UID COPY"))
+            assertEquals(listOf(1L, 2L, 3L), issued.uidsFlagged())
+            assertEquals(mapOf(1L to 7L, 2L to 8L, 3L to 9L), mapping.uids)
+        }
+    }
+
+    /**
+     * The probe itself can fail: the socket died with the UID MOVE, so `CAPABILITY` cannot be
+     * answered and "does this server advertise MOVE?" gets no answer. What this pins is that an
+     * unanswerable probe does NOT send the operation down the fallback: the original failure is
+     * rethrown and nothing else is attempted.
+     *
+     * ⚠ It is green on the code before the fix as well — that code also wrote a single probe at a
+     * dead socket, having no probe of its own to write. It is here for the `getOrDefault` that
+     * decides what an unanswerable probe means, which nothing else exercises.
+     *
+     * Driven against a really half-closed socket, which keeps recording what the client writes
+     * after the EOF (see [FakeImapServer.cutAfter]). On a dead socket no `UID COPY` can reach the
+     * wire whatever the decision — the UIDPLUS probe in front of it would fail first — so what
+     * tells "it stopped" from "it went on setting up the fallback" is the number of probes the
+     * client wrote at a server that had already gone: one, not two.
+     */
+    @Test(timeout = 60_000)
+    fun `a move cut mid-command does not enter the fallback on a probe it cannot answer`() {
+        FakeImapServer(
+            responder = { tag, line ->
+                when {
+                    line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
+                    else -> ok(tag)
+                }
+            },
+            cutAfter = { line -> if (line.startsWith("UID MOVE")) emptyList() else null },
+        ).use { server ->
+            assertThrows(ImapException::class.java) {
+                server.session().use { session ->
+                    session.select("INBOX")
+                    session.move(listOf(1L, 2L, 3L), "Archive")
+                }
+            }
+            server.awaitDone()
+
+            val issued = server.issued()
+            assertEquals(
+                "the client kept probing on a dead socket, i.e. it was setting up the copy " +
+                    "fallback without ever having established that MOVE is absent: $issued",
+                1,
+                issued.count { it.startsWith("CAPABILITY") },
+            )
+            assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
+            assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
+            assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
+            assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
+        }
+    }
+
+    /**
+     * The failure the symptom names first, and the one no test above can express: not a refusal
+     * but a SILENCE. [ImapSession.command] wraps neither its write nor its read, so a UID MOVE
+     * that runs out the operation's read budget comes back as a `SocketTimeoutException` from the
+     * socket layer — not as an [ImapException] — and a server that advertises MOVE and went quiet
+     * is one whose mail must stay exactly where it is. Only the UID MOVE goes unanswered here: the
+     * socket is alive, so the capability probe behind it really does get its answer, and the
+     * decision that follows is taken on a real capability list.
+     */
+    @Test(timeout = 60_000)
+    fun `a move that runs out its read budget is not answered with a copy`() {
+        FakeImapServer { tag, line ->
+            when {
+                line.startsWith("CAPABILITY") ->
+                    "* CAPABILITY IMAP4rev1 LITERAL+ MOVE UIDPLUS\r\n$tag OK capability completed\r\n"
+                line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
+                // Never answered at all: the wedged server, the black-holed network.
+                line.startsWith("UID MOVE") -> ""
+                else -> ok(tag)
+            }
+        }.use { server ->
+            val failure = server.session().use { session ->
+                session.select("INBOX")
+                runCatching {
+                    session.withReadTimeout(200) { session.move(listOf(1L, 2L, 3L), "Archive") }
+                }.exceptionOrNull()
+            }
+            server.awaitDone()
+
+            val issued = server.issued()
+            assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
+            assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
+            assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
+            assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
+            assertEquals("the capability was not asked: $issued", 1, issued.count { it.startsWith("CAPABILITY") })
+            assertTrue("expected a read timeout, got $failure", failure is SocketTimeoutException)
         }
     }
 }

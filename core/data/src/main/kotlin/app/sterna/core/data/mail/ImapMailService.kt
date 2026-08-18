@@ -14,6 +14,7 @@ import app.sterna.core.imap.ImapFolderWalk
 import app.sterna.core.imap.ImapIdleConnection
 import app.sterna.core.imap.ImapMailboxStatus
 import app.sterna.core.imap.ImapMessage
+import app.sterna.core.imap.ImapMoved
 import app.sterna.core.imap.ImapSearchCriteria
 import app.sterna.core.imap.ImapSession
 import app.sterna.core.imap.ImapTextPart
@@ -765,22 +766,80 @@ class ImapMailService(
     suspend fun setFlag(credentials: AccountCredentials, mailboxId: String, uid: Long, flag: String, set: Boolean) =
         onMailbox(credentials, mailboxId) { session, _ -> session.setFlag(uid, flag, set) }
 
-    /** Move a message to [destMailbox]; returns its new UID there (for undo), or null. */
-    suspend fun move(credentials: AccountCredentials, sourceMailbox: String, uid: Long, destMailbox: String): Long? =
-        onMailbox(credentials, sourceMailbox) { session, _ -> session.move(uid, destMailbox) }
-
-    /** Permanently delete a message (\Deleted, then erased by UID) when there's no Trash. */
-    suspend fun deleteMessage(credentials: AccountCredentials, mailboxId: String, uid: Long) =
-        onMailbox(credentials, mailboxId) { session, _ -> session.delete(uid) }
+    /**
+     * Move a message to [destMailbox]; returns its new UID there (for undo, in [ImapMoved.uids])
+     * and [destMailbox]'s own numbering as `COPYUID` stated it.
+     *
+     * ⭐ That numbering is carried because NOTHING ELSE EVER LEARNS IT: a `UID MOVE` does not
+     * SELECT its destination, so on a Trash the user has never opened the app has no recorded
+     * number for it — and the Undo of this very move, which is a move OUT of that folder, would
+     * then have nothing to oppose and be refused. The server states it in the same breath as the
+     * UIDs it hands back, frozen at that instant; see [ImapMoved] (#99).
+     *
+     * ⭐ Held to exactly the standard [deleteBatch] is held to, and for the user's own reason:
+     * "delete" on an account with a Trash IS this call ([MailRepository.delete]), so the most
+     * ordinary gesture in the app was the one confirming nothing. [expectedUidValidity] is the
+     * numbering [uid] was read under; the move only goes out when the server states that same
+     * numbering in the SELECT it is about to move under. A SELECT carrying no `UIDVALIDITY` line
+     * at all sails through [ImapSession.select] — it refuses only when two POSITIVE numbers
+     * disagree — so without this the `UID MOVE` went out on yesterday's UIDs, and a renumbered
+     * folder had another, live message filed away or thrown in the Trash (#99).
+     *
+     * ⚠ Read [deleteBatch]'s doc for why the block RETURNS a verdict and the refusal is raised
+     * after [onMailbox] returns: a throw inside would be replayed by `withSession`, and it must
+     * not be mistaken for `ImapUidValidityChanged`, which [onMailbox] answers by INVALIDATING the
+     * folder — dropping cached bodies and pending purge snapshots over a server that is merely
+     * quiet. Both apply here word for word.
+     *
+     * ⛔ Not a defaulted "proceed": a call carrying nothing is REFUSED, because carrying nothing
+     * lets the SELECT fall back on the number recorded right now — the one an ordinary refresh has
+     * already updated if the folder was renumbered — and the guard would then compare that number
+     * with itself. Refusing costs a re-query; moving costs the mail.
+     */
+    suspend fun move(
+        credentials: AccountCredentials,
+        sourceMailbox: String,
+        uid: Long,
+        destMailbox: String,
+        expectedUidValidity: Long? = null,
+    ): ImapMoved {
+        val (moved, landed) = onMailbox(credentials, sourceMailbox, expectedUidValidity = expectedUidValidity) { session, status ->
+            val mayMove = UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
+            mayMove to if (mayMove) session.move(uid, destMailbox) else ImapMoved.NONE
+        }
+        if (!moved) throw ImapNumberingUnconfirmed(sourceMailbox, expectedUidValidity)
+        return landed
+    }
 
     /**
      * Move many messages from one source folder to [destMailbox] in a single session —
      * one SELECT + one `UID MOVE <set>` (chunked) instead of N round-trips (Codeberg #29).
      * Returns the source-UID → destination-UID mapping (from COPYUID) so Undo can move the
-     * whole batch back; empty if the server reported none.
+     * whole batch back — empty if the server reported none — and [destMailbox]'s numbering, which
+     * the same COPYUID states and which the Undo of this batch is the only thing that can oppose:
+     * see [move], and [ImapMoved].
+     *
+     * [expectedUidValidity] is the numbering [uids] were read under, and it is opposed exactly as
+     * [move] opposes it — see that doc, and [deleteBatch]'s, for why. Here it comes from further
+     * away: a bulk gesture reads it at the tap and the batch runs after a whole selection has been
+     * resolved, so the number belongs to the moment the user acted, never to execution time.
+     * ⚠ The refusal comes back to `MailRepository.imapMoveGroup` through its `runCatching`, which
+     * catches `Throwable`, so the group lands in `BulkResult.failed` and the caller re-queries.
      */
-    suspend fun moveBatch(credentials: AccountCredentials, sourceMailbox: String, uids: List<Long>, destMailbox: String): Map<Long, Long> =
-        onMailbox(credentials, sourceMailbox) { session, _ -> session.move(uids, destMailbox) }
+    suspend fun moveBatch(
+        credentials: AccountCredentials,
+        sourceMailbox: String,
+        uids: List<Long>,
+        destMailbox: String,
+        expectedUidValidity: Long? = null,
+    ): ImapMoved {
+        val (moved, landed) = onMailbox(credentials, sourceMailbox, expectedUidValidity = expectedUidValidity) { session, status ->
+            val mayMove = UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
+            mayMove to if (mayMove) session.move(uids, destMailbox) else ImapMoved.NONE
+        }
+        if (!moved) throw ImapNumberingUnconfirmed(sourceMailbox, expectedUidValidity)
+        return landed
+    }
 
     /**
      * Permanently delete many messages from one folder in a single session (Codeberg #29).
@@ -893,7 +952,17 @@ class ImapMailService(
         // (a new keystroke cancelled the search), stop between folders instead of making every
         // later IMAP call wait behind it.
         val caller = currentCoroutineContext()[Job]
-        return withSession(credentials) { session ->
+        // ⭐ What each folder's SELECT stated about its numbering, recorded after the walk — the
+        // same shape as [loadWatchedFolders], and for the same reason: the store is suspending and
+        // the session block holds the account's one connection.
+        //
+        // Without this, a folder reached ONLY by a server-side search (a hit in an archive the user
+        // has never opened) left its numbering unrecorded, so `MailRepository` had nothing to
+        // freeze and archiving, moving or deleting that hit was REFUSED on a healthy server (#99).
+        // Nothing is refused here and nothing is hardened in `core/imap`: the walk had already
+        // asked, and this simply stops throwing the answer away.
+        val numbering = mutableListOf<Pair<String, Long>>()
+        val result = withSession(credentials) { session ->
             val folders = session.searchFolders(
                 mailboxIds,
                 command,
@@ -904,6 +973,7 @@ class ImapMailService(
                     android.util.Log.w("ImapSearch", "search failed in $mailbox: ${error.message}")
                 },
             )
+            folders.forEach { hits -> numbering += hits.mailbox to hits.uidValidity }
             ImapSearchHits(
                 messages = folders
                     .flatMap { hits -> hits.messages.map { it.toEntity(credentials.id, hits.mailbox) } }
@@ -912,6 +982,10 @@ class ImapMailService(
                 complete = folders.none { it.incomplete },
             )
         }
+        // Compare and record, never refuse — [reconcileNumbering] is exactly the "had nothing in
+        // hand beforehand" case its doc describes, and it ignores a folder that stated nothing.
+        numbering.forEach { (path, observed) -> reconcileNumbering(credentials.id, path, observed) }
+        return result
     }
 
     /** Fetch and decode an attachment (one MIME [section]) to raw bytes. */

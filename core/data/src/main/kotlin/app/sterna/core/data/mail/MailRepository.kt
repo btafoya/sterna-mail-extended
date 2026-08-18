@@ -1361,8 +1361,9 @@ class MailRepository(
     private val cacheJson = Json { ignoreUnknownKeys = true }
     private val inlineImagesSerializer = MapSerializer(String.serializer(), String.serializer())
 
-    /** Where an IMAP message was moved (for undo): emailId → (destination folder, new UID). */
-    private class ImapLoc(val mailboxId: String, val uid: Long)
+    /** Where an IMAP message was moved (for undo): emailId → (destination folder, new UID, and
+     *  that folder's numbering as COPYUID stated it — see [ImapLoc]). In memory only, like the
+     *  Undo itself. */
     private val lastImapMove = java.util.concurrent.ConcurrentHashMap<String, ImapLoc>()
 
     /**
@@ -3725,8 +3726,14 @@ class MailRepository(
             var noop = false
             imapTarget(emailId)?.let { (mb, uid) ->
                 if (mb == dest) { noop = true; return@let } // already in the archive/all folder
-                imap.move(credentials, mb, uid, dest)?.let {
-                    lastImapMove[emailId] = ImapLoc(dest, it)
+                // The numbering [mb] was last seen under, opposed to what the server states in the
+                // SELECT this move is about to go out under: a folder renumbered (or a server that
+                // has stopped stating a numbering at all) refuses instead of archiving whatever
+                // now holds this UID (#99). Read on the spot — the id and the move are one call
+                // apart here, with nothing in between, unlike the confirmed bulk gestures.
+                val landed = imap.move(credentials, mb, uid, dest, recordedUidValidity(credentials, mb))
+                landed.uids[uid]?.let {
+                    lastImapMove[emailId] = ImapLoc(dest, it, landed.destinationUidValidity)
                     recentLocalMoves.mark(credentials.id, ImapMailService.emailId(credentials.id, dest, it))
                 }
             }
@@ -3869,8 +3876,11 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) {
             val already = imapTarget(emailId)?.let { (mb, uid) ->
                 if (mb == targetMailboxId) return@let true
-                imap.move(credentials, mb, uid, targetMailboxId)?.let {
-                    lastImapMove[emailId] = ImapLoc(targetMailboxId, it)
+                // Same guard as [archive] and [delete]: the source folder's recorded numbering,
+                // opposed to what the server states now (#99).
+                val landed = imap.move(credentials, mb, uid, targetMailboxId, recordedUidValidity(credentials, mb))
+                landed.uids[uid]?.let {
+                    lastImapMove[emailId] = ImapLoc(targetMailboxId, it, landed.destinationUidValidity)
                     recentLocalMoves.mark(credentials.id, ImapMailService.emailId(credentials.id, targetMailboxId, it))
                 }
                 false
@@ -4003,24 +4013,43 @@ class MailRepository(
 
     /**
      * Batch-move one IMAP source folder's [ids] to [dest] (dest != source) with a single
-     * `UID MOVE <set>`, recording each id's new destination UID (from COPYUID) in
-     * [lastImapMove] so Undo can move the whole set back. Ids whose UID can't be parsed, or
-     * the whole group if the command fails, are marked failed.
+     * `UID MOVE <set>`, recording each id's new destination UID — and [dest]'s numbering, from the
+     * same COPYUID — in [lastImapMove] so Undo can move the whole set back UNDER A NUMBERING IT
+     * CAN OPPOSE. Ids whose UID can't be parsed, or the whole group if the command fails, are
+     * marked failed.
+     *
+     * ⚠ `landed.destinationUidValidity` is NOT a numbering read: it is what the server stated in
+     * the very response that handed back these UIDs, and it is the only statement of [dest]'s
+     * numbering this flow ever gets — a `UID MOVE` does not SELECT its destination (#99).
+     *
+     * [expectedUidValidity] is [source]'s numbering AS THE VIEWMODEL FROZE IT AT THE GESTURE, and
+     * it ARRIVES here — it is never read here, exactly as on `imapDestroyGroup`. Read at execution
+     * it would answer the number a background refresh recorded AFTER a renumbering, i.e. the one
+     * value that makes the guard pass on the mail it exists to save (#99). No default, either: the
+     * three callers all have one to hand, and a default is a call site that silently stops
+     * opposing anything.
+     *
+     * ⚠ A refusal (`ImapNumberingUnconfirmed`) comes back through the `runCatching` below, which
+     * catches `Throwable`, so the whole group lands in [failed] — which is what makes the caller
+     * re-query, so the messages come back instead of vanishing from a list they never left.
+     * ⛔ Deliberately NOT caught by type here: `MailRepository` is held to exactly one
+     * `catch (unconfirmed: ImapNumberingUnconfirmed)`, on the draft path (`ImapDestroyUnderNumberingTest`).
      */
     private suspend fun imapMoveGroup(
         credentials: AccountCredentials, source: String, ids: List<String>, dest: String,
         succeeded: MutableSet<String>, failed: MutableSet<String>,
+        expectedUidValidity: Long?,
     ) {
         val uidToId = ids.mapNotNull { id -> ImapMailService.uidOf(id)?.let { it to id } }.toMap()
         failed += ids.filter { ImapMailService.uidOf(it) == null }
         if (uidToId.isEmpty()) return
         // Captured before the local rows are dropped, to nudge the drawer counts (INV-COUNT).
         val rows = byIdsChunked(uidToId.values.toList()) { chunk -> emailDao.emailsByIds(credentials.id, chunk) }
-        runCatching { imap.moveBatch(credentials, source, uidToId.keys.toList(), dest) }
-            .onSuccess { mapping ->
+        runCatching { imap.moveBatch(credentials, source, uidToId.keys.toList(), dest, expectedUidValidity) }
+            .onSuccess { landed ->
                 uidToId.forEach { (uid, id) ->
-                    mapping[uid]?.let {
-                        lastImapMove[id] = ImapLoc(dest, it)
+                    landed.uids[uid]?.let {
+                        lastImapMove[id] = ImapLoc(dest, it, landed.destinationUidValidity)
                         recentLocalMoves.mark(credentials.id, ImapMailService.emailId(credentials.id, dest, it))
                     }
                 }
@@ -4151,8 +4180,17 @@ class MailRepository(
         if (leaving.isNotEmpty()) markSelectionRead(credentials, leaving)
     }
 
-    /** Archive a whole selection (one account). Messages already in the archive/all folder are dropped locally. */
-    suspend fun archiveAll(credentials: AccountCredentials, emailIds: List<String>): BulkResult {
+    /** Archive a whole selection (one account). Messages already in the archive/all folder are dropped locally.
+     *
+     *  [expectedUidValidity] is the numbering of each SOURCE FOLDER as the caller froze it at the
+     *  gesture, keyed exactly as the `groupBy` below keys its groups. A map, not one number: a
+     *  UIDVALIDITY belongs to one folder, and a selection routinely spans several (#99). Empty
+     *  means "nothing frozen", which refuses — see [ImapMailService.move]. */
+    suspend fun archiveAll(
+        credentials: AccountCredentials,
+        emailIds: List<String>,
+        expectedUidValidity: Map<String, Long?> = emptyMap(),
+    ): BulkResult {
         if (emailIds.isEmpty()) return BulkResult.EMPTY
         unlistFromTrashPurge(credentials.id, emailIds) // leaving a folder cancels a pending purge order (#99)
         // Opt-in mark-read-on-archive: best-effort before the move (a \Seen store keeps the UID).
@@ -4169,7 +4207,7 @@ class MailRepository(
                     // An archive/all folder is searched, so here it does stay; the same call in
                     // [moveAllToMailbox] can land on a Junk or Trash destination, where it goes.
                     source == dest -> { evictAlreadyThere(credentials.id, dest, ids); succeeded += ids }
-                    else -> imapMoveGroup(credentials, source, ids, dest, succeeded, failed)
+                    else -> imapMoveGroup(credentials, source, ids, dest, succeeded, failed, expectedUidValidity[source])
                 }
             }
             return BulkResult(succeeded, failed, dest = dest)
@@ -4252,8 +4290,15 @@ class MailRepository(
         return refiled.map { it.toEmail() }
     }
 
-    /** Move a whole selection (one account) to [targetMailboxId]. */
-    suspend fun moveAllToMailbox(credentials: AccountCredentials, emailIds: List<String>, targetMailboxId: String): BulkResult {
+    /** Move a whole selection (one account) to [targetMailboxId].
+     *
+     *  [expectedUidValidity]: see [archiveAll] — the source folders' frozen numbering, by folder. */
+    suspend fun moveAllToMailbox(
+        credentials: AccountCredentials,
+        emailIds: List<String>,
+        targetMailboxId: String,
+        expectedUidValidity: Map<String, Long?> = emptyMap(),
+    ): BulkResult {
         if (emailIds.isEmpty()) return BulkResult.EMPTY
         unlistFromTrashPurge(credentials.id, emailIds) // bulk rescue out of the Trash (#99)
         markReadOnMoveOutOfInbox(credentials, emailIds, targetMailboxId)
@@ -4267,7 +4312,7 @@ class MailRepository(
                     source == targetMailboxId -> {
                         evictAlreadyThere(credentials.id, targetMailboxId, ids); succeeded += ids
                     }
-                    else -> imapMoveGroup(credentials, source, ids, targetMailboxId, succeeded, failed)
+                    else -> imapMoveGroup(credentials, source, ids, targetMailboxId, succeeded, failed, expectedUidValidity[source])
                 }
             }
             return BulkResult(succeeded, failed, dest = targetMailboxId)
@@ -4280,8 +4325,16 @@ class MailRepository(
      * single-message [delete] this NEVER destroys inline — the caller routes the would-destroy
      * subset through the held-back destroy ([destroyAll]) with its cancelable Undo window
      * (Codeberg #23) — so an account with no Trash fails the batch instead of destroying it.
+     *
+     * [expectedUidValidity]: see [archiveAll] — the source folders' frozen numbering, by folder.
+     * ⭐ This is the gesture the guard is really for: a bulk "delete" is a bulk MOVE to the Trash,
+     * and on the sender screen it sits behind a confirmation the user can hold open for a while.
      */
-    suspend fun deleteAll(credentials: AccountCredentials, emailIds: List<String>): BulkResult {
+    suspend fun deleteAll(
+        credentials: AccountCredentials,
+        emailIds: List<String>,
+        expectedUidValidity: Map<String, Long?> = emptyMap(),
+    ): BulkResult {
         if (emailIds.isEmpty()) return BulkResult.EMPTY
         unlistFromTrashPurge(credentials.id, emailIds) // see [archiveAll] (#99)
         // Opt-in mark-read-on-delete: best-effort before the move (a \Seen store keeps the UID).
@@ -4305,7 +4358,7 @@ class MailRepository(
                     // The no-op branches decide the same question the same way ([evictAlreadyThere]),
                     // and so does the single-message [delete].
                     source == trash -> deleteFromCacheAndIndex(credentials.id, ids)
-                    else -> imapMoveGroup(credentials, source, ids, trash, succeeded, failed)
+                    else -> imapMoveGroup(credentials, source, ids, trash, succeeded, failed, expectedUidValidity[source])
                 }
             }
             return BulkResult(succeeded, failed, dest = trash)
@@ -4406,16 +4459,31 @@ class MailRepository(
         return TrashPurge.destroyableIds(emailIds, expectedMailboxId, located)
     }
 
-    /** Report a whole selection as spam (move to Junk) in one batch. */
-    suspend fun reportSpamAll(credentials: AccountCredentials, emailIds: List<String>): BulkResult {
+    /** Report a whole selection as spam (move to Junk) in one batch.
+     *
+     *  ⛔ [expectedUidValidity] is NOT optional in practice, whatever the default says: this is a
+     *  MOVE, so an empty map refuses the whole batch on IMAP — and `markReadOnMoveOutOfInbox` has
+     *  already flagged the messages `\Seen` on the server by then. See [archiveAll] for the shape;
+     *  the caller freezes at the gesture (#99). */
+    suspend fun reportSpamAll(
+        credentials: AccountCredentials,
+        emailIds: List<String>,
+        expectedUidValidity: Map<String, Long?> = emptyMap(),
+    ): BulkResult {
         val junk = roleMailboxId(credentials, "junk") ?: return BulkResult(emptySet(), emailIds.toSet())
-        return moveAllToMailbox(credentials, emailIds, junk)
+        return moveAllToMailbox(credentials, emailIds, junk, expectedUidValidity)
     }
 
-    /** Move a whole selection out of Junk back to the Inbox in one batch. */
-    suspend fun notSpamAll(credentials: AccountCredentials, emailIds: List<String>): BulkResult {
+    /** Move a whole selection out of Junk back to the Inbox in one batch.
+     *
+     *  [expectedUidValidity]: see [reportSpamAll]. */
+    suspend fun notSpamAll(
+        credentials: AccountCredentials,
+        emailIds: List<String>,
+        expectedUidValidity: Map<String, Long?> = emptyMap(),
+    ): BulkResult {
         val inbox = roleMailboxId(credentials, "inbox") ?: return BulkResult(emptySet(), emailIds.toSet())
-        return moveAllToMailbox(credentials, emailIds, inbox)
+        return moveAllToMailbox(credentials, emailIds, inbox, expectedUidValidity)
     }
 
     /** The cached role of an account's mailbox (e.g. "junk", "inbox"), or null. [accountId]
@@ -4736,24 +4804,38 @@ class MailRepository(
         targets.forEach { markRecentlyMutated(credentials.id, it.emailId) }
         val restored = mutableSetOf<String>()
         if (credentials.protocol == MailProtocol.IMAP) {
-            // Group by (current folder the message sits in, source folder to return it to).
-            // lastImapMove holds where the forward move put each id and its UID there.
-            val byRoute = LinkedHashMap<Pair<String, String>, MutableList<Pair<Long, String>>>()
-            targets.forEach { t ->
-                val loc = lastImapMove[t.emailId] ?: return@forEach
-                byRoute.getOrPut(loc.mailboxId to t.sourceMailboxId) { mutableListOf() } += loc.uid to t.emailId
-            }
-            byRoute.forEach { (route, uidAndIds) ->
-                val (currentFolder, source) = route
-                val mapping = runCatching {
-                    imap.moveBatch(credentials, currentFolder, uidAndIds.map { it.first }, source)
+            // Group by (current folder the message sits in, source folder to return it to, and the
+            // numbering that current folder stated when the forward move landed the mail in it).
+            // lastImapMove holds all three; the split is UidValidity.imapUndoRoutes' decision.
+            val routes = UidValidity.imapUndoRoutes(targets.map { it.emailId to it.sourceMailboxId }) { lastImapMove[it] }
+            routes.forEach { route ->
+                // The undo of a move is a move, and the folder it SELECTs is the one the forward
+                // move landed the mail in — so that is the numbering to oppose, not the source it
+                // is going back to. ⛔ And it is OPPOSED FROM THE FREEZE, never read here: a
+                // `UID MOVE` does not SELECT its destination and nothing else in this flow does,
+                // so a read answers null on any folder the user has never opened — Undo after an
+                // ordinary delete was refused on every Trash nobody had browsed. What is opposed
+                // is what COPYUID stated when it handed back these very UIDs (#99).
+                //
+                // ⛔ THE TWO FOLDERS ARE NAMED IN THE CALL, never carried there by a local. They
+                // are interchangeable `String`s, so swapping them compiles and reads fine — and it
+                // sends `UID MOVE <trash uids> "Trash"` while SELECTing the INBOX, which on two
+                // folders sharing a numbering throws LIVE INBOX MAIL into the Trash: #99 itself,
+                // on the most ordinary gesture there is. Written this way the swap changes THIS
+                // line, and this line is pinned whole (`ImapMoveUnderNumberingTest`); laundered
+                // through `val currentFolder = route.currentFolder` it changed no watched line at
+                // all, which is how it survived a full suite.
+                val moved = runCatching {
+                    imap.moveBatch(credentials, route.currentFolder, route.uids, route.sourceFolder, route.frozenUidValidity)
                 }.getOrNull() ?: return@forEach
                 // Credit only the uids the COPYUID mapping confirms moved back — a partial
                 // mapping means the rest didn't restore, and they must feed the failure toast.
-                restored += uidAndIds.filter { it.first in mapping }.map { it.second }
-                val newUids = mapping.values.toList()
+                restored += route.messages.filter { it.first in moved.uids }.map { it.second }
+                // The DESTINATION uids of the move back, i.e. where the mail is NOW: `.values`,
+                // never `.keys`, which are the Trash-side uids the mail has just left.
+                val newUids = moved.uids.values.toList()
                 if (newUids.isNotEmpty()) {
-                    runCatching { imap.fetchByUids(credentials, source, newUids) }
+                    runCatching { imap.fetchByUids(credentials, route.sourceFolder, newUids) }
                         .getOrDefault(emptyList())
                         .takeIf { it.isNotEmpty() }
                         ?.let { fetched ->
@@ -4843,8 +4925,14 @@ class MailRepository(
                 // says Trash.) [evictAlreadyThere] asks the same question of the folder the message
                 // stayed in, and spares the row only where a search actually looks.
                 if (mb == trash) return@let
-                imap.move(credentials, mb, uid, trash)?.let {
-                    lastImapMove[emailId] = ImapLoc(trash, it)
+                // THE gesture this guard exists for: "delete" here is a MOVE to the Trash, and it
+                // is the most ordinary thing the user does. The source folder's recorded numbering
+                // is opposed to what the server states in the SELECT the move goes out under, so a
+                // renumbered folder — or one whose numbering the server has stopped stating — is
+                // refused instead of having a live message thrown away (#99).
+                val landed = imap.move(credentials, mb, uid, trash, recordedUidValidity(credentials, mb))
+                landed.uids[uid]?.let {
+                    lastImapMove[emailId] = ImapLoc(trash, it, landed.destinationUidValidity)
                     recentLocalMoves.mark(credentials.id, ImapMailService.emailId(credentials.id, trash, it))
                 }
             }

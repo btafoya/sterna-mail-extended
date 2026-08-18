@@ -43,6 +43,7 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.EmailHeader
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.net.hasUsableNetwork
+import app.sterna.ui.readerActionFailureText
 import app.sterna.ui.inbox.isSelfAuthored
 import app.sterna.ui.inbox.moveTargets
 import app.sterna.ui.sender.trashFilePath
@@ -599,6 +600,21 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun clearSenderRuleStatus() { _senderRuleStatus.value = null }
 
     /**
+     * One-shot word about an action taken ON the open message (report spam / not spam), shown and
+     * cleared — the channel a failure takes when the message itself is still there to read.
+     *
+     * ⭐ Its own flow, and not [_senderRuleStatus] which is toasted exactly the same way: that one
+     * is the answer to a gesture made in the participants panel, both are one slot deep, and
+     * sharing it means a refused "report spam" silently eating a "Rule added" the user is waiting
+     * for (or the reverse). [_attachmentStatus] is no better: it is rendered INSIDE the attachment
+     * section, so on a message with no attachment it is drawn nowhere at all.
+     */
+    private val _actionStatus = MutableStateFlow<String?>(null)
+    val actionStatus = _actionStatus.asStateFlow()
+
+    fun clearActionStatus() { _actionStatus.value = null }
+
+    /**
      * Read the account's script, once, when the participants panel opens.
      *
      * Idempotent while it holds an ANSWER — [SenderScript.Read] — so reopening the panel does not
@@ -1060,6 +1076,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         // arrive late is the reason the gesture is refused.
         _senderRules.value = SenderScript.Unread
         _senderRuleStatus.value = null
+        // Same argument, one gesture over: "could not report as spam" belongs to the message we
+        // are leaving, and toasted on the next page it would name the wrong mail.
+        _actionStatus.value = null
         _accountAddresses.value = ownAddresses()
         viewModelScope.launch {
             // Account-scoped: a snooze belongs to one account's message (issue #31).
@@ -1514,7 +1533,16 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 op(credentials, id)
                 onDone()
             } catch (t: Throwable) {
-                _state.value = MessageState.Error(t.message ?: t.javaClass.simpleName)
+                // ⛔ NEVER `MessageState.Error` HERE, whatever went wrong. What act() drives —
+                // report as spam, not spam, mark unread — are gestures ON the open message, and
+                // none of them is a reason to destroy what the user is reading; K-9 and Gmail do
+                // not. This used to be `MessageState.Error(t.message ?: …)`, i.e. "Could not load
+                // message: <the exception's own text>" over a message that had loaded perfectly
+                // well — and since a failed IMAP move stopped being answered with a destructive
+                // copy, the text it put there is the echoed command
+                // (`UID MOVE 1234 "Junk" failed: NO [OVERQUOTA] …`, ImapClient.kt:299) or the
+                // refusal's IMAP jargon about a "destroy" (#99). One surface, one assignment.
+                _actionStatus.value = readerActionFailureText(t) { res -> getApplication<Application>().getString(res) }
             }
         }
     }

@@ -156,3 +156,29 @@ data class ImapMailboxStatus(
      */
     val existsObserved: Boolean = false,
 )
+
+/**
+ * What a move reported about where the mail landed — the answer to `UID MOVE`, or to the
+ * `UID COPY` it falls back to.
+ *
+ * [uids] is the source-UID → destination-UID mapping `COPYUID` reported (RFC 4315 §3, and RFC 6851
+ * §4.3 for `UID MOVE`), empty when the server reported none: the move still happened, only
+ * per-message Undo positioning is lost.
+ *
+ * [destinationUidValidity] is the DESTINATION folder's numbering as that same `COPYUID` stated it
+ * — the first token of the response code, which this client used to discard. ⭐ It is a FROZEN
+ * fact, not a reading: the numbering in force at the instant those destination UIDs were assigned,
+ * stated by the server in the same breath as the UIDs themselves. Nothing else in a move ever
+ * learns it, because a `UID MOVE` does not SELECT its destination — so on a Trash the user has
+ * never opened this is the ONLY number an Undo can oppose (Codeberg #99). Null when no `COPYUID`
+ * came back at all, and null when the chunks of one move disagreed about it (see [ImapSession.move]).
+ *
+ * ⛔ Reporting it refuses nothing here: `core/imap` states what the server said and decides
+ * nothing from it, exactly as [ImapFolder.unelectedRole] does.
+ */
+data class ImapMoved(val uids: Map<Long, Long>, val destinationUidValidity: Long?) {
+    companion object {
+        /** Nothing moved, nothing stated — what a caller answers when the move never went out. */
+        val NONE = ImapMoved(emptyMap(), null)
+    }
+}

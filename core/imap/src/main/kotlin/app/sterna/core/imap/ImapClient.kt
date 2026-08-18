@@ -393,8 +393,15 @@ class ImapSession(private var socket: Socket) : Closeable {
         command("DELETE ${mailboxArg(path)}")
     }
 
-    /** Move a message to another mailbox; returns its new UID in the destination if reported. */
-    fun move(uid: Long, destination: String): Long? = move(listOf(uid), destination)[uid]
+    /**
+     * Move a message to another mailbox; the answer carries its new UID in the destination
+     * (`moved.uids[uid]`) and that destination's numbering, both as `COPYUID` reported them.
+     *
+     * Written over the plural below and answering exactly what it answers: the caller of a single
+     * move needs the destination's numbering just as much, because it is the one an Undo of THIS
+     * message will have to oppose — "delete" on an account with a Trash is this call.
+     */
+    fun move(uid: Long, destination: String): ImapMoved = move(listOf(uid), destination)
 
     /**
      * Move many messages to [destination] with one `UID MOVE <set> <dest>` per chunk
@@ -402,16 +409,30 @@ class ImapSession(private var socket: Socket) : Closeable {
      * command per message — the bulk-action fix (Codeberg #29). The caller must have
      * SELECTed the source mailbox. Returns the source-UID → destination-UID mapping parsed
      * from COPYUID (RFC 4315 / RFC 6851), empty when the server reports none — the move
-     * still happened; only per-message Undo positioning is lost. Chunked to stay well under
-     * command-length limits.
+     * still happened; only per-message Undo positioning is lost — AND the destination folder's
+     * numbering, which the same COPYUID states and this client used to throw away (see
+     * [ImapMoved]). Chunked to stay well under
+     * command-length limits. The fallback is reserved for a server that does not advertise MOVE
+     * (RFC 6851); any other refusal of the UID MOVE travels up untouched.
+     *
+     * ⚠ More than [UID_SET_CHUNK] UIDs is several commands, so several COPYUIDs — all naming one
+     * destination folder, so all stating one numbering, and that one number is kept. When they
+     * DISAGREE the destination was renumbered in the middle of the move and no single number is
+     * true of the whole mapping: [ImapMoved.destinationUidValidity] is null then, which is safe
+     * because null is the REFUSING value everywhere it is later opposed
+     * (`UidValidity.mayDestroyUnderStatedNumbering` answers false for it). An Undo that cannot say
+     * which numbering its UIDs belong to must not move anything under either of them.
      *
      * The copy fallback leaves the originals to be erased, and how that is done depends on
      * UIDPLUS exactly as it does in [delete] — same question, same single answer: see
      * [purgeWithoutUidPlus]. The capability is consulted BEFORE the first COPY, so a session
      * that cannot even answer that question fails without having duplicated anything.
      */
-    fun move(uids: List<Long>, destination: String): Map<Long, Long> {
+    fun move(uids: List<Long>, destination: String): ImapMoved {
         val mapping = LinkedHashMap<Long, Long>()
+        // What each chunk's COPYUID said the DESTINATION's numbering is. A set, because the only
+        // question asked of it is whether every chunk said the same thing.
+        val statedNumbering = LinkedHashSet<Long>()
         // The no-UIDPLUS purge is folder-wide, so it is decided once for the whole move — over
         // the union of the chunks that actually took the copy fallback, and only those: a chunk
         // that went out as a UID MOVE flagged nothing.
@@ -420,6 +441,22 @@ class ImapSession(private var socket: Socket) : Closeable {
             val set = compressUidSet(chunk)
             if (set.isEmpty()) continue
             val result = runCatching { command("UID MOVE $set ${mailboxArg(destination)}") }.getOrElse {
+                // The fallback answers ONE question — "this server has no MOVE extension" — and it
+                // answers it destructively: copy, flag, purge the SOURCE folder. Everything else
+                // that can fail a UID MOVE (a NO [OVERQUOTA] or [TRYCREATE], a dead socket, a read
+                // that timed out) is a real error, and taking the copy path on those duplicates the
+                // mail and then erases the originals from what, for "delete", is the inbox. So when
+                // the server ADVERTISES MOVE, the failure goes up as it came.
+                // Deliberately not a precondition on the UID MOVE itself: servers implement it
+                // without advertising it, and gating the attempt would send MORE accounts down the
+                // destructive path. And when the capability probe itself fails (the socket is gone,
+                // so `capabilities()` cannot ask), we rethrow too. So the failure goes up whenever
+                // the server advertises MOVE, and whenever the question cannot be put at all; the
+                // fallback stays the answer to a capability list that does not carry MOVE —
+                // including an EMPTY one, which is how [capabilities] reads a server that answers
+                // the query with no list, and is not the same as a server proved to lack MOVE.
+                val announcesMove = runCatching { hasCapability(CAP_MOVE) }.getOrDefault(true)
+                if (announcesMove) throw it
                 val byUid = hasCapability(CAP_UIDPLUS)
                 val copy = command("UID COPY $set ${mailboxArg(destination)}")
                 command("UID STORE $set +FLAGS (\\Deleted)")
@@ -434,10 +471,12 @@ class ImapSession(private var socket: Socket) : Closeable {
                 }
                 copy
             }
-            mapping.putAll(parseCopyUidMap(result))
+            val landed = parseCopyUidReport(result)
+            mapping.putAll(landed.uids)
+            landed.destinationUidValidity?.let { statedNumbering += it }
         }
         finishPurgeWithoutUidPlus(flaggedByFallback)
-        return mapping
+        return ImapMoved(mapping, statedNumbering.singleOrNull())
     }
 
     /** Fetch a single message by UID (envelope + flags), or null if not found — or hidden. */
@@ -478,17 +517,27 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 
     /**
-     * Parse the ordered source-UID → destination-UID mapping from a `COPYUID
-     * <uidvalidity> <source-set> <dest-set>` response (RFC 4315). Both sets correspond
-     * positionally, so they're expanded preserving order and zipped. Empty if there is no
-     * COPYUID or the two sets don't line up.
+     * Parse one `COPYUID <uidvalidity> <source-set> <dest-set>` response (RFC 4315): the ordered
+     * source-UID → destination-UID mapping, and the numbering the server states for the folder
+     * those destination UIDs were just assigned in. Both sets correspond positionally, so they're
+     * expanded preserving order and zipped. [ImapMoved.NONE] if there is no COPYUID; an empty
+     * mapping if the two sets don't line up — the numbering still stands in that case, being a
+     * property of the FOLDER and not of the sets.
+     *
+     * ⭐ The `<uidvalidity>` is the token this parser used to skip with a non-capturing `\d+`,
+     * which is the whole of Codeberg #99's Undo half: the server had already said what the
+     * destination's numbering was, and the client dropped it on the floor. A value at or below 0
+     * reads as "nothing stated", the convention `UidValidity` applies everywhere else.
      */
-    private fun parseCopyUidMap(result: ImapResult): Map<Long, Long> {
+    private fun parseCopyUidReport(result: ImapResult): ImapMoved {
         val text = (result.untagged + listOf(result.tagged)).joinToString(" ") { resp ->
             resp.joinToString(" ") { flatten(it) }
         }
-        val m = Regex("COPYUID\\s+\\d+\\s+([\\d,:]+)\\s+([\\d,:]+)").find(text) ?: return emptyMap()
-        return copyUidMapping(m.groupValues[1], m.groupValues[2])
+        val m = Regex("COPYUID\\s+(\\d+)\\s+([\\d,:]+)\\s+([\\d,:]+)").find(text) ?: return ImapMoved.NONE
+        return ImapMoved(
+            uids = copyUidMapping(m.groupValues[2], m.groupValues[3]),
+            destinationUidValidity = m.groupValues[1].toLongOrNull()?.takeIf { it > 0L },
+        )
     }
 
     /**
@@ -1150,6 +1199,13 @@ internal fun flatten(v: Any?): String = when (v) {
 
 /** The UIDPLUS extension (RFC 4315): the one that provides `UID EXPUNGE <set>`. */
 internal const val CAP_UIDPLUS = "UIDPLUS"
+
+/**
+ * The MOVE extension (RFC 6851): the one that provides `UID MOVE <set> <dest>`. Consulted only
+ * to tell "this server has no MOVE" from "this MOVE failed" — see [ImapSession.move]; never to
+ * decide whether to try the command.
+ */
+internal const val CAP_MOVE = "MOVE"
 
 /**
  * Capability names from the untagged `* CAPABILITY …` line of a `CAPABILITY` command, upper-cased.
