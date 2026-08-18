@@ -713,6 +713,7 @@
     <string name="status_message_too_large">Ce message est trop volumineux pour être affiché.</string>
     <string name="status_message_unavailable">Le serveur n\'a pas renvoyé ce message. Réessayez plus tard.</string>
     <string name="status_action_failed">Impossible d\'effectuer l\'action.</string>
+    <string name="status_action_offline">Vous êtes hors ligne. Cette action demande une connexion, réessayez dès votre retour.</string>
     <string name="status_restore_failed">Impossible de restaurer certains messages.</string>
     <string name="status_moved_to_folder">Déplacé vers %1$s</string>
     <string name="status_action_partly_failed">Certains messages n\'ont pas pu être traités.</string>

@@ -708,6 +708,7 @@
     <string name="status_message_too_large">Dit bericht is te groot om weer te geven.</string>
     <string name="status_message_unavailable">De server heeft dit bericht niet teruggegeven. Probeer het later opnieuw.</string>
     <string name="status_action_failed">Kon de actie niet voltooien.</string>
+    <string name="status_action_offline">Je bent offline. Deze actie heeft verbinding nodig, probeer het opnieuw zodra je weer verbonden bent.</string>
     <string name="status_restore_failed">Kon sommige berichten niet herstellen.</string>
     <string name="status_moved_to_folder">Verplaatst naar %1$s</string>
     <string name="status_action_partly_failed">Sommige berichten konden niet worden verwerkt.</string>

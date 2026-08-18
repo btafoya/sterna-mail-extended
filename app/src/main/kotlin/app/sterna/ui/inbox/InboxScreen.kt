@@ -282,6 +282,10 @@ fun InboxScreen(
     val outboxQueuedCount by viewModel.outboxQueuedCount.collectAsStateWithLifecycle()
     val outboxHasFailures by viewModel.outboxHasFailures.collectAsStateWithLifecycle()
     val highlightId by viewModel.highlightId.collectAsStateWithLifecycle()
+    // Rows whose swipe was played to the edge over a write that then failed — offline, above all.
+    // They are still in the table (network-first), only gone from the screen; the flight has to be
+    // wound back by hand. See [InboxViewModel.swipeRewind].
+    val swipeRewind by viewModel.swipeRewind.collectAsStateWithLifecycle()
     // Promote the just-opened row's highlight as this screen starts coming back (ON_START,
     // i.e. during the return transition) rather than after it settles (ON_RESUME) — so the
     // flash is already underway as the list reappears, reading as part of the back gesture.
@@ -1497,6 +1501,10 @@ fun InboxScreen(
                     entryIndex = entryIndex,
                     highlighted = email.id == highlightId,
                     onHighlightShown = viewModel::clearHighlight,
+                    // The swipe this row played did not take: bring it back. Account-qualified,
+                    // like every other per-row lookup on this screen (#92).
+                    rewindSwipe = needsSwipeRewind(swipeRewind, email.accountId, email.id),
+                    onSwipeRewound = { viewModel.swipeRewound(email.emailKey()) },
                     drawerBandPx = edgeBandPx,
                     modifier = rowModifier,
                 )
@@ -1560,6 +1568,15 @@ fun InboxScreen(
                         onEnterSelectionChild = { child -> viewModel.enterSelection(child) },
                         onToggleSelectChild = { child -> viewModel.toggleSelect(child) },
                         onHighlightShown = viewModel::clearHighlight,
+                        // A child swipes through performSwipe → swipeRemove exactly like the row
+                        // above it. Its rewind is a no-op though, and knowingly so: the view
+                        // model's own mask drops the child out of the members flow before the
+                        // call, so this sub-composition is gone by the time the failure lands.
+                        // What this hands the child is the way to give its key back, on the fold
+                        // and unfold that brings it home. Why the child stays off the row until
+                        // then is written in InboxViewModel.hidingThreadMembers, and left alone.
+                        swipeRewindKeys = swipeRewind,
+                        onSwipeRewound = { child -> viewModel.swipeRewound(child.emailKey()) },
                         drawerBandPx = edgeBandPx,
                     )
                 }
@@ -1918,6 +1935,13 @@ private fun SwipeableEmailRow(
     entryIndex: Int = 0,
     highlighted: Boolean = false,
     onHighlightShown: () -> Unit = {},
+    /** True when the view model reported THIS row's swipe as failed: the take-off must be undone.
+     *  No default — both call sites can fly a row off, and a forgotten one is a row that never
+     *  comes back. Read by the rewind effect only: it is not, and must not become, a second way
+     *  to refuse the gesture (that one lives on [gesturesEnabled], #95). */
+    rewindSwipe: Boolean,
+    /** Called once the row is back at rest, so its key stops being reported. */
+    onSwipeRewound: () -> Unit,
     /** Width of the start-edge strip left to the drawer's own drag; 0 where the system
      *  owns that edge (gesture navigation). See [DrawerGesture]. */
     drawerBandPx: Float = 0f,
@@ -1963,6 +1987,23 @@ private fun SwipeableEmailRow(
     // clears the screen). Static slide-off under reduced motion.
     val lift = remember { Animatable(0f) }
     var flyDir by remember { mutableIntStateOf(0) }
+
+    // …and the take-off wound back, when the write it was played for failed. commitSwipe runs the
+    // WHOLE arc before calling onSwipe (its reduced-motion branch parks the row at the edge
+    // instead), so the row is off screen before the write is even attempted, and nothing else ever
+    // resets these three: the list key is stable, so the reconcile that follows a failure hands
+    // this very composition back, still parked. All three go back, not offsetX alone — `lift`
+    // holds the fade (alpha = 1 - lift, so a row at rest with lift 1 is simply invisible) and
+    // flyDir the tilt. snapTo, not animateTo: it also cancels the take-off still running under the
+    // reduced-motion branch, and the honest picture is a row that never left.
+    LaunchedEffect(rewindSwipe) {
+        if (rewindSwipe) {
+            offsetX.snapTo(0f)
+            lift.snapTo(0f)
+            flyDir = 0
+            onSwipeRewound()
+        }
+    }
 
     Box(
         modifier = modifier
@@ -2294,6 +2335,17 @@ private fun dismissesRow(action: SwipeAction): Boolean =
     action == SwipeAction.DELETE || action == SwipeAction.ARCHIVE
 
 /**
+ * Whether this row must undo its swipe animation: it is one of the rows the view model reported as
+ * "the write did not take" — see [InboxViewModel.swipeRewind].
+ *
+ * Account-qualified, never by bare id: two accounts of one server hand out the same message ids,
+ * and comparing ids alone unfolded (and paged) the sibling account's homonymous row (#92). Both
+ * call sites have the pair in hand, so the decision lives here where it can be run.
+ */
+internal fun needsSwipeRewind(keys: Set<EmailKey>, accountId: String?, emailId: String): Boolean =
+    EmailKey(accountId, emailId) in keys
+
+/**
  * Commit a swipe: a dismissing action with motion enabled lifts the row off in a short
  * arc ([lift] 0→1 driving rise/tilt/fade in the row's graphicsLayer) and only then runs
  * [onSwipe], so the removal lands as the bird clears the screen. Otherwise the row
@@ -2453,6 +2505,11 @@ private fun ThreadChildren(
     onEnterSelectionChild: (Email) -> Unit,
     onToggleSelectChild: (Email) -> Unit,
     onHighlightShown: () -> Unit,
+    /** The rows whose swipe was played over a write that failed, as account-qualified keys: a
+     *  child is matched on its OWN (account, id), because two accounts of one server share ids
+     *  (#92) and an unfolded conversation can span both. */
+    swipeRewindKeys: Set<EmailKey>,
+    onSwipeRewound: (Email) -> Unit,
     /** The drawer's start-edge strip, applied to the children too — measured from the
      *  window edge, so the indent doesn't shift it (see [DrawerGesture]). */
     drawerBandPx: Float,
@@ -2494,6 +2551,8 @@ private fun ThreadChildren(
                             threadCount = 1,
                             highlighted = child.id == highlightId,
                             onHighlightShown = onHighlightShown,
+                            rewindSwipe = needsSwipeRewind(swipeRewindKeys, child.accountId, child.id),
+                            onSwipeRewound = { onSwipeRewound(child) },
                             drawerBandPx = drawerBandPx,
                             modifier = Modifier.weight(1f),
                         )

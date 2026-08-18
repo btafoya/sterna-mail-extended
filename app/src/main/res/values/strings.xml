@@ -903,6 +903,7 @@
     <string name="status_message_too_large">This message is too large to display.</string>
     <string name="status_message_unavailable">The server did not return this message. Try again later.</string>
     <string name="status_action_failed">Couldn\'t complete the action.</string>
+    <string name="status_action_offline">You\'re offline. This action needs a connection, so try again once you\'re back.</string>
     <string name="status_restore_failed">Couldn\'t restore some messages.</string>
     <string name="status_moved_to_folder">Moved to %1$s</string>
     <string name="status_action_partly_failed">Some messages couldn\'t be processed.</string>

@@ -2,6 +2,7 @@ package app.sterna.ui.inbox
 
 import android.app.Application
 import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
@@ -11,6 +12,8 @@ import app.sterna.R
 import app.sterna.folders.FolderDeleteWorker
 import app.sterna.mail.MessageDestroyWorker
 import app.sterna.net.ConnectivityWatcher
+import app.sterna.net.hasUsableNetwork
+import app.sterna.net.isOfflineFailure
 import app.sterna.net.ReconnectRefresh
 import app.sterna.push.FetchAndNotify
 import app.sterna.push.NewMailNotifier
@@ -283,6 +286,39 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearHighlight() {
         _highlightId.value = null
+    }
+
+    /**
+     * Rows whose dismissing swipe was played to the edge and whose server write then failed —
+     * account-qualified keys, never bare ids: two accounts of one server hand out the same message
+     * ids, and comparing ids alone already moved the sibling account's homonymous row (#92).
+     *
+     * The message never left the table: the repo is network-first, so the local drop sits DOWNSTREAM
+     * of the call that failed and is unreachable offline. But the row is gone from the screen —
+     * `commitSwipe` plays the whole take-off before calling back, and nothing ever reset those
+     * animations — and the list key is stable, so the [refresh] below re-emits the row into the SAME
+     * composition, still parked off screen. This is that row being told to come back; it clears its
+     * own key through [swipeRewound] once it is home. Same shape as [dropSearchResults] /
+     * [restoreSearchResults], for the same reason: the screen has to be told what the table already
+     * knows.
+     *
+     * Two things this set is honest about rather than silent on:
+     *
+     *  - it is fed by [swipeRemove], which also serves the reader's own move/archive/delete (#73),
+     *    where no row ever flew. Those keys are reported too, and the rewind on them is a no-op —
+     *    every value it puts back is already at rest. Keep it that way: a value that is NOT
+     *    idempotent does not belong in that effect;
+     *  - a key is cleared by the row itself, so a key for a row that is no longer composed stays
+     *    until that row is composed again — where the rewind will be a no-op and the clear the only
+     *    thing that happens. It is a handful of small keys, bounded by the failures one session can
+     *    produce, and self-healing; a second clearing path would be more surface than the leak.
+     */
+    private val _swipeRewind = MutableStateFlow<Set<EmailKey>>(emptySet())
+    val swipeRewind: StateFlow<Set<EmailKey>> = _swipeRewind.asStateFlow()
+
+    /** The row [key] is back at rest — forget it, or it rewinds again on every recomposition. */
+    fun swipeRewound(key: EmailKey) {
+        _swipeRewind.value = _swipeRewind.value - key
     }
 
     // ---- inline conversation expansion ----
@@ -1469,8 +1505,20 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 .onFailure {
-                    _message.value = it.message ?: getApplication<Application>().getString(R.string.status_action_failed)
+                    val app = getApplication<Application>()
+                    // The exception text is a resolver/HTTP string — offline it was the raw
+                    // 'Unable to resolve host', in English whatever the app's language, and it
+                    // named nothing the reader could act on. It goes to logcat, where diagnosis
+                    // needs it, whichever of the two sentences ends up on the snackbar.
+                    android.util.Log.w("SternaInbox", "swipe action failed", it)
+                    _message.value = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app)))
                     restoreSearchResults(listOf(email.emailKey()))
+                    // …and the browse list needs the same courtesy, but its row was never removed:
+                    // it FLEW OFF, and the flight is not undone by re-emitting the row. The list
+                    // key is stable, so the refresh below hands the same composition back with its
+                    // animations at their take-off values. Say the swipe did not take; the row
+                    // rewinds and clears the key.
+                    _swipeRewind.value = _swipeRewind.value + email.emailKey()
                     refresh() // the failed row was never dropped locally — just reconcile the list
                 }
         }
@@ -1500,7 +1548,17 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                     .onSuccess { unrestored += it.size }
                     .onFailure {
                         unrestored += entries.size
-                        status.value = Status(refreshing = false, error = it.message)
+                        val app = getApplication<Application>()
+                        // Same as the swipe, plus one thing of its own: this banner must never be
+                        // null. A null error is RefreshNotice.NONE — a BANNER saying nothing,
+                        // which is what a transport exception with no message used to produce
+                        // here. The snackbar below still says "couldn't restore some messages"
+                        // either way, so the Undo was never silent outright; the banner was.
+                        // Note also that in airplane mode the reader sees the offline banner
+                        // rather than this sentence: RefreshNotice puts OFFLINE ahead of ERROR
+                        // on purpose (#65), and that order is not this fix's to change.
+                        android.util.Log.w("SternaInbox", "undo restore failed", it)
+                        status.value = Status(refreshing = false, error = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app))))
                     }
             }
             if (unrestored > 0) {
@@ -2433,3 +2491,30 @@ internal fun selectAllKeys(
     return if (onScreen) shown.toSet() else folderKeys.toSet()
 }
 
+/**
+ * Which sentence a failed row action shows: the offline one, or the generic one.
+ *
+ * The exception's own text never reaches the screen. `it.message` on a transport failure is the
+ * platform resolver's string — `Unable to resolve host "…": No address associated with hostname` —
+ * in English whatever the app's language, and it named nothing the reader could act on. It is
+ * logged instead; the sentence returned here is what is read.
+ *
+ * The same pair of helpers as the attachment failure ([app.sterna.net.isOfflineFailure]), and the
+ * same rule for the offline half: "offline" is a claim about the DEVICE, so it is only made when
+ * the transport died AND the device's own connectivity check confirms there is no usable network.
+ * A server that is down, a rejected password, a VPN killswitch on a live Wi-Fi — all keep the
+ * generic wording, because telling somebody plainly online that they are offline is defect #65 all
+ * over again.
+ *
+ * It deliberately parts from the composer on the OTHER half: `ComposeViewModel.attach` keeps the
+ * exception text in its non-offline sentence, this one does not. A list row's failure is read in
+ * a snackbar that is gone in four seconds, and its own twin one call away — `threadSwipeRemove`,
+ * for a folded conversation — has always shown the generic sentence. Closing that asymmetry is the
+ * point; the technical text is in logcat for both.
+ *
+ * Returns a string resource rather than the text so the decision runs in a plain JVM test:
+ * `InboxViewModel` is an `AndroidViewModel` and cannot be instantiated in one.
+ */
+@StringRes
+internal fun actionFailureMessage(t: Throwable, online: Boolean): Int =
+    if (isOfflineFailure(t, online)) R.string.status_action_offline else R.string.status_action_failed

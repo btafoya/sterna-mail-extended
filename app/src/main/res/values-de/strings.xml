@@ -708,6 +708,7 @@
     <string name="status_message_too_large">Diese Nachricht ist zu groß, um sie anzuzeigen.</string>
     <string name="status_message_unavailable">Der Server hat diese Nachricht nicht zurückgegeben. Bitte später erneut versuchen.</string>
     <string name="status_action_failed">Die Aktion konnte nicht abgeschlossen werden.</string>
+    <string name="status_action_offline">Du bist offline. Diese Aktion braucht eine Verbindung, versuche es erneut, sobald du zurück bist.</string>
     <string name="status_restore_failed">Einige Nachrichten konnten nicht wiederhergestellt werden.</string>
     <string name="status_moved_to_folder">Verschoben nach %1$s</string>
     <string name="status_action_partly_failed">Einige Nachrichten konnten nicht verarbeitet werden.</string>

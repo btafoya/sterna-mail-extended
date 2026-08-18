@@ -710,6 +710,7 @@
     <string name="status_message_too_large">Este mensaje es demasiado grande para mostrarse.</string>
     <string name="status_message_unavailable">El servidor no devolvió este mensaje. Inténtalo más tarde.</string>
     <string name="status_action_failed">No se pudo completar la acción.</string>
+    <string name="status_action_offline">Estás sin conexión. Esta acción requiere conexión, inténtalo de nuevo cuando vuelvas.</string>
     <string name="status_restore_failed">No se pudieron restaurar algunos mensajes.</string>
     <string name="status_moved_to_folder">Movido a %1$s</string>
     <string name="status_action_partly_failed">Algunos mensajes no se pudieron procesar.</string>

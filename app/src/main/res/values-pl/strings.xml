@@ -718,6 +718,7 @@
     <string name="status_message_too_large">Ta wiadomość jest za duża, aby ją wyświetlić.</string>
     <string name="status_message_unavailable">Serwer nie zwrócił tej wiadomości. Spróbuj ponownie później.</string>
     <string name="status_action_failed">Nie udało się wykonać akcji.</string>
+    <string name="status_action_offline">Jesteś offline. Ta akcja wymaga połączenia, spróbuj ponownie, gdy wrócisz do sieci.</string>
     <string name="status_restore_failed">Nie udało się przywrócić niektórych wiadomości.</string>
     <string name="status_moved_to_folder">Przeniesiono do %1$s</string>
     <string name="status_action_partly_failed">Nie udało się przetworzyć niektórych wiadomości.</string>
