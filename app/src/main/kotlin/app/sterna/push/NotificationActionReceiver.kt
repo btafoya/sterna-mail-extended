@@ -23,11 +23,30 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Handles new-mail notification quick actions (reply / mark read / delete) in the background.
  * Reply uses inline RemoteInput.
  *
- * Mark as read and Delete dismiss the notification unconditionally, as they always have: what they
- * change is the server's copy of the message, and the same action is one tap away in the list if it
- * failed. Reply is not like them. The typed text lives in the broadcast intent and nowhere else, so
- * on that path the notification comes down only once the Outbox has accepted the text, and every
- * other end of it hands the text back to the user.
+ * Mark as read dismisses the notification unconditionally, as it always has: what it changes is
+ * the server's copy of the message, and the same action is one tap away in the list if it failed.
+ *
+ * Delete takes the banner down only when it MOVED something ([bannerDeleteAct]). Asked to delete a
+ * message the local caches say is already in Trash, or one on an account whose synced folders name
+ * no Trash at all, it does nothing whatever and leaves the banner standing: a banner that does not
+ * fall is the statement that nothing was done, and the same gesture waits one tap away in the list.
+ * It never destroys either way — what it performs is a move to Trash, and permanent deletion lives
+ * in the list behind its cancelable Undo window (Codeberg #23).
+ *
+ * ⚠ That refusal owns the BUTTON, not the banner's lifetime. Nothing on this path takes the banner
+ * down — but a background pass will, on its own: once a sync reports the message gone from the
+ * watched folder and the server confirms where it went, NewMailNotifier takes the banner down
+ * (Codeberg #134). For a message the user had already deleted in the app, that lands within a
+ * minute of this refusal, and on a woken process within seconds of it — near enough to read as if
+ * the button had done it. Measured on the bench, 2026-08-18. That pass is not this file's to fix.
+ *
+ * ⚠ One end contradicts that and is left as it was: a signed-out account has no credentials, so
+ * NONE of the three actions runs and the banner is taken down all the same. Same function, other
+ * cause, and it is written down where it belongs rather than half-fixed here.
+ *
+ * Reply is like neither. The typed text lives in the broadcast intent and nowhere else, so on that
+ * path the notification comes down only once the Outbox has accepted the text, and every other end
+ * of it hands the text back to the user.
  */
 class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -54,19 +73,54 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     )
                     return@launch
                 }
+                // Delete is the one action here that can find there is nothing to do, and then the
+                // banner must survive it: see [deleteFromBanner].
+                var mayDismiss = true
                 if (credentials != null) {
                     when (action) {
                         ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)
-                        ACTION_DELETE -> container.mailRepository.delete(credentials, emailId)
+                        ACTION_DELETE -> mayDismiss = deleteFromBanner(
+                            container.mailRepository, credentials, accountId, emailId,
+                        )
                     }
                 }
-                dismiss(appContext, accountId, credentials, notifId)
+                if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)
             } catch (_: Throwable) {
                 // Best-effort; leave the notification so the user can retry from the app.
             } finally {
                 pending.finish()
             }
         }
+    }
+
+    /**
+     * The Delete button of a banner, and the question it never asked: would this delete MOVE
+     * anything? Returns whether the banner may come down — false means nothing happened at all.
+     *
+     * The list asks the same thing through `MailRepository.deleteWouldDestroy`, which resolves the
+     * Trash over the SOCKET. Forbidden here: this receiver has ~10 s of goAsync for everything it
+     * does, and against a reachable-but-silent server a role lookup spends all of it. So the three
+     * reads below are local (cache, folder cache, folder cache) and the decision is
+     * [bannerDeleteAct], where the reasoning and its one accepted hole are written out.
+     *
+     * All three are GUARDED, and each failure falls to the ORDINARY path: a database that will not
+     * answer is not evidence that a delete would destroy something, and turning a read error into
+     * a silently refused Delete would be a second defect on top of the one this closes.
+     */
+    private suspend fun deleteFromBanner(
+        repo: MailRepository,
+        credentials: AccountCredentials,
+        accountId: String,
+        emailId: String,
+    ): Boolean {
+        val cached = runCatching { repo.cachedEmail(accountId, emailId) }.getOrNull()
+        val role = runCatching { repo.mailboxRole(accountId, cached?.mailboxId) }.getOrNull()
+        val hasTrash = runCatching { repo.hasCachedTrash(accountId) }.getOrDefault(true)
+        when (bannerDeleteAct(role, hasTrash)) {
+            BannerDeleteAct.DoNothing -> return false
+            BannerDeleteAct.MoveToTrash -> repo.delete(credentials, emailId)
+        }
+        return true
     }
 
     /**

@@ -3817,6 +3817,23 @@ class MailRepository(
         roleMailboxId(credentials, "trash") != null
 
     /**
+     * Whether the FOLDER CACHE names a Trash for [accountId] — the same question as
+     * [accountHasTrash], asked of the local table instead of the server.
+     *
+     * [accountHasTrash] resolves the role through `roleMailboxId`, which goes to the socket (an
+     * IMAP LIST, a JMAP `connect()`), and a caller that cannot afford a socket must not be made to
+     * pay for one: a broadcast receiver has ~10 s of `goAsync` for everything it does, and a
+     * reachable-but-silent server spends all of it. The notification banner's Delete asks here
+     * (`app.sterna.push.bannerDeleteAct`).
+     *
+     * ⚠ It answers about the CACHE, so it says "no Trash" for an account whose folder list has
+     * never been synced. That is why its caller pairs it with a folder role it already knows: a
+     * known role is the proof the list was synced, and without one this answer decides nothing.
+     */
+    suspend fun hasCachedTrash(accountId: String): Boolean =
+        mailboxDao.idForRole(accountId, "trash") != null
+
+    /**
      * The IMAP numbering last observed for [mailboxId] — for a caller that must FREEZE it with a
      * user's confirmation and oppose it much later (the held-back destroy: the UI reads it here,
      * the worker carries it, `destroyAll` opposes it). Null on JMAP, where an id survives anything

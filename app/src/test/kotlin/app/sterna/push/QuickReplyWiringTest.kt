@@ -18,12 +18,15 @@ import java.io.File
  */
 class QuickReplyWiringTest {
 
-    @Test fun `mark read and delete still dismiss, exactly as before`() {
+    @Test fun `mark read still dismisses, and delete only when it moved something`() {
         val body = bodyOf(RECEIVER, "onReceive")
         assertEquals(
-            "the two server-side actions must keep their unconditional dismissal: their work is " +
-                "on the server's copy and is retryable from the list, so nothing is lost by it",
-            listOf("dismiss(appContext, accountId, credentials, notifId)"),
+            "ONE cancellation on this path, and it is CONDITIONAL. An unconditional dismissal is " +
+                "the defect itself: Delete used to take the banner down after a move that moved " +
+                "nothing (the message was already in Trash — evicted from the cache and from the " +
+                "search index while the server kept it) or after a throw that had already " +
+                "unlisted the message from an Empty-trash order and marked it read",
+            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)"),
             codeLinesNaming(body, "dismiss("),
         )
         assertEquals(
@@ -33,12 +36,113 @@ class QuickReplyWiringTest {
             codeLinesNaming(body, "ACTION_REPLY"),
         )
         assertEquals(
-            "and the two actions themselves stay where they were",
+            "Mark as read does not change: its work is on the server's copy and is retryable " +
+                "from the list, so nothing is lost by dismissing on it",
+            listOf("ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)"),
+            codeLinesNaming(body, "ACTION_MARK_READ"),
+        )
+        assertEquals(
+            "Delete goes through the decision instead of straight at the repository, and the " +
+                "decision is what says whether the banner may fall",
+            listOf("ACTION_DELETE -> mayDismiss = deleteFromBanner("),
+            codeLinesNaming(body, "deleteFromBanner("),
+        )
+        assertEquals(
+            "…and the flag that carries the answer, EVERY line of it. The pin above names the " +
+                "call and is blind by construction to a line added beside it: one `mayDismiss = " +
+                "true` after the `when` restores the unconditional dismissal, compiles, and reads " +
+                "as deliberate. Three lines, and there is no fourth — it is set once, assigned " +
+                "once by the decision, and read once",
             listOf(
-                "ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)",
-                "ACTION_DELETE -> container.mailRepository.delete(credentials, emailId)",
+                "var mayDismiss = true",
+                "ACTION_DELETE -> mayDismiss = deleteFromBanner(",
+                "if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)",
             ),
-            codeLinesNaming(body, "container.mailRepository."),
+            codeLinesNaming(body, "mayDismiss"),
+        )
+        assertEquals(
+            "…and EVERY use of the repository in onReceive, enumerated whole: the reply hand-off, " +
+                "the mark-read call, and the arguments the banner's delete is handed. A pin that " +
+                "names only the calls is blind to a `container.mailRepository.delete(...)` added " +
+                "beside them, which is exactly the line this change removes",
+            listOf(
+                "appContext, container.mailRepository, container.settingsRepository,",
+                "ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)",
+                "container.mailRepository, credentials, accountId, emailId,",
+            ),
+            codeLinesNaming(body, "container.mailRepository"),
+        )
+    }
+
+    /**
+     * The banner's Delete, whose whole job is to ask — locally — the question the screen asks over
+     * the network. `deleteWouldDestroy` resolves the Trash with an IMAP LIST or a JMAP connect();
+     * this receiver runs under goAsync's ~10 s and cannot pay for that, so a network probe here is
+     * not a nicety, it is the failure mode this path exists to avoid.
+     */
+    @Test fun `the banner's delete asks the local caches, and only the local caches`() {
+        val body = bodyOf(RECEIVER, "deleteFromBanner")
+        assertEquals(
+            "the message's own folder comes from the CACHE, scoped to the account (#31: an id is " +
+                "unique only inside its account)",
+            listOf("val cached = runCatching { repo.cachedEmail(accountId, emailId) }.getOrNull()"),
+            codeLinesNaming(body, "cachedEmail("),
+        )
+        assertEquals(
+            "and its role from the FOLDER cache — `mailboxRole` is a `roleForId` on the local " +
+                "table, arguments pinned: the account and the folder of the row just read",
+            listOf("val role = runCatching { repo.mailboxRole(accountId, cached?.mailboxId) }.getOrNull()"),
+            codeLinesNaming(body, "mailboxRole("),
+        )
+        assertEquals(
+            "and whether the account has a Trash from the same cache, NEVER accountHasTrash — " +
+                "and it falls back to `true`, the ordinary path: a failed read must never turn " +
+                "into a refusal to delete",
+            listOf("val hasTrash = runCatching { repo.hasCachedTrash(accountId) }.getOrDefault(true)"),
+            codeLinesNaming(body, "hasCachedTrash("),
+        )
+        assertEquals(
+            "what happens next is DECIDED (BannerDeleteActTest executes it), with the two reads " +
+                "as arguments — a literal there is a rule that answers the same thing forever",
+            listOf("when (bannerDeleteAct(role, hasTrash)) {"),
+            codeLinesNaming(body, "bannerDeleteAct("),
+        )
+        assertEquals(
+            "each arm carries its action ON ITS OWN LINE, so swapping two arms cannot pass as " +
+                "the same set of lines. `DoNothing` must reach neither the repository nor the " +
+                "dismissal: doing nothing INCLUDES leaving the banner standing",
+            listOf(
+                "BannerDeleteAct.DoNothing -> return false",
+                "BannerDeleteAct.MoveToTrash -> repo.delete(credentials, emailId)",
+            ),
+            codeLinesNaming(body, "BannerDeleteAct."),
+        )
+        assertEquals(
+            "and BOTH ends of it, whole: what this function returns is the banner's fate, and a " +
+                "`return true` turned into `return false` — or a second exit added beside them — " +
+                "is a banner that never comes down again on a delete that worked",
+            listOf("BannerDeleteAct.DoNothing -> return false", "return true"),
+            codeLinesNaming(body, "return"),
+        )
+    }
+
+    @Test fun `nothing under push resolves a role over the network`() {
+        val offenders = File(root, PUSH_SOURCES).walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap { file ->
+                val source = file.readText()
+                (codeLinesNaming(source, "deleteWouldDestroy(") + codeLinesNaming(source, "accountHasTrash("))
+                    .map { "${file.name}: $it" }
+            }
+            .toList()
+        assertEquals(
+            "⛔ both of these resolve the Trash over the SOCKET (roleMailboxId: an IMAP LIST, a " +
+                "JMAP connect()). A broadcast receiver has ~10 s of goAsync for everything it " +
+                "does, and a reachable-but-silent server spends all of it — the process is then " +
+                "killed mid-action. Every question this package asks about a folder is answered " +
+                "from the local caches or not asked at all",
+            emptyList<String>(),
+            offenders,
         )
     }
 
