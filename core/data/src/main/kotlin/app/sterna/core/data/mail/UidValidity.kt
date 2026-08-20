@@ -94,10 +94,15 @@ object UidValidity {
      * Which of [requested] an IMAP destroy may act on when all it has to oppose is [expected] —
      * the numbering the ids were read under, frozen with the user's confirmation.
      *
-     * The IMAP twin of `TrashPurge.destroyableIds`, and it answers all-or-nothing because that is
-     * what the question is: a UIDVALIDITY is a property of the FOLDER, not of an id, so either
-     * every UID in the wave still means what it meant or none of them does. Everything, in the
-     * order it came, when there is a numbering to oppose; nothing at all when there is not.
+     * The IMAP twin of `TrashPurge.destroyableIds`, and it answers all-or-nothing because [expected]
+     * is ONE number: either every UID handed here belongs to it or none of them does. Everything, in
+     * the order it came, when there is a numbering to oppose; nothing at all when there is not.
+     *
+     * ⛔ That is a statement about this ARGUMENT, not a licence to merge waves. A UIDVALIDITY belongs
+     * to a folder AT A TIME, and one folder's cache routinely holds rows read under two of them —
+     * nothing prunes the old ones on IMAP. Splitting them is [imapDestroyRoutes]' job, upstream, and
+     * it must stay split: fold two numberings back into one call here and the older ids go out under
+     * the newer number, which is #99 itself.
      *
      * "Nothing at all" is the whole point of the second half. A destroy that opposes nothing lets
      * the SELECT fall back on the number the app has recorded RIGHT NOW — which an ordinary
@@ -135,6 +140,59 @@ object UidValidity {
             byFolder = grouped.filterKeys { it != null }.mapKeys { (folder, _) -> folder!! },
             refused = (requested - destroyable.toSet()) + grouped[null].orEmpty(),
         )
+    }
+
+    /**
+     * One request of a held-back destroy: the ids of ONE folder that were read under ONE
+     * numbering, in the order they came. Translated as-is into `MessageDestroyWorker.FolderDestroy`.
+     *
+     * [uidValidity] is what those ids' UIDs BELONG TO — the numbering stamped on the cache rows
+     * when the SELECT that enumerated them stated it ([app.sterna.core.data.db.EmailEntity.uidValidity]),
+     * not the folder's current record. Null means "nothing to oppose": rows cached before the
+     * column existed, and every JMAP row. That refuses, and refusing costs a re-query.
+     */
+    data class ImapDestroyRoute(
+        val mailboxId: String,
+        val emailIds: List<String>,
+        val uidValidity: Long?,
+    )
+
+    /**
+     * How a held-back destroy of one account splits into requests: by (folder the ids were in when
+     * the user confirmed, numbering those ids were READ under).
+     *
+     * ⭐ THE NUMBERING IS PART OF THE KEY, exactly as in [imapUndoRoutes], and for the same fact: a
+     * UIDVALIDITY belongs to a folder AT A TIME, not to a folder. A selection can hold rows read
+     * before a renumbering and rows read after it — the list keeps showing both, since nothing
+     * prunes stale rows on IMAP — and one `UID STORE` + `UID EXPUNGE` can only oppose ONE number.
+     * Merging them would mean sending the older ids out under the newer number, which is the #99
+     * accident itself (expunging whatever now holds those UIDs), or refusing the newer lot along
+     * with the older. Splitting refuses only what cannot be confirmed, and costs one extra request
+     * in a case that needs a renumbering mid-selection to happen at all.
+     *
+     * ⚠ [targets] carries the folder, and it comes from the row FROZEN AT THE CONFIRMATION, never
+     * from [ImapMailService.mailboxOf]: this path serves both protocols and a JMAP id says nothing
+     * about its folder. On JMAP every numbering is null, so the key degenerates to the folder alone
+     * and the grouping is exactly the one this replaced — one route per folder, ids in order.
+     *
+     * A [LinkedHashMap] on a composite key, like [imapUndoRoutes]: arrival order is preserved, both
+     * across routes and inside one, because the ids are also what comes back in `BulkResult.failed`
+     * and what the caller re-queries.
+     *
+     * Pure, and here rather than in `MailRepository` / `InboxViewModel`, for [imapDestroyPlan]'s
+     * reason: neither can be built without Room, a `Context` and an `Application`, so a routing
+     * left in either is a routing no test can RUN — and a routing nothing runs is a routing a
+     * mutation walks through.
+     */
+    fun imapDestroyRoutes(
+        targets: List<Pair<String, String>>,
+        numberingOf: (String) -> Long?,
+    ): List<ImapDestroyRoute> {
+        val byRoute = LinkedHashMap<Pair<String, Long?>, MutableList<String>>()
+        targets.forEach { (emailId, mailboxId) ->
+            byRoute.getOrPut(mailboxId to numberingOf(emailId)) { mutableListOf() } += emailId
+        }
+        return byRoute.map { (route, ids) -> ImapDestroyRoute(route.first, ids.toList(), route.second) }
     }
 
     /**

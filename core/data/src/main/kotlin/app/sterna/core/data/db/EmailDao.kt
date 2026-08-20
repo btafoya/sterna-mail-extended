@@ -513,6 +513,22 @@ interface EmailDao {
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND id IN (:ids)")
     suspend fun emailsByIds(accountId: String, ids: List<String>): List<EmailEntity>
 
+    /**
+     * The IMAP numbering each of [ids] was READ under — [EmailEntity.uidValidity], row by row, for
+     * a caller that has to FREEZE it with the user's confirmation and oppose it much later (the
+     * held-back destroy, Codeberg #99).
+     *
+     * A projection and not [emailsByIds] because the answer is opposed to a server minutes later
+     * and a destroy has no business carrying envelopes around; and per ROW, never per folder,
+     * which is the whole point: the folder's record is realigned by any background pass that meets
+     * the renumbering, while these rows still hold the UIDs of the numbering they were read under.
+     *
+     * ⚠ An id with no row comes back MISSING, not null-valued, and the caller must read that as
+     * "nothing to oppose" — a row already evicted, or never cached, cannot say what its UID means.
+     */
+    @Query("SELECT id, uidValidity FROM emails WHERE accountId = :accountId AND id IN (:ids)")
+    suspend fun numberingOfRows(accountId: String, ids: List<String>): List<RowNumbering>
+
     /** One account's cached members of the given threads that are filed under [mailboxId]
      *  (Codeberg #50: the archived members of threads that just received a new reply).
      *  Thread-less rows (NULL threadId) never match — they can't have received a reply. */
@@ -709,6 +725,16 @@ interface EmailDao {
 data class EmailRetentionRow(
     val id: String,
     val sortKey: Long,
+)
+
+/**
+ * Projection for [EmailDao.numberingOfRows]: one cached row's id and the IMAP numbering it was
+ * READ under. [uidValidity] is null for a row cached before schema v25 and for every JMAP row —
+ * "nothing to oppose", which destroys nothing.
+ */
+data class RowNumbering(
+    val id: String,
+    val uidValidity: Long?,
 )
 
 /** Projection for [EmailDao.keysForSelection]: the account-qualified key of one selectable row. */

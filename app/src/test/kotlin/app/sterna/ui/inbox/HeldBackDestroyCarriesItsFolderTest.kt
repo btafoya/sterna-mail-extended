@@ -16,11 +16,19 @@ import java.io.File
  * rescued during the hold-back is destroyed in its new folder.
  *
  * The SECOND thing it pins is the IMAP half of the same hand-over (Codeberg #99): the numbering
- * (UIDVALIDITY) each folder was under WHEN THE USER CONFIRMED travels the same way, frozen once
- * in the ViewModel and replayed as-is. A worker that re-reads the numbering at execution time
- * opposes the folder's CURRENT numbering to itself, the guard concludes "same", and a folder
- * renumbered during the hold-back is expunged by UIDs that now name other messages. Nothing
- * executable can see that mutation — only these whole-line comparisons can.
+ * (UIDVALIDITY) each message was READ UNDER travels the same way, frozen once in the ViewModel
+ * and replayed as-is. A worker that re-reads the numbering at execution time opposes the folder's
+ * CURRENT numbering to itself, the guard concludes "same", and a folder renumbered during the
+ * hold-back is expunged by UIDs that now name other messages. Nothing executable can see that
+ * mutation — only these whole-line comparisons can.
+ *
+ * ⭐ Since this branch the frozen value comes from THE ROWS, not from the folder: `emails` carries
+ * the numbering the SELECT that enumerated it stated, and the folder's record is realigned by any
+ * background pass that meets a renumbering while those rows stay on screen. So the absence pinned
+ * below — no `recordedUidValidity` anywhere on this path — is as load-bearing as the presences.
+ * ⛔ What the split then DOES with those numbers is not pinned here but EXECUTED, in
+ * `UidValidityDestroyRoutesTest`: a decision only read as text is a decision a mutation walks
+ * through.
  */
 class HeldBackDestroyCarriesItsFolderTest {
 
@@ -136,20 +144,29 @@ class HeldBackDestroyCarriesItsFolderTest {
      * replays the same set and cannot re-read it (it is not a suspending function) — so the
      * numbering has to be kept beside the targets, and a flush that looked it up again would
      * hand the destroy the numbering of the very renumbering it must refuse.
+     *
+     * ⭐ And WHERE it is read from is now half the point. The numbering must come off THE ROWS —
+     * the stamp each cached row was written with by the SELECT that enumerated it — and never off
+     * the FOLDER: `mailbox_uidvalidity` is realigned by any background pass that meets a
+     * renumbering (`ImapMailService.loadWatchedFolders` → `UidValidityStore.invalidate`) while the
+     * ids on screen still belong to the old numbering, and nothing prunes those rows on IMAP. The
+     * folder's number opposed to itself reads SAME, and the expunge falls on other messages. That
+     * was the defect this branch closes; the rule the routing then applies is executed, not read,
+     * in `UidValidityDestroyRoutesTest`.
      */
     @Test fun theViewModelFreezesTheNumberingWithTheConfirmationAndReplaysIt() {
         assertEquals(
-            "the hold-back must capture the numbering of the folders it is about, once",
+            "the hold-back must capture the numbering of the messages it is about, once",
             listOf("val numbering = recordedNumbering(targets)"),
             codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "heldBackDestroy"), "recordedNumbering("),
         )
         assertEquals(
-            "and it must ask the repository for the numbering of the very folder each target names",
+            "and it must ask the repository for the numbering EACH ROW WAS READ UNDER, per account",
             listOf(
-                ".associate { (credentials, _, mailboxId) -> (credentials.id to mailboxId) to " +
-                    "repo.recordedUidValidity(credentials, mailboxId) }",
+                "repo.numberingRowsWereReadUnder(credentials, emailIds).map { (emailId, uidValidity) -> " +
+                    "(credentials.id to emailId) to uidValidity }",
             ),
-            codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "recordedNumbering"), "repo.recordedUidValidity("),
+            codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "recordedNumbering"), "repo.numberingRowsWereReadUnder("),
         )
         val flush = bodyOf(INBOX_VIEW_MODEL, "flushPendingDestroy")
         assertEquals(
@@ -164,10 +181,46 @@ class HeldBackDestroyCarriesItsFolderTest {
             codeLinesNaming(flush, "recordedUidValidity"),
         )
         assertEquals(
-            "each folder's request must be stamped with the numbering captured for THAT folder",
-            listOf("MessageDestroyWorker.FolderDestroy(mailboxId, ids, numbering[accountId to mailboxId])"),
+            "each request must be one route of the pure split — one folder, one numbering, its ids " +
+                "in order — translated and nothing more",
+            listOf("return routes.map { MessageDestroyWorker.FolderDestroy(it.mailboxId, it.emailIds, it.uidValidity) }"),
             codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "foldersToDestroy"), "FolderDestroy("),
         )
+        assertEquals(
+            "and the split itself must be the pure function, keyed by folder AND numbering: a " +
+                "grouping written here is a decision no test can run",
+            listOf(
+                "val routes = UidValidity.imapDestroyRoutes(rows.map { it.second to it.third }) { " +
+                    "numbering[accountId to it] }",
+            ),
+            codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "foldersToDestroy"), "imapDestroyRoutes("),
+        )
+    }
+
+    /**
+     * ⛔ THE REGRESSION THIS BRANCH CLOSES, stated as an absence.
+     *
+     * `repo.recordedUidValidity(...)` answers what `mailbox_uidvalidity` holds for a FOLDER right
+     * now. Reading it anywhere on the destroy path puts the defect back whole: a background pass
+     * that met the renumbering has already written the new number there, the SELECT then matches
+     * it by construction, and `UID STORE +FLAGS (\Deleted)` + `UID EXPUNGE` go out on UIDs that
+     * name other, live messages — with no failure anywhere and the rows already off the screen.
+     *
+     * Two functions, because the read can come back into either: the hold-back that freezes, and
+     * the freeze itself. Nothing else on this path may ask the folder anything. (The MOVE path
+     * still reads it, deliberately — a move is reversible and has its own fiche; it is why this
+     * assertion is scoped to these two bodies and not to the file.)
+     */
+    @Test fun theDestroyPathNeverAsksTheFOLDERForItsNumbering() {
+        listOf("heldBackDestroy", "recordedNumbering").forEach { function ->
+            assertEquals(
+                "`$function` must not read the folder's current numbering — that is the value a " +
+                    "renumbering has already realigned, and opposing it to itself licenses the " +
+                    "expunge this whole chain exists to refuse",
+                emptyList<String>(),
+                codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, function), "recordedUidValidity"),
+            )
+        }
     }
 
     companion object {

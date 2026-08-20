@@ -34,6 +34,13 @@ import java.sql.DriverManager
  * ⛔ And the column is NULLABLE WITH NO DEFAULT, read back as `NULL` on every row queued before it.
  * That is deliberate and it is the safe half of the trade: `null` destroys nothing, whereas
  * backfilling the folder's current numbering would license an expunge under a number nobody froze.
+ *
+ * ⭐ And **v24 → v25** ([MIGRATION_24_25]), at the bottom of the file: `emails` gains `uidValidity`,
+ * the IMAP numbering each cached row was READ under ([EmailEntity.uidValidity], #99). Same engine,
+ * same seed, same stake, and the same shape of column — nullable, no default, no backfill, because
+ * `null` destroys nothing while an invented number licenses an expunge. A step missing from
+ * [SternaDatabase.ALL_MIGRATIONS] drops every table, `local_drafts` now included, i.e. a third
+ * store of text the user typed.
  */
 class DraftNumberingMigrationSqlTest {
     private lateinit var db: Connection
@@ -181,6 +188,15 @@ class DraftNumberingMigrationSqlTest {
     }
 
     private fun migrate22to23() = MIGRATION_22_23.migrate(supportDb())
+
+    /** A REAL v24 database: [seedV22] carried up by the very migration objects that ship. */
+    private fun seedV24() {
+        seedV22()
+        MIGRATION_22_23.migrate(supportDb())
+        MIGRATION_23_24.migrate(supportDb())
+    }
+
+    private fun migrate24to25() = MIGRATION_24_25.migrate(supportDb())
 
     private fun count(sql: String): Int = db.createStatement().use { st ->
         st.executeQuery(sql).use { rs ->
@@ -433,6 +449,12 @@ class DraftNumberingMigrationSqlTest {
             Triple("INTEGER", 0, null),
             columnShapes("scheduled_sends")["draftUidValidity"],
         )
+        assertEquals(
+            "and the chain must reach v25: emails.uidValidity must be there, otherwise Room has no " +
+                "24→25 path and drops the whole database — outbox, scheduled_sends and local_drafts",
+            Triple("INTEGER", 0, null),
+            columnShapes("emails")["uidValidity"],
+        )
         // And the chain that reaches them loses nothing on the way.
         assertEquals(2, count("SELECT COUNT(*) FROM `emails`"))
         assertEquals(1, count("SELECT COUNT(*) FROM `outbox` WHERE `subject` = 'Never sent' AND `state` = 'QUEUED'"))
@@ -484,7 +506,110 @@ class DraftNumberingMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("this branch takes the schema to v24", 24, SCHEMA_VERSION)
+        assertEquals("this branch takes the schema to v25", 25, SCHEMA_VERSION)
+    }
+
+    // --- v24 → v25: the numbering each cached row was read under ---------------------------------
+
+    @Test fun v24to25_addsTheColumnToTheCachedRows() {
+        seedV24()
+        migrate24to25()
+
+        assertTrue(
+            "`emails.uidValidity` is missing: a cached row cannot say which numbering its UID " +
+                "belongs to, so a permanent delete has only the folder's record to oppose — and a " +
+                "background pass that met a renumbering has already realigned that record (#99)",
+            "uidValidity" in columnsOf("emails"),
+        )
+    }
+
+    @Test fun v24to25_addsNothingElseAnywhere() {
+        seedV24()
+        val emailsBefore = columnsOf("emails")
+        val outboxBefore = columnShapes("outbox")
+        val scheduledBefore = columnShapes("scheduled_sends")
+        val localDraftsBefore = columnShapes("local_drafts")
+
+        migrate24to25()
+
+        assertEquals(setOf("uidValidity"), columnsOf("emails") - emailsBefore)
+        // The three stores that hold text the user typed have no business in a cache step.
+        assertEquals("the outbox is not touched", outboxBefore, columnShapes("outbox"))
+        assertEquals("nor the scheduled sends", scheduledBefore, columnShapes("scheduled_sends"))
+        assertEquals("nor the local drafts", localDraftsBefore, columnShapes("local_drafts"))
+    }
+
+    @Test fun v24to25_everyRowOfEveryTableSurvives() {
+        seedV24()
+        val before = rowCounts()
+        assertEquals(
+            "the seed itself must hold a row everywhere, otherwise this proves nothing",
+            emptyList<String>(),
+            before.filterValues { it == 0 }.keys.toList(),
+        )
+
+        migrate24to25()
+
+        assertEquals(before, rowCounts())
+        // The cache the column is added to keeps its rows word for word, and so does the unsent mail.
+        assertEquals(1, count("SELECT COUNT(*) FROM `emails` WHERE `id` = 'e1' AND `subject` = 'Hello'"))
+        assertEquals(1, count("SELECT COUNT(*) FROM `email_fts` WHERE `email_fts` MATCH 'Hell*'"))
+        assertEquals(
+            1,
+            count(
+                "SELECT COUNT(*) FROM `outbox` WHERE `subject` = 'Never sent' AND " +
+                    "`textBody` = 'see you at six' AND `state` = 'QUEUED'",
+            ),
+        )
+        assertEquals(1, count("SELECT COUNT(*) FROM `scheduled_sends` WHERE `subject` = 'Later'"))
+    }
+
+    @Test fun v24to25_rowsCachedBeforeItReadBackAsNullAndNotAsZero() {
+        seedV24()
+        migrate24to25()
+
+        // ⛔ NULL, deliberately, and NOT backfilled with the folder's current numbering: nobody
+        // knows which numbering those rows were read under, and inventing one would license exactly
+        // the expunge this column exists to refuse. `null` destroys nothing
+        // (`UidValidity.mayDestroy`). 0 would be worse than useless — it is "the server announced
+        // none", which would look like an answer while meaning "unknown".
+        assertNull(longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e1'"))
+        assertEquals(2, count("SELECT COUNT(*) FROM `emails` WHERE `uidValidity` IS NULL"))
+    }
+
+    @Test fun v24to25_aNumberingRoundTripsOnTheRow() {
+        seedV24()
+        migrate24to25()
+
+        db.createStatement().use { st ->
+            st.executeUpdate("UPDATE `emails` SET `uidValidity` = 42 WHERE `id` = 'e1'")
+        }
+
+        assertEquals(42L, longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e1'"))
+        // Per ROW, which is the whole point: stamping one row must not answer for its neighbour in
+        // the same folder — that is precisely how two numberings coexist in one list after a
+        // renumbering nothing pruned.
+        assertNull(longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e2'"))
+
+        db.createStatement().use { st ->
+            st.executeUpdate("UPDATE `emails` SET `uidValidity` = 4294967295 WHERE `id` = 'e2'")
+        }
+        // A UIDVALIDITY is a 32-bit UNSIGNED integer: the column must hold 4294967295 as itself.
+        assertEquals(4294967295L, longOrNull("SELECT `uidValidity` FROM `emails` WHERE `id` = 'e2'"))
+    }
+
+    @Test fun v24to25_declaresTheColumnAsANullableIntegerWithNoDefault() {
+        seedV24()
+        migrate24to25()
+
+        // The entity field is a `Long?`, so the column must be NULLABLE (`notnull` = 0) with no
+        // default. Room compares affinity and nullability at open time: NOT NULL here fails
+        // `validateMigration` on every launch, and the user's only way out is a reinstall — which
+        // takes the outbox, the scheduled sends and the local drafts with it.
+        assertEquals(Triple("INTEGER", 0, null), columnShapes("emails")["uidValidity"])
+        // The witnesses: a nullable text column beside it, and a non-null one.
+        assertEquals(Triple("TEXT", 0, null), columnShapes("emails")["recipientsJson"])
+        assertEquals(1, columnShapes("emails")["sortKey"]!!.second)
     }
 
     private companion object {

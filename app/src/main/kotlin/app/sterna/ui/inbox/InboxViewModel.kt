@@ -29,6 +29,7 @@ import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.InboxRow
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.MailSearchResult
+import app.sterna.core.data.mail.UidValidity
 import app.sterna.core.data.mail.emailKey
 import app.sterna.core.data.settings.SortOrder
 import app.sterna.core.data.settings.SwipeAction
@@ -273,11 +274,20 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      *  is what the destroy re-checks against the server before touching anything (#122). */
     private var pendingDeleteTargets: List<Triple<AccountCredentials, String, String>> = emptyList()
 
-    /** The IMAP numbering (UIDVALIDITY) each of those folders was under WHEN THE USER CONFIRMED,
-     *  keyed by (accountId, mailboxId) — null on JMAP and on a folder never observed. Frozen with
-     *  the targets and replayed as-is, because that is the only value worth opposing: read it
-     *  again at flush or at execution and you read the number a refresh recorded AFTER the
-     *  renumbering, which the server then matches by construction (#99). */
+    /** The IMAP numbering (UIDVALIDITY) each of those MESSAGES was READ under, keyed by
+     *  (accountId, emailId) — the stamp its cached row carries, not the folder's current record
+     *  (#99). Null, or simply missing, on JMAP, on a row cached before the column existed and on a
+     *  row no longer cached: all three mean "nothing to oppose", which destroys nothing.
+     *
+     *  ⭐ Per MESSAGE and no longer per (account, folder): the folder's record is realigned by any
+     *  background pass that meets a renumbering, while the ids on screen still belong to the old
+     *  numbering — opposed to itself it reads SAME and the expunge falls on other messages. The
+     *  row's stamp comes from the SELECT that enumerated it, so it cannot drift from its own UID.
+     *  Keyed by ACCOUNT TOO because an email id is unique only inside its account (issue #31).
+     *
+     *  Frozen with the targets and replayed as-is: read it again at flush or at execution and you
+     *  read what a refresh recorded AFTER the renumbering, which the server then matches by
+     *  construction. */
     private var pendingDeleteNumbering: Map<Pair<String, String>, Long?> = emptyMap()
 
     /** The held-back messages themselves — kept so [undoDelete] can re-complete their threads,
@@ -1441,30 +1451,41 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * One account's held-back rows, grouped by the folder each message was in when the user
-     * confirmed — what the destroy is checked against on JMAP (#122) — each group stamped with
-     * that folder's [numbering], which is what an IMAP destroy opposes to the server (#99). An
-     * empty key means the cached row named no folder: the destroy then has nothing to verify its
-     * order with, and no numbering either, and destroys nothing — the safe end of that.
+     * One account's held-back rows, split into the requests the worker will fire: by the folder
+     * each message was in when the user confirmed — what the destroy is checked against on JMAP
+     * (#122) — AND by the numbering that message was READ under, which is what an IMAP destroy
+     * opposes to the server (#99). An empty folder key means the cached row named no folder: the
+     * destroy then has nothing to verify its order with, and destroys nothing — the safe end.
+     *
+     * ⭐ The split itself is [UidValidity.imapDestroyRoutes], a pure function, so the rule can be
+     * RUN by a test instead of restated by one: this class needs an `Application` and a Room
+     * database, and a routing nothing executes is a routing a mutation walks through. Two rows of
+     * ONE folder read under two numberings therefore become two requests, each opposing its own
+     * number — one command cannot oppose both. On JMAP every numbering is null and the split is
+     * exactly the by-folder grouping this replaced.
      */
     private fun foldersToDestroy(
         accountId: String,
         rows: List<Triple<AccountCredentials, String, String>>,
         numbering: Map<Pair<String, String>, Long?>,
     ): List<MessageDestroyWorker.FolderDestroy> {
-        return rows.groupBy({ it.third }, { it.second }).map { (mailboxId, ids) ->
-            MessageDestroyWorker.FolderDestroy(mailboxId, ids, numbering[accountId to mailboxId])
-        }
+        val routes = UidValidity.imapDestroyRoutes(rows.map { it.second to it.third }) { numbering[accountId to it] }
+        return routes.map { MessageDestroyWorker.FolderDestroy(it.mailboxId, it.emailIds, it.uidValidity) }
     }
 
-    /** The IMAP numbering of every folder [targets] touches, as recorded right now — i.e. at the
-     *  confirmation, which is the only moment this may be read (see [pendingDeleteNumbering]).
-     *  One read per (account, folder), not per message. */
+    /** The IMAP numbering every message in [targets] was READ under — the stamp on its own cached
+     *  row, read at the confirmation, which is the only moment this may be read (see
+     *  [pendingDeleteNumbering]). ⛔ Not the folder's record: a background pass that met a
+     *  renumbering has already realigned that one, and opposing it to itself licenses the expunge
+     *  this exists to refuse (#99). One read per account, not per message; a row the cache no
+     *  longer holds is absent from the answer, i.e. nothing to oppose. */
     private suspend fun recordedNumbering(
         targets: List<Triple<AccountCredentials, String, String>>,
     ): Map<Pair<String, String>, Long?> {
-        return targets.distinctBy { it.first.id to it.third }
-            .associate { (credentials, _, mailboxId) -> (credentials.id to mailboxId) to repo.recordedUidValidity(credentials, mailboxId) }
+        return targets.groupBy({ it.first }, { it.second })
+            .flatMap { (credentials, emailIds) ->
+                repo.numberingRowsWereReadUnder(credentials, emailIds).map { (emailId, uidValidity) -> (credentials.id to emailId) to uidValidity }
+            }.toMap()
     }
 
     /** Commit any held-back destroy immediately (a new delete supersedes the pending one). */

@@ -520,3 +520,32 @@ val MIGRATION_23_24 = object : Migration(23, 24) {
         db.execSQL(LOCAL_DRAFTS_CREATE_SQL)
     }
 }
+
+/**
+ * Additive 24→25: `emails` gains `uidValidity`, the IMAP numbering each cached row was READ under
+ * ([EmailEntity.uidValidity], Codeberg #99).
+ *
+ * What it closes: the numbering was tracked per FOLDER (`mailbox_uidvalidity`) while the ids a
+ * destroy names come from ROWS that carried none. A background pass that finds a folder renumbered
+ * records the NEW number and leaves the old rows in place — nothing prunes them on IMAP — so a
+ * destroy froze the new number, the SELECT compared it with itself, and `UID EXPUNGE` went out on
+ * UIDs that now name other, live messages. With the numbering ON the row, what is opposed is what
+ * was read.
+ *
+ * One plain `ALTER TABLE … ADD COLUMN`, on the model of [MIGRATION_19_20], layered on top rather
+ * than folded into a released migration (rewriting one breaks the installs that replay the older
+ * statements and fails Room's identity check on the next launch). Nullable with no default: every
+ * existing row keeps its data and reads back as "no numbering to oppose", which destroys nothing.
+ * ⛔ No backfill, deliberately — writing the folder's CURRENT number into old rows would license
+ * precisely the expunge this column exists to refuse.
+ *
+ * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * `fallbackToDestructiveMigration()`, so this step missing from [SternaDatabase.ALL_MIGRATIONS] —
+ * written but not registered — has Room find no 24→25 path and DROP every table: `outbox`,
+ * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left.
+ */
+val MIGRATION_24_25 = object : Migration(24, 25) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `emails` ADD COLUMN `uidValidity` INTEGER")
+    }
+}

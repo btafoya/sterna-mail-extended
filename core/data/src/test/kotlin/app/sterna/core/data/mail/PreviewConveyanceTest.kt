@@ -98,8 +98,12 @@ class PreviewConveyanceTest {
             codeLinesNaming(body, "previewSourcesOf("),
         )
         assertEquals(
-            "and the page's rows must still be the ones cached — the map is additional, not a swap",
-            listOf("page.map { it.toEntity(credentials.id, folder.path) },"),
+            "and the page's rows must still be the ones cached — the map is additional, not a swap, " +
+                "and it carries `status.uidValidity`: the numbering THIS SELECT stated is stamped on " +
+                "the rows it enumerated, which is what a later permanent delete opposes (#99). This " +
+                "pass is the background one that MEETS the renumbering, so a row it writes unstamped " +
+                "is a row a destroy can only judge against the folder's realigned record",
+            listOf("page.map { it.toEntity(credentials.id, folder.path, status.uidValidity) },"),
             codeLinesNaming(body, "toEntity("),
         )
     }

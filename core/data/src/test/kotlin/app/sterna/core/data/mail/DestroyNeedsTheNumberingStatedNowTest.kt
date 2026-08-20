@@ -101,6 +101,54 @@ class DestroyNeedsTheNumberingStatedNowTest {
     }
 
     /**
+     * ⛔ THE ARGUMENT ITSELF, on a perfectly healthy server. The twin of
+     * `MoveNeedsTheNumberingStatedNowTest`'s "a move that opposes nothing is refused, on a
+     * perfectly healthy server", and the only thing that kills this mutation:
+     *
+     *     - UidValidity.mayDestroyUnderStatedNumbering(expectedUidValidity, status.uidValidity)
+     *     + UidValidity.mayDestroyUnderStatedNumbering(status.uidValidity, status.uidValidity)
+     *
+     * Every test above hands `deleteBatch` a frozen number that coincides with what the server
+     * states, so the mutation reads the same value twice and answers the same thing — it walked
+     * through the whole suite. Here nothing is frozen (`null`, i.e. the row carried no numbering,
+     * or none was ever recorded) while the server answers 42 to every SELECT: the real rule refuses,
+     * the mutated one destroys, and the difference is on the wire.
+     */
+    @Test fun `a destroy that opposes nothing is refused, on a perfectly healthy server`() {
+        val store = RememberedNumbering()
+        var refusal: Throwable? = null
+        ScriptedImapServer(scripted { 42L }).use { server ->
+            val service = service(store)
+            val credentials = credentials(server)
+            runBlocking {
+                assertEquals("the server is healthy and states its numbering", 42L, service.snapshotUids(credentials, TRASH, 100).uidValidity)
+                refusal = runCatching { service.deleteBatch(credentials, TRASH, UIDS, null) }.exceptionOrNull()
+            }
+
+            assertEquals(
+                "a destroy with NOTHING to oppose may not be licensed by the server's own answer: " +
+                    "that is comparing the number to itself, which is what an ordinary refresh has " +
+                    "already realigned after a renumbering",
+                emptyList<String>(),
+                server.issued("UID STORE"),
+            )
+            assertEquals("and nothing may be erased", emptyList<String>(), server.issued("UID EXPUNGE"))
+        }
+        assertTrue(
+            "the refusal must reach the caller, got $refusal",
+            refusal is ImapNumberingUnconfirmed,
+        )
+        assertEquals(TRASH, (refusal as ImapNumberingUnconfirmed).mailbox)
+        assertNull("and it must say it had nothing to oppose", (refusal as ImapNumberingUnconfirmed).expected)
+        assertEquals(
+            "a refusal invalidates nothing: the server is healthy, and dropping the caches would " +
+                "throw away a purge snapshot the user confirmed",
+            emptyList<String>(),
+            store.invalidated,
+        )
+    }
+
+    /**
      * The server that NEVER states a numbering is not this guard's business: nothing is recorded
      * for it, so the destroy is refused a layer up by [UidValidity.imapDestroyPlan] and never
      * reaches a socket at all. Behaviour unchanged, and the new guard is not what catches it.

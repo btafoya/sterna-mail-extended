@@ -673,7 +673,7 @@ class ImapMailService(
                 settle = { reconcileNumbering(credentials.id, target.path, status.uidValidity) },
                 walk = {
                     session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->
-                        onPage(page.map { it.toEntity(credentials.id, target.path) })
+                        onPage(page.map { it.toEntity(credentials.id, target.path, status.uidValidity) })
                     }
                 },
             )
@@ -732,7 +732,7 @@ class ImapMailService(
                     folder.path,
                     folder.name,
                     folder.role,
-                    page.map { it.toEntity(credentials.id, folder.path) },
+                    page.map { it.toEntity(credentials.id, folder.path, status.uidValidity) },
                     previewSourcesOf(credentials.id, folder.path, page),
                     // The SELECT's answer, not a verdict written here: `status` is already in hand,
                     // so the provenance costs no request of its own — and the rule that reads it is
@@ -754,7 +754,7 @@ class ImapMailService(
         limit: Int,
     ): Pair<List<EmailEntity>, Int> = onMailbox(credentials, mailboxId) { session, status ->
         val messages = session.fetchPage(status.exists, offset, limit)
-            .map { it.toEntity(credentials.id, mailboxId) }
+            .map { it.toEntity(credentials.id, mailboxId, status.uidValidity) }
         messages to status.exists
     }
 
@@ -909,8 +909,8 @@ class ImapMailService(
     /** Fetch several messages by UID from one folder in a single session (e.g. to re-cache a restored batch). */
     suspend fun fetchByUids(credentials: AccountCredentials, mailboxId: String, uids: List<Long>): List<EmailEntity> =
         if (uids.isEmpty()) emptyList()
-        else onMailbox(credentials, mailboxId) { session, _ ->
-            session.fetchUids(uids).map { it.toEntity(credentials.id, mailboxId) }
+        else onMailbox(credentials, mailboxId) { session, status ->
+            session.fetchUids(uids).map { it.toEntity(credentials.id, mailboxId, status.uidValidity) }
         }
 
     /** Create a folder if it doesn't exist (e.g. an Archive on first archive). */
@@ -958,9 +958,16 @@ class ImapMailService(
         //
         // Without this, a folder reached ONLY by a server-side search (a hit in an archive the user
         // has never opened) left its numbering unrecorded, so `MailRepository` had nothing to
-        // freeze and archiving, moving or deleting that hit was REFUSED on a healthy server (#99).
+        // freeze and archiving or moving that hit was REFUSED on a healthy server (#99).
         // Nothing is refused here and nothing is hardened in `core/imap`: the walk had already
         // asked, and this simply stops throwing the answer away.
+        //
+        // ⚠ Since schema v25 the DESTROY no longer reads this record at all — it opposes the
+        // numbering stamped on the ROW ([EmailEntity.uidValidity]), and a search hit is never
+        // written to `emails` (`MailRepository.search` maps its hits straight to `toEmail()`). So a
+        // permanent delete of a hit the cache does not hold opposes nothing and destroys nothing,
+        // which is the safe end and a change from what this comment used to promise. The move and
+        // archive paths still freeze the folder's record, and this is still what they read.
         val numbering = mutableListOf<Pair<String, Long>>()
         val result = withSession(credentials) { session ->
             val folders = session.searchFolders(
@@ -976,7 +983,7 @@ class ImapMailService(
             folders.forEach { hits -> numbering += hits.mailbox to hits.uidValidity }
             ImapSearchHits(
                 messages = folders
-                    .flatMap { hits -> hits.messages.map { it.toEntity(credentials.id, hits.mailbox) } }
+                    .flatMap { hits -> hits.messages.map { it.toEntity(credentials.id, hits.mailbox, hits.uidValidity) } }
                     .sortedByDescending { it.sortKey }
                     .take(limit),
                 complete = folders.none { it.incomplete },
@@ -1008,8 +1015,8 @@ class ImapMailService(
      * message the cache does not hold (#159).
      */
     suspend fun fetchByUid(credentials: AccountCredentials, mailboxId: String, uid: Long): EmailEntity? =
-        onMailbox(credentials, mailboxId) { session, _ ->
-            session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId)
+        onMailbox(credentials, mailboxId) { session, status ->
+            session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId, status.uidValidity)
         }
 
     /**
@@ -1303,8 +1310,14 @@ private fun rolePriority(role: String?): Int = when (role) {
  * It does NOT go through [EmailMapper.toEntity]: that one starts from a JMAP [Email], which this
  * side never has. The two therefore have to agree column by column, and this is the copy that a
  * new column is forgotten in.
+ *
+ * ⛔ [uidValidity] has NO DEFAULT, and it must not gain one: it is the numbering of the SELECT that
+ * enumerated THIS message, and a default is a way of not asking the question. Without it the six
+ * call sites below could each forget it silently; with it the compiler holds every one of them, and
+ * a seventh read path cannot be added without stating what its rows were read under (#99). Same
+ * reason `previewSources` and `folderStatedEmpty` say "No default" where they are built.
  */
-internal fun ImapMessage.toEntity(accountId: String, mailboxId: String): EmailEntity {
+internal fun ImapMessage.toEntity(accountId: String, mailboxId: String, uidValidity: Long?): EmailEntity {
     val id = ImapMailService.emailId(accountId, mailboxId, uid)
     return EmailEntity(
         id = id,
@@ -1348,6 +1361,16 @@ internal fun ImapMessage.toEntity(accountId: String, mailboxId: String): EmailEn
         bccJson = EmailRecipients.encode(
             bcc.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
         ),
+        // The numbering the SELECT that enumerated this message stated (schema v25, #99). Ids and
+        // number come out of the SAME server response, which is what makes them impossible to
+        // pair wrongly — the folder-wide record can be realigned by a background pass while these
+        // ids still belong to the old numbering, and that is the accident this closes.
+        //
+        // ⭐ NORMALISED HERE, once, and never at the six call sites: `ImapMailboxStatus.uidValidity`
+        // is a `Long` in which 0 means "the server stated nothing", and 0 is not a numbering. It
+        // becomes null — "nothing to oppose", which destroys nothing — exactly as
+        // `UidValidityStore.record` refuses to write it and `MessageDestroyWorker` reads it back.
+        uidValidity = uidValidity?.takeIf { it > 0L },
     )
 }
 

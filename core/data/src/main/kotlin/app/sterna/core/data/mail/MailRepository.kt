@@ -3983,6 +3983,41 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) imap.recordedUidValidity(credentials.id, mailboxId) else null
 
     /**
+     * The IMAP numbering each of [emailIds] was READ under, straight off the cached rows — what a
+     * held-back DESTROY freezes with the user's confirmation and opposes to the server minutes
+     * later (Codeberg #99).
+     *
+     * ⭐ THE ROWS, NOT THE FOLDER, and that difference is the whole point. [recordedUidValidity]
+     * answers what `mailbox_uidvalidity` holds for the folder RIGHT NOW, and any background pass
+     * that met the renumbering has already realigned it (`ImapMailService.loadWatchedFolders` →
+     * `UidValidityStore.invalidate`) while the rows on screen still carry the UIDs of the old
+     * numbering — nothing prunes them on IMAP. Opposed to itself that reads SAME, and `UID EXPUNGE`
+     * goes out on UIDs that now name other, live messages. The row's own stamp was written by the
+     * SELECT that enumerated it, so it cannot have drifted from the ids it belongs to.
+     *
+     * An id with no cached row is simply ABSENT from the answer, and a caller must read that as
+     * null: a row already evicted or never cached says nothing about what its UID means, and
+     * "nothing to oppose" destroys nothing.
+     *
+     * Empty on JMAP, like [recordedUidValidity]'s null: an id there survives anything a mailbox can
+     * go through, so there is nothing to number and nothing to check.
+     *
+     * ⛔ Chunked ([byIdsChunked]): [emailIds] is a whole SELECTION — an "Empty this folder" style
+     * delete of a Trash holds thousands — and SQLite refuses past 999 bound variables below Android
+     * 12. This read sits BEFORE the eviction and the enqueue, and outside any `runCatching`, so an
+     * unbounded `IN (...)` would not fail the delete, it would crash it: the rows would stay, the
+     * destroy would never be scheduled, and nothing on screen would say why.
+     */
+    suspend fun numberingRowsWereReadUnder(
+        credentials: AccountCredentials,
+        emailIds: List<String>,
+    ): Map<String, Long?> {
+        if (credentials.protocol != MailProtocol.IMAP || emailIds.isEmpty()) return emptyMap()
+        val rows = byIdsChunked(emailIds) { chunk -> emailDao.numberingOfRows(credentials.id, chunk) }
+        return rows.associate { it.id to it.uidValidity }
+    }
+
+    /**
      * The numbering to FREEZE for the draft [emailId] — the value [discardDraft] and the
      * replace half of [saveDraft] oppose, much later, to what the server then states.
      *

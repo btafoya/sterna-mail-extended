@@ -139,7 +139,15 @@ class ImapWindowWiringTest {
         // own — and a walk that reports "empty" for a folder whose size was never stated has its
         // cache DELETED by the reconcile at the end.
         assertLine("ImapMailService", "loadFolder", "session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->")
-        assertLine("ImapMailService", "loadFolder", "onPage(page.map { it.toEntity(credentials.id, target.path) })")
+        // ⛔ And `status.uidValidity` travels with the page: the rows are stamped with the numbering
+        // of THE SELECT THAT ENUMERATED THEM (#99). Dropped here, a cached row says nothing about
+        // what its UID means, and a later permanent delete has only the folder's current record to
+        // oppose — which a background pass has already realigned to the renumbering.
+        assertLine(
+            "ImapMailService",
+            "loadFolder",
+            "onPage(page.map { it.toEntity(credentials.id, target.path, status.uidValidity) })",
+        )
     }
 
     @Test fun `the folder's size is what the SELECT said, never a verdict written here`() {

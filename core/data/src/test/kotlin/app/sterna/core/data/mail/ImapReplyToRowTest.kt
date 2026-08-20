@@ -45,7 +45,7 @@ class ImapReplyToRowTest {
 
     @Test
     fun `the reply-to address is written to the row`() {
-        val entity = message(listOf(support)).toEntity("accA", "INBOX")
+        val entity = message(listOf(support)).toEntity("accA", "INBOX", 42L)
 
         assertNotNull("the IMAP row must carry Reply-To, not only From", entity.replyToJson)
         assertEquals(
@@ -57,7 +57,7 @@ class ImapReplyToRowTest {
     /** What the reader actually holds: the row rendered back into an `Email`. */
     @Test
     fun `a row read back offline answers the reply-to, not the from`() {
-        val email = message(listOf(support)).toEntity("accA", "INBOX").toEmail()
+        val email = message(listOf(support)).toEntity("accA", "INBOX", 42L).toEmail()
 
         assertEquals(listOf("support@masto.top"), email.replyTo.map { it.email })
         assertEquals("no-reply@masto.top", email.from.single().email)
@@ -65,7 +65,7 @@ class ImapReplyToRowTest {
 
     @Test
     fun `several reply-to addresses keep their order in the row`() {
-        val email = message(listOf(support, billing)).toEntity("accA", "INBOX").toEmail()
+        val email = message(listOf(support, billing)).toEntity("accA", "INBOX", 42L).toEmail()
 
         assertEquals(listOf("support@masto.top", "billing@masto.top"), email.replyTo.map { it.email })
         assertEquals(listOf("Support", "Billing"), email.replyTo.map { it.name })
@@ -74,7 +74,7 @@ class ImapReplyToRowTest {
     /** Two columns, two lists: a Reply-To is not a recipient and must not be stored as one. */
     @Test
     fun `reply-to and the recipients are stored in separate columns`() {
-        val entity = message(listOf(support)).toEntity("accA", "INBOX")
+        val entity = message(listOf(support)).toEntity("accA", "INBOX", 42L)
 
         assertEquals(
             listOf(EmailAddress(name = "Team", email = "team@masto.top")),
@@ -89,7 +89,7 @@ class ImapReplyToRowTest {
     /** No Reply-To: nothing stored, and the recipients beside it are untouched. */
     @Test
     fun `a message without reply-to stores nothing in that column`() {
-        val entity = message(emptyList()).toEntity("accA", "INBOX")
+        val entity = message(emptyList()).toEntity("accA", "INBOX", 42L)
 
         assertNull(entity.replyToJson)
         assertEquals(emptyList<EmailAddress>(), entity.toEmail().replyTo)

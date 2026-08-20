@@ -97,6 +97,10 @@ class ChunkedIdReadsSourceTest {
             "imapDestroyGroup",
             "search",
             "fetchThreadMembers",
+            // The freeze of a held-back destroy: its id list IS the selection, and it runs BEFORE
+            // the eviction and the enqueue and outside any runCatching — unbounded, it would not
+            // fail the delete, it would crash it (#99).
+            "numberingRowsWereReadUnder",
             // Its network loop is bounded by JMAP_BATCH_CEILING, which lives in core:jmap and is
             // documented as a NETWORK limit. Raising it must not push this SELECT past SQLite's
             // 999 bindings, so the read carries its own split as well.

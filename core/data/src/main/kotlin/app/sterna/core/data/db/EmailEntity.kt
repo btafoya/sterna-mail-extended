@@ -90,4 +90,26 @@ data class EmailEntity(
      * an empty list. No backfill, for the same reason as [ccJson].
      */
     val bccJson: String? = null,
+    /**
+     * The IMAP numbering (UIDVALIDITY) this row was READ under — the numbering the UID inside
+     * [id] belongs to, as the SELECT that enumerated the message stated it (added in schema v25,
+     * Codeberg #99).
+     *
+     * A UID names a message only inside one numbering (RFC 3501 §2.3.1.1); under a new one the
+     * same number names ANOTHER message. The folder's numbering was already recorded — per
+     * FOLDER, in `mailbox_uidvalidity` — but the two were decoupled: a background pass that finds
+     * the folder renumbered writes the NEW number there and leaves these rows alone (nothing
+     * prunes them on IMAP, `MailRepository.refreshAccountFolders`), so a destroy that opposed the
+     * folder's number opposed it to itself, read SAME, and expunged UIDs that now name live mail.
+     * Stamped here, ids and numbering come out of the SAME server response and cannot drift
+     * apart — the appariement `TrashPurge.snapshotUidValidity` already makes for a purge.
+     *
+     * Null on rows cached before v25, and null on every JMAP row: a JMAP id survives anything a
+     * server can do to a mailbox, so there is nothing to number. Both mean "nothing to oppose",
+     * which destroys NOTHING (`UidValidity.mayDestroy`) — the safe end. There is no backfill: the
+     * numbering an old row was read under is not held anywhere, and inventing the folder's current
+     * one would license exactly the expunge this column exists to refuse. An old row gains it at
+     * its next sync, as [recipientsJson] did in v17.
+     */
+    val uidValidity: Long? = null,
 )
