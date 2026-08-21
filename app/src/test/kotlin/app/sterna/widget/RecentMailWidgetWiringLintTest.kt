@@ -26,8 +26,13 @@ import org.junit.Test
 class RecentMailWidgetWiringLintTest {
 
     /**
-     * The three facts that decide what a row may say, and which mailbox it came from, must be READ
-     * — from the store and the settings, every time the widget is read.
+     * The four facts that decide what a row may say, what it wears and which mailbox it came from,
+     * must be READ — from the store and the settings, every time the widget is read.
+     *
+     * ⭐ The fourth is the sender-initials switch (#144). It is a matter of TASTE and not of
+     * privacy, which is exactly why it is easy to leave out: nothing breaks, nothing leaks, and a
+     * reader who removed the initials from her message list simply finds them back on her home
+     * screen with no switch anywhere that turns them off.
      *
      * Each is one line, each is trivially replaceable by a constant, and none is executed anywhere
      * in this suite: [RecentMailWidgetContentTest] proves the RULES are right by passing the values
@@ -53,19 +58,24 @@ class RecentMailWidgetWiringLintTest {
      * it, does not default it and must not start to — a `?: somePalette` here would put back, in
      * one line, exactly the frozen colours the nullability exists to avoid.
      */
-    @Test fun `the widget read fetches the setting, the lock and the accounts, and hands them to the rule`() {
+    @Test fun `the widget read fetches the settings, the lock and the accounts, and hands them to the rule`() {
         assertEquals(
-            "RecentMailWidgetDraw.read must read the notification-content setting, the app lock " +
-                "and the account list from the app's own stores and pass all three into " +
+            "RecentMailWidgetDraw.read must read the notification-content setting, the " +
+                "sender-initials switch, the app lock and the account list from the app's own " +
+                "stores and pass all four into " +
                 "RecentMailWidgetContent. A constant in either of the first two silently " +
                 "ungoverns the home screen: the reader has set a privacy setting, or switched the " +
                 "lock on, and the cell keeps naming senders. A constant map in the third leaves " +
                 "an interleaved list with no dot at all, and a SECOND read of the account list " +
-                "lets the colours and the rows come from two different moments.",
+                "lets the colours and the rows come from two different moments. ⛔ And " +
+                "`listMonogram = true` written here is the initials switch (#144) ungoverning " +
+                "the home screen: the reader took the initials off her message list and gets " +
+                "them back on her launcher, with no switch anywhere that turns them off.",
             listOf(
                 "suspend fun read(app: Application): RecentWidgetDrawing {",
                 "val container = app.container",
                 "val content = container.settingsRepository.notificationContent.first()",
+                "val listMonogram = container.settingsRepository.listMonogram.first()",
                 "val appLockEnabled = container.accountStore.appLockEnabled()",
                 "val accounts = container.accountStore.accounts()",
                 "val inbox = container.mailRepository.recentUnifiedInbox(ROW_LIMIT)",
@@ -73,13 +83,14 @@ class RecentMailWidgetWiringLintTest {
                 "inbox = inbox,",
                 "content = content,",
                 "appLockEnabled = appLockEnabled,",
+                "listMonogram = listMonogram,",
                 "unknownSender = app.getString(R.string.message_unknown_sender),",
                 "noSubject = app.getString(R.string.message_no_subject),",
                 "generic = app.getString(R.string.widget_latest_hidden),",
                 "accountColors = RecentMailWidgetContent.accountColors(accounts),",
                 ")",
-                "val palette = WidgetThemeReader.palette(app)",
-                "val drawing = RecentWidgetDrawing(snapshot, palette)",
+                "val colours = WidgetThemeReader.colours(app)",
+                "val drawing = RecentWidgetDrawing(snapshot, colours)",
                 "held = drawing",
                 "return drawing",
             ),
@@ -197,6 +208,48 @@ class RecentMailWidgetWiringLintTest {
                 functionBody(SETTINGS_VIEW_MODEL, "fun setAppLock(value: Boolean)"),
                 functionBody(SETTINGS_VIEW_MODEL, "fun setNotificationContent(mode: NotificationContent)"),
             ),
+        )
+    }
+
+    /**
+     * ⛔ AND SO MUST TAKING THE SENDER INITIALS OFF — the fourth setter that reaches this cell, and
+     * the one that is NOT a theme setting, which is why it is pinned here beside the lock and the
+     * content position rather than in [WidgetThemeRedrawWiringLintTest].
+     *
+     * The damage is the ordinary one of this widget and it is worth spelling out: the reader opens
+     * Settings, switches the sender initials off, goes back to her home screen — and every row
+     * still wears a badge. `updatePeriodMillis="0"` means there is no timer by design and all three
+     * redraw triggers are fed by MAIL, so the cell keeps the initials until a message ARRIVES: on a
+     * quiet mailbox, days. Nothing on the cell says why and there is nothing she can do about it.
+     *
+     * ⛔ ONE WIDGET AND NOT TWO. `UnreadWidgetDraw.refresh` has no business here: the counter draws
+     * a number and no badge at all, so waking it would be a read of the account store and of Room
+     * for a cell that cannot possibly have changed. The three theme setters call it because a
+     * theme repaints the counter too; this one does not.
+     *
+     * ⛔ `forget()` BEFORE `refresh()`, for the reason written at every other setter: the row
+     * factory falls back to the last `RecentWidgetDrawing` it read when its own read times out, and
+     * that carrier was projected under the OLD switch — a slow read right after the change would
+     * redraw the very badges the reader has just removed.
+     */
+    @Test fun `switching the sender initials off redraws the cell, and wakes only the cell that draws them`() {
+        assertEquals(
+            "SettingsViewModel.setListMonogram must write the setting, await it, drop the held " +
+                "widget snapshot and redraw the latest-messages widget, in that order. Without " +
+                "it the reader takes the sender initials off, returns to her home screen, and " +
+                "every row keeps its badge until mail happens to arrive — days on a quiet " +
+                "mailbox, with no switch on that screen and no way to force it. ⛔ And no " +
+                "UnreadWidgetDraw.refresh: the counter draws no badge, so waking it is a read of " +
+                "the account store and of Room for a cell nothing changed.",
+            listOf(
+                "fun setListMonogram(enabled: Boolean) {",
+                REDRAW_LAUNCH,
+                "settings.setListMonogram(enabled)",
+                FORGET,
+                REFRESH,
+                "}",
+            ),
+            functionBody(SETTINGS_VIEW_MODEL, "fun setListMonogram(enabled: Boolean)"),
         )
     }
 

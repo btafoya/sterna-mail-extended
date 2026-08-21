@@ -154,7 +154,17 @@ class RecentMailRowTapWiringLintTest {
                 "opens another is undiscoverable except by tapping it. The account dot is pinned " +
                 "here too: it is retinted with setInt(…, \"setColorFilter\", …) — setBackgroundColor " +
                 "replaces the oval with a square block — and the out-of-range branch must hide it, " +
-                "or a recycled view keeps the colour of a row that no longer exists. ⛔ AND THE " +
+                "or a recycled view keeps the colour of a row that no longer exists. ⛔ AND SO IS " +
+                "THE BADGE, on the same terms and for a stricter reason: it is drawn ONLY from " +
+                "monogramFor(row), which returns null when row.monogram is null — under the app " +
+                "lock and at the NONE position of the notification-content setting — so the pixel " +
+                "that would carry an initial is never produced in the two states SECURITY.md says " +
+                "a row names nobody. ⛔ And the out-of-range branch must CLEAR the bitmap " +
+                "(setImageViewBitmap(…, null)) as well as hide the view: a recycled row otherwise " +
+                "keeps the face of a message that no longer exists under a blank line, which is " +
+                "the very thing the three empty setTextViewText calls are there for. ⛔ Never " +
+                "GONE, either: the badge holds the column, and a GONE badge shifts the sender of " +
+                "one row against the next. ⛔ AND THE " +
                 "WEIGHT IS NOW THE ROW'S ONLY UNREAD MARK: the dot is gone, so weighted(…, " +
                 "row.unread) on ALL THREE fields — sender, subject and date — is the whole of it. " +
                 "DESIGN.md:58 is the rule and it names the three: \"Unread is shown by weight, " +
@@ -172,6 +182,8 @@ class RecentMailRowTapWiringLintTest {
                 "views.setTextViewText(R.id.widget_recent_row_primary, \"\")",
                 "views.setTextViewText(R.id.widget_recent_row_secondary, \"\")",
                 "views.setTextViewText(R.id.widget_recent_row_date, \"\")",
+                "views.setImageViewBitmap(R.id.widget_recent_row_monogram, null)",
+                "views.setViewVisibility(R.id.widget_recent_row_monogram, View.INVISIBLE)",
                 "views.setViewVisibility(R.id.widget_recent_row_account, View.INVISIBLE)",
                 "return views",
                 "}",
@@ -189,6 +201,12 @@ class RecentMailRowTapWiringLintTest {
                 "if (row.secondary == null) View.GONE else View.VISIBLE,",
                 ")",
                 "views.setTextViewText(R.id.widget_recent_row_date, weighted(row.date, row.unread))",
+                "val badge = monogramFor(row)",
+                "views.setImageViewBitmap(R.id.widget_recent_row_monogram, badge)",
+                "views.setViewVisibility(",
+                "R.id.widget_recent_row_monogram,",
+                "if (badge == null) View.INVISIBLE else View.VISIBLE,",
+                ")",
                 "views.setInt(R.id.widget_recent_row_account, \"setColorFilter\", row.accountColor ?: 0)",
                 "views.setViewVisibility(",
                 "R.id.widget_recent_row_account,",
@@ -198,6 +216,26 @@ class RecentMailRowTapWiringLintTest {
                 "return views",
             ),
             functionBody(SERVICE, "override fun getViewAt(position: Int): RemoteViews"),
+        )
+        // ⛔ AND THE ONE LINE getViewAt DELEGATES. Extracting the badge keeps the function above
+        // short, and it would also move the lock's promise out of everything this file pins: the
+        // whole of "a locked row wears no face" is `row.monogram ?: return null`, three lines down
+        // where nothing looks. Both guards are pinned here, in order.
+        assertEquals(
+            "RecentMailWidgetFactory.monogramFor is the badge's only source, and its two early " +
+                "returns are the rule. `row.monogram ?: return null` IS the app lock and the NONE " +
+                "setting — RecentMailWidgetContent leaves the field null in exactly those two " +
+                "states — so dropping it draws an initial on a locked home screen while every " +
+                "other rule here stays green. `monogramRamps ?: return null` is the other: a read " +
+                "that did not answer must draw NO badge rather than a colour this file invented, " +
+                "since a bitmap has no res/values-night behind it.",
+            listOf(
+                "private fun monogramFor(row: RecentWidgetRow): Bitmap? {",
+                "val monogram = row.monogram ?: return null",
+                "val ramps = monogramRamps ?: return null",
+                "return WidgetMonogram.badge(context, monogram, ramps)",
+            ),
+            functionBody(SERVICE, "private fun monogramFor("),
         )
         assertEquals(
             "the row layout's ROOT must carry that id. On a child, only that child would open " +

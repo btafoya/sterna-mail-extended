@@ -52,7 +52,7 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "fun draw(app: Application, ids: IntArray, drawing: RecentWidgetDrawing) {",
                 "if (ids.isEmpty()) return",
                 "val snapshot = drawing.snapshot",
-                "val palette = drawing.palette",
+                "val palette = drawing.colours?.palette",
                 "val manager = AppWidgetManager.getInstance(app)",
                 "val notice = RecentMailWidgetContent.notice(snapshot.cell)?.let { app.getString(it) } ?: app.getString(R.string.app_name)",
                 "ids.forEach { id ->",
@@ -103,7 +103,14 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "Dropped, the row keeps the colour res/values-night froze into the layout and a " +
                 "reader whose app is light reads white on white. ⛔ And the account dot must keep " +
                 "its setColorFilter on row.accountColor: a theme colour there and the dot no " +
-                "longer says which mailbox the message came from.",
+                "longer says which mailbox the message came from. ⭐ The badge is the third " +
+                "colour on this row and the only one that is a BITMAP: it comes from " +
+                "monogramFor(row), i.e. from the ramps read beside the rows, and it is null both " +
+                "when the ramps are unknown and when the row carries no monogram at all — under " +
+                "the app lock and at the NONE setting, the two states in which a row names " +
+                "nobody. ⛔ Its out-of-range branch must clear the bitmap AND hide the view: a " +
+                "recycled row would otherwise wear the face of a message that is gone, and there " +
+                "is no res/values-night behind a bitmap to make that merely stale.",
             listOf(
                 "override fun getViewAt(position: Int): RemoteViews {",
                 "val views = RemoteViews(context.packageName, R.layout.widget_recent_row)",
@@ -112,6 +119,8 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "views.setTextViewText(R.id.widget_recent_row_primary, \"\")",
                 "views.setTextViewText(R.id.widget_recent_row_secondary, \"\")",
                 "views.setTextViewText(R.id.widget_recent_row_date, \"\")",
+                "views.setImageViewBitmap(R.id.widget_recent_row_monogram, null)",
+                "views.setViewVisibility(R.id.widget_recent_row_monogram, View.INVISIBLE)",
                 "views.setViewVisibility(R.id.widget_recent_row_account, View.INVISIBLE)",
                 "return views",
                 "}",
@@ -129,6 +138,12 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "if (row.secondary == null) View.GONE else View.VISIBLE,",
                 ")",
                 "views.setTextViewText(R.id.widget_recent_row_date, weighted(row.date, row.unread))",
+                "val badge = monogramFor(row)",
+                "views.setImageViewBitmap(R.id.widget_recent_row_monogram, badge)",
+                "views.setViewVisibility(",
+                "R.id.widget_recent_row_monogram,",
+                "if (badge == null) View.INVISIBLE else View.VISIBLE,",
+                ")",
                 ACCOUNT_DOT,
                 "views.setViewVisibility(",
                 "R.id.widget_recent_row_account,",
@@ -138,6 +153,20 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "return views",
             ),
             functionBody(SERVICE, "override fun getViewAt(position: Int): RemoteViews"),
+        )
+        assertEquals(
+            "and the badge's own two lines are pinned with it: the tones come from the field " +
+                "filled by the SAME read as the rows, and null there means no badge — never a " +
+                "ramp chosen here. ⛔ A default palette on this path is the one thing the whole " +
+                "pane forbids, and unlike a text colour it cannot be left to res/values-night: " +
+                "the badge is a bitmap and there is no night twin behind it.",
+            listOf(
+                "private fun monogramFor(row: RecentWidgetRow): Bitmap? {",
+                "val monogram = row.monogram ?: return null",
+                "val ramps = monogramRamps ?: return null",
+                "return WidgetMonogram.badge(context, monogram, ramps)",
+            ),
+            functionBody(SERVICE, "private fun monogramFor("),
         )
     }
 
@@ -167,7 +196,7 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "configuration change.",
             listOf(
                 "internal data class RecentWidgetDrawing(val snapshot: RecentWidgetSnapshot, " +
-                    "val palette: WidgetPalette?)",
+                    "val colours: WidgetColours?)",
             ),
             kotlinLines(DRAW).filter { it.startsWith("internal data class RecentWidgetDrawing") },
         )
@@ -176,6 +205,14 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "already drew null correctly, and its KDoc is the rule the other two now follow.",
             listOf("private var palette: WidgetPalette? = null"),
             kotlinLines(SERVICE).filter { it.startsWith("private var palette") },
+        )
+        assertEquals(
+            "⭐ and the BADGE TONES ride beside it, nullable HERE for a different reason than the " +
+                "palette is: null means the colour read did not answer at all, so no badge is " +
+                "drawn — it never means \"the default palette\". WidgetColours.monogramRamps " +
+                "itself is not nullable, because a bitmap has no res/values-night to fall back on.",
+            listOf("private var monogramRamps: List<ToneRamp>? = null"),
+            kotlinLines(SERVICE).filter { it.startsWith("private var monogramRamps") },
         )
     }
 
@@ -212,24 +249,132 @@ class RecentMailWidgetPaletteWiringLintTest {
                 "}",
                 "val drawing = read ?: RecentMailWidgetDraw.drawing ?: return",
                 "rows = drawing.snapshot.rows",
-                "palette = drawing.palette",
+                "palette = drawing.colours?.palette",
+                "monogramRamps = drawing.colours?.monogramRamps",
             ),
             functionBody(SERVICE, "override fun onDataSetChanged()"),
         )
         assertEquals(
-            "and what onDataSetChanged filled must be dropped by onDestroy, both of them: a " +
-                "palette left behind on a dead factory is a colour outliving the read it came from.",
+            "and what onDataSetChanged filled must be dropped by onDestroy, all three of them: a " +
+                "palette or a set of badge tones left behind on a dead factory is a colour " +
+                "outliving the read it came from.",
             listOf(
                 "override fun onDestroy() {",
                 "rows = emptyList()",
                 "palette = null",
+                "monogramRamps = null",
             ),
             functionBody(SERVICE, "override fun onDestroy()"),
         )
     }
 
+    /**
+     * ⭐ THE CACHE IS KEYED ON THE COLOUR IT ACTUALLY PAINTED — the one decision of this pane that
+     * no executed test can reach, because it is an ARGUMENT and not a rule.
+     *
+     * [widgetMonogramKey] is pure and is run next door ([WidgetMonogramRulesTest]), so what a key
+     * made of a letter, a colour and a side distinguishes is measured. What is handed to it is not:
+     * passing `monogram.slot` where `argb` belongs type-checks, reads perfectly well, and gives back
+     * a key that is stable across a theme change — which is precisely the defect. The launcher would
+     * then be served the previous palette's disc for the life of the process, since
+     * `updatePeriodMillis="0"` means nothing ever redraws on a schedule and there is no invalidation
+     * anywhere to catch up.
+     *
+     * ⛔ And the bound is in BYTES. A cap counted in entries means a different amount of memory on
+     * every phone — a badge at xxxhdpi is sixteen times the pixels of an mdpi one — and it is the
+     * largest screens that would hold the most.
+     */
+    @Test fun `the badge is cached under the colour it was painted, and the cache is bounded in bytes`() {
+        assertEquals(
+            "WidgetMonogram.badge must resolve the colour first and put THAT colour in the key. " +
+                "Keyed on the slot instead, the entry survives a theme change it should have " +
+                "missed, and the home screen keeps the old palette's discs until the process dies.",
+            listOf(
+                "fun badge(context: Context, monogram: RecentRowMonogram, ramps: List<ToneRamp>): Bitmap {",
+                "val side = context.resources.getDimensionPixelSize(R.dimen.widget_recent_monogram)",
+                "val argb = widgetMonogramArgb(monogram, ramps)",
+                "val key = widgetMonogramKey(monogram.initial, argb, side)",
+                "cache.get(key)?.let { return it }",
+                "return draw(monogram.initial, argb, side).also { cache.put(key, it) }",
+            ),
+            functionBody(MONOGRAM, "fun badge(context: Context"),
+        )
+        assertEquals(
+            "and the cache must stay bounded in BYTES: sizeOf in kilobytes against a kilobyte " +
+                "cap. A cap in entries holds sixteen times the memory on an xxxhdpi screen for the " +
+                "same number, and nothing on any screen would report it.",
+            listOf(
+                "private const val CACHE_KB = 512",
+                "private val cache = object : LruCache<String, Bitmap>(CACHE_KB) {",
+                "override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024",
+            ),
+            kotlinLines(MONOGRAM).filter {
+                it.startsWith("private const val CACHE_KB") ||
+                    it.startsWith("private val cache =") ||
+                    it.startsWith("override fun sizeOf(")
+            },
+        )
+    }
+
+    /**
+     * ⭐ AND THE DISC ITSELF — the one place in this pane where a one-character mutation is
+     * invisible to everything else.
+     *
+     * [widgetMonogramLetterArgb] is pure and is RUN next door ([WidgetMonogramRulesTest]), so the
+     * rule "black or white, by WCAG luminance against the disc" is measured. What no executed test
+     * can see is what is HANDED to it: `widgetMonogramLetterArgb(0xFF000000.toInt())` type-checks,
+     * reads perfectly well, keeps the function called and correct — and paints every initial of
+     * every row white. On the pastel tones a light scheme hands out that is 1.40:1, a letter that
+     * is technically drawn and practically invisible, which is precisely what
+     * [widgetMonogramLetterArgb]'s own KDoc forbids in writing. It survived the whole suite.
+     *
+     * The other two lines are pinned with it and are the same kind of fact:
+     *
+     * - the BASELINE comes from the paint's `fontMetrics`. A glyph's ink sits above its baseline,
+     *   so `drawText(initial, centre, centre, letter)` — the obvious simplification — leaves every
+     *   letter floating high by roughly a third of its height, on a 24 dp disc where that is
+     *   obvious and nowhere near a test;
+     * - the letter's size is `side * LETTER_SCALE`, the ratio the app's own badge draws at, which
+     *   is what makes the home screen's badge read as the same badge as the list's.
+     *
+     * ⚠ WHAT THIS CANNOT SEE: the pixels. `Bitmap`, `Canvas` and `Paint` do not run in this suite
+     * — merely touching [WidgetMonogram] would run the class initialiser of its `LruCache` — so
+     * that the disc comes out round, centred and legible is a bench claim. This rule pins the
+     * ARGUMENTS; nothing here executes a single line of drawing.
+     */
+    @Test fun `the badge's letter is coloured against the disc it sits on, and centred on the font's metrics`() {
+        assertEquals(
+            "WidgetMonogram.draw must pass the DISC'S OWN colour to widgetMonogramLetterArgb — " +
+                "never a constant, and never `argb`'s replacement by one. A literal there keeps " +
+                "the contrast rule called and correct while every initial in the widget comes " +
+                "out the same colour: white on a light scheme's pastel tones is 1.40:1, drawn " +
+                "and unreadable, on the one surface nobody can debug. The baseline must come " +
+                "from the paint's fontMetrics (centred on side / 2 alone, every letter floats " +
+                "high by about a third of its height) and the size from LETTER_SCALE, the ratio " +
+                "the in-app badge draws at.",
+            listOf(
+                "private fun draw(initial: String, argb: Int, side: Int): Bitmap {",
+                "val bitmap = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)",
+                "val canvas = Canvas(bitmap)",
+                "val centre = side / 2f",
+                "val disc = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb }",
+                "canvas.drawCircle(centre, centre, centre, disc)",
+                "val letter = Paint(Paint.ANTI_ALIAS_FLAG).apply {",
+                "color = widgetMonogramLetterArgb(argb)",
+                "textSize = side * LETTER_SCALE",
+                "textAlign = Paint.Align.CENTER",
+                "}",
+                "val metrics = letter.fontMetrics",
+                "canvas.drawText(initial, centre, centre - (metrics.ascent + metrics.descent) / 2f, letter)",
+                "return bitmap",
+            ),
+            functionBody(MONOGRAM, "private fun draw(initial: String, argb: Int, side: Int)"),
+        )
+    }
+
     private companion object {
         val DRAW = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetDraw.kt")
+        val MONOGRAM = file("app/src/main/kotlin/app/sterna/widget/WidgetMonogram.kt")
         val SERVICE = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetService.kt")
 
         const val BACKGROUND =

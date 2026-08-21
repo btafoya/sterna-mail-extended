@@ -5,6 +5,7 @@ import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import app.sterna.core.data.settings.NotificationContent
+import app.sterna.ui.components.MonogramSlot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -41,6 +42,19 @@ class RecentMailWidgetContentTest {
     private val alphaColor = 0xFF17414C.toInt()
     private val gammaColor = 0xFFB3541E.toInt()
 
+    // The badges the fixtures below wear, as LITERALS. ⛔ Not `monogramSlot("marie@example.test")`:
+    // calling the shipped rule to build the expectation is a copy of it, and the two would agree
+    // however the rule was rewritten. These three pairs were computed once, off this suite, and are
+    // now facts this file holds the widget to.
+    private val marieBadge = RecentRowMonogram("M", MonogramSlot(family = 2, tone = 3))
+    private val marcBadge = RecentRowMonogram("M", MonogramSlot(family = 0, tone = 4))
+    private val marieAtWorkBadge = RecentRowMonogram("M", MonogramSlot(family = 0, tone = 0))
+    private val dmitriBadge = RecentRowMonogram("Д", MonogramSlot(family = 2, tone = 0))
+    private val nobodyBadge = RecentRowMonogram("N", MonogramSlot(family = 1, tone = 5))
+    // Same message, another display name: the badge's LETTER follows the name and its colour does
+    // not, because the colour is drawn from the address.
+    private val tomaszBadge = RecentRowMonogram("T", MonogramSlot(family = 2, tone = 3))
+
     private fun account(id: String, color: Int?) = StoredAccount(
         id = id,
         server = "https://mail.example.test",
@@ -74,11 +88,13 @@ class RecentMailWidgetContentTest {
         row: RecentEmailRow = mail(),
         content: NotificationContent = NotificationContent.SENDER_AND_SUBJECT,
         appLockEnabled: Boolean = false,
+        listMonogram: Boolean = true,
         accountColors: Map<String, Int> = emptyMap(),
     ) = RecentMailWidgetContent.row(
         row = row,
         content = content,
         appLockEnabled = appLockEnabled,
+        listMonogram = listMonogram,
         unknownSender = unknownSender,
         noSubject = noSubject,
         generic = generic,
@@ -102,7 +118,7 @@ class RecentMailWidgetContentTest {
                 "pair of a notification, never a third line of body.",
             RecentWidgetRow(
                 primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12",
-                unread = true, accountColor = null,
+                unread = true, accountColor = null, monogram = marieBadge,
             ),
             drawn(content = NotificationContent.BODY_PREVIEW),
         )
@@ -112,7 +128,7 @@ class RecentMailWidgetContentTest {
         assertEquals(
             RecentWidgetRow(
                 primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12",
-                unread = true, accountColor = null,
+                unread = true, accountColor = null, monogram = marieBadge,
             ),
             drawn(content = NotificationContent.SENDER_AND_SUBJECT),
         )
@@ -124,7 +140,7 @@ class RecentMailWidgetContentTest {
                 "above all not the subject.",
             RecentWidgetRow(
                 primary = "Marie Dupont", secondary = generic, date = "09:12",
-                unread = true, accountColor = null,
+                unread = true, accountColor = null, monogram = marieBadge,
             ),
             drawn(content = NotificationContent.SENDER_ONLY),
         )
@@ -136,7 +152,7 @@ class RecentMailWidgetContentTest {
                 "under it — null and not blank, so the launcher draws nothing rather than a hole.",
             RecentWidgetRow(
                 primary = generic, secondary = null, date = "09:12",
-                unread = true, accountColor = null,
+                unread = true, accountColor = null, monogram = null,
             ),
             drawn(content = NotificationContent.NONE),
         )
@@ -153,7 +169,7 @@ class RecentMailWidgetContentTest {
             "with the app lock enabled a row must say what NONE says, whatever the setting is.",
             RecentWidgetRow(
                 primary = generic, secondary = null, date = "09:12",
-                unread = true, accountColor = null,
+                unread = true, accountColor = null, monogram = null,
             ),
             drawn(content = NotificationContent.BODY_PREVIEW, appLockEnabled = true),
         )
@@ -195,6 +211,7 @@ class RecentMailWidgetContentTest {
             inbox = RecentInbox(configured = true, rows = listOf(mail(), mail(fromName = "Tomasz Nowak"))),
             content = NotificationContent.SENDER_AND_SUBJECT,
             appLockEnabled = true,
+            listMonogram = true,
             unknownSender = unknownSender,
             noSubject = noSubject,
             generic = generic,
@@ -231,6 +248,7 @@ class RecentMailWidgetContentTest {
                     row = mail(),
                     content = content,
                     appLockEnabled = locked,
+                    listMonogram = true,
                     unknownSender = unknownSender,
                     noSubject = noSubject,
                     generic = generic,
@@ -258,6 +276,7 @@ class RecentMailWidgetContentTest {
                     row = mail(),
                     content = content,
                     appLockEnabled = true,
+                    listMonogram = true,
                     unknownSender = unknownSender,
                     noSubject = noSubject,
                     generic = generic,
@@ -331,9 +350,208 @@ class RecentMailWidgetContentTest {
         assertEquals(
             RecentWidgetRow(
                 primary = "Marie Dupont", secondary = "Quarterly report", date = "",
-                unread = true, accountColor = null,
+                unread = true, accountColor = null, monogram = marieBadge,
             ),
             drawn(row = mail(receivedAt = null)),
+        )
+    }
+
+    // ---- the badge a line wears ----
+
+    /**
+     * ⭐ WHICH LINES MAY WEAR A BADGE, and it is not this file's opinion: it is the third field of
+     * `MailNotificationText.widgetRow`, the only place that knows the position the app lock has
+     * already folded. A badge's letter is a letter of the sender's NAME, so the three positions
+     * that name a sender may draw one and NONE may not.
+     *
+     * The answers are literals. A test that expected `content != NONE` would be the rule copied,
+     * and it would stay green with the shipped arms swapped.
+     */
+    @Test fun `the three talkative positions wear a badge, and the silent one wears none`() {
+        assertEquals(
+            "a badge is an initial, and an initial is a letter of somebody's name. The three " +
+                "positions that already print the sender may carry one; NONE prints the generic " +
+                "line precisely so that nobody is named, and a letter there would name them.",
+            mapOf(
+                NotificationContent.BODY_PREVIEW to marieBadge,
+                NotificationContent.SENDER_AND_SUBJECT to marieBadge,
+                NotificationContent.SENDER_ONLY to marieBadge,
+                NotificationContent.NONE to null,
+            ),
+            NotificationContent.entries.associateWith { drawn(content = it).monogram },
+        )
+    }
+
+    /**
+     * ⛔ AND THE LOCK TAKES IT AWAY, FROM EVERY POSITION. SECURITY.md promises a locked home screen
+     * "names neither sender nor subject"; a badge drawn there would be the sender's own initial
+     * sitting in front of whoever picked the phone up — the promise broken in one character.
+     */
+    @Test fun `the app lock leaves no badge at all, at any position`() {
+        assertEquals(
+            "with the app lock enabled a row must carry NO badge, whatever the setting says. An " +
+                "initial is a letter of the sender's name and the lock's whole promise is that a " +
+                "home-screen row names nobody.",
+            NotificationContent.entries.associateWith { null },
+            NotificationContent.entries.associateWith {
+                drawn(content = it, appLockEnabled = true).monogram
+            },
+        )
+    }
+
+    /**
+     * ⭐ AND THE INITIALS SWITCH TAKES IT AWAY TOO — the setting #144 added to the message list
+     * (`settings.listMonogram`), which was the whole answer to "on SimpleLogin-style mail nobody
+     * has an avatar and the column is a stack of identical circles". A reader who removed the
+     * initials from her list must not find them again on her home screen, with no switch anywhere
+     * that turns them off: that is the state on screen disagreeing with the state the app holds.
+     *
+     * ⛔ AND IT REMOVES THE BADGE AND NOTHING ELSE. The whole row is asserted, not its badge, so a
+     * fix that folded this setting into the sender-naming answer — one variable instead of two —
+     * is caught here: the reader would have asked for no initials and been given a home screen
+     * that names nobody, which is the app lock's job and not a matter of taste.
+     */
+    @Test fun `the initials switch removes the badge from the most talkative row, and nothing else`() {
+        assertEquals(
+            "with the initials switch OFF the badge goes and every word of the row stays: the " +
+                "sender, the subject, the stamp and the unread weight are governed by the " +
+                "notification-content setting and the app lock, and by nothing this switch says.",
+            RecentWidgetRow(
+                primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12",
+                unread = true, accountColor = null, monogram = null,
+            ),
+            drawn(content = NotificationContent.BODY_PREVIEW, listMonogram = false),
+        )
+        assertEquals(
+            "and with it ON the same row wears the badge — the two answers must differ, or the " +
+                "rule above is satisfied by a widget that never draws one.",
+            RecentWidgetRow(
+                primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12",
+                unread = true, accountColor = null, monogram = marieBadge,
+            ),
+            drawn(content = NotificationContent.BODY_PREVIEW, listMonogram = true),
+        )
+    }
+
+    /** Off is off at every position of the content setting, not only at the loud one. */
+    @Test fun `with the initials switched off no position of the setting draws a badge`() {
+        assertEquals(
+            "the initials switch is read once per row and applies at all four positions.",
+            NotificationContent.entries.associateWith { null },
+            NotificationContent.entries.associateWith {
+                drawn(content = it, listMonogram = false).monogram
+            },
+        )
+    }
+
+    @Test fun `a message with no display name takes its initial from the address`() {
+        assertEquals(
+            "fromName is a nullable column; the letter then comes from the address, exactly as " +
+                "the first line does — never a question mark for a message that has an address.",
+            marieBadge,
+            drawn(row = mail(fromName = null)).monogram,
+        )
+    }
+
+    @Test fun `a display name stored blank leaves the initial to the address`() {
+        assertEquals(marieBadge, drawn(row = mail(fromName = "   ")).monogram)
+    }
+
+    /**
+     * With neither name nor address the badge falls back to the caller's stand-in, on BOTH halves:
+     * the letter and the colour. ⛔ Not a question mark and not a fixed colour — the row's first
+     * line already reads «nobody named», and the badge must agree with it.
+     */
+    @Test fun `with neither name nor address the badge comes from the caller's stand-in`() {
+        assertEquals(
+            nobodyBadge,
+            drawn(row = mail(fromName = null, fromEmail = null)).monogram,
+        )
+    }
+
+    /**
+     * ⭐ A NON-LATIN SENDER KEEPS THEIR OWN ALPHABET. `initialOf` upper-cases whatever the first
+     * letter-or-digit is, so Cyrillic д becomes Д and not a transliteration and not "?".
+     */
+    @Test fun `a cyrillic sender wears a cyrillic capital`() {
+        assertEquals(
+            "the badge takes the first letter of the name as it is written, upper-cased in its " +
+                "own script. A row whose sender writes in Cyrillic must not be reduced to \"?\".",
+            dmitriBadge,
+            drawn(row = mail(fromName = "Дмитрий Иванов", fromEmail = "dmitri@example.test")).monogram,
+        )
+    }
+
+    /**
+     * ⭐ THE POINT OF COLOURING A BADGE AT ALL. Two correspondents whose names start with the same
+     * letter are told apart by the COLOUR, because the letter cannot do it. Same initial, different
+     * slot — and the slot is what the drawing pane will paint with.
+     */
+    @Test fun `two senders with the same initial are told apart by the colour, not by the letter`() {
+        val marie = drawn(row = mail(fromName = "Marie Dupont", fromEmail = "marie@example.test")).monogram
+        val marc = drawn(row = mail(fromName = "Marc Petit", fromEmail = "marc@example.test")).monogram
+        assertEquals(
+            "two senders whose names begin with the same letter must wear the SAME letter — the " +
+                "badge is the initial, not a disambiguator.",
+            listOf("M", "M"),
+            listOf(marie?.initial, marc?.initial),
+        )
+        assertEquals(
+            "⭐ and they must wear DIFFERENT slots: the letter cannot tell them apart, so the " +
+                "colour has to. One slot for both is a column of identical badges, which is what " +
+                "the badge was added to avoid.",
+            listOf(marieBadge.slot, marcBadge.slot),
+            listOf(marie?.slot, marc?.slot),
+        )
+    }
+
+    /**
+     * ⭐⛔ THE SEED IS THE ADDRESS, NOT THE DISPLAYED NAME, and this is the assertion that pins it.
+     *
+     * The list inside the app seeds a badge with the address (`EmailListItem`: `seed = … ?.email ?:
+     * senderName`), so a widget seeded with the display name would paint the SAME person one colour
+     * on the home screen and another in the message list — the very complaint this pane exists to
+     * answer. Two messages with the same name and different addresses must therefore differ, and
+     * two with the same address and different names must not.
+     */
+    @Test fun `the badge's colour follows the address, and never the displayed name`() {
+        val home = drawn(row = mail(fromName = "Marie Dupont", fromEmail = "marie@example.test")).monogram
+        val work = drawn(row = mail(fromName = "Marie Dupont", fromEmail = "marie.dupont@work.test")).monogram
+        assertEquals(
+            "same displayed name, two addresses: the slots must DIFFER. Equal here means the seed " +
+                "is the name, and the same person would then be one colour in the widget and " +
+                "another in the app's own list, which is the report that opened this work.",
+            listOf(marieBadge.slot, marieAtWorkBadge.slot),
+            listOf(home?.slot, work?.slot),
+        )
+        val renamed = drawn(row = mail(fromName = "Tomasz Nowak", fromEmail = "marie@example.test")).monogram
+        assertEquals(
+            "and the mirror image: one address, two displayed names, ONE slot. A server that " +
+                "starts sending a display name must not repaint a correspondent the reader had " +
+                "learnt to recognise.",
+            listOf(marieBadge.slot, "T"),
+            listOf(renamed?.slot, renamed?.initial),
+        )
+    }
+
+    /**
+     * ⛔ AND THE SEED DOES NOT TRAVEL. [RecentWidgetRow] is the shape the launcher draws; the
+     * address is what the badge was DERIVED from and it has no business being carried there. The
+     * slot is two small indices out of eighteen and names nobody; the address names exactly one
+     * person, and a later `setTextViewText` on a field that holds it is all it would take.
+     */
+    @Test fun `the address the badge was seeded from is not carried on the drawn row`() {
+        val row = drawn(content = NotificationContent.SENDER_ONLY, row = mail())
+        assertEquals(
+            "the drawn row must not carry the seed. Only the letter and the slot cross: $row",
+            emptyList<String>(),
+            listOf("marie@example.test").filter { it in row.toString() },
+        )
+        assertEquals(
+            "⭐ and the badge must still be there — a row that carried nothing would satisfy the " +
+                "rule above by drawing no badge at all.",
+            marieBadge,
+            row.monogram,
         )
     }
 
@@ -400,6 +618,7 @@ class RecentMailWidgetContentTest {
             ),
             content = NotificationContent.SENDER_AND_SUBJECT,
             appLockEnabled = false,
+            listMonogram = true,
             unknownSender = unknownSender,
             noSubject = noSubject,
             generic = generic,
@@ -415,11 +634,15 @@ class RecentMailWidgetContentTest {
                     RecentWidgetItem(
                         drawn = RecentWidgetRow(
                             "Marie Dupont", "Quarterly report", "09:12", unread = true, accountColor = null,
+                            monogram = marieBadge,
                         ),
                         tap = RecentRowTap("msg-77", "acct-alpha", "mbox-beta"),
                     ),
                     RecentWidgetItem(
-                        drawn = RecentWidgetRow("Tomasz Nowak", "Keys", "09:12", unread = false, accountColor = null),
+                        drawn = RecentWidgetRow(
+                            "Tomasz Nowak", "Keys", "09:12", unread = false, accountColor = null,
+                            monogram = tomaszBadge,
+                        ),
                         tap = RecentRowTap("msg-77", "acct-alpha", "mbox-beta"),
                     ),
                 ),
@@ -433,6 +656,7 @@ class RecentMailWidgetContentTest {
             inbox = RecentInbox(configured = false, rows = listOf(mail())),
             content = NotificationContent.SENDER_AND_SUBJECT,
             appLockEnabled = false,
+            listMonogram = true,
             unknownSender = unknownSender,
             noSubject = noSubject,
             generic = generic,
@@ -518,6 +742,7 @@ class RecentMailWidgetContentTest {
             ),
             content = NotificationContent.SENDER_AND_SUBJECT,
             appLockEnabled = false,
+            listMonogram = true,
             unknownSender = unknownSender,
             noSubject = noSubject,
             generic = generic,
@@ -534,12 +759,14 @@ class RecentMailWidgetContentTest {
                 RecentWidgetItem(
                     drawn = RecentWidgetRow(
                         "Marie Dupont", "Quarterly report", "09:12", unread = true, accountColor = alphaColor,
+                        monogram = marieBadge,
                     ),
                     tap = RecentRowTap("msg-1", "acct-alpha", "mbox-beta"),
                 ),
                 RecentWidgetItem(
                     drawn = RecentWidgetRow(
                         "Tomasz Nowak", "Quarterly report", "09:12", unread = true, accountColor = gammaColor,
+                        monogram = tomaszBadge,
                     ),
                     tap = RecentRowTap("msg-2", "acct-gamma", "mbox-beta"),
                 ),

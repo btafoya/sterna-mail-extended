@@ -7,13 +7,16 @@ import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.push.MailNotificationText
+import app.sterna.ui.components.MonogramSlot
+import app.sterna.ui.components.initialOf
+import app.sterna.ui.components.monogramSlot
 import app.sterna.util.MailDates
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 
 /**
- * ONE row of the latest-messages widget, as the launcher will draw it: five fields, all of them
+ * ONE row of the latest-messages widget, as the launcher will draw it: six fields, all of them
  * already decided. [secondary] is null when nothing is drawn on the second line — the widget row
  * rule's own way of saying "there is nothing you may write here".
  *
@@ -33,6 +36,21 @@ import java.util.Locale
  * ⚠ The lint next door looks for literals like `"acct-alpha"` in [toString] and does NOT cover this
  * field: the guard on it is the TYPE — an `Int` cannot hold a name — and not that search. A later
  * reader turning it into a `String` walks straight past both.
+ *
+ * ⭐ [monogram] IS THE SECOND EXCEPTION, and it is a narrower one. It is null under the app lock and
+ * null at NONE — the two states in which the row names nobody — so nothing is added where nothing
+ * may be said. When it is NOT null the row's [primary] line is ALREADY the sender's name, in full:
+ * an initial taken from that name reveals nothing the line above it has not revealed.
+ *
+ * ⚠ It is null on a THIRD state too, and that one is not about privacy at all: the sender-initials
+ * switch (#144) turned off. The reader who took the initials off her message list must not find
+ * them on her home screen, where there is no switch to take them off again.
+ *
+ * ⛔ And the [RecentRowMonogram.slot] is NOT the address. It is two small indices — one of three
+ * families, one of six tones, eighteen values in all — computed from the address and not
+ * invertible: eighteen buckets identify nobody, an address identifies exactly one person. ⛔ The
+ * seed must never reach this type, whatever a later reader needs it for; it is read in [row] and
+ * left behind there.
  */
 internal data class RecentWidgetRow(
     val primary: String,
@@ -40,7 +58,19 @@ internal data class RecentWidgetRow(
     val date: String,
     val unread: Boolean,
     val accountColor: Int?,
+    val monogram: RecentRowMonogram?,
 )
+
+/**
+ * The badge one row wears: the letter drawn inside it, and WHICH of the palette's eighteen colours
+ * paints it — never the colour itself, and never the address it was derived from.
+ *
+ * The split is [MonogramSlot]'s own: the seed is read where the message is read, and the colour is
+ * resolved later, against whichever scheme is in force when the launcher asks. A widget row is
+ * projected once and drawn many times, possibly after a theme change, so a resolved colour carried
+ * here would be the palette of the moment the mail arrived.
+ */
+internal data class RecentRowMonogram(val initial: String, val slot: MonogramSlot)
 
 /**
  * What the CELL is, before a single row is considered — three states, not two, and the third is
@@ -169,6 +199,7 @@ internal object RecentMailWidgetContent {
         row: RecentEmailRow,
         content: NotificationContent,
         appLockEnabled: Boolean,
+        listMonogram: Boolean,
         unknownSender: String,
         noSubject: String,
         generic: String,
@@ -189,6 +220,26 @@ internal object RecentMailWidgetContent {
             secondary = drawn.secondary,
             date = MailDates.formatListDate(row.receivedAt, zone, today, locale),
             unread = !row.seen,
+            // ⛔ THE BADGE IS DRAWN ONLY WHERE THE ROW ALREADY NAMES ITS SENDER, and that answer
+            // comes from the rule above — the only place that has seen the app lock fold the
+            // position onto NONE. An initial is a letter of somebody's name; a badge on a locked
+            // home screen would be the lock's promise broken in one character.
+            //
+            // ⛔ TWO CONDITIONS, AND THEY STAY TWO. `namesSender` is a PROMISE (SECURITY.md, the
+            // app lock, the notification-content setting); [listMonogram] is a TASTE, the switch
+            // #144 added to the message list for the reader whose correspondents have no avatar
+            // and whose column was "a stack of identical circles". Folded into one variable the
+            // promise disappears inside the preference, and the day the preference is reworked
+            // there is nothing left saying a locked row may not wear a letter.
+            //
+            // The letter follows the DISPLAYED name and the colour follows the ADDRESS, which is
+            // exactly what the list inside the app does (EmailListItem: seed = the address, label =
+            // the display name). Seeded with the display name instead, the same person would wear
+            // one colour here and another in the list — the complaint this pane answers.
+            monogram = if (!listMonogram || !drawn.namesSender) null else RecentRowMonogram(
+                initial = initialOf(row.fromName.orEmpty(), sender(row, unknownSender)),
+                slot = monogramSlot(seed(row, unknownSender)),
+            ),
             // THIS row's account, looked up by THIS row's id. A colour taken from anywhere else —
             // the first entry, a field held on the object — paints the whole list one colour, which
             // reads like a working feature and says nothing.
@@ -205,6 +256,7 @@ internal object RecentMailWidgetContent {
         row: RecentEmailRow,
         content: NotificationContent,
         appLockEnabled: Boolean,
+        listMonogram: Boolean,
         unknownSender: String,
         noSubject: String,
         generic: String,
@@ -214,7 +266,8 @@ internal object RecentMailWidgetContent {
         locale: Locale = appLocale,
     ): RecentWidgetItem = RecentWidgetItem(
         drawn = row(
-            row, content, appLockEnabled, unknownSender, noSubject, generic, accountColors, zone, today, locale,
+            row, content, appLockEnabled, listMonogram, unknownSender, noSubject, generic, accountColors,
+            zone, today, locale,
         ),
         tap = RecentMailWidgetTap.of(row),
     )
@@ -224,6 +277,7 @@ internal object RecentMailWidgetContent {
         inbox: RecentInbox,
         content: NotificationContent,
         appLockEnabled: Boolean,
+        listMonogram: Boolean,
         unknownSender: String,
         noSubject: String,
         generic: String,
@@ -237,7 +291,10 @@ internal object RecentMailWidgetContent {
         val shape = cell(inbox.configured, inbox.rows.isNotEmpty())
         val rows = if (shape == RecentWidgetCell.Rows) {
             inbox.rows.map {
-                item(it, content, appLockEnabled, unknownSender, noSubject, generic, accountColors, zone, today, locale)
+                item(
+                    it, content, appLockEnabled, listMonogram, unknownSender, noSubject, generic, accountColors,
+                    zone, today, locale,
+                )
             }
         } else {
             emptyList()
@@ -257,6 +314,25 @@ internal object RecentMailWidgetContent {
     private fun sender(row: RecentEmailRow, unknownSender: String): String =
         row.fromName?.takeIf { it.isNotBlank() }
             ?: row.fromEmail?.takeIf { it.isNotBlank() }
+            ?: unknownSender
+
+    /**
+     * What a badge's COLOUR is derived from: the address, else the name shown, else the stand-in —
+     * the message list's own order (`EmailListItem`: `seed = (recipient ?: from)?.email ?:
+     * senderName`), and it is that order and not this row's that matters.
+     *
+     * ⛔ NOT [sender]. The two differ by which of the name and the address comes first, and that
+     * difference is the whole point: an address is stable while a display name is whatever the last
+     * server wrote, so seeding on the name repaints a correspondent the reader had learnt to
+     * recognise — and paints them a different colour here than in the list, which is the report
+     * this pane answers.
+     *
+     * BLANK counts as absent at every step, for [sender]'s reason: a stored empty string would
+     * otherwise become a seed of its own, shared by every message that has one.
+     */
+    private fun seed(row: RecentEmailRow, unknownSender: String): String =
+        row.fromEmail?.takeIf { it.isNotBlank() }
+            ?: row.fromName?.takeIf { it.isNotBlank() }
             ?: unknownSender
 
     private fun String?.orBlankTo(fallback: String): String =

@@ -122,8 +122,19 @@ object MailNotificationText {
      *
      * Two lines and not three: there is no expanded state on a home screen, so there is no place
      * for the one line [Reveal] keeps a body preview in.
+     *
+     * [namesSender] is whether this row NAMES the person who wrote — i.e. whether [primary] is the
+     * sender rather than the identity-free stand-in. It exists because the widget draws a monogram
+     * badge in front of the row, and A BADGE'S INITIAL IS A LETTER OF SOMEBODY'S NAME: drawing one
+     * beside a row that was supposed to name nobody breaks the same promise the text keeps.
+     *
+     * ⛔ AND IT IS DECIDED HERE, not at the drawing site. The app lock folds the effective position
+     * onto NONE inside [widgetRow], so this is the only place that knows the position actually in
+     * force; anywhere else the question would be answered from the RAW setting, and a locked home
+     * screen would wear the sender's initial while `SECURITY.md` promises the cell "names neither
+     * sender nor subject".
      */
-    data class WidgetRow(val primary: String, val secondary: String?)
+    data class WidgetRow(val primary: String, val secondary: String?, val namesSender: Boolean)
 
     /**
      * What one row of the latest-mail widget may say, per the same notification-content setting
@@ -168,6 +179,11 @@ object MailNotificationText {
      * decide, rather than short-circuiting the function: a position added later must stop the
      * compiler instead of quietly taking the sender — the invariant [resolve] and
      * [Notifications.actionsFor] already carry.
+     *
+     * ⭐ [WidgetRow.namesSender] rides out on the same decision, for the monogram badge the widget
+     * draws in front of a row: an initial is a letter of the sender's name, so it is allowed
+     * exactly where the sender's name itself is. Asking that question anywhere else would ask it
+     * of the raw setting, and the lock would stop governing the badge.
      */
     fun widgetRow(
         content: NotificationContent,
@@ -191,6 +207,16 @@ object MailNotificationText {
                 -> subject
                 NotificationContent.SENDER_ONLY -> generic
                 NotificationContent.NONE -> null
+            },
+            // The same exhaustive `when` a third time, and NOT `effective != NONE`: with an `if`,
+            // a position added later would be given the sender's initial silently, which is this
+            // rule's one irreversible mistake — a name on a home screen cannot be taken back.
+            namesSender = when (effective) {
+                NotificationContent.BODY_PREVIEW,
+                NotificationContent.SENDER_AND_SUBJECT,
+                NotificationContent.SENDER_ONLY,
+                -> true
+                NotificationContent.NONE -> false
             },
         )
     }

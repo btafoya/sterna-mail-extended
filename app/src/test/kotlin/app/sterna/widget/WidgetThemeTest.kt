@@ -2,10 +2,13 @@ package app.sterna.widget
 
 import androidx.compose.ui.graphics.toArgb
 import app.sterna.core.data.settings.ThemeMode
+import app.sterna.ui.components.MONOGRAM_FAMILIES
+import app.sterna.ui.components.ToneRamp
 import app.sterna.ui.theme.ArcticColorScheme
 import app.sterna.ui.theme.PelagicColorScheme
 import app.sterna.ui.theme.pulledToBlack
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
@@ -123,6 +126,115 @@ class WidgetThemeTest {
                 rowPrimary = ArcticColorScheme.onSurface.toArgb(),
             ),
             widgetPalette(ArcticColorScheme, dark = false, pureBlack = true),
+        )
+    }
+
+    // ---- the tones a home-screen badge is painted in ----
+
+    /**
+     * ⭐ THE BADGE TONES ARE NOT A PALETTE, AND THEY ARE NEVER NULL — the difference that makes
+     * this a separate function rather than a fourth field of [WidgetPalette].
+     *
+     * A `WidgetPalette` may be withheld (null) because `res/values` and `res/values-night` already
+     * hold the same colours and the launcher re-resolves them for free. A BITMAP has no resource
+     * behind it: there is no `values-night/monogram.png`, so a badge that was handed nothing would
+     * simply not be drawn — on the DEFAULT settings, which are exactly the row where the palette is
+     * withheld. Hence: always tones, whatever the theme settings say.
+     *
+     * The six colours are named role by role rather than copied as hex, the rule this whole file
+     * follows: a hex literal only ever proves that two files agree.
+     */
+    @Test fun `the badge tones are the light scheme's three accent families`() {
+        assertEquals(
+            "in light theme a badge must be painted from the Arctic scheme's three container " +
+                "families — the same ramps the message list inside the app draws its badges from, " +
+                "so one correspondent is one colour on both screens.",
+            listOf(
+                ToneRamp(ArcticColorScheme.primaryContainer, ArcticColorScheme.onPrimaryContainer),
+                ToneRamp(ArcticColorScheme.secondaryContainer, ArcticColorScheme.onSecondaryContainer),
+                ToneRamp(ArcticColorScheme.tertiaryContainer, ArcticColorScheme.onTertiaryContainer),
+            ),
+            widgetMonogramRamps(ArcticColorScheme, dark = false, pureBlack = false),
+        )
+    }
+
+    @Test fun `the badge tones are the dark scheme's three accent families`() {
+        assertEquals(
+            "in dark theme they must come from the Pelagic scheme, exactly as the text colours do.",
+            listOf(
+                ToneRamp(PelagicColorScheme.primaryContainer, PelagicColorScheme.onPrimaryContainer),
+                ToneRamp(PelagicColorScheme.secondaryContainer, PelagicColorScheme.onSecondaryContainer),
+                ToneRamp(PelagicColorScheme.tertiaryContainer, PelagicColorScheme.onTertiaryContainer),
+            ),
+            widgetMonogramRamps(PelagicColorScheme, dark = true, pureBlack = false),
+        )
+    }
+
+    /**
+     * ⛔ AS MANY RAMPS AS [MONOGRAM_FAMILIES], on every theme. That count is the modulus
+     * `monogramSlot` reduces an address by: a slot chosen against three families and resolved
+     * against two ramps is an `IndexOutOfBoundsException` on a launcher's binder thread, not a
+     * miscoloured badge.
+     */
+    @Test fun `every theme offers a badge exactly as many families as a slot is cut from`() {
+        assertEquals(
+            "widgetMonogramRamps must return MONOGRAM_FAMILIES ramps whatever the theme: the slot " +
+                "carried on a widget row was cut modulo that number, and it will index this list " +
+                "in the launcher's process, where an out-of-bounds is a crash nobody can debug.",
+            listOf(MONOGRAM_FAMILIES, MONOGRAM_FAMILIES, MONOGRAM_FAMILIES),
+            listOf(
+                widgetMonogramRamps(ArcticColorScheme, dark = false, pureBlack = false).size,
+                widgetMonogramRamps(PelagicColorScheme, dark = true, pureBlack = false).size,
+                widgetMonogramRamps(PelagicColorScheme, dark = true, pureBlack = true).size,
+            ),
+        )
+    }
+
+    /**
+     * The badges must FOLLOW the theme: light and dark cannot hand back the same six colours, or a
+     * dark home screen would wear the light scheme's pastel badges.
+     */
+    @Test fun `a light badge and a dark badge are not the same colour`() {
+        assertNotEquals(
+            "the two schemes must give different ramps. Equal here means the badge is painted " +
+                "from one fixed palette and stops following the theme — the defect (#117) this " +
+                "pane fixed for the text, reappearing in a bitmap.",
+            widgetMonogramRamps(ArcticColorScheme, dark = false, pureBlack = false),
+            widgetMonogramRamps(PelagicColorScheme, dark = true, pureBlack = false),
+        )
+    }
+
+    /**
+     * ⚠ PINNED AS A FACT, NOT AS A DESIGN: pure black changes NOTHING about a badge today.
+     *
+     * `applyPureBlack` is called on this path for the same reason [widgetPalette] calls it — the
+     * OLED option must cover the brand palette and `dynamicDarkColorScheme` alike — but
+     * `pulledToBlack` only pulls the BACKGROUND and SURFACE roles to black, and a badge is drawn
+     * from the three CONTAINER families, which it does not touch. So the six tones come back
+     * identical, and that is written down here rather than dressed up as a test that would pass
+     * whatever the code did. The second assertion is the reason, pinned: the day `pulledToBlack`
+     * starts touching a container role, this test goes red and says so.
+     */
+    @Test fun `pure black leaves a badge's tones untouched, because it never touches a container role`() {
+        assertEquals(
+            "pure black must not silently repaint the badges — and today it does not change them " +
+                "at all. If this ever goes red, read the assertion below first: it says whether " +
+                "the OLED option started touching the roles a badge is drawn from.",
+            widgetMonogramRamps(PelagicColorScheme, dark = true, pureBlack = false),
+            widgetMonogramRamps(PelagicColorScheme, dark = true, pureBlack = true),
+        )
+        val noir = PelagicColorScheme.pulledToBlack()
+        assertEquals(
+            "⚠ THE REASON the two above are equal: pulledToBlack pulls background, surface and " +
+                "the surfaceContainer* roles to black and leaves the three accent containers " +
+                "alone. Change that and the badge tones become pure-black-dependent, which is a " +
+                "decision, not a refactor.",
+            listOf(
+                PelagicColorScheme.primaryContainer,
+                PelagicColorScheme.secondaryContainer,
+                PelagicColorScheme.tertiaryContainer,
+            ),
+            listOf(noir.primaryContainer, noir.secondaryContainer, noir.tertiaryContainer),
         )
     }
 

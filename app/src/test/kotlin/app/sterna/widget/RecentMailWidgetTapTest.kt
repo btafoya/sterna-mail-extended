@@ -3,6 +3,7 @@ package app.sterna.widget
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import app.sterna.core.data.settings.NotificationContent
+import app.sterna.ui.components.MonogramSlot
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -111,6 +112,7 @@ class RecentMailWidgetTapTest {
             ),
             content = NotificationContent.SENDER_AND_SUBJECT,
             appLockEnabled = false,
+            listMonogram = true,
             unknownSender = "«nobody named»",
             noSubject = "«nothing titled»",
             generic = "«hidden»",
@@ -126,12 +128,14 @@ class RecentMailWidgetTapTest {
                 RecentWidgetItem(
                     drawn = RecentWidgetRow(
                         "Marie Dupont", "Quarterly report", "09:12", unread = true, accountColor = null,
+                        monogram = RecentRowMonogram("M", MonogramSlot(family = 2, tone = 3)),
                     ),
                     tap = RecentRowTap("msg-1", "acct-alpha", "mbox-beta"),
                 ),
                 RecentWidgetItem(
                     drawn = RecentWidgetRow(
                         "Tomasz Nowak", "Quarterly report", "09:12", unread = true, accountColor = null,
+                        monogram = RecentRowMonogram("T", MonogramSlot(family = 2, tone = 3)),
                     ),
                     tap = RecentRowTap("msg-2", "acct-gamma", "mbox-delta"),
                 ),
@@ -151,6 +155,7 @@ class RecentMailWidgetTapTest {
             inbox = RecentInbox(configured = true, rows = listOf(mail(id = "msg-9"))),
             content = NotificationContent.SENDER_AND_SUBJECT,
             appLockEnabled = true,
+            listMonogram = true,
             unknownSender = "«nobody named»",
             noSubject = "«nothing titled»",
             generic = "«hidden»",

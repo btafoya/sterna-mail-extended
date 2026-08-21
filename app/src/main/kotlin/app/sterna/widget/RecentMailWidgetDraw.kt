@@ -26,12 +26,18 @@ import kotlinx.coroutines.withTimeoutOrNull
  * happens to refetch. That is the very drift the held snapshot exists to prevent, and the colours
  * are no more exempt from it than the text is.
  *
- * ⭐ THE PALETTE IS NULLABLE, and null is an answer rather than a missing value: post no colour,
- * the compiled resources hold the right one. It arrives on two paths — a read that timed out, and
- * an app that does not diverge from the system ([widgetFollowsResources]) — and every drawing site
- * treats it the same way, by omitting its colour lines. ⛔ Never defaulted on the way in or on the
- * way out: a `?:` anywhere along this path bakes a literal colour into a `RemoteViews` that has no
- * `-night` resource behind it and nothing scheduled to redraw it.
+ * ⭐ THE COLOURS ARE NULLABLE, and null is an answer rather than a missing value: the read never
+ * came back, so nothing is known and nothing is posted. Inside them, [WidgetColours.palette] carries
+ * a null of its own — post no colour, the compiled resources hold the right one, which is what an
+ * app that does not diverge from the system asks for ([widgetFollowsResources]) — and every drawing
+ * site treats that the same way, by omitting its colour lines. ⛔ Never defaulted on the way in or
+ * on the way out: a `?:` anywhere along this path bakes a literal colour into a `RemoteViews` that
+ * has no `-night` resource behind it and nothing scheduled to redraw it.
+ *
+ * ⚠ THREE THINGS TRAVEL NOW, not two — the rows, the palette, and the tones a monogram badge is
+ * painted in — and they travel together for the reason above, unchanged: the two ends draw at
+ * different moments. A badge is a BITMAP, so its tones are never withheld the way a palette is;
+ * there is no `values-night` behind a bitmap.
  *
  * ⛔ NOT a field on [RecentWidgetSnapshot]. That type is what [RecentMailWidgetContent] returns —
  * the output of the rule deciding what a row may SAY, under the notification-content setting and
@@ -39,7 +45,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * argument to a rule that must not have one, at twenty call sites that have nothing to say about
  * colour.
  */
-internal data class RecentWidgetDrawing(val snapshot: RecentWidgetSnapshot, val palette: WidgetPalette?)
+internal data class RecentWidgetDrawing(val snapshot: RecentWidgetSnapshot, val colours: WidgetColours?)
 
 /**
  * The ONE way the latest-messages widget is read and drawn — the counterpart of [UnreadWidgetDraw],
@@ -93,10 +99,11 @@ internal object RecentMailWidgetDraw {
      * Read the setting, the lock, the accounts, the mail and the theme, and project them — the only
      * place that does.
      *
-     * ⛔ THE SETTING IS READ FIRST AND WAITED FOR. `notificationContent` is a DataStore flow: it
-     * answers asynchronously, and drawing before it does would put a subject on the home screen of
-     * a reader who asked for NONE, for as long as that first draw lasts. There is no default taken
-     * here, and no draw happens without this function returning.
+     * ⛔ THE SETTINGS ARE READ FIRST AND WAITED FOR. `notificationContent` and `listMonogram` are
+     * DataStore flows: they answer asynchronously, and drawing before they do would put a subject
+     * on the home screen of a reader who asked for NONE, or an initial on the rows of a reader who
+     * removed initials, for as long as that first draw lasts. There is no default taken here, and
+     * no draw happens without this function returning.
      *
      * ⚠ Not bounded here: the caller bounds it. The provider has ~10 s of broadcast to spend and
      * the factory is on a binder thread the launcher is waiting on; they hold different budgets and
@@ -105,6 +112,12 @@ internal object RecentMailWidgetDraw {
     suspend fun read(app: Application): RecentWidgetDrawing {
         val container = app.container
         val content = container.settingsRepository.notificationContent.first()
+        // The sender-initials switch (#144), read HERE and never defaulted here. `listMonogramFrom`
+        // already owns LIST_MONOGRAM_DEFAULT and three copies of it exist already (the activity's
+        // first frame, the settings screen, the CompositionLocal's fallback); a fourth in this file
+        // would be free to disagree with the repository the day the default changes, and the cell
+        // would then draw badges the message list does not.
+        val listMonogram = container.settingsRepository.listMonogram.first()
         val appLockEnabled = container.accountStore.appLockEnabled()
         // ONE read of the account list, and not one per row: `accounts()` migrates, reads the
         // preferences and decodes the whole blob (see UnreadWidgetDraw.draw, which spends its
@@ -117,6 +130,7 @@ internal object RecentMailWidgetDraw {
             inbox = inbox,
             content = content,
             appLockEnabled = appLockEnabled,
+            listMonogram = listMonogram,
             unknownSender = app.getString(R.string.message_unknown_sender),
             noSubject = app.getString(R.string.message_no_subject),
             generic = app.getString(R.string.widget_latest_hidden),
@@ -126,12 +140,13 @@ internal object RecentMailWidgetDraw {
         // res/values + res/values-night, i.e. from the system's night mode (#117). Read HERE, in
         // the one read, so the frame and the rows are painted from the same answer.
         //
-        // ⚠ It may be NULL, and null is carried as-is: it means "post nothing, the resources are
-        // right", either because the read timed out or because the app does not diverge from the
-        // system. ⛔ No `?:` here — a default would be this file deciding a colour, and it would
-        // freeze it into a RemoteViews with no -night resource behind it.
-        val palette = WidgetThemeReader.palette(app)
-        val drawing = RecentWidgetDrawing(snapshot, palette)
+        // ⚠ It may be NULL, and null is carried as-is: the read did not answer, so nothing is
+        // known — and the palette INSIDE it may be null too, meaning "post nothing, the resources
+        // are right", which is what an app that does not diverge from the system asks for. ⛔ No
+        // `?:` here — a default would be this file deciding a colour, and it would freeze it into
+        // a RemoteViews with no -night resource behind it.
+        val colours = WidgetThemeReader.colours(app)
+        val drawing = RecentWidgetDrawing(snapshot, colours)
         held = drawing
         return drawing
     }
@@ -164,7 +179,7 @@ internal object RecentMailWidgetDraw {
     fun draw(app: Application, ids: IntArray, drawing: RecentWidgetDrawing) {
         if (ids.isEmpty()) return
         val snapshot = drawing.snapshot
-        val palette = drawing.palette
+        val palette = drawing.colours?.palette
         val manager = AppWidgetManager.getInstance(app)
         val notice = RecentMailWidgetContent.notice(snapshot.cell)?.let { app.getString(it) } ?: app.getString(R.string.app_name)
         ids.forEach { id ->

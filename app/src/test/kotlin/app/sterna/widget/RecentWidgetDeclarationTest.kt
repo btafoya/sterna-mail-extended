@@ -202,23 +202,91 @@ class RecentWidgetDeclarationTest {
             codeLines(PREVIEW_LAYOUT).filter { it.startsWith("android:textStyle=") },
         )
         assertEquals(
-            "and all three preview blocks must keep the row's 8 dp head column — three account " +
-                "dots, one per block. The served row carries that ImageView ALWAYS, VISIBLE or " +
-                "INVISIBLE and NEVER GONE, so every real line is indented by 16 dp; a preview " +
-                "without the column advertises a layout the cell does not have, senders flush " +
-                "against the left edge. And this file is a copy made BY HAND that nothing at " +
-                "runtime ever redraws, so it lies on its own at the first change to the row.",
-            listOf(ACCOUNT_DOT_SRC, ACCOUNT_DOT_SRC, ACCOUNT_DOT_SRC),
+            "and all three preview blocks must keep the row's head column — a BADGE then the " +
+                "account dot, in that order, in each of the three. The served row carries both " +
+                "ImageViews ALWAYS, VISIBLE or INVISIBLE and NEVER GONE, so every real line is " +
+                "indented by the same amount; a preview short of either advertises a layout the " +
+                "cell does not have, senders flush against the left edge. And this file is a copy " +
+                "made BY HAND that nothing at runtime ever redraws, so it lies on its own at the " +
+                "first change to the row. ⚠ Each badge line is pinned WITH its closing `/>`, " +
+                "which is also what says no attribute follows it — a visibility slipped in there " +
+                "would hide the one thing this picture now has to show.",
+            listOf(
+                MONOGRAM_SRC, ACCOUNT_DOT_SRC,
+                MONOGRAM_SRC, ACCOUNT_DOT_SRC,
+                MONOGRAM_SRC, ACCOUNT_DOT_SRC,
+            ),
             codeLines(PREVIEW_LAYOUT).filter { it.startsWith("android:src=") },
         )
         assertEquals(
-            "⛔ and those three dots must be INVISIBLE, never drawn. The picker is looked at by " +
-                "someone who may hold one account, where the row draws no dot at all; a coloured " +
-                "dot in the picture promises a telling-apart of mailboxes that only exists from " +
-                "two accounts up AND with a colour chosen in the account editor. The preview may " +
-                "show the row's GEOMETRY — it cannot qualify a function it has no way to check.",
+            "⛔ and THE THREE INVISIBLE ONES ARE THE DOTS, still three and still only the dots. " +
+                "The picker is looked at by someone who may hold one account, where the row draws " +
+                "no dot at all; a coloured dot in the picture promises a telling-apart of " +
+                "mailboxes that only exists from two accounts up AND with a colour chosen in the " +
+                "account editor. ⭐ The badge carries no visibility line for a different reason, " +
+                "and NOT because every row wears one — three shipped paths draw none: the NONE " +
+                "position of the notification-content setting, the app lock, a colour read that " +
+                "did not answer, and the sender-initials switch turned off (#144). What the " +
+                "preview shows is the row's GEOMETRY, and a badge is the ORDINARY case of an " +
+                "unlocked row, where a coloured dot is the case of a reader who holds two " +
+                "accounts and has picked colours for them. A fourth invisible in this list means " +
+                "the badge has been hidden and the picture no longer shows the column the served " +
+                "row always spends.",
             listOf(DOT_INVISIBLE, DOT_INVISIBLE, DOT_INVISIBLE),
             codeLines(PREVIEW_LAYOUT).filter { it.startsWith("android:visibility=") },
+        )
+    }
+
+    /**
+     * ⛔ THE SERVED ROW'S BADGE, PINNED WHOLE — the element and not one of its attributes.
+     *
+     * Nothing else in this repository looks at it. [RecentMailRowTapWiringLintTest] reads the row
+     * layout's first three lines only (its root and that root's id), the factory's lint pins the
+     * `RemoteViews` calls in Kotlin, and no test can inflate a layout: there is no Robolectric
+     * here. So `@dimen/widget_recent_monogram` turned into `0dp`, or the `ImageView` deleted
+     * outright, leaves every rule in this package green and every home-screen row bare — while the
+     * picker's preview, which is a hand-made copy, goes on promising three badges.
+     *
+     * Three facts, and each is one line away from being lost:
+     *
+     * - the id, which is what `setImageViewBitmap` and `setViewVisibility` address;
+     * - BOTH sides on `@dimen/widget_recent_monogram`. A literal here, or a zero, is a bitmap
+     *   scaled to something the disc was never rendered at — the badge is drawn at the dimension's
+     *   own pixel size ([WidgetMonogram]) — or no badge at all;
+     * - `importantForAccessibility="no"`. Removed, TalkBack reads the initial out loud, which is
+     *   the sender's name one letter at a time, on a screen where the pixels are deliberately not
+     *   drawn under the lock. The layout's own comment forbids it in writing.
+     *
+     * ⛔ AND NO `android:src`. The badge is a `Bitmap` posted at runtime, painted in the tones the
+     * read answered with; a compile-time drawable here is a colour this layout chose, and it would
+     * show on exactly the rows that have no badge — under the lock, at NONE, with the initials
+     * switched off, and before any read has answered.
+     */
+    @Test fun `the served row's badge keeps its own square of the column, and never names itself`() {
+        assertEquals(
+            "the row layout must declare the badge ImageView whole: the id the factory posts a " +
+                "bitmap to, both sides on @dimen/widget_recent_monogram, its margin, and " +
+                "importantForAccessibility=\"no\". A 0dp side or a deleted view leaves every " +
+                "served row bare while the picker's preview still promises three badges; a " +
+                "missing importantForAccessibility has TalkBack read the sender's initial aloud, " +
+                "which is the naming the app lock exists to prevent, one letter at a time.",
+            listOf(
+                "<ImageView",
+                MONOGRAM_ID,
+                "android:layout_width=\"@dimen/widget_recent_monogram\"",
+                "android:layout_height=\"@dimen/widget_recent_monogram\"",
+                "android:layout_marginEnd=\"8dp\"",
+                "android:importantForAccessibility=\"no\" />",
+            ),
+            element(ROW_LAYOUT, MONOGRAM_ID),
+        )
+        assertEquals(
+            "⛔ and it must carry NO android:src. The bitmap is posted at runtime in the tones " +
+                "the colour read answered with; a drawable compiled in here is a colour the " +
+                "layout chose, and it would sit on precisely the rows that must wear no badge — " +
+                "locked, at NONE, with the initials switched off, and before any read answered.",
+            emptyList<String>(),
+            element(ROW_LAYOUT, MONOGRAM_ID).filter { it.startsWith("android:src=") },
         )
     }
 
@@ -231,6 +299,12 @@ class RecentWidgetDeclarationTest {
         const val PREVIEW = "android:previewLayout=\"@layout/widget_recent_preview\""
 
         const val ACCOUNT_DOT_SRC = "android:src=\"@drawable/widget_recent_account_dot\""
+
+        /** The served row's badge, addressed by the id the factory posts its bitmap to. */
+        const val MONOGRAM_ID = "android:id=\"@+id/widget_recent_row_monogram\""
+
+        /** Last attribute of its element, hence the `/>` — see the rule that compares it. */
+        const val MONOGRAM_SRC = "android:src=\"@drawable/widget_recent_monogram_badge\" />"
 
         const val DOT_INVISIBLE = "android:visibility=\"invisible\" />"
 

@@ -137,8 +137,31 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         initialValue = LIST_MONOGRAM_DEFAULT,
     )
 
+    /**
+     * ⛔ THE HOME SCREEN CARRIES THIS SWITCH TOO, since the latest-messages cell started drawing the
+     * sender's initials at the head of every row (#112). The three redraw triggers there are fed by
+     * MAIL and `updatePeriodMillis="0"` means there is no timer by design, so without these two
+     * calls the reader takes the initials off, goes back to her home screen, and every row keeps its
+     * badge until a message ARRIVES — on a quiet mailbox, days, with no switch on that screen and no
+     * way to force it.
+     *
+     * The order is the one written out at [setPureBlack], for the same two reasons: the write is
+     * AWAITED, because the redraw re-reads this very setting with `.first()` and would otherwise
+     * repaint the old answer; and `forget()` comes BEFORE `refresh()`, because the row factory falls
+     * back to the last `RecentWidgetDrawing` it read when its own read times out, and that carrier
+     * was projected under the OLD switch.
+     *
+     * ⛔ AND NO `UnreadWidgetDraw.refresh` HERE — the one place this setter deliberately differs
+     * from its three theme neighbours. The counter draws a number and no badge at all, so waking it
+     * would be a read of the account store and of Room for a cell that cannot have changed. A later
+     * reader "aligning" this on the setters above is adding work to answer nothing.
+     */
     fun setListMonogram(enabled: Boolean) {
-        viewModelScope.launch { settings.setListMonogram(enabled) }
+        viewModelScope.launch {
+            settings.setListMonogram(enabled)
+            RecentMailWidgetDraw.forget()
+            RecentMailWidgetDraw.refresh(getApplication())
+        }
     }
 
     val swipeRight = settings.swipeRightAction.stateIn(

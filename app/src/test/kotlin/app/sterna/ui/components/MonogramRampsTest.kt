@@ -57,6 +57,16 @@ class MonogramRampsTest {
         assertEquals(6, ramps.flatMap { listOf(it.container, it.onContainer) }.distinct().size)
     }
 
+    /**
+     * [MONOGRAM_FAMILIES] is not documentation: [monogramSlot] indexes into the ramps with it, and the
+     * widget stores the resulting family number. If the constant and the list ever disagree, a badge
+     * lands outside the palette — so the number is pinned against a real scheme, not against itself.
+     */
+    @Test fun `the announced number of families is the number of ramps`() {
+        assertEquals(MONOGRAM_FAMILIES, scheme.monogramRamps().size)
+        assertEquals(MONOGRAM_FAMILIES, lightColorScheme().monogramRamps().size)
+    }
+
     /** No ramp may be a single point: a container equal to its own "on" colour collapses six tones into one. */
     @Test fun `no ramp collapses to a single colour`() {
         assertTrue(scheme.monogramRamps().none { it.container == it.onContainer })

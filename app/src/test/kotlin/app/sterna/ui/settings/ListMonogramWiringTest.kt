@@ -257,9 +257,12 @@ class ListMonogramWiringTest {
         )
         assertEquals(
             "SettingsViewModel.kt must pass the argument through: " +
-                "'viewModelScope.launch { settings.setListMonogram(enabled) }'. Same defect one " +
-                "step earlier, and just as invisible from here.",
-            listOf("viewModelScope.launch { settings.setListMonogram(enabled) }"),
+                "'settings.setListMonogram(enabled)'. Same defect one step earlier, and just as " +
+                "invisible from here. ⚠ The call no longer sits alone on its `viewModelScope.launch " +
+                "{ … }` line: the write is now awaited and followed by the home-screen redraw " +
+                "(#112), whose whole body — the order included — is pinned by " +
+                "RecentMailWidgetWiringLintTest.",
+            listOf("settings.setListMonogram(enabled)"),
             codeLines(SETTINGS_VIEW_MODEL).filter { "settings.setListMonogram(" in it },
         )
     }

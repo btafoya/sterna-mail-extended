@@ -25,26 +25,32 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal object WidgetThemeReader {
 
     /**
-     * The cell's colours, read from the app's OWN settings — the same three the settings screen
-     * writes and `SternaTheme` reads — or NULL, meaning post nothing.
+     * EVERYTHING one reading of the colours learns — the palette override to post, and the tones a
+     * monogram badge is painted in — or NULL, meaning the read never answered at all.
      *
-     * ⭐ NULL IS AN ANSWER, not a failure, and it means the same thing on both of its paths: leave
-     * the drawing sites alone, the compiled resources already hold the right colours. Every caller
-     * of this function draws null by omitting its colour lines, which is what
+     * ⭐ THERE ARE TWO KINDS OF NULL HERE NOW, and they are not the same claim.
+     *
+     *  1. THIS FUNCTION returning null: the read TIMED OUT. Nothing whatever is known, so nothing
+     *     is posted and no badge is drawn — the cell stays exactly as it was drawn last, which is
+     *     the behaviour from before this pane: the compiled resources.
+     *  2. [WidgetColours.palette] being null: [widgetFollowsResources] — the app does not diverge
+     *     from the system, so the palette and `values` / `values-night` would draw the SAME pixels,
+     *     and posting nothing additionally leaves the launcher re-resolving `-night` at every
+     *     inflation. The full argument, and why it must not be deleted as a special case, is in
+     *     that function's own KDoc; it is what keeps a reader on the DEFAULT settings from watching
+     *     the system go dark at dusk while both cells stay light until the next message.
+     *
+     * ⛔ AND THAT SECOND ONE NO LONGER SHORT-CIRCUITS THE FUNCTION. It used to be a
+     * `return@withTimeoutOrNull null` and it now decides the PALETTE FIELD alone, because it would
+     * otherwise take the badge tones with it. `values` / `values-night` answer for TEXT; a BITMAP
+     * has no resource behind it, so tones withheld are a badge not drawn — and the row that
+     * withholds the palette is `SYSTEM` + no pure black + no Material You, the settings nobody has
+     * touched. The default install is exactly the one that would have lost its badges.
+     *
+     * Every caller draws a null palette by omitting its colour lines, which is what
      * [RecentMailWidgetFactory] has always done for its rows — "a row drawn with no `setTextColor`
-     * keeps the colour its layout froze in … not a regression" — and that sentence is now the rule
-     * for the whole pane rather than one file's special case.
-     *
-     * The two paths:
-     *
-     *  1. [widgetFollowsResources] — the app does not diverge from the system, so the palette and
-     *     `values` / `values-night` would draw the same pixels, and posting nothing additionally
-     *     leaves the launcher re-resolving `-night` at every inflation. The full argument, and why
-     *     it must not be deleted as a special case, is in that function's own KDoc; it is what
-     *     keeps a reader on the DEFAULT settings from watching the system go dark at dusk while
-     *     both cells stay light until the next message.
-     *  2. THE READ TIMED OUT — nothing is known, and the honest fallback is the behaviour from
-     *     before this pane: the resources.
+     * keeps the colour its layout froze in … not a regression" — and that sentence is the rule for
+     * the whole pane rather than one file's special case.
      *
      * ⛔ [withTimeoutOrNull] AND NEVER `withTimeout`. Three DataStore `first()` calls answer late
      * on a cold process, and this runs on two paths that a `CancellationException` would wreck:
@@ -70,12 +76,11 @@ internal object WidgetThemeReader {
      * `dynamicLightColorScheme` are ordinary functions, not composables, so they are readable from
      * here exactly as `SternaTheme` reads them (`ui/theme/Theme.kt`).
      */
-    suspend fun palette(app: Application): WidgetPalette? = withTimeoutOrNull(PALETTE_TIMEOUT_MS) {
+    suspend fun colours(app: Application): WidgetColours? = withTimeoutOrNull(PALETTE_TIMEOUT_MS) {
         val settings = app.container.settingsRepository
         val themeMode = settings.themeMode.first()
         val pureBlack = settings.pureBlack.first()
         val dynamicColor = settings.dynamicColor.first()
-        if (widgetFollowsResources(themeMode, pureBlack, dynamicColor)) return@withTimeoutOrNull null
         val night = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         val dark = widgetIsDark(themeMode, systemNight = night == Configuration.UI_MODE_NIGHT_YES)
         val scheme = when {
@@ -84,11 +89,25 @@ internal object WidgetThemeReader {
             dark -> PelagicColorScheme
             else -> ArcticColorScheme
         }
-        widgetPalette(scheme, dark, pureBlack)
+        WidgetColours(
+            palette = if (widgetFollowsResources(themeMode, pureBlack, dynamicColor)) null
+            else widgetPalette(scheme, dark, pureBlack),
+            monogramRamps = widgetMonogramRamps(scheme, dark, pureBlack),
+        )
     }
 
     /**
-     * How long [palette] may spend before the resources answer instead.
+     * The palette half of [colours], and NOTHING ELSE — one projection, no second read of anything.
+     *
+     * It is what the counter still calls ([UnreadWidgetDraw]), whose behaviour must not have moved
+     * by a hair: same settings, same bound, same two null paths. ⛔ A settings read reinstalled
+     * here would answer from a different moment than the rows', and would spend a second DataStore
+     * open inside a `goAsync()` window.
+     */
+    suspend fun palette(app: Application): WidgetPalette? = colours(app)?.palette
+
+    /**
+     * How long [colours] may spend before the resources answer instead.
      *
      * Deliberately SMALL, and much smaller than everything that encloses it: the counter's
      * `UnreadWidgetProvider.DRAW_TIMEOUT_MS` and both widgets' `REFRESH_TIMEOUT_MS` are 5 s, and

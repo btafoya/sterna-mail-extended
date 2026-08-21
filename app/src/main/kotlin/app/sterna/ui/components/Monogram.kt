@@ -56,6 +56,10 @@ internal data class ToneRamp(val container: Color, val onContainer: Color)
  * Each family's range runs from the colour the palette fills a container with to the colour it
  * paints on that container, so a badge is always a tone the scheme itself uses, and both ends are
  * already chosen to sit legibly on the surface — light theme or dark, dynamic or not.
+ *
+ * It returns exactly [MONOGRAM_FAMILIES] ramps, and that agreement is pinned by a test: the number is
+ * also the modulus [monogramSlot] reduces a seed by, so the two drifting apart would index a badge
+ * outside the palette rather than merely miscolour it.
  */
 internal fun ColorScheme.monogramRamps(): List<ToneRamp> = listOf(
     ToneRamp(primaryContainer, onPrimaryContainer),
@@ -104,11 +108,40 @@ private const val TONE_GAP = 0.116f
  * Not to be confused with [accountColorOf], the accent a user picks for an account by hand: that one
  * is an explicit choice and is passed to [Monogram] as `color`, which short-circuits this entirely.
  */
-internal fun monogramColor(seed: String, ramps: List<ToneRamp>): Color {
+internal fun monogramColor(seed: String, ramps: List<ToneRamp>): Color =
+    monogramColor(monogramSlot(seed, ramps.size), ramps)
+
+/** How many accent families the palette offers a badge — [monogramRamps] returns exactly that many. */
+internal const val MONOGRAM_FAMILIES = 3
+
+/**
+ * Which of the 18 badges the palette offers: an address reduced to two small indices.
+ *
+ * It exists so that the home-screen widget can draw the same badge as the list. The widget paints
+ * outside any composition, into a Bitmap, and the row it paints into is forbidden from carrying a
+ * sender's name or address that far — a home-screen surface names nobody. A pair of numbers in
+ * `0 until MONOGRAM_FAMILIES` and `0 until 6` names nobody either: 18 values cannot identify a
+ * correspondent, so the badge survives the trip and the address does not make it.
+ *
+ * Splitting the derivation here rather than at the colour keeps the seed on one side of the boundary
+ * and the palette on the other, which is also what the widget needs: it chooses the slot when it
+ * reads the message, and resolves the colour later, against whichever scheme is then in force.
+ */
+internal data class MonogramSlot(val family: Int, val tone: Int)
+
+/** The half that reads the address: hash, scramble, and cut into a family and a tone index. */
+internal fun monogramSlot(seed: String, families: Int = MONOGRAM_FAMILIES): MonogramSlot {
     val scrambled = scramble(seedHash(seed))
-    val ramp = ramps[Math.floorMod(scrambled, ramps.size)]
-    val tone = FIRST_TONE + TONE_GAP * ((scrambled ushr 16) % TONE_COUNT)
-    return blend(ramp.container, ramp.onContainer, tone)
+    return MonogramSlot(
+        family = Math.floorMod(scrambled, families),
+        tone = (scrambled ushr 16) % TONE_COUNT,
+    )
+}
+
+/** The half that reads the palette: step [MonogramSlot.tone] along the family's range. */
+internal fun monogramColor(slot: MonogramSlot, ramps: List<ToneRamp>): Color {
+    val ramp = ramps[slot.family]
+    return blend(ramp.container, ramp.onContainer, FIRST_TONE + TONE_GAP * slot.tone)
 }
 
 /** The original seed hash (djb2-style, Int overflow included) — unchanged, so are its collisions. */
@@ -143,7 +176,14 @@ private fun blend(from: Color, to: Color, fraction: Float): Color = Color(
     blue = from.blue + (to.blue - from.blue) * fraction,
 )
 
-private fun initialOf(label: String, fallback: String): String {
+/**
+ * The letter drawn inside a badge: the first letter or digit of the display name, or of the address
+ * when there is no name, and `"?"` when neither offers one.
+ *
+ * Shared with the home-screen widget, which has no composition to call [Monogram] from and draws the
+ * badge itself — hence `internal` rather than private.
+ */
+internal fun initialOf(label: String, fallback: String): String {
     val source = label.ifBlank { fallback }
     return source.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
 }

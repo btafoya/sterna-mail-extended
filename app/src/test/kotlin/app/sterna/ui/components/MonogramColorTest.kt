@@ -1,6 +1,7 @@
 package app.sterna.ui.components
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -158,7 +159,95 @@ class MonogramColorTest {
         }
     }
 
+    // --- the two-step path the widget takes ------------------------------------------------------
+
+    /**
+     * ⚠ THIS TEST CANNOT FAIL TODAY, AND THAT IS WHAT IT SAYS. `monogramColor(seed, ramps)` is
+     * DEFINED as `monogramColor(monogramSlot(seed, ramps.size), ramps)`, so what is compared below
+     * is `f(x)` against `f(x)`. It is kept, with this paragraph instead of the promise it used to
+     * carry ("nothing here is allowed to shift a single badge", which it never enforced), because
+     * the two are PUBLIC ENTRY POINTS and only one of them is currently written in terms of the
+     * other: the day the seed-taking half grows a derivation of its own — a cache, a normalisation
+     * of the address, a different family count — this is what says the widget's slot still lands
+     * where the list's address does.
+     *
+     * ⛔ It is NOT what holds the derivation still. That is the two rules below: the slots are
+     * pinned as literal pairs, and the resolved colours as literal ARGB.
+     */
+    @Test fun `the two entry points agree, for as long as they are two`() {
+        for (ramps in listOf(lightRamps, darkRamps)) {
+            for (address in addresses) {
+                val slot = monogramSlot(address, ramps.size)
+                assertEquals(
+                    "$address changed colour when routed through $slot",
+                    monogramColor(address, ramps),
+                    monogramColor(slot, ramps),
+                )
+            }
+        }
+    }
+
+    /**
+     * The slot is what crosses the process boundary, so its two numbers are pinned as literals —
+     * computed once by hand from the derivation as it shipped, not recomputed here. A widget that
+     * stored a slot yesterday must find the same badge today.
+     */
+    @Test fun `known addresses land on known slots`() {
+        assertEquals(MonogramSlot(family = 2, tone = 0), monogramSlot("alex.rivera@masto.top"))
+        assertEquals(MonogramSlot(family = 1, tone = 4), monogramSlot("jordan.lee@masto.top"))
+        assertEquals(MonogramSlot(family = 2, tone = 1), monogramSlot("admin@masto.top"))
+        assertEquals(MonogramSlot(family = 0, tone = 0), monogramSlot(""))
+    }
+
+    /**
+     * ⭐ AND THE OTHER HALF OF THE DERIVATION, IN LITERALS — the half that reads the PALETTE.
+     *
+     * The slots above pin `monogramSlot`, i.e. the address side. What turns a slot into a colour is
+     * `FIRST_TONE + TONE_GAP * slot.tone` stepped along the family's ramp, and until this rule
+     * nothing held it: every other test here asserts a PROPERTY — eighteen distinct colours, inside
+     * the ramp, above 2.4:1 — and all of them survive the tones being walked in the opposite
+     * direction, or started one step further along. That mutation repaints every badge in the app
+     * AND in the home-screen widget, for every user, and it is one operator wide.
+     *
+     * The values were computed from the shipped derivation and frozen; they are not recomputed
+     * here, which is the whole point. Three slots, deliberately: one at each end of a ramp and one
+     * from the other palette, so a shift in either direction shows.
+     */
+    @Test fun `three known badges come out the exact colours they shipped as`() {
+        assertEquals(
+            "the colour a slot resolves to is pinned as literal ARGB. Recomputing it here would " +
+                "be a copy of the rule and would agree with any rewrite of it: reversing the " +
+                "tone order, or moving where the ramp is entered, repaints every badge in the " +
+                "app and on the home screen while every other test in this file — distinct " +
+                "count, inside-the-ramp, contrast floor — stays green.",
+            listOf("0xFFBD98A4", "0xFF494457", "0xFFA77F8C"),
+            listOf(
+                argb("alex.rivera@masto.top", lightRamps),
+                argb("jordan.lee@masto.top", lightRamps),
+                argb("admin@masto.top", darkRamps),
+            ),
+        )
+    }
+
+    /** An index out of range is an ArrayIndexOutOfBounds on someone's home screen, not a wrong hue. */
+    @Test fun `every slot is inside the palette it indexes`() {
+        for (address in addresses) {
+            val slot = monogramSlot(address)
+            assertTrue("$address gave family ${slot.family}", slot.family in 0 until 3)
+            assertTrue("$address gave tone ${slot.tone}", slot.tone in 0 until 6)
+        }
+    }
+
+    /** Collapsing every address onto one slot would satisfy the two tests above and flatten the list. */
+    @Test fun `different addresses do not all share one slot`() {
+        assertTrue(addresses.map { monogramSlot(it) }.distinct().size >= 14)
+    }
+
     // --- helpers ---------------------------------------------------------------------------------
+
+    /** A badge as it is packed for drawing — the form both the in-app badge and the widget use. */
+    private fun argb(seed: String, ramps: List<ToneRamp>): String =
+        "0x%08X".format(monogramColor(seed, ramps).toArgb())
 
     /** Every channel between the ramp's two ends: an interpolation and nothing else. */
     private fun within(color: Color, ramp: ToneRamp): Boolean {

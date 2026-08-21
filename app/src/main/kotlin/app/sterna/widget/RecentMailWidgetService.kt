@@ -3,6 +3,7 @@ package app.sterna.widget
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
@@ -12,6 +13,7 @@ import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import app.sterna.R
+import app.sterna.ui.components.ToneRamp
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -58,7 +60,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
      * deciding a colour, on the one path where nothing is known.
      *
      * ⭐ THAT PARAGRAPH IS NOW THE RULE FOR THE WHOLE PANE, not this file's own arrangement.
-     * [WidgetThemeReader.palette] itself returns null, on two paths — a read that timed out, and
+     * [WidgetThemeReader.palette] itself returns null on two paths — a read that timed out, and
      * an app that does not diverge from the system ([widgetFollowsResources]) — and the counter's
      * `render` and the frame's `draw` skip their colour lines on it exactly as [getViewAt] does
      * here. On the second path it is more than stale-rather-than-wrong: it is the identical
@@ -67,6 +69,20 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
      */
     @Volatile
     private var palette: WidgetPalette? = null
+
+    /**
+     * The tones a row's monogram badge is painted in — from the SAME [RecentWidgetDrawing] as
+     * [rows] and [palette], and dropped by [onDestroy] with them.
+     *
+     * ⛔ NULL HERE MEANS "THE COLOUR READ DID NOT ANSWER", and nothing else. It does NOT mean "use
+     * the default palette": [WidgetColours.monogramRamps] is not itself nullable, precisely because
+     * a badge is a BITMAP and there is no `res/values-night` behind a bitmap to fall back on. So
+     * null is drawn as NO BADGE — a row one refresh behind, never a badge in a palette this file
+     * chose. ⛔ A hard-coded ramp here would be the one thing the whole pane forbids: a colour
+     * decided at the drawing site, on the one path where nothing is known.
+     */
+    @Volatile
+    private var monogramRamps: List<ToneRamp>? = null
 
     override fun onCreate() = Unit
 
@@ -98,12 +114,14 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         // hand this factory the colours of one moment and the rows of another.
         val drawing = read ?: RecentMailWidgetDraw.drawing ?: return
         rows = drawing.snapshot.rows
-        palette = drawing.palette
+        palette = drawing.colours?.palette
+        monogramRamps = drawing.colours?.monogramRamps
     }
 
     override fun onDestroy() {
         rows = emptyList()
         palette = null
+        monogramRamps = null
     }
 
     override fun getCount(): Int = rows.size
@@ -128,6 +146,13 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
             views.setTextViewText(R.id.widget_recent_row_primary, "")
             views.setTextViewText(R.id.widget_recent_row_secondary, "")
             views.setTextViewText(R.id.widget_recent_row_date, "")
+            // ⛔ The badge is CLEARED, not merely hidden. setImageViewBitmap posts a null where the
+            // launcher's recycled ImageView holds the disc of whatever row it last drew, so a list
+            // that shrank between getCount() and here would leave a correspondent's colour and
+            // initial under a blank line — the same fault as the three empty strings above, one
+            // that a reader would read as "a message just arrived and it has no sender".
+            views.setImageViewBitmap(R.id.widget_recent_row_monogram, null)
+            views.setViewVisibility(R.id.widget_recent_row_monogram, View.INVISIBLE)
             // Nothing has to be said about the WEIGHT here. A bare String replaces a
             // SpannableString whole, so the bold a recycled view was last drawn with goes with the
             // text that carried it — the same guard the unread dot needed a setViewVisibility for.
@@ -156,6 +181,18 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
             if (row.secondary == null) View.GONE else View.VISIBLE,
         )
         views.setTextViewText(R.id.widget_recent_row_date, weighted(row.date, row.unread))
+        // The badge, as a Bitmap because a RemoteViews has no other way to carry a coloured letter.
+        //
+        // ⛔ INVISIBLE and never GONE, exactly like the dot below: the two hold the row's head
+        // column, and a GONE one would start this row's sender at a different x from its
+        // neighbours'. ⛔ And the bitmap is posted on BOTH paths — a null clears whatever disc the
+        // recycled view was holding, which is what makes the INVISIBLE honest.
+        val badge = monogramFor(row)
+        views.setImageViewBitmap(R.id.widget_recent_row_monogram, badge)
+        views.setViewVisibility(
+            R.id.widget_recent_row_monogram,
+            if (badge == null) View.INVISIBLE else View.VISIBLE,
+        )
         // Which account this line came from, as a colour and never as a name — the list interleaves
         // several mailboxes by date and nothing else on the row says which is which.
         //
@@ -173,6 +210,27 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         // TextViews the cell would only react on the sender's name and read as broken.
         views.setOnClickFillInIntent(R.id.widget_recent_row_root, RecentMailWidgetDraw.rowFillIn(item.tap))
         return views
+    }
+
+    /**
+     * The disc this row wears, or null — TWO ways of having none, and they are different things.
+     *
+     * `row.monogram == null` is the CONTENT rule's answer: [RecentMailWidgetContent] leaves it null
+     * under the app lock and at the NONE position of the notification-content setting, the two
+     * states in which a row names nobody at all. An initial is a name reduced to one letter, and
+     * SECURITY.md's promise is that a locked home screen names neither sender nor subject.
+     *
+     * `monogramRamps == null` is the COLOUR read's: it did not answer, so no badge is drawn. ⛔ Not
+     * a default ramp — a badge is a bitmap and there is no `res/values-night` behind a bitmap to
+     * make a wrong colour merely stale, so the row goes one refresh without its disc instead.
+     *
+     * ⚠ Nothing in the JVM suite executes this: it ends in a `Bitmap`. The two guards are pinned as
+     * text next door, and what the disc LOOKS like is a bench claim.
+     */
+    private fun monogramFor(row: RecentWidgetRow): Bitmap? {
+        val monogram = row.monogram ?: return null
+        val ramps = monogramRamps ?: return null
+        return WidgetMonogram.badge(context, monogram, ramps)
     }
 
     /**

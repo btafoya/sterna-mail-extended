@@ -3,6 +3,8 @@ package app.sterna.widget
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.toArgb
 import app.sterna.core.data.settings.ThemeMode
+import app.sterna.ui.components.ToneRamp
+import app.sterna.ui.components.monogramRamps
 import app.sterna.ui.theme.applyPureBlack
 
 /**
@@ -69,6 +71,34 @@ internal fun widgetPalette(scheme: ColorScheme, dark: Boolean, pureBlack: Boolea
         rowPrimary = resolved.onSurface.toArgb(),
     )
 }
+
+/**
+ * What ONE reading of the colours learnt: the override to post — null meaning post nothing, the
+ * compiled resources already hold the right colours — and the tones a monogram badge is painted in,
+ * which are NEVER null.
+ *
+ * ⭐ THE ASYMMETRY IS THE POINT, and it is not an oversight to be tidied into one nullable field.
+ * A [WidgetPalette] may be withheld because `res/values` and `res/values-night` hold those very
+ * colours and the launcher re-resolves them at every inflation, for free, with this process dead
+ * ([widgetFollowsResources]). ⛔ A BITMAP HAS NO RESOURCE BEHIND IT: there is no `values-night`
+ * badge to fall back on, so tones withheld are a badge NOT DRAWN — and the row that withholds the
+ * palette is `SYSTEM` + no pure black + no Material You, i.e. the settings nobody has touched. The
+ * default install is precisely the one that would lose its badges.
+ */
+internal data class WidgetColours(val palette: WidgetPalette?, val monogramRamps: List<ToneRamp>)
+
+/**
+ * The tones a badge is painted in, from the scheme the app is ALREADY on — pure, and executed in the
+ * JVM suite ([WidgetThemeTest]).
+ *
+ * [applyPureBlack] for [widgetPalette]'s reason, written out in that function's KDoc: the OLED
+ * option must cover the brand palette and `dynamicDarkColorScheme` alike rather than being silently
+ * cancelled by Material You. ⚠ Today it changes none of the six colours — `pulledToBlack` pulls the
+ * background and surface roles, and a badge is drawn from the three container families — and that is
+ * pinned as a fact rather than as a promise.
+ */
+internal fun widgetMonogramRamps(scheme: ColorScheme, dark: Boolean, pureBlack: Boolean): List<ToneRamp> =
+    applyPureBlack(scheme, dark, pureBlack).monogramRamps()
 
 /**
  * Does the app's theme AGREE with the system's, so that the cell needs no override at all?

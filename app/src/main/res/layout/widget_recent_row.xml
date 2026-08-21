@@ -22,13 +22,21 @@
     a StyleSpan inside the text (RecentMailWidgetService.weighted): RemoteViews has no way to set a
     typeface on a TextView.
 
-    THE ACCOUNT DOT IS WHAT HOLDS THE COLUMN, now that it is the only ImageView left — VISIBLE or
-    INVISIBLE, never GONE. The list interleaves several accounts by date, so the rows that wear no
-    dot (one account only, or an account left on the picker's "auto" position) sit beside rows that
-    do, and a GONE dot would shift their sender left by 16 dp for no reason the reader can see. It
-    is decorative and stays unnamed: importantForAccessibility="no" and no contentDescription,
-    because reading out the account's name is exactly the naming the app lock is supposed to
-    prevent.
+    TWO IMAGEVIEWS HOLD THE COLUMN, and both are VISIBLE or INVISIBLE, never GONE. The badge comes
+    first, the account dot second. The list interleaves several accounts by date, so rows that wear
+    no dot (one account only, or an account left on the picker's "auto" position) sit beside rows
+    that do; and rows carry no badge at all under the app lock or at the NONE position of the
+    notification-content setting. A GONE view in either place would shift that row's sender left
+    against its neighbours, for no reason the reader can see.
+
+    ⛔ NEITHER IS NAMED OUT LOUD: importantForAccessibility="no" and no contentDescription on both.
+    Reading the account's name is the naming the app lock exists to prevent, and speaking the
+    initial is the same leak one letter at a time — on a locked screen the badge is not drawn, and
+    a talkback string would have said aloud what the pixels deliberately do not.
+
+    ⛔ NO android:src ON THE BADGE. It is a Bitmap posted at runtime (RecentMailWidgetService →
+    WidgetMonogram), painted in the tones read beside the rows; a compile-time drawable here would
+    be a colour this layout chose, on rows the palette has not answered for yet.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_recent_row_root"
@@ -38,6 +46,13 @@
     android:orientation="horizontal"
     android:paddingTop="6dp"
     android:paddingBottom="6dp">
+
+    <ImageView
+        android:id="@+id/widget_recent_row_monogram"
+        android:layout_width="@dimen/widget_recent_monogram"
+        android:layout_height="@dimen/widget_recent_monogram"
+        android:layout_marginEnd="8dp"
+        android:importantForAccessibility="no" />
 
     <ImageView
         android:id="@+id/widget_recent_row_account"

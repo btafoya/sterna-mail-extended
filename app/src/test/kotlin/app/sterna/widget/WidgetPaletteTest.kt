@@ -180,6 +180,13 @@ class WidgetPaletteTest {
             "drawable/widget_recent_account_dot.xml" to listOf(
                 "<solid android:color=\"@color/widget_unread_count\" />",
             ),
+            // ⭐ The picker's badge, which is a STATIC picture and not the runtime bitmap: a
+            // preview cannot carry a colour resolved from the palette, so it wears the accent, the
+            // same base the account dot beside it wears. Pointed elsewhere it would advertise a
+            // badge in a colour no row is ever drawn in, and nothing on any screen would say so.
+            "drawable/widget_recent_monogram_badge.xml" to listOf(
+                "<solid android:color=\"@color/widget_unread_count\" />",
+            ),
             // ⭐ The cell's own surface, and the ONLY consumer of widget_unread_background. Point it
             // at the accent instead and every cell plus both picker previews turn solid teal, with
             // colors.xml still declaring four perfectly correct values.

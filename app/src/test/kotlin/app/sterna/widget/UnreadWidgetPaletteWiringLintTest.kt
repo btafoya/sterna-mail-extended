@@ -89,7 +89,7 @@ class UnreadWidgetPaletteWiringLintTest {
      */
     @Test fun `the cell's colours are read from the app's own settings, never assumed`() {
         assertEquals(
-            "WidgetThemeReader.palette must read themeMode, pureBlack and dynamicColor from the " +
+            "WidgetThemeReader.colours must read themeMode, pureBlack and dynamicColor from the " +
                 "app's settings, take the system's night mode from the Configuration, and keep " +
                 "the wallpaper-derived scheme behind the dynamicColor setting. A constant in any " +
                 "of them silently ungoverns the home screen: the reader forces the app to light " +
@@ -102,7 +102,6 @@ class UnreadWidgetPaletteWiringLintTest {
                 "val themeMode = settings.themeMode.first()",
                 "val pureBlack = settings.pureBlack.first()",
                 "val dynamicColor = settings.dynamicColor.first()",
-                FOLLOWS_RESOURCES,
                 "val night = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK",
                 "val dark = widgetIsDark(themeMode, systemNight = night == Configuration.UI_MODE_NIGHT_YES)",
                 "val scheme = when {",
@@ -111,9 +110,13 @@ class UnreadWidgetPaletteWiringLintTest {
                 "dark -> PelagicColorScheme",
                 "else -> ArcticColorScheme",
                 "}",
-                "widgetPalette(scheme, dark, pureBlack)",
+                "WidgetColours(",
+                FOLLOWS_RESOURCES,
+                "else widgetPalette(scheme, dark, pureBlack),",
+                MONOGRAM_RAMPS,
+                ")",
             ),
-            body(READER, "suspend fun palette(app: Application)"),
+            body(READER, "suspend fun colours(app: Application)"),
         )
         assertEquals(
             "WidgetThemeReader.background must map each of the three cell states to its OWN " +
@@ -150,9 +153,9 @@ class UnreadWidgetPaletteWiringLintTest {
      * call and its failure mode is a dead process or a mail pass cancelled — neither visible here.
      */
     @Test fun `the palette read is bounded, cancels nothing, and is allowed to answer nothing`() {
-        val body = body(READER, "suspend fun palette(app: Application)")
+        val body = body(READER, "suspend fun colours(app: Application)")
         assertEquals(
-            "WidgetThemeReader.palette must be BOUNDED by withTimeoutOrNull and must be allowed " +
+            "WidgetThemeReader.colours must be BOUNDED by withTimeoutOrNull and must be allowed " +
                 "to return null. Unbounded, a slow DataStore read sits inside the goAsync() " +
                 "window of UnreadWidgetProvider.onUpdate — the PendingResult is not finished and " +
                 "the system kills the process — and inside the tail of a delivery pass. And with " +
@@ -163,15 +166,37 @@ class UnreadWidgetPaletteWiringLintTest {
             body.take(1),
         )
         assertEquals(
-            "WidgetThemeReader.palette must return null on BOTH paths. The timeout's null is the " +
-                "first; widgetFollowsResources' is the second, and it is the one this pane exists " +
-                "for — with ThemeMode.SYSTEM, pure black off and Material You off, the app cannot " +
+            "WidgetThemeReader.colours must hand back a NULL PALETTE on both of its paths. The " +
+                "timeout's null is the first (the whole function answers null); " +
+                "widgetFollowsResources' is the second, and it is the one this pane exists for — " +
+                "with ThemeMode.SYSTEM, pure black off and Material You off, the app cannot " +
                 "diverge from the system, so posting nothing draws the same pixels AND leaves the " +
                 "launcher free to re-resolve values/values-night when the system flips at dusk. " +
                 "Delete this line and both cells stay light through the evening switch until the " +
-                "next message arrives.",
+                "next message arrives. ⛔ AND IT DECIDES THE PALETTE AND NOTHING ELSE: as a " +
+                "`return@withTimeoutOrNull null` it took the badge tones with it, and a bitmap " +
+                "has no values-night behind it — the DEFAULT settings are exactly this row, so " +
+                "the default install would draw no badge at all.",
             listOf(FOLLOWS_RESOURCES),
             body.filter { "widgetFollowsResources" in it },
+        )
+        assertEquals(
+            "⭐ AND THE BADGE TONES ARE READ ON EVERY PATH THAT ANSWERS, unconditionally. They are " +
+                "not nullable and they are not behind the divergence test: a WidgetPalette may be " +
+                "withheld because res/values and values-night already hold those colours, and " +
+                "there is no such resource behind a BITMAP. Move this line under a condition and " +
+                "the badge disappears on the settings nobody changed.",
+            listOf(MONOGRAM_RAMPS),
+            body.filter { "widgetMonogramRamps" in it },
+        )
+        assertEquals(
+            "⛔ AND palette() IS NOW ONE LINE, a projection of colours() and nothing else. It is " +
+                "what the COUNTER still calls, and its behaviour must not have moved by a hair. A " +
+                "second settings read reinstalled here would answer from another moment than the " +
+                "rows' — the drift the single read exists to prevent — and would spend a second " +
+                "DataStore open inside a goAsync() window.",
+            listOf("suspend fun palette(app: Application): WidgetPalette? = colours(app)?.palette"),
+            linesOf(READER).filter { it.startsWith("suspend fun palette(") },
         )
         assertEquals(
             "nothing in WidgetThemeReader may call withTimeout: it reports a slow read as a " +
@@ -246,18 +271,26 @@ class UnreadWidgetPaletteWiringLintTest {
 
         /**
          * The signature, pinned as one string because THREE things live on it and each is a
-         * separate regression: the return type is NULLABLE (null = post nothing, the resources
-         * already hold the right answer), the read is BOUNDED, and it is bounded with
+         * separate regression: the return type is NULLABLE (null = the read never answered, so
+         * nothing at all is known), the read is BOUNDED, and it is bounded with
          * `withTimeoutOrNull` rather than `withTimeout`.
          */
         const val SIGNATURE =
-            "suspend fun palette(app: Application): WidgetPalette? = " +
+            "suspend fun colours(app: Application): WidgetColours? = " +
                 "withTimeoutOrNull(PALETTE_TIMEOUT_MS) {"
 
-        /** The second of the two null paths: the app does not diverge from the system. */
+        /**
+         * The second of the two null paths: the app does not diverge from the system.
+         *
+         * ⚠ It decides the PALETTE FIELD and no longer short-circuits the function. As a
+         * `return@withTimeoutOrNull null` it also cancelled the badge tones, which have no
+         * compiled resource to fall back on — and this is the DEFAULT row of the three settings.
+         */
         const val FOLLOWS_RESOURCES =
-            "if (widgetFollowsResources(themeMode, pureBlack, dynamicColor)) " +
-                "return@withTimeoutOrNull null"
+            "palette = if (widgetFollowsResources(themeMode, pureBlack, dynamicColor)) null"
+
+        /** The tones a badge is painted in: read on every path that answers, never withheld. */
+        const val MONOGRAM_RAMPS = "monogramRamps = widgetMonogramRamps(scheme, dark, pureBlack),"
 
         const val BACKGROUND =
             "setInt(R.id.widget_unread_root, \"setBackgroundResource\", " +

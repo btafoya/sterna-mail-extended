@@ -25,10 +25,11 @@ class MailNotificationWidgetRowTest {
 
     @Test fun `what a widget row may say, position by position`() {
         val expected = mapOf(
-            NotificationContent.BODY_PREVIEW to WidgetRow("Jordan Lee", "Blood test results"),
-            NotificationContent.SENDER_AND_SUBJECT to WidgetRow("Jordan Lee", "Blood test results"),
-            NotificationContent.SENDER_ONLY to WidgetRow("Jordan Lee", "New message"),
-            NotificationContent.NONE to WidgetRow("New message", null),
+            NotificationContent.BODY_PREVIEW to WidgetRow("Jordan Lee", "Blood test results", namesSender = true),
+            NotificationContent.SENDER_AND_SUBJECT to
+                WidgetRow("Jordan Lee", "Blood test results", namesSender = true),
+            NotificationContent.SENDER_ONLY to WidgetRow("Jordan Lee", "New message", namesSender = true),
+            NotificationContent.NONE to WidgetRow("New message", null, namesSender = false),
         )
         assertEquals(
             "a position was added to the setting without deciding what a widget row may say there",
@@ -100,7 +101,7 @@ class MailNotificationWidgetRowTest {
         NotificationContent.entries.forEach { content ->
             assertEquals(
                 "the lock did not fold $content onto NONE",
-                WidgetRow("New message", null),
+                WidgetRow("New message", null, namesSender = false),
                 row(content, appLockEnabled = true),
             )
         }
@@ -108,6 +109,58 @@ class MailNotificationWidgetRowTest {
 
     @Test fun `the app lock changes nothing about NONE itself`() {
         assertEquals(row(NotificationContent.NONE), row(NotificationContent.NONE, appLockEnabled = true))
+    }
+
+    // -- does the row NAME anybody ------------------------------------------------------------------
+
+    /**
+     * ⭐ THE THIRD FIELD, AND WHY IT IS NOT A CONVENIENCE. A monogram badge is the first letter of a
+     * sender's NAME: drawing one beside a row is naming that sender, one letter at a time. Only this
+     * function knows the EFFECTIVE position — the one the app lock has already folded onto NONE —
+     * so only this function can say whether the widget has the right to a badge at all.
+     *
+     * Pinned as literals, one per position, and never recomputed from the setting: a test that
+     * derived this from `content != NONE` would stay green with the shipped arms swapped.
+     */
+    @Test fun `whether a row names its sender, position by position`() {
+        val expected = mapOf(
+            NotificationContent.BODY_PREVIEW to true,
+            NotificationContent.SENDER_AND_SUBJECT to true,
+            NotificationContent.SENDER_ONLY to true,
+            NotificationContent.NONE to false,
+        )
+        assertEquals(
+            "a position was added to the setting without deciding whether a widget row NAMES its " +
+                "sender there. The answer governs the monogram badge, which is a letter of " +
+                "somebody's name — defaulting it to true puts an initial on a home screen that " +
+                "was asked to identify nobody.",
+            NotificationContent.entries.toSet(),
+            expected.keys,
+        )
+        assertEquals(expected, NotificationContent.entries.associateWith { row(it).namesSender })
+    }
+
+    /**
+     * ⛔ AND THE LOCK TAKES IT AWAY FROM THE MOST TALKATIVE POSITION. SECURITY.md promises a locked
+     * home screen "names neither sender nor subject"; an initial is a letter of the sender's name,
+     * so a badge drawn under the lock breaks that promise in the smallest possible type.
+     */
+    @Test fun `under the lock the loudest position names nobody`() {
+        assertEquals(
+            "with the app lock enabled, BODY_PREVIEW must report that the row names NOBODY — the " +
+                "badge is drawn from that answer, and an initial on a locked home screen is a " +
+                "letter of the sender's name sitting where SECURITY.md promises no name at all.",
+            false,
+            row(NotificationContent.BODY_PREVIEW, appLockEnabled = true).namesSender,
+        )
+    }
+
+    @Test fun `the lock takes the name away at every position`() {
+        assertEquals(
+            "the lock folds every position onto NONE, and NONE names nobody.",
+            NotificationContent.entries.associateWith { false },
+            NotificationContent.entries.associateWith { row(it, appLockEnabled = true).namesSender },
+        )
     }
 
     // -- nothing identifying escapes a position that hides it --------------------------------------

@@ -17,13 +17,18 @@
     "12"). What the picture has to say is "this widget is a list of who wrote and when", and names
     and times say it.
 
-    ⭐ EACH ROW OPENS ON AN 8 dp COLUMN, INVISIBLE. The served row carries that ImageView always —
-    it is the account dot, VISIBLE or INVISIBLE and never GONE (widget_recent_row.xml) — so every
-    real line starts 16 dp in. Without the column here the picture shows senders flush against the
-    left edge, a layout no row has. ⛔ It is invisible and NOT a coloured dot: this picture is read
-    by someone who may hold a single account, and a colour would promise a telling-apart of
-    mailboxes that only exists from two accounts up AND with a colour actually chosen. The preview
-    shows the GEOMETRY of the row; it cannot qualify the function.
+    ⭐ EACH ROW OPENS ON THE SAME HEAD COLUMN AS A SERVED ONE: a badge, then the 8 dp account dot.
+    Both ImageViews are carried always by the real row, VISIBLE or INVISIBLE and never GONE
+    (widget_recent_row.xml), so every real line starts at the same x. Without the column here the
+    picture shows senders flush against the left edge, a layout no row has.
+
+    ⭐ AND THE TWO ARE SHOWN DIFFERENTLY, deliberately. The DOT stays invisible: it qualifies a
+    function that only exists from two accounts up AND with a colour actually chosen, and this
+    picture is looked at by someone who may hold one account — a coloured dot would promise a
+    telling-apart of mailboxes they will never see. The BADGE is shown: every unlocked row wears
+    one, whatever the number of accounts and whatever is configured, so drawing it promises nothing
+    that is not true. ⛔ It carries no letter: a preview is a static resource, the factory never
+    runs for it, and an initial here would name a correspondent who does not exist.
 
     ⭐ THE FIRST ROW IS BOLD, AND THE OTHER TWO ARE NOT: one unread message and two read ones, which
     is how a served row marks the difference (a StyleSpan set in RecentMailWidgetService.weighted;
@@ -46,6 +51,13 @@
         android:orientation="horizontal"
         android:paddingTop="6dp"
         android:paddingBottom="6dp">
+
+        <ImageView
+            android:layout_width="@dimen/widget_recent_monogram"
+            android:layout_height="@dimen/widget_recent_monogram"
+            android:layout_marginEnd="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_recent_monogram_badge" />
 
         <ImageView
             android:layout_width="8dp"
@@ -86,6 +98,13 @@
         android:paddingBottom="6dp">
 
         <ImageView
+            android:layout_width="@dimen/widget_recent_monogram"
+            android:layout_height="@dimen/widget_recent_monogram"
+            android:layout_marginEnd="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_recent_monogram_badge" />
+
+        <ImageView
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginEnd="8dp"
@@ -120,6 +139,13 @@
         android:orientation="horizontal"
         android:paddingTop="6dp"
         android:paddingBottom="6dp">
+
+        <ImageView
+            android:layout_width="@dimen/widget_recent_monogram"
+            android:layout_height="@dimen/widget_recent_monogram"
+            android:layout_marginEnd="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_recent_monogram_badge" />
 
         <ImageView
             android:layout_width="8dp"
