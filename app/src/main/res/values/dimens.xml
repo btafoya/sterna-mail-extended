@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        The corner of a widget's cell. This is the pre-Android-12 value: a fixed 16dp, matching what
+        the launcher of that era rounds a cell to. From API 31 the twin in res/values-v31 hands the
+        job over to the system radius instead — see drawable/widget_unread_background.xml.
+    -->
+    <dimen name="widget_corner_radius">16dp</dimen>
+</resources>

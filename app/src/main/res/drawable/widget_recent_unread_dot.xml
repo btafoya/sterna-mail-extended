@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     The unread mark of a widget row. A shape and not a vector: it is 8dp of one colour, and it
-    follows the system's day/night mode through @color/widget_unread_count like everything else the
-    two widgets draw (the launcher's process cannot see the app's own theme).
+    follows the system's day/night mode through values-night like everything else the two widgets
+    draw.
+
+    ⭐ It reads @color/widget_unread_count, the ACCENT, on purpose — the same teal as the counter
+    widget's big figure. ⛔ Not @color/widget_row_primary: that is the row's TEXT colour, and the
+    two were one resource until every sender's name came out teal.
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">

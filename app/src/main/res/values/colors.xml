@@ -9,12 +9,26 @@
     <!-- Splash tern silhouette: dark teal on the light field, soft teal (the dark-mode
          primary) on the dark one. -->
     <color name="sterna_splash_tern">#17414C</color>
-    <!-- Home-screen widget. Drawn by RemoteViews in the launcher's process, so none of the
-         in-app palette is reachable: the app's theme is chosen in Compose at runtime and the
-         widget cannot see it. It follows the SYSTEM day/night mode through values-night instead,
-         which means it ignores the app's own theme setting and the pure-black option (#117).
-         Written down as debt, not to be worked around from here. -->
-    <color name="widget_unread_background">#F4F6F8</color>
-    <color name="widget_unread_count">#17414C</color>
-    <color name="widget_unread_label">#4A5B61</color>
+    <!-- Home-screen widget. These four values are the widget's palette, taken from the app's own
+         schemes in ui/theme/Color.kt and pinned there by WidgetPaletteTest: surface, primary,
+         onSurface and onSurfaceVariant. ⛔ Not the splash nuancier above, which is a different
+         picture with a different job — reading it here is the defect this file already had once.
+
+         ⭐ THESE VALUES ARE THE TRUTH OF WHAT NOBODY DRAWS, and that is for ever: the initialLayout
+         the system inflates when a cell is dropped, and the two previews of the widget picker. No
+         provider runs for either, so whatever is written here is what is seen.
+
+         ⛔ Not a reachability limit. The RemoteViews are BUILT in our process — RecentMailWidgetDraw
+         reads a DataStore setting before it draws a single row — so setTextColor could carry any
+         colour we liked. What is missing is the wiring, not the possibility: the widget follows the
+         SYSTEM day/night mode through values-night, so it ignores the app's own theme setting and
+         the pure-black option (#117). Debt, and written down as debt. -->
+    <color name="widget_unread_background">#F7F8FA</color>
+    <color name="widget_unread_count">#2F5E59</color>
+    <!-- Two roles, not one. widget_unread_count is the ACCENT (Material `primary`): the big
+         unread figure and the unread dot of a row. widget_row_primary is a row's primary TEXT
+         (Material `onSurface`), like the sender line the app's own list draws. ⛔ Do not merge
+         them back: one resource for both painted every row name teal. -->
+    <color name="widget_row_primary">#2B313A</color>
+    <color name="widget_unread_label">#51606E</color>
 </resources>
