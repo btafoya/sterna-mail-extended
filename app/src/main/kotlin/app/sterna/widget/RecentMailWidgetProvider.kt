@@ -48,8 +48,8 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
                 // ⛔ withTimeoutOrNull, never withTimeout: the second reports a slow read as a
                 // CancellationException, which a caller that treats cancellation as a sign-out
                 // would re-throw. Null here means one thing only — draw nothing.
-                val snapshot = withTimeoutOrNull(DRAW_TIMEOUT_MS) { RecentMailWidgetDraw.read(app) }
-                if (snapshot != null) RecentMailWidgetDraw.draw(app, appWidgetIds, snapshot)
+                val drawing = withTimeoutOrNull(DRAW_TIMEOUT_MS) { RecentMailWidgetDraw.read(app) }
+                if (drawing != null) RecentMailWidgetDraw.draw(app, appWidgetIds, drawing)
             } catch (t: Throwable) {
                 // An exception escaping a coroutine takes the process down with it, and a widget
                 // that could not be drawn must cost no more than a stale cell.

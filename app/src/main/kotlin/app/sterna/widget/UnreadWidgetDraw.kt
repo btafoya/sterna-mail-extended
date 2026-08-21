@@ -38,7 +38,7 @@ internal object UnreadWidgetDraw {
             .getAppWidgetIds(ComponentName(context, UnreadWidgetProvider::class.java))
 
     /**
-     * Draw [unread] into [ids]. Not suspending, and NOT free: `AccountStore.accounts()` runs
+     * Draw [unread] into [ids]. NOT free: `AccountStore.accounts()` runs
      * `migrateIfNeeded()`, reads the shared preferences and decodes the whole account blob from
      * JSON, and `updateAppWidget` is a binder call the launcher re-inflates on. It is still the
      * cheap end of the work — the count is the expensive part and it arrives here already decided —
@@ -48,20 +48,30 @@ internal object UnreadWidgetDraw {
      * An empty [ids] draws nothing rather than nothing-in-particular: the provider is handed the
      * cells the system named, the push is handed [placedIds], and both are allowed to be empty.
      */
-    fun draw(app: Application, ids: IntArray, unread: Int) {
+    suspend fun draw(app: Application, ids: IntArray, unread: Int) {
         if (ids.isEmpty()) return
+        // The cell's colours, read from the app's own theme settings and not from res/values-night
+        // (#117). This is why draw() suspends: three DataStore flows, first()-ed. All three
+        // callers were already inside a coroutine — the provider's launch, the app-scoped push's
+        // collect, and refresh() below — so nothing gained a thread here.
+        //
+        // ⚠ It may be NULL, and null is not handled here on purpose: it travels to render() and is
+        // drawn by posting no colour at all. That is the reader saying either "the read timed out"
+        // or "the app does not diverge from the system", and in both cases the resources hold the
+        // right answer. ⛔ Never a `?:` default here — a default is this file deciding a colour.
+        val palette = WidgetThemeReader.palette(app)
         // One read of the account list, spent twice: what the cell is CALLED and what a tap on it
         // asks for. The two rules mirror each other arm for arm ([UnreadWidgetTap]), and reading
         // the list twice is how they would come to disagree — a cell labelled "All inboxes" that
         // opens a single folder, or the reverse.
         val accounts = app.container.accountStore.accounts()
-        val views = render(app, UnreadWidgetContent.of(accounts, unread), UnreadWidgetTap.of(accounts))
+        val views = render(app, UnreadWidgetContent.of(accounts, unread), UnreadWidgetTap.of(accounts), palette)
         val manager = AppWidgetManager.getInstance(app)
         ids.forEach { manager.updateAppWidget(it, views) }
     }
 
     /** Draw [unread] into every placed cell — the push's end of [draw]. */
-    fun redraw(context: Context, unread: Int) {
+    suspend fun redraw(context: Context, unread: Int) {
         val app = context.applicationContext as? Application ?: return
         draw(app, placedIds(app), unread)
     }
@@ -86,8 +96,40 @@ internal object UnreadWidgetDraw {
         draw(app, ids, unread)
     }
 
-    private fun render(context: Context, state: UnreadWidgetState, target: WidgetTapTarget): RemoteViews =
+    /**
+     * Build the cell. ⛔ It reads NOTHING: [palette] arrives decided, like the count and the tap
+     * target, because this function is not suspending and never was — a settings read pushed down
+     * here would have to block whatever thread the caller is on.
+     *
+     * ⭐ [palette] MAY BE NULL, and null posts NO colour line at all — not a default one. The three
+     * lines below are `setBackgroundResource(id)` and two `setTextColor(int)`, i.e. values FROZEN
+     * into a `RemoteViews` the launcher caches, and the three `widget_surface_*.xml` have no
+     * `-night` twin. Skipping them leaves the cell on `@drawable/widget_unread_background` and
+     * `@color/widget_unread_*`, which the launcher re-resolves through `values-night` at every
+     * inflation — so the cell follows the system's dusk switch by itself, with this process dead.
+     * That is exactly what [widgetFollowsResources] buys, and it is the same rule
+     * [RecentMailWidgetFactory] states for its rows: no `setTextColor` keeps the layout's colour,
+     * stale at worst, never wrong. ⛔ All three go together: post the background without the text
+     * colours (or the reverse) and the cell is half this theme and half the other.
+     *
+     * ⛔ The background is set with `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * `View.setBackgroundColor(int)` throws the shape drawable away and replaces it with a flat
+     * fill, so the cell comes out SQUARE among rounded neighbours — with every corner rule in this
+     * package still green, because none of them can see a RemoteViews. `setBackgroundTintList`
+     * would keep the shape but is API 31 and `minSdk` is 26; hence three pre-built drawables.
+     */
+    private fun render(
+        context: Context,
+        state: UnreadWidgetState,
+        target: WidgetTapTarget,
+        palette: WidgetPalette?,
+    ): RemoteViews =
         RemoteViews(context.packageName, R.layout.widget_unread).apply {
+            if (palette != null) {
+                setInt(R.id.widget_unread_root, "setBackgroundResource", WidgetThemeReader.background(palette.surface))
+                setTextColor(R.id.widget_unread_count, palette.accent)
+                setTextColor(R.id.widget_unread_label, palette.label)
+            }
             setTextViewText(R.id.widget_unread_count, state.count.toString())
             setTextViewText(R.id.widget_unread_label, text(context, state.label))
             // The whole cell is the tap target, not one of the two labels: a home-screen cell that

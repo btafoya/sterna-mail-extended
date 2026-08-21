@@ -18,11 +18,17 @@
          the system inflates when a cell is dropped, and the two previews of the widget picker. No
          provider runs for either, so whatever is written here is what is seen.
 
-         ⛔ Not a reachability limit. The RemoteViews are BUILT in our process — RecentMailWidgetDraw
-         reads a DataStore setting before it draws a single row — so setTextColor could carry any
-         colour we liked. What is missing is the wiring, not the possibility: the widget follows the
-         SYSTEM day/night mode through values-night, so it ignores the app's own theme setting and
-         the pure-black option (#117). Debt, and written down as debt. -->
+         ⛔ AND NOTHING ELSE READS THEM ANY MORE. Every cell the app itself draws is painted in
+         Kotlin from the theme the reader chose IN the app — WidgetThemeReader.palette, through
+         setBackgroundResource and setTextColor — so it honours the forced light/dark mode, the
+         pure-black option (#117) and Material You, none of which a values-night qualifier can see.
+         The debt this note used to record is closed.
+
+         ⛔ Which is exactly why these four stay, and why they still follow values-night: the two
+         surfaces above are the ones NO provider ever paints, and the system's own day/night mode is
+         the only answer available there. A cell dropped on a dark home screen by a reader whose app
+         is forced to light therefore shows dark for the moment before the first draw lands; that is
+         the initialLayout, and it is the honest cost of having one. -->
     <color name="widget_unread_background">#F7F8FA</color>
     <color name="widget_unread_count">#2F5E59</color>
     <!-- Two roles, not one. widget_unread_count is the ACCENT (Material `primary`): the big

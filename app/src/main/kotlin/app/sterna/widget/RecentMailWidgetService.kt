@@ -45,6 +45,29 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
     @Volatile
     private var rows: List<RecentWidgetItem> = emptyList()
 
+    /**
+     * The colours [getViewAt] paints those rows in — set from the SAME [RecentWidgetDrawing] as
+     * [rows], never fetched here, and dropped by [onDestroy] exactly as [rows] is.
+     *
+     * ⚠ NULL IS A REAL STATE and it is left uncoloured on purpose. [onDataSetChanged] returns early
+     * when neither its own read nor the held drawing answers, so the launcher can ask for rows
+     * before anything has been read. A row drawn with no `setTextColor` keeps the colour its layout
+     * froze in (`@color/widget_row_primary` / `@color/widget_unread_label`, resolved through
+     * `values-night`): the widget's behaviour before this change, i.e. stale rather than wrong, and
+     * not a regression. ⛔ A hard-coded default palette here would be the opposite — this file
+     * deciding a colour, on the one path where nothing is known.
+     *
+     * ⭐ THAT PARAGRAPH IS NOW THE RULE FOR THE WHOLE PANE, not this file's own arrangement.
+     * [WidgetThemeReader.palette] itself returns null, on two paths — a read that timed out, and
+     * an app that does not diverge from the system ([widgetFollowsResources]) — and the counter's
+     * `render` and the frame's `draw` skip their colour lines on it exactly as [getViewAt] does
+     * here. On the second path it is more than stale-rather-than-wrong: it is the identical
+     * drawing, and it is what keeps the cell following a system that switches to dark at dusk
+     * while nothing in this process is awake to notice.
+     */
+    @Volatile
+    private var palette: WidgetPalette? = null
+
     override fun onCreate() = Unit
 
     /**
@@ -69,11 +92,18 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         }
         // Failing that, whatever the last read left behind — the provider may have filled it a
         // moment ago on a process the launcher has only just bound. Failing THAT, nothing is drawn.
-        rows = (read ?: RecentMailWidgetDraw.snapshot ?: return).rows
+        //
+        // ⛔ ROWS AND COLOURS COME OUT OF THE SAME DRAWING, in one expression. Reading the palette
+        // on its own line from RecentMailWidgetDraw.drawing would let a read that landed in between
+        // hand this factory the colours of one moment and the rows of another.
+        val drawing = read ?: RecentMailWidgetDraw.drawing ?: return
+        rows = drawing.snapshot.rows
+        palette = drawing.palette
     }
 
     override fun onDestroy() {
         rows = emptyList()
+        palette = null
     }
 
     override fun getCount(): Int = rows.size
@@ -108,6 +138,17 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
             return views
         }
         val row = item.drawn
+        // The app's own theme, from the same read as the rows (#112, #117). ⛔ The sender takes
+        // `rowPrimary` (Material onSurface, what the message list draws a sender in) and the two
+        // quieter lines take `label`: swapped, the date shouts and the name recedes. ⛔ And the
+        // account dot below is NOT painted from here — its colour says which mailbox the message
+        // came from, which no theme role may overwrite.
+        val colours = palette
+        if (colours != null) {
+            views.setTextColor(R.id.widget_recent_row_primary, colours.rowPrimary)
+            views.setTextColor(R.id.widget_recent_row_secondary, colours.label)
+            views.setTextColor(R.id.widget_recent_row_date, colours.label)
+        }
         views.setTextViewText(R.id.widget_recent_row_primary, weighted(row.primary, row.unread))
         views.setTextViewText(R.id.widget_recent_row_secondary, weighted(row.secondary.orEmpty(), row.unread))
         views.setViewVisibility(

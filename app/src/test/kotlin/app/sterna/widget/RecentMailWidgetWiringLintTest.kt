@@ -42,6 +42,16 @@ class RecentMailWidgetWiringLintTest {
      * reads may answer differently — an account added, removed or recoloured in between — and the
      * cell would then colour its rows from one list while the count it sits beside came from
      * another.
+     *
+     * ⚠ The read now also carries the cell's PALETTE, held with the rows rather than beside them —
+     * why that pairing exists is [RecentWidgetDrawing]'s own rule and is pinned by
+     * [RecentMailWidgetPaletteWiringLintTest]. It appears here because this test pins the body
+     * whole, which is what makes a second, separate read of anything visible at all.
+     *
+     * ⚠ That palette may be NULL, and this line is deliberately unchanged by that: the decision to
+     * post nothing belongs to [WidgetThemeReader.palette], not here. The call site does not test
+     * it, does not default it and must not start to — a `?: somePalette` here would put back, in
+     * one line, exactly the frozen colours the nullability exists to avoid.
      */
     @Test fun `the widget read fetches the setting, the lock and the accounts, and hands them to the rule`() {
         assertEquals(
@@ -53,7 +63,7 @@ class RecentMailWidgetWiringLintTest {
                 "an interleaved list with no dot at all, and a SECOND read of the account list " +
                 "lets the colours and the rows come from two different moments.",
             listOf(
-                "suspend fun read(app: Application): RecentWidgetSnapshot {",
+                "suspend fun read(app: Application): RecentWidgetDrawing {",
                 "val container = app.container",
                 "val content = container.settingsRepository.notificationContent.first()",
                 "val appLockEnabled = container.accountStore.appLockEnabled()",
@@ -68,8 +78,10 @@ class RecentMailWidgetWiringLintTest {
                 "generic = app.getString(R.string.widget_latest_hidden),",
                 "accountColors = RecentMailWidgetContent.accountColors(accounts),",
                 ")",
-                "held = snapshot",
-                "return snapshot",
+                "val palette = WidgetThemeReader.palette(app)",
+                "val drawing = RecentWidgetDrawing(snapshot, palette)",
+                "held = drawing",
+                "return drawing",
             ),
             functionBody(DRAW, "suspend fun read(app: Application)"),
         )

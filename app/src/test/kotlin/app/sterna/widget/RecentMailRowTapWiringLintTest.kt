@@ -88,7 +88,7 @@ class RecentMailRowTapWiringLintTest {
                 "given an adapter. Without it a fill-in intent is a message in a bottle: the " +
                 "launcher has nothing to fill in, and no row opens anything.",
             listOf(TEMPLATE_ATTACH),
-            functionBody(DRAW, "fun draw(app: Application, ids: IntArray, snapshot: RecentWidgetSnapshot)")
+            functionBody(DRAW, "fun draw(app: Application, ids: IntArray, drawing: RecentWidgetDrawing)")
                 .filter { it.startsWith("views.setPendingIntentTemplate(") },
         )
     }
@@ -176,6 +176,12 @@ class RecentMailRowTapWiringLintTest {
                 "return views",
                 "}",
                 "val row = item.drawn",
+                "val colours = palette",
+                "if (colours != null) {",
+                "views.setTextColor(R.id.widget_recent_row_primary, colours.rowPrimary)",
+                "views.setTextColor(R.id.widget_recent_row_secondary, colours.label)",
+                "views.setTextColor(R.id.widget_recent_row_date, colours.label)",
+                "}",
                 "views.setTextViewText(R.id.widget_recent_row_primary, weighted(row.primary, row.unread))",
                 "views.setTextViewText(R.id.widget_recent_row_secondary, weighted(row.secondary.orEmpty(), row.unread))",
                 "views.setViewVisibility(",

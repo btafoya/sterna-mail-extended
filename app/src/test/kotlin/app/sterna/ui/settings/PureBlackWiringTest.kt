@@ -195,11 +195,13 @@ class PureBlackWiringTest {
             listOf("dataStore.edit { it[KEY_PURE_BLACK] = enabled }"),
             codeLines(SETTINGS_REPOSITORY).filter { "it[KEY_PURE_BLACK]" in it },
         )
+        // The line moved into a multi-line body when the theme setters gained their widget
+        // redraw (the order of that body is pinned by WidgetThemeRedrawWiringLintTest); the write
+        // itself is still one whole line, and still the only one, which is what this rule is about.
         assertEquals(
-            "SettingsViewModel.kt must pass the argument through: " +
-                "'viewModelScope.launch { settings.setPureBlack(enabled) }'. Same defect one step " +
-                "earlier, and just as invisible from here.",
-            listOf("viewModelScope.launch { settings.setPureBlack(enabled) }"),
+            "SettingsViewModel.kt must pass the argument through: 'settings.setPureBlack(enabled)', " +
+                "once. Same defect one step earlier, and just as invisible from here.",
+            listOf("settings.setPureBlack(enabled)"),
             codeLines(SETTINGS_VIEW_MODEL).filter { "settings.setPureBlack(" in it },
         )
     }

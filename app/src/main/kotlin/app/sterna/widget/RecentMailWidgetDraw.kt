@@ -15,14 +15,42 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
+ * ONE read, and everything the two ends of the cell spend it on: the rows, and the colours they are
+ * drawn in.
+ *
+ * The pair travels together because those two ends draw at DIFFERENT MOMENTS — the frame by
+ * [RecentMailWidgetDraw.draw], the rows by the launcher pulling on [RecentMailWidgetService]'s
+ * factory on its own schedule. A colour fetched separately at each of those moments is a second
+ * read by another name: the reader switches the app to light, the frame is repainted at once and
+ * the rows underneath are still the dark theme's — a light box over black lines, until the launcher
+ * happens to refetch. That is the very drift the held snapshot exists to prevent, and the colours
+ * are no more exempt from it than the text is.
+ *
+ * ⭐ THE PALETTE IS NULLABLE, and null is an answer rather than a missing value: post no colour,
+ * the compiled resources hold the right one. It arrives on two paths — a read that timed out, and
+ * an app that does not diverge from the system ([widgetFollowsResources]) — and every drawing site
+ * treats it the same way, by omitting its colour lines. ⛔ Never defaulted on the way in or on the
+ * way out: a `?:` anywhere along this path bakes a literal colour into a `RemoteViews` that has no
+ * `-night` resource behind it and nothing scheduled to redraw it.
+ *
+ * ⛔ NOT a field on [RecentWidgetSnapshot]. That type is what [RecentMailWidgetContent] returns —
+ * the output of the rule deciding what a row may SAY, under the notification-content setting and
+ * the app lock — and a colour is not part of that decision. Widening it would make a palette an
+ * argument to a rule that must not have one, at twenty call sites that have nothing to say about
+ * colour.
+ */
+internal data class RecentWidgetDrawing(val snapshot: RecentWidgetSnapshot, val palette: WidgetPalette?)
+
+/**
  * The ONE way the latest-messages widget is read and drawn — the counterpart of [UnreadWidgetDraw],
  * and deliberately a separate file: the two widgets share a home screen and nothing else.
  *
  * The split of labour with [RecentMailWidgetService] is the one a `ListView` widget forces. The
  * cell's FRAME (its background and the single line it shows when there is no list) is a
  * `RemoteViews` this object builds; the ROWS are served by the launcher pulling on a
- * `RemoteViewsFactory` in this app's process, on its own schedule. Both ends spend the SAME
- * snapshot, held here, so the frame and the rows can never be drawn from two different reads.
+ * `RemoteViewsFactory` in this app's process, on its own schedule. Both ends spend the SAME read —
+ * rows AND colours, held here as one [RecentWidgetDrawing] — so the frame and the rows can never be
+ * drawn from two different reads.
  */
 internal object RecentMailWidgetDraw {
 
@@ -36,15 +64,16 @@ internal object RecentMailWidgetDraw {
             .getAppWidgetIds(ComponentName(context, RecentMailWidgetProvider::class.java))
 
     /**
-     * The last snapshot that ARRIVED. Never a default, and never a placeholder: null means no read
-     * has answered yet, and every caller draws nothing on null rather than an empty list — an empty
-     * list is a claim ("no mail"), and the setting may not even have been read at that point.
+     * The last read that ARRIVED, colours included. Never a default, and never a placeholder: null
+     * means no read has answered yet, and every caller draws nothing on null rather than an empty
+     * list — an empty list is a claim ("no mail"), and the setting may not even have been read at
+     * that point.
      */
     @Volatile
-    private var held: RecentWidgetSnapshot? = null
+    private var held: RecentWidgetDrawing? = null
 
     /** What the factory serves between reads. */
-    val snapshot: RecentWidgetSnapshot? get() = held
+    val drawing: RecentWidgetDrawing? get() = held
 
     /**
      * Drop the held snapshot, because what it was computed FROM has changed.
@@ -61,8 +90,8 @@ internal object RecentMailWidgetDraw {
     }
 
     /**
-     * Read the setting, the lock, the accounts and the mail, and project them — the only place that
-     * does.
+     * Read the setting, the lock, the accounts, the mail and the theme, and project them — the only
+     * place that does.
      *
      * ⛔ THE SETTING IS READ FIRST AND WAITED FOR. `notificationContent` is a DataStore flow: it
      * answers asynchronously, and drawing before it does would put a subject on the home screen of
@@ -73,7 +102,7 @@ internal object RecentMailWidgetDraw {
      * the factory is on a binder thread the launcher is waiting on; they hold different budgets and
      * they both use `withTimeoutOrNull`, never `withTimeout`.
      */
-    suspend fun read(app: Application): RecentWidgetSnapshot {
+    suspend fun read(app: Application): RecentWidgetDrawing {
         val container = app.container
         val content = container.settingsRepository.notificationContent.first()
         val appLockEnabled = container.accountStore.appLockEnabled()
@@ -93,8 +122,18 @@ internal object RecentMailWidgetDraw {
             generic = app.getString(R.string.widget_latest_hidden),
             accountColors = RecentMailWidgetContent.accountColors(accounts),
         )
-        held = snapshot
-        return snapshot
+        // The cell's colours, taken from the app's OWN theme settings and no longer from
+        // res/values + res/values-night, i.e. from the system's night mode (#117). Read HERE, in
+        // the one read, so the frame and the rows are painted from the same answer.
+        //
+        // ⚠ It may be NULL, and null is carried as-is: it means "post nothing, the resources are
+        // right", either because the read timed out or because the app does not diverge from the
+        // system. ⛔ No `?:` here — a default would be this file deciding a colour, and it would
+        // freeze it into a RemoteViews with no -night resource behind it.
+        val palette = WidgetThemeReader.palette(app)
+        val drawing = RecentWidgetDrawing(snapshot, palette)
+        held = drawing
+        return drawing
     }
 
     /**
@@ -103,13 +142,37 @@ internal object RecentMailWidgetDraw {
      * One `RemoteViews` PER cell, unlike the counter's single shared one: the adapter is an intent
      * carrying the cell's own id, and a `RemoteViews` shared between cells would point every list
      * at whichever id was built last.
+     *
+     * ⛔ The background is set with `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * `View.setBackgroundColor(int)` throws the shape drawable away and replaces it with a flat
+     * fill, so the cell comes out SQUARE among rounded neighbours — with every corner rule in this
+     * package still green, because none of them can see a `RemoteViews`. `setBackgroundTintList`
+     * would keep the shape but is API 31 and `minSdk` is 26; hence three pre-built drawables
+     * ([WidgetThemeReader.background]).
+     *
+     * ⛔ It READS nothing: [drawing] arrives decided, rows and palette together, so the frame drawn
+     * here cannot come from a different moment than the rows the factory is serving.
+     *
+     * ⭐ A NULL PALETTE POSTS NO COLOUR AT ALL — not a default one. The two lines it guards are a
+     * background resource id and a `setTextColor(int)`, both FROZEN into a `RemoteViews` the
+     * launcher caches, and the three `widget_surface_*.xml` have no `-night` twin. Skipped, the
+     * frame keeps `@drawable/widget_unread_background` and `@color/widget_unread_label`, which the
+     * launcher re-resolves through `values-night` at every inflation — the cell follows the
+     * system's dusk switch on its own, with this process dead. Same rule as
+     * [RecentMailWidgetFactory]'s rows, one view up.
      */
-    fun draw(app: Application, ids: IntArray, snapshot: RecentWidgetSnapshot) {
+    fun draw(app: Application, ids: IntArray, drawing: RecentWidgetDrawing) {
         if (ids.isEmpty()) return
+        val snapshot = drawing.snapshot
+        val palette = drawing.palette
         val manager = AppWidgetManager.getInstance(app)
         val notice = RecentMailWidgetContent.notice(snapshot.cell)?.let { app.getString(it) } ?: app.getString(R.string.app_name)
         ids.forEach { id ->
             val views = RemoteViews(app.packageName, R.layout.widget_recent)
+            if (palette != null) {
+                views.setInt(R.id.widget_recent_root, "setBackgroundResource", WidgetThemeReader.background(palette.surface))
+                views.setTextColor(R.id.widget_recent_notice, palette.label)
+            }
             views.setTextViewText(R.id.widget_recent_notice, notice)
             @Suppress("DEPRECATION") // RemoteCollectionItems is API 31+; minSdk here is 26.
             views.setRemoteAdapter(R.id.widget_recent_list, adapterIntent(app, id))
@@ -150,8 +213,8 @@ internal object RecentMailWidgetDraw {
         val app = context.applicationContext as? Application ?: return
         val ids = placedIds(app)
         if (ids.isEmpty()) return
-        val snapshot = withTimeoutOrNull(REFRESH_TIMEOUT_MS) { read(app) } ?: return
-        draw(app, ids, snapshot)
+        val drawing = withTimeoutOrNull(REFRESH_TIMEOUT_MS) { read(app) } ?: return
+        draw(app, ids, drawing)
     }
 
     /**

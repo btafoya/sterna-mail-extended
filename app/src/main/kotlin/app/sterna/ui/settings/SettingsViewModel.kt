@@ -25,6 +25,7 @@ import app.sterna.push.NewMailNotifier
 import app.sterna.push.PushController
 import app.sterna.security.canAuthenticate
 import app.sterna.widget.RecentMailWidgetDraw
+import app.sterna.widget.UnreadWidgetDraw
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -95,8 +96,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         initialValue = PURE_BLACK_DEFAULT,
     )
 
+    /**
+     * ⛔ THE HOME SCREEN IS OUTSIDE THIS WINDOW, and both cells now take their colours from THIS
+     * setting rather than from the system's night mode (#117). Nothing else would bring the change
+     * to them: the three redraw triggers there are — the system's own update, the tail of a
+     * delivery pass and the pushed collections — are all fed by MAIL, and `updatePeriodMillis="0"`
+     * means there is no timer by design. The reader would change theme, go back to the home screen,
+     * and find the old colours there until the next message ARRIVED: on a quiet mailbox, days.
+     *
+     * ⚠ The order is load-bearing, and it is the same at all three theme setters:
+     * - the write comes FIRST and is AWAITED — both refreshes re-read these settings through
+     *   `WidgetThemeReader.palette`, with `.first()` on the DataStore flows, so a redraw started
+     *   before `dataStore.edit` returns would repaint the OLD theme and nothing would come back to
+     *   correct it;
+     * - `forget()` comes BEFORE `refresh()`, for the same reason as at [setAppLock] and
+     *   [setNotificationContent] but applied to colour: the row factory falls back to the last
+     *   `RecentWidgetDrawing` it read when its own read times out, and that carrier holds the OLD
+     *   palette — a slow read right after the change would repaint the colours just left;
+     * - BOTH widgets, never one. They have separate presences, reads and draws.
+     *   [UnreadWidgetDraw.refresh] has no `forget()`: it holds no snapshot.
+     *
+     * ✅ With no cell placed each refresh costs ONE binder call: both ask for the placed ids first
+     * and return on an empty answer.
+     */
     fun setPureBlack(enabled: Boolean) {
-        viewModelScope.launch { settings.setPureBlack(enabled) }
+        viewModelScope.launch {
+            settings.setPureBlack(enabled)
+            RecentMailWidgetDraw.forget()
+            RecentMailWidgetDraw.refresh(getApplication())
+            UnreadWidgetDraw.refresh(getApplication())
+        }
     }
 
     // LIST_MONOGRAM_DEFAULT for the first frame, like the two above and for the same reason: a
@@ -352,12 +381,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Redraws both cells, awaited write then `forget()` then the two refreshes — the whole rule
+     *  is written out at [setPureBlack], and it is the same one here. */
     fun setDynamicColor(enabled: Boolean) {
-        viewModelScope.launch { settings.setDynamicColor(enabled) }
+        viewModelScope.launch {
+            settings.setDynamicColor(enabled)
+            RecentMailWidgetDraw.forget()
+            RecentMailWidgetDraw.refresh(getApplication())
+            UnreadWidgetDraw.refresh(getApplication())
+        }
     }
 
+    /** Redraws both cells, awaited write then `forget()` then the two refreshes — the whole rule
+     *  is written out at [setPureBlack], and it is the same one here. */
     fun setThemeMode(mode: ThemeMode) {
-        viewModelScope.launch { settings.setThemeMode(mode) }
+        viewModelScope.launch {
+            settings.setThemeMode(mode)
+            RecentMailWidgetDraw.forget()
+            RecentMailWidgetDraw.refresh(getApplication())
+            UnreadWidgetDraw.refresh(getApplication())
+        }
     }
 
     fun setListDensity(density: ListDensity) {
