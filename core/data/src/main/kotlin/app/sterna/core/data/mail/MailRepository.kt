@@ -4013,13 +4013,30 @@ class MailRepository(
     }
 
     /**
-     * Whether deleting [email] would permanently destroy it (it already sits in Trash, or
-     * the account has no Trash) rather than move it there. The UI uses this to hold the
-     * destroy back behind an Undo window instead of doing it immediately (Codeberg #23).
+     * Whether deleting [email] would permanently destroy it — exactly the question the name asks:
+     * does it already sit in the Trash? The UI uses the answer to hold the destroy back behind an
+     * Undo window instead of doing it immediately (Codeberg #23).
+     *
+     * ⛔ An account with no Trash is NOT a destroy. This opened on `?: return true`, which was true
+     * while [delete] refused to run without a bin; [delete] now resolves-or-CREATES the folder, so
+     * that `true` sent the most ordinary gesture in the app — the swipe — into
+     * `MessageDestroyWorker` and erased the message. The verdict, [deleteDestroysMessage], is a
+     * function a JVM test executes; nothing decides here.
+     *
+     * ⛔ It resolves the bin THE WAY [delete] FINDS IT, or the two stop asking the same question.
+     * [delete] goes role → by-name on JMAP ([trashMailboxId]) and role on IMAP ([imapRoleFolder]);
+     * asking `roleMailboxId` alone answered "not in the Trash" for a message sitting in a JMAP bin
+     * that carries no role, so the delete moved it onto its own folder (a server-side no-op), the
+     * row went, and the next sync brought it back: a Trash nothing could empty, message by message.
+     *
+     * ⛔ And it NEVER creates a folder: answering a question must not write to the user's server.
+     * Where [delete] would go on to create the bin, this stops and reports "does not destroy" —
+     * the delete that follows creates it, and if it cannot, it throws and the failure is announced.
      */
     suspend fun deleteWouldDestroy(credentials: AccountCredentials, email: Email): Boolean {
-        val trash = roleMailboxId(credentials, "trash") ?: return true
-        return email.mailboxId == trash
+        val trash = if (credentials.protocol == MailProtocol.IMAP) imapRoleFolder(credentials, "trash")
+        else trashMailboxId(connect(credentials))
+        return deleteDestroysMessage(trash, email.mailboxId)
     }
 
     /**
@@ -4620,7 +4637,9 @@ class MailRepository(
      * Delete a whole selection (one account): move everything to Trash (undoable). Like the
      * single-message [delete] this NEVER destroys inline — the caller routes the would-destroy
      * subset through the held-back destroy ([destroyAll]) with its cancelable Undo window
-     * (Codeberg #23) — so an account with no Trash fails the batch instead of destroying it.
+     * (Codeberg #23) — and, like it, it resolves the bin or CREATES one rather than refusing:
+     * an account whose server states no `trash` role used to have its whole batch reported
+     * failed here while deleting the same messages one at a time worked.
      *
      * [expectedUidValidity]: see [archiveAll] — the source folders' frozen numbering, by folder.
      * ⭐ This is the gesture the guard is really for: a bulk "delete" is a bulk MOVE to the Trash,
@@ -4637,10 +4656,16 @@ class MailRepository(
         if (settings?.markReadOnDelete?.first() == true) markSelectionRead(credentials, emailIds)
         if (credentials.protocol == MailProtocol.IMAP) {
             val succeeded = mutableSetOf<String>(); val failed = mutableSetOf<String>()
-            val trash = imapRoleFolder(credentials, "trash")
+            // Resolve or create, by the same call the single-message [delete] makes: an account
+            // whose server states no trash role used to fail the WHOLE batch here, while deleting
+            // any one of those messages on its own resolved a bin and worked. Offline this throws
+            // and the batch goes down with it — which is the honest answer, and creates nothing.
+            val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }
             emailIds.groupBy { ImapMailService.mailboxOf(it) }.forEach { (source, ids) ->
                 when {
-                    source == null || trash == null -> failed += ids
+                    // An id that names no source folder is unparsable — there is nothing to move
+                    // FROM, and no bin can answer that. The only per-id failure left here.
+                    source == null -> failed += ids
                     // Already in Trash: nothing to move — drop the row locally only. Deliberately
                     // in NEITHER set: there is no move to undo and nothing failed.
                     //
@@ -4660,7 +4685,10 @@ class MailRepository(
             return BulkResult(succeeded, failed, dest = trash)
         }
         val ctx = connect(credentials)
-        val trash = ctx.rolesToMailboxId["trash"] ?: return BulkResult(emptySet(), emailIds.toSet())
+        // Role, then this account's own folders by name, then a creation — [delete]'s pair, and
+        // the id it learns is written back into the context, so ONE bin is resolved for the whole
+        // batch rather than one per message.
+        val trash = trashMailboxId(ctx) ?: createTrashFolder(ctx)
         return jmapMoveAll(ctx, emailIds, trash)
     }
 
@@ -5068,6 +5096,51 @@ class MailRepository(
     }
 
     /**
+     * The account's Trash folder id: by JMAP `trash` role, or — when the server sets no role — by a
+     * recognised bin name, run by [trashFolderByName]. Null when the account has neither, which
+     * sends the caller to [createTrashFolder]. The name match is cached into the context's role map
+     * so a bulk delete resolves it once instead of making every message try (and fail) to create a
+     * duplicate bin.
+     *
+     * ⚠ JMAP ONLY. The IMAP branch of [delete] resolves through `imapRoleFolder`, i.e.
+     * `ImapClient.roleFromName`, whose own name table is untouched here: on an IMAP server that
+     * states no role and names its bin something that table does not know, the delete still
+     * creates a second folder beside the existing one.
+     *
+     * ⛔ No `all` fallback, unlike [archiveMailboxId]: "all mail" is an acceptable archive, it is
+     * not an acceptable bin — a message moved there stays in the list, so the delete would look
+     * like it did nothing.
+     */
+    private suspend fun trashMailboxId(ctx: Context): String? {
+        ctx.rolesToMailboxId["trash"]?.let { return it }
+        // THIS account's own folders, not the global mailbox cache — see [archiveMailboxId]: from
+        // the unified inbox the cache holds the last-synced account, and deleting another
+        // account's message would target a folder id that does not exist for it (silent no-op).
+        val byName = trashFolderByName(ctx.mailboxes) ?: return null
+        context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to byName), ctx.mailboxes)
+        return byName
+    }
+
+    private suspend fun createTrashFolder(ctx: Context): String {
+        // Prefer creating with the trash role, but many servers reject a client-set special-use
+        // role — fall back to a plain "Trash" folder, then to any existing bin-named folder for
+        // THIS account (re-fetched, never the global cache which may hold another account's
+        // folders). A total failure propagates: offline, the delete fails and creates nothing.
+        val id = runCatching {
+            client.createMailbox(ctx.session, ctx.accountId, "Trash", "trash", ctx.auth)
+        }.recoverCatching {
+            client.createMailbox(ctx.session, ctx.accountId, "Trash", null, ctx.auth)
+        }.getOrElse { err ->
+            val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())
+            mbs.firstOrNull { it.role == "trash" }?.id
+                ?: trashFolderByName(mbs)
+                ?: throw err
+        }
+        context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("trash" to id), ctx.mailboxes)
+        return id
+    }
+
+    /**
      * One message to move back on an Undo: [emailId] returns to [sourceMailboxId] (where it was
      * before the action), coming from [destMailboxId] (where the forward action put it — Trash,
      * Archive, or a target folder; null when it was a destroy, which can't be undone but is kept
@@ -5194,7 +5267,9 @@ class MailRepository(
      *  [deleteWouldDestroy]. Returns the Trash folder the message landed in, so the caller can
      *  offer an Undo that restores the row and reverses the count nudge — or null when there was
      *  nothing to move (the message was already destroyed server-side; its zombie row is pruned).
-     *  Throws when the account has no Trash folder. */
+     *  An account whose server sets no `trash` role has its bin resolved by name, and one created
+     *  when it has none at all — exactly as [archive] does, and never All Mail (a message left
+     *  there is still in the list, so the delete would appear to do nothing). */
     suspend fun delete(credentials: AccountCredentials, emailId: String): String? {
         // Same rule as every other mover (#99): a message the user acts on individually is no
         // longer part of a pending Empty-trash order.
@@ -5207,7 +5282,7 @@ class MailRepository(
         }
         val row = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()
         if (credentials.protocol == MailProtocol.IMAP) {
-            val trash = imapRoleFolder(credentials, "trash") ?: error("This account has no Trash folder.")
+            val trash = imapRoleFolder(credentials, "trash") ?: run { imap.createFolder(credentials, "Trash"); "Trash" }
             imapTarget(emailId)?.let { (mb, uid) ->
                 // Already in the Trash: nothing moves — but the cached row AND its index row both
                 // go, exactly as the bulk twin ([deleteAll]) does, and for its reason. The Trash is
@@ -5238,7 +5313,7 @@ class MailRepository(
         }
         val ctx = connect(credentials)
         val mb = row?.mailboxId ?: emailDao.mailboxOf(credentials.id, emailId)
-        val trash = ctx.rolesToMailboxId["trash"] ?: error("This account has no Trash folder.")
+        val trash = trashMailboxId(ctx) ?: createTrashFolder(ctx)
         // Network-first (like moveToMailbox): the local row is dropped (and counts nudged) only
         // after the server acknowledged the move, so a failed delete never hides a message that
         // is still on the server.

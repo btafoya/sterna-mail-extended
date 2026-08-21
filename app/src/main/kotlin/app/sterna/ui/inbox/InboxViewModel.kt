@@ -1389,8 +1389,8 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         val credentials = credentialsFor(email) ?: return
         viewModelScope.launch {
             // A delete that only moves to Trash is reversible immediately (Undo moves it back).
-            // A delete that would DESTROY (already in Trash, or no Trash) is held behind the Undo
-            // window instead, so it is undoable too (Codeberg #23) — and its snackbar says so.
+            // A delete that would DESTROY (the message is already in the Trash) is held behind the
+            // Undo window instead, so it is undoable too (Codeberg #23) — and its snackbar says so.
             // The probe can hit the network (folder lookup); if it fails (offline), fall back to
             // the move path, whose own failure is handled and can never destroy anything.
             if (runCatching { repo.deleteWouldDestroy(credentials, email) }.getOrDefault(false)) {
@@ -1593,8 +1593,8 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Delete a whole conversation. Members whose delete would permanently destroy them (already
-     * in Trash, or no Trash) go through the held-back destroy — a real, cancelable Undo window,
+     * Delete a whole conversation. Members whose delete would permanently destroy them (they are
+     * already in the Trash) go through the held-back destroy — a real, cancelable Undo window,
      * never an inline destroy — while the rest take the move-to-Trash path with a regular Undo.
      * The per-member decision only ever picks held-back vs move, so a stale cached folder (or a
      * probe that fails offline) can at worst hold a move back behind Undo, never destroy a

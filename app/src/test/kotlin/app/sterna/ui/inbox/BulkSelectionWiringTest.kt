@@ -306,11 +306,12 @@ class BulkSelectionWiringTest {
     // -- C. delete: an untrusted row goes to the Trash, never to the destroy --------------------
 
     /**
-     * `deleteWouldDestroy` reads the row's own folder, which an untrusted row cannot supply — and
-     * on an account with no Trash it answers "destroy" for everyone (`roleMailboxId(...) ?: return
-     * true`). The partition is therefore made by [planSelectionDelete], which only ever asks it
-     * about a trusted row; an untrusted row is moved to the Trash, or — on a Trash-less account —
-     * left alone and counted, because nothing here destroys mail on a supposition.
+     * `deleteWouldDestroy` reads the row's own folder, which an untrusted row cannot supply: on a
+     * row that only exists on screen that folder was frozen at crawl time. The partition is
+     * therefore made by [planSelectionDelete], which only ever asks it about a trusted row; an
+     * untrusted row is moved to the Trash, or — on an account with no Trash, which the separate
+     * account-level probe answers — left alone and counted, because nothing here destroys mail on
+     * a supposition.
      */
     @Test fun `the delete partition is the shared plan, fed by the two probes`() {
         val body = body(INBOX_VIEW_MODEL, "deleteSelected")

@@ -1,5 +1,6 @@
 package app.sterna.ui.inbox
 
+import app.sterna.core.data.mail.deleteDestroysMessage
 import app.sterna.core.jmap.model.Email
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -8,12 +9,13 @@ import org.junit.Test
 /**
  * [planSelectionDelete] — who is destroyed and who is moved, executed rather than re-derived.
  *
- * The destroy leg is irreversible after the Undo window, and the probe that used to decide it
+ * The destroy leg is irreversible after the Undo window, and the probe that decides it
  * (`deleteWouldDestroy`) reads the row's OWN folder: on a row that only exists on screen that
- * folder was frozen at crawl time, and on an account with no Trash the probe answers "destroy" for
- * every row it is shown. Hence: only a trusted row can be destroyed; an untrusted one goes to the
- * Trash (search excludes Trash and Junk, so a hit is never in it already); and on a Trash-less
- * account an untrusted row is left alone, to be counted and announced, never destroyed on a guess.
+ * folder was frozen at crawl time, so its answer would be read off a crawl artefact. Hence: only a
+ * trusted row can be destroyed; an untrusted one goes to the Trash (search excludes Trash and
+ * Junk, so a hit is never in it already); and on an account with no Trash — where the account-level
+ * probe answers no — an untrusted row is left alone, to be counted and announced, never destroyed
+ * on a guess.
  */
 class SelectionDeletePlanTest {
 
@@ -76,8 +78,8 @@ class SelectionDeletePlanTest {
     }
 
     /**
-     * No Trash: `deleteWouldDestroy` would answer "destroy" for everything. A row we cannot place
-     * is then left alone — the caller counts it and says so — instead of being destroyed.
+     * No Trash: the account-level probe answers no, and the move has nowhere the caller can
+     * name. A row we cannot place is then left alone — the caller counts it and says so — instead of being destroyed.
      */
     @Test
     fun `on an account with no Trash an untrusted row is left alone, not destroyed`() = runTest {
@@ -92,14 +94,33 @@ class SelectionDeletePlanTest {
         assertEquals(listOf("m1"), plan.untreated.map { it.id })
     }
 
-    /** A trusted row on that same Trash-less account keeps the old behaviour: held-back destroy. */
+    /**
+     * A trusted row on that same Trash-less account: it MOVES. The probe below is the shipped
+     * decision, executed — [deleteDestroysMessage], handed the null a role lookup returns on an
+     * account whose bin carries no role. `delete()` resolves the Trash by role, then by name, then
+     * creates one, so "no Trash" is no longer "destroy"; and if the folder cannot be obtained at
+     * all the delete throws and the failure is announced, which still destroys nothing.
+     */
     @Test
-    fun `on an account with no Trash a trusted row is still destroyed`() = runTest {
-        val probes = Probes(destroys = setOf("m1"), trashless = setOf("accA"))
+    fun `on an account with no Trash a trusted row is moved, not destroyed`() = runTest {
         val plan = planSelectionDelete(
             targets = listOf(target("m1", trusted = true)),
-            hasTrash = probes.hasTrash,
-            wouldDestroy = probes.wouldDestroy,
+            hasTrash = { false },
+            wouldDestroy = { email -> deleteDestroysMessage(trashMailboxId = null, messageMailboxId = email.mailboxId) },
+        )
+        assertEquals("nothing may be destroyed for want of a Trash", emptyList<String>(), plan.destroy.map { it.id })
+        assertEquals(listOf("m1"), plan.move.map { it.id })
+        assertEquals(emptyList<String>(), plan.untreated.map { it.id })
+    }
+
+    /** And the other half of the same shipped rule, through the same plan: a trusted row that IS
+     *  in the Trash is destroyed — otherwise a delete inside the bin moves it onto itself. */
+    @Test
+    fun `a trusted row sitting in the Trash is destroyed, by the shipped rule`() = runTest {
+        val plan = planSelectionDelete(
+            targets = listOf(target("m1", trusted = true, mailbox = "mbTrash")),
+            hasTrash = { true },
+            wouldDestroy = { email -> deleteDestroysMessage(trashMailboxId = "mbTrash", messageMailboxId = email.mailboxId) },
         )
         assertEquals(listOf("m1"), plan.destroy.map { it.id })
         assertEquals(emptyList<String>(), plan.move.map { it.id })

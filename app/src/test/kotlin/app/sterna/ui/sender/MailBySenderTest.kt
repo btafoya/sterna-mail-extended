@@ -82,25 +82,31 @@ class MailBySenderTest {
 
     // -- when the delete may be offered at all --------------------------------------------------
 
-    @Test fun `no trash among the folders, no delete`() {
-        // deleteWouldDestroy answers true with no Trash, and deleteAll then fails the whole batch
-        // rather than destroying anything. An absent entry is the honest rendering of that; an
-        // entry that reports a failure every time is not.
-        assertFalse(
-            "with no Trash the batch has nowhere to go",
-            canDeleteFrom(listOf(Mailbox(id = "m1", name = "Inbox", role = "inbox"))),
-        )
-        assertFalse("an account with no folders at all", canDeleteFrom(emptyList()))
-    }
-
-    @Test fun `a trash nobody can NAME is still somewhere to move mail to`() {
-        // The distinction between the two gestes' availability: the Sieve rule needs a nameable
-        // path (trashFilePath returns null here, parent missing from the cache), the delete needs
-        // only the folder to exist. Folding the two would take the delete away from an account
-        // that can perfectly well perform it.
+    @Test fun `an account with no Trash keeps the delete and still loses the rule`() {
+        // The delete used to be withheld here (`canDeleteFrom`, now gone): with no bin, deleteAll
+        // failed the whole batch. It resolves or creates one now, exactly as the single-message
+        // delete does, so the entry is drawn whatever the folder list says — and the ONLY reading
+        // of that list left is the Sieve rule's, which needs the bin to be NAMEABLE and is
+        // unaffected. Both are run here, on the same two accounts, because the pair is what was
+        // confused. (That `load()` passes `canDelete = true` is MailBySenderWiringTest's: an
+        // AndroidViewModel is out of a JVM test's reach.)
+        val noTrash = listOf(Mailbox(id = "m1", name = "Inbox", role = "inbox"))
+        // A bin the cache cannot name — its parent is missing — which is a perfectly good
+        // destination for a move and no path a Sieve script can file into.
         val orphan = listOf(Mailbox(id = "m9", name = "Trash", role = "trash", parentId = "gone"))
-        assertNull(trashFilePath(orphan))
-        assertTrue("the delete moves by id and does not have to name the folder", canDeleteFrom(orphan))
+        listOf(noTrash, orphan, emptyList()).forEach { folders ->
+            assertNull("nothing to name, so no server-side rule", trashFilePath(folders))
+            assertFalse(
+                "and the block entry stays away, script or no script",
+                canBlockSender(FilterRulesState.Loaded(emptyList()), trashFilePath(folders)),
+            )
+        }
+        assertEquals(
+            "…while the delete stays on the menu: the batch now makes itself a bin",
+            listOf(SenderAction.SEARCH, SenderAction.DELETE),
+            menu(canDelete = true, canBlock = false, blocked = false, working = false)
+                .map { it.action },
+        )
     }
 
     // -- when the rule may be offered at all ---------------------------------------------------

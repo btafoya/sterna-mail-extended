@@ -496,17 +496,85 @@ class MailBySenderWiringTest {
         )
     }
 
-    @Test fun `the delete's availability is the pure decision, not a rewrite of it`() {
-        // Also found by a surviving mutation: `canDelete = true`. D12 says the gesture is
-        // UNAVAILABLE on an account with no resolvable Trash, not silently ineffective — with
-        // no Trash, deleteWouldDestroy answers true and deleteAll fails the whole batch. The
-        // rule pins the call WITH its argument, and canDeleteFrom itself is executed by
-        // MailBySenderTest.
+    @Test fun `the delete entry no longer waits for a trash role`() {
+        // It used to read `canDelete = canDeleteFrom(mailboxes)` — no folder carrying the trash
+        // role, no entry — which was honest for exactly as long as `deleteAll` failed the whole
+        // batch without a bin. It now resolves or creates one, on both protocols
+        // (DeleteAllResolvesOrCreatesTrashWiringTest), so the reason the entry was withheld is
+        // gone and the gesture is drawn for every account.
+        //
+        // Whole lines, by equality: a `contains` check would sit green on
+        // `canDelete = true && mailboxes.any { it.role == "trash" }`, which is the old defect
+        // written the long way round. The mutation this is watched by is `canDelete = false`.
         val body = functionBody(VIEW_MODEL, "load")
+        assertEquals(
+            "load() must offer the delete unconditionally, as 'canDelete = true,', and nothing " +
+                "else in the function may decide it. Body was:\n$body",
+            listOf("canDelete = true,"),
+            body.lines().map { it.trim() }.filter { "canDelete" in it },
+        )
+        assertEquals(
+            "…and no folder role may be consulted to decide it: the cached folder list answers " +
+                "a question the delete no longer asks (it is still read, for the Sieve rule's " +
+                "nameable path — that one is trashFilePath and stays). Body was:\n$body",
+            emptyList<String>(),
+            body.lines().map { it.trim() }
+                .filter { "canDeleteFrom" in it || "role == \"trash\"" in it },
+        )
+    }
+
+    @Test fun `nothing stands between the folder read and the state the screen draws`() {
+        // ⛔ THE THIRD TIME on this branch that a rule pinning WHICH LINES MUST EXIST let a line
+        // inserted BETWEEN them decide otherwise. The mutation that walked green through every
+        // rule in this file, dropped just above the state assignment:
+        //
+        //     if (trashPath == null) { _state.value = _state.value.copy(loading = false); return@launch }
+        //
+        // On exactly the accounts the resolve-or-create delete has just unblocked, the screen
+        // would then draw the EMPTY body — "no mail from anyone is stored on this phone" — with
+        // no row and no row menu at all. The withheld gesture comes back through the back door,
+        // and worse: not one entry missing, the whole screen.
+        //
+        // So the SLICE is pinned WHOLE, by equality: from the folder read to the closing
+        // parenthesis of the state it produces. Anything inserted, removed, reordered or
+        // lengthened in there reddens this, whatever it is called.
+        val body = functionBody(VIEW_MODEL, "load").lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val from = body.indexOfFirst { it.startsWith("val mailboxes =") }
+        assertTrue("load() no longer reads the account's folders at all. Body was:\n$body", from >= 0)
+        val to = from + body.drop(from).indexOfFirst { it == ")" }
+        assertEquals(
+            "⛔ EVERY line from the folder read to the state, in order: the folders are read, " +
+                "the Sieve rule's nameable path is derived from them, and the state is posted — " +
+                "nothing in between decides whether the screen is drawn at all. Body was:\n$body",
+            listOf(
+                "val mailboxes = runCatching { repo.observeMailboxes(credentials.id).first() }",
+                ".getOrElseUnlessCancelled { emptyList() }",
+                "val trashPath = trashFilePath(mailboxes)",
+                "_state.value = MailBySenderUiState(",
+                "loading = false,",
+                "accountLabel = store.accountLabel(),",
+                "rows = counted,",
+                "total = cachedTotal(counted),",
+                "canDelete = true,",
+                "canBlock = false,",
+                "rules = emptyList(),",
+                "ownAddresses = ownAddresses(credentials),",
+                ")",
+            ),
+            body.subList(from, to + 1),
+        )
+        // The other half, and the one the slice cannot see: an exit dropped BEFORE the folder
+        // read leaves the slice untouched and the screen just as blank.
+        val exits = body.indices.filter { "return@launch" in body[it] }
+        assertEquals(
+            "the coroutine may leave early exactly ONCE — the failed-count handler that draws " +
+                "loadError instead of a count. Found at $exits. Body was:\n$body",
+            1, exits.size,
+        )
         assertTrue(
-            "load() must set 'canDelete = canDeleteFrom(mailboxes)' — the decision executed by " +
-                "a test, over the account's own cached folder list. Body was:\n$body",
-            "canDelete = canDeleteFrom(mailboxes)" in body,
+            "…and that single exit belongs BEFORE the folder read: an exit after it is a screen " +
+                "stopped half-drawn on the accounts this branch has just unblocked. Body was:\n$body",
+            exits.single() < from,
         )
     }
 

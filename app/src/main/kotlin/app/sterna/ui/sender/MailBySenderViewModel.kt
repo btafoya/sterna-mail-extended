@@ -50,18 +50,6 @@ internal fun trashFilePath(mailboxes: List<Mailbox>): String? =
     mailboxes.firstOrNull { it.role == "trash" }?.let { mailboxFilePath(it, mailboxes) }
 
 /**
- * Whether "delete these messages" may be offered: the account must have a Trash among its cached
- * folders for the batch to have anywhere to go.
- *
- * Without one, `MailRepository.deleteWouldDestroy` answers true and `deleteAll` fails the whole
- * batch rather than destroying anything — so the honest rendering is an absent entry, not a
- * gesture that reports a failure every time. Deliberately NOT [trashFilePath]: that one needs the
- * Trash to be NAMEABLE for a Sieve rule, and a Trash whose parent folder is missing from the
- * cache cannot be named while still being a perfectly good destination for a move.
- */
-internal fun canDeleteFrom(mailboxes: List<Mailbox>): Boolean = mailboxes.any { it.role == "trash" }
-
-/**
  * Whether the "future mail to Trash" entry may appear, from what the account's script read
  * answered ([state], null when the read FAILED) and whether the Trash can be named [trashPath].
  *
@@ -156,10 +144,13 @@ internal enum class SenderAction { SEARCH, DELETE, BLOCK }
  *
  * **Absent and greyed are two different answers, and they are not interchangeable.**
  *
- *  - [canDelete] / [canBlock] false mean *this account cannot do this at all* — no Trash to move
- *    to, IMAP, no Sieve capability, another Sieve script running, a Trash nothing can name. There
- *    is nothing to wait for, so the entry is ABSENT: an entry greyed out forever reads as a bug,
- *    and one that reports a failure on every tap is worse.
+ *  - [canDelete] / [canBlock] false mean *this account cannot do this at all* — IMAP, no Sieve
+ *    capability, another Sieve script running, a Trash nothing can NAME. There is nothing to wait
+ *    for, so the entry is ABSENT: an entry greyed out forever reads as a bug, and one that
+ *    reports a failure on every tap is worse. ⛔ "No Trash on the account" left that list: the
+ *    batch delete resolves or creates its bin like the single-message one, so [canDelete] is now
+ *    true everywhere. Naming one for a Sieve rule is the other question, and still unanswerable
+ *    without a nameable folder — which is why [canBlock] keeps its no.
  *  - [working] means *not right now*. The entry STAYS and is greyed: it says "not now" without a
  *    single new string, and the gesture is still where the finger left it. Removing it instead is
  *    what made every tap on ⋮ during a batch open an empty 280 dp menu with no word anywhere —
@@ -266,7 +257,11 @@ data class MailBySenderUiState(
     val rows: List<SenderVolume> = emptyList(),
     /** The sum of [rows]' totals — see [cachedTotal]. */
     val total: Int = 0,
-    /** The account has a Trash in its cached folder list, so a delete has somewhere to go. */
+    /** Whether the row menu offers "delete these messages" — true on every account: the batch
+     *  resolves the Trash by role, then by name, then creates one, exactly as the single-message
+     *  delete does, so there is no account it has nowhere to go on. ⛔ Not the Sieve gesture's
+     *  question ([canBlock]/[trashFilePath]): filing FUTURE mail needs a Trash the app can NAME,
+     *  and an account that has none is right to be offered nothing. */
     val canDelete: Boolean = false,
     /** See [canBlockSender]. */
     val canBlock: Boolean = false,
@@ -416,9 +411,13 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 accountLabel = store.accountLabel(),
                 rows = counted,
                 total = cachedTotal(counted),
-                // Same cached folder list the counting query reads, so the two agree about what
-                // this account has. See canDeleteFrom.
-                canDelete = canDeleteFrom(mailboxes),
+                // Offered on every account. It used to depend on a folder carrying the trash
+                // role, because `deleteAll` failed the whole batch without one; it now resolves
+                // the bin the way the single-message delete does — by role, by name, or by
+                // creating it — so there is no account this cannot be done on. ⛔ Not to be
+                // confused with the Sieve gesture below, which needs the Trash to be NAMEABLE
+                // (`trashFilePath`) and is right to stay away when it is not.
+                canDelete = true,
                 canBlock = false,
                 rules = emptyList(),
                 // Written with the rows, not with the script: the row that is the account itself

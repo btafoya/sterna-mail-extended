@@ -22,11 +22,14 @@ internal data class SelectionDeletePlan(
  *
  * An untrusted row is moved to the Trash: search excludes Trash and Junk on both sides, so a search
  * hit is never in the Trash already, and the safe leg is also the true one. The exception is an
- * account with NO Trash, where `deleteWouldDestroy` short-circuits to `true` for everything
- * (`roleMailboxId(...) ?: return true`): there the move has nowhere to go and the destroy would
- * rest on a supposition, so the row is left alone and returned in [SelectionDeletePlan.untreated]
- * for the caller to count and announce. [hasTrash] answers that question without looking at any
- * row's folder, and is asked once per account.
+ * account with NO Trash — none of its folders carries the role — where the move has no folder this
+ * caller can name and the destroy would rest on a supposition: the row is left alone and returned
+ * in [SelectionDeletePlan.untreated] for the caller to count and announce. [hasTrash] answers that
+ * question without looking at any row's folder, and is asked once per account.
+ *
+ * ⚠ `deleteWouldDestroy` no longer answers "destroy" for want of a Trash — it answers the one
+ * question it names, "is this row already in the Trash?" — so the destroy leg is now trusted rows
+ * genuinely IN the bin, and nothing else.
  *
  * Returns plain data rather than doing the work, so this decision runs in a JVM test —
  * `InboxViewModel` is an `AndroidViewModel` and cannot be instantiated in one.
