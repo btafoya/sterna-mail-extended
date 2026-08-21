@@ -931,4 +931,9 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Licznik nieprzeczytanych</string>
     <string name="widget_unread_description">Pokazuje, ile nieprzeczytanych wiadomości czeka.</string>
+    <string name="widget_latest_title">Najnowsze wiadomości</string>
+    <string name="widget_latest_description">Pokazuje najnowsze wiadomości ze wszystkich skrzynek odbiorczych.</string>
+    <string name="widget_latest_empty">Brak wiadomości</string>
+    <string name="widget_latest_hidden">Wiadomość ukryta</string>
+    <string name="widget_latest_unread">Nieprzeczytana</string>
 </resources>

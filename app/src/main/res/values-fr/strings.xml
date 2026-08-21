@@ -924,4 +924,9 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Compteur de non-lus</string>
     <string name="widget_unread_description">Affiche le nombre de messages non lus en attente.</string>
+    <string name="widget_latest_title">Derniers messages</string>
+    <string name="widget_latest_description">Liste les messages les plus récents de toutes vos boîtes de réception.</string>
+    <string name="widget_latest_empty">Aucun message</string>
+    <string name="widget_latest_hidden">Message masqué</string>
+    <string name="widget_latest_unread">Non lu</string>
 </resources>

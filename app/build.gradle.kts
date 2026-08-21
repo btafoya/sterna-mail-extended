@@ -40,10 +40,16 @@ android {
         // build is byte-for-byte what it was. With it, the picker lists two distinguishable
         // entries instead of two identical ones, which is what makes a bench pass playable.
         manifestPlaceholders["widgetLabel"] = "@string/widget_unread_title"
+        // The SECOND widget's picker entry (the latest-messages list). Its own placeholder and
+        // its own name: one placeholder for both would give the picker two entries with the same
+        // label, and the whole reason the label is a placeholder is that a bench pass has to tell
+        // the test install from the production one.
+        manifestPlaceholders["latestWidgetLabel"] = "@string/widget_latest_title"
         if (testApp) {
             applicationIdSuffix = ".test"
             manifestPlaceholders["appLabel"] = "Sterna (test)"
             manifestPlaceholders["widgetLabel"] = "Unread count (test)"
+            manifestPlaceholders["latestWidgetLabel"] = "Latest messages (test)"
             // About row reads e.g. "1.3.13-test": tells the two apart from the inside.
             // A suffix only — versionName/versionCode themselves are never bumped for a test.
             versionNameSuffix = "-test"

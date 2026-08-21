@@ -23,6 +23,9 @@ import app.sterna.send.Outbox
 import app.sterna.send.SendOutbox
 import app.sterna.ui.connect.OAuthCodeSignIn
 import app.sterna.ui.connect.OutlookSignIn
+import app.sterna.widget.RecentMailWidgetDraw
+import app.sterna.widget.RecentMailWidgetPresence
+import app.sterna.widget.RecentMailWidgetPush
 import app.sterna.widget.UnreadWidgetDraw
 import app.sterna.widget.UnreadWidgetPresence
 import app.sterna.widget.UnreadWidgetPush
@@ -207,6 +210,35 @@ class AppContainer(context: Context) {
                 runCatching { UnreadWidgetDraw.redraw(appContext, unread) }
                     .rethrowIfCancelled()
                     .onFailure { Log.w("Sterna", "unread widget not redrawn; the cell keeps its number", it) }
+            }
+        }
+        // The SECOND widget's rows, pushed the same way and for the same defect, measured at the
+        // bench on 2026-08-18: a message marked read in the app left its row on the home screen
+        // still carrying an unread dot. The data was already right — the trigger was missing.
+        // RecentMailWidgetDraw.refresh had three callers (the tail of a delivery pass, and the two
+        // settings writes that tighten what a row may say), and none of them follows a message
+        // being read, deleted, moved, or an account being removed.
+        //
+        // ⛔ Its own launch and its own gate: RecentMailWidgetPresence is seeded from THIS
+        // provider's placed cells, and sharing the counter's would let each widget's presence
+        // decide the other one's freshness.
+        //
+        // ⛔ forget() BEFORE refresh(), as at both settings writes: the row factory falls back to
+        // the last snapshot it managed to read when its own read times out, and that snapshot is
+        // the mail as it WAS. Without dropping it, a slow read repaints exactly the rows this
+        // redraw exists to replace.
+        //
+        // ⛔ The emitted rows are not drawn. The cell is projected by RecentMailWidgetDraw.read,
+        // which consults the notification-content setting and the app lock; drawing the rows from
+        // here would put senders and subjects on a home screen that has hidden them.
+        appScope.launch {
+            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext)) {
+                mailRepository.observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT)
+            }.collect {
+                RecentMailWidgetDraw.forget()
+                runCatching { RecentMailWidgetDraw.refresh(appContext) }
+                    .rethrowIfCancelled()
+                    .onFailure { Log.w("Sterna", "latest-messages widget not redrawn; the cell keeps its rows", it) }
             }
         }
     }

@@ -24,6 +24,7 @@ import app.sterna.core.data.settings.NotificationContent
 import app.sterna.push.NewMailNotifier
 import app.sterna.push.PushController
 import app.sterna.security.canAuthenticate
+import app.sterna.widget.RecentMailWidgetDraw
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -215,7 +216,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setNotificationContent(mode: NotificationContent) {
-        viewModelScope.launch { settings.setNotificationContent(mode) }
+        viewModelScope.launch {
+            settings.setNotificationContent(mode)
+            // Same reason as setAppLock: this setting governs the home-screen widget too, and a
+            // cell already drawn does not re-read it. Tightening it has to reach the cell now.
+            RecentMailWidgetDraw.forget()
+            RecentMailWidgetDraw.refresh(getApplication())
+        }
     }
 
     fun setPushAllAccounts(value: Boolean) {
@@ -334,6 +341,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _appLockUnavailable.value = false
         appLock.setEnabled(value)
         _appLock.value = value
+        // The home screen is outside this window and keeps whatever it was last drawn with. With
+        // no periodic update by design, the latest-messages widget would go on listing senders and
+        // subjects until mail next ARRIVED — days, on a quiet mailbox — for someone who has just
+        // switched the lock on to hide exactly that. SECURITY.md states the lock silences that
+        // widget with no conditions attached, so this is what makes the sentence true.
+        viewModelScope.launch {
+            RecentMailWidgetDraw.forget()
+            RecentMailWidgetDraw.refresh(getApplication())
+        }
     }
 
     fun setDynamicColor(enabled: Boolean) {

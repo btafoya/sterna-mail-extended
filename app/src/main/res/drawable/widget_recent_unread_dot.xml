@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The unread mark of a widget row. A shape and not a vector: it is 8dp of one colour, and it
+    follows the system's day/night mode through @color/widget_unread_count like everything else the
+    two widgets draw (the launcher's process cannot see the app's own theme).
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/widget_unread_count" />
+</shape>

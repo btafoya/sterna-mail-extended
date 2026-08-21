@@ -30,17 +30,24 @@ class UnreadWidgetPushWiringLintTest {
      * the `AccountGoneException` arm and logged as a sign-out that never happened; before the
      * notifications, a failed draw could cost one.
      */
-    @Test fun `the delivery pass redraws the widget, last, and outside its sign-out arm`() {
+    @Test fun `the delivery pass redraws BOTH widgets, last, and outside its sign-out arm`() {
         assertEquals(
-            "FetchAndNotify.run must END with a best-effort widget redraw, outside its try. " +
-                "Without it, mail that arrives on a dead process notifies and leaves the cell " +
-                "showing the old number until something else opens the app (#112).",
+            "FetchAndNotify.run must END with a best-effort redraw of EACH home-screen widget, " +
+                "outside its try. Without it, mail that arrives on a dead process notifies and " +
+                "leaves the cell as it was until something else opens the app (#112) — the " +
+                "counter showing the old number, and the latest-messages list not showing the " +
+                "message the banner just announced, which is the one thing that widget is for. " +
+                "⛔ Both, and both here: the two widgets have separate presence and separate " +
+                "draws, so a pass that refreshes one of them leaves the other frozen.",
             listOf(
                 "runCatching { UnreadWidgetDraw.refresh(context) }",
                 ".rethrowIfCancelled()",
                 ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"unread widget not redrawn after the pass\", it) }",
+                "runCatching { RecentMailWidgetDraw.refresh(context) }",
+                ".rethrowIfCancelled()",
+                ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"latest-messages widget not redrawn after the pass\", it) }",
             ),
-            functionBody(FETCH_AND_NOTIFY, "suspend fun run(").takeLast(3),
+            functionBody(FETCH_AND_NOTIFY, "suspend fun run(").takeLast(6),
         )
     }
 

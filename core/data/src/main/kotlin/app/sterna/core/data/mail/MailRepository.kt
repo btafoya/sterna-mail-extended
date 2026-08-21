@@ -45,6 +45,8 @@ import app.sterna.core.data.db.OutboxEntity
 import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.PurgeSnapshotDao
+import app.sterna.core.data.db.RECENT_EMAIL_ROW_COLUMNS
+import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.db.ScheduledSendDao
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.db.SnoozedDao
@@ -903,6 +905,83 @@ internal fun selectionIdsQuery(
     selectionIdsSql(scopes.size, unreadOnly),
     scopes.flatMap { listOf(it.first, it.second) }.toTypedArray(),
 )
+
+/**
+ * The home-screen widget's read of the unified inbox, as one bounded statement — pure, so it is
+ * unit-tested against real SQLite next to [pagingSql].
+ *
+ * ⛔ WHICH ROWS is not decided here: it is [listRowsWhereSql], the list's own predicate, with the
+ * unread funnel off. The widget therefore inherits the (account, folder) PAIR scope (#121 — a bare
+ * `mailboxId IN (…)` would drag in a sibling account's inbox and a deleted account's orphans) and
+ * the snooze filter, for free and for ever. A predicate copied here to look like the list's is
+ * exactly the shape of #126: two twins that drift, silently.
+ *
+ * ORDER BY `sortKey DESC` is [SortOrder.DATE_DESC], the order "All inboxes" opens on, so the
+ * widget shows the top of the list the tap leads to. `, id DESC` is NOT decoration: messages
+ * commonly share a sortKey (a batch delivery, and every row with no date at all sorts at 0), and
+ * without a tie-break SQLite is free to order them differently on each redraw — the widget would
+ * reshuffle its own rows with nothing having changed.
+ *
+ * Bind order: [scopeCount] (account id, mailbox id) pairs, account id first (see [folderScopeSql]),
+ * THEN the `LIMIT` bound.
+ */
+internal fun recentUnifiedSql(scopeCount: Int): String =
+    "SELECT $RECENT_EMAIL_ROW_COLUMNS FROM emails " +
+        "WHERE ${listRowsWhereSql(scopeCount, unreadOnly = false)} " +
+        "ORDER BY sortKey DESC, id DESC LIMIT ?"
+
+/**
+ * The most rows a widget read will ever ask SQLite for, whatever it was asked for.
+ *
+ * ⛔ Not defensive noise. The row count is the most natural thing for a widget to derive from its
+ * own height, and that arithmetic reaches 0 on a short cell and goes negative on a bad one — where
+ * `LIMIT 0` answers "no messages" with a full inbox (a lie the drawer is entitled to print), and
+ * `LIMIT -1` in SQLite is NOT a limit at all: every cached message of every inbox would be read
+ * into the launcher's process to draw a handful of lines. The ceiling is the same argument from the
+ * other end; no home-screen cell shows fifty rows.
+ */
+internal const val RECENT_ROWS_MAX: Int = 50
+
+/** [RECENT_ROWS_MAX], and at least one row: see the reasoning there. */
+internal fun recentRowBound(requested: Int): Int = requested.coerceIn(1, RECENT_ROWS_MAX)
+
+/** [recentUnifiedSql], bound the way [pagingQuery] binds its scopes, plus the row bound last. */
+internal fun recentUnifiedQuery(scopes: List<Pair<String, String>>, limit: Int): SimpleSQLiteQuery =
+    SimpleSQLiteQuery(
+        recentUnifiedSql(scopes.size),
+        (scopes.flatMap { listOf<Any>(it.first, it.second) } + recentRowBound(limit)).toTypedArray(),
+    )
+
+/**
+ * What a widget read answers: [rows], and whether there was anything to read them FROM.
+ *
+ * ⭐ [configured] is the difference between "no message" and "no answer", and it is carried in the
+ * type so a caller cannot lose it. No scope means [AccountStore.allInboxScopes] was empty, which
+ * happens in THREE ways, not two: no account is set up; the stored account blob failed to decode
+ * (`AccountStore`'s guarded read falls back to an empty list); or an account exists but its inbox
+ * is not known yet, because `inboxId` is null until the first successful connection fills it —
+ * the state every account restored from a backup starts in, and stays in while offline. In none of
+ * the three is "the inbox is empty" a true statement.
+ *
+ * ⛔ So `configured = false` means "nothing to affirm" and NOTHING else. In particular a drawer may
+ * not render it as "no account — add one": the reader restoring a backup has three accounts and
+ * would be told they have none. It is the state where the widget says nothing about mail at all.
+ * `configured = true` with empty [rows] is the only case that IS an empty inbox, and may be drawn
+ * as one.
+ */
+data class RecentInbox(val configured: Boolean, val rows: List<RecentEmailRow>)
+
+/**
+ * The widget read's decision, apart from its plumbing: no scope, no query and nothing affirmed;
+ * otherwise the rows [read] answers. Pure and inline (so a `suspend` reader fits), which is what
+ * lets a JVM test execute the SAME decision the repository ships instead of restating it.
+ */
+internal inline fun recentUnifiedInboxFrom(
+    scopes: List<Pair<String, String>>,
+    read: (List<Pair<String, String>>) -> List<RecentEmailRow>,
+): RecentInbox =
+    if (scopes.isEmpty()) RecentInbox(configured = false, rows = emptyList())
+    else RecentInbox(configured = true, rows = read(scopes))
 
 /**
  * Build the conversation-collapsed paged query: one row per thread
@@ -1998,6 +2077,56 @@ class MailRepository(
     fun observeUnifiedInboxUnread(): Flow<Int> = UnifiedInbox.unreadCount(
         accountStore.accountsFlow,
     ) { scopes -> observeUnifiedInboxUnread(scopes) }
+
+    /**
+     * The [limit] latest messages of every account's inbox, as one snapshot — the read behind the
+     * "latest messages" home-screen widget.
+     *
+     * What it shares with "All inboxes" is the list's own predicate, [listRowsWhereSql]: the same
+     * (account, folder) PAIR scope (#121 — never a sibling account's identically named inbox, never
+     * a deleted account's orphans) and the same snooze filter. That much cannot drift.
+     *
+     * ⛔ It is NOT "the first screen of All inboxes". The list is subject to settings this read
+     * deliberately ignores: `conversationView` is ON by default, so the app collapses threads while
+     * this stays one row per message; the sort order is one of six; and the unread filter hides rows
+     * shown here. Saying otherwise would promise an agreement the app does not offer — the two
+     * coincide only with conversation view off, date-descending, filter off.
+     *
+     * `suspend` and not a `Flow`: a widget redraws when something asks it to.
+     *
+     * The scopes come from [AccountStore.allInboxScopes] — (account id, inbox id) PAIRS.
+     */
+    suspend fun recentUnifiedInbox(limit: Int): RecentInbox =
+        recentUnifiedInboxFrom(accountStore.allInboxScopes()) { scopes ->
+            emailDao.recentUnified(recentUnifiedQuery(scopes, limit))
+        }
+
+    /**
+     * WHEN those [limit] latest messages CHANGE — the same read as [recentUnifiedInbox], observed,
+     * so the "latest messages" widget follows the mail instead of standing still until the next
+     * delivery (#112). A message marked read in the app moved the database and nothing else: the
+     * cell kept its unread dot until something happened to redraw it.
+     *
+     * ⛔ It reuses [recentUnifiedQuery], the statement [recentUnifiedInbox] runs. A second SQL here
+     * would have to be kept in step with the list's own predicate by hand, and #126 is what that
+     * looks like when it stops being kept.
+     *
+     * ⛔ The emitted value is a TRIGGER, not a snapshot to draw. The cell is projected by
+     * `RecentMailWidgetDraw.read`, which also reads the notification-content setting and the app
+     * lock; drawing from here would put senders and subjects on a home screen whose owner has
+     * hidden them. What the caller does with a value is redraw, and nothing else.
+     *
+     * ⛔ It is a [RecentInbox] all the same, and not the bare rows: `configured` is what tells an
+     * empty inbox from no account at all, and a trigger that dropped it would let a collector
+     * de-duplicate those two states into one — the cell still saying "No messages" after the last
+     * account was removed.
+     *
+     * Which inboxes, and when to ask again, is [UnifiedInbox.recentRows] — the drawer's own rule,
+     * executed rather than copied.
+     */
+    fun observeRecentUnifiedInbox(limit: Int): Flow<RecentInbox> = UnifiedInbox.recentRows(
+        accountStore.accountsFlow,
+    ) { scopes -> emailDao.observeRecentUnified(recentUnifiedQuery(scopes, limit)) }
 
     /**
      * Live unread total across every account's inbox, for the drawer's "All inboxes (N)"

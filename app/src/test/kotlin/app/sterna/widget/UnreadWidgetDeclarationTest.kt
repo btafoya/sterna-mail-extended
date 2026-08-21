@@ -24,15 +24,22 @@ class UnreadWidgetDeclarationTest {
      * symptom is battery. Both variants of the declaration are checked; the v31 one is a copy, and
      * a copy is exactly where a value drifts unnoticed.
      */
-    @Test fun `the widget asks the system for no periodic update`() {
-        val found = INFO_FILES.associate { it.parentFile.name to codeLines(it).filter { l -> "updatePeriodMillis" in l } }
+    @Test fun `every widget asks the system for no periodic update`() {
+        val found = INFO_FILES.associate {
+            "${it.parentFile.name}/${it.name}" to codeLines(it).filter { l -> "updatePeriodMillis" in l }
+        }
         assertEquals(
             "every appwidget-provider must carry exactly the line android:updatePeriodMillis=\"0\" " +
-                "— the widget is redrawn when the system asks (placement, boot, app update) and " +
-                "must never ask to be woken on a timer.",
+                "— a widget is redrawn when the system asks (placement, boot, app update) and " +
+                "must never ask to be woken on a timer. ⭐ This sweeps EVERY appwidget_info_*.xml " +
+                "of both resource directories, so a widget added later is covered the day it is " +
+                "declared and not the day someone remembers to copy a test — and a declaration " +
+                "that loses its res/xml-v31 twin (or gains one nobody wrote) is a missing key here.",
             mapOf(
-                "xml" to listOf(PERIOD),
-                "xml-v31" to listOf(PERIOD),
+                "xml/appwidget_info_recent.xml" to listOf(PERIOD),
+                "xml/appwidget_info_unread.xml" to listOf(PERIOD),
+                "xml-v31/appwidget_info_recent.xml" to listOf(PERIOD),
+                "xml-v31/appwidget_info_unread.xml" to listOf(PERIOD),
             ),
             found,
         )
@@ -87,6 +94,7 @@ class UnreadWidgetDeclarationTest {
                 "applicationIdSuffix = \".test\"",
                 "manifestPlaceholders[\"appLabel\"] = \"Sterna (test)\"",
                 "manifestPlaceholders[\"widgetLabel\"] = \"Unread count (test)\"",
+                "manifestPlaceholders[\"latestWidgetLabel\"] = \"Latest messages (test)\"",
                 "versionNameSuffix = \"-test\"",
                 "}",
             ),
@@ -213,15 +221,25 @@ class UnreadWidgetDeclarationTest {
         val MANIFEST: File by lazy { File(ROOT, "app/src/main/AndroidManifest.xml") }
         val GRADLE: File by lazy { File(ROOT, "app/build.gradle.kts") }
 
+        /**
+         * EVERY widget declaration the app ships, both resource directories, found rather than
+         * listed: the rule above must not be a rule about the counter that a second widget walks
+         * straight past.
+         */
         val INFO_FILES: List<File> by lazy {
-            listOf("xml", "xml-v31").map { dir ->
-                File(ROOT, "app/src/main/res/$dir/appwidget_info_unread.xml").also {
-                    if (!it.isFile) error("the widget declaration is not at ${it.path} — was it moved?")
+            listOf("xml", "xml-v31")
+                .flatMap { dir ->
+                    (File(ROOT, "app/src/main/res/$dir").listFiles() ?: emptyArray<File>()).toList()
+                        .filter { it.name.startsWith("appwidget_info_") && it.name.endsWith(".xml") }
                 }
-            }
+                .also { if (it.isEmpty()) error("no appwidget_info_*.xml under app/src/main/res — were they moved?") }
+                .sortedBy { "${it.parentFile.name}/${it.name}" }
         }
 
-        val INFO_V31: File by lazy { INFO_FILES.first { it.parentFile.name == "xml-v31" } }
+        /** The COUNTER's Android 12+ declaration — the preview rule below is about that widget. */
+        val INFO_V31: File by lazy {
+            INFO_FILES.first { it.parentFile.name == "xml-v31" && it.name == "appwidget_info_unread.xml" }
+        }
 
         val RUNTIME_LAYOUT: File by lazy { layout("widget_unread") }
         val PREVIEW_LAYOUT: File by lazy { layout("widget_unread_preview") }

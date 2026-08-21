@@ -164,6 +164,37 @@
                 android:resource="@xml/appwidget_info_unread" />
         </receiver>
 
+        <!-- The home-screen list of the latest messages. Same family as the counter above, and its
+             own component in every way the system can see: its own provider class, its own
+             res/xml, and its own onEnabled/onDisabled (sharing the counter's would switch the
+             counter's push off while a counter cell was still on the screen). The label is a
+             SECOND build placeholder, filled with a different literal under -PtestApp: two entries
+             called the same thing in the widget picker make a bench pass unplayable, and the one
+             that is not the test app is the maintainer's real mail. -->
+        <receiver
+            android:name=".widget.RecentMailWidgetProvider"
+            android:exported="true"
+            android:label="${latestWidgetLabel}">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_info_recent" />
+        </receiver>
+
+        <!-- ⛔ THE ROW FACTORY, AND THE PERMISSION IS THE WHOLE POINT. Listing anything in a widget
+             at minSdk 26 means a RemoteViewsService the widget host binds (RemoteCollectionItems
+             is API 31+), and a service that any app may bind is a service that hands the sender
+             and the subject of every message in every inbox to whoever asks — whatever the
+             notification-content setting says, and with no permission of its own to declare.
+             android.permission.BIND_REMOTEVIEWS is held by the system alone, so only the widget
+             host reaches it. ⛔ Never remove this attribute; never export this service. -->
+        <service
+            android:name=".widget.RecentMailWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -117,6 +117,85 @@ object MailNotificationText {
     }
 
     /**
+     * One row of the latest-mail home-screen widget: [primary] is always drawn, [secondary] is the
+     * line under it and null means nothing is drawn there.
+     *
+     * Two lines and not three: there is no expanded state on a home screen, so there is no place
+     * for the one line [Reveal] keeps a body preview in.
+     */
+    data class WidgetRow(val primary: String, val secondary: String?)
+
+    /**
+     * What one row of the latest-mail widget may say, per the same notification-content setting
+     * ([resolve]) and the app lock. No setting of its own: the constraint is built into how the
+     * widget is drawn rather than bolted on afterwards, which is what was promised when the widget
+     * was asked for.
+     *
+     *  - BODY_PREVIEW: sender, subject under it;
+     *  - SENDER_AND_SUBJECT: sender, subject under it;
+     *  - SENDER_ONLY: sender, the generic line instead of the subject;
+     *  - NONE: the generic line alone — nothing identifying, and no second line.
+     *
+     * That is exactly the (title, text) pair of [resolve]: a widget row never says more about a
+     * mail than the SAME mail's notification says while collapsed. A launcher draws this outside
+     * the app's window, in front of whoever is holding the phone, and it stays there — it is not a
+     * banner that goes away.
+     *
+     * WHY THE FIRST TWO POSITIONS ARE IDENTICAL, deliberately: BODY_PREVIEW draws no body here. The
+     * preview column is populated as a matter of course on JMAP, while on IMAP it is only
+     * pre-fetched when this very position asked for it ([NotificationPreviews.gather] returns
+     * nothing at the other three), so drawing it would make the widget visibly more talkative on
+     * one protocol than on the other — on top of leaving the body of a message on a home screen,
+     * which no position of this setting ever asked for. This duplication is the rule, not an
+     * oversight to be tidied away. There is no [preview] parameter for the same reason: a body
+     * cannot physically travel this far, whatever a later reader tries.
+     *
+     * ⛔ THAT ABSENCE IS PINNED BY A TEST, not by this paragraph — `MailNotificationWidgetRowTest`
+     * reads this function's signature back by reflection and fails on a sixth parameter, and on a
+     * default value for any of the five. Prose alone was the whole guard until a review pointed out
+     * that no test can pass an argument that does not exist, so nothing went red when one was
+     * added: `resolve` is one line away, it already knows how to append a shaped body, and the
+     * failure would be a message's body sitting on a home screen with the suite still green.
+     *
+     * [appLockEnabled] is the lock being ENABLED (AccountStore.appLockEnabled()), NOT AppLock.locked
+     * — that one is a process-scoped StateFlow which dies with the process, so the widget would be
+     * talkative while the app happens to be running and mute afterwards, with nothing on screen to
+     * explain the switch. SECURITY.md promises the lock keeps "someone who picks up your unlocked
+     * phone" from reading your mail, and a home screen is read by exactly that person: with the
+     * lock on, the mail is not readable without authenticating, whatever the live process is doing.
+     *
+     * The lock folds the effective position onto NONE and then lets the same exhaustive `when`
+     * decide, rather than short-circuiting the function: a position added later must stop the
+     * compiler instead of quietly taking the sender — the invariant [resolve] and
+     * [Notifications.actionsFor] already carry.
+     */
+    fun widgetRow(
+        content: NotificationContent,
+        appLockEnabled: Boolean,
+        sender: String,
+        subject: String,
+        generic: String,
+    ): WidgetRow {
+        val effective = if (appLockEnabled) NotificationContent.NONE else content
+        return WidgetRow(
+            primary = when (effective) {
+                NotificationContent.BODY_PREVIEW,
+                NotificationContent.SENDER_AND_SUBJECT,
+                NotificationContent.SENDER_ONLY,
+                -> sender
+                NotificationContent.NONE -> generic
+            },
+            secondary = when (effective) {
+                NotificationContent.BODY_PREVIEW,
+                NotificationContent.SENDER_AND_SUBJECT,
+                -> subject
+                NotificationContent.SENDER_ONLY -> generic
+                NotificationContent.NONE -> null
+            },
+        )
+    }
+
+    /**
      * How much of a body a notification may carry: 256 characters, which is the length of the
      * preview the JMAP server already returns, so two accounts on two protocols look alike side by
      * side rather than one of them being visibly more talkative.

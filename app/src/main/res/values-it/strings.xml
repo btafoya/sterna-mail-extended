@@ -919,4 +919,9 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Contatore non letti</string>
     <string name="widget_unread_description">Mostra quanti messaggi non letti sono in attesa.</string>
+    <string name="widget_latest_title">Messaggi recenti</string>
+    <string name="widget_latest_description">Elenca i messaggi più recenti di tutte le caselle di posta in arrivo.</string>
+    <string name="widget_latest_empty">Nessun messaggio</string>
+    <string name="widget_latest_hidden">Messaggio nascosto</string>
+    <string name="widget_latest_unread">Non letto</string>
 </resources>

@@ -110,6 +110,43 @@ interface EmailDao {
     @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
     fun conversationPagingSource(query: SupportSQLiteQuery): PagingSource<Int, ConversationRow>
 
+    /**
+     * A one-shot, bounded read of the latest messages across every account's inbox — what the
+     * home-screen "latest messages" widget draws (MailRepository.recentUnifiedSql builds it).
+     *
+     * [RawQuery] for the same reason as [pagingSource]: the (account, mailbox) scope is a
+     * disjunction whose length is the number of accounts, so the statement cannot be a
+     * compile-time constant. No `observedEntities`: this is a `suspend` snapshot, not a Flow —
+     * a widget is redrawn when it is told to be, not on every row Room touches during a sync.
+     *
+     * ⛔ Returns [RecentEmailRow], never [EmailEntity]: the entity carries `preview`, and the
+     * body of a message has no business leaving the database for a lock-screen-visible surface.
+     */
+    @RawQuery
+    suspend fun recentUnified(query: SupportSQLiteQuery): List<RecentEmailRow>
+
+    /**
+     * The SAME read as [recentUnified], as a Flow — what makes the "latest messages" widget follow
+     * the mail while the process lives (#112). The statement is [recentUnified]'s, built by the one
+     * `MailRepository.recentUnifiedQuery`: a second SQL here would be a twin to keep in step with
+     * the list's predicate, and the two would drift.
+     *
+     * ⭐ BOTH entities in [observedEntities], exactly as [pagingSource] declares them and for the
+     * same reason: the shared predicate `listRowsWhereSql` carries the snooze filter
+     * (`notSnoozedSql`), so a message whose snooze expires — or one snoozed away — changes these
+     * rows without a single write to `emails`. Declaring `EmailEntity` alone would leave the cell
+     * showing a message the app has hidden, and hiding one the app has brought back, until
+     * something else happened to touch the mail table.
+     *
+     * ⚠ Room's invalidation is per TABLE, not per row: any write to `emails` re-runs this. That is
+     * why the collector de-duplicates the rows before it redraws — see `RecentMailWidgetPush`.
+     *
+     * ⛔ [RecentEmailRow], never [EmailEntity], for [recentUnified]'s reason: the entity carries
+     * `preview`, and the body of a message has no business on an unlocked home screen.
+     */
+    @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
+    fun observeRecentUnified(query: SupportSQLiteQuery): Flow<List<RecentEmailRow>>
+
     /** Distinct recent senders matching [q] (for recipient autocomplete). */
     @Query(
         "SELECT fromEmail AS email, fromName AS name FROM emails " +

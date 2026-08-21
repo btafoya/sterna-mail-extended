@@ -957,4 +957,14 @@
          itself, which wears the drawer's own "All inboxes" strings. -->
     <string name="widget_unread_title">Unread count</string>
     <string name="widget_unread_description">Shows how many unread messages are waiting.</string>
+    <!-- The second home-screen widget: the list of the latest messages. The title is what the
+         system's widget picker lists; the description is shown under it from Android 12 on
+         (res/xml-v31). "Empty" is drawn ONLY when the inboxes are known and hold nothing, never
+         when nothing could be read; "hidden" is the identity-free stand-in a row wears when the
+         notification-content setting or the app lock says a row may name nobody. -->
+    <string name="widget_latest_title">Latest messages</string>
+    <string name="widget_latest_description">Lists the newest messages from all your inboxes.</string>
+    <string name="widget_latest_empty">No messages</string>
+    <string name="widget_latest_hidden">Message hidden</string>
+    <string name="widget_latest_unread">Unread</string>
 </resources>

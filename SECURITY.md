@@ -186,11 +186,14 @@ Out of scope:
   re-encrypted when the app locks; the Room database (message headers, cached bodies, the
   search index) is stored unencrypted in the app's private directory. So the lock is worth
   what it claims and no more: it keeps someone who picks up your unlocked phone from reading
-  your mail. It does not defend against extraction: root, an ADB or recovery path into the
-  app's private directory, and a filesystem image all reach the cache without ever meeting
-  the prompt (Android's own backup is disabled, per the bullet above, but that is one route
-  out of several). Account secrets are the exception: they stay behind the KeyStore-held key
-  described above. I would rather state the real scope than leave a false assurance standing.
+  your mail. The widget that lists recent mail on the home screen answers to that same reader:
+  it shows only what the notification-content setting allows, and with the lock enabled it
+  names neither sender nor subject. It does not defend against extraction: root, an ADB or
+  recovery path into the app's private directory, and a filesystem image all reach the cache
+  without ever meeting the prompt (Android's own backup is disabled, per the bullet above, but
+  that is one route out of several). Account secrets are the exception: they stay behind the
+  KeyStore-held key described above. I would rather state the real scope than leave a false
+  assurance standing.
 
 ### OpenPGP (end-to-end encryption)
 

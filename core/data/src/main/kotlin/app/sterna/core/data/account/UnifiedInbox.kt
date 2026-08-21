@@ -1,9 +1,13 @@
 package app.sterna.core.data.account
 
+import app.sterna.core.data.db.RecentEmailRow
+import app.sterna.core.data.mail.RecentInbox
+import app.sterna.core.data.mail.recentUnifiedInboxFrom
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /**
@@ -92,4 +96,52 @@ internal object UnifiedInbox {
         .distinctUntilChanged()
         .map { counted -> counted.map { it.scope } }
         .flatMapLatest(unreadFor)
+
+    /**
+     * The unified inbox's latest read over time — [unreadCount]'s sibling, for the home screen's
+     * "latest messages" cell, and written here for the same one reason: which inboxes the widget
+     * reads is the drawer's decision, and a second derivation would be a second rule.
+     *
+     * [rowsFor] is a parameter and not a call into `MailRepository`, exactly as [unreadFor] is: a
+     * flow handed in is already built, so a test could not tell "never subscribed" from
+     * "subscribed and empty", and could not see WHICH pairs were asked for.
+     *
+     * ⛔ IT CARRIES [RecentInbox], NOT A BARE LIST OF ROWS, and `configured` is the reason. Two
+     * different cells look alike from the rows alone: an inbox with no mail (drawn "No messages")
+     * and no account to read at all (drawn with the app's own name, claiming nothing). A trigger
+     * that only carried rows would hand the collector two identical empty lists for those two
+     * states, its de-duplication would swallow the second, and the cell would go on affirming "No
+     * messages" to someone who has just removed their last account. ⭐ The identity that travels
+     * must be the identity that is DRAWN.
+     *
+     * ⭐ And `configured` is not decided here: [recentUnifiedInboxFrom] decides it, the same
+     * function the snapshot read `MailRepository.recentUnifiedInbox` runs. Inverting that
+     * condition must redden both, which is exactly what one shared function buys.
+     *
+     * ⚠ THE KEY IS [scopes], NOT [countedInboxes] — the one deliberate divergence from
+     * [unreadCount], and it is worth stating because the two functions otherwise read alike.
+     * The count needs [CountedInbox.storedUnread] in its key because its IMAP half is a flat read
+     * of the stored record inside a `combine`, which no Room invalidation ever wakes. These rows
+     * come ENTIRELY from Room: the stored counter cannot change one of them, and putting it in the
+     * key would re-subscribe on every `saveAccounts` — some 27 call sites, an OAuth token
+     * refreshed, an account colour, identities discovered on connect — cancelling and rebuilding
+     * an observed query, and redrawing a home-screen cell, for rows that cannot have moved.
+     *
+     * ⛔ NO SCOPE IS ONE EMISSION, not [kotlinx.coroutines.flow.emptyFlow] and not a query.
+     * One emission, because removing the last account must reach the home screen: silence would
+     * leave the cell listing a deleted account's mail until something else redrew it. Not a query,
+     * because `folderScopeSql(0, …)` is the constant `0` — a statement that matches nothing while
+     * still subscribing Room to every write to `emails`, on behalf of a reader who has no account.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun recentRows(
+        accounts: Flow<List<StoredAccount>>,
+        rowsFor: (List<Pair<String, String>>) -> Flow<List<RecentEmailRow>>,
+    ): Flow<RecentInbox> = accounts
+        .map(::scopes)
+        .distinctUntilChanged()
+        .flatMapLatest { scopes ->
+            if (scopes.isEmpty()) flowOf(recentUnifiedInboxFrom(scopes) { emptyList() })
+            else rowsFor(scopes).map { rows -> recentUnifiedInboxFrom(scopes) { rows } }
+        }
 }

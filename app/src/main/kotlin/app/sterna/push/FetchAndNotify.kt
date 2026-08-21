@@ -8,6 +8,7 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.mail.AccountGoneException
 import app.sterna.core.data.mail.accountGoneCause
 import app.sterna.core.data.rethrowIfCancelled
+import app.sterna.widget.RecentMailWidgetDraw
 import app.sterna.widget.UnreadWidgetDraw
 import kotlinx.coroutines.flow.first
 
@@ -196,6 +197,12 @@ object FetchAndNotify {
         runCatching { UnreadWidgetDraw.refresh(context) }
             .rethrowIfCancelled()
             .onFailure { android.util.Log.w("FetchAndNotify", "unread widget not redrawn after the pass", it) }
+        // The same, for the other cell. Separate call and separate log line because the two widgets
+        // are separate: separate presence, separate read, separate draw — and a list that missed
+        // the message the banner just announced is a plainer failure than a stale number.
+        runCatching { RecentMailWidgetDraw.refresh(context) }
+            .rethrowIfCancelled()
+            .onFailure { android.util.Log.w("FetchAndNotify", "latest-messages widget not redrawn after the pass", it) }
     }
 
     /**
