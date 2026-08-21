@@ -63,6 +63,7 @@
     <string name="schedule_this_evening">This evening, 6 PM</string>
     <string name="schedule_tomorrow_morning">Tomorrow, 8 AM</string>
     <string name="schedule_tomorrow_evening">Tomorrow, 6 PM</string>
+    <string name="schedule_pick_date_time">Pick date and time</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Move to folder</string>

@@ -1,6 +1,7 @@
 package app.sterna.ui.compose
 
 import android.Manifest
+import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -54,8 +56,14 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,10 +79,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -104,6 +117,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -118,6 +132,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
@@ -136,6 +151,7 @@ import app.sterna.ui.components.ContactAvatar
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.drawTern
 import app.sterna.contacts.ContactSuggestion
+import java.time.ZoneId
 
 // ExperimentalLayoutApi: the leave dialog's FlowRow, which wraps its three answers instead of
 // truncating them where the labels are long (German, Russian) — same as the settings screens'.
@@ -211,6 +227,14 @@ fun ComposeScreen(
     val showDiscard by viewModel.pendingDiscard.collectAsStateWithLifecycle()
     val showForgotAttachment by viewModel.pendingForgotAttachment.collectAsStateWithLifecycle()
     val showManyRecipients by viewModel.pendingManyRecipients.collectAsStateWithLifecycle()
+    // The "pick date and time" pair (#161), the menu's fifth entry: the calendar, then the clock,
+    // and the day already chosen between the two. ⭐ All three are the ViewModel's for the reason
+    // above — and the DAY especially: a rotation between the two dialogs would otherwise lose it
+    // and bring the clock back over nothing. ⛔ Not `rememberSaveable` either, same KDoc, same
+    // NAVIGATION-ENTRY lifetime.
+    val pendingScheduleDay by viewModel.pendingScheduleDay.collectAsStateWithLifecycle()
+    val pendingScheduleTime by viewModel.pendingScheduleTime.collectAsStateWithLifecycle()
+    val scheduleDay by viewModel.scheduleDay.collectAsStateWithLifecycle()
     // Whether a draft saved on the SERVER survives leaving — what the leave dialog may not announce
     // as destroyed (#35). Not `draftId != null`: an undone send reopens with restore=true and no
     // draftId in the route while its draft is still sitting in Drafts.
@@ -609,6 +633,226 @@ fun ComposeScreen(
         )
     }
 
+    // The menu's fifth entry, in two steps: a calendar, then a clock (#161). ⛔ Drawn HERE, at the
+    // top level of the composable with the four other dialogs, and NOT inside the toolbar's Box:
+    // that Box sits under `if (draftSaveAllowed(pgpMode))`, so closing the padlock underneath would
+    // take the dialog off screen mid-choice.
+    //
+    // ⛔ Both locks against a send into the PAST are in this pair, because there is none further
+    // down: `ScheduledSends.enqueue` coerces a negative delay to zero, so a lapsed instant would
+    // fire the message at once, and a send cannot be recalled. No wording says so — a greyed-out
+    // button is the whole message.
+    if (pendingScheduleDay) {
+        // ⛔ In LANDSCAPE the calendar's GRID does not fit. `DatePickerDialog` lays its surface out
+        // at `requiredWidth(ContainerWidth).heightIn(max = ContainerHeight)`, i.e. 360 dp wide and
+        // at most 568 dp tall — a MAX, never a min. Turned, the real ceiling is the SCREEN's
+        // 411 dp, and Material's own content box has no scroll of its own, so whatever the month
+        // grid does not fit into is simply CLIPPED. Measured on `emu` at 914×411 dp, 2026-08-21,
+        // opening "Pick date and time" and THEN turning: August 2026 stopped at Saturday the 29th,
+        // that cell itself truncated, the 30th and the 31st had no node at all, Saturday the 1st
+        // was gone off the top, and Cancel/OK were 37 px tall instead of 53, drawn over the 23–29
+        // row. Nothing scrolled: a swipe up uncovered neither the 30th nor the 31st.
+        // So the typed entry, which is Material's own answer to a constrained height — the very
+        // same decision the clock takes below, on the very same rule.
+        //
+        // ⛔ And the typed face does not fit inside `DatePickerDialog` EITHER, once the keyboard
+        // is up — which it is on the first touch, the face being a text field. Measured on `emu`
+        // in landscape at 914×411 dp, 2026-08-21: the `ime` inset started at y=502, the Cancel/OK
+        // row was announced at y=492..618, and a tap in the middle of `OK` did nothing at all — it
+        // landed on the numeric keypad drawn there, and the clock never opened.
+        // ⚠ It is NOT the weight: `DatePickerDialog` already gives its content box a
+        // `weight(1f, fill = false)` and its action row none, so the row is measured FIRST there
+        // just as it is in [SchedulePickerDialog] — that weight is the CLOCK's mechanism, not this
+        // one. What differs is `usePlatformDefaultWidth = false`, which the grid needs for its
+        // 360 dp: at `false`, `DialogLayout.internalOnMeasure` throws away the constraints the
+        // window handed it and re-measures against `AT_MOST(displayWidth) × AT_MOST(displayHeight)`
+        // — the whole display, keyboard included. ⚠ The chain from there to the 44 dp of overlap
+        // measured is NOT established; what is established is the reading above, and that the
+        // clock's shell, measured green with the keyboard up the same day, does not have it.
+        //
+        // So the two faces take two shells, and neither may be given the other's:
+        //  - the GRID keeps `DatePickerDialog`, whose `requiredWidth(360.dp)` is what makes the
+        //    seven 48 dp columns fit a 360 dp screen at all. A shell of ours there would bring the
+        //    clipping back in PORTRAIT, on the commonest gesture there is.
+        //  - the TYPED face takes [SchedulePickerDialog], the clock's shell, which was measured
+        //    green with the keyboard up. Its `verticalScroll` measures what it holds in INFINITE
+        //    height, which the grid may never be handed — see the guard on the picker slot below.
+        val dayConfiguration = LocalConfiguration.current
+        val dayAsInput = schedulePickerAsInput(dayConfiguration.screenHeightDp, dayConfiguration.screenWidthDp)
+        // Two bounds, one apiece, and they are not interchangeable. `yearRange` decides which
+        // years the chevron DRAWS: Material's default is 1900..2100, which put a hundred and
+        // twenty-six dead years in front of this one. `isSelectableDate` is the lock — the only
+        // thing refusing a past DAY. ⛔ No upper bound of ours: no horizon exists anywhere in the
+        // scheduled-send code and inventing one here would be a limit to carry forever.
+        val dayState = rememberDatePickerState(
+            yearRange = scheduleFirstYear(System.currentTimeMillis(), ZoneId.systemDefault())..DatePickerDefaults.YearRange.last,
+            initialDisplayMode = if (dayAsInput) DisplayMode.Input else DisplayMode.Picker,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    scheduleDaySelectable(utcTimeMillis, System.currentTimeMillis(), ZoneId.systemDefault())
+            },
+        )
+        // ⚠ `rememberDatePickerState` SAVES its displayMode: the restored state comes back on the
+        // face it was opened with, and `initialDisplayMode` above is never consulted again. Without
+        // this effect the defect's OWN gesture survives the fix — open in portrait, then turn, and
+        // the cut-off grid is redrawn. Keyed on the shape of the window and on nothing else: it is
+        // the SHAPE that decides, and nothing else may fight it frame by frame.
+        LaunchedEffect(dayAsInput) {
+            dayState.displayMode = if (dayAsInput) DisplayMode.Input else DisplayMode.Picker
+        }
+        // Both faces answer with the SAME two buttons, so their bodies exist once and are handed to
+        // whichever shell is drawn. ⚠ They are `@Composable` slots, not values: each shell calls
+        // them where its own action row is.
+        val dayOk: @Composable () -> Unit = {
+            TextButton(
+                // Nothing is scheduled here: the day is kept, this dialog closes and the clock
+                // opens. Until a day is picked the picker hands back null, so there is nothing
+                // to keep and OK stays grey.
+                enabled = dayState.selectedDateMillis != null,
+                onClick = {
+                    viewModel.chooseScheduleDay(dayState.selectedDateMillis ?: 0L)
+                    viewModel.clearScheduleDay()
+                    viewModel.askScheduleTime()
+                },
+            ) { Text(stringResource(R.string.settings_ok)) }
+        }
+        val dayCancel: @Composable () -> Unit = {
+            TextButton(onClick = { viewModel.clearScheduleDay() }) {
+                Text(stringResource(R.string.settings_cancel))
+            }
+        }
+        if (dayAsInput) {
+            SchedulePickerDialog(
+                onDismissRequest = { viewModel.clearScheduleDay() },
+                picker = {
+                    // ⛔ The calendar is composed here ONLY on the typed face, and this guard is
+                    // not the same test as the branch above. `rememberDatePickerState` restores the
+                    // face it was SAVED on, so the first frame after a rotation taken on the grid
+                    // comes back `DisplayMode.Picker` while the window is already landscape — the
+                    // `LaunchedEffect` only lands after that frame. A grid inside this shell is
+                    // measured in INFINITE height by its `verticalScroll`, and the year chevron's
+                    // `LazyVerticalGrid` THROWS when it is measured that way; Material holds
+                    // `yearPickerVisible` in a `rememberSaveable`, so a rotation taken with the year
+                    // list open brings it back open. Without this guard the app STOPS on that frame
+                    // instead of merely being clipped, and is one tap from it otherwise. One empty
+                    // frame in a rare gesture is the price.
+                    // ⛔ `showModeToggle = false` is the other half: Material's default of `true`
+                    // draws a pencil that is one tap into that same crash.
+                    if (dayState.displayMode == DisplayMode.Input) {
+                        DatePicker(state = dayState, showModeToggle = false)
+                    }
+                },
+                buttons = { dayCancel(); dayOk() },
+            )
+        } else {
+            DatePickerDialog(
+                onDismissRequest = { viewModel.clearScheduleDay() },
+                // ⛔ `usePlatformDefaultWidth = false` is not an addition of ours: it is
+                // `DatePickerDialog`'s OWN default being put back. Handing it a `DialogProperties`
+                // replaces the whole object, and that flag defaults to `true`, which caps the window
+                // at the platform's dialog width — under the 360 dp the surface REQUIRES, so the
+                // grid would be cut sideways on a 360 dp screen in portrait.
+                // `decorFitsSystemWindows = false` and `safeDrawingPadding()` stay on this branch
+                // too: Material's own pencil is up here, so the typed face — a text field, keyboard
+                // and all — can be reached by hand on a screen the grid fits.
+                modifier = Modifier.safeDrawingPadding(),
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+                confirmButton = dayOk,
+                dismissButton = dayCancel,
+            ) {
+                // ⚠ Material's own face toggle stays exactly as Material puts it on THIS branch:
+                // the grid fits here, so nothing is taken away on the commonest gesture there is.
+                // It is the shell above that hides it, because there the pencil leads into a crash.
+                DatePicker(state = dayState, showModeToggle = true)
+            }
+        }
+    }
+
+    if (pendingScheduleTime) {
+        val zone = ZoneId.systemDefault()
+        // 0L is 1970 — a day that is never STRICTLY ahead, so a clock that somehow opened with no
+        // day behind it can only refuse.
+        val day = scheduleDay ?: 0L
+        // ⛔ NOT Material's default of midnight. For TODAY, midnight is an hour long gone, so the
+        // dial would open on precisely the state the OK button below refuses — greyed out, and by
+        // design there is no wording anywhere to explain it. An hour ahead is the answer, EXCEPT
+        // late in the evening on today: past 23:00 an hour ahead has rolled over to tomorrow, and
+        // keeping only its hour and minute pasted them back onto today, which reopened that same
+        // dead dialog roughly a day in the past. The fallback is then the last minute today still
+        // has. ⚠ In the final minute of the day even that is gone and OK is honestly grey.
+        val opensAt = scheduleClockOpensAt(day, System.currentTimeMillis(), zone)
+        // ⛔ The device's own 12/24-hour setting, not a forced 24 h: this dial is read by whoever
+        // set that preference.
+        val timeState = rememberTimePickerState(
+            initialHour = opensAt.hour,
+            initialMinute = opensAt.minute,
+            is24Hour = android.text.format.DateFormat.is24HourFormat(context),
+        )
+        // ⛔ In LANDSCAPE Material lays its own dial out BESIDE the time display, wider than the
+        // dialog. Measured on `emu` at 914×411 dp, 2026-08-20: the right half of the dial was off
+        // screen, its digits drew over the AM/PM selector, and `PM` was unreachable. ⚠ Scrolling is
+        // not the answer and the shell below does not make it one: the cut is HORIZONTAL, and the
+        // vertical scroll added since moves nothing sideways. So the keyboard entry there, which is
+        // Material's own answer to a constrained height, on Material's own threshold.
+        val configuration = LocalConfiguration.current
+        val clockAsInput = schedulePickerAsInput(configuration.screenHeightDp, configuration.screenWidthDp)
+        // ⛔ [SchedulePickerDialog], a shell of ours, and NOT Material's `AlertDialog`: what makes
+        // the difference is the SOFTWARE KEYBOARD, and Material puts the focus in `TimeInput`'s
+        // hour field, so the keys come up on their own — at the rotation and at the first touch
+        // alike. The reading that bought that shell, and what each of its lines does, are written
+        // over the shell itself.
+        SchedulePickerDialog(
+            onDismissRequest = { viewModel.clearScheduleTime() },
+            picker = {
+                if (clockAsInput) TimeInput(state = timeState) else TimePicker(state = timeState)
+            },
+            buttons = {
+                TextButton(onClick = { viewModel.clearScheduleTime() }) {
+                    Text(stringResource(R.string.settings_cancel))
+                }
+                TextButton(
+                    // Lock 2, the one the calendar cannot give: "today, at an hour already gone".
+                    // Read from the picker's own state, so the button lights and unlights while the
+                    // dial turns.
+                    enabled = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, System.currentTimeMillis()) != null,
+                    onClick = {
+                        // ⚠ Asked AGAIN, with a fresh clock. A button lit at composition and tapped
+                        // after the minute turned would otherwise schedule into the past, which is
+                        // to say send at once, irreversibly. Two reads cost one line.
+                        val millis = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, System.currentTimeMillis())
+                        // ⛔ The dialog closes only on the way that SCHEDULES something. When the
+                        // minute turned between composition and the tap, closing here would take
+                        // the clock off screen having scheduled nothing and said nothing. Left up,
+                        // the choice is still there to correct. ⚠ And it is only correcting it
+                        // that greys the button: `enabled` above reads the wall clock, which is
+                        // not snapshot state, so a tap alone recomposes nothing and the button
+                        // stays lit until the dial or the fields are touched. That window is at
+                        // most the tail of one minute, and never on a day with hours left in it.
+                        if (millis != null) {
+                            viewModel.clearScheduleTime()
+                            viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)
+                            // ⛔ The INSTANT, formatted exactly as the Scheduled list formats it —
+                            // never a preset label, which would be a sentence about another time.
+                            val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.compose_scheduled_toast, shown),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
+                ) { Text(stringResource(R.string.settings_ok)) }
+            },
+        )
+    }
+
+    // The day is dropped once the CLOCK is closed, whichever way out was taken (Cancel, a tap
+    // outside, the system Back, or the confirmed schedule), so the next opening starts clean.
+    // ⚠ Keyed on the flag rather than written into those ways out: a ROTATION is none of them, and
+    // the day has to survive it — on a recreation this effect restarts with the flag still raised
+    // and forgets nothing.
+    LaunchedEffect(pendingScheduleTime) { if (!pendingScheduleTime) viewModel.forgetScheduleDay() }
+
     BackHandler(enabled = !showDiscard) { attemptClose() }
 
     if (pendingDraftDelete) {
@@ -927,6 +1171,16 @@ fun ComposeScreen(
                                     },
                                 )
                             }
+                            // Last, under the presets, as Gmail does it: choose the instant
+                            // yourself (#161). Nothing is decided here — the two dialogs it opens
+                            // hold the refusal of an instant already gone.
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.schedule_pick_date_time)) },
+                                onClick = {
+                                    scheduleMenu = false
+                                    viewModel.askScheduleDay()
+                                },
+                            )
                         }
                         }
                     }
@@ -1264,6 +1518,90 @@ fun ComposeScreen(
             ) { drawTern(spread = 1f, flap = 0.5f, color = ink) }
         }
       }
+    }
+}
+
+/**
+ * The dialog BOTH "pick date and time" pickers wear on their typed face (#161), where the software
+ * keyboard is up: the clock always, the calendar in landscape. Material has no dialog that holds
+ * with a keyboard over it — `AlertDialogContent` gives its `text` slot neither a scroll nor a
+ * weight, so the picker takes the height it wants and the actions spill off the bottom.
+ *
+ * ⛔ Measured on `emu` in landscape at 914×411 dp with the CLOCK in Material's `AlertDialog`,
+ * 2026-08-21: the `ime` inset covered [132,502][2400,1080], the platform SLID the window 167 px —
+ * just enough to clear the focused field — and stopped there, leaving the Cancel/OK row announced
+ * at y=531..584, under the top of the keys at y=502. ⛔ The tap did not miss in silence either:
+ * touching `OK` typed a digit into the hour field (02 became 03) instead of confirming. With the
+ * keyboard closed everything was correct again.
+ *
+ * Three lines carry the fix, and none of them works alone:
+ *  - `decorFitsSystemWindows = false`: with the default the platform slides the window and stops at
+ *    the focused field; at `false` there is no sliding left and the keyboard becomes an INSET.
+ *    ⚠ On Android 12+ this is the only mechanism there is: `DialogWrapper.updateParameters` sets a
+ *    `softInputMode` only below API 31.
+ *  - `safeDrawingPadding()`: what SUBTRACTS that inset. The window stays `wrap_content` and
+ *    CENTRED, so taking the keyboard's height off the bottom lifts the dialog above the keys by
+ *    itself.
+ *  - `weight(1f, fill = false)` on the picker's box and NOTHING on the action row: in a `Column`,
+ *    the children WITHOUT a weight are measured FIRST. The row can therefore no longer be pushed
+ *    off screen, whatever height is left over, and it is the picker that scrolls instead of being
+ *    cut.
+ *
+ * ✓ Measured green with the keyboard up, same bench, same day: the action row at y=314..440
+ * against keys at y=502, the picker scrolling once the height ran out, and `OK` confirming instead
+ * of typing a digit.
+ *
+ * ⛔ [picker] is composed inside a `verticalScroll`, i.e. in INFINITE height: nothing lazy and
+ * VERTICAL may be handed to it. A `LazyVerticalGrid` measured that way throws, which is why the
+ * calendar's grid face keeps `DatePickerDialog` and is guarded out of this shell.
+ *
+ * ⚠ The second slot is [buttons] and NOT `actions`: `DraftReopenWiringTest` pins the gate on the
+ * top bar by taking the FIRST `actions = {` line of this file, and a second one declared above it
+ * makes that lint read this dialog instead — which is exactly what it did, once.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun SchedulePickerDialog(
+    onDismissRequest: () -> Unit,
+    picker: @Composable () -> Unit,
+    buttons: @Composable () -> Unit,
+) {
+    BasicAlertDialog(
+        onDismissRequest = onDismissRequest,
+        modifier = Modifier.safeDrawingPadding(),
+        properties = DialogProperties(decorFitsSystemWindows = false),
+    ) {
+        Surface(
+            shape = AlertDialogDefaults.shape,
+            color = AlertDialogDefaults.containerColor,
+            tonalElevation = AlertDialogDefaults.TonalElevation,
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .align(Alignment.CenterHorizontally)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    picker()
+                }
+                // ⛔ A FLOW row, not a plain one, because Material's `AlertDialogFlowRow` —
+                // which this shell replaces — wraps its actions onto a second line. At 360 dp
+                // with the font scaled up, "Abbrechen" or "Annuleren" beside "OK" does not fit
+                // on one line, and a plain Row would put OK off the edge instead of under it.
+                // ⚠ And the SECOND line needs air under the first: `AlertDialogFlowRow` spaces
+                // its rows by 12 dp, a `FlowRow` by nothing at all. Left out, the two buttons
+                // touch on exactly the screens that make them wrap — German or Dutch at 360 dp
+                // with the font scaled up — and read as one block.
+                FlowRow(
+                    modifier = Modifier.align(Alignment.End).padding(top = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    buttons()
+                }
+            }
+        }
     }
 }
 
@@ -1766,17 +2104,19 @@ private fun FieldDivider() {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
-/** Quick "send later" presets → (label, epoch-millis), computed in the device's time zone. */
-private fun schedulePresets(context: android.content.Context): List<Pair<String, Long>> {
-    val zone = java.time.ZoneId.systemDefault()
-    val now = java.time.ZonedDateTime.now(zone)
-    fun at(day: java.time.ZonedDateTime, hour: Int) =
-        day.withHour(hour).withMinute(0).withSecond(0).withNano(0)
-    val thisEvening = at(now, 18).let { if (it.isAfter(now)) it else at(now.plusDays(1), 18) }
-    return listOf(
-        context.getString(R.string.schedule_in_1_hour) to now.plusHours(1),
-        context.getString(R.string.schedule_this_evening) to thisEvening,
-        context.getString(R.string.schedule_tomorrow_morning) to at(now.plusDays(1), 8),
-        context.getString(R.string.schedule_tomorrow_evening) to at(now.plusDays(1), 18),
-    ).map { (label, time) -> label to time.toInstant().toEpochMilli() }
-}
+/**
+ * Quick "send later" presets → (label, epoch-millis). The clock and the zone are read here and the
+ * decision itself is [schedulePresetsAt]'s, which is pure and unit-tested: this only resolves the
+ * labels, so the menu can never show an entry the rule dropped.
+ */
+private fun schedulePresets(context: android.content.Context): List<Pair<String, Long>> =
+    schedulePresetsAt(System.currentTimeMillis(), java.time.ZoneId.systemDefault())
+        .map { (preset, millis) ->
+            val label = when (preset) {
+                SchedulePreset.IN_1_HOUR -> R.string.schedule_in_1_hour
+                SchedulePreset.THIS_EVENING -> R.string.schedule_this_evening
+                SchedulePreset.TOMORROW_MORNING -> R.string.schedule_tomorrow_morning
+                SchedulePreset.TOMORROW_EVENING -> R.string.schedule_tomorrow_evening
+            }
+            context.getString(label) to millis
+        }

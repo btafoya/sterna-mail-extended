@@ -54,6 +54,7 @@
     <string name="schedule_this_evening">Dziś wieczorem, 18:00</string>
     <string name="schedule_tomorrow_morning">Jutro, 8:00</string>
     <string name="schedule_tomorrow_evening">Jutro, 18:00</string>
+    <string name="schedule_pick_date_time">Wybierz datę i godzinę</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Przenieś do folderu</string>

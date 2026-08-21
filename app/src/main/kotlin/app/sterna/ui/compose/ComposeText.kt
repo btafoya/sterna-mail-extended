@@ -11,8 +11,11 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.send.SendOutbox
 import app.sterna.util.isValidEmail
 import java.io.File
+import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
@@ -739,6 +742,186 @@ internal fun draftSaveAllowed(pgpMode: PgpMode): Boolean = pgpMode != PgpMode.EN
  */
 internal fun scheduleSendAllowed(pgpMode: PgpMode, hasAttachment: Boolean): Boolean =
     pgpMode == PgpMode.OFF && !hasAttachment
+
+/** The quick "send later" choices, in the order the composer's menu draws them. */
+internal enum class SchedulePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING }
+
+/**
+ * The presets still offerable at [nowMillis], read in [zone], in menu order — those STRICTLY in the
+ * future. Pure so the 6 PM boundary can be played without moving the bench's clock; the composer's
+ * wrapper only resolves the labels.
+ *
+ * A lapsed candidate is DROPPED, never folded to the next day. Folding used to correct the instant
+ * and leave the label, so past 6 PM the "This evening, 6 PM" entry scheduled TOMORROW while saying
+ * so at the present tense (the confirmation toast repeats the label, never the instant) and became
+ * an exact duplicate of the "Tomorrow, 6 PM" entry below it. Dropping keeps the shown state true
+ * (WYSIWYG) and makes the duplicate impossible by construction: three entries after 6 PM.
+ */
+internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<SchedulePreset, Long>> {
+    val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
+    fun at(day: ZonedDateTime, hour: Int) = day.withHour(hour).withMinute(0).withSecond(0).withNano(0)
+    return listOf(
+        SchedulePreset.IN_1_HOUR to now.plusHours(1),
+        SchedulePreset.THIS_EVENING to at(now, 18),
+        SchedulePreset.TOMORROW_MORNING to at(now.plusDays(1), 8),
+        SchedulePreset.TOMORROW_EVENING to at(now.plusDays(1), 18),
+    ).filter { (_, time) -> time.isAfter(now) }
+        .map { (preset, time) -> preset to time.toInstant().toEpochMilli() }
+}
+
+/**
+ * The instant a hand-picked day + time is worth in [zone], or null when it is not STRICTLY after
+ * [nowMillis] (#161).
+ *
+ * ⛔ A lapsed instant must NEVER reach the schedule: `ScheduledSends.enqueue` coerces a negative
+ * delay to zero, so a time already gone fires the message AT ONCE, and a send has no way back.
+ * Nothing between the menu and that coercion looks at whether the instant is ahead, so the refusal
+ * is here — one function, so the greyed-out confirm button and the instant actually scheduled read
+ * the same decision and cannot drift apart. The screen calls it TWICE: once for `enabled`, once
+ * inside the tap with a fresh clock, because the minute can turn between the two.
+ *
+ * ⚠ [dayUtcMidnightMillis] is what Material's `DatePicker` hands back: UTC midnight, never local
+ * midnight (`SearchScreen` says the same about its own picker). So the CIVIL day is read off it in
+ * UTC and rebuilt in [zone]; comparing that millis to a local instant is the trap — east of UTC it
+ * makes today look like yesterday for the first hours of every night, west of UTC it does the
+ * reverse in the evening.
+ */
+internal fun pickedScheduleMillis(
+    dayUtcMidnightMillis: Long,
+    hour: Int,
+    minute: Int,
+    zone: ZoneId,
+    nowMillis: Long,
+): Long? {
+    val day = Instant.ofEpochMilli(dayUtcMidnightMillis).atZone(ZoneOffset.UTC).toLocalDate()
+    val picked = ZonedDateTime.of(day, LocalTime.of(hour, minute), zone).toInstant().toEpochMilli()
+    return picked.takeIf { it > nowMillis }
+}
+
+/**
+ * The wall time the "pick date and time" clock opens on, once a day has been chosen (#161): an
+ * hour ahead, or the last minute the chosen day still has when an hour ahead is not an instant
+ * that day can take.
+ *
+ * ⛔ Material's default of midnight is what this exists to avoid, and the naive fix reopened the
+ * same wound at the other end of the day. Taking only the HOUR and MINUTE of `now + 1 h` and
+ * pasting them onto the chosen day throws the roll over to tomorrow away: at 23:20 the clock opened
+ * on 00:20 TODAY, some twenty-three hours in the past, [pickedScheduleMillis] refused it, and OK
+ * was grey from the very first frame. There is deliberately no error wording anywhere in this path
+ * — the greyed button IS the message — so the user was left in front of a dead dialog with nothing
+ * to read.
+ *
+ * ⛔ Hence the one invariant, and it is asked of [pickedScheduleMillis] ITSELF rather than
+ * reasoned about here: what comes out of this function, handed straight back with the same day,
+ * zone and clock, is accepted. A rule of our own — "clamp when the civil date rolls over" — looked
+ * equivalent and was not: on the night the clocks GO BACK, `now + 1 h` stays on the same civil
+ * date at the earlier offset, and rebuilding that wall time lands on the first pass of the
+ * repeated hour, which is `now` again or before it. One hour a year, in the small hours, the dead
+ * dialog was back. Asking the very function the OK button asks is the only formulation that cannot
+ * drift from it.
+ *
+ * ⛔ 23:59, not "now + 1 minute", for the fallback: a minute from now goes stale in sixty seconds,
+ * while the last minute of the day is the same answer for the whole evening — up to 23:58, where
+ * the two finally meet and the day is nearly out anyway.
+ *
+ * ⚠ In the very last minute of a day (23:59:xx) the chosen day has no future minute left at all,
+ * so OK is grey and stays grey. That is honest and it is left alone: the only way out would be to
+ * move the send to a day the user did not pick. Same for the 1970 a clock opened over no day at
+ * all is handed.
+ *
+ * ⚠ The UTC-midnight trap of [pickedScheduleMillis] is not repeated here, and must not be: the day
+ * is passed through untouched, in the language Material's `DatePicker` speaks it.
+ */
+internal fun scheduleClockOpensAt(dayUtcMidnightMillis: Long, nowMillis: Long, zone: ZoneId): LocalTime {
+    val ahead = Instant.ofEpochMilli(nowMillis).atZone(zone).plusHours(1)
+    val anHourAhead = LocalTime.of(ahead.hour, ahead.minute)
+    val offerable = pickedScheduleMillis(dayUtcMidnightMillis, anHourAhead.hour, anHourAhead.minute, zone, nowMillis)
+    return if (offerable != null) anHourAhead else LocalTime.of(23, 59)
+}
+
+/**
+ * Whether BOTH "pick date and time" pickers must show Material's KEYBOARD entry instead of their
+ * dial and their grid (#161). `true` = typed fields; `false` = the dial and the month grid, which
+ * are the nicer faces and stay the default. One rule for the two dialogs, because one shape of
+ * window breaks them both.
+ *
+ * ⛔ The comparison is not ours and must not be replaced by a dp constant: it is character for
+ * character the one `TimePicker_androidKt.getDefaultTimePickerLayoutType` makes, read from the
+ * Material 1.3.1 bytecode — height below width and Material lays its own dial out `Horizontal`,
+ * i.e. the dial BESIDE the time display. That layout is far wider than the dialog, so whatever
+ * does not fit is simply not on screen. ⚠ And a scroll does not save it — the clock's shell has one
+ * now, and it is VERTICAL, while this cut is sideways. Any other threshold puts the two decisions
+ * out of step and either brings the clipping back or takes the dial away from a screen that shows
+ * it perfectly.
+ *
+ * ⚠ The CLOCK's damage, measured on `emu` in landscape at 914×411 dp, 2026-08-20: the dial's
+ * right HALF was off screen, and the digits still drawn (12, 11, 10, 9, 8, 7, 6) landed on top of
+ * the AM/PM selector — "8" over "PM". The `uiautomator` dump was down to `[12, 28, AM, Cancel,
+ * OK]`: `PM` had no node at all, so half the day was unreachable, and two hour positions of twelve
+ * were left. Nothing on screen said a word about it; only Cancel and OK still answered.
+ *
+ * ⚠ The CALENDAR's damage, same bench, 2026-08-21, opening the picker and THEN turning:
+ * `DatePickerDialog` asks for `requiredWidth(ContainerWidth).heightIn(max = ContainerHeight)` —
+ * 360 dp wide and at most 568 dp tall, a MAX and never a min — so turned, the ceiling is the
+ * SCREEN's 411 dp instead, and Material's content box has no scroll of its own: what the month
+ * grid does not fit into is CLIPPED. August 2026 stopped at Saturday the 29th, that cell itself
+ * truncated; the 30th and the 31st had no node at all; Saturday the 1st was gone off the top; and
+ * Cancel/OK were 37 px tall instead of 53, drawn over the 23–29 row. Nothing scrolled: a swipe up
+ * uncovered neither the 30th nor the 31st.
+ *
+ * ⛔ Scrolling is not the answer for either, and was rejected twice over. For the clock the cut is
+ * HORIZONTAL and a vertically scrolling slot moves nothing sideways. For the calendar's GRID a
+ * `verticalScroll` would measure the year chevron's `LazyVerticalGrid` in infinite height, which
+ * THROWS — a clipped grid traded for the app stopping. ⚠ That is why the shell both TYPED faces
+ * are drawn in, which does scroll, is guarded against ever composing that grid. Nor is widening
+ * either dialog past Material's default with geometry of our own.
+ *
+ * ⚠ `screenHeightDp >= screenWidthDp` keeps the dial and the grid, equality included: a square
+ * screen is where Material still lays out `Vertical`, and both fit there.
+ */
+internal fun schedulePickerAsInput(screenHeightDp: Int, screenWidthDp: Int): Boolean =
+    screenHeightDp < screenWidthDp
+
+/**
+ * Whether a day the calendar offers may be chosen at all: today and after, read in [zone] (#161).
+ * This is the FIRST of the two locks in front of a send into the past; the second is
+ * [pickedScheduleMillis], which alone covers "today, at an hour already gone".
+ *
+ * ⛔ Lower bound only. No horizon exists anywhere in the scheduled-send code, and inventing one
+ * here would be a limit to carry forever.
+ *
+ * ⚠ Same UTC-midnight trap as [pickedScheduleMillis], and this is where it bites hardest: both
+ * sides are reduced to a CIVIL day, the candidate in UTC (the picker's language) and "now" in
+ * [zone]. Comparing the candidate's millis to a local day boundary is wrong by a whole day
+ * whenever the zone offset is not zero — in Los Angeles after 5 PM it would refuse TODAY.
+ */
+internal fun scheduleDaySelectable(dayUtcMidnightMillis: Long, nowMillis: Long, zone: ZoneId): Boolean {
+    val day = Instant.ofEpochMilli(dayUtcMidnightMillis).atZone(ZoneOffset.UTC).toLocalDate()
+    return !day.isBefore(Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate())
+}
+
+/**
+ * The FIRST year the "pick date and time" calendar offers in its year list, read in [zone] (#161).
+ *
+ * ⚠ A DISPLAY bound, not a lock. Nothing here refuses a send into the past — that is
+ * [scheduleDaySelectable]'s job, day by day, and it stays where it is. What this closes is a
+ * different damage, measured on `emu` 2026-08-20: tapping the year chevron opened the list on
+ * 1900 and the user had to scroll a hundred and twenty-six dead years to reach the current one.
+ * Material's `DatePickerDefaults.YearRange` is 1900..2100 and it, not the selectable-dates object,
+ * decides which years are DRAWN.
+ *
+ * ⛔ Lower bound only, like [scheduleDaySelectable]: the upper end stays exactly Material's. No
+ * horizon exists anywhere in the scheduled-send code and inventing one here would be a limit to
+ * carry forever.
+ *
+ * ⚠ The year is read in [zone] and nowhere else. On 31 December at 23:00 west of UTC the UTC year
+ * has ALREADY turned: reading it there would strike the year the user is still living in off the
+ * list, and the calendar would open on a year the user cannot pick a December day in. East of UTC
+ * on 1 January the mirror image — UTC is still on the 31st, and the list would start on a year
+ * that is over.
+ */
+internal fun scheduleFirstYear(nowMillis: Long, zone: ZoneId): Int =
+    Instant.ofEpochMilli(nowMillis).atZone(zone).year
 
 /**
  * The lock toggle's cycle: off → sign → encrypt → off. Pure so the hand-set path can be tested

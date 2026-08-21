@@ -219,13 +219,25 @@ class ReadReceiptWiringTest {
         )
     }
 
-    @Test fun `a scheduled send is scheduled with it`() {
+    @Test fun `every scheduled send is scheduled with it`() {
+        // TWO call sites since #161: the preset entries of the menu, and the instant picked by hand
+        // in the calendar + clock pair. Both write the same row, where the message then waits for
+        // hours — one of them wired to `false` drops the request on that path alone, which is the
+        // kind of half-loss nothing on screen shows.
+        val calls = positionalArguments(composeScreen(), "viewModel.scheduleSend(")
         assertEquals(
-            "the schedule menu must hand `requestReceipt` to viewModel.scheduleSend after the " +
+            "the composer must still schedule from exactly two places — the menu's presets and the " +
+                "hand-picked date+time (#161). A third one this rule cannot see is another way to " +
+                "drop the request.",
+            2,
+            calls.size,
+        )
+        assertEquals(
+            "each schedule call must hand `requestReceipt` to viewModel.scheduleSend after the " +
                 "delay: the row it writes is where the message waits for hours, and what is not " +
                 "in it is gone by the time the worker sends",
-            listOf(SEND_ARGUMENTS.dropLast(1) + "millis" + "requestReceipt"),
-            positionalArguments(composeScreen(), "viewModel.scheduleSend("),
+            List(2) { SEND_ARGUMENTS.dropLast(1) + "millis" + "requestReceipt" },
+            calls,
         )
     }
 

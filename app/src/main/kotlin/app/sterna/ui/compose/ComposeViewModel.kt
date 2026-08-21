@@ -360,6 +360,79 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         _pendingManyRecipients.value = false
     }
 
+    /**
+     * Whether the "pick date and time" CALENDAR is up — the first half of the menu's fifth entry
+     * (#161), the one that lets an instant be chosen instead of taken from a preset.
+     *
+     * ⛔ HERE for the same reason as [pendingDraftDelete], same refusal of `rememberSaveable` —
+     * read that field's KDoc before touching this one. A bare `remember` fell back to false on
+     * every rotation and took the picker off screen without a word.
+     *
+     * ⚠ The two halves are CHAINED, never up together: this one's OK stores the day, lowers this
+     * flag and raises [pendingScheduleTime]. ⛔ Do not merge them into one combined state.
+     *
+     * ⚠ Lifetime: the composer's NAVIGATION ENTRY, as above — never "the process".
+     */
+    private val _pendingScheduleDay = MutableStateFlow(false)
+    val pendingScheduleDay: StateFlow<Boolean> = _pendingScheduleDay.asStateFlow()
+
+    /** Raise the calendar. Only ever asks — nothing is scheduled until the clock's OK is tapped. */
+    fun askScheduleDay() {
+        _pendingScheduleDay.value = true
+    }
+
+    /** Close it (Cancel, a tap outside, or on the way to the clock). */
+    fun clearScheduleDay() {
+        _pendingScheduleDay.value = false
+    }
+
+    /**
+     * Whether the "pick date and time" CLOCK is up — the second half, raised once a day is chosen
+     * (#161).
+     *
+     * ⛔ HERE for the same reason as [pendingDraftDelete], same refusal of `rememberSaveable`; and
+     * ⚠ see [pendingScheduleDay] for the chaining, which is an order, not a combined state.
+     *
+     * ⚠ Lifetime: the composer's NAVIGATION ENTRY, as above — never "the process".
+     */
+    private val _pendingScheduleTime = MutableStateFlow(false)
+    val pendingScheduleTime: StateFlow<Boolean> = _pendingScheduleTime.asStateFlow()
+
+    /** Raise the clock. The send is the next tap, and only if the instant is still ahead. */
+    fun askScheduleTime() {
+        _pendingScheduleTime.value = true
+    }
+
+    /** Close it (Cancel, a tap outside, or the confirmed schedule). */
+    fun clearScheduleTime() {
+        _pendingScheduleTime.value = false
+    }
+
+    /**
+     * The day already chosen in the calendar, as the picker gives it: UTC midnight, never local
+     * midnight — [pickedScheduleMillis] is what turns it into a real instant, and it is the only
+     * thing allowed to read it that way.
+     *
+     * ⛔ HERE and not on the screen for the reason the four flags above are here, with one more:
+     * this dialog carries more than a boolean. A rotation BETWEEN the calendar and the clock would
+     * otherwise lose the day already picked, and the clock would come back over nothing.
+     *
+     * ⚠ Lifetime: the composer's NAVIGATION ENTRY, as above — never "the process". It is dropped
+     * when the clock closes, whichever way, so reopening the entry starts from a clean calendar.
+     */
+    private val _scheduleDay = MutableStateFlow<Long?>(null)
+    val scheduleDay: StateFlow<Long?> = _scheduleDay.asStateFlow()
+
+    /** Keep the day the calendar handed back, on its way to the clock. */
+    fun chooseScheduleDay(dayUtcMidnightMillis: Long) {
+        _scheduleDay.value = dayUtcMidnightMillis
+    }
+
+    /** Drop it once the clock is closed, so the next opening starts from nothing. */
+    fun forgetScheduleDay() {
+        _scheduleDay.value = null
+    }
+
     /** Every identity across all accounts, and the chosen one (which sets the sending account). */
     private val _fromOptions = MutableStateFlow<List<FromOption>>(emptyList())
     val fromOptions: StateFlow<List<FromOption>> = _fromOptions.asStateFlow()
