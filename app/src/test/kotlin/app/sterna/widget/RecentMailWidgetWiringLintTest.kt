@@ -172,13 +172,21 @@ class RecentMailWidgetWiringLintTest {
      * last snapshot it managed to read when its own read times out, and that snapshot was computed
      * under the OLD setting. Without dropping it, a slow read right after the tightening redraws
      * the very names the reader has just asked to hide.
+     *
+     * ⭐ AND THE COUNTER IS REDRAWN WITH IT, on the lock only. Enlarged, that cell draws a line per
+     * account, and an account's label falls back to its username — the reader's own mail address.
+     * Its redraws are driven by the count MOVING, and flipping the lock moves no count, so it has
+     * exactly the same days-long gap this rule was written for. ⛔ It is deliberately absent from
+     * `setNotificationContent`: that setting governs what a MESSAGE says about itself, sender and
+     * subject, and the counter shows neither.
      */
     @Test fun `switching the lock on, and tightening the content setting, redraw the cell at once`() {
         assertEquals(
             "SettingsViewModel must drop the held widget snapshot and redraw the latest-messages " +
                 "widget when the app lock is switched on and when the notification-content " +
-                "setting changes. Without it the home screen keeps showing senders and subjects " +
-                "the reader has just hidden, until mail happens to arrive.",
+                "setting changes, and redraw the COUNTER on the lock as well. Without it the home " +
+                "screen keeps showing senders, subjects and account addresses the reader has just " +
+                "hidden, until mail happens to arrive.",
             listOf(
                 listOf(
                     "fun setAppLock(value: Boolean) {",
@@ -193,6 +201,7 @@ class RecentMailWidgetWiringLintTest {
                     REDRAW_LAUNCH,
                     FORGET,
                     REFRESH,
+                    COUNTER_REFRESH,
                     "}",
                 ),
                 listOf(
@@ -316,5 +325,8 @@ class RecentMailWidgetWiringLintTest {
         const val REDRAW_LAUNCH = "viewModelScope.launch {"
         const val FORGET = "RecentMailWidgetDraw.forget()"
         const val REFRESH = "RecentMailWidgetDraw.refresh(getApplication())"
+
+        /** The counter's own redraw, on the app lock only — it shows no sender and no subject. */
+        const val COUNTER_REFRESH = "UnreadWidgetDraw.refresh(getApplication())"
     }
 }

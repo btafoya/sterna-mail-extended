@@ -58,6 +58,7 @@ import app.sterna.core.data.db.RecentContactEntity
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxIdRole
+import app.sterna.core.data.db.MailboxUnread
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.rethrowIfCancelled
@@ -982,6 +983,44 @@ internal inline fun recentUnifiedInboxFrom(
 ): RecentInbox =
     if (scopes.isEmpty()) RecentInbox(configured = false, rows = emptyList())
     else RecentInbox(configured = true, rows = read(scopes))
+
+/**
+ * The unified unread total BROKEN DOWN per account: what each counted inbox contributes, keyed by
+ * account id. The decision behind [MailRepository.observeUnifiedInboxUnreadByAccount], lifted out
+ * of its `combine` block so a JVM test can RUN it — the repository itself wants a `Context`, a
+ * database and a session, and nothing in this module can build one.
+ *
+ * ⛔ A JMAP inbox is looked up by BOTH halves of its scope. Two accounts on the same server are
+ * routinely handed the same mailbox id (Codeberg #121), so `it.mailboxId == inboxId` alone returns
+ * whichever row Room listed first: both accounts would show one account's mail and the other's
+ * would never be shown at all. Same rule as [folderScopeSql], for the same reason.
+ *
+ * ⛔ An IMAP inbox contributes [storedUnread] — the server counter kept in the account record —
+ * and NOT the live aggregate, whose cache is a window: counting its rows would under-count, in
+ * silence, by however much of the inbox is not cached.
+ *
+ * ⭐ The map is built from [scopes], so an account whose inbox is still unknown (dropped by
+ * `UnifiedInbox.countedInboxes`) is ABSENT rather than present at 0. A 0 on a widget line affirms
+ * "no unread mail" about an inbox the app has never seen.
+ *
+ * ⚠ That absence covers the UNKNOWN inbox and nothing else. A scoped inbox with no aggregate row
+ * still counts 0 here, and it is not always true that it is cached and quiet: `clearAccountCache`
+ * deletes the account's rows and leaves `inboxId` where it was, so between that and the next sync
+ * the scope survives with nothing behind it. The total has always read 0 there; the breakdown now
+ * shows that 0 on a line of its own, under the account's name. ⛔ Not something to paper over from
+ * here with an invented absence — the honest fix is upstream, in what a cleared cache leaves behind.
+ */
+internal fun unreadByAccountFrom(
+    scopes: List<Pair<String, String>>,
+    live: List<MailboxUnread>,
+    isImap: (String) -> Boolean,
+    storedUnread: (String) -> Int,
+): Map<String, Int> {
+    val (imapScopes, jmapScopes) = scopes.partition { (accountId, _) -> isImap(accountId) }
+    return jmapScopes.associate { (accountId, inboxId) ->
+        accountId to (live.firstOrNull { it.accountId == accountId && it.mailboxId == inboxId }?.count ?: 0)
+    } + imapScopes.associate { (accountId, _) -> accountId to storedUnread(accountId) }
+}
 
 /**
  * Build the conversation-collapsed paged query: one row per thread
@@ -2055,12 +2094,20 @@ class MailRepository(
     }
 
     /**
-     * The SAME number as the overload below, deriving its own scopes from the stored accounts —
+     * The SAME numbers as the overload below, deriving its own scopes from the stored accounts —
      * the one call a new caller (the home-screen widget) should ever need, and the reason the
-     * drawer now makes it too. Passing the scopes in was an invitation to compute them a second
-     * way, or to reach for
+     * drawer now makes it too (through [observeUnifiedInboxUnread], which totals this). Passing
+     * the scopes in was an invitation to compute them a second way, or to reach for
      * [AccountStore.totalUnreadCount], which sums a server-side counter that stopped matching the
      * drawer when the unified header moved to the live per-inbox aggregates.
+     *
+     * ⭐ It is a BREAKDOWN and not a total because a large widget cell shows a line per account.
+     * The breakdown REPLACES the total rather than sitting beside it: two derivations would be two
+     * subscriptions to the same two global Room aggregates for the same information.
+     *
+     * ⛔ An account whose inbox is still unknown is ABSENT from the map, not present at 0 — see
+     * [unreadByAccountFrom]. Nothing here may turn that absence into a 0 for a caller's
+     * convenience: a widget line reading "0" claims something the app does not know.
      *
      * What re-subscribing on [AccountStore.accountsFlow] FIXES. IMAP inboxes contribute
      * `accountStore.account(id)?.unread` — a flat read inside the `combine` block below, which
@@ -2075,9 +2122,24 @@ class MailRepository(
      * widget will be stale by exactly as much, never by more. That is a pre-existing defect with a
      * write of its own, not something to correct from here.
      */
-    fun observeUnifiedInboxUnread(): Flow<Int> = UnifiedInbox.unreadCount(
+    fun observeUnifiedInboxUnreadByAccount(): Flow<Map<String, Int>> = UnifiedInbox.unreadByAccount(
         accountStore.accountsFlow,
-    ) { scopes -> observeUnifiedInboxUnread(scopes) }
+    ) { scopes -> observeUnifiedInboxUnreadByAccount(scopes) }
+
+    /**
+     * "All inboxes (N)" as ONE number — [observeUnifiedInboxUnreadByAccount] totalled, and nothing
+     * observed a second time.
+     *
+     * ⭐ That is the whole point of the breakdown replacing the sum. The drawer header and the
+     * small widget cell want the total; a large widget cell wants a line per account. Two
+     * derivations would be two `combine`s of the same two global Room aggregates, subscribed for
+     * the life of the process and woken by the same invalidations, for the same information.
+     *
+     * The addition itself is [UnifiedInbox.total], executed by a test rather than trusted here: a
+     * number folded with `max` or `first` instead of `+` reads perfectly well at a glance.
+     */
+    fun observeUnifiedInboxUnread(): Flow<Int> =
+        observeUnifiedInboxUnreadByAccount().map(UnifiedInbox::total)
 
     /**
      * The [limit] latest messages of every account's inbox, as one snapshot — the read behind the
@@ -2130,26 +2192,30 @@ class MailRepository(
     ) { scopes -> emailDao.observeRecentUnified(recentUnifiedQuery(scopes, limit)) }
 
     /**
-     * Live unread total across every account's inbox, for the drawer's "All inboxes (N)"
-     * header. Each JMAP inbox contributes the SAME mode-aware aggregate its own drawer badge
-     * shows (unread threads in conversation view, unread messages in flat view — the sources
-     * of [observeUnreadByMailbox]), so the unified header and the Inbox badges below it agree
-     * by construction. IMAP inboxes contribute their stored server counter instead: their
-     * windowed cache would under-count. [scopes] is [AccountStore.allInboxScopes]' (accountId,
-     * inboxId) pairs — both ids, since same-server accounts can share a mailbox id.
+     * Live unread across every account's inbox, ONE ENTRY PER ACCOUNT, behind the drawer's
+     * "All inboxes (N)" header and the widget's per-account lines. Each JMAP inbox contributes the
+     * SAME mode-aware aggregate its own drawer badge shows (unread threads in conversation view,
+     * unread messages in flat view — the sources of [observeUnreadByMailbox]), so the unified
+     * header and the Inbox badges below it agree by construction. IMAP inboxes contribute their
+     * stored server counter instead: their windowed cache would under-count. [scopes] is
+     * [AccountStore.allInboxScopes]' (accountId, inboxId) pairs — both ids, since same-server
+     * accounts can share a mailbox id.
+     *
+     * The plumbing is here; the decision is [unreadByAccountFrom], which a JVM test executes.
      */
-    fun observeUnifiedInboxUnread(scopes: List<Pair<String, String>>): Flow<Int> {
+    fun observeUnifiedInboxUnreadByAccount(scopes: List<Pair<String, String>>): Flow<Map<String, Int>> {
         val conversationView = settings?.conversationView ?: flowOf(true)
-        val (imapScopes, jmapScopes) = scopes.partition { (accountId, _) -> isImapAccount(accountId) }
         return combine(
             emailDao.observeThreadUnreadCounts(),
             emailDao.observeMessageUnreadCounts(),
             conversationView,
         ) { threads, messages, conversation ->
-            val live = if (conversation) threads else messages
-            jmapScopes.sumOf { (accountId, inboxId) ->
-                live.firstOrNull { it.accountId == accountId && it.mailboxId == inboxId }?.count ?: 0
-            } + imapScopes.sumOf { (accountId, _) -> accountStore.account(accountId)?.unread ?: 0 }
+            unreadByAccountFrom(
+                scopes = scopes,
+                live = if (conversation) threads else messages,
+                isImap = ::isImapAccount,
+                storedUnread = { accountId -> accountStore.account(accountId)?.unread ?: 0 },
+            )
         }
     }
 

@@ -20,8 +20,10 @@ import kotlinx.coroutines.flow.map
  * sites in `InboxViewModel` passed them along. A new caller could just as well have derived them
  * differently, or reached for [AccountStore.totalUnreadCount] — a server-side counter that no
  * longer matches anything on screen. So the derivation lives here, [AccountStore.allInboxScopes]
- * delegates to it, and `MailRepository.observeUnifiedInboxUnread()` (no arguments) is the only
- * thing a new caller needs to know about.
+ * delegates to it, and a new caller needs to know about exactly two no-argument calls:
+ * `MailRepository.observeUnifiedInboxUnreadByAccount()` for a line per account, and
+ * `MailRepository.observeUnifiedInboxUnread()` for the single number, which is the FIRST totalled
+ * ([total]) and not a second derivation.
  *
  * ⭐ READ-ONLY, deliberately: nothing here writes, so nothing here can walk past
  * [AccountBlobGate]'s write refusal — there is no path from this file to a stored blob at all.
@@ -51,7 +53,7 @@ internal object UnifiedInbox {
      *
      * [CountedInbox.storedUnread] is here because it is the OTHER input to the total: an IMAP
      * inbox contributes `accountStore.account(id)?.unread`, a flat read no Room invalidation ever
-     * wakes. See [unreadCount].
+     * wakes. See [unreadByAccount].
      */
     fun countedInboxes(accounts: List<StoredAccount>): List<CountedInbox> =
         accounts.mapNotNull { a -> a.inboxId?.let { CountedInbox(a.id to it, a.unread) } }
@@ -64,10 +66,20 @@ internal object UnifiedInbox {
         countedInboxes(accounts).map { it.scope }
 
     /**
-     * The unified unread total over time: whenever [countedInboxes] CHANGES, the scopes are handed
-     * to [unreadFor] afresh and the previous subscription is dropped ([flatMapLatest] — nothing
-     * keeps counting a removed account's inbox; `MailRepository` hands back a `combine` of Room
-     * flows, which never completes on its own).
+     * The unified unread total over time, BROKEN DOWN per account — keyed by account id, one entry
+     * per counted inbox. Whenever [countedInboxes] CHANGES, the scopes are handed to [unreadFor]
+     * afresh and the previous subscription is dropped ([flatMapLatest] — nothing keeps counting a
+     * removed account's inbox; `MailRepository` hands back a `combine` of Room flows, which never
+     * completes on its own).
+     *
+     * ⭐ The breakdown is the ONLY derivation, and the drawer's single "All inboxes (N)" is
+     * [total] applied to it. A large widget cell draws a line per account, a small one and the
+     * drawer draw the sum; deriving them separately would be two `combine`s of the same two global
+     * Room aggregates, woken by the same invalidations, for the same information.
+     *
+     * ⛔ An account with no known inbox is ABSENT from the map, never an entry worth 0: the map is
+     * built from the SCOPES ([countedInboxes] has already dropped it), and a 0 on a widget line
+     * would affirm "no unread mail" about an inbox the app has never seen.
      *
      * [unreadFor] is a parameter and not a call into `MailRepository` for one reason: it makes
      * the ARGUMENTS observable. A test can pin what this hands the counter — the pairs, in order —
@@ -88,23 +100,33 @@ internal object UnifiedInbox {
      *    account ids it needs.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun unreadCount(
+    fun unreadByAccount(
         accounts: Flow<List<StoredAccount>>,
-        unreadFor: (List<Pair<String, String>>) -> Flow<Int>,
-    ): Flow<Int> = accounts
+        unreadFor: (List<Pair<String, String>>) -> Flow<Map<String, Int>>,
+    ): Flow<Map<String, Int>> = accounts
         .map(::countedInboxes)
         .distinctUntilChanged()
         .map { counted -> counted.map { it.scope } }
         .flatMapLatest(unreadFor)
 
     /**
-     * The unified inbox's latest read over time — [unreadCount]'s sibling, for the home screen's
-     * "latest messages" cell, and written here for the same one reason: which inboxes the widget
-     * reads is the drawer's decision, and a second derivation would be a second rule.
+     * "All inboxes (N)": every counted inbox's share of [unreadByAccount], ADDED — the drawer's
+     * header and the small widget cell, derived from the breakdown rather than counted again.
      *
-     * [rowsFor] is a parameter and not a call into `MailRepository`, exactly as [unreadFor] is: a
-     * flow handed in is already built, so a test could not tell "never subscribed" from
-     * "subscribed and empty", and could not see WHICH pairs were asked for.
+     * Trivial on purpose, and named all the same: it is the one place that says the single number
+     * is a SUM and not the largest account's, the first account's, or how many accounts there are.
+     * No entry at all is 0 — nothing to count, not "no answer".
+     */
+    fun total(byAccount: Map<String, Int>): Int = byAccount.values.sum()
+
+    /**
+     * The unified inbox's latest read over time — [unreadByAccount]'s sibling, for the home
+     * screen's "latest messages" cell, and written here for the same one reason: which inboxes the
+     * widget reads is the drawer's decision, and a second derivation would be a second rule.
+     *
+     * [rowsFor] is a parameter and not a call into `MailRepository`, exactly as [unreadByAccount]'s
+     * own `unreadFor` is: a flow handed in is already built, so a test could not tell "never
+     * subscribed" from "subscribed and empty", and could not see WHICH pairs were asked for.
      *
      * ⛔ IT CARRIES [RecentInbox], NOT A BARE LIST OF ROWS, and `configured` is the reason. Two
      * different cells look alike from the rows alone: an inbox with no mail (drawn "No messages")
@@ -119,7 +141,7 @@ internal object UnifiedInbox {
      * condition must redden both, which is exactly what one shared function buys.
      *
      * ⚠ THE KEY IS [scopes], NOT [countedInboxes] — the one deliberate divergence from
-     * [unreadCount], and it is worth stating because the two functions otherwise read alike.
+     * [unreadByAccount], and it is worth stating because the two functions otherwise read alike.
      * The count needs [CountedInbox.storedUnread] in its key because its IMAP half is a flat read
      * of the stored record inside a `combine`, which no Room invalidation ever wakes. These rows
      * come ENTIRELY from Room: the stored counter cannot change one of them, and putting it in the

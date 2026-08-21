@@ -153,6 +153,18 @@ class WidgetPaletteTest {
                 "<TextView android:id=\"@+id/widget_unread_count\" android:text=\"…\" android:textColor=\"@color/widget_unread_count\"",
                 "<TextView android:id=\"@+id/widget_unread_label\" android:text=\"@string/app_name\" android:textColor=\"@color/widget_unread_label\"",
             ),
+            // ⭐ The ENLARGED counter. Its container paints nothing at all — the entry is here, and
+            // empty, precisely so that a colour appearing on it later has to be written down as a
+            // role rather than slipped in; PINNED is a closed map, and that is what makes a new
+            // layout unable to arrive with a palette of its own.
+            "layout/widget_unread_accounts.xml" to emptyList(),
+            // A line of that cell: the account's NAME is a row's primary text (onSurface, what
+            // EmailListItem draws), the FIGURE is the accent — the same split as the small cell,
+            // where the big number is the accent and its label is not.
+            "layout/widget_unread_account_row.xml" to listOf(
+                "<TextView android:id=\"@+id/widget_unread_account_name\" android:textColor=\"@color/widget_row_primary\"",
+                "<TextView android:id=\"@+id/widget_unread_account_count\" android:textColor=\"@color/widget_unread_count\"",
+            ),
             "layout/widget_unread_preview.xml" to listOf(
                 "<TextView android:id=\"@+id/widget_unread_count\" android:text=\"12\" android:textColor=\"@color/widget_unread_count\"",
                 "<TextView android:id=\"@+id/widget_unread_label\" android:text=\"@string/inbox_all_inboxes\" android:textColor=\"@color/widget_unread_label\"",

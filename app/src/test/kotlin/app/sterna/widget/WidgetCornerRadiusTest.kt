@@ -90,9 +90,14 @@ class WidgetCornerRadiusTest {
 
         val DIMENS = listOf("values/dimens.xml", "values-v31/dimens.xml")
 
-        /** The two widgets and the two picker previews — every root that wears the cell's surface. */
+        /**
+         * Every root that wears the cell's surface: the two widgets, the two picker previews, and
+         * the counter's enlarged layout — which the launcher swaps in on a cell dragged large, so a
+         * background missing there is a square-cornered cell for anyone who resized theirs.
+         */
         val ROOTS = listOf(
             "layout/widget_unread.xml",
+            "layout/widget_unread_accounts.xml",
             "layout/widget_unread_preview.xml",
             "layout/widget_recent.xml",
             "layout/widget_recent_preview.xml",

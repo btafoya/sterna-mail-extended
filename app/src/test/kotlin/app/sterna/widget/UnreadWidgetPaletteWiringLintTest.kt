@@ -39,7 +39,8 @@ class UnreadWidgetPaletteWiringLintTest {
      */
     @Test fun `the drawn cell is painted from the palette, and keeps its rounded corner`() {
         assertEquals(
-            "UnreadWidgetDraw.render must paint the cell from the WidgetPalette it is handed: the " +
+            "UnreadWidgetDraw.renderTotal must paint the small cell from the WidgetPalette it is " +
+                "handed: the " +
                 "background as a pre-built DRAWABLE, then the figure's accent and the label's " +
                 "colour. ⛔ setBackgroundColor here replaces the shape with a flat fill and the " +
                 "cell comes out square on the home screen; a missing setTextColor leaves the " +
@@ -50,10 +51,9 @@ class UnreadWidgetPaletteWiringLintTest {
                 "that flips at dusk. A palette made non-null again, or the guard dropped, is that " +
                 "regression — see WidgetThemeTest's widgetFollowsResources.",
             listOf(
-                "private fun render(",
+                "private fun renderTotal(",
                 "context: Context,",
                 "state: UnreadWidgetState,",
-                "target: WidgetTapTarget,",
                 "palette: WidgetPalette?,",
                 "): RemoteViews =",
                 "RemoteViews(context.packageName, R.layout.widget_unread).apply {",
@@ -64,9 +64,8 @@ class UnreadWidgetPaletteWiringLintTest {
                 "}",
                 "setTextViewText(R.id.widget_unread_count, state.count.toString())",
                 "setTextViewText(R.id.widget_unread_label, text(context, state.label))",
-                "setOnClickPendingIntent(R.id.widget_unread_root, tapIntent(context, target))",
             ),
-            body(DRAW, "private fun render("),
+            body(DRAW, "private fun renderTotal("),
         )
         assertEquals(
             "nothing in UnreadWidgetDraw may call setBackgroundColor. It is one word away from " +
@@ -235,15 +234,79 @@ class UnreadWidgetPaletteWiringLintTest {
                 "render. Without that join the two colour rules are dead code and the cell keeps " +
                 "the colours res/values-night froze into it — the very defect this pane fixes.",
             listOf(
-                "suspend fun draw(app: Application, ids: IntArray, unread: Int) {",
+                DRAW_SIGNATURE,
                 "if (ids.isEmpty()) return",
                 "val palette = WidgetThemeReader.palette(app)",
-                "val accounts = app.container.accountStore.accounts()",
-                "val views = render(app, UnreadWidgetContent.of(accounts, unread), UnreadWidgetTap.of(accounts), palette)",
+                "val store = app.container.accountStore",
+                "val accounts = store.accounts()",
+                "val target = UnreadWidgetTap.of(accounts)",
+                "val small = tapped(app, renderTotal(app, UnreadWidgetContent.of(accounts, " +
+                    "unreadByAccount.values.sum()), palette), target)",
+                "val rows = UnreadWidgetContent.byAccount(accounts, unreadByAccount, store.appLockEnabled())",
+                "val views =",
+                "if (rows.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {",
+                "val fontScale = app.resources.configuration.fontScale",
+                "val ventilated = SizeF(VENTILATED_WIDTH_DP, ventilatedHeightDp(rows.size, fontScale))",
+                "RemoteViews(mapOf(SMALL to small, ventilated to tapped(app, renderAccounts(app, rows, palette), target)))",
+                "} else {",
+                "small",
+                "}",
                 "val manager = AppWidgetManager.getInstance(app)",
                 "ids.forEach { manager.updateAppWidget(it, views) }",
             ),
-            body(DRAW, "suspend fun draw(app: Application, ids: IntArray, unread: Int)"),
+            body(DRAW, DRAW_SIGNATURE.removeSuffix(" {")),
+        )
+    }
+
+    /**
+     * ⭐ THE ENLARGED LAYOUT IS PAINTED FROM THE SAME PALETTE, and this pane is the only thing
+     * that says so.
+     *
+     * `@layout/widget_unread_accounts` and its rows name `@color/widget_row_primary` and
+     * `@color/widget_unread_count` — the very resources #117 was about. The map form hands the
+     * launcher TWO layouts for one cell, so a palette posted on the small one alone is a cell that
+     * CHANGES THEME as the user drags it larger: the app forced to light, the small cell obeying
+     * and the enlarged one going dark with the phone. Painting one and not the other is worse than
+     * painting neither.
+     *
+     * ⛔ The rows are painted inside the same `if (palette != null)` decision as the container. A
+     * row painted while the container is left to the resources is this theme's text on the other
+     * theme's surface, and it is only ever visible on a home screen.
+     */
+    @Test fun `the enlarged cell is painted from the same palette as the small one`() {
+        assertEquals(
+            "UnreadWidgetDraw.renderAccounts must paint the enlarged layout and its rows from the " +
+                "same WidgetPalette: the container's background as a pre-built DRAWABLE, then each " +
+                "row's name and figure. Leave any of them out and the cell changes theme as the " +
+                "user drags it larger — the small layout carries the app's own colours and the " +
+                "enlarged one falls back to res/values-night, which is #117 on a new layout. " +
+                "⛔ And they all sit under `if (palette != null)`, on the container and on the " +
+                "rows alike: null is the reader's answer that the app does not diverge from the " +
+                "system, and posting any colour then freezes that side of the cell against a " +
+                "system that flips at dusk.",
+            listOf(
+                "private fun renderAccounts(",
+                "context: Context,",
+                "rows: List<UnreadAccountRow>,",
+                "palette: WidgetPalette?,",
+                "): RemoteViews =",
+                "RemoteViews(context.packageName, R.layout.widget_unread_accounts).apply {",
+                "if (palette != null) {",
+                BACKGROUND,
+                "}",
+                "removeAllViews(R.id.widget_unread_accounts)",
+                "rows.forEach { row ->",
+                "val line = RemoteViews(context.packageName, R.layout.widget_unread_account_row)",
+                "line.setTextViewText(R.id.widget_unread_account_name, row.name)",
+                "line.setTextViewText(R.id.widget_unread_account_count, row.count.toString())",
+                "if (palette != null) {",
+                "line.setTextColor(R.id.widget_unread_account_name, palette.rowPrimary)",
+                "line.setTextColor(R.id.widget_unread_account_count, palette.accent)",
+                "}",
+                "addView(R.id.widget_unread_accounts, line)",
+                "}",
+            ),
+            body(DRAW, "private fun renderAccounts("),
         )
     }
 
@@ -291,6 +354,13 @@ class UnreadWidgetPaletteWiringLintTest {
 
         /** The tones a badge is painted in: read on every path that answers, never withheld. */
         const val MONOGRAM_RAMPS = "monogramRamps = widgetMonogramRamps(scheme, dark, pureBlack),"
+
+        /**
+         * Pinned whole, and the MAP is why: `draw` hands the launcher two layouts for one cell, so
+         * this line is where a reader could quietly go back to painting one of them.
+         */
+        const val DRAW_SIGNATURE =
+            "suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {"
 
         const val BACKGROUND =
             "setInt(R.id.widget_unread_root, \"setBackgroundResource\", " +

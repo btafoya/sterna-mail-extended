@@ -9,19 +9,25 @@ import java.io.File
  * [PageKeyWiringLintTest] next door. [InboxViewModel] is an `AndroidViewModel`: it is not
  * instantiable in this suite, there is no Robolectric here, so what the drawer's unread number is
  * WIRED to cannot be executed. The decision itself is executed, in `core:data`, by
- * `UnifiedInboxUnreadTest`, which runs `UnifiedInbox.unreadCount` and pins the arguments it hands
- * the counter. This file only holds the one thing that test cannot see: which flow the shipped
+ * `UnifiedInboxUnreadTest`, which runs `UnifiedInbox.unreadByAccount` and pins the arguments it
+ * hands the counter. This file only holds the one thing that test cannot see: which flow the shipped
  * screen reads.
  *
  * What it is for. "All inboxes (N)" is now derived once (#112) and read twice — by the drawer and
  * by the home-screen widget — and the point of deriving it once is lost the moment one of the two
- * reads it some other way. Two mutations compile and leave the whole suite green without this:
+ * reads it some other way. Mutations that compile and leave the whole suite green without this:
  *
- *  - the drawer going back to `unifiedInboxScopes.flatMapLatest { repo.observeUnifiedInboxUnread(it) }`
+ *  - the drawer going back to
+ *    `unifiedInboxScopes.flatMapLatest { repo.observeUnifiedInboxUnreadByAccount(it).map(UnifiedInbox::total) }`
  *    — a second derivation of the scopes, which is what the branch removed: `unifiedInboxScopes` is
  *    a `StateFlow` of pairs, so an IMAP account whose stored counter moves without its scopes
  *    changing emits nothing at all, and the drawer's number stops following the widget's;
- *  - the same line reading `repo.observeUnifiedInboxUnread(emptyList())`, which is a permanent 0.
+ *  - the same line totalled some other way — `.map { it.values.maxOrNull() ?: 0 }` reads perfectly
+ *    well and shows the busiest account's figure as if it were every inbox's.
+ *
+ * ⚠ The scoped overload returns a `Map` since the breakdown replaced the sum, so the two mutations
+ * this rule was first written against no longer compile as they stood. They are written above in
+ * the form they now take; the rule is unchanged, and so is what it is worth.
  *
  * ⛔ Whole line, never a `contains`: a substring rule is satisfied by every mutation that LENGTHENS
  * the line, and both mutations above CONTAIN `repo.observeUnifiedInboxUnread(`. The price is that

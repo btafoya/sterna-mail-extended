@@ -205,9 +205,9 @@ class AppContainer(context: Context) {
         // scope being cancelled must not be counted as one more failed draw.
         appScope.launch {
             UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {
-                mailRepository.observeUnifiedInboxUnread()
-            }.collect { unread ->
-                runCatching { UnreadWidgetDraw.redraw(appContext, unread) }
+                mailRepository.observeUnifiedInboxUnreadByAccount()
+            }.collect { unreadByAccount ->
+                runCatching { UnreadWidgetDraw.redraw(appContext, unreadByAccount) }
                     .rethrowIfCancelled()
                     .onFailure { Log.w("Sterna", "unread widget not redrawn; the cell keeps its number", it) }
             }

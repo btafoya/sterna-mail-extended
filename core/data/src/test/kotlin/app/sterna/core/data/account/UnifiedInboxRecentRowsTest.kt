@@ -141,7 +141,7 @@ class UnifiedInboxRecentRowsTest {
 
     /**
      * ⛔ THE ARBITRAGE THIS FILE EXISTS TO PIN, and the one place this rule DIVERGES from
-     * [UnifiedInbox.unreadCount]: the key is the scopes, not [UnifiedInbox.countedInboxes].
+     * [UnifiedInbox.unreadByAccount]: the key is the scopes, not [UnifiedInbox.countedInboxes].
      *
      * The count keys on the stored counter because its IMAP half reads that record flat inside a
      * `combine`, which no Room invalidation wakes. These rows come entirely from Room, so the

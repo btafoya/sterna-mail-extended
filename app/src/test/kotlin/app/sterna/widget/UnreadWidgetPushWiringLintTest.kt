@@ -65,15 +65,16 @@ class UnreadWidgetPushWiringLintTest {
     @Test fun `AppContainer collects the push, gated on a widget being placed`() {
         assertEquals(
             "AppContainer.init must launch UnreadWidgetPush.redraws over " +
-                "UnreadWidgetPresence.placed(appContext), collecting into UnreadWidgetDraw.redraw. " +
+                "UnreadWidgetPresence.placed(appContext), collecting the BY-ACCOUNT breakdown into " +
+                "UnreadWidgetDraw.redraw — the total alone cannot feed the enlarged cell's lines. " +
                 "Dropped, the widget stops following the mail the user is reading; ungated, every " +
                 "install pays for a widget it does not have.",
             listOf(
                 "appScope.launch {",
                 "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {",
-                "mailRepository.observeUnifiedInboxUnread()",
-                "}.collect { unread ->",
-                "runCatching { UnreadWidgetDraw.redraw(appContext, unread) }",
+                "mailRepository.observeUnifiedInboxUnreadByAccount()",
+                "}.collect { unreadByAccount ->",
+                "runCatching { UnreadWidgetDraw.redraw(appContext, unreadByAccount) }",
                 ".rethrowIfCancelled()",
                 ".onFailure { Log.w(\"Sterna\", \"unread widget not redrawn; the cell keeps its number\", it) }",
                 "}",

@@ -159,6 +159,227 @@ class UnreadWidgetDeclarationTest {
     }
 
     /**
+     * ⛔ THE OTHER HALF OF THE RULE ABOVE, and on its own it looks like its opposite.
+     *
+     * `@layout/widget_unread` MUST carry text because it is the `initialLayout`: the system
+     * inflates it the instant a cell is dropped, before any draw comes back. The enlarged layout
+     * and its row are the `initialLayout` of NOBODY — they are only ever handed to the launcher
+     * already filled in, inside the size map `UnreadWidgetDraw.draw` builds. A literal left in
+     * either one would therefore be drawn before `UnreadWidgetContent.byAccount` had decided
+     * anything: a name, or a figure, for an account the app lock says must not be named at all, and
+     * a row that stays on the cell even when the rule returned no lines.
+     *
+     * ⛔ Pinned as "no `android:text` line anywhere in the file", not as a list of expected lines: a
+     * text added to a THIRD view in either layout has to redden this too.
+     */
+    @Test fun `neither layout of the enlarged cell carries any text of its own`() {
+        assertEquals(
+            "the enlarged counter's layouts must declare no android:text at all. Neither is an " +
+                "initialLayout: both are only ever handed over already filled in, so anything " +
+                "written in them is drawn by the launcher BEFORE the rule that decides whether an " +
+                "account may be named has run — the app-lock fallback included.",
+            mapOf(
+                "widget_unread_accounts.xml" to emptyList<String>(),
+                "widget_unread_account_row.xml" to emptyList<String>(),
+            ),
+            ENLARGED_LAYOUTS.associate { file ->
+                file.name to codeLines(file).filter { it.startsWith("android:text=") }
+            },
+        )
+    }
+
+    /**
+     * ⛔ THE WHOLE BODY OF `draw`, LINE BY LINE — and it is the only thing standing between this
+     * widget and any of the mutations below. Nothing in this module renders: there is no
+     * Robolectric, `android.util.SizeF` is a stub that throws, and `draw` wants an `Application`,
+     * its container and the widget manager. Every decision it takes is therefore reachable only as
+     * text, and each of these lines was silently mutable before this rule existed:
+     *
+     *  - `store.appLockEnabled()` → `false`: every account's name, which falls back to its owner's
+     *    mail address, drawn permanently on a LOCKED home screen. The twin widget's own read is
+     *    pinned for exactly this ([app.sterna.widget.RecentMailWidgetWiringLintTest]); this one was
+     *    not, and it is the guard the branch was written around;
+     *  - `unreadByAccount.values.sum()` → `.maxOrNull() ?: 0`: the small cell shows the busiest
+     *    account's figure while the drawer beside it shows the true total. The arithmetic is
+     *    repeated here because `UnifiedInbox.total` is internal to `core:data`, so nothing in that
+     *    module's tests covers this copy of it;
+     *  - dropping `rows.isNotEmpty() &&`: under an app lock, or on a single account, an enlarged
+     *    cell draws an empty account list — a blank rounded rectangle, no total, no lines;
+     *  - swapping the two entries of the map: the branch runs backwards. Account lines crammed
+     *    into a 110x40dp cell, one figure in the large one;
+     *  - `ventilatedHeightDp(rows.size, …)` → any constant: the enlarged cell goes back to
+     *    promising the launcher a fixed height, and the reader with one account more than that
+     *    height holds loses that account off the bottom edge, in silence;
+     *  - dropping `fontScale`: the same erasure, kept for the readers who enlarge their text;
+     *  - a SECOND `store.accounts()`: the label, the tap target and the lines would come from
+     *    three different moments — a cell reading "All inboxes" that opens a single folder;
+     *  - dropping `palette` from either render call: the map hands the launcher TWO layouts for
+     *    one cell, so painting one of them alone is a cell that CHANGES THEME as it is dragged
+     *    larger. `UnreadWidgetPaletteWiringLintTest` holds what each render then does with it;
+     *    this line is where it would stop arriving at all.
+     *
+     * ⛔ Whole lines, never a `contains`: every mutation above is the same length or longer than
+     * the line it replaces. The price is that reformatting this function reddens the test — loud,
+     * and one line to fix.
+     */
+    @Test fun `the draw decides the total, the lock and the size map exactly once each`() {
+        assertEquals(
+            "UnreadWidgetDraw.draw must read the account list ONCE, total the breakdown for the " +
+                "small layout, read the app lock from the store, and offer the ventilated layout " +
+                "at the height its lines need and the plain one at SMALL — the whole of it " +
+                "holdable only as text, " +
+                "since nothing in this suite can render a RemoteViews (#112).",
+            listOf(
+                DRAW_SIGNATURE,
+                "if (ids.isEmpty()) return",
+                "val palette = WidgetThemeReader.palette(app)",
+                "val store = app.container.accountStore",
+                "val accounts = store.accounts()",
+                "val target = UnreadWidgetTap.of(accounts)",
+                "val small = tapped(app, renderTotal(app, UnreadWidgetContent.of(accounts, " +
+                    "unreadByAccount.values.sum()), palette), target)",
+                "val rows = UnreadWidgetContent.byAccount(accounts, unreadByAccount, store.appLockEnabled())",
+                "val views =",
+                "if (rows.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {",
+                "val fontScale = app.resources.configuration.fontScale",
+                "val ventilated = SizeF(VENTILATED_WIDTH_DP, ventilatedHeightDp(rows.size, fontScale))",
+                "RemoteViews(mapOf(SMALL to small, ventilated to tapped(app, renderAccounts(app, rows, palette), target)))",
+                "} else {",
+                "small",
+                "}",
+                "val manager = AppWidgetManager.getInstance(app)",
+                "ids.forEach { manager.updateAppWidget(it, views) }",
+                "}",
+            ),
+            blockContaining(
+                WIDGET_DRAW,
+                "val rows = UnreadWidgetContent.byAccount(",
+                DRAW_SIGNATURE,
+            ),
+        )
+        assertEquals(
+            "and the two entries themselves. SMALL must stay the widget's DECLARED minimum, or a " +
+                "cell at minimum size matches no entry at all. ⛔ The other one is no longer a " +
+                "constant beside it: its height is what THIS MANY lines need at THIS font scale, " +
+                "read at draw time. A constant there is a promise about how many accounts the " +
+                "reader has — at 110dp it held three, and the fourth was cut off by the edge with " +
+                "nothing on screen to say so.",
+            listOf(
+                "val fontScale = app.resources.configuration.fontScale",
+                "val ventilated = SizeF(VENTILATED_WIDTH_DP, ventilatedHeightDp(rows.size, fontScale))",
+                "private val SMALL = SizeF(110f, 40f)",
+            ),
+            codeLines(WIDGET_DRAW)
+                .filterNot { it.startsWith("*") || it.startsWith("/") }
+                .filter {
+                    it.startsWith("private val SMALL") || it.startsWith("val fontScale") ||
+                        it.startsWith("val ventilated")
+                },
+        )
+        assertEquals(
+            "the numbers that height is built from, and their names. ⛔ Both dimensions of the " +
+                "ventilated entry must stay STRICTLY above SMALL's 110x40 — 180 > 110, and a " +
+                "floor of 41 > 40 — or the launcher's closest-fit may hand three account lines to " +
+                "a cell dragged to the widget's own minimum. What each number MEANS is executed " +
+                "in UnreadVentilatedHeightTest; this rule only holds them from drifting apart.",
+            listOf(
+                "internal const val VENTILATED_WIDTH_DP = 180f",
+                "private const val CONTAINER_PADDING_DP = 16f",
+                "private const val ROW_PADDING_DP = 8f",
+                "private const val ROW_TEXT_DP = 20f",
+                "private const val ROW_SLACK_DP = 2f",
+                "private const val SMALLEST_VENTILATED_HEIGHT_DP = 41f",
+            ),
+            codeLines(WIDGET_CONTENT).filter {
+                it.startsWith("internal const val VENTILATED") || it.startsWith("private const val")
+            },
+        )
+        assertEquals(
+            "⛔ AND THE TWO LAYOUTS THOSE NUMBERS WERE MEASURED OFF. A row is 4dp + 14sp + 4dp and " +
+                "the container keeps 8dp all round: move any of them and the height asked for is " +
+                "wrong by a few dp per line, which is the sliced last line coming back — with " +
+                "every rule above still green, since nothing here renders anything. (The lines " +
+                "carry their closing bracket because they are pinned WHOLE — a substring rule " +
+                "here would be satisfied by a padding of 40dp.) " +
+                "⚠ WHAT THIS DOES NOT CATCH, and it is why ROW_SLACK_DP exists: this reads the " +
+                "attributes that are WRITTEN in these two files, so it holds them still — it can " +
+                "say nothing about what a TextView actually measures, which is the font's own " +
+                "line box and moves with the device. A view ADDED to either layout is caught " +
+                "here only if it carries one of these attributes.",
+            mapOf(
+                // ⛔ The two `wrap_content` heights are as load-bearing as the paddings: they are
+                // what makes a row exactly its text's line box plus its own padding, which is the
+                // whole of ROW_TEXT_DP + ROW_PADDING_DP. A fixed `48dp` here, or a `match_parent`,
+                // and the model is a fiction while every rule above stays green.
+                "widget_unread_accounts.xml" to listOf(
+                    "android:layout_height=\"match_parent\"",
+                    "android:padding=\"8dp\">",
+                    "android:layout_height=\"wrap_content\"",
+                ),
+                "widget_unread_account_row.xml" to listOf(
+                    "android:layout_height=\"wrap_content\"",
+                    "android:paddingTop=\"4dp\"",
+                    "android:paddingBottom=\"4dp\">",
+                    "android:layout_height=\"wrap_content\"",
+                    "android:textSize=\"14sp\" />",
+                    "android:layout_height=\"wrap_content\"",
+                    "android:layout_marginStart=\"8dp\"",
+                    "android:textSize=\"14sp\"",
+                ),
+            ),
+            ENLARGED_LAYOUTS.associate { file ->
+                file.name to codeLines(file).filter {
+                    it.startsWith("android:padding") || it.startsWith("android:textSize=") ||
+                        it.startsWith("android:layout_margin") || it.startsWith("android:lineSpacing") ||
+                        it.startsWith("android:minHeight") || it.startsWith("android:layout_height")
+                }
+            },
+        )
+        assertEquals(
+            "SMALL must be exactly the minWidth/minHeight res/xml declares, in both variants.",
+            mapOf(
+                "xml/appwidget_info_unread.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
+                "xml-v31/appwidget_info_unread.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
+            ),
+            INFO_FILES.filter { it.name == "appwidget_info_unread.xml" }.associate { file ->
+                "${file.parentFile.name}/${file.name}" to
+                    codeLines(file).filter { it.startsWith("android:minWidth=") || it.startsWith("android:minHeight=") }
+            },
+        )
+    }
+
+    /**
+     * The weight goes to the NAME, and only to the name — the one line of the row layout that
+     * decides what survives a narrow screen.
+     *
+     * On a 360dp phone the cell is narrow enough that a translated label already overflows (the
+     * note at the top of `@layout/widget_unread`), and an account's name can be a full mail
+     * address. With the weight on the name, the NAME ellipsises and the digits stay at the end of
+     * the line. Put a weight on the figure as well, or take it off entirely, and the number — the
+     * only thing this widget exists to show — is what gets cut off instead. Nothing renders in
+     * this suite, so this is the only thing standing between that and a bench pass.
+     */
+    @Test fun `the enlarged row gives its weight to the name, so the figure is never what is cut`() {
+        assertEquals(
+            "in widget_unread_account_row.xml the NAME must be the weighted, zero-width column " +
+                "and the figure must be wrap_content with no weight. Reversed or removed, a long " +
+                "account name pushes the unread figure off the end of the line on a narrow screen.",
+            listOf(
+                "android:layout_width=\"match_parent\"",
+                "android:id=\"@+id/widget_unread_account_name\"",
+                "android:layout_width=\"0dp\"",
+                "android:layout_weight=\"1\"",
+                "android:id=\"@+id/widget_unread_account_count\"",
+                "android:layout_width=\"wrap_content\"",
+            ),
+            codeLines(ROW_LAYOUT).filter {
+                it.startsWith("android:layout_width=") || it.startsWith("android:layout_weight=") ||
+                    it.startsWith("android:id=")
+            },
+        )
+    }
+
+    /**
      * The file's lines, comments removed WHOLE — an `<!-- … -->` block is cut out before the split,
      * and a `//` line is dropped. Without that, every rule below also matches the prose written to
      * explain it: the first run of this file failed on its own comment quoting the attribute it
@@ -241,8 +462,36 @@ class UnreadWidgetDeclarationTest {
             INFO_FILES.first { it.parentFile.name == "xml-v31" && it.name == "appwidget_info_unread.xml" }
         }
 
+        /**
+         * Pinned whole, `suspend` INCLUDED. The keyword is what buys the colour read: dropped, the
+         * three DataStore `first()` calls have nowhere to happen and the cell goes back to the
+         * colours `res/values-night` froze into it (#117).
+         */
+        const val DRAW_SIGNATURE =
+            "suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {"
+
         val RUNTIME_LAYOUT: File by lazy { layout("widget_unread") }
         val PREVIEW_LAYOUT: File by lazy { layout("widget_unread_preview") }
+
+        const val MIN_WIDTH = "android:minWidth=\"110dp\""
+
+        const val MIN_HEIGHT = "android:minHeight=\"40dp\""
+
+        val WIDGET_DRAW: File by lazy {
+            File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetDraw.kt")
+        }
+
+        /** Where the size rule that can be RUN lives — the constants behind the ventilated entry. */
+        val WIDGET_CONTENT: File by lazy {
+            File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetContent.kt")
+        }
+
+        val ROW_LAYOUT: File by lazy { layout("widget_unread_account_row") }
+
+        /** The counter's ENLARGED layout and its row — the two the launcher only ever gets filled in. */
+        val ENLARGED_LAYOUTS: List<File> by lazy {
+            listOf(layout("widget_unread_accounts"), layout("widget_unread_account_row"))
+        }
 
         private fun layout(name: String): File =
             File(ROOT, "app/src/main/res/layout/$name.xml").also {

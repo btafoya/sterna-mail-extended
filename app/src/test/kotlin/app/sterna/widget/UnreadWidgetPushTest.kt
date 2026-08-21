@@ -18,7 +18,7 @@ import org.junit.Test
  * unread mail, it is WHEN it agrees to: never while no widget is placed, from the moment one is,
  * and no longer once the last one goes.
  *
- * That gate is the expensive half of this pane. `observeUnifiedInboxUnread()` is a `combine` of two
+ * That gate is the expensive half of this pane. `observeUnifiedInboxUnreadByAccount()` is a `combine` of two
  * global Room aggregates; collected for the life of the process it is paid by every user, and the
  * large majority will never put this widget on a home screen. So the tests below assert on what the
  * collaborator was ASKED and when it was SUBSCRIBED, the way `UnifiedInboxUnreadTest` asserts on
@@ -35,26 +35,26 @@ import org.junit.Test
 class UnreadWidgetPushTest {
 
     /**
-     * Stands in for `MailRepository.observeUnifiedInboxUnread()`, and records two different facts
-     * that a single counter would conflate: that the factory was CALLED, and that the flow it
-     * handed back was actually COLLECTED. Each subscription starts on a value of its own (100, 200,
-     * …), so the collected list also says WHICH subscription produced what.
+     * Stands in for `MailRepository.observeUnifiedInboxUnreadByAccount()`, and records two
+     * different facts that a single counter would conflate: that the factory was CALLED, and that
+     * the flow it handed back was actually COLLECTED. Each subscription starts on a breakdown of
+     * its own (100, 200, …), so the collected list also says WHICH subscription produced what.
      */
     private class Counter {
         val asked = mutableListOf<String>()
         val subscribed = mutableListOf<String>()
-        private val handed = mutableListOf<MutableStateFlow<Int>>()
+        private val handed = mutableListOf<MutableStateFlow<Map<String, Int>>>()
 
-        fun unread(): Flow<Int> {
+        fun unread(): Flow<Map<String, Int>> {
             val index = handed.size
             asked += "ask#$index"
-            val flow = MutableStateFlow(100 * (index + 1))
+            val flow = MutableStateFlow(mapOf(ACCOUNT to 100 * (index + 1)))
             handed += flow
             return flow.onStart { subscribed += "collect#$index" }
         }
 
         /** The Room invalidation that would reach a subscription nothing cancelled. */
-        fun push(index: Int, value: Int) {
+        fun push(index: Int, value: Map<String, Int>) {
             val flow = handed.getOrNull(index)
                 ?: error("the counter was never asked a ${index + 1}th time — nothing to push to")
             flow.value = value
@@ -64,7 +64,7 @@ class UnreadWidgetPushTest {
     private fun collectPush(
         placed: Flow<Boolean>,
         counter: Counter,
-        seen: MutableList<Int>,
+        seen: MutableList<Map<String, Int>>,
         scope: kotlinx.coroutines.CoroutineScope,
         dispatcher: TestDispatcher,
     ) = scope.launch(dispatcher) {
@@ -78,7 +78,7 @@ class UnreadWidgetPushTest {
      */
     @Test fun `no widget placed means the count is never even asked for`() = runTest {
         val counter = Counter()
-        val seen = mutableListOf<Int>()
+        val seen = mutableListOf<Map<String, Int>>()
         val job = collectPush(MutableStateFlow(false), counter, seen, backgroundScope, UnconfinedTestDispatcher(testScheduler))
         runCurrent()
 
@@ -90,7 +90,7 @@ class UnreadWidgetPushTest {
             counter.asked,
         )
         assertEquals("and nothing is subscribed either", emptyList<String>(), counter.subscribed)
-        assertEquals("so there is nothing to draw", emptyList<Int>(), seen)
+        assertEquals("so there is nothing to draw", emptyList<Map<String, Int>>(), seen)
         job.cancel()
     }
 
@@ -98,13 +98,13 @@ class UnreadWidgetPushTest {
     @Test fun `the first widget placed starts the collection, and later counts arrive`() = runTest {
         val counter = Counter()
         val placed = MutableStateFlow(false)
-        val seen = mutableListOf<Int>()
+        val seen = mutableListOf<Map<String, Int>>()
         val job = collectPush(placed, counter, seen, backgroundScope, UnconfinedTestDispatcher(testScheduler))
         runCurrent()
 
         placed.value = true
         runCurrent()
-        counter.push(0, 7)
+        counter.push(0, mapOf(ACCOUNT to 7))
         runCurrent()
 
         assertEquals("the count is asked for exactly once, when the gate opens", listOf("ask#0"), counter.asked)
@@ -112,7 +112,7 @@ class UnreadWidgetPushTest {
         assertEquals(
             "the value at subscription time is drawn, and so is every one after it — a widget " +
                 "that only drew what was true when it was placed is the defect this pane closes.",
-            listOf(100, 7),
+            listOf(mapOf(ACCOUNT to 100), mapOf(ACCOUNT to 7)),
             seen,
         )
         job.cancel()
@@ -127,20 +127,20 @@ class UnreadWidgetPushTest {
     @Test fun `the last widget removed really stops the collection`() = runTest {
         val counter = Counter()
         val placed = MutableStateFlow(true)
-        val seen = mutableListOf<Int>()
+        val seen = mutableListOf<Map<String, Int>>()
         val job = collectPush(placed, counter, seen, backgroundScope, UnconfinedTestDispatcher(testScheduler))
         runCurrent()
 
         placed.value = false
         runCurrent()
-        counter.push(0, 4242)
+        counter.push(0, mapOf(ACCOUNT to 4242))
         runCurrent()
 
         assertEquals(
             "an emission on the flow handed out while the widget was placed must not reach " +
                 "anything once the last cell is gone. The real counter never completes, so a " +
                 "subscription that was not cancelled goes on arriving here forever.",
-            listOf(100),
+            listOf(mapOf(ACCOUNT to 100)),
             seen,
         )
         assertEquals("and it is not asked again on the way out", listOf("ask#0"), counter.asked)
@@ -151,7 +151,7 @@ class UnreadWidgetPushTest {
     @Test fun `a widget placed again is counted again, on a new subscription`() = runTest {
         val counter = Counter()
         val placed = MutableStateFlow(true)
-        val seen = mutableListOf<Int>()
+        val seen = mutableListOf<Map<String, Int>>()
         val job = collectPush(placed, counter, seen, backgroundScope, UnconfinedTestDispatcher(testScheduler))
         runCurrent()
 
@@ -162,7 +162,11 @@ class UnreadWidgetPushTest {
 
         assertEquals("the second placement asks again", listOf("ask#0", "ask#1"), counter.asked)
         assertEquals("and collects the new flow", listOf("collect#0", "collect#1"), counter.subscribed)
-        assertEquals("the cell is drawn from the second subscription", listOf(100, 200), seen)
+        assertEquals(
+            "the cell is drawn from the second subscription",
+            listOf(mapOf(ACCOUNT to 100), mapOf(ACCOUNT to 200)),
+            seen,
+        )
         job.cancel()
     }
 
@@ -173,7 +177,7 @@ class UnreadWidgetPushTest {
      */
     @Test fun `the same answer twice does not re-subscribe the count`() = runTest {
         val counter = Counter()
-        val seen = mutableListOf<Int>()
+        val seen = mutableListOf<Map<String, Int>>()
         val job = collectPush(flowOf(true, true), counter, seen, backgroundScope, UnconfinedTestDispatcher(testScheduler))
         runCurrent()
 
@@ -183,14 +187,15 @@ class UnreadWidgetPushTest {
             listOf("ask#0"),
             counter.asked,
         )
-        assertEquals("and the cell is drawn once", listOf(100), seen)
+        assertEquals("and the cell is drawn once", listOf(mapOf(ACCOUNT to 100)), seen)
         job.cancel()
     }
 
     /**
-     * ⛔ THE SAME NUMBER TWICE IS ONE DRAW. Nothing upstream says so: the real counter is a
+     * ⛔ THE SAME BREAKDOWN TWICE IS ONE DRAW. Nothing upstream says so: the real counter is a
      * `combine` of two Room flows, and a single write makes both legs re-emit, so one message
-     * marked read arrives here as the same integer two or more times over.
+     * marked read arrives here as the same map two or more times over. ⚠ A `Map` compares by
+     * value, which is what keeps this rule true now that the payload is no longer an integer.
      *
      * A draw is not free — `getAppWidgetIds` over binder, the account blob decoded from JSON, a
      * `PendingIntent.getActivity(FLAG_UPDATE_CURRENT)`, and an `updateAppWidget` the launcher
@@ -201,20 +206,29 @@ class UnreadWidgetPushTest {
      * from the two legs of a `combine`, so it is written here as a flow that really does repeat.
      */
     @Test fun `the same count arriving twice is drawn once`() = runTest {
-        val seen = mutableListOf<Int>()
+        val seen = mutableListOf<Map<String, Int>>()
+        val first = mapOf("a" to 7, "b" to 2)
+        val second = mapOf("a" to 3, "b" to 2)
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            UnreadWidgetPush.redraws(MutableStateFlow(true)) { flowOf(7, 7, 3, 3, 7) }.toList(seen)
+            UnreadWidgetPush.redraws(MutableStateFlow(true)) {
+                flowOf(first, mapOf("a" to 7, "b" to 2), second, second, first)
+            }.toList(seen)
         }
         runCurrent()
 
         assertEquals(
             "a count that has not moved must not reach the draw. The unified total is a combine " +
-                "of two Room flows, so one write emits the same integer more than once, and each " +
+                "of two Room flows, so one write emits the same map more than once, and each " +
                 "one that got through cost a binder call, a full decode of the account blob and a " +
                 "re-inflation in the launcher — for a cell already showing that number.",
-            listOf(7, 3, 7),
+            listOf(first, second, first),
             seen,
         )
         job.cancel()
+    }
+
+    private companion object {
+        /** One account id, so the maps below read as breakdowns and not as bare numbers. */
+        const val ACCOUNT = "acc-1"
     }
 }

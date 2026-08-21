@@ -6,6 +6,8 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.SizeF
 import android.widget.RemoteViews
 import app.sterna.MainActivity
 import app.sterna.R
@@ -23,8 +25,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * and a second `RemoteViews` built somewhere else is the same fault as a second way of counting:
  * the two draws drift, and the cell shows one or the other depending on what woke it.
  *
- * ⛔ The number is never decided here either. Every path below asks
- * `MailRepository.observeUnifiedInboxUnread()` or is HANDED what it returned (#112).
+ * ⛔ The numbers are never decided here either. Every path below asks
+ * `MailRepository.observeUnifiedInboxUnreadByAccount()` or is HANDED what it returned (#112) — one
+ * entry per account, whose total is what the small cell and the drawer's "All inboxes (N)" show.
  */
 internal object UnreadWidgetDraw {
 
@@ -38,42 +41,74 @@ internal object UnreadWidgetDraw {
             .getAppWidgetIds(ComponentName(context, UnreadWidgetProvider::class.java))
 
     /**
-     * Draw [unread] into [ids]. NOT free: `AccountStore.accounts()` runs
+     * Draw [unreadByAccount] into [ids]. NOT free: `AccountStore.accounts()` runs
      * `migrateIfNeeded()`, reads the shared preferences and decodes the whole account blob from
      * JSON, and `updateAppWidget` is a binder call the launcher re-inflates on. It is still the
-     * cheap end of the work — the count is the expensive part and it arrives here already decided —
-     * but it is not something to spend twice for one number, which is why the caller only reaches
-     * here on a count that actually CHANGED ([UnreadWidgetPush.redraws]).
+     * cheap end of the work — the counting is the expensive part and it arrives here already
+     * done — but it is not something to spend twice for one number, which is why the caller only
+     * reaches here on a breakdown that actually CHANGED ([UnreadWidgetPush.redraws]).
      *
      * An empty [ids] draws nothing rather than nothing-in-particular: the provider is handed the
      * cells the system named, the push is handed [placedIds], and both are allowed to be empty.
+     *
+     * ⭐ ONE `RemoteViews` for every cell, still. What the user dragged their cell to is not read
+     * here at all: [android.widget.RemoteViews] built from a map of sizes lets the LAUNCHER pick,
+     * per cell and on every resize, so nothing in this file has to know a geometry — and the four
+     * `OPTION_APPWIDGET_M**_*` numbers, which describe two ORIENTATIONS rather than one size, are
+     * never consulted. That is also why there is no `onAppWidgetOptionsChanged` anywhere.
      */
-    suspend fun draw(app: Application, ids: IntArray, unread: Int) {
+    suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {
         if (ids.isEmpty()) return
         // The cell's colours, read from the app's own theme settings and not from res/values-night
         // (#117). This is why draw() suspends: three DataStore flows, first()-ed. All three
         // callers were already inside a coroutine — the provider's launch, the app-scoped push's
         // collect, and refresh() below — so nothing gained a thread here.
         //
-        // ⚠ It may be NULL, and null is not handled here on purpose: it travels to render() and is
-        // drawn by posting no colour at all. That is the reader saying either "the read timed out"
-        // or "the app does not diverge from the system", and in both cases the resources hold the
-        // right answer. ⛔ Never a `?:` default here — a default is this file deciding a colour.
+        // ⚠ It may be NULL, and null is not handled here on purpose: it travels to BOTH renders
+        // and is drawn by posting no colour at all. That is the reader saying either "the read
+        // timed out" or "the app does not diverge from the system", and in both cases the
+        // resources hold the right answer. ⛔ Never a `?:` default here — a default is this file
+        // deciding a colour.
         val palette = WidgetThemeReader.palette(app)
-        // One read of the account list, spent twice: what the cell is CALLED and what a tap on it
-        // asks for. The two rules mirror each other arm for arm ([UnreadWidgetTap]), and reading
-        // the list twice is how they would come to disagree — a cell labelled "All inboxes" that
-        // opens a single folder, or the reverse.
-        val accounts = app.container.accountStore.accounts()
-        val views = render(app, UnreadWidgetContent.of(accounts, unread), UnreadWidgetTap.of(accounts), palette)
+        // One read of the account list, spent three times: what the cell is CALLED, what a tap on
+        // it asks for, and the lines of the enlarged layout. The first two rules mirror each other
+        // arm for arm ([UnreadWidgetTap]), and reading the list twice is how they would come to
+        // disagree — a cell labelled "All inboxes" that opens a single folder, or the reverse.
+        val store = app.container.accountStore
+        val accounts = store.accounts()
+        val target = UnreadWidgetTap.of(accounts)
+        // The small layout's figure is this breakdown TOTALLED, never a second count: the same
+        // arithmetic `MailRepository.observeUnifiedInboxUnread()` does for the drawer.
+        val small = tapped(app, renderTotal(app, UnreadWidgetContent.of(accounts, unreadByAccount.values.sum()), palette), target)
+        // The app lock is read synchronously, the way RecentMailWidgetDraw reads it: a locked app
+        // draws the total at every size, because an account's name can be its owner's address.
+        val rows = UnreadWidgetContent.byAccount(accounts, unreadByAccount, store.appLockEnabled())
+        val views =
+            // ⚠ API 31+ only, and the fallback is deliberate: below it the size-map constructor
+            // does not exist, the cell keeps the layout it has always had however large it is
+            // drawn, and nothing else changes. The same trade RecentMailWidgetDraw takes for
+            // RemoteCollectionItems, for the same reason — minSdk here is 26.
+            if (rows.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // ⛔ The ventilated entry's height is DERIVED from how many lines there are, never a
+                // constant: a constant is a claim about how many accounts the reader has, and at
+                // four it cost them one, cut off by the edge in silence ([ventilatedHeightDp]).
+                // Below that height the launcher falls back to SMALL by itself — the total.
+                // ⚠ The font scale is read HERE, at draw time, because the rest of the size rule
+                // must stay runnable in a test and `Configuration` is not.
+                val fontScale = app.resources.configuration.fontScale
+                val ventilated = SizeF(VENTILATED_WIDTH_DP, ventilatedHeightDp(rows.size, fontScale))
+                RemoteViews(mapOf(SMALL to small, ventilated to tapped(app, renderAccounts(app, rows, palette), target)))
+            } else {
+                small
+            }
         val manager = AppWidgetManager.getInstance(app)
         ids.forEach { manager.updateAppWidget(it, views) }
     }
 
-    /** Draw [unread] into every placed cell — the push's end of [draw]. */
-    suspend fun redraw(context: Context, unread: Int) {
+    /** Draw [unreadByAccount] into every placed cell — the push's end of [draw]. */
+    suspend fun redraw(context: Context, unreadByAccount: Map<String, Int>) {
         val app = context.applicationContext as? Application ?: return
-        draw(app, placedIds(app), unread)
+        draw(app, placedIds(app), unreadByAccount)
     }
 
     /**
@@ -90,16 +125,31 @@ internal object UnreadWidgetDraw {
         val app = context.applicationContext as? Application ?: return
         val ids = placedIds(app)
         if (ids.isEmpty()) return
-        val unread = withTimeoutOrNull(REFRESH_TIMEOUT_MS) {
-            app.container.mailRepository.observeUnifiedInboxUnread().first()
+        val unreadByAccount = withTimeoutOrNull(REFRESH_TIMEOUT_MS) {
+            app.container.mailRepository.observeUnifiedInboxUnreadByAccount().first()
         } ?: return
-        draw(app, ids, unread)
+        draw(app, ids, unreadByAccount)
     }
 
     /**
-     * Build the cell. ⛔ It reads NOTHING: [palette] arrives decided, like the count and the tap
-     * target, because this function is not suspending and never was — a settings read pushed down
-     * here would have to block whatever thread the caller is on.
+     * ⛔ THE ONLY PLACE IN THIS FILE THAT ATTACHES A TAP, and a source lint holds it to one line.
+     * The whole cell is the target, not one of the labels and not a row: a home-screen cell that
+     * only reacts on the digits reads as broken, and both layouts put that id on their ROOT.
+     *
+     * Both sizes go through here, so the small cell and the enlarged one cannot end up opening
+     * different things — or one of them opening nothing.
+     */
+    private fun tapped(context: Context, views: RemoteViews, target: WidgetTapTarget): RemoteViews =
+        views.apply {
+            setOnClickPendingIntent(R.id.widget_unread_root, tapIntent(context, target))
+        }
+
+    /**
+     * The cell as it has always been: one figure, one label under it.
+     *
+     * ⛔ It reads NOTHING: [palette] arrives decided, like the count and the tap target, because
+     * this function is not suspending and never was — a settings read pushed down here would have
+     * to block whatever thread the caller is on.
      *
      * ⭐ [palette] MAY BE NULL, and null posts NO colour line at all — not a default one. The three
      * lines below are `setBackgroundResource(id)` and two `setTextColor(int)`, i.e. values FROZEN
@@ -118,10 +168,9 @@ internal object UnreadWidgetDraw {
      * package still green, because none of them can see a RemoteViews. `setBackgroundTintList`
      * would keep the shape but is API 31 and `minSdk` is 26; hence three pre-built drawables.
      */
-    private fun render(
+    private fun renderTotal(
         context: Context,
         state: UnreadWidgetState,
-        target: WidgetTapTarget,
         palette: WidgetPalette?,
     ): RemoteViews =
         RemoteViews(context.packageName, R.layout.widget_unread).apply {
@@ -132,9 +181,52 @@ internal object UnreadWidgetDraw {
             }
             setTextViewText(R.id.widget_unread_count, state.count.toString())
             setTextViewText(R.id.widget_unread_label, text(context, state.label))
-            // The whole cell is the tap target, not one of the two labels: a home-screen cell that
-            // only reacts on the digits reads as broken.
-            setOnClickPendingIntent(R.id.widget_unread_root, tapIntent(context, target))
+        }
+
+    /**
+     * The enlarged cell: [rows] and nothing else — no total above them, no "All inboxes" heading.
+     * The lines already say both.
+     *
+     * [android.widget.RemoteViews.removeAllViews] FIRST, and ⛔ NOT because this object carries
+     * anything over — it is built fresh on every draw, so there is nothing of the last one in it.
+     * It is the LAUNCHER's side that carries: the actions are replayed onto a view hierarchy that
+     * may already be inflated, and `reapply` on a container that already holds three lines appends
+     * three more. An account removed would keep its line, and every redraw would lengthen the
+     * cell — which is also why this is one of the two places a stale row could survive at all.
+     *
+     * ⛔ [palette] IS POSTED ON THE ROWS TOO, and that is not decoration. This layout and its rows
+     * name `@color/widget_row_primary` and `@color/widget_unread_count`, which is exactly where
+     * the small cell's colours used to come from before #117: a reader who forces Sterna to light
+     * on a dark phone would get a dark enlarged cell, and pure black could not reach it at all.
+     * Painting one layout of the map and not the other is worse than painting neither — the same
+     * cell would change theme as the user drags it larger.
+     *
+     * ⭐ Null still posts NOTHING, on the container and on every row alike, for the reason
+     * [renderTotal] states: the launcher re-resolves `values-night` at every inflation, so the
+     * cell follows dusk with this process dead. ⛔ The rows must follow the container's answer —
+     * a row painted while the container is left to the resources is a line of this theme's text
+     * on the other theme's surface.
+     */
+    private fun renderAccounts(
+        context: Context,
+        rows: List<UnreadAccountRow>,
+        palette: WidgetPalette?,
+    ): RemoteViews =
+        RemoteViews(context.packageName, R.layout.widget_unread_accounts).apply {
+            if (palette != null) {
+                setInt(R.id.widget_unread_root, "setBackgroundResource", WidgetThemeReader.background(palette.surface))
+            }
+            removeAllViews(R.id.widget_unread_accounts)
+            rows.forEach { row ->
+                val line = RemoteViews(context.packageName, R.layout.widget_unread_account_row)
+                line.setTextViewText(R.id.widget_unread_account_name, row.name)
+                line.setTextViewText(R.id.widget_unread_account_count, row.count.toString())
+                if (palette != null) {
+                    line.setTextColor(R.id.widget_unread_account_name, palette.rowPrimary)
+                    line.setTextColor(R.id.widget_unread_account_count, palette.accent)
+                }
+                addView(R.id.widget_unread_accounts, line)
+            }
         }
 
     /**
@@ -190,6 +282,18 @@ internal object UnreadWidgetDraw {
      * open, draws again.
      */
     private const val REFRESH_TIMEOUT_MS = 5_000L
+
+    /**
+     * The smaller of the two sizes offered to the launcher, in dp, and the launcher alone decides
+     * which a given cell gets — the point of the map form.
+     *
+     * It is the declared minimum of `appwidget_info_unread.xml` (110x40), so it is always a
+     * candidate and a cell can never end up with nothing to draw. ⛔ The other entry is NOT a
+     * constant next to it any more: it is [VENTILATED_WIDTH_DP] by [ventilatedHeightDp], i.e. the
+     * room this many account lines actually need at this font scale. A fixed 110dp high was a
+     * silent promise that nobody has a fourth account, and the fourth one was cut off by the edge.
+     */
+    private val SMALL = SizeF(110f, 40f)
 
     /**
      * The widget's own intent action — the thing that keeps its `PendingIntent` from being the

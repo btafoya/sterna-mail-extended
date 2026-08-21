@@ -14,7 +14,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
 /**
- * The home-screen unread counter: one number and the name of what it counts.
+ * The home-screen unread counter: one number and the name of what it counts — or, on a cell the
+ * user has dragged large enough, one line per account. Which of the two a cell shows is the
+ * LAUNCHER's pick between the layouts `UnreadWidgetDraw.draw` hands it, so nothing here reads a
+ * geometry and there is deliberately no `onAppWidgetOptionsChanged`.
  *
  * ⛔ It polls nothing, and it never will. `updatePeriodMillis="0"` means the system asks only when
  * the widget is placed, after a reboot and after an app update; there is no timer and no alarm.
@@ -29,7 +32,8 @@ import kotlinx.coroutines.withTimeout
  * note on `tapIntent` before touching it.
  *
  * ⚠ The number is stale by exactly as much as the drawer's "All inboxes (N)" is, never by more:
- * both read `MailRepository.observeUnifiedInboxUnread()`, one derivation, one answer (#112).
+ * both come from `MailRepository.observeUnifiedInboxUnreadByAccount()`, one derivation, one answer
+ * — the drawer and the small cell showing it totalled, the enlarged cell showing its entries (#112).
  *
  * The cost, known and accepted: reaching the container on a cold process runs `AppContainer.init`,
  * which opens Room and books background work. ⛔ Not to be "optimised" by counting unread mail some
@@ -57,10 +61,10 @@ class UnreadWidgetProvider : AppWidgetProvider() {
                 // and running any pending migration first. If that never emits, the finally below
                 // is never reached, the PendingResult is never finished, and the system kills the
                 // process for holding a broadcast open — the very thing a reboot is likely to hit.
-                val unread = withTimeout(DRAW_TIMEOUT_MS) {
-                    container.mailRepository.observeUnifiedInboxUnread().first()
+                val unreadByAccount = withTimeout(DRAW_TIMEOUT_MS) {
+                    container.mailRepository.observeUnifiedInboxUnreadByAccount().first()
                 }
-                UnreadWidgetDraw.draw(app, appWidgetIds, unread)
+                UnreadWidgetDraw.draw(app, appWidgetIds, unreadByAccount)
             } catch (t: Throwable) {
                 // An exception escaping a coroutine takes the process down with it, and a widget
                 // that could not be drawn must cost no more than a stale cell. ⛔ NOTHING is drawn

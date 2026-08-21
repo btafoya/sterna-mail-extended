@@ -7,9 +7,9 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 
 /**
- * WHEN the home-screen widget is pushed a new number, kept apart from Android so it can be
+ * WHEN the home-screen widget is pushed new numbers, kept apart from Android so it can be
  * EXECUTED in a JVM test — same shape and same reason as [UnreadWidgetContent] next door, and as
- * `UnifiedInbox.unreadCount` in `core:data`, which this is the mirror image of.
+ * `UnifiedInbox.unreadByAccount` in `core:data`, which this is the mirror image of.
  *
  * The widget polls nothing (`updatePeriodMillis="0"`), so without this it only ever redraws when
  * the system asks: at placement, after a reboot, after an app update. The number then sits still
@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.flatMapLatest
  * the cell next to it still shows the old figure.
  *
  * ⛔ The collection is CONDITIONAL, and that is the whole point of this file. Collecting
- * `observeUnifiedInboxUnread()` for the life of the process subscribes two global Room aggregates
+ * `observeUnifiedInboxUnreadByAccount()` for the life of the process subscribes two global Room aggregates
  * — for everyone, including the large majority who will never place a widget. Sterna carries its
  * own push precisely so that the app costs nothing when nothing is happening; a widget nobody
  * placed must cost nothing at all.
@@ -27,15 +27,16 @@ import kotlinx.coroutines.flow.flatMapLatest
  * one goes ([android.appwidget.AppWidgetProvider.onDisabled]), so the answer changes under a
  * running process and the collection has to follow it without a restart. See [UnreadWidgetPresence].
  *
- * [unread] is a FACTORY and not a flow for the same reason [UnifiedInbox.unreadCount] takes one: a
- * flow handed in is already built, and a test could not then tell "never subscribed" from
+ * [unread] is a FACTORY and not a flow for the same reason `UnifiedInbox.unreadByAccount` takes
+ * one: a flow handed in is already built, and a test could not then tell "never subscribed" from
  * "subscribed and empty". Asked for as a function, the SUBSCRIPTION itself is observable.
  */
 internal object UnreadWidgetPush {
 
     /**
      * The numbers to draw, over time: nothing at all while no widget is placed, and the shared
-     * unified-unread total while at least one is.
+     * unified-unread breakdown — one entry per account, whose sum is the total the small cell
+     * shows — while at least one is.
      *
      * [flatMapLatest] and not [kotlinx.coroutines.flow.flatMapMerge]: when the last cell is
      * removed the previous subscription must be DROPPED, not merely superseded. The real counter is
@@ -50,9 +51,12 @@ internal object UnreadWidgetPush {
      * re-subscribing on an answer that has not changed would cancel and rebuild those aggregates
      * for nothing.
      *
-     * The SECOND, on the NUMBER, and it is not tidiness. Nothing upstream de-duplicates the
-     * integer: `observeUnifiedInboxUnread()` is a `combine` of two Room flows, and one invalidation
-     * makes both legs re-emit, so a single write produces at least two emissions of the SAME count.
+     * The SECOND, on the NUMBERS, and it is not tidiness. Nothing upstream de-duplicates them:
+     * `observeUnifiedInboxUnreadByAccount()` is a `combine` of two Room flows, and one invalidation
+     * makes both legs re-emit, so a single write produces at least two emissions of the SAME map.
+     * ⚠ A `Map` compares by value, so it still holds — it is merely FINER than it was on a single
+     * integer: a message read in one account and one arriving in another now redraw, where the
+     * total could have stayed put. That is cost, not falsehood, and the cell was wrong before.
      * Each one that got through cost a `getAppWidgetIds` binder call, a full decode of the account
      * blob, a `PendingIntent.getActivity(FLAG_UPDATE_CURRENT)` and an `updateAppWidget` the
      * launcher re-inflates on — all to redraw a cell with the digits already on it.
@@ -62,7 +66,10 @@ internal object UnreadWidgetPush {
      * it, and this collection has never been what fills a brand-new cell.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun redraws(placed: Flow<Boolean>, unread: () -> Flow<Int>): Flow<Int> = placed
+    fun redraws(
+        placed: Flow<Boolean>,
+        unread: () -> Flow<Map<String, Int>>,
+    ): Flow<Map<String, Int>> = placed
         .distinctUntilChanged()
         .flatMapLatest { anyPlaced -> if (anyPlaced) unread() else emptyFlow() }
         .distinctUntilChanged()

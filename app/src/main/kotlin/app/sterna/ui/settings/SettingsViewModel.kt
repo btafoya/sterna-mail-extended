@@ -398,9 +398,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // subjects until mail next ARRIVED — days, on a quiet mailbox — for someone who has just
         // switched the lock on to hide exactly that. SECURITY.md states the lock silences that
         // widget with no conditions attached, so this is what makes the sentence true.
+        //
+        // ⛔ BOTH WIDGETS, and the counter is not an afterthought here. Enlarged, it draws a line
+        // per account, and an account's label falls back to its username — which is the reader's
+        // own mail address. Its redraws are triggered by the COUNT moving (UnreadWidgetPush) and by
+        // a delivery pass; flipping the lock moves no count, so without this line those addresses
+        // would sit on the home screen until mail happened to arrive. That is the one moment the
+        // promise is made, and it was the one moment it was not kept.
         viewModelScope.launch {
             RecentMailWidgetDraw.forget()
             RecentMailWidgetDraw.refresh(getApplication())
+            UnreadWidgetDraw.refresh(getApplication())
         }
     }
 
