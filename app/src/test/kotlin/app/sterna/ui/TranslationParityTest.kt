@@ -76,16 +76,19 @@ class TranslationParityTest {
     }
 
     /**
-     * The SECOND widget's five texts, by name in the nine languages. Two of them are read in the
-     * widget picker like the counter's; the other three are read on the home screen itself, which
-     * is worse ground for a stray English word — the cell has no window, no menu and no way to be
+     * The SECOND widget's four texts, by name in the nine languages. Two of them are read in the
+     * widget picker like the counter's; the other two are read on the home screen itself, which is
+     * worse ground for a stray English word — the cell has no window, no menu and no way to be
      * asked what it means:
      *
      *  - `widget_latest_empty` is the one line that may say a mailbox is empty;
      *  - `widget_latest_hidden` is what a row wears INSTEAD of a name, when the notification
      *    content setting or the app lock says it may name nobody. Left in English it is the
-     *    privacy setting itself that speaks the wrong language, on a locked phone;
-     *  - `widget_latest_unread` is the unread mark's description, i.e. what a screen reader says.
+     *    privacy setting itself that speaks the wrong language, on a locked phone.
+     *
+     * ⚠ There was a fifth, `widget_latest_unread`: the contentDescription of an unread DOT the row
+     * no longer has. Unread is now shown by weight, like the message list inside the app, and a
+     * weight has no description to translate — the sender's name is read out as itself.
      */
     @Test
     fun `the nine languages all name the latest-messages widget`() {
@@ -95,7 +98,6 @@ class TranslationParityTest {
             "widget_latest_description",
             "widget_latest_empty",
             "widget_latest_hidden",
-            "widget_latest_unread",
         )
         val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }
             .filterValues { it.isNotEmpty() }

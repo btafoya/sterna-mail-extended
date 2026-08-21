@@ -22,6 +22,7 @@ import app.sterna.pgp.PgpProviders
 import app.sterna.push.NewMailNotifier
 import app.sterna.push.PushController
 import app.sterna.ui.connect.oauthFailureMessage
+import app.sterna.widget.RecentMailWidgetDraw
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -170,10 +171,40 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         refresh()
     }
 
-    /** Set the account's accent colour (ARGB), or null for auto. */
+    /**
+     * Set the account's accent colour (ARGB), or null for auto — and redraw the home screen, which
+     * is the only place that would otherwise keep the old one.
+     *
+     * Since this batch the latest-messages widget marks every row with the colour of the account it
+     * came from (`RecentMailWidgetDraw.read` hands `RecentMailWidgetContent.accountColors` in). The
+     * home screen is outside this window and re-reads nothing on its own: `updatePeriodMillis="0"`
+     * means the system asks for a draw at placement, at boot and after an app update, and at no
+     * other time. So a cell already drawn keeps the colour it was drawn with.
+     *
+     * ⛔ AND THE ARRIVAL TRIGGER DOES NOT COVER IT, which is the whole reason these two lines are
+     * here. `RecentMailWidgetPush.redraws` collects `MailRepository.observeRecentUnifiedInbox`,
+     * i.e. `UnifiedInbox.recentRows`, whose key is `map(::scopes).distinctUntilChanged()` over the
+     * stored accounts: a colour changes no (account, inbox) pair, so nothing re-subscribes and
+     * nothing is emitted — deliberately, since every `saveAccounts` (an OAuth token refreshed,
+     * identities discovered) would otherwise rebuild an observed query. The `distinctUntilChanged`
+     * in `redraws` would swallow it in any case: it compares a `RecentInbox`, which carries rows
+     * and `configured` and no colour at all. Without the call below, the dots stay the old colour
+     * until mail happens to ARRIVE — days on a quiet mailbox — and the cell would be showing a
+     * colour the app no longer holds, with nothing on screen to say so.
+     *
+     * ⛔ `forget()` BEFORE `refresh()`, never the other way round, exactly as at the two settings
+     * writes. The row factory falls back to the last snapshot it managed to read when its own read
+     * times out (`RecentMailWidgetDraw.forget`), and that snapshot was projected under the OLD
+     * colour: a slow read right after this write would repaint the very dots the reader has just
+     * replaced.
+     */
     fun setColor(id: String, color: Int?) {
         store.setColor(id, color)
         refresh()
+        viewModelScope.launch {
+            RecentMailWidgetDraw.forget()
+            RecentMailWidgetDraw.refresh(getApplication())
+        }
     }
 
     /** Enable/disable new-mail notifications for an account; re-arm push to apply. */

@@ -923,5 +923,4 @@
     <string name="widget_latest_description">Muestra los mensajes más recientes de todas tus bandejas de entrada.</string>
     <string name="widget_latest_empty">Sin mensajes</string>
     <string name="widget_latest_hidden">Mensaje oculto</string>
-    <string name="widget_latest_unread">Sin leer</string>
 </resources>

@@ -2,6 +2,7 @@ package app.sterna.widget
 
 import app.sterna.R
 import app.sterna.appLocale
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import app.sterna.core.data.settings.NotificationContent
@@ -12,7 +13,7 @@ import java.time.ZoneId
 import java.util.Locale
 
 /**
- * ONE row of the latest-messages widget, as the launcher will draw it: four fields, all of them
+ * ONE row of the latest-messages widget, as the launcher will draw it: five fields, all of them
  * already decided. [secondary] is null when nothing is drawn on the second line — the widget row
  * rule's own way of saying "there is nothing you may write here".
  *
@@ -21,12 +22,24 @@ import java.util.Locale
  * type and never inside it. Under the app lock a row must name nothing at all, and the cheapest way
  * to hold that is for the drawn shape to be unable to carry a name in the first place: an id on
  * this type would be one `setTextViewText` away from an unlocked home screen.
+ *
+ * ⭐ [accountColor] is the ONE exception, and it is one because a colour NAMES NOBODY. It is an
+ * ARGB `Int` the reader picked in the account editor, it is derived from no string, and it is
+ * carried so that a list which interleaves several accounts by date can say which one a line came
+ * from. `SECURITY.md` promises that under the lock a row "names neither sender nor subject", and a
+ * dot keeps that promise where an account name would break it — which is why the name is NOT here.
+ * null = no dot is drawn.
+ *
+ * ⚠ The lint next door looks for literals like `"acct-alpha"` in [toString] and does NOT cover this
+ * field: the guard on it is the TYPE — an `Int` cannot hold a name — and not that search. A later
+ * reader turning it into a `String` walks straight past both.
  */
 internal data class RecentWidgetRow(
     val primary: String,
     val secondary: String?,
     val date: String,
     val unread: Boolean,
+    val accountColor: Int?,
 )
 
 /**
@@ -115,6 +128,29 @@ internal object RecentMailWidgetContent {
     }
 
     /**
+     * The dot each account's rows wear, by account id — and an EMPTY map whenever no dot should be
+     * drawn at all.
+     *
+     * Two guards folded into one answer, both of them "draw nothing":
+     *
+     *  1. ⛔ ONE ACCOUNT, NO DOT. The bound is [AllInboxesView.existsFor], the same one the counter
+     *     consults ([UnreadWidgetContent]), and it is shared for the same reason: the drawer only
+     *     offers "All inboxes" from two accounts up, and one account means the SAME dot on every
+     *     single row: it tells nothing apart, while looking exactly like a marker that does. ⚠ It
+     *     is not the 16 dp that the guard saves — the view stays INVISIBLE and never GONE, so the
+     *     column is spent either way; what it saves the reader is a colour that means nothing.
+     *  2. ⛔ NO COLOUR CHOSEN, NO DOT. `StoredAccount.color` is null on the "auto" position of the
+     *     picker, which is what every account starts on. Inventing one here (a hash of the address,
+     *     the app's accent) would put on the home screen a colour the account editor never shows,
+     *     and the reader would have no way to learn what it means.
+     *
+     * ⚠ Accounts the map does not mention draw no dot, not a default one — see [RecentWidgetRow].
+     */
+    fun accountColors(accounts: List<StoredAccount>): Map<String, Int> =
+        if (!AllInboxesView.existsFor(accounts)) emptyMap()
+        else accounts.mapNotNull { account -> account.color?.let { account.id to it } }.toMap()
+
+    /**
      * One database row, projected onto what the launcher draws.
      *
      * [unknownSender] and [noSubject] are the app's existing stand-ins, passed in because nothing
@@ -136,6 +172,7 @@ internal object RecentMailWidgetContent {
         unknownSender: String,
         noSubject: String,
         generic: String,
+        accountColors: Map<String, Int>,
         zone: ZoneId = ZoneId.systemDefault(),
         today: LocalDate = LocalDate.now(zone),
         locale: Locale = appLocale,
@@ -152,6 +189,10 @@ internal object RecentMailWidgetContent {
             secondary = drawn.secondary,
             date = MailDates.formatListDate(row.receivedAt, zone, today, locale),
             unread = !row.seen,
+            // THIS row's account, looked up by THIS row's id. A colour taken from anywhere else —
+            // the first entry, a field held on the object — paints the whole list one colour, which
+            // reads like a working feature and says nothing.
+            accountColor = accountColors[row.accountId],
         )
     }
 
@@ -167,11 +208,14 @@ internal object RecentMailWidgetContent {
         unknownSender: String,
         noSubject: String,
         generic: String,
+        accountColors: Map<String, Int>,
         zone: ZoneId = ZoneId.systemDefault(),
         today: LocalDate = LocalDate.now(zone),
         locale: Locale = appLocale,
     ): RecentWidgetItem = RecentWidgetItem(
-        drawn = row(row, content, appLockEnabled, unknownSender, noSubject, generic, zone, today, locale),
+        drawn = row(
+            row, content, appLockEnabled, unknownSender, noSubject, generic, accountColors, zone, today, locale,
+        ),
         tap = RecentMailWidgetTap.of(row),
     )
 
@@ -183,6 +227,7 @@ internal object RecentMailWidgetContent {
         unknownSender: String,
         noSubject: String,
         generic: String,
+        accountColors: Map<String, Int>,
         zone: ZoneId = ZoneId.systemDefault(),
         today: LocalDate = LocalDate.now(zone),
         locale: Locale = appLocale,
@@ -191,7 +236,9 @@ internal object RecentMailWidgetContent {
         // reader's trap, and the compiler's opinion on it is not worth learning.
         val shape = cell(inbox.configured, inbox.rows.isNotEmpty())
         val rows = if (shape == RecentWidgetCell.Rows) {
-            inbox.rows.map { item(it, content, appLockEnabled, unknownSender, noSubject, generic, zone, today, locale) }
+            inbox.rows.map {
+                item(it, content, appLockEnabled, unknownSender, noSubject, generic, accountColors, zone, today, locale)
+            }
         } else {
             emptyList()
         }

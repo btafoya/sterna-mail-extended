@@ -12,9 +12,23 @@
     RecentMailWidgetService): given to a child instead, only that child would open the message and
     the rest of the row would swallow the touch.
 
-    Same closed list of views as the cell itself: LinearLayout, TextView, ImageView. The unread mark
-    is an ImageView switched between VISIBLE and INVISIBLE (never GONE) so that the sender's name
-    starts at the same x on every row, read or unread.
+    Same closed list of views as the cell itself: LinearLayout, TextView, ImageView.
+
+    ⛔ READ AND UNREAD ARE TOLD APART BY WEIGHT, AND BY NOTHING ELSE — there is no unread dot on
+    this row, and re-adding one would say the same thing twice. The message list inside the app
+    settled that long ago (EmailListItem: "Unread is shown by weight (bold) rather than a status
+    dot"), and a home-screen cell that marks unread differently from the list it opens is the app
+    contradicting itself on the one piece of state a row carries. The weight is set at runtime, as
+    a StyleSpan inside the text (RecentMailWidgetService.weighted): RemoteViews has no way to set a
+    typeface on a TextView.
+
+    THE ACCOUNT DOT IS WHAT HOLDS THE COLUMN, now that it is the only ImageView left — VISIBLE or
+    INVISIBLE, never GONE. The list interleaves several accounts by date, so the rows that wear no
+    dot (one account only, or an account left on the picker's "auto" position) sit beside rows that
+    do, and a GONE dot would shift their sender left by 16 dp for no reason the reader can see. It
+    is decorative and stays unnamed: importantForAccessibility="no" and no contentDescription,
+    because reading out the account's name is exactly the naming the app lock is supposed to
+    prevent.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_recent_row_root"
@@ -26,12 +40,12 @@
     android:paddingBottom="6dp">
 
     <ImageView
-        android:id="@+id/widget_recent_row_unread"
+        android:id="@+id/widget_recent_row_account"
         android:layout_width="8dp"
         android:layout_height="8dp"
         android:layout_marginEnd="8dp"
-        android:contentDescription="@string/widget_latest_unread"
-        android:src="@drawable/widget_recent_unread_dot" />
+        android:importantForAccessibility="no"
+        android:src="@drawable/widget_recent_account_dot" />
 
     <LinearLayout
         android:layout_width="0dp"

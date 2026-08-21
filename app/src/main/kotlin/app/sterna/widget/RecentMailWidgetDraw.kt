@@ -61,7 +61,8 @@ internal object RecentMailWidgetDraw {
     }
 
     /**
-     * Read the setting, the lock and the mail, and project them — the only place that does.
+     * Read the setting, the lock, the accounts and the mail, and project them — the only place that
+     * does.
      *
      * ⛔ THE SETTING IS READ FIRST AND WAITED FOR. `notificationContent` is a DataStore flow: it
      * answers asynchronously, and drawing before it does would put a subject on the home screen of
@@ -76,6 +77,12 @@ internal object RecentMailWidgetDraw {
         val container = app.container
         val content = container.settingsRepository.notificationContent.first()
         val appLockEnabled = container.accountStore.appLockEnabled()
+        // ONE read of the account list, and not one per row: `accounts()` migrates, reads the
+        // preferences and decodes the whole blob (see UnreadWidgetDraw.draw, which spends its
+        // single read twice for the same reason). Two reads may also answer differently — an
+        // account added, removed or recoloured in between — and the cell would then colour its
+        // rows from one list while it drew them from another.
+        val accounts = container.accountStore.accounts()
         val inbox = container.mailRepository.recentUnifiedInbox(ROW_LIMIT)
         val snapshot = RecentMailWidgetContent.snapshot(
             inbox = inbox,
@@ -84,6 +91,7 @@ internal object RecentMailWidgetDraw {
             unknownSender = app.getString(R.string.message_unknown_sender),
             noSubject = app.getString(R.string.message_no_subject),
             generic = app.getString(R.string.widget_latest_hidden),
+            accountColors = RecentMailWidgetContent.accountColors(accounts),
         )
         held = snapshot
         return snapshot

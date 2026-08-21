@@ -966,5 +966,4 @@
     <string name="widget_latest_description">Lists the newest messages from all your inboxes.</string>
     <string name="widget_latest_empty">No messages</string>
     <string name="widget_latest_hidden">Message hidden</string>
-    <string name="widget_latest_unread">Unread</string>
 </resources>

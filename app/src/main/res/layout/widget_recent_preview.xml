@@ -16,6 +16,21 @@
     tenth translation carried for a picture (the counter's preview refused the same thing for its
     "12"). What the picture has to say is "this widget is a list of who wrote and when", and names
     and times say it.
+
+    ⭐ EACH ROW OPENS ON AN 8 dp COLUMN, INVISIBLE. The served row carries that ImageView always —
+    it is the account dot, VISIBLE or INVISIBLE and never GONE (widget_recent_row.xml) — so every
+    real line starts 16 dp in. Without the column here the picture shows senders flush against the
+    left edge, a layout no row has. ⛔ It is invisible and NOT a coloured dot: this picture is read
+    by someone who may hold a single account, and a colour would promise a telling-apart of
+    mailboxes that only exists from two accounts up AND with a colour actually chosen. The preview
+    shows the GEOMETRY of the row; it cannot qualify the function.
+
+    ⭐ THE FIRST ROW IS BOLD, AND THE OTHER TWO ARE NOT: one unread message and two read ones, which
+    is how a served row marks the difference (a StyleSpan set in RecentMailWidgetService.weighted;
+    the row layout has no unread dot and neither has this). Written by hand here because this file
+    is a hand-made copy of the row that nothing at runtime ever draws — so it goes on advertising
+    whatever it was last given, and three plain rows would advertise a list where nothing is ever
+    unread.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -36,8 +51,9 @@
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginEnd="8dp"
-            android:contentDescription="@string/widget_latest_unread"
-            android:src="@drawable/widget_recent_unread_dot" />
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_recent_account_dot"
+            android:visibility="invisible" />
 
         <TextView
             android:layout_width="0dp"
@@ -47,6 +63,7 @@
             android:maxLines="1"
             android:text="Marie Dupont"
             android:textColor="@color/widget_row_primary"
+            android:textStyle="bold"
             android:textSize="14sp" />
 
         <TextView
@@ -56,6 +73,7 @@
             android:maxLines="1"
             android:text="09:12"
             android:textColor="@color/widget_unread_label"
+            android:textStyle="bold"
             android:textSize="12sp" />
     </LinearLayout>
 
@@ -71,8 +89,9 @@
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginEnd="8dp"
-            android:contentDescription="@string/widget_latest_unread"
-            android:src="@drawable/widget_recent_unread_dot" />
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_recent_account_dot"
+            android:visibility="invisible" />
 
         <TextView
             android:layout_width="0dp"
@@ -106,8 +125,9 @@
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginEnd="8dp"
-            android:contentDescription="@string/widget_latest_unread"
-            android:src="@drawable/widget_recent_unread_dot" />
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_recent_account_dot"
+            android:visibility="invisible" />
 
         <TextView
             android:layout_width="0dp"

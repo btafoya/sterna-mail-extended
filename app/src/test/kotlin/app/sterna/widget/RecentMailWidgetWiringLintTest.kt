@@ -26,26 +26,38 @@ import org.junit.Test
 class RecentMailWidgetWiringLintTest {
 
     /**
-     * The two facts that decide what a row may say must be READ, from the store and the settings,
-     * every time the widget is read.
+     * The three facts that decide what a row may say, and which mailbox it came from, must be READ
+     * — from the store and the settings, every time the widget is read.
      *
-     * Both are one line, both are trivially replaceable by a constant, and neither is executed
-     * anywhere in this suite: [RecentMailWidgetContentTest] proves the RULE is right by passing the
-     * two values in itself, which says nothing about whether the shipped code goes and fetches
-     * them. `val appLockEnabled = false` is the app lock ceasing to exist for the home screen while
+     * Each is one line, each is trivially replaceable by a constant, and none is executed anywhere
+     * in this suite: [RecentMailWidgetContentTest] proves the RULES are right by passing the values
+     * in itself, which says nothing about whether the shipped code goes and fetches them.
+     * `val appLockEnabled = false` is the app lock ceasing to exist for the home screen while
      * `SECURITY.md` goes on promising it, with no pixel anywhere to say so.
+     *
+     * ⛔ AND THE ACCOUNT LIST IS READ EXACTLY ONCE, which is why the whole body is pinned rather
+     * than the lines of interest. `accountColors = emptyMap()` is a list whose dots never appear,
+     * on an install with several mailboxes, and nothing on the cell says why. A SECOND
+     * `accountStore.accounts()` is the defect [UnreadWidgetDraw.draw] documents one file over: two
+     * reads may answer differently — an account added, removed or recoloured in between — and the
+     * cell would then colour its rows from one list while the count it sits beside came from
+     * another.
      */
-    @Test fun `the widget read fetches the setting and the lock, and hands them to the rule`() {
+    @Test fun `the widget read fetches the setting, the lock and the accounts, and hands them to the rule`() {
         assertEquals(
-            "RecentMailWidgetDraw.read must read the notification-content setting and the app " +
-                "lock from the app's own stores and pass both into RecentMailWidgetContent. A " +
-                "constant in either place silently ungoverns the home screen: the reader has set " +
-                "a privacy setting, or switched the lock on, and the cell keeps naming senders.",
+            "RecentMailWidgetDraw.read must read the notification-content setting, the app lock " +
+                "and the account list from the app's own stores and pass all three into " +
+                "RecentMailWidgetContent. A constant in either of the first two silently " +
+                "ungoverns the home screen: the reader has set a privacy setting, or switched the " +
+                "lock on, and the cell keeps naming senders. A constant map in the third leaves " +
+                "an interleaved list with no dot at all, and a SECOND read of the account list " +
+                "lets the colours and the rows come from two different moments.",
             listOf(
                 "suspend fun read(app: Application): RecentWidgetSnapshot {",
                 "val container = app.container",
                 "val content = container.settingsRepository.notificationContent.first()",
                 "val appLockEnabled = container.accountStore.appLockEnabled()",
+                "val accounts = container.accountStore.accounts()",
                 "val inbox = container.mailRepository.recentUnifiedInbox(ROW_LIMIT)",
                 "val snapshot = RecentMailWidgetContent.snapshot(",
                 "inbox = inbox,",
@@ -54,6 +66,7 @@ class RecentMailWidgetWiringLintTest {
                 "unknownSender = app.getString(R.string.message_unknown_sender),",
                 "noSubject = app.getString(R.string.message_no_subject),",
                 "generic = app.getString(R.string.widget_latest_hidden),",
+                "accountColors = RecentMailWidgetContent.accountColors(accounts),",
                 ")",
                 "held = snapshot",
                 "return snapshot",
@@ -175,10 +188,61 @@ class RecentMailWidgetWiringLintTest {
         )
     }
 
+    /**
+     * ⛔ RECOLOURING AN ACCOUNT MUST REACH THE HOME SCREEN TOO, and by the same two calls.
+     *
+     * Since this batch every row of the cell carries the dot of the account it came from
+     * (`RecentMailWidgetDraw.read` passes `RecentMailWidgetContent.accountColors(accounts)`). The
+     * reader opens Settings, gives an account a new colour, goes back to the home screen — and the
+     * dots are still the OLD colour. Nothing on the cell says why, and there is nothing she can do
+     * about it: `updatePeriodMillis="0"` means no timer by design, so the cell keeps that colour
+     * until mail happens to ARRIVE, which on a quiet mailbox is days. The state on screen is a
+     * colour the app no longer holds.
+     *
+     * ⛔ AND THE ARRIVAL TRIGGER DOES NOT COVER IT — this is why the two lines are needed here and
+     * not somewhere cheaper. `RecentMailWidgetPush.redraws` is fed by
+     * `MailRepository.observeRecentUnifiedInbox`, i.e. `UnifiedInbox.recentRows`, which keys the
+     * account list on `map(::scopes).distinctUntilChanged()`: a colour changes no (account, inbox)
+     * pair, so nothing is re-subscribed and nothing is emitted. That de-duplication is deliberate
+     * and documented where it lives (an OAuth token refreshed or a colour written must not rebuild
+     * an observed query), and the second `distinctUntilChanged` in `redraws` would swallow the
+     * emission anyway: it compares a `RecentInbox`, which carries rows and `configured` and no
+     * colour at all. The colour lives in the account store, on the other side of the read.
+     *
+     * `forget()` before `refresh()`, as at both settings writes: the row factory falls back to the
+     * last snapshot it managed to read when its own read times out, and that snapshot was projected
+     * under the OLD colour. Without dropping it first, a slow read right after the change repaints
+     * exactly the dots the reader has just replaced. ⭐ The whole body is pinned for that reason —
+     * the two calls in the wrong order are the mutation this rule exists to catch, and a check for
+     * their mere presence would be satisfied by it.
+     */
+    @Test fun `recolouring an account redraws the cell, so no row keeps a colour the app dropped`() {
+        assertEquals(
+            "AccountsViewModel.setColor must drop the held widget snapshot and redraw the " +
+                "latest-messages widget, in that order. Without it the reader recolours an " +
+                "account and the rows on her home screen keep the old dot until mail arrives — " +
+                "days on a quiet mailbox — with nothing on the cell to explain it and no way to " +
+                "force it. The arrival trigger does not cover this: UnifiedInbox.recentRows keys " +
+                "on the inbox scopes, which a colour does not change. And with refresh() before " +
+                "forget(), a slow read repaints the very colour that was replaced.",
+            listOf(
+                "fun setColor(id: String, color: Int?) {",
+                "store.setColor(id, color)",
+                "refresh()",
+                REDRAW_LAUNCH,
+                FORGET,
+                REFRESH,
+                "}",
+            ),
+            functionBody(ACCOUNTS_VIEW_MODEL, "fun setColor(id: String, color: Int?)"),
+        )
+    }
+
     private companion object {
         val DRAW = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetDraw.kt")
         val PROVIDER = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetProvider.kt")
         val SETTINGS_VIEW_MODEL = file("app/src/main/kotlin/app/sterna/ui/settings/SettingsViewModel.kt")
+        val ACCOUNTS_VIEW_MODEL = file("app/src/main/kotlin/app/sterna/ui/settings/AccountsViewModel.kt")
 
         const val NOTICE =
             "val notice = RecentMailWidgetContent.notice(snapshot.cell)?.let { app.getString(it) } " +

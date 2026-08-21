@@ -125,8 +125,7 @@ class RecentMailRowTapWiringLintTest {
 
     /**
      * Every served row is given its own fill-in, on the row's ROOT view — not on one of its
-     * TextViews, or a cell would only react on the sender's name and read as broken, and not on the
-     * unread dot, which is 8 dp wide.
+     * TextViews, or a cell would only react on the sender's name and read as broken.
      */
     @Test fun `every served row is given its own fill-in, on its root view`() {
         assertEquals(
@@ -152,7 +151,19 @@ class RecentMailRowTapWiringLintTest {
                 "app lock a row names nothing at all, and an identifier drawn here would be " +
                 "exactly the thing SECURITY.md says the lock prevents. The drawn half and the " +
                 "opened half must also come from the SAME item: a row that names one message and " +
-                "opens another is undiscoverable except by tapping it.",
+                "opens another is undiscoverable except by tapping it. The account dot is pinned " +
+                "here too: it is retinted with setInt(…, \"setColorFilter\", …) — setBackgroundColor " +
+                "replaces the oval with a square block — and the out-of-range branch must hide it, " +
+                "or a recycled view keeps the colour of a row that no longer exists. ⛔ AND THE " +
+                "WEIGHT IS NOW THE ROW'S ONLY UNREAD MARK: the dot is gone, so weighted(…, " +
+                "row.unread) on ALL THREE fields — sender, subject and date — is the whole of it. " +
+                "DESIGN.md:58 is the rule and it names the three: \"Unread is shown by weight, " +
+                "never by a status dot: sender, time and subject go bold\", which is what the " +
+                "message list does (EmailListItem). Lose the call on any one field and the cell " +
+                "and the list say two different things about the same message — a bold sender and " +
+                "a bold time over a plain subject — silently, with every row still drawn, still " +
+                "tappable and still correct in every other respect, which is a defect nobody " +
+                "reports because nothing looks broken.",
             listOf(
                 "override fun getViewAt(position: Int): RemoteViews {",
                 "val views = RemoteViews(context.packageName, R.layout.widget_recent_row)",
@@ -161,20 +172,21 @@ class RecentMailRowTapWiringLintTest {
                 "views.setTextViewText(R.id.widget_recent_row_primary, \"\")",
                 "views.setTextViewText(R.id.widget_recent_row_secondary, \"\")",
                 "views.setTextViewText(R.id.widget_recent_row_date, \"\")",
-                "views.setViewVisibility(R.id.widget_recent_row_unread, View.INVISIBLE)",
+                "views.setViewVisibility(R.id.widget_recent_row_account, View.INVISIBLE)",
                 "return views",
                 "}",
                 "val row = item.drawn",
-                "views.setTextViewText(R.id.widget_recent_row_primary, row.primary)",
-                "views.setTextViewText(R.id.widget_recent_row_secondary, row.secondary.orEmpty())",
+                "views.setTextViewText(R.id.widget_recent_row_primary, weighted(row.primary, row.unread))",
+                "views.setTextViewText(R.id.widget_recent_row_secondary, weighted(row.secondary.orEmpty(), row.unread))",
                 "views.setViewVisibility(",
                 "R.id.widget_recent_row_secondary,",
                 "if (row.secondary == null) View.GONE else View.VISIBLE,",
                 ")",
-                "views.setTextViewText(R.id.widget_recent_row_date, row.date)",
+                "views.setTextViewText(R.id.widget_recent_row_date, weighted(row.date, row.unread))",
+                "views.setInt(R.id.widget_recent_row_account, \"setColorFilter\", row.accountColor ?: 0)",
                 "views.setViewVisibility(",
-                "R.id.widget_recent_row_unread,",
-                "if (row.unread) View.VISIBLE else View.INVISIBLE,",
+                "R.id.widget_recent_row_account,",
+                "if (row.accountColor == null) View.INVISIBLE else View.VISIBLE,",
                 ")",
                 FILL_IN_ATTACH,
                 "return views",

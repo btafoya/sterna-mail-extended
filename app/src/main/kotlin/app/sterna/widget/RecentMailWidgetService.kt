@@ -3,6 +3,10 @@ package app.sterna.widget
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.StyleSpan
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -94,21 +98,34 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
             views.setTextViewText(R.id.widget_recent_row_primary, "")
             views.setTextViewText(R.id.widget_recent_row_secondary, "")
             views.setTextViewText(R.id.widget_recent_row_date, "")
-            views.setViewVisibility(R.id.widget_recent_row_unread, View.INVISIBLE)
+            // Nothing has to be said about the WEIGHT here. A bare String replaces a
+            // SpannableString whole, so the bold a recycled view was last drawn with goes with the
+            // text that carried it — the same guard the unread dot needed a setViewVisibility for.
+            // The account dot too, and for the same reason as the blank text above: a recycled
+            // view keeps the colour it was last given, so a list that shrank would leave a mailbox
+            // marked on a row that no longer exists.
+            views.setViewVisibility(R.id.widget_recent_row_account, View.INVISIBLE)
             return views
         }
         val row = item.drawn
-        views.setTextViewText(R.id.widget_recent_row_primary, row.primary)
-        views.setTextViewText(R.id.widget_recent_row_secondary, row.secondary.orEmpty())
+        views.setTextViewText(R.id.widget_recent_row_primary, weighted(row.primary, row.unread))
+        views.setTextViewText(R.id.widget_recent_row_secondary, weighted(row.secondary.orEmpty(), row.unread))
         views.setViewVisibility(
             R.id.widget_recent_row_secondary,
             if (row.secondary == null) View.GONE else View.VISIBLE,
         )
-        views.setTextViewText(R.id.widget_recent_row_date, row.date)
-        // INVISIBLE and not GONE: the dot holds the text's left edge in one column, read or unread.
+        views.setTextViewText(R.id.widget_recent_row_date, weighted(row.date, row.unread))
+        // Which account this line came from, as a colour and never as a name — the list interleaves
+        // several mailboxes by date and nothing else on the row says which is which.
+        //
+        // ⛔ setColorFilter and NOT setBackgroundColor: the second replaces the drawable with a flat
+        // fill and the dot stops being a circle. The two lines are straight, with no `?.let`,
+        // because the view is INVISIBLE whenever the colour is null — a leftover filter under it
+        // draws nothing.
+        views.setInt(R.id.widget_recent_row_account, "setColorFilter", row.accountColor ?: 0)
         views.setViewVisibility(
-            R.id.widget_recent_row_unread,
-            if (row.unread) View.VISIBLE else View.INVISIBLE,
+            R.id.widget_recent_row_account,
+            if (row.accountColor == null) View.INVISIBLE else View.VISIBLE,
         )
         // What a tap on THIS row asks the app for, as extras the launcher merges into the list's
         // template (RecentMailWidgetDraw.rowTapTemplate). On the row's ROOT: on one of the two
@@ -116,6 +133,44 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         views.setOnClickFillInIntent(R.id.widget_recent_row_root, RecentMailWidgetDraw.rowFillIn(item.tap))
         return views
     }
+
+    /**
+     * [text] in bold when the row is unread, plain when it is not — this cell's ONLY unread mark,
+     * and the same one the message list inside the app has used for releases (EmailListItem
+     * shows unread by weight and deliberately NOT by a status dot).
+     *
+     * ⛔ ALL THREE FIELDS GO THROUGH IT: sender, subject and date. That is the project's written
+     * rule, not a preference — DESIGN.md:58, "Unread is shown by weight, never by a status dot:
+     * sender, time and subject go bold" — and the list bolds the three (EmailListItem.kt:289, :311,
+     * :319). A cell that weighted only two of them would draw, on an unread message, a bold sender
+     * and a bold time above a plain subject: the home screen and the list it opens saying two
+     * different things about the same message, which is the very contradiction this row exists to
+     * remove.
+     *
+     * ⚠ Under the SENDER_ONLY position of the notification-content setting the second line is not a
+     * subject at all but the generic stand-in ("New message"), and it is bolded like the rest — it
+     * occupies THE SUBJECT'S PLACE on the row, and the weight states the message's read state, not
+     * what the line happens to say. Leaving it plain there would mark a row half unread.
+     *
+     * ⚠ `RemoteViews` HAS NO WAY TO SET A TYPEFACE. There is no `setTypeface` on `TextView` that
+     * takes one parcelable argument, so `setInt(…, "setTypeface", …)` compiles and does nothing.
+     * The weight therefore travels INSIDE the text: `setTextViewText` takes a `CharSequence`, and a
+     * `StyleSpan` is a `ParcelableSpan`, so the span survives the binder hop into the launcher's
+     * process and is applied there.
+     *
+     * ⛔ Not two alternating TextViews, one bold and one not, switched by visibility: that is a
+     * second view and a second id per field, four views for two lines, and every rule that touches
+     * a row would then have to touch both halves and stay consistent between them.
+     *
+     * ⚠ NOTHING IN THIS SUITE EXECUTES THIS FUNCTION — `RemoteViews` is not on the JVM classpath
+     * and there is no Robolectric here. That a row actually LOOKS bold on a home screen is a bench
+     * claim; what the tests hold is that both fields go through this call.
+     */
+    private fun weighted(text: String, unread: Boolean): CharSequence =
+        if (!unread) text
+        else SpannableString(text).apply {
+            setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
 
     override fun getLoadingView(): RemoteViews? = null
 

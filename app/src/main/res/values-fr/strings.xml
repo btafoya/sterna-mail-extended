@@ -928,5 +928,4 @@
     <string name="widget_latest_description">Liste les messages les plus récents de toutes vos boîtes de réception.</string>
     <string name="widget_latest_empty">Aucun message</string>
     <string name="widget_latest_hidden">Message masqué</string>
-    <string name="widget_latest_unread">Non lu</string>
 </resources>

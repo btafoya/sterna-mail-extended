@@ -1,6 +1,7 @@
 package app.sterna.widget
 
 import app.sterna.R
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import app.sterna.core.data.settings.NotificationContent
@@ -35,15 +36,31 @@ class RecentMailWidgetContentTest {
     private val utc = ZoneId.of("UTC")
     private val today = LocalDate.of(2026, 8, 18)
 
+    // The two account colours, as the reader picked them in the account editor. Opaque ARGB, and
+    // deliberately not the app's own accent: what comes back out must be what went in.
+    private val alphaColor = 0xFF17414C.toInt()
+    private val gammaColor = 0xFFB3541E.toInt()
+
+    private fun account(id: String, color: Int?) = StoredAccount(
+        id = id,
+        server = "https://mail.example.test",
+        username = "$id@example.test",
+        inboxId = "inbox-$id",
+        inboxName = "Inbox",
+        color = color,
+    )
+
     private fun mail(
+        id: String = "msg-77",
+        accountId: String = "acct-alpha",
         subject: String? = "Quarterly report",
         fromName: String? = "Marie Dupont",
         fromEmail: String? = "marie@example.test",
         seen: Boolean = false,
         receivedAt: String? = "2026-08-18T09:12:00Z",
     ) = RecentEmailRow(
-        id = "msg-77",
-        accountId = "acct-alpha",
+        id = id,
+        accountId = accountId,
         mailboxId = "mbox-beta",
         subject = subject,
         fromName = fromName,
@@ -57,6 +74,7 @@ class RecentMailWidgetContentTest {
         row: RecentEmailRow = mail(),
         content: NotificationContent = NotificationContent.SENDER_AND_SUBJECT,
         appLockEnabled: Boolean = false,
+        accountColors: Map<String, Int> = emptyMap(),
     ) = RecentMailWidgetContent.row(
         row = row,
         content = content,
@@ -64,6 +82,7 @@ class RecentMailWidgetContentTest {
         unknownSender = unknownSender,
         noSubject = noSubject,
         generic = generic,
+        accountColors = accountColors,
         zone = utc,
         today = today,
         locale = Locale.UK,
@@ -81,14 +100,20 @@ class RecentMailWidgetContentTest {
         assertEquals(
             "the widget row rule gives BODY_PREVIEW the sender and the subject — the collapsed " +
                 "pair of a notification, never a third line of body.",
-            RecentWidgetRow(primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12", unread = true),
+            RecentWidgetRow(
+                primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12",
+                unread = true, accountColor = null,
+            ),
             drawn(content = NotificationContent.BODY_PREVIEW),
         )
     }
 
     @Test fun `sender and subject draws both`() {
         assertEquals(
-            RecentWidgetRow(primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12", unread = true),
+            RecentWidgetRow(
+                primary = "Marie Dupont", secondary = "Quarterly report", date = "09:12",
+                unread = true, accountColor = null,
+            ),
             drawn(content = NotificationContent.SENDER_AND_SUBJECT),
         )
     }
@@ -97,7 +122,10 @@ class RecentMailWidgetContentTest {
         assertEquals(
             "SENDER_ONLY must put the generic line where the subject was — not an empty line, and " +
                 "above all not the subject.",
-            RecentWidgetRow(primary = "Marie Dupont", secondary = generic, date = "09:12", unread = true),
+            RecentWidgetRow(
+                primary = "Marie Dupont", secondary = generic, date = "09:12",
+                unread = true, accountColor = null,
+            ),
             drawn(content = NotificationContent.SENDER_ONLY),
         )
     }
@@ -106,7 +134,10 @@ class RecentMailWidgetContentTest {
         assertEquals(
             "NONE is the position where a row identifies no one: the generic line alone, and null " +
                 "under it — null and not blank, so the launcher draws nothing rather than a hole.",
-            RecentWidgetRow(primary = generic, secondary = null, date = "09:12", unread = true),
+            RecentWidgetRow(
+                primary = generic, secondary = null, date = "09:12",
+                unread = true, accountColor = null,
+            ),
             drawn(content = NotificationContent.NONE),
         )
     }
@@ -120,7 +151,10 @@ class RecentMailWidgetContentTest {
     @Test fun `the app lock silences even the most talkative position`() {
         assertEquals(
             "with the app lock enabled a row must say what NONE says, whatever the setting is.",
-            RecentWidgetRow(primary = generic, secondary = null, date = "09:12", unread = true),
+            RecentWidgetRow(
+                primary = generic, secondary = null, date = "09:12",
+                unread = true, accountColor = null,
+            ),
             drawn(content = NotificationContent.BODY_PREVIEW, appLockEnabled = true),
         )
     }
@@ -164,6 +198,7 @@ class RecentMailWidgetContentTest {
             unknownSender = unknownSender,
             noSubject = noSubject,
             generic = generic,
+            accountColors = emptyMap(),
             zone = utc,
             today = today,
             locale = Locale.UK,
@@ -199,6 +234,7 @@ class RecentMailWidgetContentTest {
                     unknownSender = unknownSender,
                     noSubject = noSubject,
                     generic = generic,
+                    accountColors = emptyMap(),
                     zone = utc,
                     today = today,
                     locale = Locale.UK,
@@ -225,6 +261,7 @@ class RecentMailWidgetContentTest {
                     unknownSender = unknownSender,
                     noSubject = noSubject,
                     generic = generic,
+                    accountColors = emptyMap(),
                     zone = utc,
                     today = today,
                     locale = Locale.UK,
@@ -292,7 +329,10 @@ class RecentMailWidgetContentTest {
 
     @Test fun `an unreadable timestamp costs the stamp and nothing else`() {
         assertEquals(
-            RecentWidgetRow(primary = "Marie Dupont", secondary = "Quarterly report", date = "", unread = true),
+            RecentWidgetRow(
+                primary = "Marie Dupont", secondary = "Quarterly report", date = "",
+                unread = true, accountColor = null,
+            ),
             drawn(row = mail(receivedAt = null)),
         )
     }
@@ -363,6 +403,7 @@ class RecentMailWidgetContentTest {
             unknownSender = unknownSender,
             noSubject = noSubject,
             generic = generic,
+            accountColors = emptyMap(),
             zone = utc,
             today = today,
             locale = Locale.UK,
@@ -372,11 +413,13 @@ class RecentMailWidgetContentTest {
                 cell = RecentWidgetCell.Rows,
                 rows = listOf(
                     RecentWidgetItem(
-                        drawn = RecentWidgetRow("Marie Dupont", "Quarterly report", "09:12", unread = true),
+                        drawn = RecentWidgetRow(
+                            "Marie Dupont", "Quarterly report", "09:12", unread = true, accountColor = null,
+                        ),
                         tap = RecentRowTap("msg-77", "acct-alpha", "mbox-beta"),
                     ),
                     RecentWidgetItem(
-                        drawn = RecentWidgetRow("Tomasz Nowak", "Keys", "09:12", unread = false),
+                        drawn = RecentWidgetRow("Tomasz Nowak", "Keys", "09:12", unread = false, accountColor = null),
                         tap = RecentRowTap("msg-77", "acct-alpha", "mbox-beta"),
                     ),
                 ),
@@ -393,6 +436,7 @@ class RecentMailWidgetContentTest {
             unknownSender = unknownSender,
             noSubject = noSubject,
             generic = generic,
+            accountColors = emptyMap(),
             zone = utc,
             today = today,
             locale = Locale.UK,
@@ -402,6 +446,105 @@ class RecentMailWidgetContentTest {
                 "row from a read that had no scope to read.",
             RecentWidgetSnapshot(RecentWidgetCell.NothingToSay, emptyList()),
             snapshot,
+        )
+    }
+
+    // ---- which account a line came from ----
+
+    /**
+     * ⭐ THE PANE'S OWN DECISION, EXECUTED. The list interleaves several accounts by date and, until
+     * this dot, nothing on a row said which one it came from. The map is what makes that visible,
+     * and the whole of it is asserted: an answer that merely CONTAINED the right key would also be
+     * satisfied by a map that colours every account the same.
+     */
+    @Test fun `two accounts with colours each get their own`() {
+        assertEquals(
+            "each account's rows must wear the colour the reader picked for it, keyed by account " +
+                "id. One shared colour, or a key that is not the account id, and the dot stops " +
+                "telling the two mailboxes apart while still looking like a working feature.",
+            mapOf("acct-alpha" to alphaColor, "acct-gamma" to gammaColor),
+            RecentMailWidgetContent.accountColors(
+                listOf(account("acct-alpha", alphaColor), account("acct-gamma", gammaColor)),
+            ),
+        )
+    }
+
+    /**
+     * ⛔ ONE ACCOUNT, NO DOT AT ALL — the bound is [AllInboxesView], the same one the counter's
+     * label and tap consult. With a single mailbox there is nothing to tell apart, and a colour on
+     * every row of the list would be 16 dp of a home-screen line spent saying nothing.
+     */
+    @Test fun `a single account is given no colour, however carefully it was chosen`() {
+        assertEquals(
+            "with one account the widget must hand back NO colours: a dot in front of every row " +
+                "of a one-mailbox list distinguishes nothing, and the drawer does not offer " +
+                "\"All inboxes\" at that count either.",
+            emptyMap<String, Int>(),
+            RecentMailWidgetContent.accountColors(listOf(account("acct-alpha", alphaColor))),
+        )
+    }
+
+    /**
+     * ⛔ AND "AUTO" IS NOT A COLOUR. `StoredAccount.color` is null on the first position of the
+     * picker, which is where every account starts; inventing something for it would put on the home
+     * screen a colour the account editor never showed.
+     */
+    @Test fun `an account left on auto is left out, and does not take its neighbour's colour`() {
+        assertEquals(
+            "an account whose colour is null must be ABSENT from the map — not defaulted, and " +
+                "above all not given the other account's colour, which would mark two mailboxes " +
+                "as one.",
+            mapOf("acct-gamma" to gammaColor),
+            RecentMailWidgetContent.accountColors(
+                listOf(account("acct-alpha", null), account("acct-gamma", gammaColor)),
+            ),
+        )
+    }
+
+    /**
+     * ⛔ AND EACH LINE TAKES ITS OWN ACCOUNT'S COLOUR. This is the mutation the map alone cannot
+     * catch: a projection that looked the colour up once, or took the first entry, paints the whole
+     * list one colour — which is exactly what a reader with two mailboxes would report as "the dot
+     * does nothing", and it reads as working code.
+     */
+    @Test fun `each line of a snapshot wears its own account's colour`() {
+        val snapshot = RecentMailWidgetContent.snapshot(
+            inbox = RecentInbox(
+                configured = true,
+                rows = listOf(
+                    mail(id = "msg-1", accountId = "acct-alpha"),
+                    mail(id = "msg-2", accountId = "acct-gamma", fromName = "Tomasz Nowak"),
+                ),
+            ),
+            content = NotificationContent.SENDER_AND_SUBJECT,
+            appLockEnabled = false,
+            unknownSender = unknownSender,
+            noSubject = noSubject,
+            generic = generic,
+            accountColors = mapOf("acct-alpha" to alphaColor, "acct-gamma" to gammaColor),
+            zone = utc,
+            today = today,
+            locale = Locale.UK,
+        )
+        assertEquals(
+            "the dot must follow the row's OWN accountId. The same colour on both lines is the " +
+                "defect this widget exists to avoid: two mailboxes interleaved by date, and " +
+                "nothing on screen saying which is which.",
+            listOf(
+                RecentWidgetItem(
+                    drawn = RecentWidgetRow(
+                        "Marie Dupont", "Quarterly report", "09:12", unread = true, accountColor = alphaColor,
+                    ),
+                    tap = RecentRowTap("msg-1", "acct-alpha", "mbox-beta"),
+                ),
+                RecentWidgetItem(
+                    drawn = RecentWidgetRow(
+                        "Tomasz Nowak", "Quarterly report", "09:12", unread = true, accountColor = gammaColor,
+                    ),
+                    tap = RecentRowTap("msg-2", "acct-gamma", "mbox-beta"),
+                ),
+            ),
+            snapshot.rows,
         )
     }
 }

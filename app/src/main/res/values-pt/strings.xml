@@ -927,5 +927,4 @@
     <string name="widget_latest_description">Lista as mensagens mais recentes de todas as caixas de entrada.</string>
     <string name="widget_latest_empty">Sem mensagens</string>
     <string name="widget_latest_hidden">Mensagem oculta</string>
-    <string name="widget_latest_unread">Não lida</string>
 </resources>

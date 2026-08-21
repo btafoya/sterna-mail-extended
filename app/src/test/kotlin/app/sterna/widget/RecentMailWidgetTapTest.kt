@@ -114,6 +114,7 @@ class RecentMailWidgetTapTest {
             unknownSender = "«nobody named»",
             noSubject = "«nothing titled»",
             generic = "«hidden»",
+            accountColors = emptyMap(),
             zone = ZoneId.of("UTC"),
             today = LocalDate.of(2026, 8, 18),
             locale = Locale.UK,
@@ -123,11 +124,15 @@ class RecentMailWidgetTapTest {
                 "one's own account and folder.",
             listOf(
                 RecentWidgetItem(
-                    drawn = RecentWidgetRow("Marie Dupont", "Quarterly report", "09:12", unread = true),
+                    drawn = RecentWidgetRow(
+                        "Marie Dupont", "Quarterly report", "09:12", unread = true, accountColor = null,
+                    ),
                     tap = RecentRowTap("msg-1", "acct-alpha", "mbox-beta"),
                 ),
                 RecentWidgetItem(
-                    drawn = RecentWidgetRow("Tomasz Nowak", "Quarterly report", "09:12", unread = true),
+                    drawn = RecentWidgetRow(
+                        "Tomasz Nowak", "Quarterly report", "09:12", unread = true, accountColor = null,
+                    ),
                     tap = RecentRowTap("msg-2", "acct-gamma", "mbox-delta"),
                 ),
             ),
@@ -149,6 +154,7 @@ class RecentMailWidgetTapTest {
             unknownSender = "«nobody named»",
             noSubject = "«nothing titled»",
             generic = "«hidden»",
+            accountColors = emptyMap(),
             zone = ZoneId.of("UTC"),
             today = LocalDate.of(2026, 8, 18),
             locale = Locale.UK,

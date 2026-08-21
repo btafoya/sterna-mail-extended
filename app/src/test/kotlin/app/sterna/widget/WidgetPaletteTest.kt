@@ -52,7 +52,7 @@ class WidgetPaletteTest {
      * WHICH view reads WHICH colour — the half the palette rule cannot see.
      *
      * `widget_unread_count` is the ACCENT (teal): the big figure of the counter widget, its picker
-     * copy, and the unread dot of a row. `widget_row_primary` is the primary TEXT of a row
+     * copy, and the base a row's account mark is retinted over. `widget_row_primary` is the primary TEXT of a row
      * (`onSurface`, near-black in light mode), because that is what the app's own list does —
      * `EmailListItem` writes the sender with no `color =` at all and so inherits `LocalContentColor`,
      * i.e. `onSurface`. The two were one resource until the whole left half of the widget's list
@@ -71,7 +71,7 @@ class WidgetPaletteTest {
         assertEquals(
             "a widget view reads the wrong colour resource. TWO roles, deliberately split: " +
                 "@color/widget_unread_count is the ACCENT (Material `primary`, teal) and belongs to " +
-                "the big unread figure, its picker copy and the unread dot; " +
+                "the big unread figure, its picker copy and the row's account mark; " +
                 "@color/widget_row_primary is the primary TEXT of a list row (Material `onSurface`), " +
                 "matching what EmailListItem draws in the app. ⛔ Do not merge them back into one " +
                 "resource: that is exactly the defect, every row name came out teal. " +
@@ -173,7 +173,11 @@ class WidgetPaletteTest {
                 "<TextView android:text=\"Ada Lindqvist\" android:textColor=\"@color/widget_row_primary\"",
                 "<TextView android:text=\"07:58\" android:textColor=\"@color/widget_unread_label\"",
             ),
-            "drawable/widget_recent_unread_dot.xml" to listOf(
+            // ⭐ The row's 8 dp head mark. It used to be the unread dot; unread is shown by weight
+            // now and the same column carries the ACCOUNT mark, whose flat colour is only the base
+            // a runtime setColorFilter paints over. Same resource, same reason to pin it: it is the
+            // sole consumer, so nothing else here would notice the swap.
+            "drawable/widget_recent_account_dot.xml" to listOf(
                 "<solid android:color=\"@color/widget_unread_count\" />",
             ),
             // ⭐ The cell's own surface, and the ONLY consumer of widget_unread_background. Point it
