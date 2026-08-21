@@ -31,7 +31,7 @@ class FullQueryStreamingWiringTest {
 
     // -- the decision function, pinned whole -------------------------------------------------------
 
-    @Test fun `fullQueryWriteThrough is these five statements, in this order, with no guard`() {
+    @Test fun `fullQueryWriteThrough is these six statements, in this order, with no guard`() {
         // ⛔ The red line of the volet, as source. It is short precisely so it can be pinned
         // entire: the mutations this exists to catch are INSERTIONS (a try/catch around the walk,
         // a finally around the reconcile), and no presence check can see an inserted line.
@@ -39,17 +39,26 @@ class FullQueryStreamingWiringTest {
         // The `?: return walked` is the IMAP half — a walk whose folder was renumbered under it
         // answers null and nothing is deleted. It sits ABOVE `spareIds()` on purpose: not
         // reconciling must not consume the protection window's read either.
+        //
+        // `val before = folderIds()` is the #165 half, and its POSITION is the fix: read ONCE,
+        // before the walk, and carried into `reconcile` as the fourth argument — the set of rows
+        // that DELETE is allowed to touch.
         assertEquals(
             "fullQueryWriteThrough is no longer, line for line, what this was written against. " +
-                "Read the new body before touching this test: a `try`, a `catch` or a `finally` " +
+                "Read the new body before touching this test. A `try`, a `catch` or a `finally` " +
                 "here means the reconcile can run on a walk that did not finish, and the " +
-                "reconcile DELETES every cached row outside the ids it is given.",
+                "reconcile DELETES every cached row outside the ids it is given. And moving " +
+                "`val before = folderIds()` BELOW the walk, or dropping it from the `reconcile` " +
+                "call, makes the whole guard inert without changing a single test that only " +
+                "looks at the folder afterwards: mail that lands while the walk runs is named by " +
+                "no page, the reconcile deletes it, the cursor is stored, and #165 is back.",
             """
             {
+            val before = folderIds()
             val walked = walk(writePage)
             val keep = keepIds(walked) ?: return walked
             val spare = spareIds()
-            reconcile(walked, keep, spare)
+            reconcile(walked, keep, spare, before)
             return walked
             }
             """.trimIndent().lines().map { it.trim() }.filter { it.isNotEmpty() },
@@ -60,7 +69,7 @@ class FullQueryStreamingWiringTest {
     // -- the plug: syncMailbox's full-query branch -------------------------------------------------
 
     @Test fun `the full query routes through the write-through, with these arguments`() {
-        // Each of the four arguments carries one of the volet's properties, and each is pinned
+        // Each argument carries one of the volet's properties, and each is pinned
         // whole because each has a plausible-looking wrong version:
         //  - walk: the client call must receive `onPage`, or nothing streams;
         //  - writePage: `upsertAll`, NOT `replaceMailbox` — the latter deletes per page and would
@@ -69,6 +78,14 @@ class FullQueryStreamingWiringTest {
         //  - reconcile: `reconcileMailbox` with BOTH the keep set and the spare set.
         assertLine("MailRepository", "syncMailbox", "val full = fullQuerySizing(")
         assertLine("MailRepository", "syncMailbox", "val walked = fullQueryWriteThrough<List<Email>, WindowWalk>(")
+        // ⭐ #165: the folder as it stood BEFORE the walk, which travels to the reconcile as the
+        // bound on what may be DELETED. `localAccountId` and `mailboxId` are the SAME two the
+        // reconcile is given below — a bound read off another folder would evict nothing at all
+        // and switch the reconcile off. ⛔ On this path it is never null: the folder is known.
+        assertLine(
+            "MailRepository", "syncMailbox",
+            "folderIds = { emailDao.idsForMailbox(localAccountId, mailboxId).toSet() },",
+        )
         assertLine(
             "MailRepository", "syncMailbox",
             "walk = { onPage -> client.queryEmailsWindow(session, accountId, mailboxId, full.windowTarget, full.pageSize, auth, onPage) },",
@@ -86,7 +103,7 @@ class FullQueryStreamingWiringTest {
         assertLine("MailRepository", "syncMailbox", "spareIds = { recentlyMutatedIds(localAccountId) },")
         assertLine(
             "MailRepository", "syncMailbox",
-            "reconcile = { _, keepIds, spare -> emailDao.reconcileMailbox(localAccountId, mailboxId, keepIds, spare) },",
+            "reconcile = { _, keepIds, spare, evictable -> emailDao.reconcileMailbox(localAccountId, mailboxId, keepIds, spare, evictableIds = evictable) },",
         )
     }
 
@@ -129,7 +146,7 @@ class FullQueryStreamingWiringTest {
             listOf(
                 "{",
                 "upsertAll(emails)",
-                "reconcileMailboxRows(accountId, mailboxId, emails.mapTo(HashSet()) { it.id }, spareIds)",
+                "reconcileMailboxRows(accountId, mailboxId, emails.mapTo(HashSet()) { it.id }, spareIds, evictableIds = null)",
                 "}",
             ),
             DaoQuerySource.daoFunctionBody("EmailDao", "replaceMailbox")
@@ -153,7 +170,7 @@ class FullQueryStreamingWiringTest {
         assertEquals(
             "EmailDao.reconcileMailbox is no longer a bare call to the shared body: it has grown a " +
                 "decision of its own, which is then only reachable through one of the two doors.",
-            listOf("{", "reconcileMailboxRows(accountId, mailboxId, keepIds, spareIds)", "}"),
+            listOf("{", "reconcileMailboxRows(accountId, mailboxId, keepIds, spareIds, evictableIds)", "}"),
             DaoQuerySource.daoFunctionBody("EmailDao", "reconcileMailbox")
                 .lines().map { it.trim() }.filter { it.isNotEmpty() },
         )
@@ -170,7 +187,10 @@ class FullQueryStreamingWiringTest {
         // `keepIds` and `spareIds` are both id collections, so handing reconcileEvictions the wrong
         // one compiles, leaves the statement list identical, and turns every full re-query into
         // "delete the folder except the rows mutated in the last 45 seconds". A `chunk = 1_000`
-        // added to the same call is #29 reopened. Both are EXECUTED against real SQLite by
+        // added to the same call is #29 reopened. ⭐ And `cachedIds` is the folder's own read
+        // BOUNDED by `evictableIds` (#165): this body runs inside the @Transaction and re-reads the
+        // folder AFTER the caller has stopped looking, so dropping the bound here deletes whatever
+        // committed in between. Both are EXECUTED against real SQLite by
         // [ReconcileMailboxSqlTest], which reads these expressions rather than restating them; this
         // pin is what makes an inserted line cost a deliberate edit.
         assertEquals(
@@ -178,7 +198,7 @@ class FullQueryStreamingWiringTest {
             listOf(
                 "{",
                 "reconcileEvictions(",
-                "cachedIds = idsForMailbox(accountId, mailboxId),",
+                "cachedIds = evictableCachedIds(idsForMailbox(accountId, mailboxId), evictableIds),",
                 "keepIds = keepIds,",
                 "spareIds = spareIds.toHashSet(),",
                 ").forEach { batch -> evictFromCacheKeepingIndex(accountId, batch) }",

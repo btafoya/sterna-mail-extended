@@ -1772,6 +1772,7 @@ class MailRepository(
             session.getBatchSize(),
         )
         val walked = fullQueryWriteThrough<List<Email>, WindowWalk>(
+            folderIds = { emailDao.idsForMailbox(localAccountId, mailboxId).toSet() },
             walk = { onPage -> client.queryEmailsWindow(session, accountId, mailboxId, full.windowTarget, full.pageSize, auth, onPage) },
             writePage = { fresh ->
                 checkAccountStillConfigured(localAccountId, accountStore.accounts().map { it.id })
@@ -1779,7 +1780,7 @@ class MailRepository(
             },
             keepIds = { reconcilableWindowIds(it) },
             spareIds = { recentlyMutatedIds(localAccountId) },
-            reconcile = { _, keepIds, spare -> emailDao.reconcileMailbox(localAccountId, mailboxId, keepIds, spare) },
+            reconcile = { _, keepIds, spare, evictable -> emailDao.reconcileMailbox(localAccountId, mailboxId, keepIds, spare, evictableIds = evictable) },
         )
         android.util.Log.i(
             "MailSync",
@@ -3158,6 +3159,23 @@ class MailRepository(
      * ⛔ And every page is checked against the account list before it is written
      * ([checkAccountStillConfigured]): signing the account out mid-walk cancels nothing by itself,
      * and this walk would otherwise keep filing pages under an id no account owns any more.
+     *
+     * ⚠ [fullQueryWriteThrough]'s `folderIds` bound — what keeps a full re-query from deleting the
+     * mail that lands while it runs (Codeberg #165) — applies here only when the folder the walk
+     * LANDED ON is the folder that was inventoried, and it is switched off in code rather than
+     * hoped for. Two ways it can fail to be, both of them ordinary:
+     *
+     * - [mailboxId] is null, meaning "the inbox, whatever the server calls it". Nothing here knows
+     *   which folder that is; only the walk resolves it (`ImapFolderLoad.targetMailboxId`), and
+     *   re-deciding it in this function would be a second, silent source of truth that inventories
+     *   the WRONG folder whenever it disagrees with the first;
+     * - the requested path no longer exists — a folder renamed on the server — and the walk FALLS
+     *   BACK to the inbox (`ImapMailService.loadFolder`). The inventory then describes the folder
+     *   that was asked for and the reconcile deletes in the inbox.
+     *
+     * In both cases the bound is passed as NULL, which means "no bound" and leaves this path
+     * exactly as it was. ⛔ Never `emptySet()`: an empty bound would mean "evict nothing", the
+     * reconcile would stop removing anything at all, and the IMAP cache would grow without limit.
      */
     private suspend fun imapWriteThrough(
         credentials: AccountCredentials,
@@ -3167,6 +3185,7 @@ class MailRepository(
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
         return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
+            folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
             walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onPage) },
             writePage = { page ->
                 checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
@@ -3174,7 +3193,12 @@ class MailRepository(
             },
             keepIds = { load -> reconcilableIds(load, credentials.id) },
             spareIds = { recentlyMutatedIds(credentials.id) },
-            reconcile = { load, keepIds, spare -> emailDao.reconcileMailbox(credentials.id, load.targetMailboxId, keepIds, spare) },
+            reconcile = { load, keepIds, spare, evictable ->
+                emailDao.reconcileMailbox(
+                    credentials.id, load.targetMailboxId, keepIds, spare,
+                    evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
+                )
+            },
         )
     }
 

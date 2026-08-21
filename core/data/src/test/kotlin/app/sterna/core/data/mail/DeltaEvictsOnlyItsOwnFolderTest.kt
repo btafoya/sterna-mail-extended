@@ -147,8 +147,29 @@ class DeltaEvictsOnlyItsOwnFolderTest {
             listOf(
                 "if (toRemove.isEmpty()) emptySet() else emailDao.idsForMailbox(localAccountId, mailboxId).toSet()",
                 "val cachedIds = emailDao.idsForMailbox(localAccountId, mailboxId).toSet()",
+                // The full-query branch's own read (#165): the folder as it stood BEFORE the walk,
+                // subtracted from a second read at the reconcile so that mail which landed during
+                // the walk is not deleted. Same two arguments, for the same reason as the two above.
+                "folderIds = { emailDao.idsForMailbox(localAccountId, mailboxId).toSet() },",
             ),
             codeLinesNaming(body, "idsForMailbox("),
+        )
+
+        // ⭐ And EXACTLY one call to the reconcile, inside the write-through's `reconcile` lambda.
+        // The hole this closes was found by counter-expertise and no other test sees it: an
+        // `emailDao.reconcileMailbox(localAccountId, mailboxId, walked.ids.toHashSet(), …)` added
+        // just after the `val walked = fullQueryWriteThrough<…>(…)` block compiles, leaves every
+        // fixture green, and reinstates #165 whole — an unbounded DELETE against the walk's pages,
+        // run after the guarded one, with the sync cursor stored right behind it.
+        assertEquals(
+            "syncMailbox no longer reconciles exactly once, from inside the write-through, with " +
+                "the bound the write-through computed (evictableIds = evictable). A second call, " +
+                "or one that names its own keep set or drops the bound, deletes the mail that " +
+                "arrived while the walk ran and the cursor makes it permanent (#165)",
+            listOf(
+                "reconcile = { _, keepIds, spare, evictable -> emailDao.reconcileMailbox(localAccountId, mailboxId, keepIds, spare, evictableIds = evictable) },",
+            ),
+            codeLinesNaming(body, "emailDao.reconcileMailbox("),
         )
 
         val lines = body.lines().map { it.trim() }

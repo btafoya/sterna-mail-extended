@@ -85,10 +85,10 @@ class SignedOutAccountStopsWritingTest {
             cache += page
         }
 
-        suspend fun reconcile(keepIds: Set<String>, spareIds: List<String>) {
+        suspend fun reconcile(keepIds: Set<String>, spareIds: List<String>, evictableIds: Set<String>?) {
             reconciledKeepIds = keepIds
             val gone = reconcileEvictions(
-                cachedIds = cache.toList(),
+                cachedIds = evictableCachedIds(cache.toList(), evictableIds),
                 keepIds = keepIds,
                 spareIds = spareIds.toHashSet(),
             ).flatten()
@@ -116,6 +116,7 @@ class SignedOutAccountStopsWritingTest {
         val thrown = runBlocking {
             runCatching {
                 fullQueryWriteThrough(
+                    folderIds = { folder.cache.toSet() },
                     walk = { onPage -> walk.run(onPage) },
                     writePage = { page ->
                         checkAccountStillConfigured(accountId, configured)
@@ -123,7 +124,7 @@ class SignedOutAccountStopsWritingTest {
                     },
                     keepIds = { it.ids.toHashSet() },
                     spareIds = { emptyList() },
-                    reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                    reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
                 )
             }.exceptionOrNull()
         }

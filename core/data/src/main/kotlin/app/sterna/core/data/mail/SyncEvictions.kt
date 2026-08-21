@@ -277,6 +277,37 @@ internal fun reconcileEvictions(
     cachedIds.filter { it !in keepIds && it !in spareIds }.chunked(chunk)
 
 /**
+ * Which of the rows a reconcile just read it is ALLOWED to consider for eviction — the bound that
+ * makes a full re-query safe against writes it is racing (Codeberg #165).
+ *
+ * ⛔ The problem this exists for, and why it is a filter on the CACHED side rather than one more
+ * thing added to the keep set. `EmailDao.reconcileMailboxRows` re-reads the folder itself, inside
+ * its transaction, AFTER the walk is over: [cachedIds] is therefore a snapshot from a moment the
+ * caller never saw. Everything that landed in the folder between the caller's own reading of it
+ * and that re-read — the push socket, the 30-minute worker, a second refresh, none of them locked
+ * out — is in [cachedIds], is in no page of the walk, and is in no keep set. It gets deleted, and
+ * on JMAP a sync cursor is stored immediately afterwards, so it never comes back. It is the newest
+ * mail in the folder, structurally: the walk pages by anchor from the top and never comes back up.
+ *
+ * [evictableIds] is the folder as it stood BEFORE the walk started. A row that was not there then
+ * cannot have been described by the walk, so nothing this reconcile knows can justify deleting it;
+ * a row that WAS there and that no page named is stale exactly as it always was, and still goes.
+ * ⭐ Which is why this is one filter and not an addition to the keep set: an addition would have to
+ * be computed from a second read, and that read is on the wrong side of the transaction — there is
+ * no moment at which the caller can enumerate what the DAO is about to see.
+ *
+ * ⛔ NULL means NO BOUND, i.e. exactly the behaviour that shipped before this existed: everything
+ * the folder holds is a candidate. It is not the same thing as an empty set, and the difference is
+ * the whole risk of this argument — an EMPTY bound means "evict nothing, ever", which silently
+ * turns the reconcile off: the cache then grows without limit and a message destroyed on the server
+ * never leaves the list. A caller that cannot say which folder it is about to reconcile
+ * (`MailRepository.imapWriteThrough` on an unnamed mailbox) must therefore pass null, never
+ * `emptySet()`.
+ */
+internal fun evictableCachedIds(cachedIds: List<String>, evictableIds: Set<String>?): List<String> =
+    if (evictableIds == null) cachedIds else cachedIds.filter { it in evictableIds }
+
+/**
  * Whether this sync cycle should run a mailbox's existence sweep. The sweep costs one
  * `Email/get` per 200 cached rows, so it cannot ride on every incremental sync — and it would,
  * if it keyed off [stateAdvanced] alone: `Email/changes`' state is ACCOUNT-WIDE, so it advances

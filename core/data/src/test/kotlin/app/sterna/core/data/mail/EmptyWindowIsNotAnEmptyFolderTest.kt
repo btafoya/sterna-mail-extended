@@ -70,19 +70,21 @@ class EmptyWindowIsNotAnEmptyFolderTest {
         val cache = LinkedHashSet(cached)
         var reconciled = false
 
-        suspend fun reconcile(keepIds: Set<String>, spareIds: List<String>) {
+        suspend fun reconcile(keepIds: Set<String>, spareIds: List<String>, evictableIds: Set<String>?) {
             reconciled = true
-            cache -= reconcileEvictions(cache.toList(), keepIds, spareIds.toHashSet()).flatten().toSet()
+            cache -= reconcileEvictions(evictableCachedIds(cache.toList(), evictableIds), keepIds, spareIds.toHashSet())
+                .flatten().toSet()
         }
     }
 
     private fun writeThrough(folder: Folder, answer: WindowWalk) = runBlocking {
         fullQueryWriteThrough<List<String>, WindowWalk>(
+            folderIds = { folder.cache.toSet() },
             walk = { answer },
             writePage = { page -> folder.cache += page },
             keepIds = { reconcilableWindowIds(it) },
             spareIds = { emptyList() },
-            reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+            reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
         )
     }
 

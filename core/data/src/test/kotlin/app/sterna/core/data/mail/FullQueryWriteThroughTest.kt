@@ -45,11 +45,11 @@ class FullQueryWriteThroughTest {
         }
 
         /** The shipped reconcile, applied: complement against the WHOLE keep set, then evict. */
-        suspend fun reconcile(keepIds: Set<String>, spareIds: List<String>) {
+        suspend fun reconcile(keepIds: Set<String>, spareIds: List<String>, evictableIds: Set<String>?) {
             reconciledKeepIds = keepIds
             reconciledSpare = spareIds
             val gone = reconcileEvictions(
-                cachedIds = cache.toList(),
+                cachedIds = evictableCachedIds(cache.toList(), evictableIds),
                 keepIds = keepIds,
                 spareIds = spareIds.toHashSet(),
             ).flatten()
@@ -101,11 +101,12 @@ class FullQueryWriteThroughTest {
         val thrown = runBlocking {
             runCatching {
                 fullQueryWriteThrough(
+                    folderIds = { folder.cache.toSet() },
                     walk = walkOf(threePages, failAfter = 2, failWith = boom),
                     writePage = folder::write,
                     keepIds = { it.ids.toHashSet() },
                     spareIds = { folder.spare.toList() },
-                    reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                    reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
                 )
             }.exceptionOrNull()
         }
@@ -136,11 +137,12 @@ class FullQueryWriteThroughTest {
         val thrown = runBlocking {
             runCatching {
                 fullQueryWriteThrough(
+                    folderIds = { folder.cache.toSet() },
                     walk = walkOf(threePages, failAfter = 1, failWith = cancelled),
                     writePage = folder::write,
                     keepIds = { it.ids.toHashSet() },
                     spareIds = { folder.spare.toList() },
-                    reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                    reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
                 )
             }.exceptionOrNull()
         }
@@ -162,6 +164,7 @@ class FullQueryWriteThroughTest {
         val thrown = runBlocking {
             runCatching {
                 fullQueryWriteThrough(
+                    folderIds = { folder.cache.toSet() },
                     walk = walkOf(threePages),
                     writePage = { page ->
                         if (written++ == 1) throw boom
@@ -169,7 +172,7 @@ class FullQueryWriteThroughTest {
                     },
                     keepIds = { it.ids.toHashSet() },
                     spareIds = { folder.spare.toList() },
-                    reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                    reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
                 )
             }.exceptionOrNull()
         }
@@ -189,11 +192,12 @@ class FullQueryWriteThroughTest {
 
         val walked = runBlocking {
             fullQueryWriteThrough(
+                folderIds = { folder.cache.toSet() },
                 walk = walkOf(threePages),
                 writePage = folder::write,
                 keepIds = { it.ids.toHashSet() },
                 spareIds = { folder.spare.toList() },
-                reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
             )
         }
 
@@ -217,11 +221,12 @@ class FullQueryWriteThroughTest {
 
         runBlocking {
             fullQueryWriteThrough(
+                folderIds = { folder.cache.toSet() },
                 walk = walkOf(threePages, between = { i -> if (i == 1) folder.spare += "undone" }),
                 writePage = folder::write,
                 keepIds = { it.ids.toHashSet() },
                 spareIds = { folder.spare.toList() },
-                reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
             )
         }
 
@@ -237,11 +242,12 @@ class FullQueryWriteThroughTest {
 
         runBlocking {
             fullQueryWriteThrough(
+                folderIds = { folder.cache.toSet() },
                 walk = walkOf(threePages),
                 writePage = folder::write,
                 keepIds = { it.ids.toHashSet() },
                 spareIds = { emptyList() },
-                reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
             )
         }
 
@@ -255,11 +261,12 @@ class FullQueryWriteThroughTest {
 
         val walked = runBlocking {
             fullQueryWriteThrough(
+                folderIds = { folder.cache.toSet() },
                 walk = walkOf(threePages),
                 writePage = folder::write,
                 keepIds = { it.ids.toHashSet() },
                 spareIds = { folder.spare.toList() },
-                reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
             )
         }
 
@@ -275,11 +282,12 @@ class FullQueryWriteThroughTest {
         val folder = Folder()
         val walked = runBlocking {
             fullQueryWriteThrough(
+                folderIds = { folder.cache.toSet() },
                 walk = walkOf(threePages),
                 writePage = folder::write,
                 keepIds = { it.ids.toHashSet() },
                 spareIds = { folder.spare.toList() },
-                reconcile = { _, keep, spare -> folder.reconcile(keep, spare) },
+                reconcile = { _, keep, spare, evictable -> folder.reconcile(keep, spare, evictable) },
             )
         }
 

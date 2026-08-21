@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import androidx.sqlite.db.SupportSQLiteQuery
 import app.sterna.core.data.getOrElseUnlessCancelled
+import app.sterna.core.data.mail.evictableCachedIds
 import app.sterna.core.data.mail.reconcileEvictions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -649,7 +650,7 @@ interface EmailDao {
         spareIds: List<String> = emptyList(),
     ) {
         upsertAll(emails)
-        reconcileMailboxRows(accountId, mailboxId, emails.mapTo(HashSet()) { it.id }, spareIds)
+        reconcileMailboxRows(accountId, mailboxId, emails.mapTo(HashSet()) { it.id }, spareIds, evictableIds = null)
     }
 
     /**
@@ -681,8 +682,9 @@ interface EmailDao {
         mailboxId: String,
         keepIds: Set<String>,
         spareIds: List<String> = emptyList(),
+        evictableIds: Set<String>?,
     ) {
-        reconcileMailboxRows(accountId, mailboxId, keepIds, spareIds)
+        reconcileMailboxRows(accountId, mailboxId, keepIds, spareIds, evictableIds)
     }
 
     /**
@@ -697,20 +699,38 @@ interface EmailDao {
      * a path whose failure mode is deleted mail, and on two protocols at once. A shared un-annotated
      * body costs nothing and removes the question: whichever way in, exactly one transaction.
      *
-     * ⛔ The argument names below are load-bearing and are not decoration: [keepIds] and [spareIds]
-     * are both id collections, so handing [reconcileEvictions] the wrong one COMPILES — and passing
-     * the spare set where the keep set belongs turns every full re-query into "delete the folder
-     * except the handful of rows mutated in the last 45 seconds". `ReconcileMailboxSqlTest` reads
-     * these very expressions out of this body and runs them against real SQLite for that reason.
+     * ⛔ The argument names below are load-bearing and are not decoration: [keepIds], [spareIds] and
+     * [evictableIds] are all id collections, so handing [reconcileEvictions] the wrong one COMPILES
+     * — and passing the spare set where the keep set belongs turns every full re-query into "delete
+     * the folder except the handful of rows mutated in the last 45 seconds".
+     * `ReconcileMailboxSqlTest` reads these very expressions out of this body and runs them against
+     * real SQLite for that reason. THREE id sets on the one path whose failure mode is deleted
+     * mail: read the names, not the shapes.
+     *
+     * ⭐ [evictableIds] bounds what may be DELETED — the folder as the caller saw it BEFORE its walk
+     * started ([app.sterna.core.data.mail.fullQueryWriteThrough]'s `folderIds`). Null means no
+     * bound, which is the behaviour that shipped before it existed, and is what [replaceMailbox]
+     * passes: that caller hands over a whole snapshot with nothing racing it. ⛔ Null is NOT
+     * `emptySet()` — an empty bound evicts nothing at all and switches the reconcile off; the
+     * distinction is [app.sterna.core.data.mail.evictableCachedIds]', which is where the rule is
+     * written down and executed.
+     *
+     * ⛔ And the bound is applied HERE, not by the caller, because the line above it is the reason
+     * it is needed: this body re-reads the folder itself (`idsForMailbox`), inside the transaction
+     * these two entry points open, AFTER the walk is over. Anything that commits between the
+     * caller's own reading of the folder and that re-read is in the read, in no page and in no keep
+     * set — deleted, then made permanent by the sync cursor stored right afterwards (Codeberg
+     * #165). A caller cannot filter a list it never sees.
      */
     suspend fun reconcileMailboxRows(
         accountId: String,
         mailboxId: String,
         keepIds: Set<String>,
         spareIds: List<String>,
+        evictableIds: Set<String>?,
     ) {
         reconcileEvictions(
-            cachedIds = idsForMailbox(accountId, mailboxId),
+            cachedIds = evictableCachedIds(idsForMailbox(accountId, mailboxId), evictableIds),
             keepIds = keepIds,
             spareIds = spareIds.toHashSet(),
         ).forEach { batch -> evictFromCacheKeepingIndex(accountId, batch) }

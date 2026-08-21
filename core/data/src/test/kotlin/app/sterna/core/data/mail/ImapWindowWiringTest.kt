@@ -45,6 +45,11 @@ class ImapWindowWiringTest {
         // full query does it (`fullQueryWindowTarget`, same function).
         //
         // Each argument carries one property:
+        //  - folderIds: the folder as it stood BEFORE the walk, which bounds what the reconcile
+        //    may DELETE (#165). ⛔ NULL on an unnamed folder, never `emptySet()`: null means "no
+        //    bound", an empty set would mean "evict nothing" and would switch the reconcile off.
+        //    `credentials.id` here, never another account's, and `mailboxId` — NOT
+        //    `load.targetMailboxId`, which does not exist yet when this lambda is read;
         //  - walk: `loadFolder` must receive `onPage`, or nothing streams and nothing is bounded;
         //  - writePage: `upsertAll`, NEVER `replaceMailbox` — the latter DELETES what it is not
         //    given, so a per-page call would empty the folder down to its last page every refresh;
@@ -52,7 +57,11 @@ class ImapWindowWiringTest {
         //    `load.walk.uids` here instead would reconcile against a set that may be missing a
         //    message the server still holds, and delete it;
         //  - spareIds: a lambda, so the 45 s protection window is read AT the reconcile;
-        //  - reconcile: the folder the WALK landed on, with both the keep set and the spare set.
+        //  - reconcile: the folder the WALK landed on, with the keep set, the spare set, and the
+        //    bound ONLY when the walk landed on the folder that was inventoried. `loadFolder`
+        //    falls back to the inbox when the requested path is gone (a folder renamed on the
+        //    server), and bounding the inbox with another folder's inventory would evict nothing
+        //    there — the `takeIf` is that refusal, in code rather than in a comment.
         //
         // The two `checkAccountStillConfigured` lines are the sign-out guard: this walk runs for
         // minutes on a deep folder, and nothing cancels it when the account is signed out from the
@@ -67,6 +76,7 @@ class ImapWindowWiringTest {
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
             val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
             return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
+            folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
             walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onPage) },
             writePage = { page ->
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
@@ -74,7 +84,12 @@ class ImapWindowWiringTest {
             },
             keepIds = { load -> reconcilableIds(load, credentials.id) },
             spareIds = { recentlyMutatedIds(credentials.id) },
-            reconcile = { load, keepIds, spare -> emailDao.reconcileMailbox(credentials.id, load.targetMailboxId, keepIds, spare) },
+            reconcile = { load, keepIds, spare, evictable ->
+            emailDao.reconcileMailbox(
+            credentials.id, load.targetMailboxId, keepIds, spare,
+            evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
+            )
+            },
             )
             }
             """.trimIndent().lines().map { it.trim() }.filter { it.isNotEmpty() },

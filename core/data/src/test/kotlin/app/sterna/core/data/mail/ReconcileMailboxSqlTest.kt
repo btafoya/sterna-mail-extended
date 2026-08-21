@@ -152,21 +152,37 @@ class ReconcileMailboxSqlTest {
             )
         }
 
-    /** `idsForMailbox`'s shipped SQL, run for real. */
-    private fun cachedIdsOf(expression: String, accountId: String, mailboxId: String): List<String> {
-        check(expression == "idsForMailbox(accountId, mailboxId)") {
-            "EmailDao.$RECONCILE_BODY no longer reads the folder with idsForMailbox(accountId, " +
-                "mailboxId) — it reads '$expression'. An unscoped read here would reconcile one " +
-                "account's folder against another's (#31/#121)."
+    /**
+     * `idsForMailbox`'s shipped SQL, run for real, then the shipped bound applied to it — together
+     * they are what the body hands to `reconcileEvictions` as `cachedIds`.
+     *
+     * ⛔ The bound is not optional and dropping it is not a simplification: this read happens inside
+     * the transaction, AFTER the caller has stopped looking, so an unbounded `cachedIds` deletes
+     * whatever committed in between (#165). A change of shape fails loudly here rather than being
+     * approximated.
+     */
+    private fun cachedIdsOf(
+        expression: String,
+        accountId: String,
+        mailboxId: String,
+        evictableIds: Set<String>?,
+    ): List<String> {
+        check(expression == "evictableCachedIds(idsForMailbox(accountId, mailboxId), evictableIds)") {
+            "EmailDao.$RECONCILE_BODY no longer reads the folder with " +
+                "evictableCachedIds(idsForMailbox(accountId, mailboxId), evictableIds) — it reads " +
+                "'$expression'. An unscoped read here would reconcile one account's folder against " +
+                "another's (#31/#121); an UNBOUNDED one deletes the mail that arrived while the " +
+                "walk ran, and the cursor stored right afterwards makes that permanent (#165)."
         }
         val sql = DaoQuerySource.emailDaoQuery("idsForMailbox")
         val (statement, order) = DaoQuerySource.bindOrder(sql)
-        return db.prepareStatement(statement).use { ps ->
+        val read = db.prepareStatement(statement).use { ps ->
             order.forEachIndexed { i, name ->
                 ps.setString(i + 1, if (name == "accountId") accountId else mailboxId)
             }
             ps.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
         }
+        return evictableCachedIds(read, evictableIds)
     }
 
     /** The chunk the shipped call asks for, or [MAX_CHANGES] when it names none. */
@@ -189,6 +205,7 @@ class ReconcileMailboxSqlTest {
         mailboxId: String,
         keepIds: Set<String>,
         spareIds: List<String> = emptyList(),
+        evictableIds: Set<String>? = null,
     ): List<List<String>> {
         val arguments = shippedEvictionArguments()
         assertEquals(
@@ -197,7 +214,7 @@ class ReconcileMailboxSqlTest {
             arguments.keys - "chunk",
         )
         val batches = reconcileEvictions(
-            cachedIds = cachedIdsOf(arguments.getValue("cachedIds"), accountId, mailboxId),
+            cachedIds = cachedIdsOf(arguments.getValue("cachedIds"), accountId, mailboxId, evictableIds),
             keepIds = idSet(arguments.getValue("keepIds"), keepIds, spareIds),
             spareIds = idSet(arguments.getValue("spareIds"), keepIds, spareIds),
             chunk = chunkOf(arguments),
@@ -283,6 +300,42 @@ class ReconcileMailboxSqlTest {
         reconcileMailboxRows("acc", "mb-inbox", keepIds = emptySet())
 
         assertEquals(emptyList<String>(), cached())
+    }
+
+    // ---- the bound: what may be deleted at all (#165) ---------------------------------------------
+
+    @Test fun `a bound spares a row that landed after the caller read the folder`() {
+        // ⭐ #165 against real SQLite. "arrived" is in the table when this body reads it — pushed in
+        // while the walk ran, or in the millisecond between the caller's own read and this
+        // transaction — and it is named by no page of the walk. Only the bound stands between it
+        // and the DELETE, because by the time this body runs there is nobody left to ask.
+        listOf("w1", "stale", "arrived").forEach { cache(it) }
+
+        reconcileMailboxRows("acc", "mb-inbox", keepIds = setOf("w1"), evictableIds = setOf("w1", "stale"))
+
+        assertEquals(listOf("arrived", "w1"), cached())
+    }
+
+    @Test fun `the same fixture unbounded loses it — the witness`() {
+        // What `evictableIds = null` means, stated rather than assumed: exactly the behaviour that
+        // shipped before the bound existed, #165 included.
+        listOf("w1", "stale", "arrived").forEach { cache(it) }
+
+        reconcileMailboxRows("acc", "mb-inbox", keepIds = setOf("w1"), evictableIds = null)
+
+        assertEquals(listOf("w1"), cached())
+    }
+
+    @Test fun `an EMPTY bound deletes nothing at all — which is why null is not emptySet()`() {
+        // ⛔ The trap of this argument: an empty bound is not "no bound", it is "evict nothing", and
+        // it switches the reconcile off silently — the cache grows without limit and a message
+        // destroyed on the server never leaves the list. A caller that cannot name its folder
+        // passes null (`MailRepository.imapWriteThrough`).
+        listOf("w1", "stale").forEach { cache(it) }
+
+        reconcileMailboxRows("acc", "mb-inbox", keepIds = setOf("w1"), evictableIds = emptySet())
+
+        assertEquals(listOf("stale", "w1"), cached())
     }
 
     @Test fun `no single statement is handed more ids than SQLite will bind`() {

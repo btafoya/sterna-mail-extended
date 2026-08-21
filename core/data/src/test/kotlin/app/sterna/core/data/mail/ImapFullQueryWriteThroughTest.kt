@@ -67,12 +67,12 @@ class ImapFullQueryWriteThroughTest {
         }
 
         /** The shipped reconcile, applied: complement against the WHOLE keep set, then evict. */
-        suspend fun reconcile(mailboxId: String, keepIds: Set<String>, spareIds: List<String>) {
+        suspend fun reconcile(mailboxId: String, keepIds: Set<String>, spareIds: List<String>, evictableIds: Set<String>?) {
             reconciledMailbox = mailboxId
             reconciledKeepIds = keepIds
             reconciledSpare = spareIds
             val gone = reconcileEvictions(
-                cachedIds = cache.toList(),
+                cachedIds = evictableCachedIds(cache.toList(), evictableIds),
                 keepIds = keepIds,
                 spareIds = spareIds.toHashSet(),
             ).flatten()
@@ -125,11 +125,12 @@ class ImapFullQueryWriteThroughTest {
         walk: suspend (suspend (List<EmailEntity>) -> Unit) -> ImapFolderLoad,
     ): ImapFolderLoad = runBlocking {
         fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
+            folderIds = { folder.cache.toSet() },
             walk = walk,
             writePage = folder::write,
             keepIds = { load -> reconcilableIds(load, account) },
             spareIds = { folder.spare.toList() },
-            reconcile = { load, keepIds, spare -> folder.reconcile(load.targetMailboxId, keepIds, spare) },
+            reconcile = { load, keepIds, spare, evictable -> folder.reconcile(load.targetMailboxId, keepIds, spare, evictable) },
         )
     }
 
@@ -215,11 +216,12 @@ class ImapFullQueryWriteThroughTest {
         val thrown = runCatching {
             runBlocking {
                 fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
+                    folderIds = { folder.cache.toSet() },
                     walk = walkOf(threePages),
                     writePage = { page -> if (written++ == 1) throw boom else folder.write(page) },
                     keepIds = { load -> reconcilableIds(load, account) },
                     spareIds = { folder.spare.toList() },
-                    reconcile = { load, keepIds, spare -> folder.reconcile(load.targetMailboxId, keepIds, spare) },
+                    reconcile = { load, keepIds, spare, evictable -> folder.reconcile(load.targetMailboxId, keepIds, spare, evictable) },
                 )
             }
         }.exceptionOrNull()
@@ -282,11 +284,12 @@ class ImapFullQueryWriteThroughTest {
 
         runBlocking {
             fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
+                folderIds = { folder.cache.toSet() },
                 walk = walkOf(threePages),
                 writePage = folder::write,
                 keepIds = { load -> reconcilableIds(load, account) },
                 spareIds = { emptyList() },
-                reconcile = { load, keepIds, spare -> folder.reconcile(load.targetMailboxId, keepIds, spare) },
+                reconcile = { load, keepIds, spare, evictable -> folder.reconcile(load.targetMailboxId, keepIds, spare, evictable) },
             )
         }
 
