@@ -1,0 +1,48 @@
+Home screen
+
+- Two home-screen cells, neither with a configuration screen. One shows the unread total of every inbox and opens All inboxes at a tap. The other lists the newest messages of every inbox, with sender, subject, date and an unread dot, and a tap opens the message it came from.
+- Dragged larger, the counter cell writes one line and one figure per account, when every line fits at the current font size. Under that height it gives the total, as it always did. Which layout a cell gets is the launcher's decision, not a setting.
+- Both cells wear the colours the app itself is set to, pure black and Material You included, instead of following the phone's day or night mode.
+- Each row of the newest-mail cell starts with the same monogram disc the message list draws, and carries the colour dot of the account it came from when several accounts are set up and a colour has been chosen.
+- With the app lock on, a row shows neither sender nor subject.
+
+Writing
+
+- Send later has a fifth entry, last in the menu, which opens a calendar and then a clock and schedules the instant they compose. Neither one can pick a moment already gone.
+- A preset whose hour has passed is no longer offered: after 6 PM, "This evening, 6 PM" is dropped rather than quietly meaning tomorrow. A preset is read at the moment it is tapped, and one that expired while the menu was open schedules nothing.
+- The composer's four questions, about deleting a draft, discarding without saving, a forgotten attachment and a long recipient list, stay on screen when the phone is turned.
+- An attachment whose staged copy the system has since evicted is dropped from the composer, with a word saying so, instead of failing the save with a raw English message.
+
+OpenPGP
+
+- Sterna talks to whichever OpenPGP app is installed, rather than to OpenKeychain alone, through the OpenPGP API's own service query. From two providers up, the account screen offers a row to name the one to use. The choice is remembered, and installing another app later does not move you off the one you were using.
+
+Reading
+
+- A message part that is present but blank no longer renders as a white screen, and HTML and plain text now say the same thing about it.
+- Opening a search hit that lives in an IMAP folder no sync has walked reads the message from the server, instead of stopping on "Message is not in the cache."
+- The unread filter has a third scope: one account's unread mail across its folders, leaving out Trash, Junk, Sent and Drafts.
+- The unified view's top bar says "All inboxes" in the app's own language.
+
+Deleting and moving
+
+- On an account whose folders carry no Trash role, the swipe, the reader's bin, a whole selection and the by-sender screen resolve a Trash by name, or create one, instead of destroying the message or refusing the gesture. A delete from inside the Trash still destroys.
+- A full re-query of a folder can no longer delete cached messages from another folder, and mail that arrives while it is running is no longer swept away by it.
+- On IMAP, a permanent delete is made under the numbering the row was read under rather than the folder's, and a move is refused when the server will not state the numbering it is about.
+- The Delete button of a new-mail banner no longer takes a message off the screen when the move would move nothing.
+- A bulk delete, archive or move says how many messages it settled, instead of always saying one.
+- A permanent destroy, an Empty trash and a folder delete say the order is under way rather than done, since the server has yet to be told.
+- A bulk action that failed with no network says the device is offline, as the swipe beside it already did.
+- A swipe that failed says so in the app's language, and its row comes back.
+
+Accounts
+
+- A shared mailbox gets its own row under its login, and its own screen carrying two lines: colour and notifications. Both were already honoured; what is new is the way in.
+- Adding a mailbox that is already there refreshes that account instead of leaving you with a second one.
+- Signing in to a JMAP server through the browser is retried when the poll reaches no server at all, instead of being counted as a refusal, and the message says which end went quiet.
+- "Clear this account's cache" erases the decrypted attachment files on disk, not the database rows alone.
+- The local search index no longer returns hits belonging to an account that has been removed.
+
+Elsewhere
+
+- With system animations off, the loading indicator under the message list is drawn as a whole ring rather than a few pixels of arc.

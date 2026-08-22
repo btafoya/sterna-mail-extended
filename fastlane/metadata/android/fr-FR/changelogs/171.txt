@@ -1,0 +1,48 @@
+Écran d'accueil
+
+- Deux cellules d'écran d'accueil, sans écran de configuration ni pour l'une ni pour l'autre. La première affiche le total des non-lus de toutes les boîtes et ouvre « Toutes les boîtes » au toucher. La seconde liste les messages les plus récents de toutes les boîtes, avec expéditeur, objet, date et une pastille de non-lu, et un toucher ouvre le message d'où vient la ligne.
+- Agrandie, la cellule du compteur écrit une ligne et un chiffre par compte, quand toutes les lignes tiennent à la taille de police du moment. En dessous de cette hauteur elle rend le total, comme elle l'a toujours fait. La mise en page est la décision du lanceur, pas un réglage.
+- Les deux cellules portent les couleurs auxquelles l'application est réglée, le noir pur et Material You compris, au lieu de suivre le mode jour ou nuit du téléphone.
+- Chaque ligne de la cellule des messages récents commence par le même disque à monogramme que dessine la liste des messages, et porte la pastille de couleur du compte d'où elle vient lorsque plusieurs comptes sont configurés et qu'une couleur a été choisie.
+- Sous verrou d'application, une ligne n'affiche ni expéditeur ni objet.
+
+Écriture
+
+- L'envoi différé a une cinquième entrée, en fin de menu, qui ouvre un calendrier puis une horloge et programme l'instant qu'ils composent. Ni l'un ni l'autre ne peut désigner un moment déjà passé.
+- Une présélection dont l'heure est passée n'est plus proposée : après 18 h, « Ce soir, 18 h » est retirée au lieu de vouloir dire demain sans le dire. Une présélection est lue au moment où elle est touchée, et celle qui a expiré pendant que le menu était ouvert ne programme rien.
+- Les quatre questions du composeur, sur la suppression d'un brouillon, l'abandon sans enregistrer, une pièce jointe oubliée et une longue liste de destinataires, restent à l'écran quand le téléphone est tourné.
+- Une pièce jointe dont le système a depuis évincé la copie de travail est retirée du composeur, avec un mot qui le dit, au lieu de faire échouer l'enregistrement sur un message brut en anglais.
+
+OpenPGP
+
+- Sterna parle à l'application OpenPGP installée, quelle qu'elle soit, plutôt qu'à OpenKeychain seule, en passant par la requête de service de l'API OpenPGP elle-même. À partir de deux fournisseurs, l'écran du compte propose une ligne pour désigner celui à utiliser. Le choix est retenu, et installer une autre application plus tard ne vous déplace pas de celle que vous utilisiez.
+
+Lecture
+
+- Une partie de message présente mais vide ne rend plus un écran blanc, et le HTML et le texte brut en disent désormais la même chose.
+- Ouvrir un résultat de recherche qui se trouve dans un dossier IMAP qu'aucune synchro n'a parcouru lit le message depuis le serveur, au lieu de s'arrêter sur « Le message n'est pas dans le cache ».
+- Le filtre des non-lus a une troisième portée : les non-lus d'un compte à travers ses dossiers, corbeille, indésirables, envoyés et brouillons exceptés.
+- La barre du haut de la vue unifiée dit « Toutes les boîtes » dans la langue de l'application.
+
+Supprimer et déplacer
+
+- Sur un compte dont aucun dossier ne porte le rôle de corbeille, le glissement, la corbeille du lecteur, une sélection entière et l'écran par expéditeur résolvent une corbeille par son nom, ou en créent une, au lieu de détruire le message ou de refuser le geste. Une suppression depuis la corbeille détruit toujours.
+- Une relecture complète d'un dossier ne peut plus supprimer des messages en cache d'un autre dossier, et le courrier qui arrive pendant qu'elle tourne n'est plus emporté par elle.
+- En IMAP, une suppression définitive se fait sous la numérotation sous laquelle la ligne a été lue, et non celle du dossier, et un déplacement est refusé quand le serveur ne veut pas énoncer la numérotation dont il parle.
+- Le bouton Supprimer d'un bandeau de nouveau message ne retire plus un message de l'écran quand le déplacement ne déplacerait rien.
+- Une suppression, un archivage ou un déplacement en lot dit combien de messages il a réglés, au lieu de toujours dire un.
+- Une destruction définitive, un « Vider la corbeille » et une suppression de dossier disent que l'ordre est en cours plutôt que fait, puisque le serveur n'en a pas encore été averti.
+- Une action en lot qui a échoué sans réseau dit que l'appareil est hors ligne, comme le glissement à côté d'elle le disait déjà.
+- Un glissement qui a échoué le dit dans la langue de l'application, et sa ligne revient.
+
+Comptes
+
+- Une boîte partagée a sa propre ligne sous son compte de connexion, et son propre écran portant deux lignes : couleur et notifications. Les deux étaient déjà respectées ; ce qui est nouveau, c'est le chemin pour y accéder.
+- Ajouter une boîte déjà présente rafraîchit ce compte au lieu de vous laisser avec un second.
+- La connexion à un serveur JMAP par le navigateur est réessayée quand l'interrogation n'atteint aucun serveur, au lieu d'être comptée comme un refus, et le message dit quel bout s'est tu.
+- « Vider le cache de ce compte » efface les fichiers de pièces jointes déchiffrés sur le disque, et pas seulement les lignes en base.
+- L'index de recherche local ne rend plus de résultats appartenant à un compte qui a été retiré.
+
+Ailleurs
+
+- Animations du système désactivées, l'indicateur de chargement sous la liste des messages est dessiné comme un anneau entier plutôt que quelques pixels d'arc.
