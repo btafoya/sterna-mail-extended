@@ -770,6 +770,48 @@ internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<Schedul
 }
 
 /**
+ * What a tap on [preset] at [nowMillis] is worth, given [drawnMillis] — the instant that entry was
+ * DRAWN for when the menu opened — or null when the tap must be REFUSED.
+ *
+ * ⛔ The same danger as [pickedScheduleMillis], one tap earlier. The menu can stand open for
+ * minutes with the composer in the background: an entry drawn at 5:55 PM still reads "This evening,
+ * 6 PM" when it is tapped at 6:05. That instant handed to `ScheduledSends.enqueue` becomes a delay
+ * coerced to zero, which is to say the message goes out AT ONCE while the confirmation still names
+ * the evening — and a send has no way back. Hence a refusal, never a correction.
+ *
+ * ⚠ ONE preset is asked again and THREE are not, and the difference is what each entry promised:
+ *  - [SchedulePreset.IN_1_HOUR] is RELATIVE — "an hour from the finger". Only re-reading the rule
+ *    with the tap's clock keeps that promise, and it can never lapse.
+ *  - the three others are ABSOLUTE — 6 PM, or 8 AM tomorrow, OF THE DAY THE ENTRY WAS DRAWN. Their
+ *    answer is [drawnMillis] itself. ⛔ Re-reading them does not correct them, it moves them by a
+ *    whole day at midnight: a menu drawn on the 18th at 11:50 PM shows "Tomorrow, 8 AM" for the
+ *    19th, and re-read five minutes later, on the 19th, that same entry means the 20th. The user
+ *    reads 8 AM and the message leaves 32 hours later.
+ *
+ * ⛔ The refusal of an absolute preset is read on [drawnMillis], NEVER on the preset still being in
+ * a fresh [schedulePresetsAt] list. That list happily offers THIS_EVENING to an entry drawn
+ * yesterday morning, and scheduling it would hand over an instant fourteen hours gone — the
+ * immediate send back through the side door. The drawn instant answers "behind us", which is true.
+ *
+ * [zone] is only the relative branch's, handed to [schedulePresetsAt] so the arithmetic and the
+ * STRICTLY-after filter stay in the single place they are unit-tested. An absolute entry already
+ * carries the zone it was drawn in, baked into its instant.
+ */
+internal fun presetMillisAtTap(
+    preset: SchedulePreset,
+    drawnMillis: Long,
+    nowMillis: Long,
+    zone: ZoneId,
+): Long? = when (preset) {
+    SchedulePreset.IN_1_HOUR ->
+        schedulePresetsAt(nowMillis, zone).firstOrNull { it.first == preset }?.second
+    // Named one by one rather than an `else`: a fifth preset added one day must not be swallowed
+    // into "carry what was drawn" in silence — the compiler has to ask which of the two kinds it is.
+    SchedulePreset.THIS_EVENING, SchedulePreset.TOMORROW_MORNING, SchedulePreset.TOMORROW_EVENING ->
+        drawnMillis.takeIf { it > nowMillis }
+}
+
+/**
  * The instant a hand-picked day + time is worth in [zone], or null when it is not STRICTLY after
  * [nowMillis] (#161).
  *

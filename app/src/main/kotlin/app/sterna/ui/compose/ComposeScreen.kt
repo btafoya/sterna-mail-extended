@@ -95,6 +95,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -1147,27 +1148,63 @@ fun ComposeScreen(
                         }
                         Box {
                         var scheduleMenu by remember { mutableStateOf(false) }
+                        // The instant the list below is DRAWN for, stamped when the menu opens.
+                        // ⚠ State, not a call in the composition: the wall clock is not snapshot
+                        // state, so a tap recomposes nothing on its own (the free picker above says
+                        // the same about its `enabled`). Re-stamping it is what redraws the menu
+                        // after a refused tap and takes the lapsed entry off screen.
+                        var menuOpenedAt by remember { mutableLongStateOf(0L) }
                         // A scheduled send is fired by a headless worker that can't sign, and its
                         // table carries no attachments: disable it for a SIGN/ENCRYPT message or one
                         // with attachments, which would otherwise go out unsigned or amputated (A2/A3).
                         IconButton(
-                            onClick = { scheduleMenu = true },
+                            onClick = { menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },
                             enabled = !sending && canSend && scheduleSendAllowed(pgpMode, attachments.isNotEmpty()),
                         ) {
                             Icon(Icons.Filled.Schedule, contentDescription = stringResource(R.string.compose_schedule_send))
                         }
                         DropdownMenu(expanded = scheduleMenu, onDismissRequest = { scheduleMenu = false }, shape = MaterialTheme.shapes.medium) {
-                            schedulePresets(context).forEach { (label, millis) ->
+                            // All three fields travel to the tap: the preset says WHICH KIND of
+                            // promise the entry made, and `drawnAt` is the instant it was drawn for
+                            // — which is the answer itself for the three ABSOLUTE entries ("6 PM",
+                            // "tomorrow 8 AM"), and only what the relative one used to be worth.
+                            schedulePresets(context, menuOpenedAt).forEach { (preset, label, drawnAt) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
                                     onClick = {
-                                        scheduleMenu = false
-                                        viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.compose_scheduled_toast, label),
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
+                                        // ⚠ Decided AGAIN at the tap, against a fresh clock — the
+                                        // same two reads as the free picker above. The composer can
+                                        // sit in the background for minutes with this menu up: an
+                                        // entry drawn at 5:55 PM still reads "This evening, 6 PM"
+                                        // when tapped at 6:05, and that lapsed instant reaching
+                                        // `ScheduledSends.enqueue` is coerced to a zero delay — the
+                                        // message goes out AT ONCE, irreversibly, while the banner
+                                        // announces a schedule. ⛔ Deciding is not re-computing:
+                                        // only "In 1 hour" is re-read, the three absolute entries
+                                        // keep the instant they were drawn for or are refused —
+                                        // re-computing them would move them a day at midnight. The
+                                        // rule is [presetMillisAtTap], pure and unit-tested.
+                                        val sendAt = presetMillisAtTap(preset, drawnAt, System.currentTimeMillis(), java.time.ZoneId.systemDefault())
+                                        // ⛔ Closing, scheduling and confirming happen together or
+                                        // not at all. On the refused path the menu STAYS UP and is
+                                        // redrawn from a new stamp: the lapsed entry vanishes under
+                                        // the finger, and that is the message. Deliberately no new
+                                        // string — the free picker refuses silently too, and nine
+                                        // translations do not buy a window a few seconds wide.
+                                        if (sendAt != null) {
+                                            scheduleMenu = false
+                                            viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)
+                                            // The LABEL, and it is true of what was just scheduled:
+                                            // "In 1 hour" is an hour from this tap, and "6 PM" is
+                                            // the 6 PM the entry was drawn for, or nothing left.
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.compose_scheduled_toast, label),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        } else {
+                                            menuOpenedAt = System.currentTimeMillis()
+                                        }
                                     },
                                 )
                             }
@@ -2105,12 +2142,20 @@ private fun FieldDivider() {
 }
 
 /**
- * Quick "send later" presets → (label, epoch-millis). The clock and the zone are read here and the
- * decision itself is [schedulePresetsAt]'s, which is pure and unit-tested: this only resolves the
- * labels, so the menu can never show an entry the rule dropped.
+ * Quick "send later" presets → (preset, label, epoch-millis) for a menu drawn at [nowMillis]. The
+ * zone is read here and the decision itself is [schedulePresetsAt]'s, which is pure and unit-tested:
+ * this only resolves the labels, so the menu can never show an entry the rule dropped.
+ *
+ * ⛔ The clock is an ARGUMENT and never read in this body. The caller stamps it when the menu opens
+ * and holds it in state, so a refused tap can re-stamp it and have the list redrawn; a clock read
+ * here would instead tie the shown list to recomposition, which a tap does not cause.
+ *
+ * All three fields reach the tap, which decides with [presetMillisAtTap]: the preset says whether
+ * the entry promised something RELATIVE or ABSOLUTE, and the millis is the instant it was drawn for
+ * — the answer itself for the absolute ones, and what a refusal is measured against.
  */
-private fun schedulePresets(context: android.content.Context): List<Pair<String, Long>> =
-    schedulePresetsAt(System.currentTimeMillis(), java.time.ZoneId.systemDefault())
+private fun schedulePresets(context: android.content.Context, nowMillis: Long): List<Triple<SchedulePreset, String, Long>> =
+    schedulePresetsAt(nowMillis, java.time.ZoneId.systemDefault())
         .map { (preset, millis) ->
             val label = when (preset) {
                 SchedulePreset.IN_1_HOUR -> R.string.schedule_in_1_hour
@@ -2118,5 +2163,5 @@ private fun schedulePresets(context: android.content.Context): List<Pair<String,
                 SchedulePreset.TOMORROW_MORNING -> R.string.schedule_tomorrow_morning
                 SchedulePreset.TOMORROW_EVENING -> R.string.schedule_tomorrow_evening
             }
-            context.getString(label) to millis
+            Triple(preset, context.getString(label), millis)
         }

@@ -235,9 +235,14 @@ class ReadReceiptWiringTest {
         assertEquals(
             "each schedule call must hand `requestReceipt` to viewModel.scheduleSend after the " +
                 "delay: the row it writes is where the message waits for hours, and what is not " +
-                "in it is gone by the time the worker sends",
-            List(2) { SEND_ARGUMENTS.dropLast(1) + "millis" + "requestReceipt" },
-            calls,
+                "in it is gone by the time the worker sends. The instant slot is named per call " +
+                "site — `millis` for the hand-picked pair, `sendAt` for the preset decided at the " +
+                "tap — and both are decided again INSIDE the tap; ScheduleMenuWiringTest pins that.",
+            listOf(
+                SEND_ARGUMENTS.dropLast(1) + "sendAt" + "requestReceipt",
+                SEND_ARGUMENTS.dropLast(1) + "millis" + "requestReceipt",
+            ).sortedBy { it.joinToString() },
+            calls.sortedBy { it.joinToString() },
         )
     }
 
