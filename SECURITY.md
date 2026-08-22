@@ -221,7 +221,8 @@ Out of scope:
 
 ### Android platform surface
 
-- Four components are exported. The first is the launcher `MainActivity`, and it reads
+- Four components are exported by Sterna's own manifest; the libraries it embeds add more, and
+  those are listed at the end of this section. The first is the launcher `MainActivity`, and it reads
   untrusted input from three kinds of entry point. Two of them are compose-screen prefill:
   `mailto:` deep links (VIEW+BROWSABLE and SENDTO filters) plus `ACTION_SEND` /
   `ACTION_SEND_MULTIPLE` in `*/*`, from which it reads `EXTRA_SUBJECT`, `EXTRA_TEXT` and
@@ -270,6 +271,18 @@ Out of scope:
   be mutable and targets a non-exported receiver explicitly).
 - The `FileProvider` shares only `cacheDir/attachments/`, with sanitized filenames and
   read-only, single-URI grants.
+- **The libraries add five more exported components to the merged manifest**, and the count above
+  does not include them. Three are guarded by a permission the caller must hold:
+  `androidx.work.impl.background.systemjob.SystemJobService` (`BIND_JOB_SERVICE`, held by the
+  system), `androidx.work.impl.diagnostics.DiagnosticsReceiver` and
+  `androidx.profileinstaller.ProfileInstallReceiver` (both `DUMP`, a signature/privileged
+  permission). The other two belong to the UnifiedPush connector and carry **no permission of
+  their own**: `MessagingReceiverImpl`, whose filter is how a UnifiedPush distributor delivers a
+  push (`MESSAGE`, `NEW_ENDPOINT`, `UNREGISTERED`, `REGISTRATION_FAILED`, `TEMP_UNAVAILABLE`), and
+  `RaiseToForegroundService`. That is the shape the UnifiedPush specification requires — delivery
+  is an inter-app broadcast by design — so another app can forge one. It carries no mail: a
+  forged event can at most make Sterna ask its own server whether anything is new, over the
+  account's own authenticated connection.
 
 ## Coordinated disclosure
 

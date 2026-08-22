@@ -196,7 +196,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Reply bar toggle (Settings → Reading and writing → Message), hides the Reply and Forward buttons at the bottom of a message; Reply stays in the toolbar at the top, Forward in its menu
 - ✅ Compact inbox top bar showing folder + account
 - ✅ About section in Settings, version (with release date), source code, license and author links
-- ✅ Home-screen widgets: an unread count for the unified inbox (with two or more accounts, a tap opens "All inboxes" and the enlarged cell breaks the total down per account, unless the app lock is on) and a recent-mail list whose rows follow the notification-content setting and name neither sender nor subject when the app lock is on; both follow the app's own theme, and each recent-mail row carries its account's colour
+- ✅ Home-screen widgets: an unread count for the unified inbox (with two or more accounts, a tap opens "All inboxes" and the enlarged cell breaks the total down per account, unless the app lock is on) and a recent-mail list whose rows follow the notification-content setting and name neither sender nor subject when the app lock is on; both follow the app's own theme, and a recent-mail row carries its account's colour once two or more accounts are set up and that account has been given one (the picker starts on "Auto", which draws no dot)
 - ✅ Accessibility pass (v1): screen-reader labels for icon-only controls (e.g. the star reads "Add star"/"Remove star" instead of the ★ glyph), decorative icons left unlabelled to avoid double-announcement, and text scales with the system font size (Compose sp); 💡 fuller TalkBack audit, large-touch-target review
 
 ## "Complete app" extras
