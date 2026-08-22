@@ -221,7 +221,7 @@ Out of scope:
 
 ### Android platform surface
 
-- Two components are exported. The first is the launcher `MainActivity`, and it reads
+- Four components are exported. The first is the launcher `MainActivity`, and it reads
   untrusted input from three kinds of entry point. Two of them are compose-screen prefill:
   `mailto:` deep links (VIEW+BROWSABLE and SENDTO filters) plus `ACTION_SEND` /
   `ACTION_SEND_MULTIPLE` in `*/*`, from which it reads `EXTRA_SUBJECT`, `EXTRA_TEXT` and
@@ -247,8 +247,12 @@ Out of scope:
   another app cannot get an authorization code of its own choosing exchanged against this
   client. A mismatch deliberately leaves the pending request armed, so an outside link cannot
   cancel a sign-in the user really started; a redirect that passes is consumed, and the same
-  one delivered twice finds nothing in flight. Push service, the notification receiver, and
-  the FileProvider are not exported.
+  one delivered twice finds nothing in flight. Push service, the notification receiver and
+  the FileProvider are not exported, and neither is `RecentMailWidgetService`, the row factory
+  behind the recent-mail widget. That factory serves the sender and subject of every message
+  in every mailbox, so not being exported is not left to carry the guard alone: it also
+  requires `android:permission="android.permission.BIND_REMOTEVIEWS"`, a signature permission
+  held by the system alone, so the widget host binds it and nothing else can.
 - The second is `BootReceiver`, which restarts the push connection after a reboot or an
   in-place update. It has to be exported: a manifest-declared receiver that is not exported
   never sees a system broadcast at all. Its filter carries `BOOT_COMPLETED` and
@@ -256,6 +260,12 @@ Out of scope:
   receiver reads **nothing but `intent.action`**, compares it against those two constants and
   returns on anything else. No extra, no data URI, no other field of the intent is ever read,
   so a broadcast forged by another app carries no payload into the app.
+- The third and fourth are the home-screen widget providers, `UnreadWidgetProvider` and
+  `RecentMailWidgetProvider`. They are exported for the same reason as the boot receiver: a
+  manifest-declared receiver that is not exported never sees a system broadcast at all. Each
+  filter carries a single action, `APPWIDGET_UPDATE`, again a protected broadcast that only
+  the system can send, and neither provider overrides `onReceive`: nothing is read out of the
+  intent, no extra and no data URI, only the `appWidgetIds` the framework passes in.
 - Notification `PendingIntent`s are `IMMUTABLE` (except the RemoteInput reply, which must
   be mutable and targets a non-exported receiver explicitly).
 - The `FileProvider` shares only `cacheDir/attachments/`, with sanitized filenames and

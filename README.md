@@ -150,6 +150,9 @@ Running your own server, with a free certificate or one you issued yourself? See
 **🔔 Notifications & server power**
 - Push for new mail with **no Google / FCM** (JMAP EventSource, IMAP IDLE or
   **UnifiedPush**), grouped per account, with quiet hours
+- Two home-screen widgets, an unread count for the unified inbox and a short
+  list of recent mail; rows follow the notification-content setting, and name
+  neither sender nor subject when the app lock is on
 - Server-side **vacation responder** and **Sieve filter rules**, mailbox quota
   display
 
@@ -160,7 +163,7 @@ Running your own server, with a free certificate or one you issued yourself? See
 
 The full, tracked feature set lives in [FEATURES.md](FEATURES.md).
 
-**🛠️ Planned:** home-screen widgets, S/MIME, and more.
+**🛠️ Planned:** S/MIME, and more.
 
 ## 🌍 Languages
 

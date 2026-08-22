@@ -48,7 +48,7 @@ The categories further down list the full feature set; this is the order of work
 **Tier 4, polish**
 - ✅ Richer search filters (from/subject/has-attachment/date, AND-combined); 💡 `SearchSnippet` highlights
 - ✅ Sterna brand identity, Arctic (light) / Pelagic (dark) palette, a calm sea-teal action colour with a coral accent (the tern's beak); Material You is an opt-in toggle; coastal line-art empty states; calmer microcopy
-- ✅ Per-account colour (avatar + unified-inbox chip); ✅ accessibility pass v1 (screen-reader labels, font scaling, system-bar contrast); 💡 home-screen widget(s), fuller TalkBack audit
+- ✅ Per-account colour (avatar + unified-inbox chip); ✅ accessibility pass v1 (screen-reader labels, font scaling, system-bar contrast); ✅ home-screen widgets (unread count, recent mail); 💡 fuller TalkBack audit
 - ✅ Bundled/grouped notifications (per-account summary) + quiet hours (silent nightly window)
 - ✅ Settings export/import (app preferences → JSON file via SAF; excludes accounts/credentials); ✅ `/.well-known/jmap` autodiscovery (email → server); ✅ password-free OAuth2 sign-in (device flow, RFC 8628; authorization code + PKCE, RFC 6749 §4.1 + RFC 7636, for servers with no device endpoint)
 
@@ -196,7 +196,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Reply bar toggle (Settings → Reading and writing → Message), hides the Reply and Forward buttons at the bottom of a message; Reply stays in the toolbar at the top, Forward in its menu
 - ✅ Compact inbox top bar showing folder + account
 - ✅ About section in Settings, version (with release date), source code, license and author links
-- 💡 Home-screen widget(s) (unread count / inbox)
+- ✅ Home-screen widgets: an unread count for the unified inbox (with two or more accounts, a tap opens "All inboxes" and the enlarged cell breaks the total down per account, unless the app lock is on) and a recent-mail list whose rows follow the notification-content setting and name neither sender nor subject when the app lock is on; both follow the app's own theme, and each recent-mail row carries its account's colour
 - ✅ Accessibility pass (v1): screen-reader labels for icon-only controls (e.g. the star reads "Add star"/"Remove star" instead of the ★ glyph), decorative icons left unlabelled to avoid double-announcement, and text scales with the system font size (Compose sp); 💡 fuller TalkBack audit, large-touch-target review
 
 ## "Complete app" extras

@@ -147,10 +147,17 @@ object MailNotificationText {
      *  - SENDER_ONLY: sender, the generic line instead of the subject;
      *  - NONE: the generic line alone — nothing identifying, and no second line.
      *
-     * That is exactly the (title, text) pair of [resolve]: a widget row never says more about a
-     * mail than the SAME mail's notification says while collapsed. A launcher draws this outside
-     * the app's window, in front of whoever is holding the phone, and it stays there — it is not a
+     * That is exactly the (title, text) pair of [resolve], and the rule is about WHAT ONE ROW SAYS:
+     * for a given mail, its row never says more than that same mail's notification says while
+     * collapsed, and never more than the lock in force allows. A launcher draws this outside the
+     * app's window, in front of whoever is holding the phone, and it stays there — it is not a
      * banner that goes away.
+     *
+     * ⛔ IT DOES NOT DECIDE WHICH MAILS GET A ROW — that is the per-account switch published as
+     * "Sync new mail", which stops BACKGROUND FETCHING and not display, so mail already in the
+     * database (it got there through an open or a pull-to-refresh) is drawn like any other. Read as
+     * a promise that a row exists only where a notification was posted, this invariant says
+     * something the code has never held.
      *
      * WHY THE FIRST TWO POSITIONS ARE IDENTICAL, deliberately: BODY_PREVIEW draws no body here. The
      * preview column is populated as a matter of course on JMAP, while on IMAP it is only
