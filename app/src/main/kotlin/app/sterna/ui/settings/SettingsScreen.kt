@@ -9,10 +9,8 @@ import android.os.Build
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
@@ -23,7 +21,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.size
 import app.sterna.ui.components.AccountPalette
 import app.sterna.ui.components.accountColorOf
-import app.sterna.ui.components.onAccentColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -65,7 +62,6 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.foundation.selection.selectable
@@ -210,9 +206,31 @@ fun SettingsScreen(
     // re-entrancy guard shared with the outer graph. Without it, taps landing during the slide
     // stacked several copies of the same page on the back stack (#106). A new destination added
     // here must be wired the same way.
+    // WHICH screen that deep link opens is [settingsRouteFor]'s call, taken HERE as well as at
+    // the accounts list below: the hub is never composed on this path (see above), so the
+    // list's own handler is never traversed and a shared mailbox would otherwise land on the
+    // login editor — a password field that writes under the LOGIN's key, for every account
+    // grouped under it.
+    // Reading the account list SYNCHRONOUSLY is sound here: the flow is seeded in the store's
+    // constructor from the prefs (AccountStore.kt, `private val live = AccountsState(accounts())`),
+    // so it is never an empty placeholder waiting on a load. No test in this module can prove that.
+    // What FREEZES the route at the first composition is the [remember], not the synchronous read:
+    // the bare expression this replaces sat in the NavHost's argument list and was therefore
+    // re-evaluated on every recomposition. A share revoked while settings are open changes the
+    // answer, and NavHost keys its graph on (route, startDestination, builder) — so the graph was
+    // rebuilt underneath a user standing on one of its destinations. Keyed on [initialAccountId]
+    // alone: the deep link's target is the only thing that may ever re-open the question.
+    // ⛔ PINNED BY SharedAccountScreenTest — the start destination, statement by statement
+    val startDestination = remember(initialAccountId) {
+        if (initialAccountId != null) {
+            settingsRouteFor(initialAccountId, accountsViewModel.accounts.value)
+        } else {
+            "hub"
+        }
+    }
     NavHost(
         navController = nav,
-        startDestination = if (initialAccountId != null) "account/$initialAccountId" else "hub",
+        startDestination = startDestination,
         enterTransition = {
             if (!motionEnabled) EnterTransition.None else slideInHorizontally(tween(SCREEN_SLIDE_MS)) { it }
         },
@@ -254,7 +272,7 @@ fun SettingsScreen(
             AccountsScreen(
                 viewModel = accountsViewModel,
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
-                onOpenAccount = { id -> entry.navigateOnce { nav.navigate("account/$id") } },
+                onOpenAccount = { id -> entry.navigateOnce { nav.navigate(settingsRouteFor(id, accountsViewModel.accounts.value)) } },
                 onAddAccount = { entry.navigateOnce { nav.navigate("addAccount") } },
                 onAccountsChanged = onAccountsChanged,
             )
@@ -275,23 +293,60 @@ fun SettingsScreen(
                 },
             )
         }
+        // The BELT, behind [settingsRouteFor]'s braces. Both entries into this graph ask that rule,
+        // but a route is just a string: anything that navigates to "account/<id>" — a new call site,
+        // a restored back stack, a deep link written later — arrives here with nothing between the
+        // id and the login editor's password field, whose save writes under [StoredAccount.loginKey]
+        // and therefore overwrites the secret of EVERY account grouped under that login. That is the
+        // loss of access this batch exists to make impossible, so the id is asked one last time
+        // HERE, with the SAME pure function, never a second wording of the guard.
+        // ⛔ PINNED BY SharedAccountScreenTest — the account route, statement by statement
         composable("account/{id}") { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
-            AccountDetailScreen(
+            val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()
+            if (sharedAccountFor(id, accounts) != null) {
+                // A shared mailbox that reaches this route anyway gets the screen that is honest
+                // for it, never the login editor: its password field saves under the LOGIN's key.
+                SharedAccountScreen(
+                    accountId = id,
+                    viewModel = accountsViewModel,
+                    onBack = { entry.navigateOnce { if (!nav.popBackStack()) onBack() } },
+                    onAccountsChanged = onAccountsChanged,
+                )
+            } else {
+                AccountDetailScreen(
+                    accountId = id,
+                    viewModel = accountsViewModel,
+                    // When this is the only inner destination (deep-linked from the drawer, hub
+                    // popped), Back falls through to the caller so it returns to the inbox, not a
+                    // dead end (#34). The fall-through sits INSIDE the guard: an ignored re-entrant
+                    // tap must not be read as "nothing left to pop" and close settings.
+                    onBack = { entry.navigateOnce { if (!nav.popBackStack()) onBack() } },
+                    // Guarded, unlike onConnected above: this one IS a tap — it runs inline from the
+                    // sign-out confirmation dialog's button, with the entry resumed underneath, and a
+                    // double tap on that button would pop twice.
+                    onSignedOut = {
+                        onAccountsChanged()
+                        entry.navigateOnce { nav.popBackStack() }
+                    },
+                    onAccountsChanged = onAccountsChanged,
+                )
+            }
+        }
+        // The two settings a DELEGATED account genuinely owns, and nothing else (issue #31). It
+        // gets its own destination rather than a mode of "account/{id}": that screen edits the
+        // credential of the LOGIN this account borrows, which is not this account's to edit.
+        // ⛔ PINNED BY SharedAccountScreenTest — the shared route, statement by statement
+        composable("sharedAccount/{id}") { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            SharedAccountScreen(
                 accountId = id,
                 viewModel = accountsViewModel,
-                // When this is the only inner destination (deep-linked from the drawer, hub popped),
-                // Back falls through to the caller so it returns to the inbox, not a dead end (#34).
-                // The fall-through sits INSIDE the guard: an ignored re-entrant tap must not be read
-                // as "nothing left to pop" and close settings.
+                // Same fall-through as the account screen above, and for the same reason: this
+                // route is reachable as the only inner destination, and Back must then land on the
+                // inbox rather than a dead end (#34). Inside the guard, so a swallowed re-entrant
+                // tap is never read as "nothing left to pop".
                 onBack = { entry.navigateOnce { if (!nav.popBackStack()) onBack() } },
-                // Guarded, unlike onConnected above: this one IS a tap — it runs inline from the
-                // sign-out confirmation dialog's button, with the entry resumed underneath, and a
-                // double tap on that button would pop twice.
-                onSignedOut = {
-                    onAccountsChanged()
-                    entry.navigateOnce { nav.popBackStack() }
-                },
                 onAccountsChanged = onAccountsChanged,
             )
         }
@@ -1191,35 +1246,6 @@ private fun QuotaRow(quota: QuotaUi) {
     }
 }
 
-/** A circular colour choice for the per-account accent picker; "Auto" when [color] is null. */
-@Composable
-private fun ColourSwatch(color: Color?, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .minimumInteractiveComponentSize()
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(color ?: MaterialTheme.colorScheme.surfaceVariant)
-            .border(
-                width = if (selected) 3.dp else 1.dp,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                shape = CircleShape,
-            )
-            .clickable(onClick = onClick)
-            .semantics { role = Role.Button; this.selected = selected },
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            color == null -> Text(
-                stringResource(R.string.settings_account_colour_auto),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            selected -> Icon(Icons.Filled.Check, contentDescription = null, tint = onAccentColor(color))
-        }
-    }
-}
-
 @Composable
 private fun StorageStatRow(label: String, value: String) {
     Row(
@@ -1306,24 +1332,32 @@ private fun AccountsScreen(
                     HorizontalDivider()
                 }
             }
-            // Only signed-in accounts here; the still-inert imported ones live in the section above.
-            // Delegated (shared) accounts get no row: this screen manages a LOGIN — server,
-            // credential, protocol, identities, PGP, sync window — and a delegated account owns none
-            // of that, it borrows the login's. It is mentioned under its login instead (issue #31),
-            // so no command here promises what it cannot do: signing out of a shared account is
-            // meaningless (discovery would restore it on the next connect); leaving the login is the
-            // only way to make it go.
-            items(accounts.filter { !it.importPending && !it.isShared }, key = { it.id }) { account ->
-                val sharedLabels = StoredAccount.sharedLabelsUnder(account, accounts)
+            // Only signed-in accounts here; the still-inert imported ones live in the section above,
+            // and [StoredAccount.accountsScreenRows] filters them out for us along with deciding the
+            // order. A delegated (shared) mailbox DOES get a row, indented under the login whose
+            // credential it borrows (issue #31): it owns none of THIS screen's settings — server,
+            // credential, protocol, identities, PGP, sync window — but tapping it opens the short
+            // shared-account screen, which holds the two it does own. Which screen that is, is
+            // [settingsRouteFor]'s decision, not this list's; nothing here promises a shared mailbox
+            // a sign-out it cannot honour (discovery restores it on the next connect).
+            // ⛔ PINNED BY SharedAccountScreenTest — the accounts list, statement by statement
+            items(StoredAccount.accountsScreenRows(accounts), key = { it.account.id }) { row ->
+                val account = row.account
                 AccountRow(
-                    seed = account.username,
+                    // A shared mailbox's colour seed is its own LABEL, exactly as in the drawer's
+                    // account list (InboxScreen): its [username] is the LOGIN's address, so seeding
+                    // on it gave a mailbox with no chosen colour the login's own monogram colour
+                    // here and a different one in the drawer. An ordinary row keeps `username` —
+                    // that colour is already on screen and must not move.
+                    seed = if (account.isShared) account.label() else account.username,
                     label = account.label(),
-                    email = account.username,
+                    // And the second line says what the row IS, not an address that isn't its own:
+                    // `username` under a shared mailbox printed the LOGIN's address, i.e. the same
+                    // address twice on two consecutive rows. Same wording as the drawer (#31).
+                    email = if (account.isShared) stringResource(R.string.account_shared) else account.username,
                     isCurrent = account.id == currentId,
                     color = accountColorOf(account.color),
-                    subtitle = sharedLabels.takeIf { it.isNotEmpty() }?.let {
-                        stringResource(R.string.settings_shared_accounts_under, it.joinToString(", "))
-                    },
+                    indented = row.underLogin,
                     onClick = {
                         // Never switch to an INERT (imported, not-yet-signed-in) account: it has no
                         // credentials and would break the current-account inbox. Still open it so the

@@ -777,17 +777,14 @@ fun InboxScreen(
                             modifier = Modifier
                                 .graphicsLayer { translationX = accountOffset.value }
                                 .clickable {
-                                    // A shared account sends you to its LOGIN's settings: that is
-                                    // where its commands actually live (credential, protocol, sign
-                                    // out — it has none of its own, and it disappears when the
-                                    // owner unshares or the login goes). Otherwise this tap would
-                                    // walk straight back into the editor the accounts screen
-                                    // deliberately no longer offers it (issue #31).
-                                    onOpenAccountSettings(
-                                        currentAccount
-                                            ?.let { StoredAccount.settingsTargetId(it, accounts) }
-                                            ?: currentAccountId,
-                                    )
+                                    // The account you are LOOKING AT, shared or not: the two
+                                    // settings a shared mailbox really owns (its colour, its
+                                    // notifications) are stored under ITS id, so a chip that
+                                    // opened the login's settings would have you switch off
+                                    // notifications for the wrong mailbox and watch the shared
+                                    // one keep ringing. Which screen is honest for it is the
+                                    // settings graph's call, not this tap's (issue #31).
+                                    onOpenAccountSettings(currentAccountId)
                                     scope.launch { drawerState.close() }
                                 },
                         )

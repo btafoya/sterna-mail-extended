@@ -179,37 +179,46 @@ data class StoredAccount(
 
     companion object {
         /**
-         * Labels of the delegated accounts that borrow [login]'s credential, in stored order — what
-         * the accounts screen mentions under the login's row. A delegated account gets no row of its
-         * own there: it owns none of that screen's settings (server, credential, protocol,
-         * identities, PGP, sync window) and no command there could honestly act on it, sign-out
-         * least of all (discovery would restore it on the next connect). Returns empty for a
-         * standalone login, and for a delegated account (they never nest).
+         * The rows of the accounts screen, in the order they are drawn: every login, each one
+         * immediately followed by the delegated (shared) mailboxes that borrow its credential,
+         * marked [AccountRowEntry.underLogin] so the screen can indent them under it.
+         *
+         * Grouping is by [loginId], never by position: [all] is the order accounts were ADDED
+         * (`AccountStore.accountsFlow`), so a login signed in after someone else's shared mailbox
+         * sits between that mailbox and its own login. Within each group the stored order is kept.
+         *
+         * Accounts still awaiting their one-time sign-in ([importPending]) are filtered out here,
+         * because the screen shows them in its own section above this list; the rule lives in one
+         * place so it can be tested without a composable. That includes a DELEGATE awaiting its
+         * sign-in — `AccountStore.importAccounts` keeps the [loginId] of the copy it marks pending
+         * — which would otherwise be drawn twice: once to connect, once as a live row.
+         *
+         * ⭐ THE ORPHAN FALL-BACK. A delegated account that was hung under NO login — a [loginId]
+         * naming an account this list does not hold, or one that is itself [importPending], or one
+         * that is itself a DELEGATE (a shared mailbox opens no group of its own: it is drawn as a
+         * child row, and a child row hosts no child, so a delegate of a delegate hangs under
+         * nothing even though its parent IS emitted) — is emitted at the END, at top level,
+         * instead of being dropped. It has nothing to hang under, but dropping it would leave the
+         * mailbox with no row anywhere, and its colour and its own notification switch (the short
+         * shared-account screen, reached from this list) with no door at all — the very hole this
+         * work closes. Same call the repo already made for the settings shortcut: a row that opens
+         * something imperfect beats a mailbox that cannot be reached.
          */
-        fun sharedLabelsUnder(login: StoredAccount, all: List<StoredAccount>): List<String> =
-            if (login.isShared) {
-                emptyList()
-            } else {
-                all.filter { it.isShared && it.loginId == login.id }.map { it.label() }
+        fun accountsScreenRows(all: List<StoredAccount>): List<AccountRowEntry> {
+            val visible = all.filter { !it.importPending }
+            val delegates = visible.filter { it.isShared }
+            val rows = mutableListOf<AccountRowEntry>()
+            val hung = mutableSetOf<String>()
+            visible.filter { !it.isShared }.forEach { login ->
+                rows += AccountRowEntry(login, underLogin = false)
+                delegates.filter { it.loginId == login.id }.forEach { delegate ->
+                    rows += AccountRowEntry(delegate, underLogin = true)
+                    hung += delegate.id
+                }
             }
-
-        /**
-         * The account whose settings screen a UI shortcut should open for [account]: itself when it
-         * is a login, its login when it is delegated (issue #31).
-         *
-         * Not a fallback — the login IS where a shared account's commands live. A shared account has
-         * no credential, no protocol and no sign-out of its own; it borrows the login's, and it goes
-         * away when the owner unshares or when the login is signed out. Sending the shortcut there
-         * keeps the rule the accounts screen already applies (a delegated account exposes no command
-         * it cannot honour) from being sidestepped in two taps.
-         *
-         * A blank or dangling [loginId] falls back to [account] itself rather than to nothing, so
-         * the shortcut always opens something instead of going dead.
-         */
-        fun settingsTargetId(account: StoredAccount, all: List<StoredAccount>): String =
-            account.loginId
-                ?.takeIf { login -> login.isNotBlank() && all.any { it.id == login } }
-                ?: account.id
+            delegates.filterNot { it.id in hung }.forEach { rows += AccountRowEntry(it, underLogin = false) }
+            return rows
+        }
 
         /**
          * Heal the MANUAL identity list of pollution left by the old merge-on-save fold (which
@@ -246,3 +255,6 @@ data class StoredAccount(
             server.distinctBy { it.email.trim().lowercase() }
     }
 }
+
+/** One row of the accounts screen: [account], and whether it is drawn indented under a login. */
+data class AccountRowEntry(val account: StoredAccount, val underLogin: Boolean)

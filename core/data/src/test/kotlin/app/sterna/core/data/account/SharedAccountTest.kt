@@ -6,9 +6,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The pure "is this account shared?" rule and the labels it feeds (issue #31). Delegation is already
- * persisted by discovery — a sub-account carries its login's id in [StoredAccount.loginId] and the
- * name the JMAP session advertises for it — so the UI can say so without a single extra request.
+ * The pure "is this account shared?" rule and the accounts-screen order it feeds (issue #31).
+ * Delegation is already persisted by discovery — a sub-account carries its login's id in
+ * [StoredAccount.loginId] and the name the JMAP session advertises for it — so the UI can lay the
+ * rows out without a single extra request.
+ *
+ * WHERE a settings shortcut sends a shared account is no longer decided here: it is the settings
+ * graph's own `settingsRouteFor`, executed by SharedAccountScreenTest in the app module.
  */
 class SharedAccountTest {
 
@@ -19,16 +23,19 @@ class SharedAccountTest {
         jmapAccountId = "s",
     )
 
-    private fun delegated(id: String = "jordan-uuid", name: String = "jordan.lee@example.org") =
-        StoredAccount(
-            id = id,
-            server = "https://mail.example.org",
-            // A sub-account carries the LOGIN's address as username; its own is the account name.
-            username = "alex.rivera@example.org",
-            accountName = name,
-            loginId = "login-uuid",
-            jmapAccountId = "u",
-        )
+    private fun delegated(
+        id: String = "jordan-uuid",
+        name: String = "jordan.lee@example.org",
+        loginId: String = "login-uuid",
+    ) = StoredAccount(
+        id = id,
+        server = "https://mail.example.org",
+        // A sub-account carries the LOGIN's address as username; its own is the account name.
+        username = "alex.rivera@example.org",
+        accountName = name,
+        loginId = loginId,
+        jmapAccountId = "u",
+    )
 
     @Test fun aFullAccountIsNotShared() {
         assertFalse(login().isShared)
@@ -45,44 +52,126 @@ class SharedAccountTest {
         assertFalse(login().copy(loginId = "   ").isShared)
     }
 
-    @Test fun sharedLabelsAreListedUnderTheirLogin() {
-        val accounts = listOf(login(), delegated(), delegated("team-uuid", "team@example.org"))
+    // ---- the rows of the accounts screen, in order (volet 3) ----
+    //
+    // Same fact the four `sharedLabelsUnder` tests carried before this batch (which delegate hangs
+    // under which login, and that another login's delegates never do), now expressed in ROWS: a
+    // shared mailbox has a row of its own, indented, instead of a mention in its login's subtitle.
 
+    @Test fun aLoginOnItsOwnIsOneTopLevelRow() {
         assertEquals(
-            listOf("jordan.lee@example.org", "team@example.org"),
-            StoredAccount.sharedLabelsUnder(login(), accounts),
+            listOf(AccountRowEntry(login(), underLogin = false)),
+            StoredAccount.accountsScreenRows(listOf(login())),
         )
     }
 
-    @Test fun anotherLoginsSubAccountsAreNotListed() {
-        val other = login().copy(id = "other-login-uuid", username = "sam@example.org")
+    @Test fun delegatesFollowTheirLoginImmediately() {
+        val jordan = delegated()
+        val team = delegated("team-uuid", "team@example.org")
 
-        assertEquals(emptyList<String>(), StoredAccount.sharedLabelsUnder(other, listOf(login(), delegated())))
+        assertEquals(
+            listOf(
+                AccountRowEntry(login(), underLogin = false),
+                AccountRowEntry(jordan, underLogin = true),
+                AccountRowEntry(team, underLogin = true),
+            ),
+            StoredAccount.accountsScreenRows(listOf(login(), jordan, team)),
+        )
     }
 
-    @Test fun aLoginWithoutDelegationHasNothingToMention() {
-        assertEquals(emptyList<String>(), StoredAccount.sharedLabelsUnder(login(), listOf(login())))
+    @Test fun eachDelegateHangsUnderItsOwnLoginWhateverTheStoredOrder() {
+        // `all` is the order accounts were ADDED, so sam's login can land AFTER another login's
+        // delegate. Grouping by position would then put ops under alex, and jordan under nobody.
+        val sam = login().copy(id = "sam-uuid", username = "sam@example.org")
+        val jordan = delegated()
+        val ops = delegated("ops-uuid", "ops@example.org", loginId = "sam-uuid")
+        val all = listOf(login(), jordan, ops, sam)
+
+        assertEquals(
+            listOf(
+                AccountRowEntry(login(), underLogin = false),
+                AccountRowEntry(jordan, underLogin = true),
+                AccountRowEntry(sam, underLogin = false),
+                AccountRowEntry(ops, underLogin = true),
+            ),
+            StoredAccount.accountsScreenRows(all),
+        )
     }
 
-    @Test fun aLoginsSettingsShortcutOpensItself() {
-        assertEquals("login-uuid", StoredAccount.settingsTargetId(login(), listOf(login(), delegated())))
+    @Test fun anImportPendingAccountHasNoRowAtAll() {
+        // The still-inert imported accounts have their own section above this list.
+        val pending = login().copy(id = "pending-uuid", username = "new@example.org", importPending = true)
+
+        assertEquals(
+            listOf(
+                AccountRowEntry(login(), underLogin = false),
+                AccountRowEntry(delegated(), underLogin = true),
+            ),
+            StoredAccount.accountsScreenRows(listOf(login(), delegated(), pending)),
+        )
     }
 
-    @Test fun aSharedAccountsSettingsShortcutOpensItsLogin() {
-        assertEquals("login-uuid", StoredAccount.settingsTargetId(delegated(), listOf(login(), delegated())))
+    @Test fun aDelegateWhoseLoginIsNotInTheListKeepsATopLevelRow() {
+        // Dropping it would make the mailbox — and its own notification switch — unreachable.
+        val orphan = delegated().copy(loginId = "gone-uuid")
+        val sam = login().copy(id = "sam-uuid", username = "sam@example.org")
+
+        assertEquals(
+            listOf(
+                AccountRowEntry(sam, underLogin = false),
+                AccountRowEntry(orphan, underLogin = false),
+            ),
+            StoredAccount.accountsScreenRows(listOf(orphan, sam)),
+        )
     }
 
-    @Test fun aBlankOrDanglingLoginFallsBackToTheAccountItself() {
-        // Never resolve to nothing: a dead shortcut is worse than one that opens the account.
-        val blank = delegated().copy(loginId = "  ")
-        val dangling = delegated().copy(loginId = "gone-uuid")
+    @Test fun aDelegateOfAnImportPendingLoginFallsBackToTopLevel() {
+        // The login is not drawn here at all, so there is no row for the delegate to hang under.
+        val pendingLogin = login().copy(importPending = true)
 
-        assertEquals("jordan-uuid", StoredAccount.settingsTargetId(blank, listOf(login(), blank)))
-        assertEquals("jordan-uuid", StoredAccount.settingsTargetId(dangling, listOf(dangling)))
+        assertEquals(
+            listOf(AccountRowEntry(delegated(), underLogin = false)),
+            StoredAccount.accountsScreenRows(listOf(pendingLogin, delegated())),
+        )
     }
 
-    @Test fun aSharedAccountNeverNestsFurther() {
-        // Delegated accounts get no row of their own in the accounts screen, so they list nothing.
-        assertEquals(emptyList<String>(), StoredAccount.sharedLabelsUnder(delegated(), listOf(login(), delegated())))
+    @Test fun aDelegateWhoseLoginIsItselfADelegateFallsBackToTopLevel() {
+        // A shared mailbox is never a parent: only a login opens a group, so a loginId naming
+        // ANOTHER delegate hangs under nothing even though that delegate IS on screen — as its
+        // login's child row, and a child row hosts no child. It falls back to the end, top level,
+        // rather than being dropped: this is the "never nests further" fact the old
+        // `sharedLabelsUnder` tests carried, expressed in rows.
+        val jordan = delegated()
+        val subOfJordan = delegated("nested-uuid", "nested@example.org", loginId = "jordan-uuid")
+
+        assertEquals(
+            listOf(
+                AccountRowEntry(login(), underLogin = false),
+                AccountRowEntry(jordan, underLogin = true),
+                AccountRowEntry(subOfJordan, underLogin = false),
+            ),
+            StoredAccount.accountsScreenRows(listOf(login(), jordan, subOfJordan)),
+        )
+    }
+
+    @Test fun anImportPendingDelegateHasNoRowAnywhere() {
+        // Reachable: `AccountStore.importAccounts` gives the copy a fresh id and importPending,
+        // but KEEPS its loginId — so an imported file can hold a delegate awaiting its sign-in.
+        // Were it filtered on `all` instead of `visible`, the same mailbox would show up TWICE:
+        // once in the "accounts to connect" section above this list, and once as a live row that
+        // opens the settings of an account holding no credentials.
+        val pendingDelegate = delegated("pending-uuid", "pending@example.org").copy(importPending = true)
+
+        assertEquals(
+            listOf(
+                AccountRowEntry(login(), underLogin = false),
+                AccountRowEntry(delegated(), underLogin = true),
+            ),
+            StoredAccount.accountsScreenRows(listOf(login(), delegated(), pendingDelegate)),
+        )
+    }
+
+    @Test fun noAccountsMeansNoRows() {
+        assertEquals(emptyList<AccountRowEntry>(), StoredAccount.accountsScreenRows(emptyList()))
     }
 }
