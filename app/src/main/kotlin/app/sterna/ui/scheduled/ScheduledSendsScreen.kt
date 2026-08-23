@@ -19,10 +19,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,7 +44,17 @@ fun ScheduledSendsScreen(
     viewModel: ScheduledSendsViewModel = viewModel(),
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // What became of a cancelled message: back in Drafts, or (no account left) not kept at all.
+    // Without it the X is silent, and the user has no way to know the text was saved (#170).
+    LaunchedEffect(message) {
+        val m = message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(m)
+        viewModel.clearMessage()
+    }
 
     Scaffold(
         topBar = {
@@ -53,6 +67,7 @@ fun ScheduledSendsScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         if (items.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {

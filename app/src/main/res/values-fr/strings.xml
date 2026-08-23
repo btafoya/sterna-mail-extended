@@ -744,6 +744,8 @@
     <string name="scheduled_empty">Aucun message programmé.</string>
     <string name="scheduled_cancel">Annuler l\'envoi programmé</string>
     <string name="scheduled_send_at">Envoi %1$s</string>
+    <string name="scheduled_cancelled_to_drafts">Annulé. Le message est de retour dans les brouillons.</string>
+    <string name="scheduled_cancelled_no_account">Annulé. Son compte n\'existe plus, aucun brouillon n\'a été conservé.</string>
     <string name="inbox_snoozed">Reportés</string>
     <string name="snoozed_title">Reportés</string>
     <string name="snoozed_empty">Aucun message reporté.</string>

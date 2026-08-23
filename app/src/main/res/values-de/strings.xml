@@ -739,6 +739,8 @@
     <string name="scheduled_empty">Keine geplanten Nachrichten.</string>
     <string name="scheduled_cancel">Geplanten Versand abbrechen</string>
     <string name="scheduled_send_at">Wird %1$s gesendet</string>
+    <string name="scheduled_cancelled_to_drafts">Abgebrochen. Die Nachricht liegt wieder in den Entwürfen.</string>
+    <string name="scheduled_cancelled_no_account">Abgebrochen. Das zugehörige Konto gibt es nicht mehr, daher wurde kein Entwurf gespeichert.</string>
     <string name="inbox_snoozed">Zurückgestellt</string>
     <string name="snoozed_title">Zurückgestellt</string>
     <string name="snoozed_empty">Keine zurückgestellten Nachrichten.</string>

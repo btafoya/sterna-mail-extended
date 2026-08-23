@@ -739,6 +739,8 @@
     <string name="scheduled_empty">Geen geplande berichten.</string>
     <string name="scheduled_cancel">Geplande verzending annuleren</string>
     <string name="scheduled_send_at">Verzendt %1$s</string>
+    <string name="scheduled_cancelled_to_drafts">Geannuleerd. Het bericht staat weer bij Concepten.</string>
+    <string name="scheduled_cancelled_no_account">Geannuleerd. Het bijbehorende account bestaat niet meer, dus er is geen concept bewaard.</string>
     <string name="inbox_snoozed">Gesnoozed</string>
     <string name="snoozed_title">Gesnoozed</string>
     <string name="snoozed_empty">Geen gesnoozede berichten.</string>

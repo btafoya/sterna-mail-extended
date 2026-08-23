@@ -741,6 +741,8 @@
     <string name="scheduled_empty">Nenhuma mensagem agendada.</string>
     <string name="scheduled_cancel">Cancelar envio agendado</string>
     <string name="scheduled_send_at">Envia %1$s</string>
+    <string name="scheduled_cancelled_to_drafts">Cancelado. A mensagem voltou para Rascunhos.</string>
+    <string name="scheduled_cancelled_no_account">Cancelado. A conta associada já não existe, por isso não foi guardado nenhum rascunho.</string>
     <string name="inbox_snoozed">Adiadas</string>
     <string name="snoozed_title">Adiadas</string>
     <string name="snoozed_empty">Nenhuma mensagem adiada.</string>

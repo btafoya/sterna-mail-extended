@@ -133,6 +133,8 @@
     <string name="scheduled_empty">No scheduled messages.</string>
     <string name="scheduled_cancel">Cancel scheduled send</string>
     <string name="scheduled_send_at">Sends %1$s</string>
+    <string name="scheduled_cancelled_to_drafts">Cancelled. The message is back in Drafts.</string>
+    <string name="scheduled_cancelled_no_account">Cancelled. Its account is gone, so no draft was kept.</string>
     <!-- Overflow-menu entry, one word for the same reason as inbox_scheduled: it sits
          right beside it and would otherwise become the new width-setting entry. -->
     <string name="inbox_snoozed">Snoozed</string>
