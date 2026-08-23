@@ -99,15 +99,22 @@ internal sealed interface AddressAdvance {
  * [AddressAdvance.Waiting] asks for the probe again and draws "Finding your server…", and offline
  * that probe cannot set out, so the wheel never stops. Swap those two and the reported defect comes
  * back wearing a spinner.
+ *
+ * ⚠ [oauth] changes WHERE a verdict leads ([stepAfterAddress]), never WHETHER the walk moves. The
+ * two probes travel together but do not land together, and an OAuth answer alone would advance the
+ * walk while the settings cascade is still out — deciding, seconds early, that the domain publishes
+ * no autoconfig. So with no settings verdict in hand the answer is still Waiting (or Offline), and
+ * the order above is untouched.
  */
 internal fun addressAdvance(
     email: String,
     verdict: DiscoveryVerdict?,
+    oauth: OAuthDiscovery?,
     online: Boolean,
 ): AddressAdvance {
     if (!canLeaveAddressStep(email)) return AddressAdvance.Blocked
     val result = verdictFor(verdict, email)
-    if (result != null) return AddressAdvance.Go(stepAfterAddress(result))
+    if (result != null) return AddressAdvance.Go(stepAfterAddress(result, oauth, email))
     return if (online) AddressAdvance.Waiting else AddressAdvance.Offline
 }
 
@@ -158,9 +165,22 @@ internal fun awaitedAnswer(awaiting: Boolean, advance: AddressAdvance): AwaitedA
  * worked, that button puts the protocol question (JMAP? IMAP/SMTP?) back on screen for everyone —
  * the one thing this whole walk exists to take off it. Offered before any verdict, it invites the
  * user to answer a question the probe was about to answer for her.
+ *
+ * ⛔ AND A DRIVABLE OAUTH ANSWER IS A VERDICT THAT WORKED, autoconfig or no autoconfig. A domain
+ * served over OAuth that publishes no Thunderbird document ([oauth] usable, verdict `NotFound`)
+ * now leads to the credentials step ([stepAfterAddress]), so the protocol question here would be
+ * offered beside a walk that succeeded — the case above, verbatim.
+ *
+ * ⚠ THE MANUAL DOOR DOES NOT DISAPPEAR, it moves one step along: the credentials step offers it
+ * under [CredentialsPane.SIGN_IN_OFFER] ([credentialsExit]), which is exactly what a domain
+ * recognised by autoconfig has always done.
  */
-internal fun offersManualSetup(verdict: DiscoveryVerdict?, email: String): Boolean =
-    verdictFor(verdict, email) is MailAutoconfigResult.NotFound
+internal fun offersManualSetup(
+    verdict: DiscoveryVerdict?,
+    oauth: OAuthDiscovery?,
+    email: String,
+): Boolean = verdictFor(verdict, email) is MailAutoconfigResult.NotFound &&
+    !oauthOpensCredentials(oauth, email)
 
 /** Where Back lands, and the address it lands with. */
 internal data class WalkBack(val step: ConnectStep, val email: String)
@@ -353,6 +373,24 @@ internal fun credentialsAsk(discovery: OAuthDiscovery?, email: String): Credenti
         OAuthGrant.NONE -> CredentialsAsk.Password
     }
 }
+
+/**
+ * Whether the OAuth answer in hand is one this walk can actually DRIVE for [email] — the ONE
+ * spelling of "usable OAuth", so the address step, the manual door and the credentials step cannot
+ * quietly disagree about it.
+ *
+ * ⛔ NOT `chosen != null`, and that difference is the whole of why this function exists rather than
+ * a field read at three call sites. A host advertising OAuth with no grant this app can drive
+ * ([OAuthGrant.NONE]) yields [CredentialsAsk.Password] — and at the credentials step reached on
+ * the OAuth answer ALONE, with no autoconfig verdict behind it, that password field has no server
+ * to send anything to ([shouldTryDiscoveredImap] wants a `Found`). A dead end one step further
+ * from the manual form than the address step she came from.
+ *
+ * ⛔ It is [credentialsAsk] EXECUTED, never a second reading of the same facts: the address match
+ * and the grant ranking are decided there, once. Spelled again here they drift, silently.
+ */
+internal fun oauthOpensCredentials(discovery: OAuthDiscovery?, email: String): Boolean =
+    credentialsAsk(discovery, email) is CredentialsAsk.SignInAway
 
 /**
  * Whether the screen must now start the OAuth sign-in on its own — the moved TRIGGER, and the whole

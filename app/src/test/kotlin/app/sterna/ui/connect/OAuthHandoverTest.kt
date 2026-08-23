@@ -126,6 +126,66 @@ class OAuthHandoverDecisionTest {
         )
     }
 
+    // ---- oauthOpensCredentials: the one spelling of "usable OAuth" the walk steps on ----
+
+    @Test fun `a device-flow answer opens the credentials step`() {
+        assertTrue(
+            "⛔ #55: this is what lets a domain served over JMAP + OAuth and publishing no " +
+                "Thunderbird autoconfig reach step 2 at all. False here and the address step " +
+                "drops her on the manual form holding an answer it already has.",
+            oauthOpensCredentials(OAuthDiscovery(email, "mail.example.org" to deviceFlow), email),
+        )
+    }
+
+    @Test fun `a code-grant answer opens it too`() {
+        assertTrue(
+            "a server with no device endpoint is still signed in without a password; the walk " +
+                "may not treat it as a failure.",
+            oauthOpensCredentials(OAuthDiscovery(email, "mail.example.org" to codeFlow), email),
+        )
+    }
+
+    @Test fun `nothing usable answered the search - the credentials step is not the way`() {
+        assertFalse(
+            "the ordinary domain: no OAuth anywhere, so the manual form is exactly where the " +
+                "walk must still land.",
+            oauthOpensCredentials(OAuthDiscovery(email, null), email),
+        )
+        assertFalse(
+            "⛔ NOT `chosen != null`. A host advertising OAuth with no grant this app can drive " +
+                "asks for a password (credentialsAsk) — and at a credentials step reached on this " +
+                "answer ALONE there is no autoconfig verdict behind that field, so " +
+                "shouldTryDiscoveredImap never fires and the button leads nowhere. True here and " +
+                "the walk swaps the manual form for a dead end one step further away.",
+            oauthOpensCredentials(OAuthDiscovery(email, "example.org" to noUsableGrant), email),
+        )
+        assertFalse(
+            "no answer has come back yet: nothing to open anything with.",
+            oauthOpensCredentials(null, email),
+        )
+    }
+
+    @Test fun `an OAuth answer about another address opens nothing`() {
+        assertFalse(
+            "she walked back and typed a different domain: signing her in at the previous " +
+                "domain's identity provider is somebody else's account.",
+            oauthOpensCredentials(
+                OAuthDiscovery("someone@autre.tld", "mail.autre.tld" to deviceFlow), email,
+            ),
+        )
+    }
+
+    @Test fun `the OAuth answer opens the step however the address is spaced`() {
+        assertTrue(
+            "the field's value reaches this with whatever spacing a paste left; the probe was " +
+                "launched on the trimmed address, so the match trims too — and a trailing space " +
+                "must not be what sends her to the manual form.",
+            oauthOpensCredentials(
+                OAuthDiscovery(email, "mail.example.org" to deviceFlow), "  $email ",
+            ),
+        )
+    }
+
     // ---- shouldStartOAuthSignIn: the moved trigger ----
 
     @Test fun `the sign-in starts at the credentials step, on a hand-over and nowhere else`() {

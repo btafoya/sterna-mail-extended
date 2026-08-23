@@ -220,47 +220,68 @@ internal fun canLeaveAddressStep(email: String): Boolean = isValidEmail(email)
  * yields — and only a failure: offered beside a working verdict it would put the protocol question
  * back on screen, which is the whole thing this walk removes.
  *
- * ⛔ DEBT FOR THE SCREEN VOLET — this function needs a verdict the app does not produce yet.
- * `ConnectViewModel.discoverImapSettings` drops a [MailAutoconfigResult.NotFound] on the floor
- * (`as? Found ?: return@launch`) and publishes a `Found?`, so "found nothing" and "not finished
- * yet" are today indistinguishable from the UI — and this decision has to tell them apart, since
- * one lands on the credentials and the other on the manual form. Whoever wires the steps must make
- * the ViewModel surface the whole result, not just its Found case. Until then this function is
- * correct and unreachable.
+ * ⛔ IT TAKES BOTH VERDICTS, because the address step obtains both: one pass over the address runs
+ * the autoconfig cascade and the OAuth search together ([AddressProbe]), and the ViewModel
+ * publishes both. A domain served over JMAP + OAuth that publishes no Thunderbird document
+ * (#55) has a perfectly good answer in [oauth] — the credentials step can hand it straight over —
+ * and reading [discovery] alone threw that answer away and dropped the reader on the manual form,
+ * where she must know her own hostnames for a server the app had already found.
+ *
+ * ⚠ [oauthOpensCredentials], not "an OAuth answer exists": a server advertising a grant this app
+ * cannot drive leads to a password field with no endpoints behind it here. See that function.
+ *
+ * Reached from [addressAdvance], which is what the address step's button and its wait both call.
  */
-internal fun stepAfterAddress(discovery: MailAutoconfigResult): ConnectStep =
-    if (discovery is MailAutoconfigResult.Found) ConnectStep.CREDENTIALS else ConnectStep.MANUAL
+internal fun stepAfterAddress(
+    discovery: MailAutoconfigResult,
+    oauth: OAuthDiscovery?,
+    email: String,
+): ConnectStep =
+    if (discovery is MailAutoconfigResult.Found || oauthOpensCredentials(oauth, email)) {
+        ConnectStep.CREDENTIALS
+    } else {
+        ConnectStep.MANUAL
+    }
 
 /**
  * The step actually RENDERED, given the [remembered] one and the verdict currently in hand.
  *
- * The step index survives process death (`rememberSaveable`); the verdict does not — it lives in a
- * ViewModel with no `SavedStateHandle`, so it comes back null. ⛔ The credentials step therefore
- * renders only while a [MailAutoconfigResult.Found] is there: a password field for a server nobody
- * discovered shows a state that is not true (WYSIWYG) and its button leads nowhere. Without a
- * verdict we fall back to the address step, from which discovery runs again.
+ * The step index survives process death (`rememberSaveable`); the answers do not — they live in a
+ * ViewModel with no `SavedStateHandle`, so they come back null. ⛔ The credentials step therefore
+ * renders only while ONE OF THEM is still there: a password field for a server nobody discovered,
+ * or a hand-over for a server nobody found, shows a state that is not true (WYSIWYG) and its
+ * button leads nowhere. With neither answer we fall back to the address step, from which both
+ * probes run again.
  *
- * ⛔ DEBT FOR THE SCREEN VOLET — the ViewModel's `imapDiscovery` flow is NOT the input this
- * function wants. It is one-shot: the screen writes the verdict into the fields and immediately
- * calls `consumeImapDiscovery()`, which nulls it. Fed from that flow, this decision would send the
- * credentials step back to the address one seconds after reaching it — and again after every
- * rotation, throwing away the password being typed, which is the exact opposite of what it is for.
- * Whoever wires the steps must keep a DURABLE copy of the verdict in the ViewModel, beside the
- * one-shot signal and not in place of it (the one-shot is what stops a field the user cleared from
- * refilling itself).
+ * ⛔ AN OAUTH ANSWER COUNTS AS MUCH AS A [MailAutoconfigResult.Found] HERE, and it must, or the
+ * walk loops. Once [stepAfterAddress] sends a domain served over OAuth alone to the credentials
+ * step (#55), reading [discovered] on its own sends it straight back to the address step the very
+ * frame it arrives — the ViewModel holds no settings verdict for it and never will.
  *
- * ⚠ Once that copy exists, the intended difference is: a rotation keeps the ViewModel, so the
- * credentials step holds and nothing typed is lost; a process death empties it, so we fall back to
- * the address step. That difference is the whole point of this function — and today nothing
- * delivers it, because nothing calls this function yet.
+ * ⚠ The distinction this function is FOR is unchanged, and it is between a rotation and a process
+ * death: a rotation keeps the ViewModel, so the answers ([discovered], [oauth]) are still there,
+ * the credentials step holds and nothing typed is lost; a process death empties it (no
+ * `SavedStateHandle`) while the step index survives (`rememberSaveable`), so both come back null
+ * and the walk falls back to the address step, from which both probes run again. What must never
+ * render is a password field for a server nobody discovered — a state that is not true (WYSIWYG)
+ * whose button leads nowhere.
  *
  * The manual step needs no verdict: everything it shows is the form's own saved state.
  */
 internal fun stepToRender(
     remembered: ConnectStep,
     discovered: MailAutoconfigResult.Found?,
+    oauth: OAuthDiscovery?,
+    email: String,
 ): ConnectStep =
-    if (remembered == ConnectStep.CREDENTIALS && discovered == null) ConnectStep.ADDRESS else remembered
+    if (remembered == ConnectStep.CREDENTIALS &&
+        discovered == null &&
+        !oauthOpensCredentials(oauth, email)
+    ) {
+        ConnectStep.ADDRESS
+    } else {
+        remembered
+    }
 
 /**
  * Where Back goes from [current]: the two later steps return to the address, and Back from the

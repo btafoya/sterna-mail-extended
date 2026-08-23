@@ -335,6 +335,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      *
      *  - the DURABLE verdict, read here rather than passed in, so one function answers whatever the
      *    call site remembered;
+     *  - the DURABLE OAuth answer beside it, for the same reason and from the same pass: a domain
+     *    served over OAuth that publishes no autoconfig document is answered, and reading the
+     *    settings verdict alone dropped that answer on the floor and sent her to the manual form
+     *    (#55);
      *  - the link, read HERE AND NOW. Airplane mode is switched on a screen that is not
      *    recomposing, so a value captured when the button was drawn is the link as it was before
      *    she left the network — which is exactly the case being fixed.
@@ -343,7 +347,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      * during composition. What offline SAYS is [reportOffline], called from the tap alone.
      */
     internal fun advanceFromAddress(email: String): AddressAdvance =
-        addressAdvance(email, _discovery.value, online = hasUsableNetwork(app))
+        addressAdvance(email, _discovery.value, _oauthDiscovery.value, online = hasUsableNetwork(app))
 
     /**
      * Say that the device is offline, on the same surface and with the same sentence as the six

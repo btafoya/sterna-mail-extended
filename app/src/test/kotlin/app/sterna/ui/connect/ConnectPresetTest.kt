@@ -4,6 +4,7 @@ import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.autoconfig.MailAutoconfigResult
+import app.sterna.core.jmap.OAuthMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -201,10 +202,41 @@ class ConnectPresetTest {
 
     // --- The walk: which of the three steps is on screen -----------------------------------------
 
+    private val walkEmail = "user@example.org"
+
     private val found = MailAutoconfigResult.Found(
         incoming = MailEndpoint("imap.example.org", 143, ConnectionSecurity.STARTTLS),
         outgoing = MailEndpoint("smtp.example.org", 587, ConnectionSecurity.STARTTLS),
         username = "user@example.org",
+    )
+
+    /** The OAuth search's answer for [walkEmail]: a server this app can sign into by device flow. */
+    private val oauthUsable = OAuthDiscovery(
+        walkEmail,
+        "mail.example.org" to OAuthMetadata(
+            issuer = "https://example.org",
+            tokenEndpoint = "https://example.org/token",
+            deviceAuthorizationEndpoint = "https://example.org/device",
+        ),
+    )
+
+    /** OAuth advertised, and no grant this app can drive: a password field with nothing behind it. */
+    private val oauthUndrivable = OAuthDiscovery(
+        walkEmail,
+        "mail.example.org" to OAuthMetadata(
+            issuer = "https://example.org",
+            tokenEndpoint = "https://example.org/token",
+        ),
+    )
+
+    /** A drivable answer, about the domain she walked back and replaced. */
+    private val oauthElsewhere = OAuthDiscovery(
+        "someone@autre.tld",
+        "mail.autre.tld" to OAuthMetadata(
+            issuer = "https://autre.tld",
+            tokenEndpoint = "https://autre.tld/token",
+            deviceAuthorizationEndpoint = "https://autre.tld/device",
+        ),
     )
 
     @Test fun onlyAWellFormedAddressLeavesTheFirstStep() {
@@ -224,7 +256,7 @@ class ConnectPresetTest {
             "the whole point of the walk: discovery answered, so the user is asked for her " +
                 "password and never for a protocol.",
             ConnectStep.CREDENTIALS,
-            stepAfterAddress(found),
+            stepAfterAddress(found, null, walkEmail),
         )
     }
 
@@ -233,7 +265,55 @@ class ConnectPresetTest {
             "manual configuration appears on FAILURE and only on failure — offered next to a " +
                 "working verdict it would put the protocol question back on screen.",
             ConnectStep.MANUAL,
-            stepAfterAddress(MailAutoconfigResult.NotFound),
+            stepAfterAddress(MailAutoconfigResult.NotFound, null, walkEmail),
+        )
+    }
+
+    @Test fun anOAuthAnswerAloneAlsoLeadsToTheCredentials() {
+        assertEquals(
+            "⛔ #55. The domain publishes no Thunderbird autoconfig, so the cascade answers " +
+                "NotFound — and the OAuth search that ran in the same pass found the server that " +
+                "signs this account in. Reading the cascade alone throws that answer away and " +
+                "asks the reader for hostnames the app already holds.",
+            ConnectStep.CREDENTIALS,
+            stepAfterAddress(MailAutoconfigResult.NotFound, oauthUsable, walkEmail),
+        )
+        assertEquals(
+            "and the answer is about ONE address: not the domain she walked back and replaced.",
+            ConnectStep.MANUAL,
+            stepAfterAddress(MailAutoconfigResult.NotFound, oauthUsable, "someone@autre.tld"),
+        )
+    }
+
+    @Test fun theCredentialsStepHoldsOnAnOAuthAnswerToo() {
+        assertEquals(
+            "⛔ WITHOUT THIS THE WALK LOOPS. The step reached over the OAuth answer alone has no " +
+                "settings verdict behind it and never will, so reading `discovered` on its own " +
+                "sends it back to the address step the very frame it arrives.",
+            ConnectStep.CREDENTIALS,
+            stepToRender(ConnectStep.CREDENTIALS, null, oauthUsable, walkEmail),
+        )
+        assertEquals(
+            "and the witness: process death empties the ViewModel of BOTH answers while the step " +
+                "index survives, so the walk still falls back and both probes run again.",
+            ConnectStep.ADDRESS,
+            stepToRender(ConnectStep.CREDENTIALS, null, null, walkEmail),
+        )
+        assertEquals(
+            "⛔ AND IT IS THE SAME QUESTION [stepAfterAddress] ASKED, not `oauth != null`. Written " +
+                "that way this function holds the credentials step for an answer that leads " +
+                "nowhere — no grant this app can drive means a password field with no endpoints " +
+                "behind it, exactly the dead end oauthOpensCredentials exists to refuse — and " +
+                "every other test here stays green, because they only ever feed it a drivable " +
+                "answer or none.",
+            ConnectStep.ADDRESS,
+            stepToRender(ConnectStep.CREDENTIALS, null, oauthUndrivable, walkEmail),
+        )
+        assertEquals(
+            "and the second half of the same guard: an answer about the address she walked back " +
+                "and replaced is no answer about this one, here as everywhere else on this walk.",
+            ConnectStep.ADDRESS,
+            stepToRender(ConnectStep.CREDENTIALS, null, oauthElsewhere, walkEmail),
         )
     }
 
@@ -244,7 +324,7 @@ class ConnectPresetTest {
             "a password field for a server nobody discovered is a state that is not true, and " +
                 "its button leads nowhere: without a verdict the screen renders the address step.",
             ConnectStep.ADDRESS,
-            stepToRender(ConnectStep.CREDENTIALS, null),
+            stepToRender(ConnectStep.CREDENTIALS, null, null, walkEmail),
         )
     }
 
@@ -255,20 +335,20 @@ class ConnectPresetTest {
             "a verdict in hand is not process death; sending this case back to the address step " +
                 "would throw away the password being typed.",
             ConnectStep.CREDENTIALS,
-            stepToRender(ConnectStep.CREDENTIALS, found),
+            stepToRender(ConnectStep.CREDENTIALS, found, null, walkEmail),
         )
     }
 
     @Test fun theOtherTwoStepsRenderVerdictOrNot() {
-        assertEquals(ConnectStep.ADDRESS, stepToRender(ConnectStep.ADDRESS, null))
-        assertEquals(ConnectStep.ADDRESS, stepToRender(ConnectStep.ADDRESS, found))
+        assertEquals(ConnectStep.ADDRESS, stepToRender(ConnectStep.ADDRESS, null, null, walkEmail))
+        assertEquals(ConnectStep.ADDRESS, stepToRender(ConnectStep.ADDRESS, found, null, walkEmail))
         assertEquals(
             "the manual form shows nothing but the form's own saved state, so it survives a " +
                 "process death with no verdict at all.",
             ConnectStep.MANUAL,
-            stepToRender(ConnectStep.MANUAL, null),
+            stepToRender(ConnectStep.MANUAL, null, null, walkEmail),
         )
-        assertEquals(ConnectStep.MANUAL, stepToRender(ConnectStep.MANUAL, found))
+        assertEquals(ConnectStep.MANUAL, stepToRender(ConnectStep.MANUAL, found, null, walkEmail))
     }
 
     @Test fun backReturnsToTheAddressAndThenLeavesTheScreen() {

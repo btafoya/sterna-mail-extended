@@ -360,12 +360,15 @@ class ImapDiscoveryWiringTest {
     fun `the address step's button reads the executed advance, on the durable verdict and the live link`() {
         assertPinnedLine(
             VIEW_MODEL,
-            "addressAdvance(email, _discovery.value, online = hasUsableNetwork(app))",
+            "addressAdvance(email, _discovery.value, _oauthDiscovery.value, online = hasUsableNetwork(app))",
             "⛔ The link is read HERE, at the tap, not captured when the button was drawn: airplane " +
                 "mode is switched on a screen that is not recomposing. And on the DURABLE verdict " +
                 "(_discovery), never the one-shot fill signal, which is nulled the moment the " +
-                "fields are written. Both arguments pinned: `online = true` here is the reported " +
-                "defect back in full, spinner and all.",
+                "fields are written. ALL THREE arguments pinned: `online = true` here is the " +
+                "reported defect back in full, spinner and all, and handing `null` for the OAuth " +
+                "answer (or dropping the argument) sends a domain served over OAuth with no " +
+                "autoconfig document to the manual form — #55, verbatim, while the answer that " +
+                "would have signed her in sits in _oauthDiscovery.",
         )
         val screen = source(SCREEN).lines().map { it.trim() }
         val offline = screen.indexOf("AddressAdvance.Offline -> {")
@@ -618,10 +621,13 @@ class ImapDiscoveryWiringTest {
         )
         assertPinnedLine(
             SCREEN,
-            "val walkStep = stepToRender(rememberedStep, found)",
+            "val walkStep = stepToRender(rememberedStep, found, oauthVerdict, username)",
             "⛔ THE line. Render `rememberedStep` raw and, after a process death, the screen draws " +
                 "a password field for a server nobody discovered and a button that leads nowhere " +
-                "— every executed test stays green, because none of them can see this file.",
+                "— every executed test stays green, because none of them can see this file. And " +
+                "the OAuth answer is an argument HERE too: hand `null` for it and the credentials " +
+                "step reached over OAuth alone is bounced back to the address step the frame it " +
+                "arrives, which is the walk looping instead of the walk moving.",
         )
         val rendered = Regex(Regex.escape("stepToRender(")).findAll(source(SCREEN)).count()
         assertEquals(
@@ -701,11 +707,14 @@ class ImapDiscoveryWiringTest {
     fun `the manual door is offered by the executed decision, never inline`() {
         assertPinnedLine(
             SCREEN,
-            "if (offersManualSetup(verdict, username)) {",
+            "if (offersManualSetup(verdict, oauthVerdict, username)) {",
             "⛔ Offered beside a verdict that worked, 'Set up manually' walks the protocol " +
                 "question (JMAP? IMAP/SMTP?) straight back on screen — the defect this whole walk " +
                 "removes. Spell the condition out here (`verdict != null`, or nothing at all) and " +
-                "ConnectWalkTest, which never reads this file, stays green.",
+                "ConnectWalkTest, which never reads this file, stays green. The OAuth answer is " +
+                "pinned as an argument because a drivable one IS a verdict that worked: withhold " +
+                "it and the protocol question is offered beside a hand-over the walk is about to " +
+                "make.",
         )
     }
 

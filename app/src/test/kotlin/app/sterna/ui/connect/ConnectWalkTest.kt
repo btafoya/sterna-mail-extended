@@ -3,6 +3,7 @@ package app.sterna.ui.connect
 import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.autoconfig.MailAutoconfigResult
+import app.sterna.core.jmap.OAuthMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -32,6 +33,24 @@ class ConnectWalkTest {
 
     private val foundVerdict = DiscoveryVerdict(email, found)
     private val notFoundVerdict = DiscoveryVerdict(email, MailAutoconfigResult.NotFound)
+
+    /** A server that signs this account in without a password — the drivable answer (#55). */
+    private val deviceFlow = OAuthMetadata(
+        issuer = "https://example.org",
+        tokenEndpoint = "https://example.org/token",
+        deviceAuthorizationEndpoint = "https://example.org/device",
+    )
+
+    /** OAuth advertised, and no grant this app can drive: a password field with nothing behind it. */
+    private val noUsableGrant = OAuthMetadata(
+        issuer = "https://example.org",
+        tokenEndpoint = "https://example.org/token",
+    )
+
+    private val oauthUsable = OAuthDiscovery(email, "mail.example.org" to deviceFlow)
+    private val oauthUndrivable = OAuthDiscovery(email, "mail.example.org" to noUsableGrant)
+    private val oauthNothing = OAuthDiscovery(email, null)
+    private val oauthElsewhere = OAuthDiscovery("alex@autre.tld", "mail.autre.tld" to deviceFlow)
 
     // ---- verdictFor: a verdict is about ONE address ----
 
@@ -119,8 +138,8 @@ class ConnectWalkTest {
     // ---- addressAdvance: what the address step's button does ----
 
     @Test fun `an address the shared rule rejects blocks the button`() {
-        assertEquals(AddressAdvance.Blocked, addressAdvance("alex", null, online = true))
-        assertEquals(AddressAdvance.Blocked, addressAdvance("", foundVerdict, online = true))
+        assertEquals(AddressAdvance.Blocked, addressAdvance("alex", null, null, online = true))
+        assertEquals(AddressAdvance.Blocked, addressAdvance("", foundVerdict, null, online = true))
     }
 
     @Test fun `offline does not enable the button on an address that is not one`() {
@@ -128,7 +147,7 @@ class ConnectWalkTest {
             "Blocked comes FIRST: offline is a sentence about a probe, and there is no probe to " +
                 "speak of for `alex`. Answer Offline here and the button lights up on a half-typed " +
                 "address, to say something that is beside the point.",
-            AddressAdvance.Blocked, addressAdvance("alex", null, online = false),
+            AddressAdvance.Blocked, addressAdvance("alex", null, null, online = false),
         )
     }
 
@@ -136,7 +155,7 @@ class ConnectWalkTest {
         assertEquals(
             "the probe is out (or is being asked for): the step must not decide where to go " +
                 "before it answers — deciding early is deciding MANUAL, i.e. the protocol question.",
-            AddressAdvance.Waiting, addressAdvance(email, null, online = true),
+            AddressAdvance.Waiting, addressAdvance(email, null, null, online = true),
         )
     }
 
@@ -147,18 +166,18 @@ class ConnectWalkTest {
                 "wheel, and offline no probe may set out (shouldDiscoverImapSettings) nor be " +
                 "recorded (verdictAfterRefusal) — so 'wait' here is a wheel that turns until the " +
                 "app is killed. Both leave her on step 1; only one of them owes her a sentence.",
-            AddressAdvance.Offline, addressAdvance(email, null, online = false),
+            AddressAdvance.Offline, addressAdvance(email, null, null, online = false),
         )
         assertEquals(
             "and the witness beside it: online, the very same arguments must still WAIT — an " +
                 "offline answer for everyone is not a fix, it is the walk switched off.",
-            AddressAdvance.Waiting, addressAdvance(email, null, online = true),
+            AddressAdvance.Waiting, addressAdvance(email, null, null, online = true),
         )
     }
 
     @Test fun `a verdict about another address waits, it does not decide`() {
         assertEquals(
-            AddressAdvance.Waiting, addressAdvance("alex@autre.tld", foundVerdict, online = true),
+            AddressAdvance.Waiting, addressAdvance("alex@autre.tld", foundVerdict, null, online = true),
         )
     }
 
@@ -166,19 +185,19 @@ class ConnectWalkTest {
         assertEquals(
             "there is no verdict FOR this address, so there is nothing to go on and nothing to " +
                 "wait for either: the offline answer is about the probe that would have to run.",
-            AddressAdvance.Offline, addressAdvance("alex@autre.tld", foundVerdict, online = false),
+            AddressAdvance.Offline, addressAdvance("alex@autre.tld", foundVerdict, null, online = false),
         )
     }
 
     @Test fun `a discovered server leads to the credentials step`() {
         assertEquals(
-            AddressAdvance.Go(ConnectStep.CREDENTIALS), addressAdvance(email, foundVerdict, online = true),
+            AddressAdvance.Go(ConnectStep.CREDENTIALS), addressAdvance(email, foundVerdict, null, online = true),
         )
     }
 
     @Test fun `a domain that published nothing leads to the manual form`() {
         assertEquals(
-            AddressAdvance.Go(ConnectStep.MANUAL), addressAdvance(email, notFoundVerdict, online = true),
+            AddressAdvance.Go(ConnectStep.MANUAL), addressAdvance(email, notFoundVerdict, null, online = true),
         )
     }
 
@@ -187,12 +206,67 @@ class ConnectWalkTest {
             "the answer was obtained, and the link dropping afterwards does not un-obtain it: the " +
                 "walk moves on, and the sign-in beyond has its own offline guard. Refusing here " +
                 "would strand her on step 1 holding a verdict she cannot use.",
-            AddressAdvance.Go(ConnectStep.CREDENTIALS), addressAdvance(email, foundVerdict, online = false),
+            AddressAdvance.Go(ConnectStep.CREDENTIALS), addressAdvance(email, foundVerdict, null, online = false),
         )
         assertEquals(
             "and the failure verdict likewise: the manual form is exactly where an offline user " +
                 "with a domain that published nothing can still type what she knows.",
-            AddressAdvance.Go(ConnectStep.MANUAL), addressAdvance(email, notFoundVerdict, online = false),
+            AddressAdvance.Go(ConnectStep.MANUAL), addressAdvance(email, notFoundVerdict, null, online = false),
+        )
+    }
+
+    // ---- addressAdvance and the OAuth answer: it decides WHERE, never WHETHER (#55) ----
+
+    @Test fun `a domain served over OAuth without autoconfig leads to the credentials step`() {
+        assertEquals(
+            "⛔ THE reported case (#55). The domain publishes no Thunderbird document, so the " +
+                "cascade answers NotFound — but the OAuth search that ran in the same pass found " +
+                "the server that signs this account in, and its answer is already in hand. " +
+                "Answering MANUAL throws it away and asks the reader for hostnames the app has.",
+            AddressAdvance.Go(ConnectStep.CREDENTIALS),
+            addressAdvance(email, notFoundVerdict, oauthUsable, online = true),
+        )
+    }
+
+    @Test fun `a failed cascade with no usable OAuth still leads to the manual form`() {
+        assertEquals(
+            "the witness beside the case above: no OAuth answer at all, and the shipped walk is " +
+                "untouched. Green here for every input is the fix switched off.",
+            AddressAdvance.Go(ConnectStep.MANUAL),
+            addressAdvance(email, notFoundVerdict, null, online = true),
+        )
+        assertEquals(
+            "the search ran and nothing usable answered it.",
+            AddressAdvance.Go(ConnectStep.MANUAL),
+            addressAdvance(email, notFoundVerdict, oauthNothing, online = true),
+        )
+        assertEquals(
+            "⛔ OAuth advertised with no grant this app can drive is NOT a way through: step 2 " +
+                "would draw a password field, and with no settings verdict behind it that field " +
+                "has no server to send anything to — a dead end further from the form than here.",
+            AddressAdvance.Go(ConnectStep.MANUAL),
+            addressAdvance(email, notFoundVerdict, oauthUndrivable, online = true),
+        )
+        assertEquals(
+            "and an OAuth answer about the address she walked back and replaced decides nothing.",
+            AddressAdvance.Go(ConnectStep.MANUAL),
+            addressAdvance(email, notFoundVerdict, oauthElsewhere, online = true),
+        )
+    }
+
+    @Test fun `an OAuth answer on its own does not move the walk off the address step`() {
+        assertEquals(
+            "⛔ THE ORDER, untouched. The two probes set out together but do not land together: " +
+                "answer Go here and the walk decides 'this domain publishes no autoconfig' while " +
+                "the cascade is still out — deciding MANUAL seconds early, for everyone.",
+            AddressAdvance.Waiting,
+            addressAdvance(email, null, oauthUsable, online = true),
+        )
+        assertEquals(
+            "and offline is still answered before waiting: an answer in hand is not a link, and " +
+                "no probe may set out to bring the other one back.",
+            AddressAdvance.Offline,
+            addressAdvance(email, null, oauthUsable, online = false),
         )
     }
 
@@ -267,14 +341,33 @@ class ConnectWalkTest {
     // ---- offersManualSetup: the door to the manual form opens on a failure and nothing else ----
 
     @Test fun `the manual door opens once the probe came back empty`() {
-        assertTrue(offersManualSetup(notFoundVerdict, email))
+        assertTrue(offersManualSetup(notFoundVerdict, null, email))
     }
 
     @Test fun `the manual door stays shut beside a verdict that worked`() {
         assertFalse(
             "offered next to a discovered server, 'Set up manually' puts the protocol question " +
                 "back on screen for everyone — the defect this walk exists to remove.",
-            offersManualSetup(foundVerdict, email),
+            offersManualSetup(foundVerdict, null, email),
+        )
+    }
+
+    @Test fun `the manual door stays shut when the OAuth answer is the way through`() {
+        assertFalse(
+            "⛔ #55: a drivable OAuth answer IS a verdict that worked, autoconfig or not — the " +
+                "walk now leads to the credentials step, so the protocol question offered here " +
+                "would stand beside a hand-over about to happen. The door is not withdrawn, it is " +
+                "one step along: credentialsExit offers it under the sign-in offer.",
+            offersManualSetup(notFoundVerdict, oauthUsable, email),
+        )
+        assertTrue(
+            "and the witness: the same empty cascade with OAuth advertised but not drivable still " +
+                "opens the door. Shut it here and that domain can be added by no gesture at all.",
+            offersManualSetup(notFoundVerdict, oauthUndrivable, email),
+        )
+        assertTrue(
+            "nor does an OAuth answer about another address take this address' door away.",
+            offersManualSetup(notFoundVerdict, oauthElsewhere, email),
         )
     }
 
@@ -282,11 +375,11 @@ class ConnectWalkTest {
         assertFalse(
             "before any verdict there is nothing to fall back FROM: the door would invite the " +
                 "user to answer the question the probe is about to answer for her.",
-            offersManualSetup(null, email),
+            offersManualSetup(null, null, email),
         )
         assertFalse(
             "and a failure about another address is not this address' failure.",
-            offersManualSetup(notFoundVerdict, "alex@autre.tld"),
+            offersManualSetup(notFoundVerdict, null, "alex@autre.tld"),
         )
     }
 

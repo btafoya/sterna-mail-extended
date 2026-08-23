@@ -266,16 +266,20 @@ fun ConnectScreen(
     // answers nothing here.
     val verdict by viewModel.discovery.collectAsStateWithLifecycle()
     val found = verdictFor(verdict, username) as? MailAutoconfigResult.Found
-    // ⛔ The step DRAWN, not the step remembered: after process death the ViewModel comes back
-    // empty, and a credentials page for a server nobody discovered shows a state that is not true
-    // and offers a button that leads nowhere.
-    val walkStep = stepToRender(rememberedStep, found)
-
     // How the server says this account signs in, and therefore what step 2 may ask for. ⛔ It is
     // the server's answer, not a choice offered to the reader: OAuth used to be a button in the
     // manual fallback, so whoever needed it had to know the word and go looking for it.
+    //
+    // ⛔ READ ABOVE THE STEP, because the step now depends on it: a domain served over OAuth with
+    // no autoconfig document reaches the credentials step on this answer alone (#55).
     val oauthVerdict by viewModel.oauthDiscovery.collectAsStateWithLifecycle()
     val ask = credentialsAsk(oauthVerdict, username)
+
+    // ⛔ The step DRAWN, not the step remembered: after process death the ViewModel comes back
+    // empty, and a credentials page for a server nobody discovered shows a state that is not true
+    // and offers a button that leads nowhere. Both answers count: withhold the OAuth one here and
+    // the credentials step reached by it is bounced back to the address step as it arrives.
+    val walkStep = stepToRender(rememberedStep, found, oauthVerdict, username)
 
     // What the credentials step needs before it may run: the shipped rule, on the route that step
     // really takes (JMAP with a password), never on whatever the manual form's chips say.
@@ -360,7 +364,7 @@ fun ConnectScreen(
     // even be tapped to say why. Ending it here is also what catches the link dropping between the
     // tap's own read and this one — this effect is re-run right after the tap, the wait being one
     // of its keys.
-    LaunchedEffect(awaitingVerdict, verdict, username) {
+    LaunchedEffect(awaitingVerdict, verdict, oauthVerdict, username) {
         when (val answer = awaitedAnswer(awaitingVerdict, viewModel.advanceFromAddress(username))) {
             is AwaitedAnswer.Leave -> {
                 awaitingVerdict = false
@@ -612,7 +616,7 @@ fun ConnectScreen(
                         }
                         // ⛔ Only once a probe for THIS address came back with nothing. Beside a verdict
                         // that worked, this button is the protocol question walking back on screen.
-                        if (offersManualSetup(verdict, username)) {
+                        if (offersManualSetup(verdict, oauthVerdict, username)) {
                             OutlinedButton(
                                 onClick = { rememberedStep = ConnectStep.MANUAL },
                                 modifier = Modifier.fillMaxWidth(),
