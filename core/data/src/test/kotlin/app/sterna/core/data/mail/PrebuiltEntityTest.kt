@@ -60,6 +60,23 @@ class PrebuiltEntityTest {
     }
 
     /**
+     * ⛔ The mode that encrypts WITHOUT signing blanks the row exactly like the signed one. The
+     * ciphertext is in the entity file either way; leaving the row's textBody filled would keep the
+     * message in the clear at rest, on the phone, for the whole of its life in the outbox — and the
+     * Outbox screen would show it.
+     *
+     * The question the row asks is "does this mode encrypt", never "is this mode ENCRYPT".
+     */
+    @Test fun `an unsigned encrypted message keeps no plaintext at rest either`() {
+        assertEquals(
+            "an unsigned encrypted row kept its plaintext body at rest: the encryption is " +
+                "undone for anyone reading the database.",
+            OutboxPayload(entityFile = entity, redactBody = true),
+            outboxPayload(entity, PgpMode.ENCRYPT_UNSIGNED),
+        )
+    }
+
+    /**
      * ⛔ Blanking the row still needs BOTH the mode and the entity. A row marked ENCRYPT whose
      * entity never arrived would otherwise be emptied of the only copy of its text — the ciphertext
      * is not there to replace it, so the message would simply be gone.

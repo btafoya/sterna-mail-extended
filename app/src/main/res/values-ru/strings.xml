@@ -543,6 +543,8 @@
     <string name="compose_pgp_off">Шифрование выключено</string>
     <string name="compose_pgp_sign">Подписать это письмо</string>
     <string name="compose_pgp_encrypt">Зашифровать это письмо</string>
+    <string name="compose_pgp_encrypt_unsigned">Зашифровать без подписи</string>
+    <string name="compose_pgp_toggle_desc">%1$s. Долгое нажатие — выбор режима.</string>
     <string name="compose_pgp_subject_note">Тема письма не шифруется.</string>
     <string name="compose_pgp_not_encrypted_no_key">Это письмо не будет зашифровано: нет открытого ключа для %1$s.</string>
     <string name="compose_pgp_no_draft">Зашифрованные письма нельзя сохранить как черновик или запланировать.</string>
@@ -552,6 +554,7 @@
     <string name="compose_pgp_snack_off">Без шифрования: письмо прочтёт любой, через кого оно проходит.</string>
     <string name="compose_pgp_snack_sign">Подписано: доступно всем, но подтверждает, что письмо от вас.</string>
     <string name="compose_pgp_snack_encrypt">Зашифровано и подписано: прочтёт только получатель.</string>
+    <string name="compose_pgp_snack_encrypt_unsigned">Зашифровано, без подписи: прочтёт только получатель, но это не подтверждает, что письмо от вас.</string>
     <string name="settings_saved">Сохранено</string>
     <string name="settings_save">Сохранить</string>
     <string name="settings_save_scope">Кнопка «Сохранить» записывает имя аккаунта, настройки сервера, учётные данные и личности. Остальные настройки на этом экране сохраняются, как только вы их измените.</string>

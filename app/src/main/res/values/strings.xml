@@ -703,6 +703,8 @@
     <string name="compose_pgp_off">Encryption off</string>
     <string name="compose_pgp_sign">Sign this message</string>
     <string name="compose_pgp_encrypt">Encrypt this message</string>
+    <string name="compose_pgp_encrypt_unsigned">Encrypt without signing</string>
+    <string name="compose_pgp_toggle_desc">%1$s. Long press to choose a mode.</string>
     <string name="compose_pgp_subject_note">The subject is not encrypted.</string>
     <string name="compose_pgp_not_encrypted_no_key">This message won\'t be encrypted: no public key for %1$s.</string>
     <string name="compose_pgp_no_draft">Encrypted messages can\'t be saved as drafts or scheduled.</string>
@@ -712,6 +714,7 @@
     <string name="compose_pgp_snack_off">Not encrypted: anyone handling this mail can read it.</string>
     <string name="compose_pgp_snack_sign">Signed: readable by all, but proves it comes from you.</string>
     <string name="compose_pgp_snack_encrypt">Encrypted and signed: only the recipient can read it.</string>
+    <string name="compose_pgp_snack_encrypt_unsigned">Encrypted, not signed: only the recipient can read it, but it doesn\'t prove it comes from you.</string>
     <string name="settings_saved">Saved</string>
     <string name="settings_save">Save</string>
     <string name="settings_save_scope">The “Save” button writes the account name, server settings, credentials and identities. The other settings on this screen are saved as soon as you change them.</string>

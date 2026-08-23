@@ -3,8 +3,33 @@ package app.sterna.core.data.pgp
 import android.app.PendingIntent
 import android.content.Intent
 
-/** Per-message crypto mode chosen in the composer. ENCRYPT always signs too. */
-enum class PgpMode { OFF, SIGN, ENCRYPT }
+/**
+ * Per-message crypto mode chosen in the composer.
+ *
+ * [ENCRYPT] encrypts AND signs. [ENCRYPT_UNSIGNED] encrypts and does NOT sign: the body is still
+ * readable only by the recipients, but it carries no proof of who wrote it — and nothing else is
+ * hidden, the subject travels in the clear and the SMTP envelope names the sender either way.
+ * Everything else the two share, which is what [encrypts] is for.
+ */
+enum class PgpMode { OFF, SIGN, ENCRYPT, ENCRYPT_UNSIGNED }
+
+/**
+ * "Does this mode turn the body into ciphertext?" — the ONE way to ask, because every consequence
+ * of encrypting hangs off this single question and they must never disagree:
+ *  - no draft may be kept (a draft is uploaded to the server as it stands — `draftSaveAllowed`);
+ *  - the outbox row's body is blanked at rest (`outboxPayload`, redactBody);
+ *  - the recipients' public keys are looked up, and the composer's missing-key warnings with them
+ *    (`ComposeViewModel.updateRecipientKeys`, `keysReady`, `missingKeyFor`).
+ *
+ * ⛔ A fifth encrypting mode MUST come through here instead of being compared by name at the call
+ * sites. `== PgpMode.ENCRYPT` was written at six of them; a mode added beside it answered "not
+ * encrypted" at every single one, and the failures are silent ones: the plaintext goes up to the
+ * server as a draft, and stays in the outbox row at rest.
+ *
+ * ⚠ It is deliberately NOT the same question as `!= PgpMode.OFF` ("any PGP at all"), which is what
+ * gates scheduling and local attachment staging. Do not swap one for the other.
+ */
+val PgpMode.encrypts: Boolean get() = this == PgpMode.ENCRYPT || this == PgpMode.ENCRYPT_UNSIGNED
 
 /** Outcome of verifying an OpenPGP signature, mapped for UI badge semantics. */
 enum class PgpSignatureState {

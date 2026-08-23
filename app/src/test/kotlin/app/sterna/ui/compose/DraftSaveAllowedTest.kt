@@ -30,6 +30,17 @@ class DraftSaveAllowedTest {
         assertFalse(draftSaveAllowed(handSet))
     }
 
+    @Test fun anEncryptedUnsignedMessageMayNotBeKeptAsADraftEither() {
+        // The mode that encrypts without signing hands the server exactly the same plaintext when
+        // it is saved as a draft. The rule is asked as "does this mode encrypt?" and not
+        // "is this THE encrypting mode", which is what makes this answer come out right.
+        assertFalse(
+            "a draft of an unsigned encrypted message uploads its plaintext to the mail server — " +
+                "the very thing the mode exists to withhold.",
+            draftSaveAllowed(PgpMode.ENCRYPT_UNSIGNED),
+        )
+    }
+
     // --- Everything else: allowed ----------------------------------------------------------------
 
     @Test fun aPlainMessageMayBeKeptAsADraft() {
@@ -55,6 +66,23 @@ class DraftSaveAllowedTest {
         assertTrue(nextPgpMode(PgpMode.OFF) == PgpMode.SIGN)
         assertTrue(nextPgpMode(PgpMode.SIGN) == PgpMode.ENCRYPT)
         assertTrue(nextPgpMode(PgpMode.ENCRYPT) == PgpMode.OFF)
+    }
+
+    @Test fun theCycleNeverWalksIntoTheUnsignedMode() {
+        // ⛔ Three stops, still. ENCRYPT_UNSIGNED is reached ONLY by choosing it in the long-press
+        // menu: a short tap must not put anyone into sending unsigned mail without asking. The
+        // three assertions above are the same rule read forwards.
+        assertTrue(
+            "the short tap now walks into the unsigned mode. Two taps from plain would start " +
+                "sending mail that proves nothing about who sent it, chosen by nobody.",
+            PgpMode.entries.none { nextPgpMode(it) == PgpMode.ENCRYPT_UNSIGNED },
+        )
+    }
+
+    @Test fun aTapAlwaysGetsOutOfTheUnsignedMode() {
+        // And out means OFF, exactly as it does from ENCRYPT: the padlock is the way back to plain.
+        assertTrue(nextPgpMode(PgpMode.ENCRYPT_UNSIGNED) == PgpMode.OFF)
+        assertTrue(draftSaveAllowed(nextPgpMode(PgpMode.ENCRYPT_UNSIGNED)))
     }
 
     // --- The two rules are independent -----------------------------------------------------------

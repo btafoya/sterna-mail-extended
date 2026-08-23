@@ -543,6 +543,8 @@
     <string name="compose_pgp_off">Criptografia desativada</string>
     <string name="compose_pgp_sign">Assinar esta mensagem</string>
     <string name="compose_pgp_encrypt">Criptografar esta mensagem</string>
+    <string name="compose_pgp_encrypt_unsigned">Criptografar sem assinar</string>
+    <string name="compose_pgp_toggle_desc">%1$s. Toque e segure para escolher um modo.</string>
     <string name="compose_pgp_subject_note">O assunto não é criptografado.</string>
     <string name="compose_pgp_not_encrypted_no_key">Esta mensagem não será cifrada: sem chave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Mensagens criptografadas não podem ser salvas como rascunho nem agendadas.</string>
@@ -552,6 +554,7 @@
     <string name="compose_pgp_snack_off">Sem criptografia: qualquer um que manuseie este e-mail pode ler.</string>
     <string name="compose_pgp_snack_sign">Assinado: legível por todos, mas comprova que vem de você.</string>
     <string name="compose_pgp_snack_encrypt">Criptografado e assinado: só o destinatário poderá ler.</string>
+    <string name="compose_pgp_snack_encrypt_unsigned">Criptografado, sem assinatura: só o destinatário poderá ler, mas não prova que veio de você.</string>
     <string name="settings_saved">Salvo</string>
     <string name="settings_save">Salvar</string>
     <string name="settings_save_scope">O botão «Salvar» grava o nome da conta, as configurações do servidor, as credenciais e as identidades. As outras configurações desta tela são salvas assim que você as altera.</string>

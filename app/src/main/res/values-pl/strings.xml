@@ -543,6 +543,8 @@
     <string name="compose_pgp_off">Szyfrowanie wyłączone</string>
     <string name="compose_pgp_sign">Podpisz tę wiadomość</string>
     <string name="compose_pgp_encrypt">Zaszyfruj tę wiadomość</string>
+    <string name="compose_pgp_encrypt_unsigned">Zaszyfruj bez podpisu</string>
+    <string name="compose_pgp_toggle_desc">%1$s. Naciśnij i przytrzymaj, aby wybrać tryb.</string>
     <string name="compose_pgp_subject_note">Temat nie jest szyfrowany.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ta wiadomość nie zostanie zaszyfrowana: brak klucza publicznego dla %1$s.</string>
     <string name="compose_pgp_no_draft">Zaszyfrowanych wiadomości nie można zapisać jako wersji roboczej ani zaplanować.</string>
@@ -552,6 +554,7 @@
     <string name="compose_pgp_snack_off">Bez szyfrowania: może to przeczytać każdy, kto obsługuje tę pocztę.</string>
     <string name="compose_pgp_snack_sign">Podpisane: czytelne dla wszystkich, ale potwierdza, że to od Ciebie.</string>
     <string name="compose_pgp_snack_encrypt">Zaszyfrowane i podpisane: przeczyta to tylko odbiorca.</string>
+    <string name="compose_pgp_snack_encrypt_unsigned">Zaszyfrowane, bez podpisu: przeczyta to tylko odbiorca, ale nie potwierdza, że to od Ciebie.</string>
     <string name="settings_saved">Zapisano</string>
     <string name="settings_save">Zapisz</string>
     <string name="settings_save_scope">Przycisk „Zapisz” zapisuje nazwę konta, ustawienia serwera, dane logowania i tożsamości. Pozostałe ustawienia na tym ekranie są zapisywane w chwili ich zmiany.</string>

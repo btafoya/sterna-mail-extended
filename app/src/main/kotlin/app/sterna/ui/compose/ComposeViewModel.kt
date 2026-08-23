@@ -34,6 +34,7 @@ import app.sterna.core.data.mail.sendDraftTarget
 import app.sterna.core.data.mail.takeLocalDraftEditOrGiveItBack
 import app.sterna.core.data.mail.unlessBodyIsLossy
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.imap.OutgoingAttachment
 import app.sterna.core.imap.OutgoingMessage
@@ -584,12 +585,22 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Lock toggle: OFF → SIGN → ENCRYPT → OFF. Marks the mode as user-chosen, so it is honoured
-     *  strictly and never auto-downgraded (#35). */
-    fun cyclePgpMode() {
+    /** Lock toggle (short tap): OFF → SIGN → ENCRYPT → OFF. The cycle itself is [nextPgpMode]. */
+    fun cyclePgpMode() = setPgpMode(nextPgpMode(_pgpMode.value))
+
+    /**
+     * The mode the user picked by hand — from the lock's short tap above, or from the long-press
+     * menu, which is the only way to reach [PgpMode.ENCRYPT_UNSIGNED].
+     *
+     * ⛔ ONE body for both, deliberately: a mode set by hand is marked user-chosen so it is honoured
+     * strictly and never auto-downgraded by the opportunistic default (#35), and it announces
+     * itself. A second entry point that set `_pgpMode` without both would let the encrypt-by-default
+     * account silently rewrite a choice the user had just made, with no snackbar to contradict it.
+     */
+    fun setPgpMode(mode: PgpMode) {
         pgpModeUserSet = true
         _pgpKeylessRecipients.value = emptyList()
-        _pgpMode.value = nextPgpMode(_pgpMode.value)
+        _pgpMode.value = mode
         _pgpToggleAnnounce.tryEmit(_pgpMode.value)
     }
 
@@ -608,7 +619,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     fun updateRecipientKeys(to: String, cc: String, bcc: String) {
         val account = pgpAccount()
         val care = _pgpAvailable.value &&
-            (account?.pgpEncryptByDefault == true || _pgpMode.value == PgpMode.ENCRYPT)
+            (account?.pgpEncryptByDefault == true || _pgpMode.value.encrypts)
         if (!care) {
             _recipientKeys.value = emptyMap()
             keyedRecipients = null
@@ -1809,7 +1820,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     try {
                         buildPgpEntity(
                             credentials, recipients + ccList + bccList,
-                            textBody, htmlBody, attachments, interactionResult,
+                            textBody, htmlBody, attachments, mode, interactionResult,
                         )
                     } catch (e: PgpInteractionNeeded) {
                         pendingSendArgs = args
@@ -2356,8 +2367,18 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     /**
      * Build the PGP/MIME entity for the message: assemble the exact inner MIME
      * entity (bodies + attachments — the same builder normal sends use), then
-     * detached-sign (SIGN) or sign+encrypt to all recipients + self (ENCRYPT).
+     * detached-sign (SIGN) or encrypt to all recipients + self, signed (ENCRYPT) or unsigned
+     * (ENCRYPT_UNSIGNED) — the split is [pgpEncryptArgs] and nothing else.
      * Throws [PgpInteractionNeeded] when the provider wants the user first.
+     *
+     * ⛔ [mode] is a PARAMETER, and `_pgpMode.value` must never be read in here. The send captures
+     * the mode ONCE and that one value gates the entity, the signer and the outbox row alike.
+     * Read again in here, it could answer something else: `pgp.findKeys` below suspends on a
+     * round-trip to the provider, and the mode moves under it — deriveAutoMode drops an untouched
+     * encrypt-by-default lock to OFF the moment a recipient turns out to have no key, and the
+     * address fields stay editable while the send is in flight. The message would then go out
+     * UNSIGNED while the composer had said "encrypted and signed": the one property this mode
+     * exists for, decided by which coroutine resumed first.
      */
     private suspend fun buildPgpEntity(
         credentials: AccountCredentials,
@@ -2365,12 +2386,17 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         textBody: String,
         htmlBody: String?,
         attachments: List<EmailBodyPart>,
+        mode: PgpMode,
         interactionResult: Intent?,
     ): String {
         val app = getApplication<Application>()
         val account = pgpAccount()
             ?: error(app.getString(R.string.compose_pgp_not_configured))
-        val signKeyId = account.pgpSignKeyId
+        // ⛔ NAMED FOR THE ROLE THAT SURVIVES BOTH MODES. This key is the signer AND a recipient
+        // (encrypt-to-self, so the Sent copy can be reopened). Calling it "signKeyId" is what makes
+        // "drop the signer" read as "drop this key", which would take it out of the recipients too
+        // and make every unsigned encrypted message unreadable, for ever. See [pgpEncryptArgs].
+        val selfKeyId = account.pgpSignKeyId
 
         // Attachment bytes must be local to ride inside the entity. Staged files
         // (IMAP, or JMAP once PGP was on) read back directly; a blob attached
@@ -2402,9 +2428,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             ),
         )
         val payload = PgpMime.signablePayload(inner)
-        return when (_pgpMode.value) {
+        return when (mode) {
             PgpMode.SIGN -> {
-                when (val r = pgp.detachedSign(payload.toByteArray(Charsets.UTF_8), signKeyId, interactionResult)) {
+                when (val r = pgp.detachedSign(payload.toByteArray(Charsets.UTF_8), selfKeyId, interactionResult)) {
                     is PgpResult.Success ->
                         PgpMime.wrapSigned(payload, r.value.armor, r.value.micalg, "----sterna_sig_$boundarySeed")
                     is PgpResult.UserInteractionRequired -> throw PgpInteractionNeeded(r.pendingIntent)
@@ -2412,16 +2438,18 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     PgpResult.NotAvailable -> error(app.getString(R.string.message_pgp_no_provider))
                 }
             }
-            PgpMode.ENCRYPT -> {
+            PgpMode.ENCRYPT, PgpMode.ENCRYPT_UNSIGNED -> {
                 val recipientKeys = when (val r = pgp.findKeys(allRecipients, interactionResult)) {
                     is PgpResult.Success -> r.value
                     is PgpResult.UserInteractionRequired -> throw PgpInteractionNeeded(r.pendingIntent)
                     is PgpResult.Error -> error(app.getString(R.string.compose_pgp_missing_keys))
                     PgpResult.NotAvailable -> error(app.getString(R.string.message_pgp_no_provider))
                 }
-                // Encrypt-to-self so the Sent copy stays readable.
-                val keys = (recipientKeys.toList() + signKeyId).distinct().toLongArray()
-                when (val r = pgp.signAndEncrypt(payload.toByteArray(Charsets.UTF_8), signKeyId, keys, interactionResult)) {
+                // Who signs and who can read — [pgpEncryptArgs], the pure decision a JVM test runs.
+                // selfKeyId is a recipient in BOTH modes (encrypt-to-self, the readable Sent copy);
+                // it is the signer only in ENCRYPT. ⛔ Do not rebuild either array here.
+                val args = pgpEncryptArgs(mode, selfKeyId, recipientKeys.toList())
+                when (val r = pgp.signAndEncrypt(payload.toByteArray(Charsets.UTF_8), args.signKeyId, args.recipientKeyIds, interactionResult)) {
                     is PgpResult.Success ->
                         PgpMime.wrapEncrypted(r.value, "----sterna_enc_$boundarySeed")
                     is PgpResult.UserInteractionRequired -> throw PgpInteractionNeeded(r.pendingIntent)

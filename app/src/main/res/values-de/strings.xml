@@ -543,6 +543,8 @@
     <string name="compose_pgp_off">Verschlüsselung aus</string>
     <string name="compose_pgp_sign">Diese Nachricht signieren</string>
     <string name="compose_pgp_encrypt">Diese Nachricht verschlüsseln</string>
+    <string name="compose_pgp_encrypt_unsigned">Verschlüsseln ohne Signatur</string>
+    <string name="compose_pgp_toggle_desc">%1$s. Lange drücken, um einen Modus zu wählen.</string>
     <string name="compose_pgp_subject_note">Der Betreff wird nicht verschlüsselt.</string>
     <string name="compose_pgp_not_encrypted_no_key">Diese Nachricht wird nicht verschlüsselt: kein öffentlicher Schlüssel für %1$s.</string>
     <string name="compose_pgp_no_draft">Verschlüsselte Nachrichten können nicht als Entwurf gespeichert oder geplant werden.</string>
@@ -552,6 +554,7 @@
     <string name="compose_pgp_snack_off">Nicht verschlüsselt: für jeden lesbar, der die Mail sieht.</string>
     <string name="compose_pgp_snack_sign">Signiert: für alle lesbar, belegt aber, dass sie von Ihnen stammt.</string>
     <string name="compose_pgp_snack_encrypt">Verschlüsselt und signiert: nur der Empfänger kann sie lesen.</string>
+    <string name="compose_pgp_snack_encrypt_unsigned">Verschlüsselt, nicht signiert: nur der Empfänger kann sie lesen, aber es ist kein Nachweis, dass sie von Ihnen stammt.</string>
     <string name="settings_saved">Gespeichert</string>
     <string name="settings_save">Speichern</string>
     <string name="settings_save_scope">Die Schaltfläche „Speichern“ schreibt den Kontonamen, die Servereinstellungen, die Zugangsdaten und die Identitäten. Die übrigen Einstellungen auf diesem Bildschirm werden gespeichert, sobald du sie änderst.</string>

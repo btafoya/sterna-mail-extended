@@ -543,6 +543,8 @@
     <string name="compose_pgp_off">Cifrado desactivado</string>
     <string name="compose_pgp_sign">Firmar este mensaje</string>
     <string name="compose_pgp_encrypt">Cifrar este mensaje</string>
+    <string name="compose_pgp_encrypt_unsigned">Cifrar sin firmar</string>
+    <string name="compose_pgp_toggle_desc">%1$s. Mantén pulsado para elegir un modo.</string>
     <string name="compose_pgp_subject_note">El asunto no se cifra.</string>
     <string name="compose_pgp_not_encrypted_no_key">Este mensaje no se cifrará: no hay clave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Los mensajes cifrados no se pueden guardar como borrador ni programar.</string>
@@ -552,6 +554,7 @@
     <string name="compose_pgp_snack_off">Sin cifrar: cualquiera que gestione este correo puede leerlo.</string>
     <string name="compose_pgp_snack_sign">Firmado: legible por todos, pero demuestra que viene de ti.</string>
     <string name="compose_pgp_snack_encrypt">Cifrado y firmado: solo el destinatario podrá leerlo.</string>
+    <string name="compose_pgp_snack_encrypt_unsigned">Cifrado, sin firmar: solo el destinatario podrá leerlo, pero no demuestra que venga de ti.</string>
     <string name="settings_saved">Guardado</string>
     <string name="settings_save">Guardar</string>
     <string name="settings_save_scope">El botón «Guardar» escribe el nombre de la cuenta, los ajustes del servidor, las credenciales y las identidades. Los demás ajustes de esta pantalla se guardan en cuanto los cambias.</string>

@@ -1,5 +1,6 @@
 package app.sterna.core.data.db
 
+import app.sterna.core.data.pgp.PgpMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -86,6 +87,34 @@ object OutboxLogic {
                 OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT -> true
                 OutboxState.SENDING, OutboxState.EDITING -> false
             }
+
+    /**
+     * What goes in [OutboxEntity.pgpMode] for a message being queued — a STRING, and deliberately
+     * not `mode.name`.
+     *
+     * ⛔ That column does not say which mode the author chose. It says how the row's body must be
+     * treated AT REST, and for that the two encrypting modes are the same thing: the body is blank
+     * and the message lives in its entity file. The signature has already been consumed when the
+     * entity was built; the outbox row has no use for it whatsoever.
+     *
+     * So [PgpMode.ENCRYPT_UNSIGNED] is stored as "ENCRYPT", and two holes stay shut: [canEdit]
+     * compares this column as TEXT, so a new name would slip past it and offer Edit on a row whose
+     * body was blanked (the composer opens empty and sends an empty message); and an APK rolled
+     * back to a version that has never heard of the name would fail `PgpMode.valueOf` on reopen
+     * and drop the composer to OFF without a word.
+     *
+     * ⚠ Delivery itself does NOT read this column — it goes on the pre-built entity file — so do
+     * not credit this shortcut with keeping the send path right. It keeps the SCREEN right.
+     *
+     * ⚠ Consequence, accepted with eyes open: an unsigned encrypted row reads back as ENCRYPT.
+     * Nothing reopens either of them today (Edit is refused on both). ⛔ If Edit ever becomes
+     * possible on an encrypted row, this shortcut must fall FIRST.
+     */
+    fun outboxPgpModeName(mode: PgpMode?): String? = when (mode) {
+        null, PgpMode.OFF -> null
+        PgpMode.ENCRYPT, PgpMode.ENCRYPT_UNSIGNED -> "ENCRYPT"
+        PgpMode.SIGN -> "SIGN"
+    }
 
     /**
      * Whether a row's pre-built entity is one the composer could NOT produce again — the single

@@ -1,5 +1,6 @@
 package app.sterna.core.data.db
 
+import app.sterna.core.data.pgp.PgpMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -201,6 +202,46 @@ class OutboxLogicTest {
         assertEquals(true, OutboxLogic.canEdit("SIGN", OutboxState.QUEUED, signed()))
         assertEquals(true, OutboxLogic.canEdit("SIGN", OutboxState.HELD, signed()))
         assertEquals(true, OutboxLogic.canEdit("SIGN", OutboxState.FAILED, signed()))
+    }
+
+    /**
+     * ⭐ WHAT THE OUTBOX COLUMN IS FOR, executed end to end: [OutboxLogic.outboxPgpModeName] writes
+     * it, [OutboxLogic.canEdit] reads it back as text.
+     *
+     * The column does not name the author's choice; it says how the body must be treated at rest,
+     * and there the two encrypting modes are one. Storing "ENCRYPT_UNSIGNED" instead would slip
+     * past `canEdit`'s string comparison and put an Edit button on a row whose body was blanked:
+     * the composer opens EMPTY and Send then queues an empty message over the real one.
+     */
+    @Test fun anUnsignedEncryptedRowIsFiledAsEncryptedAndOffersNoEdit() {
+        assertEquals(
+            "the unsigned encrypted mode is stored under a name of its own. canEdit compares " +
+                "this column as TEXT: the Edit button comes back on a row with no body, and the " +
+                "message is re-sent empty.",
+            "ENCRYPT",
+            OutboxLogic.outboxPgpModeName(PgpMode.ENCRYPT_UNSIGNED),
+        )
+        assertEquals(
+            "Edit is offered on an unsigned encrypted row — the composer would open empty.",
+            false,
+            OutboxLogic.canEdit(
+                OutboxLogic.outboxPgpModeName(PgpMode.ENCRYPT_UNSIGNED),
+                OutboxState.QUEUED,
+                false,
+            ),
+        )
+    }
+
+    /** The rest of the column, unchanged: OFF and "no PGP" store nothing, SIGN stores itself. */
+    @Test fun theOutboxColumnStoresNothingForAPlainMessage() {
+        assertNull(OutboxLogic.outboxPgpModeName(null))
+        assertNull(
+            "PgpMode.OFF is never stored — null in that column is what says no PGP was involved, " +
+                "and isUnreplayablePrebuiltEntity reads it that way.",
+            OutboxLogic.outboxPgpModeName(PgpMode.OFF),
+        )
+        assertEquals("SIGN", OutboxLogic.outboxPgpModeName(PgpMode.SIGN))
+        assertEquals("ENCRYPT", OutboxLogic.outboxPgpModeName(PgpMode.ENCRYPT))
     }
 
     @Test fun aWaitingUnencryptedItemCanBeReopened() {

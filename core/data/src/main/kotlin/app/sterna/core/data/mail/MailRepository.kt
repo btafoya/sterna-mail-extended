@@ -44,6 +44,7 @@ import app.sterna.core.data.db.OutboxDao
 import app.sterna.core.data.db.OutboxEdit
 import app.sterna.core.data.db.OutboxEntity
 import app.sterna.core.data.db.OutboxLogic
+import app.sterna.core.data.db.OutboxLogic.outboxPgpModeName
 import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.RECENT_EMAIL_ROW_COLUMNS
@@ -92,6 +93,7 @@ import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.data.pgp.PgpDecrypted
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.PgpResult
+import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
@@ -706,7 +708,7 @@ internal data class OutboxPayload(
 internal fun outboxPayload(prebuiltEntity: String?, pgpMode: PgpMode?): OutboxPayload =
     OutboxPayload(
         entityFile = prebuiltEntity,
-        redactBody = pgpMode == PgpMode.ENCRYPT && prebuiltEntity != null,
+        redactBody = pgpMode?.encrypts == true && prebuiltEntity != null,
     )
 
 /**
@@ -7192,7 +7194,7 @@ class MailRepository(
                 createdAtMillis = now,
                 notBeforeMillis = now + holdMs,
                 state = if (held) OutboxState.HELD else OutboxState.QUEUED,
-                pgpMode = pgpMode?.takeIf { it != PgpMode.OFF }?.name,
+                pgpMode = outboxPgpModeName(pgpMode),
                 draftEmailId = replaceableDraftId,
                 draftUidValidity = draftUidValidity,
                 requestReceipt = requestReceipt,

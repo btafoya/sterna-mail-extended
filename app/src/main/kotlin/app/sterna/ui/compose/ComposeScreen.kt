@@ -6,7 +6,9 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,19 +37,19 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Draw
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.LocalContentColor
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.jmap.model.Email
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.compose.material.icons.filled.ExpandLess
@@ -107,7 +109,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -156,7 +160,7 @@ import java.time.ZoneId
 
 // ExperimentalLayoutApi: the leave dialog's FlowRow, which wraps its three answers instead of
 // truncating them where the labels are long (German, Russian) — same as the settings screens'.
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ComposeScreen(
     onDone: () -> Unit,
@@ -270,6 +274,7 @@ fun ComposeScreen(
                         PgpMode.OFF -> R.string.compose_pgp_snack_off
                         PgpMode.SIGN -> R.string.compose_pgp_snack_sign
                         PgpMode.ENCRYPT -> R.string.compose_pgp_snack_encrypt
+                        PgpMode.ENCRYPT_UNSIGNED -> R.string.compose_pgp_snack_encrypt_unsigned
                     },
                 ),
                 duration = SnackbarDuration.Short,
@@ -582,7 +587,7 @@ fun ComposeScreen(
     val allRecipients = listOf(to, cc, bcc).flatMap { recipientTokens(it) }
     // When encrypting, every recipient must have a resolvable key (false = known-missing;
     // absent = not yet checked, allowed — the send resolves keys and reports precisely).
-    val keysReady = pgpMode != PgpMode.ENCRYPT || allRecipients.none { recipientKeys[it] == false }
+    val keysReady = !pgpMode.encrypts || allRecipients.none { recipientKeys[it] == false }
     val canSend = recipientTokens(to).isNotEmpty() && allRecipients.all(::isValidEmail) && keysReady
     val sendNow = { viewModel.send(to, cc, bcc, subject.text, body.text, requestReceipt) }
     val proceedAfterAttachment = {
@@ -1089,29 +1094,71 @@ fun ComposeScreen(
                   // the overflow have no meaning on a message that is not on screen. The X in
                   // navigationIcon deliberately stays — it is the only way out.
                   if (reopen is DraftReopenView.Editor) {
-                    // OpenPGP lock toggle: OFF → sign → encrypt. Only when the account is set up.
+                    // OpenPGP lock. SHORT tap keeps the three-stop cycle it always had (off →
+                    // sign → encrypt → off, [nextPgpMode]); LONG press opens the list of all four
+                    // modes, which is the only way to reach ENCRYPT_UNSIGNED — a short tap must
+                    // not walk anyone into sending unsigned mail. The gesture is announced in the
+                    // button's own contentDescription: nothing else on this screen tells anybody
+                    // it exists. Only when the account is set up.
                     if (pgpAvailable) {
-                        val encrypting = pgpMode == PgpMode.ENCRYPT
-                        IconButton(onClick = viewModel::cyclePgpMode, enabled = !sending) {
+                        var pgpMenu by remember { mutableStateOf(false) }
+                        // Box, not IconButton: an IconButton has no long press. The 48 dp size and
+                        // the circular clip are what an IconButton was giving for free — the
+                        // minimum touch target, and a ripple that is round rather than square.
+                        // ⛔ `enabled = !sending` sits on the clickable, so NEITHER gesture acts
+                        // while a send is in flight, as before.
+                        Box {
                             Icon(
-                                imageVector = when (pgpMode) {
-                                    PgpMode.OFF -> Icons.Filled.LockOpen
-                                    PgpMode.SIGN -> Icons.Filled.Draw
-                                    PgpMode.ENCRYPT -> Icons.Filled.Lock
-                                },
+                                imageVector = pgpModeIcon(pgpMode),
                                 contentDescription = stringResource(
-                                    when (pgpMode) {
-                                        PgpMode.OFF -> R.string.compose_pgp_off
-                                        PgpMode.SIGN -> R.string.compose_pgp_sign
-                                        PgpMode.ENCRYPT -> R.string.compose_pgp_encrypt
-                                    },
+                                    R.string.compose_pgp_toggle_desc,
+                                    stringResource(pgpModeLabel(pgpMode)),
                                 ),
-                                tint = if (pgpMode == PgpMode.OFF) {
-                                    LocalContentColor.current
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                },
+                                // ⛔ The alpha is what IconButton gave for free. Neither gesture
+                                // acts while a send is in flight, and a padlock at full strength
+                                // would say the opposite (WYSIWYG).
+                                tint = (
+                                    if (pgpMode == PgpMode.OFF) {
+                                        LocalContentColor.current
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    }
+                                    ).copy(alpha = if (sending) 0.38f else 1f),
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .combinedClickable(
+                                        enabled = !sending,
+                                        role = Role.Button,
+                                        onClick = viewModel::cyclePgpMode,
+                                        onLongClick = { pgpMenu = true },
+                                    )
+                                    .padding(12.dp),
                             )
+                            DropdownMenu(expanded = pgpMenu, onDismissRequest = { pgpMenu = false }) {
+                                PgpMode.entries.forEach { entry ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(pgpModeLabel(entry))) },
+                                        leadingIcon = {
+                                            Icon(pgpModeIcon(entry), contentDescription = null)
+                                        },
+                                        // The current mode is ticked; the others carry nothing, so
+                                        // what is on screen says what is in force (WYSIWYG).
+                                        trailingIcon = {
+                                            if (entry == pgpMode) {
+                                                Icon(Icons.Filled.Check, contentDescription = null)
+                                            }
+                                        },
+                                        onClick = {
+                                            pgpMenu = false
+                                            // Same ViewModel path the cycle takes, so a mode picked
+                                            // here is user-set (never auto-downgraded) and says so
+                                            // in the same snackbar.
+                                            viewModel.setPgpMode(entry)
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                     // Attachments are allowed in every mode (they ride inside the encrypted entity).
@@ -1376,7 +1423,7 @@ fun ComposeScreen(
                 viewModel.updateRecipientKeys(to, cc, bcc)
             }
             val missingKeyFor: (String) -> Boolean = { addr ->
-                pgpMode == PgpMode.ENCRYPT && recipientKeys[addr] == false
+                pgpMode.encrypts && recipientKeys[addr] == false
             }
             RecipientChipsField(
                 label = stringResource(R.string.compose_to),
@@ -1422,7 +1469,7 @@ fun ComposeScreen(
             )
             // Only when the body is actually being encrypted to someone (a recipient has a key),
             // so a fresh encrypt-by-default compose with no recipients doesn't claim it yet (#35).
-            if (pgpMode == PgpMode.ENCRYPT && recipientKeys.values.any { it }) {
+            if (pgpMode.encrypts && recipientKeys.values.any { it }) {
                 Text(
                     stringResource(R.string.compose_pgp_subject_note),
                     style = MaterialTheme.typography.bodySmall,
@@ -2139,6 +2186,14 @@ private fun FieldLabel(text: String) {
 @Composable
 private fun FieldDivider() {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+/** The label for each mode: the menu entry, and the mode named in the button's contentDescription. */
+private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
+    PgpMode.OFF -> R.string.compose_pgp_off
+    PgpMode.SIGN -> R.string.compose_pgp_sign
+    PgpMode.ENCRYPT -> R.string.compose_pgp_encrypt
+    PgpMode.ENCRYPT_UNSIGNED -> R.string.compose_pgp_encrypt_unsigned
 }
 
 /**

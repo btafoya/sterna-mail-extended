@@ -1,7 +1,14 @@
 package app.sterna.ui.compose
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.ui.graphics.vector.ImageVector
 import app.sterna.R
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.text.htmlEscape
 import app.sterna.core.data.text.htmlEscapeMultiline
 import app.sterna.core.data.text.htmlToText
@@ -716,8 +723,10 @@ internal fun draftHasContent(
  * The single rule for "may this message be kept as a draft at all?" (#35): everything but an
  * encrypted one. A draft is stored on the mail server as it stands in the composer, so saving one
  * while encrypting would hand the provider the very plaintext the encryption is there to withhold.
- * [PgpMode.SIGN] is NOT caught: a signed message travels and is stored in the clear by design, so
- * its draft is no worse than an unsigned one.
+ * The question asked is [PgpMode.encrypts], never `== PgpMode.ENCRYPT`: both encrypting modes are
+ * caught (a message encrypted without a signature leaks exactly the same plaintext through a draft
+ * as a signed one). [PgpMode.SIGN] is NOT caught: a signed message travels and is stored in the
+ * clear by design, so its draft is no worse than an unsigned one.
  *
  * It depends on the composer's current mode and on nothing else, which is the point: the mode is
  * the same field whether the user closed the lock by hand or the account's encrypt-by-default put
@@ -725,7 +734,7 @@ internal fun draftHasContent(
  * Save/Schedule actions, the leave dialog and the [ComposeViewModel] save itself, so no exit from
  * the composer can offer what another forbids.
  */
-internal fun draftSaveAllowed(pgpMode: PgpMode): Boolean = pgpMode != PgpMode.ENCRYPT
+internal fun draftSaveAllowed(pgpMode: PgpMode): Boolean = !pgpMode.encrypts
 
 /**
  * The single rule for "may this message be SCHEDULED for later send?" — stricter than
@@ -969,11 +978,91 @@ internal fun scheduleFirstYear(nowMillis: Long, zone: ZoneId): Int =
  * The lock toggle's cycle: off → sign → encrypt → off. Pure so the hand-set path can be tested
  * against [draftSaveAllowed] — closing the lock by hand must forbid the draft exactly as the
  * account default does (#35).
+ *
+ * ⛔ THREE STOPS, and [PgpMode.ENCRYPT_UNSIGNED] is not one of them: a short tap must not walk
+ * anyone into sending unsigned mail they did not ask for. That mode is reached only by choosing it
+ * in the long-press menu. It still has a branch here because a tap must always be able to get OUT
+ * of it, and out means OFF — the same exit [PgpMode.ENCRYPT] has.
  */
 internal fun nextPgpMode(current: PgpMode): PgpMode = when (current) {
     PgpMode.OFF -> PgpMode.SIGN
     PgpMode.SIGN -> PgpMode.ENCRYPT
     PgpMode.ENCRYPT -> PgpMode.OFF
+    PgpMode.ENCRYPT_UNSIGNED -> PgpMode.OFF
+}
+
+/**
+ * The face each mode wears, in the top bar AND in the long-press menu — one function, so the icon
+ * the menu offers is the icon the bar will show.
+ *
+ * ⛔ [PgpMode.ENCRYPT_UNSIGNED] does NOT wear `Icons.Outlined.Lock`, the obvious "same padlock as
+ * [PgpMode.ENCRYPT], hollow". It was tried and MEASURED: compose's `Icons.Filled.LockOpen` — the
+ * face of [PgpMode.OFF] — is itself an outline-bodied drawing, so the outlined padlock differed
+ * from "not encrypted at all" by 82 rasterised pixels out of 9216, a notch in the shackle. The
+ * hollow padlock does not read as "encrypted, unsigned"; it reads as "off".
+ *
+ * ⚠ So the unsigned mode wears a KEY: the message is just as encrypted, and what is missing is the
+ * signature — which is not drawn at all. The absence of the signature is told by the absence of the
+ * padlock's pen, never by a fainter padlock. [PgpModeIconFacesTest] executes this function and
+ * measures that the four faces stay pairwise distinct.
+ */
+internal fun pgpModeIcon(mode: PgpMode): ImageVector = when (mode) {
+    PgpMode.OFF -> Icons.Filled.LockOpen
+    PgpMode.SIGN -> Icons.Filled.Draw
+    PgpMode.ENCRYPT -> Icons.Filled.Lock
+    PgpMode.ENCRYPT_UNSIGNED -> Icons.Filled.VpnKey
+}
+
+/**
+ * The two arguments of `PgpEngine.signAndEncrypt`, which are NOT the same thing and must never be
+ * derived from one another: [signKeyId] is who signs (null = do not sign at all), and
+ * [recipientKeyIds] is who can decrypt.
+ *
+ * ⛔ The account's own key plays BOTH roles today, and that is the whole reason this is a function.
+ * It is the signing key, and it is also a recipient — the encrypt-to-self that keeps the copy filed
+ * in Sent readable. Making the signer nullable and filtering "the sign key" out of the recipients
+ * would take the sender's own key out of [recipientKeyIds] and make every unsigned encrypted
+ * message in Sent permanently unreadable, on the sender's own device, with no error anywhere. The
+ * two roles are separated by NAME (`selfKeyId` vs `signKeyId`), never by a condition.
+ */
+internal data class PgpEncryptArgs(val signKeyId: Long?, val recipientKeyIds: LongArray) {
+    // Hand-written because a data class holding an array compares it by reference, which would make
+    // every test that compares two PgpEncryptArgs pass without looking at a single key id.
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            (
+                other is PgpEncryptArgs && signKeyId == other.signKeyId &&
+                    recipientKeyIds.contentEquals(other.recipientKeyIds)
+                )
+
+    override fun hashCode(): Int = 31 * (signKeyId?.hashCode() ?: 0) + recipientKeyIds.contentHashCode()
+
+    override fun toString(): String =
+        "PgpEncryptArgs(signKeyId=$signKeyId, recipientKeyIds=${recipientKeyIds.toList()})"
+}
+
+/**
+ * Who signs and who can read, for an encrypting [mode]. The ONLY thing the unsigned mode changes in
+ * the send path: no signer.
+ *
+ * [selfKeyId] (the account's PGP key) is in the recipients in BOTH modes — that is the
+ * encrypt-to-self, and it is what lets the sender reopen their own Sent copy. It is the signer only
+ * in [PgpMode.ENCRYPT].
+ *
+ * Pure, and called with the composer's live mode, so the decision the send makes is the decision a
+ * JVM test executes.
+ *
+ * ⛔ A non-encrypting [mode] is a programming error and says so. Answering "no signer" for
+ * [PgpMode.OFF] or [PgpMode.SIGN] would be the quiet kind of wrong: the send site reaches this only
+ * from its encrypting branch, so a mode arriving here that does not encrypt means the mode moved
+ * under the send, and the honest answer to that is a crash, not an unsigned message.
+ */
+internal fun pgpEncryptArgs(mode: PgpMode, selfKeyId: Long, recipientKeys: List<Long>): PgpEncryptArgs {
+    require(mode.encrypts) { "pgpEncryptArgs called with $mode, which does not encrypt" }
+    return PgpEncryptArgs(
+        signKeyId = selfKeyId.takeIf { mode == PgpMode.ENCRYPT },
+        recipientKeyIds = (recipientKeys + selfKeyId).distinct().toLongArray(),
+    )
 }
 
 /** Why a message stopped being signed/encrypted, when the composer had to give the mode up. */
