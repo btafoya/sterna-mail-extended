@@ -160,7 +160,6 @@ import app.sterna.util.LinkCleaner
 import app.sterna.util.MailDates
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 import java.io.ByteArrayInputStream
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -1419,7 +1418,7 @@ private fun ConversationBody(
     //    FALSE. The strip's presence is itself an input to the document's key, through the header
     //    height: this row + its divider are ~49 dp, `onSizeChanged` writes `headerHeightPx` in the
     //    LAYOUT phase (a pass later than the composition that saw `plainText` change), and that
-    //    feeds `topSpacerCssPx`, which the HTML remember() keys on. So the toggle loads the
+    //    feeds `topSpacerCss`, which the HTML remember() keys on. So the toggle loads the
     //    document TWICE: once for the mode, then again for the header that changed under it.
     //    That is accepted here, and only here, because the toggle is a gesture that ALREADY
     //    replaces the whole document and already puts the reader back at the top — she asked for
@@ -1495,6 +1494,12 @@ private fun ConversationBody(
     // layout phase (the header's offset lambda) so updating it every scroll frame re-lays-out the
     // header translate WITHOUT a recomposition.
     var headerHeightPx by remember(msg.id) { mutableIntStateOf(0) }
+    // The body's own viewport height (device px). The WebView is a fillMaxSize() child of the Box
+    // below, so this IS the WebView's height, and it is measured in the SAME layout pass as the
+    // header — no extra round trip. It is the denominator of both document spacers: they are
+    // reserved in `vh`, one hundredth of this, which is the only unit the page's own scale does not
+    // change. See [bodySpacerCss].
+    var bodyViewportPx by remember(msg.id) { mutableIntStateOf(0) }
     val scrollY = remember(msg.id) { mutableIntStateOf(0) }
     var spinnerDue by remember(msg.id) { mutableStateOf(false) }
     LaunchedEffect(msg.id) { delay(500); spinnerDue = true }
@@ -1528,6 +1533,7 @@ private fun ConversationBody(
     Box(
         Modifier
             .fillMaxSize()
+            .onSizeChanged { bodyViewportPx = it.height }
             .background(MaterialTheme.colorScheme.surface),
     ) {
         // Invisible, no-op copy of the bar, used ONLY to measure its height up front so the body
@@ -1563,15 +1569,25 @@ private fun ConversationBody(
             )
             // The document carries a transparent TOP spacer of the header's height, so the collapsing
             // header overlays blank space (never the content) and the content begins right below it.
-            // We wait for the header to be measured (headerHeightPx > 0) before loading, so the body
-            // loads ONCE with the right spacer — no reflow, no reload.
-            if (headerHeightPx > 0) {
-                val topSpacerCssPx = (headerHeightPx / density.density).roundToInt()
+            // We wait for BOTH measurements — the header's height and the body's own viewport,
+            // which the blank is expressed against — before loading, so the body loads ONCE with
+            // the two right spacers: no reflow, no reload, no document rebuilt under her eyes.
+            if (headerHeightPx > 0 && bodyViewportPx > 0) {
+                // Reserved as a SHARE OF THE VIEW (vh), not as a count of CSS pixels: a newsletter
+                // that carries its own <meta viewport> lays the page out at a scale of its own, and
+                // a px count then paints that many fewer screen pixels than the opaque header
+                // covers — message hidden under the header, unreachable by scrolling (#171). `vh`
+                // is measured against the LAYOUT viewport, so that scale cancels. ⛔ A scale applied
+                // without a re-layout (a pinch, or shrink-to-fit on an overflowing
+                // width=device-width message) is out of reach of any CSS length — see
+                // [bodySpacerCss], which says why that is not fixable here.
+                val topSpacerCss = bodySpacerCss(headerHeightPx, bodyViewportPx)
                 // Bottom spacer is a real DOCUMENT element (scrollable content), NOT WebView view
                 // padding: view padding with clipToPadding CLIPS the last lines instead of letting them
                 // scroll above it, so the bar covered the end. In dark mode the spacer is transparent
                 // (buildHtmlDocument) so it shows the native surface and doesn't invert to an off-black box.
-                val bottomSpacerCssPx = (bottomInsetPx / density.density).roundToInt()
+                // Same unit as the top one, for the same reason.
+                val bottomSpacerCss = bodySpacerCss(bottomInsetPx, bodyViewportPx)
                 // The "derived text" and "no content" lines are resolved here, where a Composable
                 // can read resources, and handed to the document already localised.
                 val derivedNotice = stringResource(R.string.message_plain_text_derived)
@@ -1579,12 +1595,17 @@ private fun ConversationBody(
                 // plainText is part of the key, or the toggle would change the mode and re-render
                 // the SAME document; the rebuilt document then differs, which is what makes
                 // EmailWebView's loadKey reload the page.
+                // ⛔ The two spacers enter the key as the LENGTHS themselves, and those depend on
+                // two screen measurements only — never on the page's scale. Anything a pinch can
+                // change must stay out of this key: it would rebuild the document under the
+                // reader's finger, which reloads the page, flashes white, sends her back to the top
+                // and resets the zoom she was setting — in a loop, for as long as she pinches.
                 val html = remember(
-                    full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx,
+                    full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,
                     plainText, derivedNotice, noContent,
                 ) {
                     buildHtmlDocument(
-                        full, msg.inlineImages, emailTheme, topSpacerCssPx, bottomSpacerCssPx,
+                        full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,
                         plainText, derivedNotice, noContent,
                     )
                 }
@@ -4135,8 +4156,10 @@ internal fun buildHtmlDocument(
     email: Email,
     inlineImages: Map<String, String> = emptyMap(),
     theme: EmailTheme = EmailTheme("#ffffff", "#111111", "#0b5fff", false),
-    topSpacerCssPx: Int = 0,
-    bottomSpacerCssPx: Int = 0,
+    // CSS LENGTHS, unit included — not pixel counts. Built by [bodySpacerCss], which explains why
+    // the unit is `vh`; "0" is a valid CSS length and means "nothing measured yet".
+    topSpacerCss: String = "0",
+    bottomSpacerCss: String = "0",
     plainText: Boolean = false,
     derivedNotice: String = "",
     // ⛔ NO DEFAULT, unlike every parameter above it. A default of "" would let a caller — in
@@ -4179,8 +4202,13 @@ internal fun buildHtmlDocument(
     // BOTTOM spacer (class s-end) reserving room for the overlaying Reply/Forward bar so the last line
     // clears it. The bottom spacer is COLOURED (.s-end in the CSS below) so it doesn't invert to white
     // in dark mode. cid/data already inlined above; pure layout, no scripts.
-    inner = "<div aria-hidden=\"true\" style=\"height:${topSpacerCssPx}px\"></div>" + inner +
-        "<div aria-hidden=\"true\" class=\"s-end\" style=\"height:${bottomSpacerCssPx}px\"></div>"
+    // ⛔ The height is emitted VERBATIM, unit and all, and that unit is `vh` (see [bodySpacerCss]):
+    // it is the only length the page's own scale does not change, and it is what makes the promise
+    // above — "the header overlays blank space (never the content)" — true for a message that
+    // brings its own <meta viewport> and opens below scale 1. A `px` suffix appended here puts a
+    // RATIO where a pixel count used to be and is worse than the defect it replaced (#171).
+    inner = "<div aria-hidden=\"true\" style=\"height:${topSpacerCss}\"></div>" + inner +
+        "<div aria-hidden=\"true\" class=\"s-end\" style=\"height:${bottomSpacerCss}\"></div>"
     // What is RENDERED, not what is available: in plain-text mode a message that HAS HTML is still
     // painted by us, in the app's own colours, and inverting that page would give dark text on a
     // light band — the "white band in dark theme" bug seen from the other side.
