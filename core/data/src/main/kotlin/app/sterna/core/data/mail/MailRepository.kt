@@ -20,6 +20,7 @@ import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.UnifiedInbox
 import app.sterna.core.data.account.accountKeyOf
 import app.sterna.core.data.account.resolveExistingLogin
+import app.sterna.core.data.account.resolveExistingLoginAmong
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.FilterScriptStatus
 import app.sterna.core.data.filter.SieveCodec
@@ -2779,7 +2780,9 @@ class MailRepository(
     suspend fun discoverJmapServer(email: String, password: String, token: String? = null): DiscoveryResult {
         val hosts = Jmap.autodiscoverHosts(email)
         if (hosts.isEmpty()) return DiscoveryResult.NotFound
-        // A non-null [token] is an API token (e.g. Fastmail): Bearer, never Basic.
+        // A non-null [token] is a bearer credential — an API token typed in as a password (e.g.
+        // Fastmail), or the access token addOAuthAccount just had granted, which calls this with
+        // an empty [password]: Bearer, never Basic.
         val auth = if (token != null) BearerAuth(token) else BasicAuth(email.trim(), password)
         // No budget passed on purpose: the shipped value lives once, in JMAP_DISCOVERY_BUDGET_MS.
         // What an answer or a failure MEANS is probeHost's, not this line's: nothing here is
@@ -2931,14 +2934,45 @@ class MailRepository(
         val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
         client.fetchSession(Jmap.sessionUrlFor(host), BearerAuth(tokens.accessToken)).mailAccountId()
             ?: error("This user has no JMAP mail account.")
+        // ⛔ [host] proved the tokens; it does not get to decide the identity WHEN THE APP IS WHAT
+        // guessed it. The OAuth candidate list drops the apex, so a guessed host is `mail.<domain>`
+        // where the password path stores `<domain>` — one mailbox added both ways then became two
+        // accounts (#55). Resolve those the way the password path does and store THAT, falling back
+        // on [host] when autodiscovery says nothing, so an add that used to work still works.
+        // ⛔ And only those. A host outside the guesses was typed into the manual form, whose
+        // password button stores that same field verbatim (ConnectViewModel.finishJmapConnect):
+        // resolving it too would file the two buttons of one screen under two servers — #55 again,
+        // out of the fix for #55. See oauthHostWasGuessed.
+        val guessedHost = oauthHostWasGuessed(host, Jmap.autodiscoverHosts(email))
+        val server = if (guessedHost) {
+            oauthServerToStore(
+                discoverJmapServer(email, password = "", token = tokens.accessToken),
+                host,
+            )
+        } else {
+            host
+        }
+        // ⛔ Said out loud: the account is being written under the host we wanted to improve, so
+        // #55 is reproduced here exactly. On a server we do not own, that is otherwise
+        // indistinguishable from a resolution that agreed. Host only, never the address.
+        if (guessedHost && server == host) {
+            android.util.Log.w("MailRepository", "OAuth add: nothing autodiscovered for $host; stored as-is (#55)")
+        }
         // Asked BEFORE the store writes, on the very values handed to it: addOAuth refreshes the
         // login already stored under this identity, so afterwards the answer is always "it exists".
-        val created = resolveExistingLogin(
+        // ⛔ On BOTH keys this route has written for this address, in the ORDER the store resolves
+        // them: what this version stores, then what 1.5.0 and 1.5.1 stored (the document's host).
+        // Asked on the first alone while addOAuth looks under both, the screen would announce an
+        // account the store had just refreshed — the sentence 1.5.1 had only just put right.
+        val created = resolveExistingLoginAmong(
             accountStore.accounts(),
-            accountKeyOf(MailProtocol.JMAP, host, "", email),
+            listOf(
+                accountKeyOf(MailProtocol.JMAP, server, "", email),
+                accountKeyOf(MailProtocol.JMAP, host, "", email),
+            ),
         ) == null
         val id = accountStore.addOAuth(
-            server = host,
+            server = server,
             username = email,
             accountName = accountName,
             accessToken = tokens.accessToken,
@@ -2946,11 +2980,20 @@ class MailRepository(
             accessExpiresAtMillis = expiresAt,
             tokenEndpoint = metadata.tokenEndpoint,
             clientId = Jmap.OAUTH_CLIENT_ID,
+            documentHost = host,
         )
         val credentials = accountStore.credentials(id) ?: error("Account could not be loaded after creation.")
         val meta = refresh(credentials)
         accountStore.saveInboxMeta(meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount)
-        reconcileLinkedAccountsAfterAdd(id)
+        // ⛔ ONLY on a real creation, like the two routes in ConnectViewModel. A re-add now lands on
+        // the login that was already there — with its shared sub-accounts — and eviction reads the
+        // RAW discovered list (AccountStore.kt:155): a session that lists the login's own account
+        // but not the shares prunes every sub-account and purges its five tables, a real shared
+        // mailbox deleted with its cache (#129).
+        // Nothing is lost by the gate: this call is an optimisation reusing the cached session so
+        // the accounts screen is complete without a round trip, and the connect() hook reconciles
+        // anyway — at worst a share granted since the last refresh shows up one refresh later.
+        if (created) reconcileLinkedAccountsAfterAdd(id)
         return created
     }
 

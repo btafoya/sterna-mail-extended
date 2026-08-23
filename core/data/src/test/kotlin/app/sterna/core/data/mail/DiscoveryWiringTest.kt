@@ -54,6 +54,23 @@ class DiscoveryWiringTest {
         )
     }
 
+    /**
+     * ⛔ Whole line, never a fragment: `contains("BearerAuth(")` is blind to everything that
+     * LENGTHENS the line, and this line's mutation shortens AND lengthens it.
+     */
+    @Test fun `autodiscovery proves a token as a Bearer, and only falls back on Basic without one`() {
+        val body = discoverJmapServerBody()
+        assertTrue(
+            "MailRepository.discoverJmapServer must build its auth as:\n  $AUTH_LINE\n" +
+                "Rewritten to Basic only, the whole suite stays green and #55 comes back in " +
+                "silence: the OAuth cascade then probes all four candidates with an EMPTY " +
+                "password, every one answers 401, and oauthServerToStore falls back on the " +
+                "document's host — one mailbox added by password and by OAuth is two accounts " +
+                "again, with nothing to see anywhere. Body was:\n$body",
+            body.lines().map { it.trim() }.contains(AUTH_LINE),
+        )
+    }
+
     private fun discoverJmapServerBody(): String {
         val text = MAIL_REPOSITORY.readText()
         val start = text.indexOf(DECLARATION)
@@ -69,6 +86,13 @@ class DiscoveryWiringTest {
 
     private companion object {
         const val DECLARATION = "suspend fun discoverJmapServer("
+
+        /**
+         * The one line the OAuth half of #55 rests on, whole. A token is the ONLY credential the
+         * OAuth cascade has: `addOAuthAccount` calls this with `password = ""`.
+         */
+        const val AUTH_LINE =
+            """val auth = if (token != null) BearerAuth(token) else BasicAuth(email.trim(), password)"""
 
         /** The probe, as a whole call: `probeHost { … fetchSession … }`. */
         val PROBE_WIRING = Regex("""probeHost \{[^}]*client\.fetchSession\(""")

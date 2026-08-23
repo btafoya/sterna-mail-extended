@@ -169,11 +169,18 @@ class AccountStoreGateWiringTest {
                 "Settings > Accounts again), or the secret is no longer written under the id the " +
                 "account is stored as (the account is then signed in against a slot nothing " +
                 "reads), or the existing record is replaced instead of refreshed (her account " +
-                "name, colour, watched folders and identities are gone).",
+                "name, colour, watched folders and identities are gone). And narrowed back to " +
+                "resolveExistingLogin on the one current key, an account OAuth-added under 1.5.0 " +
+                "or 1.5.1 takes a SECOND line at the first re-add after the update — the fix for " +
+                "#55 manufacturing the duplicate of #55.",
             listOf(
-                "private fun addOrRefresh(proven: StoredAccount, secret: String): String {",
+                "private fun addOrRefresh(",
+                "proven: StoredAccount,",
+                "secret: String,",
+                "alsoRecognisedBy: List<AccountKey?> = emptyList(),",
+                "): String {",
                 "val list = accounts()",
-                "val existing = resolveExistingLogin(list, accountKeyOf(proven))",
+                "val existing = resolveExistingLoginAmong(list, listOf(accountKeyOf(proven)) + alsoRecognisedBy)",
                 "val id = existing?.id ?: proven.id",
                 "writePassword(id, secret)",
                 "val stored = if (existing == null) {",
@@ -186,7 +193,7 @@ class AccountStoreGateWiringTest {
                 "return id",
                 "}",
             ),
-            accountStoreBlock("private fun addOrRefresh(", 14),
+            accountStoreBlock("private fun addOrRefresh(", 18),
         )
     }
 
@@ -199,13 +206,49 @@ class AccountStoreGateWiringTest {
         )
     }
 
-    @Test fun `addOAuth ends on the same helper, so an OAuth re-add refreshes one account`() {
+    @Test fun `addOAuth stores the host it was handed, not the OAuth document's`() {
+        // The one line the whole of #55 turns on, and nothing else in this tree holds it. Rewritten
+        // as `server = documentHost.ifBlank { server }.trim(),` it reads like tidying up and files
+        // the OAuth account under the document host again — the reported defect, whole. It is
+        // invisible from everywhere else because the two keys then COINCIDE: `inherited` becomes
+        // the account's own key, so the recognition path added for older versions turns into a
+        // no-op without one behavioural assertion moving. `AccountStore` needs a Context and the
+        // Keystore and no JVM test in this module can build one, so the shape is the only hold.
         assertEquals(
-            "addOAuth() no longer ends on addOrRefresh. Signing in again through OAuth makes a " +
-                "SECOND identical line in Settings > Accounts instead of refreshing the tokens of " +
-                "the account already there.",
-            listOf("return addOrRefresh(account, refreshToken)"),
-            accountStoreBlock("return addOrRefresh(account, refreshToken)", 1),
+            "addOAuth no longer stores the server it was handed. Filed under the OAuth document's " +
+                "host, the same mailbox added by password and then by OAuth makes two accounts " +
+                "(#55) — and the two keys coincide then, so nothing else goes red.",
+            listOf(
+                "documentHost: String = \"\",",
+                "): String {",
+                "val id = UUID.randomUUID().toString()",
+                "val account = StoredAccount(",
+                "id = id,",
+                "server = server.trim(),",
+                "username = username.trim(),",
+            ),
+            accountStoreBlock("documentHost: String = \"\",", 7),
+        )
+    }
+
+    @Test fun `addOAuth ends on the same helper, and hands it the host 1_5_x filed under`() {
+        // The two lines are pinned together because either alone is decorative: building the
+        // inherited key and not passing it changes nothing, and passing an empty list is the
+        // defect with a line above it that reads right. `documentHost` blank yields no key, which
+        // is what leaves the Microsoft OAuth IMAP route (no document host) untouched.
+        assertEquals(
+            "addOAuth() no longer ends on addOrRefresh, or no longer hands it the host the OAuth " +
+                "document came from. Signing in again through OAuth then makes a SECOND identical " +
+                "line in Settings > Accounts instead of refreshing the tokens of the account " +
+                "already there: an account OAuth-added under 1.5.0 or 1.5.1 is filed under " +
+                "mail.<domain> while this version resolves <domain>, so it takes a SECOND line at " +
+                "the first re-add after the update — the fix for #55 manufacturing the duplicate " +
+                "of #55.",
+            listOf(
+                "val inherited = if (documentHost.isBlank()) null else accountKeyOf(protocol, documentHost, imapHost, username)",
+                "return addOrRefresh(account, refreshToken, alsoRecognisedBy = listOfNotNull(inherited))",
+            ),
+            accountStoreBlock("val inherited = if (documentHost.isBlank())", 2),
         )
     }
 

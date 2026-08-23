@@ -127,6 +127,102 @@ class AccountIdentityTest {
         assertNull(resolveExisting(listOf(imap("1", "mail.example.test", "ana@example.test")), overJmap))
     }
 
+    // ---- the path (the rule normalizeEndpoint keeps, and nothing pinned) -----------------------
+    //
+    // ⛔ Literal on both sides throughout: nothing below calls normalizeEndpoint to build what it
+    // then expects. Swallowing the path would merge two genuinely different JMAP servers hosted
+    // under one name at two paths — the recognised account overwrites the other's connection AND
+    // its encrypted secret, which has no second copy. Nothing brings that back.
+
+    @Test fun `a path is part of the endpoint, so one name at two paths is two servers`() {
+        assertEquals("mail.example.test", normalizeEndpoint("mail.example.test"))
+        assertEquals("mail.example.test/jmap/session", normalizeEndpoint("mail.example.test/jmap/session"))
+        assertEquals(
+            "the scheme, the case and the trailing slash go; the PATH stays",
+            "mail.example.test/jmap/session",
+            normalizeEndpoint("  HTTPS://Mail.Example.Test/JMAP/Session/  "),
+        )
+        assertNotEquals(
+            "the bare host and the same host at a path became one endpoint: two different JMAP " +
+                "servers under one name now recognise each other, and the add overwrites the " +
+                "other's connection and its encrypted secret, which has no second copy",
+            "mail.example.test",
+            normalizeEndpoint("mail.example.test/jmap/session"),
+        )
+    }
+
+    @Test fun `two JMAP servers under one name at two paths keep two keys`() {
+        val atRoot = jmap("root-1", "https://mail.example.test", "ana@example.test")
+        val atPath = jmap("path-1", "https://mail.example.test/jmap/session", "ana@example.test")
+        assertEquals(
+            AccountKey(MailProtocol.JMAP, "mail.example.test", "ana@example.test"),
+            accountKeyOf(atRoot),
+        )
+        assertEquals(
+            AccountKey(MailProtocol.JMAP, "mail.example.test/jmap/session", "ana@example.test"),
+            accountKeyOf(atPath),
+        )
+        assertNull(
+            "an add aimed at the server behind /jmap/session recognised the one at the root: it " +
+                "would refresh THAT account instead, overwriting a connection and a secret that " +
+                "belong to another server",
+            resolveExistingLogin(
+                listOf(atRoot),
+                AccountKey(MailProtocol.JMAP, "mail.example.test/jmap/session", "ana@example.test"),
+            ),
+        )
+        assertNull(
+            "an add aimed at the server at the root recognised the one behind /jmap/session",
+            resolveExistingLogin(
+                listOf(atPath),
+                AccountKey(MailProtocol.JMAP, "mail.example.test", "ana@example.test"),
+            ),
+        )
+        assertSame(
+            "with both stored, the key carrying the path must land on the account carrying it",
+            atPath,
+            resolveExistingLogin(
+                listOf(atRoot, atPath),
+                AccountKey(MailProtocol.JMAP, "mail.example.test/jmap/session", "ana@example.test"),
+            ),
+        )
+    }
+
+    @Test fun `the path is compared whole, so a prefix of it is another endpoint`() {
+        assertEquals("mail.example.test/jmap", normalizeEndpoint("mail.example.test/jmap"))
+        assertNotEquals(
+            "/jmap and /jmap/session became one endpoint: two servers mounted one under the " +
+                "other merge, and the deeper one loses its secret to the shallower",
+            "mail.example.test/jmap",
+            normalizeEndpoint("mail.example.test/jmap/session"),
+        )
+        assertNull(
+            "a key holding only the first path segment recognised the full path",
+            resolveExistingLogin(
+                listOf(jmap("path-1", "mail.example.test/jmap/session", "ana@example.test")),
+                AccountKey(MailProtocol.JMAP, "mail.example.test/jmap", "ana@example.test"),
+            ),
+        )
+    }
+
+    @Test fun `a trailing slash alone is not a path`() {
+        // Where the rule STOPS, and deliberately: `mail.example.test/` names no path, so it is the
+        // same endpoint as the bare host — that is what trimEnd('/') decides. Pinned so the day
+        // someone widens or narrows the path rule, the boundary itself is in the diff.
+        assertEquals("mail.example.test", normalizeEndpoint("mail.example.test/"))
+        assertEquals("mail.example.test", normalizeEndpoint("https://mail.example.test/"))
+        val stored = jmap("stored-1", "https://mail.example.test/", "ana@example.test")
+        assertSame(
+            "a trailing slash made a second endpoint: the same mailbox typed with and without it " +
+                "becomes two accounts — the duplicate of #55, from the other side",
+            stored,
+            resolveExistingLogin(
+                listOf(stored),
+                AccountKey(MailProtocol.JMAP, "mail.example.test", "ana@example.test"),
+            ),
+        )
+    }
+
     // ---- refreshedWith / resolveExistingLogin (the re-add) --------------------------------------
 
     /** Everything a user has settled on her account over months, and no sign-in form ever proves. */
@@ -272,5 +368,80 @@ class AccountIdentityTest {
     @Test fun `resolveExistingLogin answers null for a null key`() {
         val login = jmap("login-1", "mail.example.test", "ana@example.test")
         assertNull(resolveExistingLogin(listOf(login), null))
+    }
+
+    // ---- resolveExistingLoginAmong (the row 1.5.0 / 1.5.1 wrote) ---------------------------------
+    //
+    // Literal on both sides on purpose: `masto.top` is what this version resolves and stores,
+    // `mail.masto.top` is what the OAuth path stored in 1.5.0 and 1.5.1. Nothing below re-derives
+    // either of them from the shipped rule.
+
+    private val currentKey = accountKeyOf(MailProtocol.JMAP, "masto.top", "", "ana@masto.top")
+    private val inheritedKey = accountKeyOf(MailProtocol.JMAP, "mail.masto.top", "", "ana@masto.top")
+
+    @Test fun `an OAuth row written by 1_5_x is recognised by the second key, not the first`() {
+        val legacy = jmap("oauth-1", "mail.masto.top", "ana@masto.top", AuthType.OAUTH)
+        assertNull(
+            "the host this version resolves must not match the 1.5.x row on its own, " +
+                "or this test proves nothing",
+            resolveExistingLogin(listOf(legacy), currentKey),
+        )
+        assertSame(
+            "an OAuth account added by 1.5.0/1.5.1 is invisible to the host this version " +
+                "resolves, so the first re-authentication after the update takes a SECOND line " +
+                "— the fix for #55 manufacturing the duplicate of #55",
+            legacy,
+            resolveExistingLoginAmong(listOf(legacy), listOf(currentKey, inheritedKey)),
+        )
+    }
+
+    @Test fun `when both rows exist the FIRST key wins, so an add lands on the current one`() {
+        // The old row comes first in the list on purpose: an implementation that scanned the
+        // ACCOUNTS and took whichever matched any key would answer the 1.5.x row here.
+        val legacy = jmap("oauth-old", "mail.masto.top", "ana@masto.top", AuthType.OAUTH)
+        val current = jmap("oauth-new", "masto.top", "ana@masto.top", AuthType.OAUTH)
+        assertSame(
+            "the order of the keys IS the decision: the key this version writes must win, or a " +
+                "re-add maintains the row this version stopped writing",
+            current,
+            resolveExistingLoginAmong(listOf(legacy, current), listOf(currentKey, inheritedKey)),
+        )
+    }
+
+    @Test fun `neither key recognising anything is still an add`() {
+        val elsewhere = jmap("oauth-2", "jmap.other.test", "ana@masto.top", AuthType.OAUTH)
+        assertNull(resolveExistingLoginAmong(listOf(elsewhere), listOf(currentKey, inheritedKey)))
+        assertNull(resolveExistingLoginAmong(emptyList(), listOf(currentKey, inheritedKey)))
+    }
+
+    @Test fun `a null key recognises nothing and does not swallow the key after it`() {
+        val legacy = jmap("oauth-1", "mail.masto.top", "ana@masto.top", AuthType.OAUTH)
+        assertSame(
+            "a key that could not be built must be skipped, not stop the search",
+            legacy,
+            resolveExistingLoginAmong(listOf(legacy), listOf(null, inheritedKey)),
+        )
+        assertNull(resolveExistingLoginAmong(listOf(legacy), listOf(null, null)))
+        assertNull(resolveExistingLoginAmong(listOf(legacy), emptyList()))
+    }
+
+    @Test fun `the second key widens the HOST only, never the address`() {
+        // Two mailboxes on one server stay two accounts, whichever host they were filed under.
+        val someoneElse = jmap("oauth-3", "mail.masto.top", "jordan@masto.top", AuthType.OAUTH)
+        assertNull(
+            "the inherited key recognised another address on the same host: two people's " +
+                "mailboxes would merge, and writePassword would overwrite a secret with no copy",
+            resolveExistingLoginAmong(listOf(someoneElse), listOf(currentKey, inheritedKey)),
+        )
+    }
+
+    @Test fun `a linked sub-account is no more resolvable through the second key than the first`() {
+        val shared = jmap("shared-1", "mail.masto.top", "ana@masto.top", AuthType.OAUTH)
+            .copy(loginId = "login-9")
+        assertNull(
+            "an add resolved onto a linked sub-account files the refresh token under an id " +
+                "nothing reads",
+            resolveExistingLoginAmong(listOf(shared), listOf(currentKey, inheritedKey)),
+        )
     }
 }

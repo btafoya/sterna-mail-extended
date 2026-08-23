@@ -364,6 +364,18 @@ class AccountStore(context: Context) {
      * token (the long-lived secret) is encrypted into the password slot; the
      * short-lived access token is cached in the account record. Returns its id — or the id of the
      * account already stored under the same identity, which it refreshes ([addOrRefresh]).
+     *
+     * [documentHost] is the host the OAuth document was fetched from, and it is what 1.5.0 and
+     * 1.5.1 wrote into `server`. This version stores the host it RESOLVES instead (#55), so the
+     * account an older version filed is recognised only if that older key is offered too — hence
+     * this parameter, which is looked up AFTER the current one and never instead of it. Blank
+     * means "this route has no earlier key", which is the case of the Microsoft OAuth IMAP path.
+     *
+     * ⚠ It only means anything for a JMAP add. The inherited key goes through
+     * [accountEndpointOf], which under [MailProtocol.IMAP] keys on [imapHost] and DROPS
+     * [documentHost] without a word — so a non-blank value passed with `protocol = IMAP` builds
+     * the account's own current key over again, not an older one. Harmless today because no call
+     * site passes both, and written down so nobody reads the name as a promise.
      */
     @Synchronized
     fun addOAuth(
@@ -382,6 +394,7 @@ class AccountStore(context: Context) {
         smtpHost: String = "",
         smtpPort: Int = 587,
         smtpSecurity: ConnectionSecurity = ConnectionSecurity.STARTTLS,
+        documentHost: String = "",
     ): String {
         val id = UUID.randomUUID().toString()
         val account = StoredAccount(
@@ -402,7 +415,14 @@ class AccountStore(context: Context) {
             smtpPort = smtpPort,
             smtpSecurity = smtpSecurity,
         )
-        return addOrRefresh(account, refreshToken)
+        // The other key THIS route has filed this address under: 1.5.0 and 1.5.1 stored the host
+        // the OAuth document came from, this version stores the host it resolves. Looked up under
+        // the current key alone, an account added by those versions would take a SECOND line at
+        // the first re-authentication — the fix for #55 manufacturing the duplicate of #55. Blank
+        // (the default) yields no key, which is what leaves addOAuthImapAccount untouched: that
+        // route has no document host to inherit.
+        val inherited = if (documentHost.isBlank()) null else accountKeyOf(protocol, documentHost, imapHost, username)
+        return addOrRefresh(account, refreshToken, alsoRecognisedBy = listOfNotNull(inherited))
     }
 
     /**
@@ -425,9 +445,13 @@ class AccountStore(context: Context) {
      * the AAD the password slot is bound to; writing it under the freshly minted UUID would leave
      * the account borrowing a slot no one wrote.
      */
-    private fun addOrRefresh(proven: StoredAccount, secret: String): String {
+    private fun addOrRefresh(
+        proven: StoredAccount,
+        secret: String,
+        alsoRecognisedBy: List<AccountKey?> = emptyList(),
+    ): String {
         val list = accounts()
-        val existing = resolveExistingLogin(list, accountKeyOf(proven))
+        val existing = resolveExistingLoginAmong(list, listOf(accountKeyOf(proven)) + alsoRecognisedBy)
         val id = existing?.id ?: proven.id
         writePassword(id, secret)
         val stored = if (existing == null) {

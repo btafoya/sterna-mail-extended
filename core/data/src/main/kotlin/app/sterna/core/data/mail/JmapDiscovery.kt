@@ -1,5 +1,6 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.account.normalizeEndpoint
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.model.JmapSession
 import kotlinx.coroutines.CancellationException
@@ -193,4 +194,61 @@ private fun verdictAtBudget(
         if (settled.get(rank) == HostProbe.Usable) return MailRepository.DiscoveryResult.Found(hosts[rank])
     }
     return MailRepository.DiscoveryResult.NotFound
+}
+
+/**
+ * Which host an OAuth sign-in writes into the account: the server [discovered] by autodiscovery
+ * when it found a usable one, and [documentHost] — the host the OAuth document and the tokens came
+ * from — in every other case.
+ *
+ * ⛔ Only ever asked about a host the app itself guessed — see [oauthHostWasGuessed], which is the
+ * fence: a host the reader typed is stored as she wrote it, resolution or no resolution.
+ *
+ * ⛔ **The stored host is half of the account's identity** (`accountKeyOf`), so the two ways of
+ * adding one mailbox must agree on it. They did not: the password path probes
+ * `Jmap.autodiscoverHosts` by rank and keeps the apex (`kagimail.com`), while the OAuth candidate
+ * list drops the apex, so the document is fetched from `mail.kagimail.com`. Storing THAT made the
+ * duplicate guard blind between the two paths — one mailbox added by password and then by OAuth
+ * became two accounts, two inboxes, two badges, two sets of notifications (#55). Running the same
+ * resolution here is what makes the two paths land on the same host.
+ *
+ * ⛔ **The fallback is not defensive dressing, it is the reason this is safe to ship.** By the time
+ * it is reached the tokens are granted and already validated against [documentHost]; autodiscovery
+ * can still answer nothing for reasons that say nothing about this sign-in (its budget ran out, the
+ * apex answers 401 as a website, the domain has no `/.well-known/jmap`). Failing there would turn a
+ * working add into a dead end. A blank `Found` falls back for a harder reason: stored as the
+ * server it yields an account whose session URL cannot be built at all.
+ */
+fun oauthServerToStore(discovered: MailRepository.DiscoveryResult, documentHost: String): String =
+    (discovered as? MailRepository.DiscoveryResult.Found)?.server?.takeIf { it.isNotBlank() }
+        ?: documentHost
+
+/**
+ * Whether [documentHost] is one of the hosts autodiscovery would have GUESSED for this address —
+ * [guessed] being `Jmap.autodiscoverHosts(email)`. Compared through [normalizeEndpoint], the
+ * normalisation the account key itself uses, because the OAuth routes carry the candidate as a URL
+ * (`https://mail.example.test`) where autodiscovery yields a bare host (`mail.example.test`).
+ * A blank host is nobody's guess.
+ *
+ * ⛔ This is the fence around [oauthServerToStore], and it is load-bearing in BOTH directions.
+ *
+ * Without a fence, the resolution also overwrites a host the reader TYPED. The manual form's OAuth
+ * button and its password button read the SAME field, and the password one stores what was typed
+ * verbatim (`ConnectViewModel.finishJmapConnect` → `accountStore.add(server, …)`). So typing
+ * `jmap.example.org` and signing in both ways would file the two under different servers: one
+ * mailbox, two accounts — #55 again, manufactured by the fix for #55.
+ *
+ * With a fence too wide ("any host passes") that is exactly what happens. With one too narrow, #55
+ * itself stays broken: the Kagi case IS a guessed host (`mail.kagimail.com`, from the OAuth
+ * candidate list that drops the apex), and a guess is precisely what may be improved into what the
+ * password path stores (`kagimail.com`).
+ *
+ * A host outside [guessed] can only come from the field the reader filled in, so her assertion
+ * decides where her account is filed. [normalizeEndpoint] keeps the path, so a typed
+ * `mail.example.org/jmap/session` is protected too.
+ */
+fun oauthHostWasGuessed(documentHost: String, guessed: List<String>): Boolean {
+    val host = normalizeEndpoint(documentHost)
+    if (host.isBlank()) return false
+    return guessed.any { normalizeEndpoint(it) == host }
 }

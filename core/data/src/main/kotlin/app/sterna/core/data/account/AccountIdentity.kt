@@ -89,6 +89,37 @@ fun resolveExistingLogin(accounts: List<StoredAccount>, key: AccountKey?): Store
     resolveExisting(accounts.filter { it.loginId == null }, key)
 
 /**
+ * The first login recognised by one of [keys], in the order given, or null. A null key recognises
+ * nothing (see [resolveExistingLogin]), so a route may hand over a key it could not build without
+ * losing the keys after it.
+ *
+ * ⭐ Why here and not inside [accountKeyOf]. A stored account has ONE key and must keep exactly
+ * one: `mail.example.test` and `jmap.example.test` are two endpoints, and two genuinely different
+ * mailboxes served under them would recognise each other the day the key itself grew a family of
+ * hosts — [AccountStore.writePassword] would then overwrite a secret that has no second copy
+ * (rule 1: the option that cannot lose data wins). A ROUTE offers one key MORE, of its own
+ * choosing, for its own add and no one else's. It looks under each key in turn and lets
+ * [refreshedWith] put `server` right on the way past.
+ *
+ * ⛔ What is NOT checked here is PROVENANCE. This compares keys and does nothing else: the extra
+ * key recognises whatever login happens to sit under that host, whether this route filed it, the
+ * manual password form did, or the API-token route did. Nothing asks. What keeps the reach narrow
+ * is not a check but what a caller may offer — both keys carry the SAME address, and the two hosts
+ * are ones `Jmap.autodiscoverHosts` produced for that ONE domain — so the login found under the
+ * older key is the same mailbox by every field the store has.
+ *
+ * ⛔ Without it, an OAuth account added by 1.5.0 or 1.5.1 — filed under the host the OAuth document
+ * came from, `mail.<domain>` — is invisible to the host this version resolves, `<domain>`. The
+ * first re-authentication after the update (the routine gesture when a refresh token expires)
+ * would take a SECOND line: the fix for #55 manufacturing the duplicate of #55.
+ *
+ * ⛔ The ORDER is the decision, not a detail. The key this version writes comes first, so when both
+ * lines happen to exist an add lands on the one this version maintains.
+ */
+fun resolveExistingLoginAmong(accounts: List<StoredAccount>, keys: List<AccountKey?>): StoredAccount? =
+    keys.firstNotNullOfOrNull { resolveExistingLogin(accounts, it) }
+
+/**
  * [existing] brought up to date with what an add has just PROVED, and with nothing else.
  *
  * ⛔ Written as `existing.copy(...)` on purpose, never as `proven.copy(...)`. The two read the same
