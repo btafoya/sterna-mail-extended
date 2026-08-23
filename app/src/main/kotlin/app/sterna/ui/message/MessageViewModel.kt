@@ -1011,6 +1011,24 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      */
     private var settleMarking: ReadMarking? = null
 
+    /**
+     * The subject of the ENVELOPE — the cover — of the message this page holds, captured before
+     * anything is decrypted and never rewritten afterwards.
+     *
+     * It exists because the read receipt is the one thing this reader can SEND, and it used to
+     * take its subject off the screen. Since #128 the screen shows the PROTECTED subject once a
+     * PGP/MIME message is decrypted (RFC 9788), so reading the screen would put the real subject
+     * of an encrypted message, in clear, into a mail addressed to whatever the sender wrote in
+     * `Disposition-Notification-To` — and into a copy kept in Sent.
+     *
+     * ⛔ Written only from the cached row and from the fetched original, i.e. only before any
+     * decrypt, and never from `_state`: `maybeOfferReadReceipt` is deliberately a function of the
+     * current state so it can be replayed, and the state is exactly what stops being the cover.
+     * ⛔ Never erased by a null (same care as `_deliveredTo`), and null stays null: a receipt with
+     * no subject is what `readReceiptPreview` already renders, and there is nothing else to use.
+     */
+    private var coverSubject: String? = null
+
     /** Credentials for the message's own account (unified inbox), else the current one. */
     private fun credentials(): AccountCredentials? =
         accountId?.let { store.credentials(it) } ?: store.load()
@@ -1054,6 +1072,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _mailboxRole.value = null
         _ownMessage.value = false
         _deliveredTo.value = null
+        coverSubject = null
         _snoozedUntil.value = null
         _mailboxId.value = null
         _calendar.value = null
@@ -1099,6 +1118,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 _mailboxRole.value = role
                 _ownMessage.value = isOwnMessage(cached, role)
                 _deliveredTo.value = receivingAddress(cached, ownAddresses())
+                coverSubject = cached.subject ?: coverSubject
                 _mailboxId.value = cached.mailboxId
             }
             try {
@@ -1130,6 +1150,11 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 // To only, so this is where a message addressed to an alias in Cc gets named. Never
                 // erases what the cache already found (#81).
                 _deliveredTo.value = receivingAddress(anchor, ownAddresses()) ?: _deliveredTo.value
+                // The cover subject, with the same care — but ⛔ NOT unconditionally: `openMessage`
+                // serves the decrypt cache FIRST (`MailRepository.kt:3489-3501`), so re-opening a
+                // message decrypted earlier in this process hands back a body whose subject is the
+                // PROTECTED one (#128). Which of the two this is, is what `opened.crypto` says.
+                coverSubject = coverSubjectAfterOpen(coverSubject, anchor, opened.crypto)
                 _mailboxId.value = anchor.mailboxId ?: listEmail?.mailboxId
                 // Read off the OPENED message: the two headers only ever ride with the body
                 // fetch, never with the cached list row painted a moment ago.
@@ -1360,7 +1385,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _readReceiptOffer.value = offeredReadReceipt(
             setting = readReceiptSetting.value,
             marking = marking,
-            request = readReceiptRequest(current, _deliveredTo.value),
+            request = readReceiptRequest(current, _deliveredTo.value, coverSubject),
             answered = readReceiptAnswer.answered,
         )
     }

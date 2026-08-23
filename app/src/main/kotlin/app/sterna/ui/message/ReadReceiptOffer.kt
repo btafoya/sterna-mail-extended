@@ -2,6 +2,7 @@ package app.sterna.ui.message
 
 import androidx.annotation.StringRes
 import app.sterna.R
+import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.ReadReceiptHeader
 import app.sterna.core.data.mail.ReadReceiptPreview
 import app.sterna.core.jmap.model.Email
@@ -104,21 +105,58 @@ data class ReadReceiptRequest(
 )
 
 /**
- * What [email] would have answered, had it been read by a person, at [deliveredTo].
+ * What [email] would have answered, had it been read by a person, at [deliveredTo], about
+ * [outgoingSubject].
+ *
+ * ⛔ THIS REQUEST LEAVES THE DEVICE. It becomes a `Subject:` header and a body line in a mail
+ * sent to an address the SENDER chose (`Disposition-Notification-To`), and a copy of it stays in
+ * Sent. So the subject it carries is the one from the COVER — the envelope — handed in by the
+ * caller, and never [Email.subject]: after a decrypt that field holds the PROTECTED subject the
+ * ciphertext carried (RFC 9788, issue #128), and putting it here would post the real subject of an
+ * encrypted message in clear to a stranger's mailbox. The outgoing paths that already get this
+ * right read the stored row rather than the screen (`ComposeViewModel.kt:1268,1288`).
+ *
+ * ⭐ [outgoingSubject] has NO default on purpose: the default would be the mistake. A null one is
+ * safe — `readReceiptPreview` renders an untitled "Read" on a blank subject — so there is nothing
+ * to fall back to.
  *
  * ⛔ Raises no question by itself: an empty [ReadReceiptRequest.receiptTo] is the normal answer for
  * the overwhelming majority of mail, and [offeredReadReceipt] is what turns any of this into a
  * banner. Split out so the capture is executable on its own — this is where `deliveredTo` gets
  * into the request that will be handed to `sendReadReceipt`.
  */
-fun readReceiptRequest(email: Email, deliveredTo: String?): ReadReceiptRequest = ReadReceiptRequest(
+fun readReceiptRequest(
+    email: Email,
+    deliveredTo: String?,
+    outgoingSubject: String?,
+): ReadReceiptRequest = ReadReceiptRequest(
     receiptTo = ReadReceiptHeader.recipients(email.dispositionNotificationTo),
-    originalSubject = email.subject,
+    originalSubject = outgoingSubject,
     // The first id only: `Message-ID` is one field, the list shape is JMAP's, and RFC 8098's
     // `Original-Message-ID` names one message.
     originalMessageId = email.messageId.firstOrNull(),
     deliveredTo = deliveredTo,
 )
+
+/**
+ * What the cover subject becomes after `openMessage` has answered: the [held] one, or the subject
+ * of the [opened] message when that one is still the envelope.
+ *
+ * ⛔ [MessageCrypto.Decrypted] hands back [held] UNCHANGED. `MailRepository.openMessage` serves the
+ * decrypt cache first (`MailRepository.kt:3489-3501`), so re-opening a message decrypted earlier in
+ * this process returns a body whose [Email.subject] is the PROTECTED one the ciphertext carried
+ * (RFC 9788, issue #128) — read as a cover, it would leave the device in clear on the read receipt.
+ *
+ * ⭐ [MessageCrypto.Locked] is NOT excluded: nothing has been decrypted there, so its subject is
+ * still the envelope's, and it is the freshest read of it. Null [crypto] — ordinary mail, nearly
+ * all of it — likewise.
+ *
+ * ⛔ A null subject never erases what is [held] (the cached row read a moment earlier), and null
+ * [held] stays null: `readReceiptPreview` renders an untitled receipt, and the only other candidate
+ * is the subject this guard exists to keep back.
+ */
+internal fun coverSubjectAfterOpen(held: String?, opened: Email, crypto: MessageCrypto?): String? =
+    if (crypto is MessageCrypto.Decrypted) held else opened.subject ?: held
 
 /**
  * The question to put to the reader, or null when there is none — the whole of the policy, in one

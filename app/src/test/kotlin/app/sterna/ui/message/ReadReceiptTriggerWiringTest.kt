@@ -223,7 +223,7 @@ class ReadReceiptTriggerWiringTest {
                 "_readReceiptOffer.value = offeredReadReceipt(",
                 "setting = readReceiptSetting.value,",
                 "marking = marking,",
-                "request = readReceiptRequest(current, _deliveredTo.value),",
+                "request = readReceiptRequest(current, _deliveredTo.value, coverSubject),",
                 "answered = readReceiptAnswer.answered,",
                 ")",
                 "}",

@@ -156,7 +156,37 @@ object MimeParser {
 
     /** A top-level header value of a raw message (unfolded); [name] is case-insensitive. */
     fun headerOf(raw: String, name: String): String? =
-        parseHeaders(splitHeaders(raw).first)[name.lowercase()]
+        parseHeaders(headerBlockOf(raw))[name.lowercase()]
+
+    /**
+     * The header block of [part], and nothing else — exactly what `splitHeaders(part).first`
+     * answers, including the no-blank-line case, where the whole string is the block.
+     *
+     * Separate from [splitHeaders] only to stop allocating the body to throw it away: reading one
+     * header out of a DECRYPTED PGP/MIME entity (`MailRepository.buildDecrypted`, #128) would
+     * otherwise copy the entire entity, attachments included and past the `MAX_BODY_CHARS` cap the
+     * parse next to it respects.
+     */
+    private fun headerBlockOf(part: String): String {
+        val sep = Regex("\\r?\\n\\r?\\n").find(part) ?: return part
+        return part.substring(0, sep.range.first)
+    }
+
+    /**
+     * The same header, READY TO SHOW: [headerOf] put through [decodeWords].
+     *
+     * It lives here and not in the module that needs it because [decodeWords], [decodeHeaderBytes]
+     * and [stripBidiAndControls] are `internal` to `:core:imap` — there is exactly ONE sanitising
+     * chain in this app and a second copy of it would drift.
+     *
+     * This is the SAME door the outer envelope subject goes through (`ImapClient.kt`, line 1042:
+     * `decodeWords(envelope[1])`). That matters for RFC 9788 protected headers: a subject read out
+     * of a decrypted entity is sender-controlled content just like the envelope's, so it must be
+     * filtered identically — RFC 2047 encoded-words decoded, raw 8-bit bytes read as text, bidi
+     * overrides and control characters removed. Reading it raw would open on screen exactly what
+     * the outer path closes.
+     */
+    fun decodedHeaderOf(raw: String, name: String): String? = decodeWords(headerOf(raw, name))
 
     /**
      * Every top-level header field of a raw message, in original order with duplicates kept

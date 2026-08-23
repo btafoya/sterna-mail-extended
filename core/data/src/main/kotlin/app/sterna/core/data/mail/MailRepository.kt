@@ -3690,6 +3690,19 @@ class MailRepository(
                 val body = MimeParser.parseBody(entity)
                 val display = email.withBody(body).run {
                     copy(
+                        // RFC 9788 protected headers: the real subject travels inside the
+                        // ciphertext, the envelope only ever carried a cover one (issue #128).
+                        // IN MEMORY ONLY, and for the READER ALONE — this display copy never
+                        // reaches the Room row, the FTS index, a notification or the widget, so
+                        // the list keeps the cover subject on purpose: nothing decrypted is
+                        // persisted.
+                        // ⛔ And nothing OUTGOING may take its subject from here: a reply, a
+                        // forward and a read receipt all leave the device, so all three read the
+                        // cover (`ComposeViewModel.kt:1268,1288` read the stored row;
+                        // `MessageViewModel.coverSubject` is captured before any decrypt). Sent
+                        // from here, the real subject of an encrypted message would travel in
+                        // clear.
+                        subject = decryptedSubject(subject, entity),
                         attachments = attachments.map { part ->
                             part.copy(partId = part.partId?.let { "pgp:$it" })
                         },

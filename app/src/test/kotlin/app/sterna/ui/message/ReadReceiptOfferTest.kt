@@ -1,9 +1,13 @@
 package app.sterna.ui.message
 
+import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.ReadReceiptPreview
+import app.sterna.core.data.pgp.PgpSignatureState
+import app.sterna.core.imap.CryptoKind
 import app.sterna.core.jmap.model.Email
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -200,6 +204,7 @@ class ReadReceiptOfferTest {
                 messageId = listOf("<first@example.org>", "<second@example.org>"),
             ),
             deliveredTo = "alias@mine.example",
+            outgoingSubject = "Quarterly report",
         )
 
         assertEquals("alias@mine.example", request.deliveredTo)
@@ -216,21 +221,69 @@ class ReadReceiptOfferTest {
      *  the repository's own fallback (identity, then login) is what answers. */
     @Test fun `an unknown delivery address stays unknown`() {
         assertNull(
-            readReceiptRequest(email(dispositionNotificationTo = "ann@example.org"), null).deliveredTo,
+            readReceiptRequest(email(dispositionNotificationTo = "ann@example.org"), null, "Hi")
+                .deliveredTo,
         )
     }
 
     /** A message with no ids at all answers null rather than throwing on an empty list. */
     @Test fun `a message with no id of its own captures none`() {
         assertNull(
-            readReceiptRequest(email(dispositionNotificationTo = "ann@example.org"), null)
+            readReceiptRequest(email(dispositionNotificationTo = "ann@example.org"), null, "Hi")
                 .originalMessageId,
         )
     }
 
     /** A message carrying no such header captures an empty list, which asks nothing (above). */
     @Test fun `a message with no header captures no address`() {
-        assertEquals(emptyList<String>(), readReceiptRequest(email(), "me@mine.example").receiptTo)
+        assertEquals(
+            emptyList<String>(),
+            readReceiptRequest(email(), "me@mine.example", "Hi").receiptTo,
+        )
+    }
+
+    /**
+     * ⛔ THE SUBJECT THAT LEAVES THE DEVICE IS THE COVER ONE, and the one on the [Email] is not
+     * consulted at all.
+     *
+     * The reader shows the PROTECTED subject of a decrypted PGP/MIME message since #128, and the
+     * `Email` this capture is handed is the one on screen. A receipt is sent to an address the
+     * sender chose and is copied into Sent, so taking the subject off that `Email` would publish
+     * the real subject of an encrypted message in clear. The caller hands in the envelope's.
+     */
+    @Test fun `the receipt carries the cover subject, never the one on the message shown`() {
+        val request = readReceiptRequest(
+            email(
+                dispositionNotificationTo = "ann@example.org",
+                subject = "Quarterly budget review",
+            ),
+            deliveredTo = "me@mine.example",
+            outgoingSubject = "[...]",
+        )
+
+        assertEquals("[...]", request.originalSubject)
+        assertFalse(
+            "the protected subject must not appear anywhere in what gets sent: $request",
+            "Quarterly budget review" in request.toString(),
+        )
+    }
+
+    /**
+     * ⛔ No fallback when the cover is unknown. A null subject is a receipt titled "Read" with no
+     * title in it (`readReceiptPreview`), which is a loss of nothing; falling back to the message
+     * on screen is the leak this whole capture exists to prevent.
+     */
+    @Test fun `an unknown cover subject stays unknown, and does not fall back to the screen`() {
+        assertNull(
+            readReceiptRequest(
+                email(
+                    dispositionNotificationTo = "ann@example.org",
+                    subject = "Quarterly budget review",
+                ),
+                deliveredTo = "me@mine.example",
+                outgoingSubject = null,
+            ).originalSubject,
+        )
     }
 
     // -- 3. the two directions the replay has to get right -----------------------------------------
@@ -286,6 +339,67 @@ class ReadReceiptOfferTest {
     @Test fun `nothing queued is reported as a failure`() {
         assertEquals(ReadReceiptState.Failed, readReceiptSendOutcome(null))
     }
+
+    // -- 5. what an OPEN is allowed to write into the cover ---------------------------------------
+
+    /**
+     * ⭐ THE ROW THIS WHOLE FUNCTION EXISTS FOR — re-opening a message decrypted earlier in this
+     * process (leave the list, come back, tap it again).
+     *
+     * `openMessage` serves the decrypt cache first, so what comes back is the DECRYPTED body and
+     * its subject is the protected one. Read as a cover, it would be posted in clear to whatever
+     * address the sender put in `Disposition-Notification-To`.
+     */
+    @Test fun `re-opening a decrypted message does not overwrite the cover with the protected subject`() {
+        val held = coverSubjectAfterOpen(
+            held = "[...]",
+            opened = email(subject = "Quarterly budget review"),
+            crypto = decrypted,
+        )
+
+        assertEquals("[...]", held)
+        assertNotEquals("Quarterly budget review", held)
+    }
+
+    /** Locked is still the ENVELOPE — nothing has been decrypted yet, so its subject is the cover
+     *  and it is the freshest read of it there is. ⛔ Not swept up by a wider guard. */
+    @Test fun `an encrypted message that is still locked hands over its own subject`() {
+        assertEquals(
+            "Invoice 4021",
+            coverSubjectAfterOpen("[...]", email(subject = "Invoice 4021"), MessageCrypto.Locked(CryptoKind.PGP_ENCRYPTED)),
+        )
+    }
+
+    /** Ordinary mail, which is very nearly all of it: the fetched original wins, as it always did. */
+    @Test fun `an ordinary message hands over its own subject`() {
+        assertEquals(
+            "Lunch on Thursday",
+            coverSubjectAfterOpen("stale row subject", email(subject = "Lunch on Thursday"), null),
+        )
+    }
+
+    /** A null never erases what the cached row already found — in every crypto state. */
+    @Test fun `an open with no subject at all keeps what is held`() {
+        assertEquals("[...]", coverSubjectAfterOpen("[...]", email(subject = null), null))
+        assertEquals(
+            "[...]",
+            coverSubjectAfterOpen("[...]", email(subject = null), MessageCrypto.Locked(CryptoKind.PGP_SIGNED)),
+        )
+        assertEquals("[...]", coverSubjectAfterOpen("[...]", email(subject = null), decrypted))
+    }
+
+    /** ⛔ And no fallback the other way either: nothing held plus a decrypted open is NOTHING. The
+     *  receipt then goes out untitled, which loses nothing and leaks nothing. */
+    @Test fun `nothing held and a decrypted open stays nothing`() {
+        assertNull(coverSubjectAfterOpen(null, email(subject = "Quarterly budget review"), decrypted))
+    }
+
+    private val decrypted = MessageCrypto.Decrypted(
+        signature = PgpSignatureState.NONE,
+        signatureUserId = null,
+        signatureKeyId = 0L,
+        wasEncrypted = true,
+    )
 
     private fun email(
         dispositionNotificationTo: String? = null,
