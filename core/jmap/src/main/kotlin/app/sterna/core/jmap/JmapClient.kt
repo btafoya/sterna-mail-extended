@@ -18,6 +18,7 @@ import app.sterna.core.jmap.model.Quota
 import app.sterna.core.jmap.model.SearchPage
 import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.core.jmap.model.SieveScript
+import app.sterna.core.jmap.model.SubmissionEnvelope
 import app.sterna.core.jmap.model.UploadedBlob
 import app.sterna.core.jmap.model.VacationResponse
 import okhttp3.Response
@@ -1719,6 +1720,13 @@ class JmapClient internal constructor(
         attachments: List<EmailBodyPart> = emptyList(),
         /** Ask for a read receipt: writes `Disposition-Notification-To:` naming [from] (RFC 8098). */
         requestReceipt: Boolean = false,
+        /**
+         * An explicit SMTP envelope (RFC 8621 §7.5). null — the ordinary case — lets the server
+         * derive it from [identityId]; non-null is for a [from] the server has no identity for,
+         * where that derivation would put another domain in `MAIL FROM` than the one the reader
+         * sees in `From:` (issue #172).
+         */
+        envelope: SubmissionEnvelope? = null,
     ): String? = withContext(Dispatchers.IO) {
         val payload = buildJsonObject {
             putJsonArray("using") {
@@ -1782,12 +1790,7 @@ class JmapClient internal constructor(
                     add("EmailSubmission/set")
                     addJsonObject {
                         put("accountId", accountId)
-                        putJsonObject("create") {
-                            putJsonObject("sub") {
-                                put("emailId", "#draft")
-                                put("identityId", identityId)
-                            }
-                        }
+                        put("create", submissionCreate(identityId, envelope))
                         putJsonObject("onSuccessUpdateEmail") {
                             putJsonObject("#sub") {
                                 put("mailboxIds/$sentMailboxId", true)
@@ -1844,6 +1847,8 @@ class JmapClient internal constructor(
         rawMessage: ByteArray,
         draftMailboxId: String,
         sentMailboxId: String,
+        /** As in [sendEmail]: an explicit SMTP envelope, or null to let the server derive one. */
+        envelope: SubmissionEnvelope? = null,
     ): String? = withContext(Dispatchers.IO) {
         val blobId = uploadBlob(session, accountId, rawMessage, "message/rfc822", auth).blobId
         val payload = buildJsonObject {
@@ -1871,12 +1876,7 @@ class JmapClient internal constructor(
                     add("EmailSubmission/set")
                     addJsonObject {
                         put("accountId", accountId)
-                        putJsonObject("create") {
-                            putJsonObject("sub") {
-                                put("emailId", "#draft")
-                                put("identityId", identityId)
-                            }
-                        }
+                        put("create", submissionCreate(identityId, envelope))
                         putJsonObject("onSuccessUpdateEmail") {
                             putJsonObject("#sub") {
                                 put("mailboxIds/$sentMailboxId", true)
@@ -2818,6 +2818,32 @@ internal fun searchFilter(query: SearchQuery, excludeMailboxIds: List<String> = 
 
 /** JMAP UTCDate (RFC 8620 §1.4) from epoch millis. */
 private fun jmapUtcDate(millis: Long): String = java.time.Instant.ofEpochMilli(millis).toString()
+
+/**
+ * The `create` argument of the EmailSubmission/set that sends a staged message — ONE builder for
+ * both submission paths ([JmapClient.sendEmail] and [JmapClient.importAndSendEmail]), so the
+ * structured send and the raw PGP/MIME send cannot drift apart in what they tell the server.
+ *
+ * With no [envelope] the object is `emailId` + `identityId` and nothing else, which is what the
+ * server derives its own envelope from. With one, RFC 8621 §7.5's `envelope` is written out in
+ * full: both `mailFrom` and `rcptTo` are mandatory there, so a caller that names an envelope
+ * names every recipient in it — the server does not fall back to the message's own To/Cc/Bcc.
+ */
+private fun submissionCreate(identityId: String, envelope: SubmissionEnvelope?): JsonObject =
+    buildJsonObject {
+        putJsonObject("sub") {
+            put("emailId", "#draft")
+            put("identityId", identityId)
+            if (envelope != null) {
+                putJsonObject("envelope") {
+                    putJsonObject("mailFrom") { put("email", envelope.mailFrom) }
+                    putJsonArray("rcptTo") {
+                        envelope.rcptTo.forEach { addJsonObject { put("email", it) } }
+                    }
+                }
+            }
+        }
+    }
 
 /** Write a JMAP EmailAddress object ({name?, email}) into the current JSON object. */
 private fun JsonObjectBuilder.addAddress(address: EmailAddress) {

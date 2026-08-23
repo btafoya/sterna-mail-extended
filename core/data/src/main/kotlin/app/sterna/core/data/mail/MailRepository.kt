@@ -103,6 +103,7 @@ import app.sterna.core.jmap.model.JmapSession
 import app.sterna.core.jmap.model.PushSubscription
 import app.sterna.core.jmap.model.Quota
 import app.sterna.core.jmap.model.SearchQuery
+import app.sterna.core.jmap.model.SubmissionEnvelope
 import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -7521,13 +7522,27 @@ class MailRepository(
         val onBehalf = submissionAccountId != ctx.accountId
 
         val serverIdentities = client.getIdentities(ctx.session, submissionAccountId, ctx.auth)
-        // Use the server identity matching the chosen address (so submission is authorised);
-        // fall back to the first. The displayed From still reflects the chosen identity.
-        val identity = fromEmail?.let { email -> serverIdentities.firstOrNull { it.email.equals(email, true) } }
-            ?: serverIdentities.firstOrNull()
+        // Which identity to submit under, and whether the envelope must be named rather than left
+        // to the server to derive (issue #172) — the rule itself is in [SubmissionIdentity], where
+        // it can be run. null means the account has no server identity at all.
+        val choice = SubmissionIdentity.choose(fromEmail, serverIdentities, onBehalf)
             ?: error("This account has no sending identity.")
-        val from = if (!fromEmail.isNullOrBlank()) EmailAddress(name = fromName, email = fromEmail)
+        val identity = choice.identity
+        // Trimmed, because the envelope below is: SubmissionIdentity matches on a trimmed address
+        // (StoredAccount.kt:132 dedupes that way, and the settings screen saves what was typed,
+        // spaces included), so leaving the header untrimmed would put " a@b " in From: against an
+        // `a@b` MAIL FROM — the very mismatch this is here to remove.
+        val from = if (!fromEmail.isNullOrBlank()) EmailAddress(name = fromName, email = fromEmail.trim())
         else EmailAddress(name = identity.name, email = identity.email)
+        // rcptTo carries to + cc + bcc, like the SMTP path's RCPT TO (SmtpClient.kt:334): RFC 8621
+        // §7.5 makes both envelope fields mandatory, so an amputated list drops the copies instead
+        // of falling back to the message's own recipients.
+        val envelope = choice.envelopeMailFrom?.let {
+            SubmissionEnvelope(
+                mailFrom = it,
+                rcptTo = (recipients + ccAddrs + bccAddrs).map { a -> a.email },
+            )
+        }
         // Mailbox ids are per-account: an on-behalf send stages and files in the login's
         // account, so its roles must come from there, not from the sub-account's context.
         val submissionRoles = if (onBehalf) {
@@ -7565,6 +7580,7 @@ class MailRepository(
                 rawMessage = raw.toByteArray(Charsets.UTF_8),
                 draftMailboxId = draftsId,
                 sentMailboxId = sentId,
+                envelope = envelope,
             )
         } else {
             client.sendEmail(
@@ -7585,6 +7601,7 @@ class MailRepository(
                 references = references,
                 attachments = attachments,
                 requestReceipt = item.requestReceipt,
+                envelope = envelope,
             )
         }
 
