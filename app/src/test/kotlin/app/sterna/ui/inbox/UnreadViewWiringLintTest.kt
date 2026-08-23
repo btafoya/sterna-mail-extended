@@ -472,7 +472,7 @@ class UnreadViewWiringLintTest {
 
         /** Every line of the ViewModel that names the flag, or the number, the screen reads. */
         private val EXPECTED_VIEW_FLAG_LINES = listOf(
-            "base.copy(unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))",
+            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))",
             "unreadView = base.unreadView,",
             "unreadView = sel is Sel.Unread,",
             "unreadViewCount = base.unreadViewCount,",
@@ -491,7 +491,7 @@ class UnreadViewWiringLintTest {
 
         /** The badge, computed once, from the scope the pager uses. */
         private val EXPECTED_BADGE_CALL = listOf(
-            "base.copy(unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))",
+            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))",
         )
 
         /** Back's answer, structural where it has to be, unchanged where it was already right. */

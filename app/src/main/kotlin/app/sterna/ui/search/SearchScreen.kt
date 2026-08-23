@@ -378,8 +378,8 @@ fun SearchScreen(
                                         EmailListItem(
                                             email = email,
                                             onClick = { onOpenEmail(email.id, email.accountId) },
-                                            accountLabel = owner?.label(),
-                                            accountColor = accountColorOf(owner?.color),
+                                            originLabel = owner?.label(),
+                                            originColor = accountColorOf(owner?.color),
                                         )
                                         HorizontalDivider()
                                     }

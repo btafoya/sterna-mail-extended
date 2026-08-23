@@ -60,6 +60,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class MailUi(
+    /** The CURRENT account — the one [mailboxes] belongs to — whatever view is on screen. ⛔ Not
+     *  "the account of the list": the unified inbox spans every account and still has a current one
+     *  here. Null only while no account is configured, and null is also what a fixture that does not
+     *  care gets, so nothing already written has to name it.
+     *
+     *  ⚠ It is what makes [app.sterna.ui.inbox.unreadRowFolder] able to look a row's folder up in
+     *  [mailboxes] AT ALL: that list is one account's, not qualified by account, and servers number
+     *  their mailboxes per account (#31/#121) — a bare id would find a neighbour's homonym. That is
+     *  also why the lookup compares this field to the ROW's account before trusting the answer. */
+    val accountId: String? = null,
     val accountName: String,
     val mailboxName: String,
     val unreadCount: Int,
@@ -98,6 +108,9 @@ data class MailUi(
 
 /** Intermediate holder so the search state can be folded into [MailUi] without a 6-arg combine. */
 private data class Base(
+    /** Folded in after the five-flow combine below, next to [unreadViewCount] and from the same
+     *  flow, so it is seeded here and copied there. */
+    val accountId: String? = null,
     val mailboxes: List<Mailbox>,
     val selectedMailboxId: String?,
     val unified: Boolean,
@@ -981,11 +994,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * twice here and drawn once. See [unreadViewCount].
      */
     private val badgedState = combine(baseState, unreadScopes, currentAccountId) { base, scopes, accountId ->
-        base.copy(unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))
+        base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))
     }
 
     val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
         MailUi(
+            accountId = base.accountId,
             accountName = base.accountName,
             mailboxName = base.mailboxName,
             unreadCount = base.unread,

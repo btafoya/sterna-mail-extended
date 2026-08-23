@@ -26,7 +26,7 @@ import java.io.File
  *  3. `selected = selected` → `selected = false`: a selected unread row lifts its chips to
  *     `surfaceContainerLowest` against `secondaryContainer`, the one state the role was not chosen
  *     for;
- *  4. the account chip's `accountColor.copy(alpha = 0.16f)` branch rewritten to use the fill: the
+ *  4. the origin chip's `originColor.copy(alpha = 0.16f)` branch rewritten to use the fill: the
  *     account's own accent, the only thing that chip is for, disappears from the unified inbox;
  *  5. `.background(fill)` → `.background(fill.copy(alpha = 0.5f))` in either pill: the row shows
  *     through the chip again, at half strength, on every row — and a substring check accepts it.
@@ -58,10 +58,12 @@ class EmailListItemChipFillWiringTest {
         ")",
     )
 
-    /** Site 1 of 3: the unified inbox's account chip, whose accent branch must stay untouched. */
+    /** Site 1 of 3: the origin chip — the account in the unified inbox, the folder in the unread
+     *  view (#169) — whose accent branch must stay untouched. The accent only ever comes from an
+     *  ACCOUNT; a folder has none and takes the fallback fill this rule guards. */
     private val expectedAccountChip = listOf(
         ".background(",
-        "if (accountColor != null) accountColor.copy(alpha = 0.16f)",
+        "if (originColor != null) originColor.copy(alpha = 0.16f)",
         "else chipBackground,",
         ")",
     )

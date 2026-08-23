@@ -1429,10 +1429,19 @@ fun InboxScreen(
                 // role whenever the row's folder cannot be believed, so the single-folder and
                 // unified views answer exactly what they answered before ([rowFolderRole]).
                 val rowRole = rowFolderRole(email, ui, folderRoles, folderTrusted = !fromSearch)
+                // ⭐ And WHICH folder, in the one view that pages several of them: the unread view
+                // shows the same object once per folder it is filed in (IMAP identities carry the
+                // folder), and those rows are all true. Naming the folder is what tells them apart
+                // — the rows are deliberately NOT deduplicated. Null everywhere else, and the
+                // account chip below wins whenever there is one: one slot, never two ([EmailListItem]).
+                // ⛔ `row.threadCount`, not 1: in conversation view — the DEFAULT — a row can stand
+                // for several messages of the list, filed in several folders, and one folder name
+                // under it would be a claim about an aggregate ([unreadRowFolder]).
+                val rowFolder = unreadRowFolder(email, ui, folderTrusted = !fromSearch, inViewCount = row.threadCount)
                 SwipeableEmailRow(
                     email = email,
-                    accountLabel = ownerAccount?.label(),
-                    accountColor = accountColorOf(ownerAccount?.color),
+                    originLabel = ownerAccount?.label() ?: rowFolder?.let { mailboxDisplayName(it.role, it.name) },
+                    originColor = accountColorOf(ownerAccount?.color),
                     rightAction = swipe.right,
                     leftAction = swipe.left,
                     unarchiveContext = isUnarchiveContext(rowRole),
@@ -1591,6 +1600,11 @@ fun InboxScreen(
                                 roles = folderRoles,
                             )
                         },
+                        // Same shape, same reason, for the origin chip. Trusted: these children come
+                        // from the cache the list pages, never from the search index. And a count of
+                        // 1 because a child IS one message — the unfold is what turned the aggregate
+                        // above back into the rows it stands for, so each of them can name its folder.
+                        folderFor = { child -> unreadRowFolder(child, ui, folderTrusted = true, inViewCount = 1) },
                         highlightId = highlightId,
                         selectionActive = selectionActive,
                         selectedKeys = selectedKeys,
@@ -1938,8 +1952,11 @@ private fun AccountChip(label: String, color: Color?, modifier: Modifier = Modif
 @Composable
 private fun SwipeableEmailRow(
     email: Email,
-    accountLabel: String?,
-    accountColor: Color?,
+    /** Where this row comes from, for [EmailListItem]'s single chip: the owning ACCOUNT in the
+     *  unified inbox, the row's own FOLDER in the unread view ([unreadRowFolder]). ⛔ The two never
+     *  coexist — one slot, one question. Null draws no chip. */
+    originLabel: String?,
+    originColor: Color?,
     rightAction: SwipeAction,
     leftAction: SwipeAction,
     unarchiveContext: Boolean,
@@ -2296,8 +2313,8 @@ private fun SwipeableEmailRow(
             EmailListItem(
                 email = email,
                 onClick = onClick,
-                accountLabel = accountLabel,
-                accountColor = accountColor,
+                originLabel = originLabel,
+                originColor = originColor,
                 onToggleFavourite = onToggleFavourite,
                 selected = selected,
                 onLongClick = onLongClick,
@@ -2476,6 +2493,67 @@ internal fun rowFolderRole(
 }
 
 /**
+ * WHERE a row of the unread view comes from — the folder to name under it, or null to say nothing.
+ *
+ * The unread view pages every folder of one account, and on IMAP a message's identity CONTAINS its
+ * folder (`imap:$acc:$mbox:$uid`), so one object filed in the Inbox and in the Archive is two rows
+ * of `emails` and two rows on screen. ⛔ They are NOT deduplicated, deliberately: a single row would
+ * stand for N real messages, and a "delete" swipe on it would be a silent multi-folder delete. Both
+ * rows are true; what was missing is which folder each one is.
+ *
+ * Returns the [Mailbox] and not a name: [mailboxDisplayName] is `@Composable` and stays at the call
+ * site, where it already turns a role into "Archive" / "Posteingang" / "Входящие" and hands a
+ * user-made folder its raw name back. No new translated string exists for this.
+ *
+ * Null — say nothing — in every case where the folder cannot be named honestly:
+ *
+ *  - not the unread view: a single-folder list would repeat the drawer under every row, and the
+ *    unified inbox already spends that one chip on the ACCOUNT. One badge slot, never two.
+ *  - [folderTrusted] false, i.e. a search hit: its `mailboxId` is the folder frozen at crawl time,
+ *    which the server may have contradicted since. Same reason [rowFolderRole] refuses it — we do
+ *    not name a folder we cannot believe.
+ *  - ⚠ the row belongs to another account than [MailUi.accountId]. PORTING GUARD, not a formality:
+ *    [MailUi.mailboxes] is ONE account's list and is not qualified by account, while servers number
+ *    mailboxes per account (#31/#121) — so a bare id lookup would happily find the neighbouring
+ *    account's homonymous folder and print the wrong name under the row.
+ *    ⚠ It is a BELT, and it is worth saying what it does not prove: [MailUi.accountId] and
+ *    [MailUi.mailboxes] reach the state through two different flows, so a `combine` can in principle
+ *    emit the new account beside the previous account's folder list. Today nothing gets drawn in that
+ *    window — `onAccountChanged` moves the selection to `Sel.Folder` (so [MailUi.unreadView] is
+ *    false) and empties `unreadScopes` (so the pager has no rows) — but that is THREE facts in
+ *    another file holding it up, not this function's own. Give the folder list its account and the
+ *    belt becomes a proof; until then, do not weaken it.
+ *  - ⚠ [inViewCount] is not 1 — the row is a COLLAPSED CONVERSATION standing for several messages
+ *    of the list. Conversation view is the default, and there a thread unread in the Inbox and in
+ *    the Archive is drawn ONCE, off its newest message: naming that one message's folder would
+ *    assert a single origin for a row that has several, and hide the reader's Inbox message behind
+ *    the word "Archive". ⭐ It costs #169 nothing — on IMAP `threadId` is null, every message is its
+ *    own group, and the rows the reporter sees stacked each count 1.
+ *  - no account on screen, or a folder [MailUi.mailboxes] has no entry for: unknown folder, which
+ *    is not the same thing as a folder without a role. We are quiet, we do not guess.
+ *
+ * ⛔ No guard of its own for a null or blank `mailboxId`, and that is on purpose — the same call
+ * [rowFolderRole] documents having deleted, for the same reason. [MailUi.mailboxes] is built from
+ * real folder rows, so neither null nor "" has an entry in it and the lookup below already answers
+ * null. A mutation removing such a guard survives every test, because there is nothing behind it.
+ *
+ * A folder with no role is returned like any other: unread mail filed in "Projets" is unread mail,
+ * and [mailboxDisplayName] gives it its own name.
+ */
+internal fun unreadRowFolder(
+    email: Email,
+    ui: MailUi,
+    folderTrusted: Boolean,
+    inViewCount: Int,
+): Mailbox? {
+    if (!ui.unreadView || !folderTrusted) return null
+    if (inViewCount != 1) return null
+    val account = ui.accountId ?: return null
+    if (email.accountId != account) return null
+    return ui.mailboxes.firstOrNull { it.id == email.mailboxId }
+}
+
+/**
  * True when [from] (a message's sender) is one of the user's own send-as [identities], matched
  * case-insensitively on the bare address — i.e. the message was written by the user, so it should
  * show who it went TO rather than the (self) sender wherever it is read. A blank/absent sender is
@@ -2580,6 +2658,10 @@ private fun ThreadChildren(
     /** Decided per child too: the "(Draft)" chip reads the child's own folder, not the one on
      *  screen — an unfolded conversation spans the viewed folder(s) plus Sent. */
     showDraftBadgeFor: (Email) -> Boolean,
+    /** Same shape again, for the origin chip: an unfolded child IS a row, and in the unread view it
+     *  is filed in a folder of its own. Without it the parent names its folder and its children name
+     *  nothing. Null (the common case) draws no chip — see [unreadRowFolder]. */
+    folderFor: (Email) -> Mailbox?,
     highlightId: String?,
     selectionActive: Boolean,
     selectedKeys: Set<EmailKey>,
@@ -2613,8 +2695,8 @@ private fun ThreadChildren(
                         Spacer(Modifier.width(16.dp))
                         SwipeableEmailRow(
                             email = child,
-                            accountLabel = ownerAccount?.label(),
-                            accountColor = accountColorOf(ownerAccount?.color),
+                            originLabel = ownerAccount?.label() ?: folderFor(child)?.let { mailboxDisplayName(it.role, it.name) },
+                            originColor = accountColorOf(ownerAccount?.color),
                             rightAction = rightAction,
                             leftAction = leftAction,
                             unarchiveContext = unarchiveContextFor(child),

@@ -150,7 +150,12 @@ internal fun chipFill(
 
 /**
  * One row in a message list: monogram, sender, subject, preview, time + state.
- * [accountLabel] shows the owning account as a chip — set only in the unified inbox.
+ *
+ * [originLabel] is the one chip that says WHERE this row comes from: the owning ACCOUNT in the
+ * unified inbox and in search, the row's own FOLDER in the unread view (which pages every folder of
+ * one account, so the same object can legitimately appear twice — see `unreadRowFolder`). ⛔ One
+ * slot, and the two never coexist: whichever view is on screen, only one of them is a question the
+ * reader is asking. Null draws no chip at all.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -158,8 +163,8 @@ fun EmailListItem(
     email: Email,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    accountLabel: String? = null,
-    accountColor: Color? = null,
+    originLabel: String? = null,
+    originColor: Color? = null,
     onToggleFavourite: (() -> Unit)? = null,
     selected: Boolean = false,
     onLongClick: (() -> Unit)? = null,
@@ -350,10 +355,11 @@ fun EmailListItem(
                     )
                 }
             }
-            accountLabel?.takeIf { it.isNotBlank() }?.let { label ->
+            originLabel?.takeIf { it.isNotBlank() }?.let { label ->
                 Spacer(Modifier.size(4.dp))
-                // Tint the account chip with the account's accent colour when set.
-                val chipColor = accountColor ?: MaterialTheme.colorScheme.primary
+                // Tint the chip with the account's accent colour when there is one (there is none
+                // to tint a folder with, so the folder name takes the plain chip).
+                val chipColor = originColor ?: MaterialTheme.colorScheme.primary
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
@@ -363,7 +369,7 @@ fun EmailListItem(
                     modifier = Modifier
                         .clip(MaterialTheme.shapes.small)
                         .background(
-                            if (accountColor != null) accountColor.copy(alpha = 0.16f)
+                            if (originColor != null) originColor.copy(alpha = 0.16f)
                             else chipBackground,
                         )
                         .padding(horizontal = 6.dp, vertical = 2.dp),
