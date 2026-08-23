@@ -8,6 +8,7 @@
     <string name="compose_attach">Прикрепить файл</string>
     <string name="compose_save_draft">Сохранить черновик</string>
     <string name="compose_schedule_send">Отложенная отправка</string>
+    <string name="compose_delete_draft">Удалить черновик</string>
     <string name="compose_request_receipt">Запросить уведомление о прочтении</string>
     <string name="compose_send">Отправить</string>
     <string name="compose_from">От</string>

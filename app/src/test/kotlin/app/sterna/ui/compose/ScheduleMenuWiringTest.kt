@@ -236,7 +236,8 @@ class ScheduleMenuWiringTest {
         private const val ELSE = "} else {"
         private const val STAMP_STATE = "var menuOpenedAt by remember { mutableLongStateOf(0L) }"
         private const val STAMP_ON_OPEN =
-            "onClick = { menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },"
+            "onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); " +
+                "scheduleMenu = true },"
         private const val LIST_FROM_STAMP =
             "schedulePresets(context, menuOpenedAt).forEach { (preset, label, drawnAt) ->"
         private const val PRESETS_SIGNATURE =

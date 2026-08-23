@@ -46,7 +46,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.LocalContentColor
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
@@ -55,8 +54,6 @@ import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
@@ -641,8 +638,11 @@ fun ComposeScreen(
 
     // The menu's fifth entry, in two steps: a calendar, then a clock (#161). ⛔ Drawn HERE, at the
     // top level of the composable with the four other dialogs, and NOT inside the toolbar's Box:
-    // that Box sits under `if (draftSaveAllowed(pgpMode))`, so closing the padlock underneath would
-    // take the dialog off screen mid-choice.
+    // that Box sits under `if (reopen is DraftReopenView.Editor)`, so a reopened draft that fails
+    // its read underneath would take the dialog off screen mid-choice. ⚠ The reason CHANGED with
+    // #164 and the rule did not: the Box used to sit under `if (draftSaveAllowed(pgpMode))` too,
+    // where closing the padlock was the way it vanished. The padlock no longer removes this Box —
+    // the reopen gate still does, and one gate is enough to keep the dialogs out of here.
     //
     // ⛔ Both locks against a send into the PAST are in this pair, because there is none further
     // down: `ScheduledSends.enqueue` coerces a negative delay to zero, so a lapsed instant would
@@ -1080,6 +1080,8 @@ fun ComposeScreen(
                                 ComposeTitle.NEW -> R.string.compose_title_new
                             },
                         ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
@@ -1165,51 +1167,90 @@ fun ComposeScreen(
                     IconButton(onClick = { picker.launch("*/*") }, enabled = !sending) {
                         Icon(Icons.Filled.AttachFile, contentDescription = stringResource(R.string.compose_attach))
                     }
-                    // Deleting the draft (#127). OUTSIDE the draftSaveAllowed block below: a delete
-                    // persists nothing, so it has no reason to disappear when the padlock closes.
-                    // When it is offered is [draftDeleteOffered]; the message it acts on comes from
-                    // the ViewModel, which refuses while a send is in flight (INV-6).
-                    if (draftDeleteOffered(restore, draftId, editingDraft != null, editingLocalDraftId != null)) {
-                        IconButton(
-                            // Asks first (#127): everything typed since this composer opened is
-                            // unsaved, and on a server draft the delete takes the SERVER copy — so
-                            // the Undo restores the draft as it was on the server, never the text
-                            // on screen. On a draft the phone is keeping there is no Undo at all
-                            // (#95), which is what the dialog's own body says. The
-                            // composer already asks before dropping those edits when the X is
-                            // tapped; this button dropped them with no question at all.
-                            onClick = { viewModel.askDraftDelete() },
-                            enabled = !sending,
-                        ) {
-                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.message_delete))
-                        }
+                    IconButton(
+                        onClick = attemptSend,
+                        enabled = !sending && canSend,
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.compose_send))
                     }
-                    // Encrypting can't carry plaintext to the server: no draft, no schedule. Same
-                    // rule, same function as the leave dialog above (#35).
-                    if (draftSaveAllowed(pgpMode)) {
-                        IconButton(
-                            onClick = { viewModel.saveDraft(to, cc, bcc, subject.text, body.text, requestReceipt) },
-                            enabled = !sending && canSaveDraft,
-                        ) {
-                            Icon(Icons.Filled.Save, contentDescription = stringResource(R.string.compose_save_draft))
-                        }
-                        Box {
+                    // ⭐ FOUR SLOTS AT MOST, AND THE TITLE GETS THE REST (#164). This bar carried
+                    // up to EIGHT 48 dp slots (X, padlock, paperclip, delete, save, schedule, send,
+                    // overflow) and there was nothing left for its own title: on a narrow screen at
+                    // a large font scale it was clipped in the middle of a word. Save, "send later"
+                    // and delete are the three that read as WORDS rather than as glyphs, so they
+                    // moved down here, above the receipt; the padlock, the paperclip and the send
+                    // stay up because they are the gestures one aims at without reading. Each entry
+                    // keeps the exact condition and the exact `enabled` rule its icon had — the
+                    // move is a change of place, not of behaviour ([ComposeBarWiringTest] pins both
+                    // whole-line). The receipt's wording still says what the app DOES (ask), never
+                    // that a receipt will arrive: only the recipient's client decides that.
+                    Box {
+                        var moreMenu by remember { mutableStateOf(false) }
                         var scheduleMenu by remember { mutableStateOf(false) }
-                        // The instant the list below is DRAWN for, stamped when the menu opens.
-                        // ⚠ State, not a call in the composition: the wall clock is not snapshot
-                        // state, so a tap recomposes nothing on its own (the free picker above says
-                        // the same about its `enabled`). Re-stamping it is what redraws the menu
-                        // after a refused tap and takes the lapsed entry off screen.
+                        // The instant the preset list below is DRAWN for, stamped when the PRESETS
+                        // open — ⛔ NOT when this overflow opens. Stamped at the ⋮, the whole time
+                        // spent reading the menu is added to the presets' expiry: a lapsed entry
+                        // reaches `ScheduledSends.enqueue`, the delay is coerced to zero, and the
+                        // message goes out AT ONCE and irreversibly while the banner announces a
+                        // schedule. ⚠ State, not a call in the composition: the wall clock is not
+                        // snapshot state, so a tap recomposes nothing on its own (the free picker
+                        // above says the same about its `enabled`). Re-stamping it is what redraws
+                        // the menu after a refused tap and takes the lapsed entry off screen.
                         var menuOpenedAt by remember { mutableLongStateOf(0L) }
-                        // A scheduled send is fired by a headless worker that can't sign, and its
-                        // table carries no attachments: disable it for a SIGN/ENCRYPT message or one
-                        // with attachments, which would otherwise go out unsigned or amputated (A2/A3).
-                        IconButton(
-                            onClick = { menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },
-                            enabled = !sending && canSend && scheduleSendAllowed(pgpMode, attachments.isNotEmpty()),
-                        ) {
-                            Icon(Icons.Filled.Schedule, contentDescription = stringResource(R.string.compose_schedule_send))
+                        IconButton(onClick = { moreMenu = true }, enabled = !sending) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
                         }
+                        DropdownMenu(
+                            expanded = moreMenu,
+                            onDismissRequest = { moreMenu = false },
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            // Encrypting can't carry plaintext to the server: no draft, no schedule.
+                            // Same rule, same function as the leave dialog above (#35).
+                            if (draftSaveAllowed(pgpMode)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.compose_save_draft)) },
+                                    onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, body.text, requestReceipt) },
+                                    enabled = !sending && canSaveDraft,
+                                )
+                                // A scheduled send is fired by a headless worker that can't sign,
+                                // and its table carries no attachments: disabled for a SIGN/ENCRYPT
+                                // message or one with attachments, which would otherwise go out
+                                // unsigned or amputated (A2/A3). The tap closes this menu and opens
+                                // the presets beside it — ⛔ no submenu nested inside an overflow.
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.compose_schedule_send)) },
+                                    onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },
+                                    enabled = !sending && canSend && scheduleSendAllowed(pgpMode, attachments.isNotEmpty()),
+                                )
+                            }
+                            // Deleting the draft (#127). OUTSIDE the draftSaveAllowed block above: a
+                            // delete persists nothing, so it has no reason to disappear when the
+                            // padlock closes. When it is offered is [draftDeleteOffered]; the
+                            // message it acts on comes from the ViewModel, which refuses while a
+                            // send is in flight (INV-6).
+                            if (draftDeleteOffered(restore, draftId, editingDraft != null, editingLocalDraftId != null)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.compose_delete_draft)) },
+                                    // Asks first (#127): everything typed since this composer opened
+                                    // is unsaved, and on a server draft the delete takes the SERVER
+                                    // copy — so the Undo restores the draft as it was on the server,
+                                    // never the text on screen. On a draft the phone is keeping there
+                                    // is no Undo at all (#95), which is what the dialog's own body
+                                    // says. The composer already asks before dropping those edits
+                                    // when the X is tapped; this entry must never delete outright.
+                                    onClick = { moreMenu = false; viewModel.askDraftDelete() },
+                                    enabled = !sending,
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.compose_request_receipt)) },
+                                trailingIcon = { Checkbox(checked = requestReceipt, onCheckedChange = null) },
+                                onClick = { moreMenu = false; requestReceipt = !requestReceipt },
+                            )
+                        }
+                        // The presets, anchored to this same Box as the overflow: the two menus are
+                        // siblings, never one inside the other.
                         DropdownMenu(expanded = scheduleMenu, onDismissRequest = { scheduleMenu = false }, shape = MaterialTheme.shapes.medium) {
                             // All three fields travel to the tap: the preset says WHICH KIND of
                             // promise the entry made, and `drawnAt` is the instant it was drawn for
@@ -1264,39 +1305,6 @@ fun ComposeScreen(
                                     scheduleMenu = false
                                     viewModel.askScheduleDay()
                                 },
-                            )
-                        }
-                        }
-                    }
-                    IconButton(
-                        onClick = attemptSend,
-                        enabled = !sending && canSend,
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.compose_send))
-                    }
-                    // Overflow: the per-message read receipt. It is a menu ENTRY and not an icon of
-                    // its own, because it is a choice one reads before ticking rather than a glyph
-                    // one recognises — but be honest about the cost: this overflow button is itself
-                    // an icon, so the bar now goes up to SEVEN when PGP is available and the draft
-                    // is deletable (lock, attach, delete, save, schedule, send, overflow). Whether
-                    // that still fits the narrow screens is a bench measurement, not a claim to make
-                    // here. Its wording says what the app DOES (ask), never that a receipt will
-                    // arrive: only the recipient's client decides that, and most either ignore the
-                    // request or ask their user first.
-                    Box {
-                        var moreMenu by remember { mutableStateOf(false) }
-                        IconButton(onClick = { moreMenu = true }, enabled = !sending) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
-                        }
-                        DropdownMenu(
-                            expanded = moreMenu,
-                            onDismissRequest = { moreMenu = false },
-                            shape = MaterialTheme.shapes.medium,
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.compose_request_receipt)) },
-                                trailingIcon = { Checkbox(checked = requestReceipt, onCheckedChange = null) },
-                                onClick = { moreMenu = false; requestReceipt = !requestReceipt },
                             )
                         }
                     }

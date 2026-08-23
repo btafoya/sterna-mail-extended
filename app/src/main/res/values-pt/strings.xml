@@ -8,6 +8,7 @@
     <string name="compose_attach">Anexar arquivo</string>
     <string name="compose_save_draft">Salvar rascunho</string>
     <string name="compose_schedule_send">Agendar envio</string>
+    <string name="compose_delete_draft">Excluir rascunho</string>
     <string name="compose_request_receipt">Solicitar confirmação de leitura</string>
     <string name="compose_send">Enviar</string>
     <string name="compose_from">De</string>

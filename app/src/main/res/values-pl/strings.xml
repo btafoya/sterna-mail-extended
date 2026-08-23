@@ -8,6 +8,7 @@
     <string name="compose_attach">Załącz plik</string>
     <string name="compose_save_draft">Zapisz wersję roboczą</string>
     <string name="compose_schedule_send">Zaplanuj wysyłkę</string>
+    <string name="compose_delete_draft">Usuń wersję roboczą</string>
     <string name="compose_request_receipt">Poproś o potwierdzenie przeczytania</string>
     <string name="compose_send">Wyślij</string>
     <string name="compose_from">Od</string>

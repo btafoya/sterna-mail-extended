@@ -758,13 +758,14 @@ class DialogFlagsSurviveRotationTest {
         )
     }
 
-    @Test fun `the trash icon raises the flag through the ViewModel`() {
+    @Test fun `the Delete draft entry raises the flag through the ViewModel`() {
         assertPinned(
             SCREEN,
-            "onClick = { viewModel.askDraftDelete() },",
-            "the trash icon must ask the ViewModel to open the door (#127). Assigning a local " +
-                "flag here is what the rotation wiped; and it must still only ASK — deleting from " +
-                "the icon drops the editing with no question and no way back.",
+            "onClick = { moreMenu = false; viewModel.askDraftDelete() },",
+            "the Delete draft entry must ask the ViewModel to open the door (#127). Assigning a " +
+                "local flag here is what the rotation wiped; and it must still only ASK — " +
+                "deleting from the entry drops the editing with no question and no way back. It " +
+                "closes the overflow it lives in since #164, and nothing more.",
         )
     }
 

@@ -144,14 +144,15 @@ class ComposeDeleteWiringTest {
         )
         val block = balanced(screen, screen.indexOf('{', at), '{', '}')
         assertTrue(
-            "the trash icon must only RAISE the confirmation (viewModel.askDraftDelete()): what " +
+            "the Delete draft entry must only RAISE the confirmation (viewModel.askDraftDelete()), "
+                + "having closed the overflow it lives in since #164: what " +
                 "was typed since the composer opened is unsaved, the delete takes the server copy, " +
                 "and the Undo behind it restores that copy — not the screen. Deleting straight " +
                 "from the icon drops the editing with no question and no way back, while the same " +
                 "screen asks before dropping it when the X is tapped (#127). The flag is the " +
                 "ViewModel's, so that it survives the rotation that recreates MainActivity — see " +
                 "[DialogFlagsSurviveRotationTest]. Block was:\n$block",
-            Regex("""onClick = \{ viewModel\.askDraftDelete\(\) }""")
+            Regex("""onClick = \{ moreMenu = false; viewModel\.askDraftDelete\(\) }""")
                 .containsMatchIn(block.replace(Regex("""\s+"""), " ")),
         )
         assertTrue(
