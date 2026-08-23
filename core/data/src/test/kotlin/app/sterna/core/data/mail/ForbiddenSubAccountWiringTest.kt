@@ -176,6 +176,12 @@ class ForbiddenSubAccountWiringTest {
      * it", and `ConnectViewModel` (`:249` / `:680`) would write `ConnectState.Connected` on the
      * next line, for a screen the user has just left, its own `catch (cancelled: ...)` never
      * reached. The decision is EXECUTED in `CancellationTest`; the plug is read here.
+     *
+     * ⚠ The list is file-wide by construction, so every OTHER guarded `runCatching` of
+     * `MailRepository.kt` shows up in it too — today, `armOrNote`'s two (a failed arming must not
+     * un-queue a durable send, and a cancelled one must record nothing). Adding a guarded
+     * `runCatching` anywhere in the file means adding its line here; adding an UNGUARDED one on
+     * this path is what the assertion is for.
      */
     @Test fun `both runCatchings of this path re-throw a cancellation`() {
         val guarded = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
@@ -184,6 +190,8 @@ class ForbiddenSubAccountWiringTest {
             "a runCatching of the #129 path no longer re-throws cancellation, or another one was " +
                 "added without it.",
             listOf(
+                ".rethrowIfCancelled()",
+                "runCatching { note(unarmedNote(failure)) }.rethrowIfCancelled()",
                 "runCatching { client.getMailboxes(session, candidate.jmapAccountId, auth) }.rethrowIfCancelled()",
                 "}.rethrowIfCancelled()",
             ),

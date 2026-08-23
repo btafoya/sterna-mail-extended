@@ -678,6 +678,67 @@ internal suspend fun <T> stageOrRollback(rollback: suspend () -> Unit, stage: su
     }
 
 /**
+ * Arm delivery of the outbox row [id] after [holdMs], and answer [id] whether or not the arming
+ * worked — a failure is written through [note] instead of being thrown.
+ *
+ * ⛔ **Arming is not queueing, and this is the whole point.** By the time this runs the row is
+ * inserted and its payload staged: the message is durable, it is in the Outbox, and
+ * `unfinishedOutbox` re-arms every unfinished row at the next app start (`SternaApplication`). So a
+ * scheduler that throws costs a DELAY, never the mail. Relaying that throw, which is what
+ * [MailRepository.enqueueSend] used to do, tells the caller nothing was queued about a message that
+ * is queued and WILL go out — and the caller acts on it: a quick reply hands its text back and
+ * keeps the notification (`quickReplyAct` with `queued = false`), so the same mail is sent twice.
+ *
+ * ⛔ Not to be confused with its neighbour [stageOrRollback], which is the OTHER half of the
+ * frontier and must keep behaving the opposite way: a staging failure destroys the row and relays,
+ * because an orphan carrying `attachmentsJson "[]"` would be re-armed and sent amputated (#70).
+ * Staging failed means the row is bad; arming failed means the row is good.
+ *
+ * Pure control flow around an injected scheduler, so a test can RUN it — the call site can only be
+ * read (`ArmingIsNotQueueingTest`, `ArmingWiringTest`).
+ */
+internal suspend fun armOrNote(
+    id: Long,
+    holdMs: Long,
+    scheduler: OutboxScheduler?,
+    note: suspend (String) -> Unit,
+): Long {
+    val failure = runCatching { scheduler?.schedule(id, holdMs) }
+        .rethrowIfCancelled()
+        .exceptionOrNull()
+        ?: return id
+    // Recording the reason must not become a second way to fail the queueing it reports on.
+    runCatching { note(unarmedNote(failure)) }.rethrowIfCancelled()
+    return id
+}
+
+/**
+ * What an unarmed row is told to carry: why the worker could not be armed, and that the message is
+ * still there.
+ *
+ * Diagnostic English on purpose, and ⛔ NOT a translated string: it is written to the row's
+ * `lastError`, which is printed only for a FAILED row (`outboxStateShowsReason`) — and a row this
+ * text lands on is QUEUED or HELD, so the screen keeps saying "waiting", which is true. It is read
+ * back off the database in debugging; the copy that reaches a bug report is the logcat line the
+ * call site writes beside it.
+ *
+ * ⛔ It says the row STAYS, and deliberately does not promise when it leaves. The startup re-arm it
+ * relies on (`SternaApplication`) walks the unfinished rows in an unguarded loop, so a scheduler
+ * still broken at the next start stops that walk on its first row. Promising "it will be sent at
+ * the next app start" would be writing a guarantee the layer above does not give.
+ *
+ * A null or blank message falls back to the exception's class name: "could not be armed:" followed
+ * by nothing names no candidate at all, and half of these will be `NullPointerException` and
+ * `IllegalStateException` from a WorkManager that was never initialised.
+ */
+internal fun unarmedNote(t: Throwable): String {
+    val reason = t.message?.takeIf { it.isNotBlank() }
+        ?: t.javaClass.simpleName.takeIf { it.isNotBlank() }
+        ?: t.javaClass.name
+    return "Queued, but delivery could not be armed: $reason. The message stays in the Outbox."
+}
+
+/**
  * What queueing a send does with a pre-built entity, and what it keeps in the row.
  *
  * @property entityFile the entity to write beside the row, or null when there is none to write.
@@ -7215,8 +7276,25 @@ class MailRepository(
                 outboxDao.byId(id)?.let { outboxDao.update(it.copy(attachmentsJson = OutboxAttachments.encode(durable))) }
             }
         }
-        outboxScheduler?.schedule(id, holdMs)
-        return id
+        // The row is durable and its payload is staged, so the send IS queued — and arming is not
+        // queueing. If the scheduler throws, the item still leaves: unfinishedOutbox re-arms every
+        // unfinished row at the next app start (SternaApplication). Relaying the throw would tell
+        // the caller nothing was queued about a message sitting in the Outbox, and the caller acts
+        // on that: a quick reply hands its text back and keeps the notification (quickReplyAct,
+        // queued = false), the person sends again, the recipient gets it twice. So the failure is
+        // recorded ON the row — lastError only, never its state: updateOutboxState would turn a
+        // HELD row (scheduled send, undo window) into a QUEUED one that leaves at once, and
+        // lastError is printed only for a FAILED row (outboxStateShowsReason), so this one keeps
+        // saying "waiting" while the reason stays readable. The row is where the reason SURVIVES;
+        // logcat is where it is reachable at all, since no screen and no export ever shows a
+        // QUEUED row's lastError.
+        // ⛔ And the row is not touched otherwise: a destroy added into this lambda would take the
+        // message away while telling the caller it is queued — the typed text of a quick reply
+        // lives nowhere else, so it would be lost outright. ArmingWiringTest pins this tail whole.
+        return armOrNote(id, holdMs, outboxScheduler) { note ->
+            android.util.Log.w("MailRepository", "outbox $id: $note")
+            outboxDao.byId(id)?.let { outboxDao.update(it.copy(lastError = note)) }
+        }
     }
 
     /** Copy IMAP attachment bytes into a persistent per-item dir; keep JMAP blob ids as-is. */
