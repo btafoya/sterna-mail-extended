@@ -20,6 +20,7 @@ import app.sterna.core.data.mail.OAuthProvider
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.pgp.PgpProviders
 import app.sterna.push.NewMailNotifier
+import app.sterna.push.Notifications
 import app.sterna.push.PushController
 import app.sterna.ui.connect.oauthFailureMessage
 import app.sterna.widget.RecentMailWidgetDraw
@@ -532,6 +533,14 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         // pages it is meant to collect — which is exactly how #121's ghosts came back.
         val removed = store.removeCascading(id).ifEmpty { toRemove }
         removed.forEach { NewMailNotifier.clear(app, it) }
+        // …and the banners themselves, which the line above does NOT touch: it only forgets the
+        // baselines kept in SharedPreferences. Nothing else would ever take them down — an account
+        // with no credentials enters no background pass (`allCredentials()` drops it) and its
+        // banner no longer falls under Delete / Mark as read, since there is nobody left to act
+        // for. ⛔ Strictly `removed`, never every account: the other accounts lost nothing and
+        // their unread mail must stay on the shade. ⛔ And not from inside NewMailNotifier.clear,
+        // whose other callers re-seed the baselines of accounts that are perfectly alive.
+        removed.forEach { Notifications.cancelAccount(app, it) }
         refresh()
         mail.resetSyncState()
         viewModelScope.launch {

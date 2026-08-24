@@ -443,6 +443,41 @@ object Notifications {
             .toSet()
     }
 
+    /**
+     * Among [active] — one `(notification id, group key)` pair per live notification — the ids
+     * that belong to [accountId]'s group: its per-message children AND its group summary.
+     *
+     * Pure, so the "whose banner is this?" question is executed by a test rather than read.
+     *
+     * ⭐ It matches on the GROUP and not on ids, deliberately: both the child ([notifyNewMail])
+     * and the summary ([notifyGroupSummary]) are posted with `.setGroup(GROUP_PREFIX + accountId)`
+     * and are the only two notifications in the app that carry a group at all — `notifySendFailed`
+     * carries none. So one filter takes the whole group, it also catches a child posted under an
+     * id shape a previous version used, and it spares this file a fourth copy of the summary id.
+     *
+     * ⛔ And it does NOT skip the summary the way [activeChildIds] does: a sign-out that left the
+     * summary standing would leave "3 new messages — Alex" on the shade for an account that no
+     * longer exists, over the lines of messages whose own banners just went.
+     */
+    fun accountGroupIds(active: List<Pair<Int, String?>>, accountId: String): List<Int> {
+        val group = GROUP_PREFIX + accountId
+        return active.filter { (_, notificationGroup) -> notificationGroup == group }.map { it.first }
+    }
+
+    /**
+     * Take down every banner of [accountId] — children and group summary alike.
+     *
+     * For a sign-out and for nothing else: this account is about to have no credentials, so no
+     * background pass will ever look at it again (`AccountStore.allCredentials()` drops it), and
+     * `NewMailNotifier.clear` only forgets its baselines. Whatever is left on the shade at that
+     * moment would stay there for ever.
+     */
+    fun cancelAccount(context: Context, accountId: String) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val active = manager.activeNotifications.map { it.id to it.notification.group }
+        accountGroupIds(active, accountId).forEach { manager.cancel(it) }
+    }
+
     /** Cancel the per-message notification for [emailId] without touching the group summary. */
     fun cancelChild(context: Context, accountId: String, emailId: String) {
         val manager = context.getSystemService(NotificationManager::class.java)

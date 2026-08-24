@@ -75,6 +75,39 @@ class QuickReplyWiringTest {
     }
 
     /**
+     * The end where there is nobody to act for. A signed-out account has no credentials, so none of
+     * the actions above runs — and nothing picks the work up later either: NewMailNotifier only ever
+     * sees accounts AccountStore.allCredentials() can hand credentials for. So the dismissal has to
+     * live INSIDE that block; outside it, the banner falls on a Delete and a Mark as read that did
+     * nothing whatever, which is a receipt for work nobody performed.
+     *
+     * ⚠ This one is read as STRUCTURE, not as text: the fix moves no character of the dismissal
+     * line, it moves the line into another block. [codeLinesNaming] trims every line and is blind to
+     * both indentation and nesting, so a pin written with it alone stays green either way.
+     */
+    @Test fun `with no credentials nothing runs, so nothing may claim it did`() {
+        val block = blockAfter(bodyOf(RECEIVER, "onReceive"), "if (credentials != null)")
+        assertEquals(
+            "the dismissal must be INSIDE the credentials block, whole. Outside it, a signed-out " +
+                "account gets a Delete and a Mark as read that reach no server, take the banner " +
+                "down anyway, and leave nothing behind that would do the work: the user is told " +
+                "the message was deleted and it never was",
+            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)"),
+            codeLinesNaming(block, "dismiss("),
+        )
+        assertEquals(
+            "…and it is the block that holds the two server actions, not some other `if` that " +
+                "happens to match: an extraction that grabbed the wrong braces would pass the pin " +
+                "above while the dismissal sat outside all the same",
+            listOf(
+                "ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)",
+                "ACTION_DELETE -> mayDismiss = deleteFromBanner(",
+            ),
+            codeLinesNaming(block, "ACTION_"),
+        )
+    }
+
+    /**
      * The banner's Delete, whose whole job is to ask — locally — the question the screen asks over
      * the network. `deleteWouldDestroy` resolves the Trash with an IMAP LIST or a JMAP connect();
      * this receiver runs under goAsync's ~10 s and cannot pay for that, so a network probe here is
@@ -425,6 +458,34 @@ class QuickReplyWiringTest {
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
+
+    /**
+     * The braced block opened right after [header] in [body] — braces included.
+     *
+     * Same brace matching as [bodyOf], on a statement rather than on a function: what this file
+     * needs to hold here is which block a line SITS IN, and every other helper here works on
+     * trimmed lines and cannot see nesting at all.
+     */
+    private fun blockAfter(body: String, header: String): String {
+        val start = body.indexOf(header)
+        require(start >= 0) {
+            "no `$header` left in this function — removed, or WIDENED into something else? The " +
+                "closing paren is part of the needle on purpose: `if (credentials != null && …)` " +
+                "is a different guard and must not pass as this one"
+        }
+        val open = body.indexOf('{', start + header.length)
+        require(open >= 0) { "`$header` opens no block" }
+        var depth = 0
+        var i = open
+        while (i < body.length) {
+            when (body[i]) {
+                '{' -> depth++
+                '}' -> if (--depth == 0) return body.substring(open, i + 1)
+            }
+            i++
+        }
+        error("Unbalanced braces after `$header`")
+    }
 
     /** The block body of `fun [name]` in [file] — braces included. */
     private fun bodyOf(file: File, name: String): String {

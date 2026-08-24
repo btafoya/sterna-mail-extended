@@ -33,16 +33,28 @@ import kotlinx.coroutines.withTimeoutOrNull
  * It never destroys either way — what it performs is a move to Trash, and permanent deletion lives
  * in the list behind its cancelable Undo window (Codeberg #23).
  *
- * ⚠ That refusal owns the BUTTON, not the banner's lifetime. Nothing on this path takes the banner
- * down — but a background pass will, on its own: once a sync reports the message gone from the
- * watched folder and the server confirms where it went, NewMailNotifier takes the banner down
- * (Codeberg #134). For a message the user had already deleted in the app, that lands within a
- * minute of this refusal, and on a woken process within seconds of it — near enough to read as if
- * the button had done it. Measured on the bench, 2026-08-18. That pass is not this file's to fix.
+ * ⚠ That refusal owns the BUTTON, not the banner's lifetime, and only ON A LIVE ACCOUNT does
+ * something else own the rest: nothing on this path takes the banner down, but a background pass
+ * will, on its own — once a sync reports the message gone from the watched folder and the server
+ * confirms where it went, NewMailNotifier takes the banner down (Codeberg #134). For a message the
+ * user had already deleted in the app, that lands within a minute of this refusal, and on a woken
+ * process within seconds of it — near enough to read as if the button had done it. Measured on the
+ * bench, 2026-08-18. That pass is not this file's to fix. It reaches signed-out accounts not at
+ * all: notifyDiff needs credentials, and AccountStore.allCredentials() drops every account that has
+ * none, so no later pass will finish what a button here declined to do.
  *
- * ⚠ One end contradicts that and is left as it was: a signed-out account has no credentials, so
- * NONE of the three actions runs and the banner is taken down all the same. Same function, other
- * cause, and it is written down where it belongs rather than half-fixed here.
+ * Hence the shape below: the dismissal sits INSIDE the credentials block. Without credentials no
+ * server action runs, so the banner stays — the same statement as Delete's refusal, that nothing
+ * was done. Clearing those banners is the job of whatever removed the account, not of a button
+ * that has nothing left to act with: AccountsViewModel.signOut cancels them as it tears the
+ * account down.
+ *
+ * ⚠ Signing out is the only way in that does. An account can lose its credentials without ever
+ * passing through it — a linked sub-account pruned on reconcile (Codeberg #31), a secret that no
+ * longer decrypts — and its banners then stand until the user swipes them away, since nothing
+ * here takes them down and no background pass revisits the account. Accepted: leaving a banner
+ * that lies about what it did would be worse, and the fix belongs where the account is lost, not
+ * here.
  *
  * Reply is like neither. The typed text lives in the broadcast intent and nowhere else, so on that
  * path the notification comes down only once the Outbox has accepted the text, and every other end
@@ -83,8 +95,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
                             container.mailRepository, credentials, accountId, emailId,
                         )
                     }
+                    if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)
                 }
-                if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)
             } catch (_: Throwable) {
                 // Best-effort; leave the notification so the user can retry from the app.
             } finally {
