@@ -180,16 +180,37 @@ object Notifications {
     private fun actionRequestCode(accountId: String, emailId: String, action: String): Int =
         "$accountId $emailId $action".hashCode()
 
-    fun ensureChannels(context: Context) {
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(
+    /**
+     * The new-mail channel, and ONLY it — every function that posts a banner calls this first,
+     * because nothing else guarantees the channel exists: on an install whose push was never
+     * armed in direct mode [PushService] never starts, and Android drops each banner in silence.
+     *
+     * ⛔ It must not create [CHANNEL_SERVICE] as well. That channel says "Keeps a live connection
+     * to your mail server for instant mail", and on exactly the installs this repairs there is no
+     * such connection — showing it in the system settings would be a lie the user can read.
+     *
+     * Creating a channel that already exists is a no-op for everything the user has retuned:
+     * `createNotificationChannel` lowers an existing importance only when the user has not
+     * altered the channel, and ignores every other field. Silence, a lowered importance and a
+     * channel switched off all survive being re-ensured on every banner.
+     */
+    fun ensureMailChannel(context: Context) {
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(
                 CHANNEL_MAIL,
                 context.getString(R.string.notif_channel_mail),
                 NotificationManager.IMPORTANCE_HIGH,
             ),
         )
-        manager.createNotificationChannel(
+    }
+
+    /**
+     * Both channels — the mail one and the foreground-service one. ⛔ Called by [PushService] and
+     * by nothing else: the service channel belongs to a service that is actually running.
+     */
+    fun ensureChannels(context: Context) {
+        ensureMailChannel(context)
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(
                 CHANNEL_SERVICE,
                 context.getString(R.string.notif_channel_sync),
@@ -221,7 +242,7 @@ object Notifications {
      * loss of text is not a fix.
      */
     fun notifySendFailed(context: Context, subject: String, content: NotificationContent, body: String = "") {
-        ensureChannels(context)
+        ensureMailChannel(context)
         // Keyed on the body as well, or a second salvaged text would land on the first one's id
         // and replace it — losing exactly what this is here to save. Unchanged, to the character,
         // when there is no body: the send-failure notifications keep their old identity.
@@ -304,6 +325,7 @@ object Notifications {
         content: NotificationContent,
         summarised: Boolean,
     ) {
+        ensureMailChannel(context)
         val generic = context.getString(R.string.notif_new_message)
         // Kept apart from the stand-ins below: whether the mail names ITSELF is what decides the
         // action buttons, and "New message" / "(no subject)" name nothing (Codeberg #57).
@@ -513,6 +535,7 @@ object Notifications {
         lines: List<String>,
         silent: Boolean = false,
     ) {
+        ensureMailChannel(context)
         val title = context.getString(R.string.notif_group_count, count, accountLabel)
         val style = NotificationCompat.InboxStyle().setBigContentTitle(title)
         lines.take(6).forEach { style.addLine(it) }
