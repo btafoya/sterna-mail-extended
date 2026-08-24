@@ -61,10 +61,16 @@ class DraftNumberingFreezeWiringTest {
             listOf(
                 "editingDraftId = d.draftEmailId",
                 "editingDraftUidValidity = d.draftUidValidity",
+                "editingDraftAccountId = d.fromAccountId",
                 FREEZE,
+                FREEZE_ACCOUNT,
                 REMEMBER_ID,
             ),
-            prepare.filter { it.startsWith("editingDraftId =") || it.startsWith("editingDraftUidValidity =") },
+            prepare.filter {
+                it.startsWith("editingDraftId =") ||
+                    it.startsWith("editingDraftUidValidity =") ||
+                    it.startsWith("editingDraftAccountId =")
+            },
         )
         assertTrue(
             "…and in the reopen branch the freeze must come BEFORE the id is armed: the id read " +
@@ -72,7 +78,74 @@ class DraftNumberingFreezeWiringTest {
                 "safest one. Body was:\n" + prepare.joinToString("\n"),
             freeze < id,
         )
+        // ⛔ And the ACCOUNT those two belong to is frozen in the same breath, for the same reason.
+        // The "From" picker below covers EVERY account and resets nothing: read at save time
+        // instead, the account is whatever identity is on show, and the expunge of the id and the
+        // numbering frozen here leaves for a server that never issued them — JMAP spares the id
+        // (the emptied draft comes back on the next sync), IMAP compares two NUMBERS and an equal
+        // UIDVALIDITY expunges in the OTHER account's Drafts. Placed after the attachment carry it
+        // is no longer "the same breath": the freeze pair would straddle a download of unbounded
+        // length, on the one path where the account can still change under it.
+        val carry = prepare.indexOfFirst { "carryDraftAttachments(" in it }
+        val account = prepare.indexOf(FREEZE_ACCOUNT)
+        assertTrue(
+            "prepare() must still carry the reopened draft's attachments, and must still freeze " +
+                "the account as '$FREEZE_ACCOUNT' — read off the credentials that have just read " +
+                "the draft, so the two can never disagree. Body was:\n" + prepare.joinToString("\n"),
+            carry >= 0 && account >= 0,
+        )
+        assertTrue(
+            "…and the account freeze belongs WITH the numbering — after it, and before both the " +
+                "attachment carry and the id. Body was:\n" + prepare.joinToString("\n"),
+            freeze < account && account < carry && carry < id,
+        )
     }
+
+    /**
+     * The account is frozen exactly twice — the restore, and the reopen — and never looked up
+     * again on the way out.
+     *
+     * ⛔ The defect it closes: the empty-save expunged under `credentials()`, i.e. the account of
+     * the identity the "From" picker was showing, over an id and a numbering frozen at the open.
+     * Any THIRD write here is that re-read wearing the frozen field's name — `editingDraftAccountId
+     * = _selectedFrom.value?.accountId` slipped in beside the picker, and every rule in this suite
+     * stays green while the destroy goes back to the wrong server.
+     */
+    @Test fun `the account is frozen where the numbering is, and written nowhere else`() {
+        val lines = codeLines(source())
+        assertEquals(
+            "exactly two writes: the restore of a message coming back from the queue, and the " +
+                "freeze taken when a saved draft is opened. \u26d4 A qualified receiver counts as " +
+                "a write, which is why this looks for the assignment and not for the start of the " +
+                "line: `this.editingDraftAccountId = option.accountId` written into selectFrom " +
+                "sails past a startsWith, and it is the reported defect itself — the picker " +
+                "re-freezing the account it was never allowed to touch. Lines were:\n" +
+                lines.filter { "editingDraftAccountId" in it }.joinToString("\n"),
+            listOf("editingDraftAccountId = d.fromAccountId", FREEZE_ACCOUNT),
+            lines.filter { ASSIGNS_ACCOUNT.containsMatchIn(it) },
+        )
+        assertEquals(
+            "…and it is declared once, as a plain field of this class. Lines were:",
+            listOf("private var editingDraftAccountId: String? = null"),
+            lines.filter { it.startsWith("private var editingDraftAccountId") },
+        )
+        val at = lines.indexOf("private var editingDraftAccountId: String? = null")
+        assertTrue(
+            "⛔ …and it is a FIELD, not a computed one: `get() = _selectedFrom.value?.accountId ?: " +
+                "field` compiles, leaves every other rule in this file green, and restores the " +
+                "whole defect one layer beneath them — the expunge would again be addressed to " +
+                "whatever identity the \"From\" picker happens to be showing, while the two rules " +
+                "above go on pinning a freeze that no longer decides anything. The line after the " +
+                "declaration was: " + lines.getOrNull(at + 1),
+            lines.getOrNull(at + 1)?.let { !it.startsWith("get()") && !it.startsWith("set(") } == true,
+        )
+    }
+
+    /**
+     * An assignment to the frozen account, however it is written — bare, or through a qualified
+     * `this.`, which a `startsWith` never sees.
+     */
+    private val ASSIGNS_ACCOUNT = Regex("""^(this\.)?editingDraftAccountId\s*=[^=]""")
 
     @Test fun `it is never read again at save time`() {
         val everywhere = codeLines(source()).filter { "recordedUidValidityForDraft" in it }
@@ -97,6 +170,7 @@ class DraftNumberingFreezeWiringTest {
             listOf(
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
+                "val originalAccountId = editingDraftAccountId",
             ),
             save.filter { it.startsWith("val original") },
         )
@@ -110,13 +184,24 @@ class DraftNumberingFreezeWiringTest {
         assertEquals(
             "re-saving an opened draft destroys the server copy it replaces, so repo.saveDraft must " +
                 "carry the frozen numbering for it too, under its own named argument. Passing " +
-                "editingDraftId's numbering read afresh here is the defect this fix closes. " +
+                "editingDraftId's numbering read afresh here is the defect this fix closes. It now " +
+                "travels inside the pair the account guard is asked on (⛔ pinned right below, or " +
+                "this rule could be satisfied by a pair built from a fresh read). " +
                 "Body was:\n${save.joinToString("\n")}",
             listOf(
-                "replacesEmailId = editingDraftId,",
-                "replacesUidValidity = editingDraftUidValidity,",
+                "replacesEmailId = replaces.emailId,",
+                "replacesUidValidity = replaces.uidValidity,",
             ),
             save.filter { it.startsWith("replaces") },
+        )
+        assertEquals(
+            "…and that pair is built from the two FROZEN values, in one statement: the id read at " +
+                "the open and the numbering read beside it (#99). Rebuilt from " +
+                "`recordedUidValidityForDraft` here — or from any other read — this is the whole " +
+                "defect back, one layer beneath a rule that goes on pinning the argument names. " +
+                "Body was:\n${save.joinToString("\n")}",
+            listOf("val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)"),
+            save.filter { it.startsWith("val replaces") },
         )
     }
 
@@ -170,6 +255,7 @@ class DraftNumberingFreezeWiringTest {
         private const val REMEMBER_ID = "editingDraftId = draftId"
         private const val FREEZE =
             "editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)"
+        private const val FREEZE_ACCOUNT = "editingDraftAccountId = credentials.id"
 
         private const val COMPOSE_VIEW_MODEL_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"

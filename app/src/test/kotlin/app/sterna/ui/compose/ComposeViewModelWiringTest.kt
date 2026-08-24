@@ -201,6 +201,10 @@ class ComposeViewModelWiringTest {
                 "if (!hasDraftContent(to, cc, bcc, subject, body)) {",
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
+                // ⛔ …and the ACCOUNT both were read from, captured with them: the expunge below is
+                // addressed to it, never to `credentials()` — the account of the identity the
+                // "From" picker is showing, and that picker covers every account (#31 × #63).
+                "val originalAccountId = editingDraftAccountId",
                 // ⛔ The close that accompanies a deletion hands the phone's own row to NOBODY —
                 // abandon() would otherwise put it back PENDING and re-arm its upload, sending the
                 // pre-edit text of the draft just emptied up to the server (#95 × #69) — and it is
@@ -215,8 +219,11 @@ class ComposeViewModelWiringTest {
                 // the next network while the screen closed as a success. And the row is not taken
                 // away on its own either: while it exists it MASKS the server draft it replaces, so
                 // consuming it alone brings that draft back with its pre-edit text (#95 × #69).
+                // ⛔ And the credentials submit() resolved are NOT passed on: they are the account
+                // of the identity the "From" picker shows, which covers every account, while the
+                // row and the server draft it replaces belong to the account it was opened from.
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
-                "submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }",
+                "submit(to) { _, _ -> destroyReplacedServerDraft(original) }",
                 "} else {",
                 // ⛔ And the server route reads the SAME verdict the local one does: a draft this
                 // composer never read whole keeps its server copy and the screen says so
@@ -224,10 +231,19 @@ class ComposeViewModelWiringTest {
                 // inline image the instant it was saved — drawn empty, because draftHasContent
                 // counts neither inline images nor calendar parts. The notice sits INSIDE the
                 // lambda: submit() reaches Done after it returns.
-                "submit(to) { credentials, _ ->",
+                "submit(to) { _, _ ->",
                 "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
                 "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
                 "} else {",
+                // ⛔ …and the expunge is addressed to the account the draft was READ FROM, resolved
+                // here and nowhere else, with no fallback: `?: credentials` appended to this call
+                // is the defect restored, and it lengthens a line — which is why these are compared
+                // whole. The decision itself is executed in EmptiedServerDraftTest.
+                "val credentials = credentialsDestroyingEmptiedServerDraft(",
+                "openedUnderAccountId = originalAccountId,",
+                "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
+                "lookup = { store.credentials(it) },",
+                ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 "repo.discardDraft(credentials, original, originalUidValidity)",
                 "}",
                 "}",
@@ -236,11 +252,19 @@ class ComposeViewModelWiringTest {
                 "}",
                 "submit(to) { credentials, recipients ->",
                 "val identity = selectedIdentity()",
+                // ⛔ What the save REPLACES is one answer — the id frozen at the open with the
+                // numbering it belongs to — and it is withheld WHOLE when that pair was read under
+                // another account than the one being saved as (#31 × #63): the new copy is created
+                // on the account being written as while the original stays on the one it was opened
+                // from, and no transaction spans two servers. Split back into two reads here and
+                // the numbering of A rides beside an id destroyed under B.
+                "val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)",
+                ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
                 "val outcome = repo.saveDraft(",
                 "credentials, recipients, subject, body, parseAddrs(cc), parseAddrs(bcc),",
                 "inReplyTo = inReplyTo, references = references,",
-                "replacesEmailId = editingDraftId,",
-                "replacesUidValidity = editingDraftUidValidity,",
+                "replacesEmailId = replaces.emailId,",
+                "replacesUidValidity = replaces.uidValidity,",
                 "attachments = _attachments.value,",
                 "bodyIsLossy = editingDraftLossy,",
                 "fromName = identity?.name, fromEmail = identity?.email,",

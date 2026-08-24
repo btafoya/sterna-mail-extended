@@ -373,4 +373,82 @@ class EmptiedLocalDraftTest {
             done,
         )
     }
+
+    // -- whose account the destroy runs under ----------------------------------------------------
+
+    /**
+     * ⛔ The "From" picker covers every account and the local row belongs to exactly one. These four
+     * cases EXECUTE the choice; nothing here recomputes it — each hands two fixed account ids and a
+     * store that answers for whichever it is asked about, and pins WHAT came back and WHO was asked.
+     */
+    @Test fun `the destroy runs under the account the row was leased under, not the one written as`() {
+        val asked = mutableListOf<String>()
+        val credentials = credentialsDestroyingReplacedServerDraft(
+            leasedUnderAccountId = "acc-A",
+            composingAsAccountId = "acc-B",
+            lookup = { id -> asked += id; "creds-of-$id" },
+        )
+        assertEquals(
+            "⛔ the server draft's id and the numbering it was frozen under were read off account " +
+                "A's draft: destroyed under B they name a message B's server never issued. The " +
+                "row is consumed under A regardless, so the mask lifts and the pre-edit text is " +
+                "back at the top of A's Drafts for good. Credentials returned were:",
+            "creds-of-acc-A",
+            credentials,
+        )
+        assertEquals(
+            "…and the store is asked about that account and no other: an extra look-up here is a " +
+                "fallback waiting to be written. Accounts asked about were:",
+            listOf("acc-A"),
+            asked,
+        )
+    }
+
+    @Test fun `an account removed during the edit destroys nothing, and never falls back on the writer`() {
+        val asked = mutableListOf<String>()
+        val credentials = credentialsDestroyingReplacedServerDraft(
+            leasedUnderAccountId = "acc-A",
+            composingAsAccountId = "acc-B",
+            lookup = { id -> asked += id; if (id == "acc-A") null else "creds-of-$id" },
+        )
+        assertNull(
+            "⛔ the account that held the draft is gone, and B's credentials are RIGHT THERE — " +
+                "that is exactly the fallback that destroys under the wrong account. Refusing " +
+                "destroys nothing: the caller draws its failure banner and the draft is still a " +
+                "draft. Credentials returned were:",
+            credentials,
+        )
+        assertEquals(
+            "…and B was never even looked up. Accounts asked about were:",
+            listOf("acc-A"),
+            asked,
+        )
+    }
+
+    @Test fun `no row held is nothing to destroy, whoever the composer is writing as`() {
+        val asked = mutableListOf<String>()
+        assertNull(
+            "no local row is held, so there is no replaced server draft this gesture may touch. " +
+                "Credentials returned were:",
+            credentialsDestroyingReplacedServerDraft(
+                leasedUnderAccountId = null,
+                composingAsAccountId = "acc-B",
+                lookup = { id -> asked += id; "creds-of-$id" },
+            ),
+        )
+        assertEquals("…and nothing was looked up at all. Accounts asked about were:", emptyList<String>(), asked)
+    }
+
+    @Test fun `writing as the account that holds the row is the ordinary case, and still destroys`() {
+        assertEquals(
+            "the rule must not refuse the case that is 99% of the traffic — one account, its own " +
+                "draft. Credentials returned were:",
+            "creds-of-acc-A",
+            credentialsDestroyingReplacedServerDraft(
+                leasedUnderAccountId = "acc-A",
+                composingAsAccountId = "acc-A",
+                lookup = { "creds-of-$it" },
+            ),
+        )
+    }
 }

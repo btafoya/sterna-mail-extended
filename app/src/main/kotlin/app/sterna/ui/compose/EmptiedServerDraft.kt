@@ -44,3 +44,42 @@ package app.sterna.ui.compose
  * anything" would leave an empty shell at the top of Drafts after every hand-emptied save.
  */
 fun emptiedServerDraftIsKept(bodyIsLossy: Boolean): Boolean = bodyIsLossy
+
+/**
+ * Whose credentials expunge the SERVER draft this composer opened, once it has been emptied and
+ * saved: the account it was READ FROM ([openedUnderAccountId]), or null when there is nobody to act
+ * for.
+ *
+ * ⛔ **Never [composingAsAccountId].** The "From" picker offers the identities of EVERY account and
+ * switching it resets nothing about the draft: its id, and the numbering that id was frozen under,
+ * were both read off the account the composer was opened on. Handed the writing account's
+ * credentials — as this route was — the expunge left for another server, and the screen closed as a
+ * success either way: on JMAP `destroyAll` spares an id that server never issued, so the emptied
+ * draft stays in the first account's Drafts and comes back on the next sync; on IMAP an id is a
+ * NUMBER in a folder and the guard compares numbers, so two accounts whose Drafts share a
+ * UIDVALIDITY let the expunge through in the WRONG mailbox — and even when the numbering differs
+ * and the refusal falls, the look-up has already invalidated the other account's cached Drafts
+ * bodies (`MailRepository`, `uidValidity.invalidate`), silently.
+ *
+ * ⭐ [composingAsAccountId] is a parameter so that the refusal is EXECUTED and not merely read out
+ * of the source by a lint: a rule taking the frozen account alone could be re-broken at the call
+ * site with no test able to see it. It is never consulted, and that is the whole decision.
+ *
+ * ⛔ **It is deliberately NOT [credentialsDestroyingReplacedServerDraft]**, though the two answer
+ * the same shape. That one is asked of a LEASE — an account recorded when this phone took a local
+ * row, null whenever no row is held, which is the ordinary case. This one is asked of a FREEZE
+ * taken beside an id read off a server, and null here means the composer opened no server draft at
+ * all. Sharing one function would make each call site's argument name a lie about the other, and
+ * would cost both routes the rule that each resolves the account in exactly ONE place — the rule
+ * that keeps a second look-up (i.e. a fallback) from being written.
+ *
+ * Null is the safe end, and both roads to it destroy nothing: no server draft was opened, or the
+ * account it was opened from was removed from the phone during the edit. ⛔ There is NO fallback —
+ * the fallback is the defect. The caller turns the null into the failure banner it already draws,
+ * which leaves a draft that is still exactly a draft.
+ */
+fun <T : Any> credentialsDestroyingEmptiedServerDraft(
+    openedUnderAccountId: String?,
+    @Suppress("UNUSED_PARAMETER") composingAsAccountId: String?,
+    lookup: (String) -> T?,
+): T? = openedUnderAccountId?.let(lookup)

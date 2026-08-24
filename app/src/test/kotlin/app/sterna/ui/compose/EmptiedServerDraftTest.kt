@@ -1,6 +1,8 @@
 package app.sterna.ui.compose
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -48,6 +50,89 @@ class EmptiedServerDraftTest {
                 "verdict. A constant here is a fix that either destroys everything (the defect) or " +
                 "destroys nothing (#69, reopened)",
             emptiedServerDraftIsKept(bodyIsLossy = true) && !emptiedServerDraftIsKept(bodyIsLossy = false),
+        )
+    }
+
+    // -- whose account the expunge is addressed to -----------------------------------------------
+
+    /**
+     * ⛔ The draft is emptied under whatever identity the "From" picker is showing, and that picker
+     * covers EVERY account. These four cases EXECUTE the choice; nothing here recomputes it — each
+     * hands two fixed account ids and a store that answers for whichever it is asked about, and pins
+     * WHAT came back and WHO was asked, because a look-up that never happens is the whole fix.
+     */
+    @Test fun `the expunge is addressed to the account the draft was read from, not the one written as`() {
+        val asked = mutableListOf<String>()
+        val credentials = credentialsDestroyingEmptiedServerDraft(
+            openedUnderAccountId = "acc-A",
+            composingAsAccountId = "acc-B",
+            lookup = { id -> asked += id; "creds-of-$id" },
+        )
+        assertEquals(
+            "⛔ the draft's id and the numbering it was frozen under were read off account A. Sent " +
+                "to B they name a message B's server never issued: JMAP spares it (the emptied " +
+                "draft stays in A's Drafts and returns on the next sync) and IMAP compares two " +
+                "NUMBERS, so an equal UIDVALIDITY expunges in B's Drafts instead. The screen closes " +
+                "as a success either way. Credentials returned were:",
+            "creds-of-acc-A",
+            credentials,
+        )
+        assertEquals(
+            "…and the store is asked about that account and no other: a second look-up here is a " +
+                "fallback waiting to be written, and it is the fallback that destroys under the " +
+                "wrong account. Accounts asked about were:",
+            listOf("acc-A"),
+            asked,
+        )
+    }
+
+    @Test fun `an account removed during the edit expunges nothing, and never falls back on the writer`() {
+        val asked = mutableListOf<String>()
+        val credentials = credentialsDestroyingEmptiedServerDraft(
+            openedUnderAccountId = "acc-A",
+            composingAsAccountId = "acc-B",
+            lookup = { id -> asked += id; if (id == "acc-A") null else "creds-of-$id" },
+        )
+        assertNull(
+            "⛔ the account that held the draft is gone and B's credentials are RIGHT THERE — that " +
+                "is exactly the fallback the fix removes. Refusing destroys nothing: the caller " +
+                "throws, submit() draws its banner, and the draft is still a draft. Credentials " +
+                "returned were:",
+            credentials,
+        )
+        assertEquals(
+            "…and B was never even looked up. Accounts asked about were:",
+            listOf("acc-A"),
+            asked,
+        )
+    }
+
+    @Test fun `no draft opened is nothing to expunge, whoever the composer is writing as`() {
+        val asked = mutableListOf<String>()
+        assertNull(
+            "no server draft was opened, so this gesture has nothing on any server to touch — and " +
+                "an account taken from the picker would be a destroy addressed at a guess. " +
+                "Credentials returned were:",
+            credentialsDestroyingEmptiedServerDraft(
+                openedUnderAccountId = null,
+                composingAsAccountId = "acc-B",
+                lookup = { id -> asked += id; "creds-of-$id" },
+            ),
+        )
+        assertEquals("…and nothing was looked up at all. Accounts asked about were:", emptyList<String>(), asked)
+    }
+
+    @Test fun `writing as the account the draft came from is the ordinary case, and still expunges`() {
+        assertEquals(
+            "the rule must not refuse the case that is 99% of the traffic — one account, its own " +
+                "draft, emptied and saved. Answering null there leaves an empty shell at the top " +
+                "of Drafts after every hand-emptied save (#69). Credentials returned were:",
+            "creds-of-acc-A",
+            credentialsDestroyingEmptiedServerDraft(
+                openedUnderAccountId = "acc-A",
+                composingAsAccountId = "acc-A",
+                lookup = { "creds-of-$it" },
+            ),
         )
     }
 }

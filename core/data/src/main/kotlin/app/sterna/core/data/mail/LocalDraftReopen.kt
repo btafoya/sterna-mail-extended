@@ -422,6 +422,79 @@ fun SendDraftTarget.unlessBodyIsLossy(bodyIsLossy: Boolean): SendDraftTarget =
     if (bodyIsLossy) SendDraftTarget(null, null) else this
 
 /**
+ * The same pair, withheld WHOLE when the draft was read under ONE account and the message is being
+ * written under ANOTHER — a REFUSAL, and the only one on this branch (#31 × #63).
+ *
+ * Everywhere else an account mismatch was a destroy sent to the wrong server, and the fix was to
+ * re-address it to the right one ([SendDraftTarget] carries the numbering for exactly that reason).
+ * Here it cannot be: the "From" picker offers the identities of EVERY account, so a draft opened in
+ * A and sent — or re-saved, or scheduled — as B puts the NEW copy on B while the original lives on
+ * A. Destroying the original would need one transaction spanning two servers, and there is none. So
+ * the id is not carried at all: nothing is destroyed, the original stays in A's Drafts where the
+ * user can see it and delete it by hand, and the duplicate is the price.
+ *
+ * ⭐ **Not a change of behaviour — a change of REASON.** Uncarried is already what happens, by
+ * accident: on IMAP `draftAddressingIsCarried` reads the draft under B, finds nothing, and refuses;
+ * on JMAP `destroyAll` spares an id the server never issued. Both accidents hold only as long as
+ * the id names nothing in B — and an id IS a number in a folder on IMAP, where two accounts on one
+ * server can share a UIDVALIDITY. This states it instead, once, where the row is written.
+ *
+ * ⛔ **A null [draftAccountId] does NOT refuse.** It means "no server draft is open behind this
+ * composer" — a brand-new message, a reply, a local row that replaces nothing — which is the
+ * ordinary route, and the pair it is applied to is `(null, null)` there anyway. Refusing on it
+ * would be free of consequence today and a trap the day it is not.
+ *
+ * ⛔ A null [writingAccountId] DOES refuse: the two cannot be shown to be the same account, and an
+ * unproven sameness is exactly what this exists to stop.
+ *
+ * ⛔ Not a `Boolean` parameter and not a `Boolean` result: [SendDraftTarget] exists because the id
+ * and its numbering are meaningful only together, and a caller handed a "may destroy" flag can
+ * still write the id on the row and leave the numbering behind — half a pair, which is the shape
+ * every defect on this path has taken.
+ */
+fun SendDraftTarget.unlessDraftBelongsElsewhere(
+    draftAccountId: String?,
+    writingAccountId: String?,
+): SendDraftTarget =
+    if (draftAccountId != null && draftAccountId != writingAccountId) SendDraftTarget(null, null)
+    else this
+
+/**
+ * Which account the draft a composer carries was read under — the account [unlessDraftBelongsElsewhere]
+ * opposes to the one being written as.
+ *
+ * ⭐ **One function for the three sites, because it answers the same question [sendDraftTarget]
+ * does, with the same discriminator.** A composer holds its draft id in one of two shapes, and the
+ * account lives in a different field for each:
+ *  - a SERVER id ([sendDraftEmailId] answers it) — reopened from Drafts, or restored from an undone
+ *    send. The account is [serverDraftAccountId] (`editingDraftAccountId`), frozen beside the id
+ *    and its numbering at the open;
+ *  - a `local-draft:` id — reopened from a row of this phone's own store. That route arms no server
+ *    account at all, deliberately: what answers is the account the ROW was LEASED under
+ *    ([localRowAccountId], `editingLocalDraftAccountId`), which is also the account of the server
+ *    draft the row stands in for (`replacesEmailId` is written by `localDraftTarget`, scoped to
+ *    that same account), i.e. of the pair [sendDraftTarget] takes off the row.
+ *
+ * ⛔ **Not `serverDraftAccountId ?: localRowAccountId`.** The two are mutually exclusive today —
+ * one composer takes one route — and a `?:` would be right by that coincidence alone, silently, the
+ * day a route arms both. The discriminator is the id itself, which is what the pair is taken from.
+ *
+ * ⚠ Null means "unknown", not "same", and [unlessDraftBelongsElsewhere] lets the pair through on
+ * it — deliberately, see its ⛔ on a null draft account. The hole that leaves is the record an
+ * undone send keeps: it files the account the "From" picker was SHOWING, while the guard opposed the
+ * account the message actually went out under, and those two part company when the shown account has
+ * no credentials to resolve. Narrow — it wants an account listed but unusable, an undone send, and
+ * that account gaining its tokens afterwards — and stated rather than closed, because closing it
+ * means moving what an undone send restores its identity from.
+ */
+fun carriedDraftAccountId(
+    editingDraftId: String?,
+    serverDraftAccountId: String?,
+    localRowAccountId: String?,
+): String? =
+    if (sendDraftEmailId(editingDraftId) != null) serverDraftAccountId else localRowAccountId
+
+/**
  * What leaving the composer without committing the message anywhere gives back, in values — the
  * queued outbox row (#70) and the phone's own draft row (#95), decided together and independently.
  */

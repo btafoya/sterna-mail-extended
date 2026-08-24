@@ -478,21 +478,30 @@ class LocalDraftReopenWiringTest {
             listOf(
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
+                "val originalAccountId = editingDraftAccountId",
                 "abandon(emptying = true)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
-                "submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }",
+                "submit(to) { _, _ -> destroyReplacedServerDraft(original) }",
                 "} else {",
                 // ⛔ …and the SERVER route reads the same fidelity verdict this one does: a draft
                 // the composer never read whole keeps its server copy and the screen says so
                 // (emptiedServerDraftIsKept, EmptiedServerDraftTest). Unconditional, the expunge
                 // below took a draft made of one inline image on the first save — draftHasContent
                 // draws it EMPTY, since it counts neither inline images nor calendar parts.
-                "submit(to) { credentials, _ ->",
+                "submit(to) { _, _ ->",
                 "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
                 "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
                 "} else {",
+                // ⛔ …and, exactly as on the LOCAL branch above, the credentials submit() resolved
+                // are NOT what the expunge goes out under: they belong to the identity on show.
+                // The account is the one frozen when the draft was read (#31 × #63).
+                "val credentials = credentialsDestroyingEmptiedServerDraft(",
+                "openedUnderAccountId = originalAccountId,",
+                "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
+                "lookup = { store.credentials(it) },",
+                ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 "repo.discardDraft(credentials, original, originalUidValidity)",
                 "}",
                 "}",
@@ -526,9 +535,23 @@ class LocalDraftReopenWiringTest {
                 "when this phone never read it whole. A `false` written here destroys, for ever, " +
                 "attachments and markup the user was never shown;\n" +
                 "  · `tell` — the word that keeping it owes her (WYSIWYG). Dropped, the app " +
-                "silently does the opposite of what she asked.\n" +
+                "silently does the opposite of what she asked;\n" +
+                "  · ⛔ `credentialsDestroyingReplacedServerDraft(leasedUnderAccountId = " +
+                "editingLocalDraftAccountId, …)` — the account the ROW was leased under, and the " +
+                "one thing here that must NOT come from the caller. `credentials()` answers the " +
+                "\"From\" picker, which offers every account: with From switched to another " +
+                "account the folder, the destroy and the eviction all went to a server that never " +
+                "issued this id, failed in silence, and the row was consumed under its own account " +
+                "anyway — mask lifted, pre-edit text back at the top of Drafts for good. " +
+                "⛔ And NO fallback: `?: credentials()` appended to that call is the defect " +
+                "restored, which is why these lines are compared WHOLE.\n" +
                 "Body was:",
             listOf(
+                "val credentials = credentialsDestroyingReplacedServerDraft(",
+                "leasedUnderAccountId = editingLocalDraftAccountId,",
+                "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
+                "lookup = { store.credentials(it) },",
+                ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 "val serverDraft = replacedServerDraftId",
                 "val plan = planForEmptiedLocalDraft(",
                 "replacedServerDraftId = serverDraft,",
@@ -546,6 +569,23 @@ class LocalDraftReopenWiringTest {
                 ")",
             ),
             codeLines(bodyOf(COMPOSE_VIEW_MODEL, "destroyReplacedServerDraft")),
+        )
+        assertEquals(
+            "⛔ …and it takes NO credentials. Handed them, the ACCOUNT is decided by the caller, " +
+                "and both callers are the composer — whose `credentials()` is the account of the " +
+                "identity on show. The parameter is the defect; deleting it is the fix. " +
+                "Declarations found were:",
+            listOf("private suspend fun destroyReplacedServerDraft(localDraftId: String) {"),
+            codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
+                .filter { it.startsWith("private suspend fun destroyReplacedServerDraft") },
+        )
+        assertEquals(
+            "⛔ …and the account is resolved in exactly ONE place. A second call — a helper, an " +
+                "\"already resolved above\" shortcut — is a second answer to the same question, " +
+                "and the tests above all stay green. Lines were:",
+            listOf("val credentials = credentialsDestroyingReplacedServerDraft("),
+            codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
+                .filter { "credentialsDestroyingReplacedServerDraft(" in it },
         )
     }
 
@@ -583,16 +623,21 @@ class LocalDraftReopenWiringTest {
      */
     @Test fun `deleting a kept draft is the emptying gesture, reached by a button`() {
         assertEquals(
-            "⛔ the deletion, whole and in order. Body was:",
+            "⛔ the deletion, whole and in order. ⛔ It resolves NO account of its own: " +
+                "`credentials()` here is the account of the identity the \"From\" picker is " +
+                "showing, and the picker covers every account — handed over, the destroy of the " +
+                "server draft this row replaces left for a server that never issued its id while " +
+                "the row was consumed under its own account, which is the whole defect. The " +
+                "account is the one the ROW was leased under and it is resolved inside " +
+                "destroyReplacedServerDraft, which throws when that account has gone — caught " +
+                "here, banner drawn, lease given back, nothing destroyed. Body was:",
             listOf(
                 "val id = heldEditingLocalDraft() ?: return",
                 "_state.value = ComposeState.Sending",
                 "viewModelScope.launch {",
                 "var destroyed = false",
                 "try {",
-                "val credentials = credentials()",
-                "?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
-                "destroyReplacedServerDraft(credentials, id)",
+                "destroyReplacedServerDraft(id)",
                 "destroyed = true",
                 "_localDraftDeleted.tryEmit(Unit)",
                 "} catch (t: Throwable) {",
@@ -624,6 +669,27 @@ class LocalDraftReopenWiringTest {
             ),
             codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
                 .filter { it.startsWith("private val _editingLocalDraftId") || it.startsWith("val editingLocalDraftId") },
+        )
+        val lines = codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
+        assertEquals(
+            "\u26d4 \u2026and the ACCOUNT that lease belongs to is a PLAIN field, declared once. " +
+                "Everything this gesture does is scoped by it \u2014 the folder the destroy is " +
+                "opposed to, the destroy itself, the eviction, the consume and the release \u2014 " +
+                "so it is the one value that decides which server hears about this draft, and no " +
+                "JVM test can instantiate this class to watch it. Renaming or re-typing it here " +
+                "silently moves every one of those. Lines declaring it were:",
+            listOf("private var editingLocalDraftAccountId: String? = null"),
+            lines.filter { it.startsWith("private var editingLocalDraftAccountId") },
+        )
+        val at = lines.indexOf("private var editingLocalDraftAccountId: String? = null")
+        assertTrue(
+            "\u26d4 \u2026and it is a field, NOT a computed one: `get() = _selectedFrom.value" +
+                "?.accountId ?: field` compiles, leaves every other rule in this file green, and " +
+                "restores the whole defect one layer beneath them \u2014 worse than the original, " +
+                "because the row would then also be consumed and released under the account of " +
+                "whatever identity the \"From\" picker happens to be showing. The line after the " +
+                "declaration was: " + lines.getOrNull(at + 1),
+            lines.getOrNull(at + 1)?.let { !it.startsWith("get()") && !it.startsWith("set(") } == true,
         )
     }
 
@@ -695,6 +761,17 @@ class LocalDraftReopenWiringTest {
                 "found were:",
             listOf("editingDraftLossy = fields.bodyIsLossy"),
             body.filter { it.startsWith("editingDraftLossy") },
+        )
+        assertEquals(
+            "⛔ …and this route arms NEITHER the numbering NOR the account that pair carries on the " +
+                "server route. The id above is a `local-draft:` one: no server issued it, so a " +
+                "numbering beside it would license an expunge against an id that names nothing, " +
+                "and an account beside it would say WHICH server to send that expunge to. Both " +
+                "stay null, which is what makes the empty-save take the LOCAL branch and destroy " +
+                "the replaced server draft under the account the ROW was leased under " +
+                "(editingLocalDraftAccountId) instead. Assignments found were:",
+            emptyList<String>(),
+            body.filter { it.startsWith("editingDraftUidValidity") || it.startsWith("editingDraftAccountId") },
         )
         assertTrue(
             "the fields must come from the pure projection localDraftPrefill(row) — a prefill " +

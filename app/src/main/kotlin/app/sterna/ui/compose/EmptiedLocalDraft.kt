@@ -126,7 +126,8 @@ fun emptiedLocalDraftKeepsServerCopy(replacedServerDraftId: String?, bodyIsLossy
  * server's Drafts. The same defect `abandonPlan` was written to end, one gesture further along.
  *
  * ⭐ **The failure is atomic: nothing happened.** Everything that can throw sits IN FRONT of any
- * destruction (`credentials()`, `draftMailboxOf`, enqueuing `destroyDurably`) and
+ * destruction (resolving the account the row is leased under, `draftMailboxOf`, enqueuing
+ * `destroyDurably`) and
  * [destroyThenConsumeEmptiedLocalDraft] consumes only after a destroy that came back. So:
  *
  *  - [destroyed] false — the row is exactly what it was, the user has been told the deletion
@@ -201,3 +202,32 @@ suspend fun destroyThenConsumeEmptiedLocalDraft(
         consume(localDraftId)
     }
 }
+
+/**
+ * Whose credentials destroy the SERVER draft a reopened local row stands in front of: the account
+ * the ROW was leased under ([leasedUnderAccountId]), or null when there is nobody to act for.
+ *
+ * ⛔ **Never [composingAsAccountId].** The "From" picker offers the identities of EVERY account and
+ * switching it changes nothing about the row: the server id being destroyed and the numbering it
+ * was frozen under were both read off the draft of the account it was opened from. Handed the
+ * writing account's credentials instead, the destroy went to a server that never issued that id and
+ * failed in silence — while the local row was consumed correctly under its own account all the
+ * same, so the mask it held over the server copy lifted and the text from BEFORE the edit came back
+ * at the top of Drafts, for good. It is the other half of the reason the lease itself is scoped
+ * (#31): ids collide between two accounts of one server, so the wrong account does not even reliably
+ * fail — it can destroy the neighbour's message.
+ *
+ * ⭐ [composingAsAccountId] is a parameter so that the refusal is EXECUTED, not merely read out of
+ * the source by a lint: a rule taking the lease alone could be re-broken at the call site with no
+ * test able to see it. It is never consulted, and that is the whole decision.
+ *
+ * Null is the safe end, and both roads to it destroy nothing: no row is held at all, or the account
+ * that held it was removed from the phone during the edit. ⛔ There is NO fallback — the fallback is
+ * the defect. The caller turns the null into the failure banner it already draws, which leaves a
+ * draft that is still exactly a draft.
+ */
+fun <T : Any> credentialsDestroyingReplacedServerDraft(
+    leasedUnderAccountId: String?,
+    @Suppress("UNUSED_PARAMETER") composingAsAccountId: String?,
+    lookup: (String) -> T?,
+): T? = leasedUnderAccountId?.let(lookup)

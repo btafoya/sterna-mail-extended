@@ -160,6 +160,167 @@ class SendDraftTargetTest {
         )
     }
 
+    // -- the account guard, applied to the PAIR --------------------------------------------------
+
+    @Test fun `a draft read under another account is not carried into the one being written as`() {
+        // ⛔ The refusal, and the only one on this path. A new copy is about to be created on B
+        // while the original lives on A: carrying the id would have B's delivery worker destroy a
+        // name it never issued — on JMAP spared in silence, on IMAP a bare NUMBER in B's own
+        // Drafts, which two accounts of one server can hold under the same UIDVALIDITY.
+        assertEquals(
+            SendDraftTarget(null, null),
+            SendDraftTarget("imap:accA:Drafts:41", 900L)
+                .unlessDraftBelongsElsewhere(draftAccountId = "accA", writingAccountId = "accB"),
+        )
+    }
+
+    @Test fun `the ordinary single-account save keeps the pair whole, both members`() {
+        // ⛔ The other half, and the one everybody plays: inverted, this leaves a SECOND draft in
+        // Drafts at every save, for every user, because nothing names the original any more.
+        assertEquals(
+            SendDraftTarget("imap:accA:Drafts:41", 900L),
+            SendDraftTarget("imap:accA:Drafts:41", 900L)
+                .unlessDraftBelongsElsewhere(draftAccountId = "accA", writingAccountId = "accA"),
+        )
+    }
+
+    @Test fun `no draft account means no server draft open, and refuses nothing`() {
+        // A brand-new message, a reply, a local row that replaces nothing: the ordinary route. The
+        // pair it is applied to is empty there anyway, but the rule is stated on a full one so that
+        // "null refuses" cannot be smuggled in as a safety net.
+        assertEquals(
+            SendDraftTarget("Mdeadbeef", null),
+            SendDraftTarget("Mdeadbeef", null)
+                .unlessDraftBelongsElsewhere(draftAccountId = null, writingAccountId = "accB"),
+        )
+    }
+
+    @Test fun `an unknown writing account cannot prove sameness, so the pair is withheld`() {
+        assertEquals(
+            SendDraftTarget(null, null),
+            SendDraftTarget("imap:accA:Drafts:41", 900L)
+                .unlessDraftBelongsElsewhere(draftAccountId = "accA", writingAccountId = null),
+        )
+    }
+
+    @Test fun `an account it cannot name is still another account`() {
+        // ⛔ Not a prefix, not a "looks like the same server": two sub-accounts of ONE login mint
+        // the same draft ids (#31), which is the case where a sloppy comparison costs a message.
+        assertEquals(
+            SendDraftTarget(null, null),
+            SendDraftTarget("imap:acc:Drafts:41", 900L)
+                .unlessDraftBelongsElsewhere(draftAccountId = "acc", writingAccountId = "acc2"),
+        )
+    }
+
+    @Test fun `the two guards compose the way the scheduled route chains them`() {
+        // Fidelity and addressing are DIFFERENT questions and neither replaces the other: the
+        // scheduled route asks both, in this order. A clean body under another account is still
+        // withheld — and that is the leg an "unlessBodyIsLossy is enough" reading loses.
+        assertEquals(
+            SendDraftTarget(null, null),
+            sendDraftTarget(
+                editingDraftId = "imap:accA:Drafts:41",
+                editingDraftUidValidity = 900L,
+                replacedServerDraftId = null,
+                replacedServerDraftUidValidity = null,
+            ).unlessBodyIsLossy(false)
+                .unlessDraftBelongsElsewhere(draftAccountId = "accA", writingAccountId = "accB"),
+        )
+        assertEquals(
+            SendDraftTarget("imap:accA:Drafts:41", 900L),
+            sendDraftTarget(
+                editingDraftId = "imap:accA:Drafts:41",
+                editingDraftUidValidity = 900L,
+                replacedServerDraftId = null,
+                replacedServerDraftUidValidity = null,
+            ).unlessBodyIsLossy(false)
+                .unlessDraftBelongsElsewhere(draftAccountId = "accA", writingAccountId = "accA"),
+        )
+    }
+
+    // -- which account the carried id was read under ----------------------------------------------
+
+    @Test fun `a server id answers with the account it was frozen under`() {
+        // Both fields are filled and they DIFFER: reading the local one instead passes the lease's
+        // account off as the draft's, and the guard above then compares the wrong pair of names.
+        assertEquals(
+            "accA",
+            carriedDraftAccountId(
+                editingDraftId = "imap:accA:Drafts:41",
+                serverDraftAccountId = "accA",
+                localRowAccountId = "accZ",
+            ),
+        )
+    }
+
+    @Test fun `a reopened local row answers with the account its lease was taken under`() {
+        // ⛔ The route that arms NO server account at all: `editingDraftAccountId` stays null there
+        // on purpose, and the pair the send carries is the row's `replacesEmailId` — a draft of the
+        // account the row belongs to. Answering the server field here answers null, i.e. "unknown",
+        // and the guard lets an id of A ride a send made as B.
+        assertEquals(
+            "accZ",
+            carriedDraftAccountId(
+                editingDraftId = LOCAL_DRAFT_ID_PREFIX + "d1",
+                serverDraftAccountId = null,
+                localRowAccountId = "accZ",
+            ),
+        )
+    }
+
+    @Test fun `a local id answers off the lease even when a server account is also set`() {
+        // The discriminator is the ID, never "whichever field happens to be filled": a `?:` would
+        // be right by coincidence today and wrong in silence the day a route arms both.
+        assertEquals(
+            "accZ",
+            carriedDraftAccountId(
+                editingDraftId = LOCAL_DRAFT_ID_PREFIX + "d2",
+                serverDraftAccountId = "accA",
+                localRowAccountId = "accZ",
+            ),
+        )
+    }
+
+    @Test fun `no id at all answers no account`() {
+        assertEquals(
+            null,
+            carriedDraftAccountId(
+                editingDraftId = null,
+                serverDraftAccountId = "accA",
+                localRowAccountId = null,
+            ),
+        )
+    }
+
+    @Test fun `the composer's pair and its account are read off the same id`() {
+        // The witness for the pair above: what `sendDraftTarget` answers with, and what
+        // `carriedDraftAccountId` names, must be the SAME draft — here the row's server copy,
+        // which belongs to the account the row was leased under and not to any server account the
+        // composer holds. Read apart, the guard would compare A's name with B's draft.
+        val target = sendDraftTarget(
+            editingDraftId = LOCAL_DRAFT_ID_PREFIX + "d3",
+            editingDraftUidValidity = null,
+            replacedServerDraftId = "imap:accZ:Drafts:41",
+            replacedServerDraftUidValidity = 900L,
+        )
+        val account = carriedDraftAccountId(
+            editingDraftId = LOCAL_DRAFT_ID_PREFIX + "d3",
+            serverDraftAccountId = null,
+            localRowAccountId = "accZ",
+        )
+        assertEquals(SendDraftTarget("imap:accZ:Drafts:41", 900L), target)
+        assertEquals("accZ", account)
+        assertEquals(
+            SendDraftTarget("imap:accZ:Drafts:41", 900L),
+            target.unlessDraftBelongsElsewhere(draftAccountId = account, writingAccountId = "accZ"),
+        )
+        assertEquals(
+            SendDraftTarget(null, null),
+            target.unlessDraftBelongsElsewhere(draftAccountId = account, writingAccountId = "accB"),
+        )
+    }
+
     // -- what closing the screen gives back ------------------------------------------------------
 
     @Test fun `a send in flight gives NOTHING back, neither the row nor the queue`() {

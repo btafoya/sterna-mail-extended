@@ -33,10 +33,10 @@ class EmptiedServerDraftWiringTest {
 
     @Test fun `the kept copy is SAID, and the expunge is what the other branch does`() {
         val lines = codeLines(bodyOf("saveDraft"))
-        // ⚠ Exact equality, never a prefix: the LOCAL route one branch above opens with the same
-        // words and closes on its own line (`… -> destroyReplacedServerDraft(credentials, original) }`),
-        // so a prefix match lands on that one and this test then pins the wrong branch.
-        val at = lines.indexOfFirst { it == "submit(to) { credentials, _ ->" }
+        // ⚠ Exact equality, never a prefix: the LOCAL route one branch above opens with almost the
+        // same words and closes on its own line (`submit(to) { _, _ -> destroyReplacedServerDraft(original) }`),
+        // so a prefix match can land on that one and this test then pins the wrong branch.
+        val at = lines.indexOfFirst { it == "submit(to) { _, _ ->" }
         assertTrue(
             "saveDraft's empty-save no longer opens the server route on a multi-line lambda — the " +
                 "guard and the notice live inside it, so a one-liner here is the defect. Did the " +
@@ -55,15 +55,59 @@ class EmptiedServerDraftWiringTest {
                 "included (#99) — `null` there destroys nothing and the draft comes back on the " +
                 "next sync. Body was:\n" + lines.joinToString("\n"),
             listOf(
-                "submit(to) { credentials, _ ->",
+                "submit(to) { _, _ ->",
                 "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
                 "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
                 "} else {",
+                "val credentials = credentialsDestroyingEmptiedServerDraft(",
+                "openedUnderAccountId = originalAccountId,",
+                "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
+                "lookup = { store.credentials(it) },",
+                ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
                 "repo.discardDraft(credentials, original, originalUidValidity)",
                 "}",
                 "}",
             ),
-            lines.subList(at, (at + 7).coerceAtMost(lines.size)),
+            lines.subList(at, (at + 12).coerceAtMost(lines.size)),
+        )
+    }
+
+    /**
+     * ⛔ …and WHOSE server hears the expunge. `submit`'s own credentials are the account of the
+     * identity the "From" picker is showing, and that picker covers every account: with "From"
+     * switched, this route sent the id and the numbering read off account A's draft to account B.
+     * JMAP spares an id B never issued — the draft stays in A's Drafts and comes back on the next
+     * sync — and IMAP compares two NUMBERS, so an equal UIDVALIDITY expunges in B's Drafts; even
+     * the refusal has already invalidated B's cached Drafts bodies. The screen closes as a success
+     * in every one of those.
+     *
+     * The lambda therefore takes NO credentials (`{ _, _ ->`, pinned above) and the account is the
+     * one FROZEN when the draft was read. The decision is executed in [EmptiedServerDraftTest];
+     * what no executable test can see is that this call site still asks it, asks it about the
+     * frozen account, and asks it ONCE — a second look-up is a fallback, and the fallback is the
+     * defect.
+     */
+    @Test fun `the account it is addressed to is resolved once, from the freeze, with no fallback`() {
+        val save = codeOf(COMPOSE_VIEW_MODEL.readText())
+        assertEquals(
+            "⛔ the frozen account, whole: `openedUnderAccountId = originalAccountId` — the value " +
+                "captured beside the id and the numbering, before abandon(). " +
+                "`_selectedFrom.value?.accountId` or `credentials.id` there IS the defect, and " +
+                "`originalAccountId ?: credentials.id` is the defect with a guard bolted on top — " +
+                "which is why whole arguments are compared and never substrings.",
+            mapOf(
+                "openedUnderAccountId" to "originalAccountId",
+                "composingAsAccountId" to "_selectedFrom.value?.accountId ?: accountId",
+                "lookup" to "{ store.credentials(it) }",
+            ),
+            callsOf(bodyOf("saveDraft"), "credentialsDestroyingEmptiedServerDraft(").single(),
+        )
+        assertEquals(
+            "⛔ …and it is resolved in exactly ONE place in this class. A second call — a helper, " +
+                "an \"already resolved above\" shortcut, a retry — is a second answer to the same " +
+                "question, and every rule above stays green. Lines were:",
+            listOf("val credentials = credentialsDestroyingEmptiedServerDraft("),
+            codeLines(save).filter { "credentialsDestroyingEmptiedServerDraft(" in it },
         )
     }
 

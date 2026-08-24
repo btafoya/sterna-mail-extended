@@ -22,7 +22,9 @@ import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.mail.DraftOpenRoute
 import app.sterna.core.data.mail.DraftSaveOutcome
 import app.sterna.core.data.mail.LocalDraftEdit
+import app.sterna.core.data.mail.SendDraftTarget
 import app.sterna.core.data.mail.abandonPlan
+import app.sterna.core.data.mail.carriedDraftAccountId
 import app.sterna.core.data.mail.commitThenConsumeLocalDraft
 import app.sterna.core.data.mail.draftOpenRoute
 import app.sterna.core.data.mail.draftSaveConsumesTheQueuedRow
@@ -34,6 +36,7 @@ import app.sterna.core.data.mail.scheduledSendDelayMillis
 import app.sterna.core.data.mail.sendDraftTarget
 import app.sterna.core.data.mail.takeLocalDraftEditOrGiveItBack
 import app.sterna.core.data.mail.unlessBodyIsLossy
+import app.sterna.core.data.mail.unlessDraftBelongsElsewhere
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.pgp.PgpResult
@@ -752,6 +755,29 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private var editingDraftUidValidity: Long? = null
 
     /**
+     * The account [editingDraftId] was read from, FROZEN in the same breath as its numbering
+     * (#63 × #31).
+     *
+     * The "From" picker offers the identities of EVERY account and switching it resets nothing
+     * about the draft. Resolved at save time instead — from the identity on show, which is what
+     * `credentials()` answers — the expunge of an emptied draft left for a server that never issued
+     * the id, and the screen closed as a success all the same: on JMAP `destroyAll` spares an id it
+     * does not know, so the draft stays in the first account's Drafts, empty of meaning, and comes
+     * back on the next sync; on IMAP an id is a NUMBER in a folder and the guard compares numbers,
+     * so two accounts whose Drafts share a UIDVALIDITY let the expunge through in the WRONG
+     * mailbox — and even where the numbering differs and the refusal falls, the look-up has already
+     * invalidated the other account's cached Drafts bodies.
+     *
+     * ⛔ Frozen where [editingDraftUidValidity] is frozen, once, and never looked up again on the
+     * way out: re-reading it answers the "From" that is showing NOW, which is the defect itself and
+     * not a safety net.
+     *
+     * Null destroys nothing — no server draft was opened, or an undone send came back carrying no
+     * account — and the screen says the save failed rather than guessing a server.
+     */
+    private var editingDraftAccountId: String? = null
+
+    /**
      * Whether the draft being edited holds content this plain-text composer cannot put back: a
      * genuine HTML body (flattened to text on open), inline images or a calendar part (never
      * carried), or a file attachment that failed to re-stage. Re-saving then leaves the original
@@ -798,6 +824,28 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      */
     private var replacedServerDraftId: String? = null
     private var replacedServerDraftUidValidity: Long? = null
+
+    /**
+     * Which account the draft id this composer would carry was read under — handed to
+     * [unlessDraftBelongsElsewhere] at the three places that write it somewhere durable (the outbox
+     * row, the scheduled row, the saved draft), and opposed there to the account being written as.
+     *
+     * ⭐ **The choice between the two fields is not made here**: it is [carriedDraftAccountId], in
+     * `core:data`, executed by a JVM test — because it is the same choice [sendDraftTarget] makes,
+     * and made differently the guard would compare one account's name with another account's draft.
+     * This function is only the wiring of the three fields onto it, in ONE place: written out at
+     * each site instead, a later edit fixes the mapping at one of them and leaves the other two
+     * carrying an id across accounts, which is the defect itself.
+     *
+     * ⛔ Not a field, and not frozen: the three fields it reads are ALREADY frozen at the open
+     * ([editingDraftAccountId], [editingLocalDraftAccountId]), and a fourth copy of them would be a
+     * value that can go stale against the id it is supposed to describe.
+     */
+    private fun carriedDraftAccount(): String? = carriedDraftAccountId(
+        editingDraftId = editingDraftId,
+        serverDraftAccountId = editingDraftAccountId,
+        localRowAccountId = editingLocalDraftAccountId,
+    )
 
     /**
      * The saved draft behind this composer AS A MESSAGE — the cached row, ready to be deleted —
@@ -1065,6 +1113,14 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // lets the expunge through on another message. Null on a row queued before v23 — on
                 // IMAP that destroys nothing; on JMAP it is always null and destroys all the same.
                 editingDraftUidValidity = d.draftUidValidity
+                // …and the ACCOUNT that pair belongs to. The outbox row has no column of its own
+                // for it and is not getting one: `fromAccountId` is the account the message goes
+                // out under, and it answers for the draft too because a queued row may only carry
+                // a draft id belonging to the SAME account as itself — the guarantee lives where
+                // the row is written, one gesture away, and this line rests on it. Restored, never
+                // re-read: the identity on show can have been switched since, and it covers every
+                // account.
+                editingDraftAccountId = d.fromAccountId
                 // The fidelity verdict travels WITH the id: before it did, undoing a send
                 // restored the id while this flag fell back to false, and re-sending destroyed
                 // an original the first send had deliberately spared.
@@ -1173,6 +1229,16 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // the attachment carry, though the id below is armed after it: a numbering on
                         // its own destroys nothing, so the earliest read is also the safest one.
                         editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
+                        // …and the ACCOUNT that numbering and that id belong to, frozen here with
+                        // them and never looked up again, off the credentials that have just read
+                        // the draft so the three can never disagree. The "From" picker covers every
+                        // account and resets nothing: read at save time, the account is whatever
+                        // identity is on show, and an emptied draft of account A was expunged under
+                        // B — an id B's server never issued (JMAP spares it, so the draft comes
+                        // back on the next sync) or, on IMAP, a bare number in B's own Drafts.
+                        // Before the attachment carry, like the numbering: neither destroys
+                        // anything on its own, so the earliest read is the safest one.
+                        editingDraftAccountId = credentials.id
                         // What this editor cannot give back on a re-save: rich formatting (the HTML
                         // body is flattened to text), inline images and calendar parts (not carried),
                         // and the read receipt the draft asked for — its header is on the server copy
@@ -1439,6 +1505,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // local id names nothing a server can be asked to destroy (`serverDraftReplacedBy`), and
         // [editingDraftUidValidity] therefore stays null: a numbering is the one thing that lets an
         // expunge through, and there is no server id here for it to belong to.
+        // ⛔ [editingDraftAccountId] stays null for the same reason, and this route arms it
+        // NOWHERE: it says which server hears about an id read off a server, and this id was read
+        // off this phone. What the gestures that consume the row destroy under is
+        // [editingLocalDraftAccountId] — the account the LEASE was taken under.
         editingDraftId = fields.editingDraftId
         // ⭐ The server draft this row stands in for, carried to the gestures that consume the row —
         // emptying it, sending it, scheduling it — since each of those lifts the mask the row holds
@@ -1480,7 +1550,22 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * [planForEmptiedLocalDraft]. `editingDraftLossy` is that verdict, carried off the row by
      * `localDraftPrefill` — the same value the save opposes to `draftReplacementIsFaithful`.
      */
-    private suspend fun destroyReplacedServerDraft(credentials: AccountCredentials, localDraftId: String) {
+    private suspend fun destroyReplacedServerDraft(localDraftId: String) {
+        // ⛔ **The account the ROW was leased under, and never the one being written as.** Handed
+        // `credentials()` — as both callers used to — this destroyed under the account of the
+        // identity the "From" picker shows, and that picker covers EVERY account: the id being
+        // destroyed and the numbering it was frozen under were read off the other account's draft,
+        // so the folder lookup, the destroy and the eviction all left for a server that never
+        // issued that id. They failed in silence while `consumeEditingLocalDraft` took the row away
+        // correctly under `editingLocalDraftAccountId` — mask lifted, and the draft from BEFORE the
+        // edit back at the top of Drafts, for good. ⛔ No fallback on `credentials()`: throwing
+        // destroys nothing, and both callers already catch it, draw the banner and give the lease
+        // back. The refusal itself is executed in EmptiedLocalDraftTest.
+        val credentials = credentialsDestroyingReplacedServerDraft(
+            leasedUnderAccountId = editingLocalDraftAccountId,
+            composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,
+            lookup = { store.credentials(it) },
+        ) ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
         val serverDraft = replacedServerDraftId
         val plan = planForEmptiedLocalDraft(
             replacedServerDraftId = serverDraft,
@@ -1537,9 +1622,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             var destroyed = false
             try {
-                val credentials = credentials()
-                    ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
-                destroyReplacedServerDraft(credentials, id)
+                destroyReplacedServerDraft(id)
                 destroyed = true
                 _localDraftDeleted.tryEmit(Unit)
             } catch (t: Throwable) {
@@ -1837,12 +1920,19 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // the ROW's id, which names nothing a server can destroy; the server copy the row
                 // stands in for is named on the row, and without it the send unmasks that copy and
                 // puts the pre-edit text back in Drafts (#95). Executed in SendDraftTargetTest.
+                // …and NOT AT ALL when that draft was read under another account than the one
+                // this message is going out under (#31 × #63). The "From" picker covers every
+                // account, so the copy created below is born on B while the original lives on A:
+                // there is no transaction spanning two servers, so the id is not carried and
+                // nothing is destroyed — the original stays visible in A's Drafts. Carried, it
+                // would reach `performSend` beside THIS row's credentials and expunge a bare
+                // number in B's own Drafts. Executed in SendDraftTargetTest.
                 val sendTarget = sendDraftTarget(
                     editingDraftId = editingDraftId,
                     editingDraftUidValidity = editingDraftUidValidity,
                     replacedServerDraftId = replacedServerDraftId,
                     replacedServerDraftUidValidity = replacedServerDraftUidValidity,
-                )
+                ).unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
                 // Persist the send held for the undo window; the worker delivers it after.
                 //
                 // ⛔ And ONLY THEN take the phone's own draft row away, if this composer was
@@ -1981,6 +2071,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     replacedServerDraftId = replacedServerDraftId,
                     replacedServerDraftUidValidity = replacedServerDraftUidValidity,
                 ).unlessBodyIsLossy(editingDraftLossy)
+                    // …and withheld again, WHOLE, when the draft belongs to another account than
+                    // the one this row is written under: a different question from the verdict
+                    // above and neither replaces the other. The row carries `accountId =
+                    // credentials.id`, so an id of A on it fires against B's server at the hour
+                    // chosen — nothing to destroy on JMAP, a bare number in B's Drafts on IMAP.
+                    .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
                 // ⛔ Same order as the send above, same reason (#95): the scheduled row is written
                 // and its worker booked FIRST, and only then does the phone's own draft row go.
                 commitThenConsumeLocalDraft(
@@ -2108,6 +2204,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             val original = editingDraftId
             // The numbering frozen when that id was read — carried, never re-read (#99).
             val originalUidValidity = editingDraftUidValidity
+            // …and the ACCOUNT both were read from, captured with them and for the same reason: the
+            // expunge below is addressed to it, and never to the identity the "From" picker is
+            // showing — that picker covers every account, and the id and the numbering above belong
+            // to the one this draft was opened from (#31 × #63).
+            val originalAccountId = editingDraftAccountId
             // ⛔ The phone's own row is handed back to NOBODY on this close, and the "nobody" is
             // said to abandon() rather than by blanking the field: abandon() would hand the row
             // back PENDING and RE-ARM its upload at the row's own instant — which for a draft saved
@@ -2129,7 +2230,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // network. Its row and its staged files go together instead (#95 × #69) — ⛔ and so
                 // does the SERVER draft it was standing in front of, or that one is unmasked by the
                 // very act of taking the row away and comes back with its pre-edit text for good.
-                submit(to) { credentials, _ -> destroyReplacedServerDraft(credentials, original) }
+                // ⛔ And the credentials submit() resolved are NOT passed on: they belong to the
+                // "From" identity on show, while the row and the server draft it stands in front
+                // of belong to the account this draft was opened from.
+                submit(to) { _, _ -> destroyReplacedServerDraft(original) }
             } else {
                 // ⛔ …and the SERVER route asks the same question the route above asks, because it
                 // is the same draft and the same expunge: a draft this composer never read WHOLE
@@ -2140,10 +2244,27 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // expunges, for ever, what was never shown. The word is owed, and it is emitted
                 // INSIDE the lambda: submit() reaches Done after this returns, and a notice posted
                 // to a screen already gone is a notice nobody reads.
-                submit(to) { credentials, _ ->
+                // ⛔ And the credentials submit() resolved are NOT what it goes out under: they
+                // belong to the "From" identity on show, while the id and the numbering being
+                // expunged were read off the account the draft was OPENED from — hence `{ _, _ ->`
+                // and the resolution below, from the frozen account, with no fallback.
+                submit(to) { _, _ ->
                     if (emptiedServerDraftIsKept(editingDraftLossy)) {
                         _notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)
                     } else {
+                        // ⛔ The account the draft was READ FROM, resolved here and nowhere else.
+                        // `?: credentials` appended to this call is the whole defect back: an id
+                        // JMAP's destroyAll spares (the emptied draft returns on the next sync), or
+                        // an IMAP number expunged in the OTHER account's Drafts when the two
+                        // UIDVALIDITYs happen to agree — and its cached bodies dropped even when
+                        // they do not. Gone account, no credentials: this throws, submit() catches
+                        // it, the banner is drawn and NOTHING is destroyed. The refusal itself is
+                        // executed in EmptiedServerDraftTest.
+                        val credentials = credentialsDestroyingEmptiedServerDraft(
+                            openedUnderAccountId = originalAccountId,
+                            composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,
+                            lookup = { store.credentials(it) },
+                        ) ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
                         repo.discardDraft(credentials, original, originalUidValidity)
                     }
                 }
@@ -2158,13 +2279,23 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // so a delegated sub-account's draft is saved under the identity it will send as, never
             // the login's address (issue #31).
             val identity = selectedIdentity()
+            // What this save REPLACES: the id frozen at the open and the numbering it belongs to,
+            // as ONE pair (#99) — and NOTHING AT ALL when that pair was read under another account
+            // than the one being saved as (#31 × #63). Unlike every other account mismatch on this
+            // branch the destroy cannot simply be re-addressed: the new copy is created on the
+            // account being written as, while the original stays on the one it was opened from, and
+            // no transaction spans two servers. So the original is kept — visible in its own
+            // Drafts, deletable by hand — and the duplicate is the price. That is already what
+            // happens, by accident (`draftAddressingIsCarried` finds nothing under B; JMAP's
+            // destroyAll spares an unknown id); here it is stated, with its reason. ⛔ The two
+            // halves come out of the SAME answer, never one from here and one from the field.
+            val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)
+                .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
             val outcome = repo.saveDraft(
                 credentials, recipients, subject, body, parseAddrs(cc), parseAddrs(bcc),
                 inReplyTo = inReplyTo, references = references,
-                replacesEmailId = editingDraftId,
-                // The numbering that id belongs to, frozen when the draft was opened — the server
-                // copy is expunged under it, or not at all (#99).
-                replacesUidValidity = editingDraftUidValidity,
+                replacesEmailId = replaces.emailId,
+                replacesUidValidity = replaces.uidValidity,
                 attachments = _attachments.value,
                 bodyIsLossy = editingDraftLossy,
                 fromName = identity?.name, fromEmail = identity?.email,
