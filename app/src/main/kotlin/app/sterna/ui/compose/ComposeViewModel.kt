@@ -30,6 +30,7 @@ import app.sterna.core.data.mail.draftSaveNeedsNotice
 import app.sterna.core.data.mail.draftSaveParksTheQueuedRowAs
 import app.sterna.core.data.mail.localDraftPrefill
 import app.sterna.core.data.mail.reopenedDraftIsLossy
+import app.sterna.core.data.mail.scheduledSendDelayMillis
 import app.sterna.core.data.mail.sendDraftTarget
 import app.sterna.core.data.mail.takeLocalDraftEditOrGiveItBack
 import app.sterna.core.data.mail.unlessBodyIsLossy
@@ -2019,7 +2020,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                                 requestReceipt = requestReceipt,
                             ),
                         )
-                        ScheduledSends.enqueue(getApplication(), id, sendAtMillis)
+                        ScheduledSends.enqueue(getApplication(), id, scheduledSendDelayMillis(sendAtMillis, System.currentTimeMillis()))
                     },
                     consume = { local -> consumeEditingLocalDraft(local) },
                 )

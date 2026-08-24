@@ -10,6 +10,7 @@ import app.sterna.core.data.mail.LocalDraftScheduler
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OutboxScheduler
 import app.sterna.core.data.mail.localDraftUploadJobs
+import app.sterna.core.data.mail.scheduledSendJobs
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.storage.StorageRepository
@@ -20,6 +21,7 @@ import app.sterna.push.UnifiedPushManager
 import app.sterna.push.UnifiedPushStateStore
 import app.sterna.security.AppLock
 import app.sterna.send.Outbox
+import app.sterna.send.ScheduledSends
 import app.sterna.send.SendOutbox
 import app.sterna.ui.connect.OAuthCodeSignIn
 import app.sterna.ui.connect.OutlookSignIn
@@ -191,6 +193,36 @@ class AppContainer(context: Context) {
                     ).forEach { LocalDraftUploads.enqueue(appContext, it.accountId, it.id, it.delayMillis) }
                 }
             }.onFailure { Log.w("Sterna", "local-draft re-arm failed; retried next start", it) }
+        }
+        // And the same safety net for a message the user asked to send LATER. Of the three durable
+        // queues this is the one that waits the longest — hours, by construction — so it is the
+        // likeliest to outlive the WorkManager job that was going to fire it. The row is then left
+        // in the "Scheduled" screen with an hour in the past and nothing behind it, it is the only
+        // copy of the message, and nothing else ever comes and asks about it. An overdue row is
+        // re-armed like any other, at a delay of zero: it leaves LATE rather than never.
+        //
+        // ⛔ NOT a restore: `allowBackup` is false and `sterna.db` is excluded from backup and from
+        // device transfer, so a restore brings back neither the row nor the job. What is readable
+        // here is that the table and WorkManager's jobs are two different files, so one survives
+        // the other; and that `ComposeViewModel.scheduleSend` writes the row and books its job as
+        // two operations, so a death between them leaves a row nothing is attached to.
+        //
+        // ⚠ And it gives `ScheduledSendWorker`'s departure check a caller it did not have: a row
+        // belonging to an account that is PROVABLY gone used to sit here unfired for ever, and is
+        // now taken at the next start and dropped, silently. That is the same verdict the worker
+        // has always reached at firing time — this only makes it arrive sooner, and only on a
+        // departure `accountDepartureIsProven` accepts; an unreadable account keeps its row.
+        //
+        // ⛔ `keepExisting = true`, the same trap as the outbox above and one notch worse here:
+        // ScheduledSendWorker deposits the message in the outbox and THEN deletes the scheduled
+        // row, and the two are not one transaction. A REPLACE landing on a worker between them
+        // cancels it, the deletion never runs, the row survives — and the replacement job, whose
+        // hour is by then past, deposits the same message a second time.
+        appScope.launch {
+            runCatching {
+                scheduledSendJobs(mailRepository.scheduledSends(), System.currentTimeMillis())
+                    .forEach { ScheduledSends.enqueue(appContext, it.id, it.delayMillis, keepExisting = true) }
+            }.onFailure { Log.w("Sterna", "scheduled-send re-arm failed; retried next start", it) }
         }
         // The home-screen widget's number, pushed as the mail moves (#112). The widget polls
         // nothing, so without this it only redraws when the system asks — at placement, at boot,

@@ -99,10 +99,20 @@ class OutboxRearmWiringTest {
         //  - `outboxScheduler` is the seam every human gesture goes through — send, Retry. A
         //    Retry carries the newest instant there is; kept out, it does nothing at all and the
         //    button looks broken.
+        //
+        // ⭐ TWO lines now, not one: the scheduled-send queue got the same startup re-arm, for the
+        // same reason and with the same `keepExisting = true` (a REPLACE there cancels a
+        // ScheduledSendWorker between its outbox deposit and its row deletion, and the message
+        // goes out twice — pinned by `ScheduledSendRearmWiringTest`). What this inventory closes
+        // is unchanged: no call site OTHER than a startup re-arm keeps what is already booked.
+        // The `outboxScheduler` seam below and the worker's own re-booking must still REPLACE.
         val application = linesOf(APPLICATION)
         assertEquals(
-            "only the startup re-arm may keep an existing booking (see the two damages above):",
-            listOf("Outbox.enqueue(appContext, item.id, delay, keepExisting = true)"),
+            "only a startup re-arm may keep an existing booking (see the two damages above):",
+            listOf(
+                "Outbox.enqueue(appContext, item.id, delay, keepExisting = true)",
+                ".forEach { ScheduledSends.enqueue(appContext, it.id, it.delayMillis, keepExisting = true) }",
+            ),
             application.filter { "keepExisting" in it },
         )
         assertEquals(
