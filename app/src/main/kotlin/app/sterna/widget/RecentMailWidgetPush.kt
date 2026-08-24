@@ -1,11 +1,14 @@
 package app.sterna.widget
 
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.mail.RecentInbox
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 
 /**
  * WHEN the latest-messages widget is asked to draw itself again — [UnreadWidgetPush]'s twin, arm
@@ -79,13 +82,46 @@ internal object RecentMailWidgetPush {
      *
      * ⚠ It still compares only what this read CARRIES. A subject edited in place moves a row; the
      * app lock being switched on does not, and that is redrawn from `SettingsViewModel` instead.
+     *
+     * ⛔ WHICH IS WHY THE ACCOUNT LIST TRAVELS TOO, on [accounts], as a second arm. 1.5.1 gave the
+     * DRAW a dependency this read does not carry: the coloured dot on each line is only painted
+     * when [AllInboxesView.existsFor] holds, so going from two accounts to one must erase every dot
+     * and going from one to two must paint them. `configured` is a boolean — "at least one account"
+     * — and stays `true` across that bound, so on unchanged rows the value compared above was EQUAL
+     * and the emission was swallowed: with `updatePeriodMillis="0"` and an account that owns none of
+     * the latest rows, the cell kept stale dots for days. `UnifiedInbox.kt:133` already says it —
+     * the identity that travels must be the identity that is DRAWN — so the compared value is the
+     * pair (read, bound), while what is EMITTED stays a [RecentInbox] trigger.
+     *
+     * ⭐ [accounts] and not `refresh()` calls at the sites that add or remove one: it is
+     * `AccountStore.accountsFlow`, an in-memory [kotlinx.coroutines.flow.StateFlow] republished by
+     * `saveAccounts` — the single choke point every list mutator goes through — so one arm covers
+     * sign-out, import, restore, the sub-account reconcile and whatever is added next, for no Room
+     * query and no wake-up. ⛔ It is NOT pushed down into `UnifiedInbox.recentRows`, which stays
+     * keyed on `scopes`: keyed on the accounts, its Room query would be re-subscribed by all ~27
+     * `saveAccounts` writes (a refreshed OAuth token, a colour, discovered identities).
+     * ⚠ A change that does NOT cross the bound is deliberately silent here — a recolour is redrawn
+     * by `AccountsViewModel.setColor`, which already forgets and refreshes.
+     *
+     * ⛔ THE COMBINE IS INSIDE [flatMapLatest], NOT AFTER IT, and that is the gate, not tidiness.
+     * A combine RETAINS the last value of each arm, and the gated arm never completes — it only
+     * falls silent when the last cell goes. Placed after, an account added or removed once no cell
+     * is on any home screen would pair a stale read with a fresh bound, clear the de-duplication
+     * and ask for a redraw for a widget that does not exist, making the first sentence of this
+     * KDoc false. Inside, the whole thing is dropped with the gate.
+     * ⛔ And the second [distinctUntilChanged] still sits AFTER [flatMapLatest], for the reason
+     * given above: moved in, it would stop spanning a gate that closes and reopens.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun redraws(
         placed: Flow<Boolean>,
+        accounts: Flow<List<StoredAccount>>,
         inbox: () -> Flow<RecentInbox>,
     ): Flow<RecentInbox> = placed
         .distinctUntilChanged()
-        .flatMapLatest { anyPlaced -> if (anyPlaced) inbox() else emptyFlow() }
+        .flatMapLatest { anyPlaced ->
+            if (anyPlaced) inbox().combine(accounts.map(AllInboxesView::existsFor), ::Pair) else emptyFlow()
+        }
         .distinctUntilChanged()
+        .map { (read, _) -> read }
 }

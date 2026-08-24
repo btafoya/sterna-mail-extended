@@ -29,6 +29,13 @@ class RecentMailWidgetPushWiringLintTest {
      *    account being removed. `RecentMailWidgetDraw.refresh` then has the three callers it had
      *    before this pane (the tail of a delivery pass and the two settings writes), and the row
      *    keeps its unread dot until mail happens to arrive — measured at the bench on 2026-08-18;
+     *  - `accountStore.accountsFlow`, the second arm: it is what makes the per-account colour dot
+     *    appear when a second account arrives and vanish when it leaves. The dots are drawn only
+     *    above `AllInboxesView.existsFor`, and an account that owns none of the 25 latest rows moves
+     *    no row at all — so dropped, the inbox read is EQUAL across that bound, the redraw is
+     *    swallowed, and with `updatePeriodMillis="0"` the cell keeps stale dots for days. Any other
+     *    flow of accounts here (a Room-backed one) would pay a re-subscribed query for all ~27
+     *    `saveAccounts` writes; this one is a StateFlow in memory;
      *  - the GATE, and it must be `RecentMailWidgetPresence`: `UnreadWidgetPresence` compiles,
      *    keeps every other test in this repository green, and ties each widget's freshness to
      *    whether the OTHER one is on a home screen. `flowOf(true)` compiles too, and makes every
@@ -52,14 +59,16 @@ class RecentMailWidgetPushWiringLintTest {
     @Test fun `AppContainer collects the latest-messages push, gated on ITS OWN widget being placed`() {
         assertEquals(
             "AppContainer.init must launch RecentMailWidgetPush.redraws over " +
-                "RecentMailWidgetPresence.placed(appContext), reading " +
+                "RecentMailWidgetPresence.placed(appContext) and accountStore.accountsFlow, reading " +
                 "observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT), and collect it by " +
                 "forgetting the held snapshot and then refreshing. Dropped, the cell stops " +
                 "following the mail the user is reading; ungated, every install pays for a widget " +
-                "it does not have; without the forget(), a slow read redraws the stale rows.",
+                "it does not have; without the forget(), a slow read redraws the stale rows; " +
+                "without accountsFlow, the colour dots stay frozen when an account with no recent " +
+                "mail arrives or leaves.",
             listOf(
                 "appScope.launch {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext)) {",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
                 "mailRepository.observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT)",
                 "}.collect {",
                 "RecentMailWidgetDraw.forget()",
@@ -89,7 +98,7 @@ class RecentMailWidgetPushWiringLintTest {
                 "other one is placed.",
             listOf(
                 "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext)) {",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
             ),
             lines.filter { it.startsWith("UnreadWidgetPush.redraws") || it.startsWith("RecentMailWidgetPush.redraws") },
         )

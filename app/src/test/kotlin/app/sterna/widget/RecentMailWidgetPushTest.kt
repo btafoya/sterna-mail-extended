@@ -1,5 +1,6 @@
 package app.sterna.widget
 
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import kotlinx.coroutines.flow.Flow
@@ -55,6 +56,12 @@ class RecentMailWidgetPushTest {
     /** The other empty: no inbox could be read at all, so the cell may claim nothing. */
     private val nothingToSay = RecentInbox(configured = false, rows = emptyList())
 
+    /** Nothing but the id matters here: the bound this pane follows is the list's SIZE. */
+    private fun account(id: String) = StoredAccount(id = id, server = "s", username = "u")
+
+    /** Two accounts: above [AllInboxesView.existsFor], so the rows carry their colour dots. */
+    private val twoAccounts = listOf(account("a"), account("b"))
+
     /**
      * Stands in for `MailRepository.observeRecentUnifiedInbox(limit)`, and records two facts a
      * single counter would conflate: that the factory was CALLED, and that the flow it handed back
@@ -88,8 +95,9 @@ class RecentMailWidgetPushTest {
         seen: MutableList<RecentInbox>,
         scope: kotlinx.coroutines.CoroutineScope,
         dispatcher: TestDispatcher,
+        accounts: Flow<List<StoredAccount>> = MutableStateFlow(twoAccounts),
     ) = scope.launch(dispatcher) {
-        RecentMailWidgetPush.redraws(placed, reader::inbox).toList(seen)
+        RecentMailWidgetPush.redraws(placed, accounts, reader::inbox).toList(seen)
     }
 
     /**
@@ -237,7 +245,7 @@ class RecentMailWidgetPushTest {
         val second = read(row("a", seen = true), row("b"))
         val seen = mutableListOf<RecentInbox>()
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            RecentMailWidgetPush.redraws(MutableStateFlow(true)) {
+            RecentMailWidgetPush.redraws(MutableStateFlow(true), MutableStateFlow(twoAccounts)) {
                 flowOf(first, first, second, second, first)
             }.toList(seen)
         }
@@ -275,7 +283,7 @@ class RecentMailWidgetPushTest {
     @Test fun `an empty inbox and no account at all are two different redraws`() = runTest {
         val seen = mutableListOf<RecentInbox>()
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            RecentMailWidgetPush.redraws(MutableStateFlow(true)) {
+            RecentMailWidgetPush.redraws(MutableStateFlow(true), MutableStateFlow(twoAccounts)) {
                 flowOf(read(), nothingToSay, read())
             }.toList(seen)
         }
@@ -287,6 +295,171 @@ class RecentMailWidgetPushTest {
                 "and the app's own name. Swallowing the second leaves the home screen affirming " +
                 "an empty inbox to a reader who no longer has one to be empty.",
             listOf(read(), nothingToSay, read()),
+            seen,
+        )
+        job.cancel()
+    }
+
+    /**
+     * ⛔ THE ROWS DO NOT MOVE AND THE CELL MUST STILL BE REDRAWN — the defect this pane closes.
+     *
+     * `RecentMailWidgetContent.accountColors` paints a coloured dot per line only above
+     * [AllInboxesView.existsFor], i.e. from two accounts up; below it the map is empty and no line
+     * has a dot. So crossing that bound changes every single line on the home screen, in both
+     * directions, WITHOUT changing the mail: an account that owns none of the 25 latest rows leaves
+     * `RecentInbox` byte-identical when it arrives or goes. `configured` does not save it either —
+     * it is "at least one account", and it is `true` on both sides of the bound.
+     *
+     * The de-duplication therefore had two equal values and swallowed the emission. With
+     * `updatePeriodMillis="0"` nothing else was coming: on a quiet mailbox the cell showed dots for
+     * an account that had been removed, or none for one that had just arrived, for days.
+     *
+     * ⚠ The expected emissions are written out in full and NOT recomputed from `existsFor` here —
+     * a test that re-derived the bound would stay green with the shipped bound inverted.
+     */
+    @Test fun `crossing the two-account bound redraws, on rows that did not move`() = runTest {
+        val reader = Reader { read(row("r$it")) }
+        val accounts = MutableStateFlow(twoAccounts)
+        val seen = mutableListOf<RecentInbox>()
+        val job = collectPush(
+            MutableStateFlow(true), reader, seen, backgroundScope,
+            UnconfinedTestDispatcher(testScheduler), accounts,
+        )
+        runCurrent()
+
+        accounts.value = listOf(account("a"))
+        runCurrent()
+        accounts.value = twoAccounts
+        runCurrent()
+
+        assertEquals(
+            "two accounts becoming one must ask for a redraw (every dot has to go), and one " +
+                "becoming two must ask again (they all come back) — on rows that are strictly " +
+                "identical throughout. Swallowed, the home screen keeps the dots of an account " +
+                "that was removed, and there is no timer to catch it: updatePeriodMillis is 0.",
+            listOf(read(row("r0")), read(row("r0")), read(row("r0"))),
+            seen,
+        )
+        assertEquals("and the inbox query is NOT re-subscribed for it", listOf("ask#0"), reader.asked)
+        assertEquals("still one subscription", listOf("collect#0"), reader.subscribed)
+        job.cancel()
+    }
+
+    /**
+     * ⛔ THE PRICE OF THE ARM ABOVE, and the reason it carries a BOUND and not the account list.
+     *
+     * `saveAccounts` is the choke point of some twenty-seven writes — a refreshed OAuth token, a
+     * colour, identities discovered on a sync — and every one of them republishes `accountsFlow`.
+     * A trigger that compared the accounts themselves would redraw the cell on all of them, each
+     * time paying a `getAppWidgetIds` binder call, a DataStore read, the account blob decoded, the
+     * query run again and a re-inflation in the launcher, for a cell whose lines are unchanged.
+     *
+     * And nothing may be RE-SUBSCRIBED: the inbox read stays keyed on the folder scopes
+     * (`UnifiedInbox.recentRows`), so an account list that moves must not cancel and rebuild the
+     * observed Room query.
+     *
+     * ⚠ A recolour is deliberately not redrawn from here: `AccountsViewModel.setColor` forgets the
+     * snapshot and refreshes at the gesture.
+     */
+    @Test fun `an account list that does not cross the bound costs nothing`() = runTest {
+        val reader = Reader { read(row("r$it")) }
+        val accounts = MutableStateFlow(listOf(account("a"), account("b"), account("c")))
+        val seen = mutableListOf<RecentInbox>()
+        val job = collectPush(
+            MutableStateFlow(true), reader, seen, backgroundScope,
+            UnconfinedTestDispatcher(testScheduler), accounts,
+        )
+        runCurrent()
+
+        accounts.value = twoAccounts
+        runCurrent()
+        accounts.value = listOf(account("d"), account("e"))
+        runCurrent()
+
+        assertEquals(
+            "three accounts becoming two, then two others, never crosses the bound: the lines are " +
+                "drawn exactly the same way, so the only redraw is the one the subscription itself " +
+                "asked for. Every extra one costs a binder call, a DataStore read and a launcher " +
+                "re-inflation, on each of the ~27 writes that go through saveAccounts.",
+            listOf(read(row("r0"))),
+            seen,
+        )
+        assertEquals(
+            "and above all the inbox is not asked again: the observed Room query is keyed on the " +
+                "folder scopes, and rebuilding it on every saveAccounts is the expense this arm " +
+                "was designed around.",
+            listOf("ask#0"),
+            reader.asked,
+        )
+        assertEquals("nor re-subscribed", listOf("collect#0"), reader.subscribed)
+        job.cancel()
+    }
+    /**
+     * ⛔ ONE ACCOUNT IS NOT AN ABSENCE OF ACCOUNTS, and this test exists because the arm added for
+     * the colour dots reads a BOUND: on a single-account install — the large majority — that bound
+     * is `false` for the whole life of the process.
+     *
+     * An arm that only spoke above the bound (`filter { it }`, `dropWhile { !it }`) would leave
+     * [kotlinx.coroutines.flow.combine] waiting on a value that never comes, and the cell would stop
+     * following the mail ENTIRELY for everyone with one account: the defect measured at the bench on
+     * 2026-08-18 — a message read in the app keeps its unread dot on the home screen — back whole,
+     * and with `updatePeriodMillis="0"` nothing else would come to clear it.
+     */
+    @Test fun `a single account still follows the mail`() = runTest {
+        val reader = Reader { read(row("r$it")) }
+        val seen = mutableListOf<RecentInbox>()
+        val job = collectPush(
+            MutableStateFlow(true), reader, seen, backgroundScope,
+            UnconfinedTestDispatcher(testScheduler), MutableStateFlow(listOf(account("a"))),
+        )
+        runCurrent()
+
+        reader.push(0, read(row("r0", seen = true)))
+        runCurrent()
+
+        assertEquals(
+            "below the two-account bound the dots are never drawn, and the rows must be followed " +
+                "exactly the same way: the read at subscription time, then the message being read " +
+                "in the app. An arm that stayed silent under the bound would strand the combine " +
+                "and freeze the cell for every single-account install.",
+            listOf(read(row("r0")), read(row("r0", seen = true))),
+            seen,
+        )
+        job.cancel()
+    }
+
+    /**
+     * ⛔ THE GATE GOVERNS BOTH ARMS, and this is the half a combine placed outside [flatMapLatest]
+     * would lose. Such a combine RETAINS the last value of each arm, and the gated arm never
+     * completes — it only falls silent — so an account added or removed after the last cell was
+     * taken off the home screen would pair a stale read with a fresh bound, get past the
+     * de-duplication, and ask for a redraw on behalf of a widget that does not exist.
+     *
+     * The cost is one `getAppWidgetIds` binder call and a forgotten snapshot, which is small. What
+     * is not small is the claim: this file says "nothing at all while no widget is placed", and the
+     * wiring lint next door prices the whole gate on it. The sentence has to stay true.
+     */
+    @Test fun `an account list that moves while no cell is placed redraws nothing`() = runTest {
+        val reader = Reader { read(row("r$it")) }
+        val placed = MutableStateFlow(true)
+        val accounts = MutableStateFlow(twoAccounts)
+        val seen = mutableListOf<RecentInbox>()
+        val job = collectPush(
+            placed, reader, seen, backgroundScope,
+            UnconfinedTestDispatcher(testScheduler), accounts,
+        )
+        runCurrent()
+
+        placed.value = false
+        runCurrent()
+        accounts.value = listOf(account("a"))
+        runCurrent()
+
+        assertEquals(
+            "the last cell is gone, so crossing the two-account bound must reach nothing: there " +
+                "are no dots on any home screen to correct, and the gate is what this whole file " +
+                "is for.",
+            listOf(read(row("r0"))),
             seen,
         )
         job.cancel()

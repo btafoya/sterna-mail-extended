@@ -268,8 +268,15 @@ class AppContainer(context: Context) {
         // ⛔ The emitted rows are not drawn. The cell is projected by RecentMailWidgetDraw.read,
         // which consults the notification-content setting and the app lock; drawing the rows from
         // here would put senders and subjects on a home screen that has hidden them.
+        //
+        // ⛔ accountStore.accountsFlow is the SECOND arm, and it is what makes the coloured dots
+        // follow an account arriving or leaving. The dots exist only above AllInboxesView.existsFor,
+        // and on an account that owns none of the 25 latest rows the inbox read does not move — so
+        // without this arm the cell keeps (or keeps missing) every dot, for days, since
+        // updatePeriodMillis is 0. It is a StateFlow in memory, republished by saveAccounts: no Room
+        // query, no wake-up, and every add/remove path at once.
         appScope.launch {
-            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext)) {
+            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {
                 mailRepository.observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT)
             }.collect {
                 RecentMailWidgetDraw.forget()
