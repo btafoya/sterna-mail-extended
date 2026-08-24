@@ -102,16 +102,26 @@ class ScheduledCancelScopeWiringTest {
      * A `null` from `credentials` is not proof the account is gone, and the proof is the caller's
      * to fetch: `AccountStore.credentials` answers null for a secret that will not decode, and
      * `accounts()` answers an EMPTY list when the blob cannot be read — which is precisely what
-     * `accountsUnreadable()` was built to say (`AccountStore.kt:304`). Without BOTH halves of this
-     * expression, a rotated Keystore key deletes the only copy of a scheduled message and the
-     * screen announces that the account is gone.
+     * `accountsUnreadable()` was built to say (`AccountStore.kt:304`). Without BOTH halves, a
+     * rotated Keystore key deletes the only copy of a scheduled message and the screen announces
+     * that the account is gone.
+     *
+     * ⭐ What is pinned here is that this lambda DELEGATES: it hands the two verdicts to
+     * `accountDepartureIsProven`, whose four answers `AccountDepartureProofTest` executes. The rule
+     * used to be written out as an expression right here, where nothing in this module can run it —
+     * and the same expression is owed, word for word, by the worker that fires these messages, so
+     * an edit to one copy left the other saying the opposite. The ARGUMENTS are pinned too, not
+     * only the call: `accountStillListed` fed by `none {}` instead of `any {}` inverts the proof
+     * while every executed rule stays green.
      */
-    @Test fun `the account-gone proof reads the unreadable blob as well as the list`() {
+    @Test fun `the account-gone proof is delegated, with both halves, to the executable rule`() {
         val call = callsOf(bodyOf(VIEW_MODEL, "cancel"), "cancelScheduledSend(").single()
 
         assertEquals(
-            "{ !app.container.accountStore.accountsUnreadable() && " +
-                "app.container.accountStore.accounts().none { a -> a.id == it } }",
+            "{ accountDepartureIsProven( " +
+                "accountsUnreadable = app.container.accountStore.accountsUnreadable(), " +
+                "accountStillListed = app.container.accountStore.accounts()" +
+                ".any { a -> a.id == it }, ) }",
             call["accountIsGone"],
         )
     }

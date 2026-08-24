@@ -10,7 +10,9 @@ import java.io.File
  * WorkManager, a `Context`), and this module has neither Robolectric nor instrumented tests: a
  * `when` written inside `doWork` is unreachable from every test we own. The decision itself is
  * EXECUTED in `core/data` — `OutboxLogic.parkOnPickup` says what to do with the row that was just
- * read, `OutboxLogic.isReadyToSend` says whether it may go out at all.
+ * read, `OutboxLogic.isReadyToSend` says whether it may go out at all, and
+ * `accountDepartureIsProven` says whether a `null` from `credentials()` really means the account
+ * left (`AccountDepartureProofTest` runs it on its four inputs).
  *
  * What those two cannot see is whether the worker asks them, and in which ORDER. That is what is
  * pinned here, as WHOLE LINES in sequence: a `contains` is blind to a lengthened line and to a line
@@ -28,6 +30,19 @@ class OutboxParkWiringTest {
         return lines.subList(at - before, at - before + size)
     }
 
+    /**
+     * ⛔ Pins THREE things in one sequence, because it is their ORDER that is the fix.
+     *
+     * 1. The parking runs on the row as it was READ, ahead of every other question.
+     * 2. `SENDING` is written on the row BEFORE the message is handed to the server.
+     * 3. A `null` from `credentials()` destroys nothing until the departure is PROVEN, and the
+     *    proof is DELEGATED to `accountDepartureIsProven` — the one place a JVM test can execute
+     *    the rule (`AccountDepartureProofTest`) — instead of being restated here as a `null` check.
+     *    The unproven arm writes NOTHING on the row: no state, no attemptCount, no lastError. That
+     *    is not the same contract as the parking above it, which does write the row back; here
+     *    nothing was attempted, so a bump would spend one of `OutboxLogic.MAX_ATTEMPTS` the user
+     *    never used and an overwrite would erase an earlier failure's reason.
+     */
     @Test fun `a delivery the worker finds already begun is parked, before anything else happens to it`() {
         // ⛔ THE ORDER IS THE FIX. The parking must run on the row as it was READ, before
         // isReadyToSend, before the FAILED guard and before a single byte goes to the server.
@@ -46,7 +61,9 @@ class OutboxParkWiringTest {
                 "delivery ever STARTED, a killed run is found QUEUED at the next pickup, " +
                 "parkOnPickup never fires, and the message is delivered a second time — the " +
                 "recipient gets it twice and nothing can recall it. Deleting that line, or moving " +
-                "it after performSend, compiles:",
+                "it after performSend, compiles. ⛔ AND a null from credentials() may destroy the " +
+                "row only once accountDepartureIsProven says the account really left: the unproven " +
+                "arm keeps the row, writes nothing on it, and returns a bare retry():",
             listOf(
                 "override suspend fun doWork(): Result {",
                 "val id = inputData.getLong(KEY_ID, -1L)",
@@ -72,8 +89,21 @@ class OutboxParkWiringTest {
                 "}",
                 "if (item.state == OutboxState.FAILED) return Result.success() // no auto-retry once parked",
                 "val credentials = container.accountStore.credentials(item.accountId) ?: run {",
-                "repo.deleteOutbox(id) // account removed — drop the queued send",
+                // ⛔ Both halves, handed to the one place a JVM test can execute the rule. Dropping
+                // the first one makes an unreadable blob read as "every account left at once", and
+                // this row is the only copy of the message left on the phone.
+                "val departed = accountDepartureIsProven(",
+                "accountsUnreadable = container.accountStore.accountsUnreadable(),",
+                "accountStillListed = container.accountStore.accounts().any { it.id == item.accountId },",
+                ")",
+                "if (departed) {",
+                "repo.deleteOutbox(id)",
                 "return Result.success()",
+                "}",
+                // ⛔ A BARE retry, alone in its arm: no updateOutboxState, no attemptCount + 1, no
+                // lastError. Nothing was attempted, so nothing may be spent or overwritten — and
+                // MAX_ATTEMPTS counts deliveries, which this is not.
+                "return Result.retry()",
                 "}",
                 // ⛔ SENDING, on the row, BEFORE the message leaves. This is the fact parkOnPickup
                 // reads at the next pickup and the only proof this phone ever has that a delivery
@@ -88,7 +118,7 @@ class OutboxParkWiringTest {
                 "repo.deleteOutbox(id)",
                 "Result.success()",
             ),
-            blockAt(lines, "override suspend fun doWork(): Result {", before = 0, size = 26),
+            blockAt(lines, "override suspend fun doWork(): Result {", before = 0, size = 33),
         )
         assertTrue(
             "⛔ and the parking must sit ahead of the delivery in the file, not merely somewhere " +
@@ -96,6 +126,31 @@ class OutboxParkWiringTest {
                 "for the second time, which is the duplicate itself",
             lines.indexOf("OutboxLogic.parkOnPickup(item.state)?.let { parked ->") <
                 lines.indexOfFirst { "performSend" in it },
+        )
+    }
+
+    /**
+     * ⛔ Its own test, and the one that closes a window the block above cannot see through. That
+     * block pins 33 lines; a `repo.deleteOutbox(id)` added ELSEWHERE in the file — in the catch, or
+     * a line above `return try {` — falls outside it and used to pass. It is the mutation that
+     * survived the same fix on the scheduled arm. So the destruction sites are counted: two, in
+     * this order, and a third has to be argued for here before it can exist.
+     */
+    @Test fun `the queued row is destroyed in two places, and nowhere else`() {
+        assertEquals(
+            "⛔ a destruction of the outbox row was added, moved or removed. Once queued, this row " +
+                "is the ONLY copy of the message: the proven-departure arm and the return of " +
+                "performSend are the two places allowed to destroy it, in that order. Anything " +
+                "else drops a message the user is still waiting to see leave — a delete a line " +
+                "above `return try {` compiles and loses it on the first network failure",
+            listOf(
+                // 1. Proven departure: nothing can ever send this message again, so nothing is lost.
+                "repo.deleteOutbox(id)",
+                // 2. AFTER performSend returned. Moved above it, a throw would have destroyed the
+                // only copy — and the catch below would then retry a row that no longer exists.
+                "repo.deleteOutbox(id)",
+            ),
+            linesOf(WORKER).filter { "repo.deleteOutbox(" in it },
         )
     }
 

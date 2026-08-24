@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import app.sterna.container
+import app.sterna.core.data.mail.accountDepartureIsProven
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.push.Notifications
 import kotlinx.coroutines.flow.first
@@ -22,8 +23,34 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
         val repo = container.mailRepository
         val row = repo.scheduledSend(id) ?: return Result.success() // already fired or cancelled
         val credentials = container.accountStore.credentials(row.accountId) ?: run {
-            repo.deleteScheduledSend(id) // account removed — drop it
-            return Result.success()
+            // ⛔ A `null` here is NOT proof that the account left, and this row is the ONLY copy of
+            // the message: `ComposeViewModel.scheduleSend` writes no draft beside it. `credentials`
+            // also answers null for a secret that will not decode (a regenerated Keystore key), for
+            // a linked sub-account whose `pw_` slot was never written, and for a slot withdrawn on
+            // an account that is very much alive — and an unreadable blob makes `accounts()` empty,
+            // which is exactly what `accountsUnreadable()` exists to say (`AccountStore.kt:304`).
+            // So the departure is proved first, in the one place a JVM test can execute the rule.
+            val departed = accountDepartureIsProven(
+                accountsUnreadable = container.accountStore.accountsUnreadable(),
+                accountStillListed = container.accountStore.accounts().any { it.id == row.accountId },
+            )
+            if (departed) {
+                // Nothing can ever send this message again: the row goes, as it always has.
+                repo.deleteScheduledSend(id)
+                return Result.success()
+            }
+            // Unproven ⇒ nothing is destroyed and nothing is written. retry() and not success():
+            // the "Scheduled" screen is still announcing this send, so success() would leave the row
+            // on screen with no job behind it, for good. retry() keeps it armed, and it leaves on
+            // its own the moment the account reads again.
+            // ⚠ …and it is NOT free: a retry bumps WorkManager's runAttemptCount, which is the
+            // very counter the catch below reads against MAX_ATTEMPTS. So an account that stays
+            // unreadable for a few minutes spends the give-up budget without a single delivery
+            // having been attempted, and the first throw from enqueueSend afterwards lands
+            // straight in the give-up arm. That arm notifies before it clears the row, so nothing
+            // goes silently — which is what makes this the cheaper end of the trade. Buying the
+            // two apart needs an attempt column on the row, and this is not that change.
+            return Result.retry()
         }
         return try {
             repo.enqueueSend(

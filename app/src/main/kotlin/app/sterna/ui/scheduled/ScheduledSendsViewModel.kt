@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.sterna.R
 import app.sterna.container
 import app.sterna.core.data.db.ScheduledSendEntity
+import app.sterna.core.data.mail.accountDepartureIsProven
 import app.sterna.send.ScheduledSends
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -64,9 +65,13 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                     // ⛔ A `null` from `credentials` is not proof: the store answers null for an
                     // unreadable secret too, and an unreadable blob makes `accounts()` empty —
                     // which is what `accountsUnreadable()` exists to say (`AccountStore.kt:304`).
+                    // The two verdicts are read here; what they MEAN is decided in one executable
+                    // place, shared with the worker that fires these messages.
                     accountIsGone = {
-                        !app.container.accountStore.accountsUnreadable() &&
-                            app.container.accountStore.accounts().none { a -> a.id == it }
+                        accountDepartureIsProven(
+                            accountsUnreadable = app.container.accountStore.accountsUnreadable(),
+                            accountStillListed = app.container.accountStore.accounts().any { a -> a.id == it },
+                        )
                     },
                     saveDraft = { creds, d ->
                         repo.saveDraft(

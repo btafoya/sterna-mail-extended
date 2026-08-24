@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import app.sterna.container
 import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.db.OutboxState
+import app.sterna.core.data.mail.accountDepartureIsProven
 
 /**
  * Delivers one persistent outbox item. WorkManager persists and fires this (surviving app
@@ -47,8 +48,30 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         if (item.state == OutboxState.FAILED) return Result.success() // no auto-retry once parked
 
         val credentials = container.accountStore.credentials(item.accountId) ?: run {
-            repo.deleteOutbox(id) // account removed — drop the queued send
-            return Result.success()
+            // ⛔ A `null` here is NOT proof that the account left, and once queued this row is the
+            // ONLY copy of the message. `credentials` also answers null for a stored secret that
+            // will not decode (a regenerated Keystore key), for a linked sub-account whose `pw_`
+            // slot was never written, and for a slot withdrawn on an account that is very much
+            // alive — and an unreadable blob makes `accounts()` empty, which is exactly what
+            // `accountsUnreadable()` exists to say (`AccountStore.kt:304`). So the departure is
+            // proved first, in the one place a JVM test can execute the rule.
+            val departed = accountDepartureIsProven(
+                accountsUnreadable = container.accountStore.accountsUnreadable(),
+                accountStillListed = container.accountStore.accounts().any { it.id == item.accountId },
+            )
+            if (departed) {
+                // Nothing can ever deliver this message again: the row goes, as it always has.
+                repo.deleteOutbox(id)
+                return Result.success()
+            }
+            // Unproven ⇒ nothing is destroyed, and NOTHING IS WRITTEN ON THE ROW: no state, no
+            // attemptCount, no lastError. Same reasoning as parkOnPickup above — nothing was
+            // attempted here, so a bump would spend a retry the user never used and an overwrite
+            // would erase the reason of an earlier, genuine failure still printed on the row.
+            // ⛔ And a bare retry(): [OutboxLogic.MAX_ATTEMPTS] counts DELIVERY attempts, and this
+            // message has not left the phone. Nothing bounds this arm but the account itself — it
+            // reads again and the send goes out, or its departure is proved and the row goes then.
+            return Result.retry()
         }
 
         repo.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)
