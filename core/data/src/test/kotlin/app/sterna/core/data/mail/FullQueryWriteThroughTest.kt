@@ -81,7 +81,10 @@ class FullQueryWriteThroughTest {
             between(i)
         }
         if (failAfter != null && failAfter >= pages.size) throw failWith!!
-        WindowWalk(ids = handed, queryState = queryState, emailState = emailState, queryCount = handed.size)
+        WindowWalk(
+            ids = handed, queryState = queryState, emailState = emailState,
+            queryCount = handed.size, resumedByPosition = false,
+        )
     }
 
     /** Three pages, so a MIDDLE one exists — a one-page fixture cannot tell "the whole walk" from

@@ -115,7 +115,10 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
             handed += page
             between(i)
         }
-        WindowWalk(ids = handed, queryState = "q1", emailState = "e1", queryCount = handed.size)
+        WindowWalk(
+            ids = handed, queryState = "q1", emailState = "e1",
+            queryCount = handed.size, resumedByPosition = false,
+        )
     }
 
     private val threePages = listOf(listOf("n1", "n2"), listOf("mid1", "mid2"), listOf("z1"))
@@ -266,7 +269,10 @@ class ReconcileSparesWhatArrivedDuringTheWalkTest {
         val folder = Folder(cached = listOf("kept1", "kept2"))
         val muted: suspend (suspend (List<String>) -> Unit) -> WindowWalk = {
             folder.thirdPartyWrites("arrived-1")
-            WindowWalk(ids = emptyList(), queryState = "q1", emailState = "e1", queryCount = 500)
+            WindowWalk(
+                ids = emptyList(), queryState = "q1", emailState = "e1",
+                queryCount = 500, resumedByPosition = false,
+            )
         }
 
         writeThrough(folder, muted)

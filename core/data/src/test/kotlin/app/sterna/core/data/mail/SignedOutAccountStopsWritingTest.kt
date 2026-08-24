@@ -71,7 +71,10 @@ class SignedOutAccountStopsWritingTest {
                 handed += page
                 between(index)
             }
-            return WindowWalk(ids = handed, queryState = "q1", emailState = "e1", queryCount = handed.size)
+            return WindowWalk(
+                ids = handed, queryState = "q1", emailState = "e1",
+                queryCount = handed.size, resumedByPosition = false,
+            )
         }
     }
 

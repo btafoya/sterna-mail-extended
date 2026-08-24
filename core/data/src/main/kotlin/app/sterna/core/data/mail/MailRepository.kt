@@ -1890,7 +1890,12 @@ class MailRepository(
             "MailSync",
             "full query $mailboxId: ${walked.ids.size} emails " +
                 "(window ${full.windowTarget} in pages of ${full.pageSize}, " +
-                "asked for ${sizing.windowTarget} in pages of ${sizing.pageSize})",
+                "asked for ${sizing.windowTarget} in pages of ${sizing.pageSize}) " +
+                // WHY the reconcile above ran or did not: a `skip/` token means nothing was
+                // deleted from this folder on this pass. `skip/resumed` is the one that matters
+                // — the walk paged by position and may be missing mail the server still holds,
+                // and this line is the only place that says so ([fullQueryReconcileReason]).
+                "reconcile=${fullQueryReconcileReason(walked)}",
         )
         val queryState = walked.queryState
         val emailState = walked.emailState

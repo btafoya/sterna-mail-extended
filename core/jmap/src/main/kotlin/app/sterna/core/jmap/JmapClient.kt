@@ -302,7 +302,9 @@ class JmapClient internal constructor(
      * Paging is by ANCHOR on the previous page's last id (RFC 8620 §5.5), never by absolute
      * position: mail arriving at the top between two requests shifts every position and would
      * duplicate or skip a page. The one-shot fallback to a position is for the anchor having left
-     * the folder mid-walk (`anchorNotFound`), the same recovery the scroll mediator makes.
+     * the folder mid-walk (`anchorNotFound`), the same recovery the scroll mediator makes — and a
+     * walk that had to take it SAYS SO ([WindowWalk.resumedByPosition]), because it may then have
+     * skipped messages the server still holds.
      *
      * The cursors returned are the FIRST response's: a `queryState` describes the query it came
      * from, and handing back the last page's would let the next delta be computed against a state
@@ -332,6 +334,11 @@ class JmapClient internal constructor(
         var firstQueryState: String? = null
         var firstEmailState: String? = null
         var seenIds = 0
+        // Whether this walk ever paged by an absolute POSITION instead of an anchor. It is a
+        // property of the whole walk, not of one page: once a recovery has under-shot, every id it
+        // failed to list is missing from `ids` for good, and the caller must be told so it can
+        // refuse to reconcile (see the catch below, and `reconcilableWindowIds`).
+        var resumedByPosition = false
         var limit = nextWindowPageLimit(fetched = 0, target = target, pageSize = pageSize, last = null)
         while (limit != null) {
             // The oldest id accumulated so far, i.e. where the previous request stopped.
@@ -357,9 +364,21 @@ class JmapClient internal constructor(
                 // Under-shooting is free and over-shooting loses mail, so under-shoot: a repeated
                 // message is dropped by the accumulation's putIfAbsent. It corrects for the
                 // anchor's own removal, which is what the error reports; a burst of removals in
-                // the same instant can still shift further, and that is left to the ghost sweep
-                // and the next full query rather than guessed at here.
+                // the same instant can still shift the list FURTHER down, and this one step back
+                // cannot cover that — the restart then lands past k messages that are listed by no
+                // page of this walk.
+                //
+                // ⛔ Nothing here can recover them, so the walk SIGNALS instead of guessing: it
+                // sets `resumedByPosition`, and the caller (`fullQueryWriteThrough` through
+                // `reconcilableWindowIds`) then refuses to reconcile this folder at all. Nothing
+                // else would: the ghost sweep only ever DELETES rows, it restores none, and the
+                // "next full query" never comes — a sync cursor is stored right after this walk
+                // returns and the deltas resume, and a delta never re-sends a message that was
+                // neither added nor changed. The whole cost of the refusal is a cache allowed to
+                // hold more than the window until the next full query; the cost of guessing is
+                // mail deleted while the server still has it.
                 if (anchor == null || e.errorType != "anchorNotFound") throw e
+                resumedByPosition = true
                 queryEmailsPage(
                     session, accountId, mailboxId, limit, auth,
                     position = (ids.size - 1).coerceAtLeast(0),
@@ -397,6 +416,8 @@ class JmapClient internal constructor(
             // Every id the walk's queries listed, so a caller can still tell a short GET from an
             // exhausted folder. Not a single query's count — this walk is not a single query.
             queryCount = seenIds,
+            // ⛔ The walk's own verdict on whether it may be reconciled against. See the catch.
+            resumedByPosition = resumedByPosition,
         )
     }
 

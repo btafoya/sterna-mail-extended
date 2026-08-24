@@ -33,7 +33,7 @@ import org.junit.Test
 class EmptyWindowIsNotAnEmptyFolderTest {
 
     private fun walk(ids: List<String>, queryCount: Int) =
-        WindowWalk(ids = ids, queryState = "q1", emailState = "e1", queryCount = queryCount)
+        WindowWalk(ids = ids, queryState = "q1", emailState = "e1", queryCount = queryCount, resumedByPosition = false)
 
     // -- the rule itself ---------------------------------------------------------------------------
 

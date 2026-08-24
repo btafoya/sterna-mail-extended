@@ -107,6 +107,7 @@ internal fun fullQuerySizing(accountWindow: Int?, requestedByCaller: Int, server
  * real state that must be able to clear a stale cache — refusing on every empty walk would leave
  * an emptied folder showing its old contents for ever, and on IMAP nothing else would clean up. So:
  *
+ * - the walk RESTARTED ON A POSITION ⇒ REFUSE, whatever else it brought back (see below);
  * - ids came back ⇒ reconcile against them, whole;
  * - nothing came back and `Email/query` listed NOTHING ([WindowWalk.queryCount] zero) ⇒ the folder
  *   is empty, and the empty keep set is the right answer;
@@ -117,11 +118,61 @@ internal fun fullQuerySizing(accountWindow: Int?, requestedByCaller: Int, server
  * ⚠ The refusal also swallows the rarer case where every listed message really was destroyed
  * between the query and the get. That folder keeps stale rows until the ghost sweep or the next
  * full query removes them — the survivable direction, deliberately.
+ *
+ * ⛔ THE THIRD REFUSAL, and it is FIRST in the `when`. A walk that lost its anchor mid-walk
+ * restarts once at an absolute index, one row behind the count it had accumulated
+ * ([app.sterna.core.jmap.WindowWalk.resumedByPosition]) — which corrects for ONE row leaving the
+ * list, the anchor's own. If the anchor and k messages of lower index left in the same instant,
+ * the list dropped by k + 1 and the restart lands k rows too far: the walk asks at `n - 1` and is
+ * handed `L[n + k]`, so k ids the server still holds appear in no page. They are then outside the
+ * keep set, and — having been cached BEFORE the walk, so [evictableCachedIds]' bound does not
+ * cover them — they are DELETED; `putSyncState` runs immediately after, the deltas resume, and a
+ * delta never re-sends a message that was neither added nor changed.
+ *
+ * ⛔ FIRST because a resumed walk almost always brings ids back. Placed under `ids.isNotEmpty()`
+ * this clause would be dead in exactly the case it exists for, and would still read as a fix.
+ *
+ * ⚠ What it costs, and it is not free: on the `COUNT_*` windows the reconcile is the ONLY cap on
+ * this folder's cache, so a refused pass leaves it holding more than the window — including rows
+ * the server has destroyed. ⛔ And NOT just until the next refresh: `putSyncState` stores a cursor
+ * immediately after the refusal whatever this answered, so the deltas resume and no full query is
+ * scheduled at all — the surplus sits there until one happens again for its own reasons (the
+ * cursor dropped, or a delta the server cannot compute). That is exactly the posture
+ * `FullQuerySync` already writes down for an interrupted walk, down to the caveat: a cache holding
+ * MORE than the window and never one that lost mail, and it is simply not always temporary.
  */
 internal fun reconcilableWindowIds(walk: WindowWalk): Set<String>? = when {
+    walk.resumedByPosition -> null
     walk.ids.isNotEmpty() -> walk.ids.toHashSet()
     walk.queryCount == 0 -> emptySet()
     else -> null
+}
+
+/**
+ * WHICH clause of [reconcilableWindowIds] decided, as a log token. Same input, same order of
+ * tests, so the sync log says not just how many messages a full query brought back but whether the
+ * delete at the end ran at all — the difference between "this folder holds what the server holds"
+ * and "this folder is allowed to hold more than the window until the next full query".
+ *
+ * A token starting with `skip` means NO reconcile — nothing was deleted from that folder on this
+ * pass — and [reconcilableWindowIds] answering null is exactly the same set of cases;
+ * `ResumedWalkIsNotReconciledTest` pins that correspondence over the whole input grid so the two
+ * can never drift apart:
+ * - `skip/resumed` — the walk paged by absolute position after an `anchorNotFound`
+ *   ([app.sterna.core.jmap.WindowWalk.resumedByPosition]) and may be missing messages the server
+ *   still holds. This is the token of the loss: on the bench it is the line that says why a folder
+ *   was left un-reconciled, and in a report it is what tells a burst of removals from a bug;
+ * - `reconciled` — the ordinary pass: the walk listed ids, the folder is reconciled against them;
+ * - `emptied` — the walk listed nothing and `Email/query` matched nothing either, so the folder is
+ *   empty on the server and the cache is cleared to match;
+ * - `skip/muted` — the query listed ids and the get brought none of them back, so the walk learned
+ *   nothing about the folder.
+ */
+internal fun fullQueryReconcileReason(walk: WindowWalk): String = when {
+    walk.resumedByPosition -> "skip/resumed"
+    walk.ids.isNotEmpty() -> "reconciled"
+    walk.queryCount == 0 -> "emptied"
+    else -> "skip/muted"
 }
 
 /**

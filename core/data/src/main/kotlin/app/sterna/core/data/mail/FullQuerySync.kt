@@ -49,9 +49,14 @@ package app.sterna.core.data.mail
  * "not this time": ⛔ NULL means DO NOT RECONCILE AT ALL, and is not the same thing as an empty
  * set — an empty set deletes the folder. IMAP returns null when the folder was renumbered under
  * the walk (`reconcilableIds`), because a page may then have skipped a message the server still
- * holds and the reconcile would delete it. JMAP never returns null: its walk pages by cursor and
- * not by position, so nothing can slip BELOW the walk — the anchor never revisits ground it has
- * already covered, and nothing the server renumbers moves a message under it.
+ * holds and the reconcile would delete it. JMAP returns null for the SAME reason, and for one of
+ * its own: its walk pages by anchor — which cannot slip below itself — EXCEPT on the one recovery
+ * it makes when the anchor leaves the folder mid-walk, where it restarts at an absolute position
+ * (`JmapClient.queryEmailsWindow`). That restart steps back exactly one row, so a burst of
+ * removals above the anchor leaves it short and the walk lists neither those messages nor a
+ * complaint; a walk that took it says so (`WindowWalk.resumedByPosition`) and
+ * `reconcilableWindowIds` refuses. It also refuses a walk that learned nothing at all (a muted
+ * `Email/get`).
  *
  * ⛔ That closes the downward hole and ONLY the downward hole. It says nothing about what lands
  * ABOVE the walk while the walk is running, and the walk never comes back up: the push socket, the

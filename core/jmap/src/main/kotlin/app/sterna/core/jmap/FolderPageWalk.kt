@@ -42,12 +42,26 @@ data class WalkedPage(
  * them", and only the first of those may be reconciled against — see
  * `MailRepository`'s `reconcilableWindowIds`. A caller also reads it to tell a short GET from an
  * exhausted folder.
+ *
+ * [resumedByPosition] says the walk PAGED BY ABSOLUTE POSITION at least once: its anchor left the
+ * folder mid-walk (`anchorNotFound`) and it restarted at a computed index. That recovery corrects
+ * for ONE row leaving the list — the anchor's own. If the anchor plus k messages of lower index
+ * left in the same instant, the restart lands k rows too far down and the walk NEVER LISTS those k
+ * ids, although the server still holds them. So true means "some of this folder may be missing
+ * from [ids] for a reason that is not the folder's", and the caller must not reconcile against it
+ * — the JMAP twin of `ImapFolderWalk.moved`.
+ *
+ * ⛔ NO DEFAULT VALUE, deliberately. A default of `false` reads as "safe" and is the opposite: it
+ * says "you may DELETE every cached row outside [ids]" to any future construction site that forgot
+ * the field — including a test fixture written for something else entirely. Every site must state
+ * which kind of walk it describes.
  */
 data class WindowWalk(
     val ids: List<String>,
     val queryState: String?,
     val emailState: String?,
     val queryCount: Int,
+    val resumedByPosition: Boolean,
 )
 
 /**

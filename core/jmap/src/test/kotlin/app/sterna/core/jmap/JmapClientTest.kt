@@ -1333,6 +1333,17 @@ class JmapClientTest {
          * free only because it de-duplicates.
          */
         private val anchorNotFoundShortensTheFolder: Boolean = true,
+        /**
+         * How many MORE messages leave the folder in the same instant as the anchor, taken from
+         * just ABOVE it — i.e. of lower index, so everything past the anchor shifts down by
+         * `k + 1` and not by one.
+         *
+         * That is a burst of removals, not an exotic server: a "delete all read", a server-side
+         * rule filing a batch, another client emptying a range. The recovery's one step back
+         * corrects for the anchor alone, so with k > 0 it lands k rows too far and the walk lists
+         * neither those k ids nor any complaint.
+         */
+        private val alsoRemovedWithTheAnchor: Int = 0,
         /** Ids the query lists but the get does NOT return (destroyed between the two calls). */
         private val omittedByGet: Set<String> = emptySet(),
     ) : Dispatcher() {
@@ -1347,6 +1358,9 @@ class JmapClientTest {
          */
         private val all = (1..folderSize).mapTo(mutableListOf()) { "e$it" }
 
+        /** The folder as the server holds it NOW — what "the server still has it" is read from. */
+        val serverStillHolds: List<String> get() = all.toList()
+
         override fun dispatch(request: RecordedRequest): MockResponse {
             val body = request.body.readUtf8()
             val args = Json.parseToJsonElement(body).jsonObject["methodCalls"]!!
@@ -1357,7 +1371,13 @@ class JmapClientTest {
             val anchor = args["anchor"]?.jsonPrimitive?.content
             val start = if (anchor != null) {
                 if (anchorNotFoundAt == n) {
-                    if (anchorNotFoundShortensTheFolder) all.remove(anchor)
+                    if (anchorNotFoundShortensTheFolder) {
+                        val at = all.indexOf(anchor)
+                        // The k rows just ABOVE the anchor go with it: lower index, so every
+                        // position past the anchor drops by k + 1.
+                        repeat(alsoRemovedWithTheAnchor) { if (at - 1 - it >= 0) all.removeAt(at - 1 - it) }
+                        all.remove(anchor)
+                    }
                     return methodError("anchorNotFound")
                 }
                 val at = all.indexOf(anchor)
@@ -1440,6 +1460,9 @@ class JmapClientTest {
         // The FIRST response's cursors: a queryState only describes the query it came from.
         assertEquals("q1", walk.queryState)
         assertEquals("e1", walk.emailState)
+        // ⛔ An ordinary anchored walk must NOT claim it paged by position: that claim costs the
+        // caller its reconcile, i.e. the only thing that ever caps this folder's cache.
+        assertFalse("an anchored walk reported a position resume", walk.resumedByPosition)
     }
 
     @Test fun queryEmailsWindow_handsEachPageOffAsItLandsAndRetainsNoMessages() = runBlocking {
@@ -1659,6 +1682,102 @@ class JmapClientTest {
         // The message that followed the vanished anchor came through, and was not deleted.
         assertTrue("e501 was skipped by the recovery", "e501" in walk.ids)
         assertEquals(700, walk.ids.size)
+        // Nothing was skipped HERE, and the walk still reports the resume: the flag says "this
+        // walk paged by position", not "this walk lost something" — it cannot tell the two apart
+        // from inside, which is why the refusal it triggers is the conservative direction.
+        assertTrue(walk.resumedByPosition)
+    }
+
+    /**
+     * ⭐ THE HOLE, EXECUTED — a burst of removals under the walk, and the ids that fall out of it.
+     *
+     * ⛔ This is NOT a regression test for the fix. The fix does not recover these messages and was
+     * never meant to: replaying the walk from a moving list is unbounded work with no stopping
+     * rule, so the volet refuses to RECONCILE instead. What this test pins is that the gap is real
+     * and reachable — the recovery steps back exactly one row, so any second removal above the
+     * anchor is a message the walk never lists although the server still holds it. It stays green
+     * whichever way the fix goes; only its last assertion moves.
+     *
+     * ⭐ That last assertion is the half that reddens on the pre-fix tree: the walk must now SAY it
+     * paged by position, because that flag is the only thing standing between this gap and a
+     * reconcile that deletes the skipped mail from the cache for good.
+     */
+    @Test fun queryEmailsWindow_skipsMessagesWhenTheAnchorLeavesWithABurst() = runBlocking {
+        // e500 is the anchor. It leaves with e498 and e499 — three rows out of the list in the
+        // same instant — so e501 sits at index 497, not 499. The recovery asks at 499 (one back
+        // from the 500 accumulated) and is handed e503 onwards.
+        val dispatcher = FolderDispatcher(
+            folderSize = 700, maxObjectsInGet = 500,
+            anchorNotFoundAt = 2, alsoRemovedWithTheAnchor = 2,
+        )
+        server.dispatcher = dispatcher
+        val handed = Handed()
+
+        val walk = client.queryEmailsWindow(
+            sessionAdvertisingGet(500), "acc1", "mbInbox",
+            target = 1000, pageSize = 500, auth = BasicAuth("u", "p"), onPage = collect(handed),
+        )
+
+        assertEquals(3, server.requestCount)
+        assertEquals(listOf(null, "e500", null), dispatcher.anchors())
+        assertEquals("the recovery no longer steps back exactly one", 499, dispatcher.queries[2]["position"]!!.jsonPrimitive.int)
+        // e498, e499 and e500 really left the folder: those are not skipped, they are gone.
+        assertFalse("e499 is still on the server, so the fixture removed the wrong rows", "e499" in dispatcher.serverStillHolds)
+        assertTrue("e501 left the server too — the fixture is not describing a skip", "e501" in dispatcher.serverStillHolds)
+
+        val skipped = dispatcher.serverStillHolds.filterNot { it in walk.ids }
+        assertEquals(
+            "the walk is expected to skip exactly the ids the one-step recovery under-shot by. " +
+                "It listed ${walk.ids.size} ids; the server holds ${dispatcher.serverStillHolds.size}; " +
+                "missing from the walk although the server still has them: $skipped",
+            listOf("e501", "e502"),
+            skipped,
+        )
+        // ⭐ …and the walk says so. Without this, the skipped ids are outside the keep set of a
+        // reconcile that deletes every cached row outside it, and the cursor stored straight
+        // afterwards makes the deletion permanent.
+        assertTrue(
+            "the walk paged by an absolute position and did not report it: its answer is about " +
+                "to be used as the full list of what the folder holds",
+            walk.resumedByPosition,
+        )
+    }
+
+    /**
+     * ⭐ The flag is a property of the WHOLE walk, and the walk goes on after the recovery.
+     *
+     * ⛔ Why this fixture is deeper than every other resume test here: at 700 messages in pages of
+     * 500 the recovery page comes back short, so `nextWindowPageLimit` ends the walk on that very
+     * iteration and the flag is never read again. Nothing in this file would then notice
+     * `resumedByPosition` being reset at the top of the loop — it would become a property of the
+     * LAST page, which is the shape the caller cannot use: a walk that skipped mail on request 2
+     * and paged on normally to request 5 would report a clean walk, the reconcile would run, and
+     * the ids the recovery stepped over would be deleted from the cache with the cursor stored
+     * behind them. That is the original defect, reopened, with the fix still legible in the source.
+     *
+     * So: 2000 messages, four requests, the recovery on the SECOND — and two ordinary anchored
+     * pages after it.
+     */
+    @Test fun queryEmailsWindow_keepsSayingItResumedAfterTheWalkPagesOnPastTheRecovery() = runBlocking {
+        val dispatcher = FolderDispatcher(folderSize = 2000, maxObjectsInGet = 500, anchorNotFoundAt = 2)
+        server.dispatcher = dispatcher
+        val handed = Handed()
+
+        val walk = client.queryEmailsWindow(
+            sessionAdvertisingGet(500), "acc1", "mbInbox",
+            target = 2000, pageSize = 500, auth = BasicAuth("u", "p"), onPage = collect(handed),
+        )
+
+        // The recovery really was followed by more requests, or this test proves nothing: request
+        // 3 is the positional one, and 4 and 5 are anchored pages after it.
+        assertEquals(5, server.requestCount)
+        assertEquals(listOf(null, "e500", null, "e1000", "e1500"), dispatcher.anchors())
+        assertTrue(
+            "the walk forgot it had paged by position: the flag is being kept per PAGE, not per " +
+                "walk, so a recovery followed by ordinary pages reports a clean walk and the " +
+                "reconcile deletes what the recovery stepped over",
+            walk.resumedByPosition,
+        )
     }
 
     @Test fun queryEmailsWindow_handsTheOverlapOfARecoveryPageOverOnlyOnce() = runBlocking {
