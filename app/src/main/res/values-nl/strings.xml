@@ -761,11 +761,13 @@
     <string name="outbox_state_failed">Mislukt: %1$s</string>
     <string name="outbox_state_failed_unknown">verzenden mislukt</string>
     <string name="outbox_state_kept_as_draft">Als concept op dit apparaat opgeslagen, niet verzonden</string>
+    <string name="outbox_state_interrupted">Onderbroken, mogelijk al verzonden</string>
     <string name="outbox_retry">Opnieuw</string>
     <string name="outbox_edit">Bewerken</string>
     <string name="outbox_delete">Verwijderen</string>
     <string name="outbox_delete_title">Dit bericht verwijderen?</string>
     <string name="outbox_delete_body">Het is niet verzonden en staat nergens anders opgeslagen. Het bericht en de bijlagen gaan verloren.</string>
+    <string name="outbox_delete_body_interrupted">Het is mogelijk al verzonden en staat nergens anders opgeslagen. Het bericht en de bijlagen gaan verloren.</string>
     <string name="outbox_delete_permanently">Definitief verwijderen</string>
     <string name="outbox_banner_failed">Sommige berichten zijn niet verzonden. Tik om te bekijken.</string>
     <!-- Mail by sender (F1): what this phone holds, per sender, for one account. -->

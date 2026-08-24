@@ -771,11 +771,13 @@
     <string name="outbox_state_failed">Niepowodzenie: %1$s</string>
     <string name="outbox_state_failed_unknown">nie udało się wysłać</string>
     <string name="outbox_state_kept_as_draft">Zapisano jako wersję roboczą na tym urządzeniu, nie wysłano</string>
+    <string name="outbox_state_interrupted">Przerwano, wiadomość mogła już zostać wysłana</string>
     <string name="outbox_retry">Ponów</string>
     <string name="outbox_edit">Edytuj</string>
     <string name="outbox_delete">Usuń</string>
     <string name="outbox_delete_title">Usunąć tę wiadomość?</string>
     <string name="outbox_delete_body">Nie została wysłana i nie jest nigdzie indziej zapisana. Wiadomość i jej załączniki zostaną utracone.</string>
+    <string name="outbox_delete_body_interrupted">Mogła już zostać wysłana i nie jest nigdzie indziej zapisana. Wiadomość i jej załączniki zostaną utracone.</string>
     <string name="outbox_delete_permanently">Usuń trwale</string>
     <string name="outbox_banner_failed">Niektóre wiadomości nie zostały wysłane. Dotknij, aby sprawdzić.</string>
     <!-- Mail by sender (F1): what this phone holds, per sender, for one account. -->

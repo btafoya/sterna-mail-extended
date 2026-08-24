@@ -52,17 +52,30 @@ class KeptAsDraftRowTest {
      * fed straight to the send worker) must not hand this row back.
      *
      * The whole set is asserted, not just the absence of the parked row: `unfinished()` is what
-     * puts a message back on the wire, so both directions matter — a state wrongly added here is a
-     * send nobody asked for, one wrongly removed is a message that never leaves.
+     * calls the worker back onto a row, so both directions matter — a state wrongly added here is a
+     * worker run nobody asked for, one wrongly removed is a row nobody will ever look at again.
+     *
+     * ⚠ The set is UNCHANGED by the interrupted-send fix; what changed is what `SENDING` is doing
+     * in it, and the old wording of this message ("still on its way") is now false. It is re-armed
+     * so the worker can come and PARK it, not so the worker can deliver it.
+     *
+     * The test iterates [OutboxState.entries], so [OutboxState.INTERRUPTED] is inserted and judged
+     * here without a line of its own: it has to be absent from the result, and it is.
      */
-    @Test fun `the startup re-arm never picks up a row saved as a draft`() {
+    @Test fun `the startup re-arm picks up the three states a worker still has something to do with`() {
         OutboxState.entries.forEach { insert(it) }
 
         assertEquals(
-            "⛔ only the three states of a message that is still on its way may be re-armed at " +
-                "launch. $parked in this set is the reported defect itself: the user tapped 'save " +
-                "as a draft' offline, and the next launch delivers the message they had before " +
-                "they edited it",
+            "⛔ exactly these three, and each for its own reason. HELD and QUEUED are messages " +
+                "still on their way. ${OutboxState.SENDING} is NOT on its way — it is a delivery " +
+                "whose run never came back — and it is re-armed precisely so the worker returns and " +
+                "PARKS it as ${OutboxState.INTERRUPTED} (OutboxLogic.parkOnPickup); take it out of " +
+                "this set and the row reads 'Sending…' on the Outbox screen for good, with nobody " +
+                "ever coming to look at it. ${OutboxState.INTERRUPTED} must stay OUT: it is already " +
+                "parked, and re-arming it calls the worker back onto a row whose only move left is " +
+                "the user's Retry. $parked in this set is the reported defect itself: the user " +
+                "tapped 'save as a draft' offline, and the next launch delivers the message they " +
+                "had before they edited it",
             setOf(OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING),
             statesOf(DaoQuerySource.daoQuery("OutboxDao", "unfinished")),
         )

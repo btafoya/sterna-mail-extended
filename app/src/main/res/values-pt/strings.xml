@@ -763,11 +763,13 @@
     <string name="outbox_state_failed">Falhou: %1$s</string>
     <string name="outbox_state_failed_unknown">não foi possível enviar</string>
     <string name="outbox_state_kept_as_draft">Guardado como rascunho neste dispositivo, por enviar</string>
+    <string name="outbox_state_interrupted">Interrompido, pode já ter sido enviado</string>
     <string name="outbox_retry">Tentar de novo</string>
     <string name="outbox_edit">Editar</string>
     <string name="outbox_delete">Eliminar</string>
     <string name="outbox_delete_title">Eliminar esta mensagem?</string>
     <string name="outbox_delete_body">Ela não foi enviada e não está guardada em nenhum outro lugar. A mensagem e seus anexos serão perdidos.</string>
+    <string name="outbox_delete_body_interrupted">Pode já ter sido enviada e não está guardada em nenhum outro lugar. A mensagem e seus anexos serão perdidos.</string>
     <string name="outbox_delete_permanently">Eliminar definitivamente</string>
     <string name="outbox_banner_failed">Algumas mensagens não foram enviadas. Toque para rever.</string>
     <!-- Mail by sender (F1): what this phone holds, per sender, for one account. -->

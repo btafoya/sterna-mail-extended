@@ -773,11 +773,13 @@
     <string name="outbox_state_failed">Ошибка: %1$s</string>
     <string name="outbox_state_failed_unknown">не удалось отправить</string>
     <string name="outbox_state_kept_as_draft">Сохранено как черновик на этом устройстве, не отправлено</string>
+    <string name="outbox_state_interrupted">Прервано, возможно, уже отправлено</string>
     <string name="outbox_retry">Повторить</string>
     <string name="outbox_edit">Изменить</string>
     <string name="outbox_delete">Удалить</string>
     <string name="outbox_delete_title">Удалить это сообщение?</string>
     <string name="outbox_delete_body">Оно не было отправлено и нигде больше не сохранено. Сообщение и вложения будут потеряны.</string>
+    <string name="outbox_delete_body_interrupted">Возможно, оно уже было отправлено и нигде больше не сохранено. Сообщение и вложения будут потеряны.</string>
     <string name="outbox_delete_permanently">Удалить навсегда</string>
     <string name="outbox_banner_failed">Некоторые сообщения не отправлены. Нажмите, чтобы проверить.</string>
     <!-- Mail by sender (F1): what this phone holds, per sender, for one account. -->

@@ -42,6 +42,7 @@ class OutboxStateWordingTest {
                 OutboxState.FAILED to R.string.outbox_state_failed,
                 OutboxState.KEPT_AS_DRAFT to R.string.outbox_state_kept_as_draft,
                 OutboxState.EDITING to R.string.outbox_state_waiting,
+                OutboxState.INTERRUPTED to R.string.outbox_state_interrupted,
             ),
             OutboxState.entries.associateWith { outboxStateLabel(it) },
         )
@@ -74,6 +75,67 @@ class OutboxStateWordingTest {
         assertFalse(
             "⛔ and it must not raise the Inbox's failure banner across the whole list",
             OutboxLogic.needsFailureBanner(parked),
+        )
+    }
+
+    /**
+     * ⛔ THE sentence of the interrupted-send fix. A delivery whose run was killed may ALREADY have
+     * reached the server, and the row is parked exactly because this phone cannot tell. Every word
+     * on the line has to survive both outcomes: it may not say the send failed, and it may not say
+     * the message was not sent.
+     */
+    @Test fun `the row a killed delivery leaves behind says it may already be gone, never that it failed`() {
+        assertEquals(
+            "⛔ the parked row's line must be R.string.outbox_state_interrupted, a WHOLE sentence " +
+                "printed as it stands — 'Sending…' would be a lie (nothing is sending any more) " +
+                "and 'Waiting to send' would be worse (nothing is going to send it)",
+            R.string.outbox_state_interrupted,
+            outboxStateLabel(OutboxState.INTERRUPTED),
+        )
+        assertFalse(
+            "⛔ and it must take no reason argument: R.string.outbox_state_failed is 'Failed: " +
+                "%1\$s', so a state that substitutes into it announces a failure that never " +
+                "happened over a message that may well have gone out",
+            outboxStateShowsReason(OutboxState.INTERRUPTED),
+        )
+        assertFalse(
+            "⛔ and it must not be painted in the error colour: red says the send went wrong, and " +
+                "nothing would ever repaint it",
+            outboxStateIsError(OutboxState.INTERRUPTED),
+        )
+        assertFalse(
+            "⛔ and it must not raise the Inbox's failure banner across the whole list: 'Some " +
+                "messages didn't send' over a message that did send is a claim nothing retracts",
+            OutboxLogic.needsFailureBanner(OutboxState.INTERRUPTED),
+        )
+    }
+
+    /**
+     * ⛔ THE SENTENCE OF THE DESTRUCTIVE ACTION, state by state, written out by hand. The delete
+     * confirmation is read at the one moment the only copy of a message is destroyed, and its
+     * default body OPENS with "It hasn't been sent" — the exact claim this fix forbids over a row
+     * whose delivery may have got through. Told the message never left, the reader deletes it.
+     *
+     * ⛔ The pairs are pinned in full, like the sentences above: a state quietly losing its branch
+     * here is invisible one assertion at a time, and every state but one shares the same answer.
+     */
+    @Test fun `the row a killed delivery leaves behind is not told it was never sent, when it is deleted`() {
+        assertEquals(
+            "⛔ only OutboxState.INTERRUPTED may take R.string.outbox_delete_body_interrupted, and " +
+                "it must take nothing else: R.string.outbox_delete_body says \"It hasn't been " +
+                "sent\", which over an interrupted row is a promise this phone cannot keep — the " +
+                "message may be at the recipient already, and the reader is deciding whether to " +
+                "destroy her only copy of it",
+            mapOf(
+                OutboxState.HELD to R.string.outbox_delete_body,
+                OutboxState.QUEUED to R.string.outbox_delete_body,
+                OutboxState.SENDING to R.string.outbox_delete_body,
+                OutboxState.FAILED to R.string.outbox_delete_body,
+                OutboxState.KEPT_AS_DRAFT to R.string.outbox_delete_body,
+                OutboxState.EDITING to R.string.outbox_delete_body,
+                OutboxState.INTERRUPTED to R.string.outbox_delete_body_interrupted,
+            ),
+            OutboxState.entries.associateWith { outboxDeleteBody(it) },
         )
     }
 
@@ -128,6 +190,39 @@ class OutboxStateWordingTest {
                 "is decided in OutboxRowText, where a test can execute it",
             listOf("item.lastError ?: stringResource(R.string.outbox_state_failed_unknown),"),
             lines.map { it.trim() }.filter { "R.string.outbox_state_" in it },
+        )
+    }
+
+    /**
+     * ⚠ SOURCE LINT, same disclaimer as above: the dialog is a composable and nothing here renders
+     * it. What is pinned is that the delete confirmation ASKS [outboxDeleteBody] which body this
+     * row is owed — reverting the slot to a bare `stringResource(R.string.outbox_delete_body)`
+     * compiles, reads fine, and puts "It hasn't been sent" back over a row that may already have
+     * been sent, in nine languages, on the one action that cannot be undone.
+     *
+     * WHOLE LINES in sequence: the state is read from the list already collected by the screen, so
+     * the mutation that matters (dropping the lookup, or wiring the dialog to the id alone) neither
+     * shortens a line nor removes a name.
+     */
+    @Test fun `the delete confirmation asks which body the row awaiting confirmation is owed`() {
+        val lines = codeLines(OUTBOX_SCREEN).map { it.trim() }
+        val at = lines.indexOf("pendingDelete?.let { id ->")
+        check(at >= 0) { "OutboxScreen opens no delete confirmation on 'pendingDelete' any more" }
+        assertEquals(
+            "the body of the delete dialog must come from outboxDeleteBody(the pending row's " +
+                "state), read out of the list the screen already holds — no second trip to the " +
+                "repository. A row gone from that list has no state to speak for it and keeps the " +
+                "default body; a row that is INTERRUPTED must NOT be told it was never sent.",
+            listOf(
+                "pendingDelete?.let { id ->",
+                "val pendingState = items.firstOrNull { it.id == id }?.state",
+                "val deleteBody = pendingState?.let(::outboxDeleteBody) ?: R.string.outbox_delete_body",
+                "AlertDialog(",
+                "onDismissRequest = { pendingDelete = null },",
+                "title = { Text(stringResource(R.string.outbox_delete_title)) },",
+                "text = { Text(stringResource(deleteBody)) },",
+            ),
+            lines.drop(at).take(7),
         )
     }
 

@@ -57,10 +57,17 @@ fun OutboxScreen(
     var pendingDelete by remember { mutableStateOf<Long?>(null) }
 
     pendingDelete?.let { id ->
+        // Which body this row is owed, from the list ALREADY collected above — no second read of
+        // the repository, no flow of its own. An INTERRUPTED row may already be at the recipient,
+        // and the default body opens by swearing it was never sent (see outboxDeleteBody). If the
+        // row left the list between the tap and this frame (delivered, undone, reopened), there is
+        // no state to speak for it and the default body is the honest answer.
+        val pendingState = items.firstOrNull { it.id == id }?.state
+        val deleteBody = pendingState?.let(::outboxDeleteBody) ?: R.string.outbox_delete_body
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text(stringResource(R.string.outbox_delete_title)) },
-            text = { Text(stringResource(R.string.outbox_delete_body)) },
+            text = { Text(stringResource(deleteBody)) },
             confirmButton = {
                 // Named for what it does, not for the button that opened it: this is the one action
                 // that destroys the only copy of the message (#70).

@@ -139,7 +139,12 @@ class AppContainer(context: Context) {
                 }
             }.onFailure { android.util.Log.w("Sterna", "body-cache upgrade purge failed; retried next start", it) }
         }
-        // Re-arm any send left mid-flight (WorkManager persists jobs, but re-checking is a safety net).
+        // Re-arm any send left mid-flight (WorkManager persists jobs, but re-checking is a safety
+        // net). ⛔ `keepExisting = true`: this runs while WorkManager may ALREADY have restored the
+        // job, possibly mid-delivery. A REPLACE would cancel a healthy send in flight, and since
+        // the worker parks a row it finds in SENDING, the user would read "interrupted, may
+        // already have been sent" at every cold start on a send nothing interrupted. It would
+        // also reset the backoff of an offline send at every launch.
         appScope.launch {
             // First rescue any row stranded in EDITING by a process death mid-edit (#70): its
             // composer is gone, so it becomes a normal QUEUED send again rather than sitting
@@ -147,7 +152,7 @@ class AppContainer(context: Context) {
             mailRepository.revertEditingOutbox()
             mailRepository.unfinishedOutbox().forEach { item ->
                 val delay = (item.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0)
-                Outbox.enqueue(appContext, item.id, delay)
+                Outbox.enqueue(appContext, item.id, delay, keepExisting = true)
             }
         }
         // The same safety net for a draft the phone kept because the server could not be reached

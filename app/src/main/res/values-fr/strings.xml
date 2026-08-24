@@ -766,11 +766,13 @@
     <string name="outbox_state_failed">Échec : %1$s</string>
     <string name="outbox_state_failed_unknown">envoi impossible</string>
     <string name="outbox_state_kept_as_draft">Enregistré comme brouillon sur cet appareil, non envoyé</string>
+    <string name="outbox_state_interrupted">Interrompu, peut-être déjà envoyé</string>
     <string name="outbox_retry">Réessayer</string>
     <string name="outbox_edit">Modifier</string>
     <string name="outbox_delete">Supprimer</string>
     <string name="outbox_delete_title">Supprimer ce message ?</string>
     <string name="outbox_delete_body">Il n\'a pas été envoyé et n\'est enregistré nulle part ailleurs. Le message et ses pièces jointes seront perdus.</string>
+    <string name="outbox_delete_body_interrupted">Il est peut-être déjà parti et n\'est enregistré nulle part ailleurs. Le message et ses pièces jointes seront perdus.</string>
     <string name="outbox_delete_permanently">Supprimer définitivement</string>
     <string name="outbox_banner_failed">Certains messages ne sont pas partis. Touchez pour vérifier.</string>
     <!-- Mail by sender (F1): what this phone holds, per sender, for one account. -->

@@ -47,6 +47,33 @@ enum class OutboxState {
      * reverts any [EDITING] row to [QUEUED] — the edit is gone, the message is not.
      */
     EDITING,
+
+    /**
+     * A delivery that was ALREADY UNDER WAY when the process died, PARKED where it stopped instead
+     * of being handed back to the worker. The worker writes [SENDING] before it hands the message
+     * to the server and only removes the row once the server has taken it, so a row still reading
+     * [SENDING] when the worker picks it up again is a run that never came back: the message may
+     * have left, and nobody on this phone can know.
+     *
+     * ⛔ Re-delivering it is the defect this state exists for. Measured on the bench: reply, kill
+     * the process 1.2 s later, reopen — the recipient gets the same message twice, 46 s apart,
+     * under two different Message-Ids, and the outbox ends up empty with nothing left to say so.
+     * A duplicate cannot be recalled; a parked row can be sent by hand with one tap on Retry.
+     *
+     * ⛔ Not [FAILED], for the same reason [KEPT_AS_DRAFT] is not. FAILED lights the Inbox's "Some
+     * messages didn't send. Tap to review." banner ([OutboxLogic.needsFailureBanner]), paints the
+     * row in the error colour, and means "auto-retry is exhausted". Here nothing failed and no
+     * attempt was ever counted ([attemptCount] is untouched by the parking): the message was quite
+     * possibly delivered. "Didn't send" would be a claim across the whole Inbox that nothing could
+     * ever retract.
+     *
+     * ⛔ Not [QUEUED] either, which is today's behaviour and the bug: the row is due, the worker
+     * takes it, and the send happens a second time.
+     *
+     * ⭐ It costs no migration: the `state` column is `TEXT NOT NULL` and Room stores the
+     * constant's NAME, so an older build simply never wrote this word.
+     */
+    INTERRUPTED,
 }
 
 /**

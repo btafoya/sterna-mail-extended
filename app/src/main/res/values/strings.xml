@@ -154,11 +154,13 @@
     <string name="outbox_state_failed">Failed: %1$s</string>
     <string name="outbox_state_failed_unknown">couldn\'t send</string>
     <string name="outbox_state_kept_as_draft">Saved as a draft on this device, not sent</string>
+    <string name="outbox_state_interrupted">Interrupted, it may already have been sent</string>
     <string name="outbox_retry">Retry</string>
     <string name="outbox_edit">Edit</string>
     <string name="outbox_delete">Delete</string>
     <string name="outbox_delete_title">Delete this message?</string>
     <string name="outbox_delete_body">It hasn\'t been sent and isn\'t saved anywhere else. The message and its attachments will be lost.</string>
+    <string name="outbox_delete_body_interrupted">It may already have been sent, and it isn\'t saved anywhere else. The message and its attachments will be lost.</string>
     <string name="outbox_delete_permanently">Delete permanently</string>
     <string name="outbox_banner_failed">Some messages didn\'t send. Tap to review.</string>
     <!-- Mail by sender (F1): what this phone holds, per sender, for one account. -->

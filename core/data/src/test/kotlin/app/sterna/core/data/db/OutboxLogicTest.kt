@@ -18,9 +18,107 @@ class OutboxLogicTest {
         assertTrue(OutboxLogic.isReadyToSend(OutboxState.HELD, notBeforeMillis = 1_000, now = 1_500))
     }
 
-    @Test fun queuedAndSendingAlwaysDue() {
+    @Test fun queuedIsAlwaysDue() {
         assertTrue(OutboxLogic.isReadyToSend(OutboxState.QUEUED, notBeforeMillis = Long.MAX_VALUE, now = 0))
-        assertTrue(OutboxLogic.isReadyToSend(OutboxState.SENDING, notBeforeMillis = Long.MAX_VALUE, now = 0))
+    }
+
+    /**
+     * ⛔ This assertion used to read the other way round, under the name
+     * `queuedAndSendingAlwaysDue`: SENDING was due like QUEUED. That was not an oversight in the
+     * pinning, it was the decision — and it is the decision that was wrong.
+     */
+    @Test fun aDeliveryAlreadyBegunIsNeverDueAgain() {
+        assertFalse(
+            "⛔ a SENDING row is a delivery ALREADY BEGUN: the worker writes that state immediately " +
+                "before handing the message to the server, so nothing else can have put it there. " +
+                "Calling it due is the duplicate measured on the bench — kill the process 1.2 s " +
+                "after Send, reopen, and the recipient gets the same message twice 46 s apart " +
+                "under two Message-Ids, with the outbox left empty and nothing saying so",
+            OutboxLogic.isReadyToSend(OutboxState.SENDING, notBeforeMillis = 0, now = Long.MAX_VALUE),
+        )
+        assertFalse(
+            "⛔ and a row already parked as INTERRUPTED must not be handed back either, or the " +
+                "parking buys nothing: the very next pass would deliver it a second time. Getting " +
+                "it out again is Retry, which the user presses knowingly",
+            OutboxLogic.isReadyToSend(OutboxState.INTERRUPTED, notBeforeMillis = 0, now = Long.MAX_VALUE),
+        )
+    }
+
+    /**
+     * What the send worker must do with the row it has just read, state by state. The expected
+     * values are written OUT BY HAND: a test that asks [OutboxLogic.parkOnPickup] what to expect
+     * stays green with the rule inverted, and the whole point here is that inverting it re-delivers
+     * a message.
+     *
+     * Driven off [OutboxState.entries] so a seventh state cannot appear without an answer being
+     * decided for it right here.
+     */
+    @Test fun onlyADeliveryLeftInFlightIsParkedWhenTheWorkerPicksItUp() {
+        assertEquals(
+            "⛔ the worker READS the row before it writes SENDING, so no run ever meets its own " +
+                "SENDING: finding one means an earlier run wrote it and never came back (process " +
+                "death, cancellation, reboot) — and that run may well have reached the server. " +
+                "Parking it as INTERRUPTED loses nothing (the row stays in the Outbox, Retry still " +
+                "sends it); handing it back to the worker is irreversible for the recipient. " +
+                "Everything else has nothing begun to park: HELD and QUEUED were never handed to " +
+                "anyone, and FAILED / KEPT_AS_DRAFT / EDITING / INTERRUPTED are already parked — " +
+                "re-parking those would overwrite what they say",
+            mapOf(
+                OutboxState.HELD to null,
+                OutboxState.QUEUED to null,
+                OutboxState.SENDING to OutboxState.INTERRUPTED,
+                OutboxState.FAILED to null,
+                OutboxState.KEPT_AS_DRAFT to null,
+                OutboxState.EDITING to null,
+                OutboxState.INTERRUPTED to null,
+            ),
+            OutboxState.entries.associateWith { OutboxLogic.parkOnPickup(it) },
+        )
+    }
+
+    /** The parked row must not be reopenable, or looking at it would send it (#70's door). */
+    @Test fun anInterruptedRowCannotBeReopenedInTheComposer() {
+        assertFalse(
+            "⛔ reopening parks the row in EDITING, and closing the composer untouched runs " +
+                "stateAfterEdit(attemptCount = 0), which answers QUEUED. So Edit on an INTERRUPTED " +
+                "row means merely LOOKING at the message puts it back on the wire by itself — the " +
+                "duplicate again, through the #70 door. Retry and Delete still work on it",
+            OutboxLogic.canEdit(pgpMode = null, state = OutboxState.INTERRUPTED, carriesUnreplayablePrebuiltEntity = false),
+        )
+    }
+
+    /**
+     * The three screen consequences of parking, executed: the row is listed, it counts on the badge
+     * at once, and it raises no failure banner.
+     */
+    @Test fun anInterruptedRowIsShownAtOnceAndAccusesNothing() {
+        val now = 10_000L
+        assertTrue(
+            "the Outbox screen lists exactly the rows this accepts, and the message must be there",
+            OutboxLogic.isWaitingInOutbox(OutboxState.INTERRUPTED),
+        )
+        assertEquals(
+            "the badge must show it AT ONCE, with no grace: the delivery has STOPPED, so no delay " +
+                "would make the silence any truer (the grace exists so a send that works never " +
+                "draws the eye, #82 — this one is not on its way)",
+            1,
+            OutboxLogic.activeCount(listOf(OutboxBadgeItem(OutboxState.INTERRUPTED, notBeforeMillis = now)), now),
+        )
+        assertNull(
+            "and a row that already counts has no badge wake-up left to schedule",
+            OutboxLogic.nextBadgeChange(listOf(OutboxBadgeItem(OutboxState.INTERRUPTED, notBeforeMillis = now)), now),
+        )
+        assertFalse(
+            "⛔ and it must NOT raise the Inbox's 'Some messages didn't send. Tap to review.' " +
+                "banner: nothing failed and the message may well have gone out. That banner is " +
+                "cleared by nothing, so it would be a permanent accusation over a delivered mail",
+            OutboxLogic.needsFailureBanner(OutboxState.INTERRUPTED),
+        )
+        assertEquals(
+            "the same, through the count the banner is built on",
+            0,
+            OutboxLogic.failedCount(listOf(OutboxState.INTERRUPTED)),
+        )
     }
 
     @Test fun failedNeverAutoDue() {

@@ -22,15 +22,56 @@ object OutboxLogic {
      * fires, which queues it like any other send (holdMs = 0). So the only hold this deadline ever
      * carries is the undo window, a few seconds at most — which is what bounds the badge grace in
      * [activeCount]: no path can write a far-future notBeforeMillis on an outbox row.
+     *
+     * ⛔ [OutboxState.SENDING] is NOT due, and that is the SECOND gate of the interrupted-send fix,
+     * independent of [parkOnPickup]: a row reading SENDING is a delivery already begun. Handing it
+     * to the worker again is the duplicate measured on the bench — the same message delivered
+     * twice, under two Message-Ids, with an empty outbox afterwards and nothing saying so.
+     * [OutboxState.INTERRUPTED] is refused out loud for the same reason: parking a row is worth
+     * nothing if the next pass hands it straight back. Getting an interrupted message out again is
+     * Retry's job, which the user presses knowingly.
      */
     fun isReadyToSend(state: OutboxState, notBeforeMillis: Long, now: Long): Boolean = when (state) {
         OutboxState.HELD -> now >= notBeforeMillis
-        OutboxState.QUEUED, OutboxState.SENDING -> true
-        // Parked (manual only, #70), saved as a draft on the phone (#95) or open in the composer
-        // (#70): the worker must never send any of the three on its own. KEPT_AS_DRAFT is the one
-        // that would be a data loss rather than a nuisance — the user tapped "save as a draft", and
-        // sending is precisely what they did not ask for.
-        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING -> false
+        OutboxState.QUEUED -> true
+        // Already begun (see above), parked for manual handling (#70), saved as a draft on the
+        // phone (#95) or open in the composer (#70): the worker must never send any of these on
+        // its own. KEPT_AS_DRAFT is the one that would be a data loss rather than a nuisance — the
+        // user tapped "save as a draft", and sending is precisely what they did not ask for.
+        OutboxState.SENDING, OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING,
+        OutboxState.INTERRUPTED,
+        -> false
+    }
+
+    /**
+     * The state the send worker must PARK the row it has just read in, or null when there is
+     * nothing to park and the delivery may go on as usual. Called on the row as it was read, before
+     * anything else is decided about it.
+     *
+     * Why finding [OutboxState.SENDING] proves an interruption: the worker READS the row first and
+     * writes SENDING only afterwards, immediately before handing the message to the server. So no
+     * run ever reads its own SENDING. Reading one means an earlier run wrote it and never came
+     * back — the process was killed, the work was cancelled, the phone rebooted mid-delivery — and
+     * that run may have got as far as the server. The row is the only witness left, and it cannot
+     * say which side of the handover it died on.
+     *
+     * ⛔ Which is exactly why the answer is not "send it again". Re-delivery is irreversible for
+     * the recipient (measured: the same message twice, 46 s apart, two Message-Ids); parking loses
+     * nothing at all — the row stays in the Outbox, says it was interrupted, and Retry sends it by
+     * hand when the user decides to.
+     *
+     * Exhaustive with NO `else`: a seventh state has to answer this out loud. Inheriting "nothing
+     * to park" from an `else` is how a state that needs parking would get delivered twice in
+     * silence.
+     */
+    fun parkOnPickup(state: OutboxState): OutboxState? = when (state) {
+        OutboxState.SENDING -> OutboxState.INTERRUPTED
+        // Nothing begun, nothing to park. HELD/QUEUED have not been handed to anyone yet; FAILED,
+        // KEPT_AS_DRAFT, EDITING and INTERRUPTED are already parked, and re-parking them would
+        // overwrite what they say (an exhausted retry, a save the user asked for, an open composer).
+        OutboxState.HELD, OutboxState.QUEUED, OutboxState.FAILED,
+        OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING, OutboxState.INTERRUPTED,
+        -> null
     }
 
     /** After a failed attempt: retry while under the cap, otherwise give up (park as FAILED). */
@@ -44,6 +85,9 @@ object OutboxLogic {
      * closing it, must not restart delivery — only Retry/Send may (#70 regression from EDITING).
      * [attemptCount] is the faithful proxy for "was FAILED": the cap is reached only on the
      * FAILED-parking path (see [shouldRetry]). Everything else goes back to [OutboxState.QUEUED].
+     *
+     * [OutboxState.INTERRUPTED] is deliberately not a case here and needs none: [canEdit] refuses
+     * it, so such a row never enters [OutboxState.EDITING] and never comes back out of one.
      */
     fun stateAfterEdit(attemptCount: Int): OutboxState =
         if (attemptCount >= MAX_ATTEMPTS) OutboxState.FAILED else OutboxState.QUEUED
@@ -77,6 +121,13 @@ object OutboxLogic {
      * leaving the edit orphaned or the message sent twice. An [OutboxState.EDITING] row is already
      * open in a composer. Neither may be taken. An action that cannot do what its label promises is
      * not offered (#70); Retry and Delete stay — both work on the row as it stands.
+     *
+     * ⛔ And NOT an [OutboxState.INTERRUPTED] row either — refusing Edit there is load-bearing, not
+     * tidiness. Reopening a row parks it in EDITING, and closing the composer untouched runs
+     * [stateAfterEdit] on an attemptCount of 0, which answers QUEUED: merely LOOKING at an
+     * interrupted message would put it back on the wire on its own, i.e. the duplicate this state
+     * exists to prevent, through the #70 door. Retry and Delete stay, and Retry is the one deliberate
+     * gesture that sends it again.
      */
     fun canEdit(pgpMode: String?, state: OutboxState, carriesUnreplayablePrebuiltEntity: Boolean): Boolean =
         !carriesUnreplayablePrebuiltEntity && !pgpMode.equals("ENCRYPT", ignoreCase = true) &&
@@ -85,7 +136,7 @@ object OutboxLogic {
                 // the Outbox screen is showing, and refusing Edit on it would leave the user
                 // looking at a line they cannot act on.
                 OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT -> true
-                OutboxState.SENDING, OutboxState.EDITING -> false
+                OutboxState.SENDING, OutboxState.EDITING, OutboxState.INTERRUPTED -> false
             }
 
     /**
@@ -169,11 +220,14 @@ object OutboxLogic {
         // An item open in the composer (#70) is being handled right now, not waiting to send:
         // keep it off the badge, exactly as the queue keeps it off the send worker.
         OutboxState.EDITING -> false
-        // Both count AT ONCE, and for the same reason: neither is on its way anywhere, so no delay
-        // would make the silence any truer. KEPT_AS_DRAFT is not an alarm — it is the only thing on
-        // screen saying where that message went (#95) — which is why it counts on the badge while
-        // it deliberately stays off the failure banner ([needsFailureBanner]).
-        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT -> true
+        // All three count AT ONCE, and for the same reason: none of them is on its way anywhere,
+        // so no delay would make the silence any truer. KEPT_AS_DRAFT is not an alarm — it is the
+        // only thing on screen saying where that message went (#95) — which is why it counts on the
+        // badge while it deliberately stays off the failure banner ([needsFailureBanner]).
+        // INTERRUPTED is the same shape: its delivery has STOPPED, so the grace (which exists so a
+        // send that works never draws the eye, #82) would buy nothing and only delay the one line
+        // telling the user a message needs a decision.
+        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.INTERRUPTED -> true
         OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING ->
             now >= item.notBeforeMillis + BADGE_GRACE_MILLIS
     }
@@ -227,9 +281,11 @@ object OutboxLogic {
      */
     private fun countsOnlyAfterTheGrace(state: OutboxState): Boolean = when (state) {
         OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING -> true
-        // These three are already settled: FAILED and KEPT_AS_DRAFT count from the first emission,
-        // EDITING never counts at all. See [countsAt].
-        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING -> false
+        // These four are already settled: FAILED, KEPT_AS_DRAFT and INTERRUPTED count from the
+        // first emission, EDITING never counts at all. See [countsAt].
+        OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING,
+        OutboxState.INTERRUPTED,
+        -> false
     }
 
     /**
@@ -265,13 +321,17 @@ object OutboxLogic {
      * and is cleared by nothing — there is no deferred upload whose success could ever take it down
      * again — so a message saved exactly as asked would leave a permanent alarm behind it.
      *
-     * Exhaustive on purpose: a sixth state has to answer this out loud rather than inherit an
+     * ⛔ Nor is [OutboxState.INTERRUPTED], and there the claim would be worse than untrue: that row
+     * is a delivery that may well have REACHED the server. "Some messages didn't send" over a
+     * message that did send is an assertion nothing would ever take back.
+     *
+     * Exhaustive on purpose: a seventh state has to answer this out loud rather than inherit an
      * answer from an `else`.
      */
     fun needsFailureBanner(state: OutboxState): Boolean = when (state) {
         OutboxState.FAILED -> true
         OutboxState.HELD, OutboxState.QUEUED, OutboxState.SENDING,
-        OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING,
+        OutboxState.KEPT_AS_DRAFT, OutboxState.EDITING, OutboxState.INTERRUPTED,
         -> false
     }
 

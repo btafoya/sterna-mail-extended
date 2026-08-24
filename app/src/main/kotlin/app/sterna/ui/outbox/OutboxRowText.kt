@@ -24,12 +24,17 @@ import app.sterna.core.data.db.OutboxState
  * [R.string.outbox_state_kept_as_draft] is a WHOLE SENTENCE, not a fragment: it is printed as it
  * stands. It used to be substituted into "Failed: %1$s", which read "Failed: saved as a draft on
  * this device, not sent" — an announcement of failure over a save that worked.
+ *
+ * [R.string.outbox_state_interrupted] is a whole sentence for the same reason, and it is careful
+ * about what it claims: the delivery stopped part-way and the message MAY already be out, so the
+ * line says so and never says the send failed.
  */
 @StringRes
 fun outboxStateLabel(state: OutboxState): Int = when (state) {
     OutboxState.SENDING -> R.string.outbox_state_sending
     OutboxState.FAILED -> R.string.outbox_state_failed
     OutboxState.KEPT_AS_DRAFT -> R.string.outbox_state_kept_as_draft
+    OutboxState.INTERRUPTED -> R.string.outbox_state_interrupted
     OutboxState.HELD, OutboxState.QUEUED, OutboxState.EDITING -> R.string.outbox_state_waiting
 }
 
@@ -45,7 +50,7 @@ fun outboxStateLabel(state: OutboxState): Int = when (state) {
  */
 fun outboxStateShowsReason(state: OutboxState): Boolean = when (state) {
     OutboxState.FAILED -> true
-    OutboxState.SENDING, OutboxState.KEPT_AS_DRAFT,
+    OutboxState.SENDING, OutboxState.KEPT_AS_DRAFT, OutboxState.INTERRUPTED,
     OutboxState.HELD, OutboxState.QUEUED, OutboxState.EDITING,
     -> false
 }
@@ -57,10 +62,37 @@ fun outboxStateShowsReason(state: OutboxState): Boolean = when (state) {
  * here would say the save went wrong, and nothing would ever repaint it — there is no deferred
  * upload whose success could take the colour back. Same reasoning as
  * [app.sterna.core.data.db.OutboxLogic.needsFailureBanner] one screen up.
+ *
+ * ⛔ [OutboxState.INTERRUPTED] is not an error either: red says the send went wrong, and this one
+ * may have gone through — the row is parked precisely because the phone cannot tell.
  */
 fun outboxStateIsError(state: OutboxState): Boolean = when (state) {
     OutboxState.FAILED -> true
-    OutboxState.SENDING, OutboxState.KEPT_AS_DRAFT,
+    OutboxState.SENDING, OutboxState.KEPT_AS_DRAFT, OutboxState.INTERRUPTED,
     OutboxState.HELD, OutboxState.QUEUED, OutboxState.EDITING,
     -> false
+}
+
+/**
+ * The body of the delete confirmation for a row in [state] — the sentence read at the one moment
+ * the only copy of a message is about to be destroyed.
+ *
+ * ⛔ [R.string.outbox_delete_body] opens with "It hasn't been sent", and over
+ * [OutboxState.INTERRUPTED] that is a claim this phone cannot make: the row is parked precisely
+ * because the delivery may have reached the server before the run was killed. Told the message
+ * never left, the reader deletes it — and if it did leave, she has just destroyed her only trace of
+ * a message the recipient has. Hence a body of its own, which says it may already be gone and still
+ * says what deleting costs.
+ *
+ * ⚠ Seen and LEFT: [OutboxState.SENDING] and [OutboxState.KEPT_AS_DRAFT] take the default body too,
+ * and neither is quite true of them either (a send is in flight; a draft copy does exist on the
+ * phone). That wording is older than this fix and out of its scope — it is named here so the next
+ * reader knows it was looked at, not missed.
+ */
+@StringRes
+fun outboxDeleteBody(state: OutboxState): Int = when (state) {
+    OutboxState.INTERRUPTED -> R.string.outbox_delete_body_interrupted
+    OutboxState.SENDING, OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT,
+    OutboxState.HELD, OutboxState.QUEUED, OutboxState.EDITING,
+    -> R.string.outbox_delete_body
 }
