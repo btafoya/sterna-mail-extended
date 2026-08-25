@@ -240,8 +240,18 @@ class AppContainer(context: Context) {
         //
         // rethrowIfCancelled: a draw that fails is a stale cell and nothing more, but the app
         // scope being cancelled must not be counted as one more failed draw.
+        //
+        // ⛔ accountStore.accountsFlow is the SECOND arm, and it is what makes the cell's LABEL —
+        // and the target of a tap on it — follow an account arriving or leaving. Both are decided
+        // on the account count (AllInboxesView), while the breakdown is keyed on countedInboxes,
+        // which drops any account whose inboxId is still null: an imported account is written
+        // exactly like that. So adding or removing one crosses the bound without moving the map,
+        // the de-duplication swallows it, and with updatePeriodMillis=0 the cell keeps a name the
+        // app no longer has for days. It is a StateFlow in memory, republished by saveAccounts: no
+        // Room query, no wake-up, and every add/remove path at once.
+        //
         appScope.launch {
-            UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {
+            UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {
                 mailRepository.observeUnifiedInboxUnreadByAccount()
             }.collect { unreadByAccount ->
                 runCatching { UnreadWidgetDraw.redraw(appContext, unreadByAccount) }

@@ -94,10 +94,13 @@ class RecentMailWidgetPushWiringLintTest {
         val lines = kotlinLines(STERNA_APPLICATION)
         assertEquals(
             "AppContainer.init must open exactly one push collection per widget, each on its own " +
-                "presence. A single shared collection ties one widget's freshness to whether the " +
-                "other one is placed.",
+                "presence, and each with its own account arm. A single shared collection ties one " +
+                "widget's freshness to whether the other one is placed; and both need " +
+                "accountStore.accountsFlow, because both are drawn differently above and below " +
+                "AllInboxesView.existsFor — the dots on one, the label and the tap target on the " +
+                "other — and neither read carries the account count.",
             listOf(
-                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {",
+                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
                 "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
             ),
             lines.filter { it.startsWith("UnreadWidgetPush.redraws") || it.startsWith("RecentMailWidgetPush.redraws") },

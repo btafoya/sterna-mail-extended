@@ -61,17 +61,29 @@ class UnreadWidgetPushWiringLintTest {
      * flow that is not `UnreadWidgetPresence.placed(…)` — a `flowOf(true)`, say — compiles, keeps
      * every other test in this repository green, and subscribes two global Room aggregates for the
      * life of every process on earth for a widget nobody placed.
+     *
+     * ⛔ THE SECOND ARGUMENT IS PART OF THE RULE. `accountStore.accountsFlow` is what carries the
+     * account COUNT, and the cell's label and tap target are both decided on it
+     * ([AllInboxesView]); the breakdown cannot report it, being keyed on
+     * `UnifiedInbox.countedInboxes`, which drops any account whose `inboxId` is still null — how an
+     * imported account is written until it is signed in. Handed a `flowOf(emptyList())` instead, or
+     * dropped, this compiles and the cell keeps a name the app no longer has, with no timer to
+     * catch it (`updatePeriodMillis="0"`). [UnreadWidgetPushTest] executes the decision; only this
+     * rule sees which flow the shipped app hands it.
      */
     @Test fun `AppContainer collects the push, gated on a widget being placed`() {
         assertEquals(
             "AppContainer.init must launch UnreadWidgetPush.redraws over " +
-                "UnreadWidgetPresence.placed(appContext), collecting the BY-ACCOUNT breakdown into " +
-                "UnreadWidgetDraw.redraw — the total alone cannot feed the enlarged cell's lines. " +
-                "Dropped, the widget stops following the mail the user is reading; ungated, every " +
-                "install pays for a widget it does not have.",
+                "UnreadWidgetPresence.placed(appContext) and accountStore.accountsFlow, collecting " +
+                "the BY-ACCOUNT breakdown into UnreadWidgetDraw.redraw — the total alone cannot " +
+                "feed the enlarged cell's lines. Dropped, the widget stops following the mail the " +
+                "user is reading; ungated, every install pays for a widget it does not have; " +
+                "without accountsFlow, the cell keeps its label and its tap target when an account " +
+                "that never synced arrives or leaves, because such an account is absent from the " +
+                "breakdown entirely.",
             listOf(
                 "appScope.launch {",
-                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext)) {",
+                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
                 "mailRepository.observeUnifiedInboxUnreadByAccount()",
                 "}.collect { unreadByAccount ->",
                 "runCatching { UnreadWidgetDraw.redraw(appContext, unreadByAccount) }",
