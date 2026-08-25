@@ -6741,7 +6741,14 @@ class MailRepository(
             // anyway, and so does a save the user makes after an earlier version got through: both
             // cost a duplicate in Drafts rather than text that exists nowhere. ⛔ `appendDraft`
             // itself does not replay inside its session — see it.
-            appendDraftUnlessAlreadyThere(
+            // ⛔ The answer is CAUGHT, and it is load-bearing: `false` means this attempt appended
+            // NOTHING because the lookup found the id already there. The destroy guard below then
+            // has no replacement of its own to weigh — it would be comparing what the composer
+            // holds against what the original holds while the server's copy was written by some
+            // earlier attempt (or an older build with no `Bcc:` header, or an attempt whose
+            // `imapDraftAttachments` dropped a part it could not read that time). Dropped on the
+            // floor, as it was, the skipped APPEND proves a replacement that never left.
+            val wentOut = appendDraftUnlessAlreadyThere(
                 row = row,
                 alreadyThere = { messageId ->
                     imap.draftIsAlreadyThere(credentials = credentials, draftsMailbox = drafts, messageId = messageId)
@@ -6808,6 +6815,7 @@ class MailRepository(
             val outcome = finishDraftSave(
                 credentials, replacesEmailId,
                 faithful = draftReplacementIsFaithful(
+                    replacementWentOut = wentOut,
                     attachments.size, parts.size, row.bodyIsLossy,
                     addressingIsCarried = addressingIsCarried,
                     receiptRequestIsCarried = receiptIsCarried,
@@ -6887,6 +6895,21 @@ class MailRepository(
         return finishDraftSave(
             credentials, replacesEmailId,
             faithful = draftReplacementIsFaithful(
+                // ⛔ The server's ANSWER, never the request. `client.saveDraft` does send an
+                // `Email/set` create every single time — nothing on this path looks the draft up
+                // by `Message-ID` first, so nothing here is ever skipped the way the IMAP branch
+                // above can be — but "we sent a create" is not "the copy is there". That function
+                // is declared `: String?`: it THROWS on `notCreated.draft`, and it answers NULL
+                // when the response names neither a created id nor a refusal, i.e. when the
+                // server said something this client cannot read. Null is an unknown, and an
+                // unknown never authorises a destroy — the same rule the addressing and the
+                // receipt legs obey. The optimistic cache write a few lines above already tells
+                // the two apart (`if (savedId != null)`), so this verdict may as well.
+                // ⚠ On any RFC 8621-conforming server this is byte-for-byte the old behaviour: a
+                // create either returns its id or is refused. What changes is only the unreadable
+                // answer, where the user now gets a duplicate in Drafts plus the "original kept"
+                // notice instead of a silently destroyed original.
+                replacementWentOut = savedId != null,
                 attachments.size, blobs.size, row.bodyIsLossy,
                 // True, and not a read like the IMAP branch above: reopening a JMAP draft goes
                 // through Email/get, which returns to/cc/bcc from the server, so the composer's

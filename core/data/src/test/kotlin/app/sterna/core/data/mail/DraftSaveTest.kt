@@ -25,6 +25,7 @@ class DraftSaveTest {
     @Test fun aPlainDraftWithEveryAttachmentCarriedMayReplaceTheOriginal() {
         assertTrue(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 2, attachmentsCarried = 2, bodyIsLossy = false,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = true,
@@ -35,6 +36,7 @@ class DraftSaveTest {
     @Test fun noAttachmentsAtAllIsFaithful() {
         assertTrue(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = true,
@@ -47,6 +49,7 @@ class DraftSaveTest {
         // Destroying the original here deletes the only copy of that file.
         assertFalse(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 2, attachmentsCarried = 1, bodyIsLossy = false,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = true,
@@ -57,6 +60,7 @@ class DraftSaveTest {
     @Test fun everyAttachmentDroppedKeepsTheOriginal() {
         assertFalse(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 1, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = true,
@@ -69,6 +73,7 @@ class DraftSaveTest {
         // cannot restore the formatting, so the HTML original stays put.
         assertFalse(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = true,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = true,
@@ -83,8 +88,71 @@ class DraftSaveTest {
     @Test fun anAddressingThatIsNotCarriedKeepsTheOriginalOnItsOwn() {
         assertFalse(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = false,
+                receiptRequestIsCarried = true,
+            ),
+        )
+    }
+
+    /**
+     * ⭐ A replacement that never left, every other leg green — and the original still stands.
+     *
+     * The damage this refuses: a deferred upload (#95) retries, its `Message-ID` lookup finds the
+     * draft already on the server and skips the APPEND on purpose, so the bytes this attempt was
+     * holding went NOWHERE. The three legs below then compare what the COMPOSER holds against what
+     * the ORIGINAL held — and say "faithful" about a copy some earlier attempt wrote. The original
+     * is expunged in its name. Two ways that copy is not the same message: it may have been
+     * deposited by a build that wrote no `Bcc:` header at all (the blind addresses then exist
+     * nowhere), and `imapDraftAttachments` drops a part it cannot read from disk, so the attempt
+     * that did the APPEND may have sent N−1 files while this one counts N against N.
+     */
+    @Test fun aReplacementThatNeverLeftProvesNothingAndKeepsTheOriginal() {
+        assertFalse(
+            draftReplacementIsFaithful(
+                replacementWentOut = false,
+                attachmentsIn = 1, attachmentsCarried = 1, bodyIsLossy = false,
+                addressingIsCarried = true,
+                receiptRequestIsCarried = true,
+            ),
+        )
+    }
+
+    /**
+     * ⭐ THE cheap half of the same damage, and the one no other leg can catch: a draft with NO
+     * attachment at all — only a Cci, say — whose APPEND was skipped on a retry. Every countable
+     * leg is perfect (`0 == 0`), the body is clean, the addressing "matches" because the composer
+     * is compared with itself, and the original is expunged in the name of a copy this attempt
+     * never wrote. That copy may be the one an older build of this app appended with no `Bcc:`
+     * header at all, and then the blind addresses exist on no copy anywhere.
+     *
+     * ⛔ Its twin above uses `attachmentsIn = 1` and would let `(replacementWentOut ||
+     * attachmentsIn == 0)` through — a mutation that restores exactly this loss. This case is what
+     * refuses it, so the two are kept side by side and neither may be dropped for the other.
+     */
+    @Test fun `a replacement that never left keeps the original even with nothing to count`() {
+        assertFalse(
+            draftReplacementIsFaithful(
+                replacementWentOut = false,
+                attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
+                addressingIsCarried = true,
+                receiptRequestIsCarried = true,
+            ),
+        )
+    }
+
+    /**
+     * The mirror, same values: the term is the APPEND's real answer and not a constant `false`.
+     * An attempt that DID put the bytes on the server, with every other leg green, still replaces
+     * the original in place — one draft, not two, on every ordinary save.
+     */
+    @Test fun theSameSaveThatDidGoOutStillReplacesTheOriginal() {
+        assertTrue(
+            draftReplacementIsFaithful(
+                replacementWentOut = true,
+                attachmentsIn = 1, attachmentsCarried = 1, bodyIsLossy = false,
+                addressingIsCarried = true,
                 receiptRequestIsCarried = true,
             ),
         )
@@ -292,6 +360,7 @@ class DraftSaveTest {
         assertFalse(carried)
         assertFalse(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = carried,
                 receiptRequestIsCarried = true,
@@ -309,6 +378,7 @@ class DraftSaveTest {
         assertTrue(carried)
         assertTrue(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = carried,
                 receiptRequestIsCarried = true,
@@ -441,6 +511,7 @@ class DraftSaveTest {
     @Test fun aDroppedReceiptRequestKeepsTheOriginalOnItsOwn() {
         assertFalse(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = false,
@@ -518,6 +589,7 @@ class DraftSaveTest {
         assertFalse(carried)
         assertFalse(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = carried,
@@ -536,6 +608,7 @@ class DraftSaveTest {
         assertTrue(carried)
         assertTrue(
             draftReplacementIsFaithful(
+                replacementWentOut = true,
                 attachmentsIn = 0, attachmentsCarried = 0, bodyIsLossy = false,
                 addressingIsCarried = true,
                 receiptRequestIsCarried = carried,

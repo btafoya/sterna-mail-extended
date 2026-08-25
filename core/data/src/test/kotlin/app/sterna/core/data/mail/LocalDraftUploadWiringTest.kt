@@ -16,7 +16,9 @@ import java.io.File
  *  - the deferred upload must record its failure on the row, or the backoff the DAO honours is
  *    armed by nobody and the worker loops on an unreachable server;
  *  - removing an account must take its local drafts AND their staged bytes with it (#121's
- *    neighbourhood): that is text the user typed and the server never received.
+ *    neighbourhood): that is text the user typed and the server never received;
+ *  - an APPEND the de-duplication SKIPPED must reach the destroy guard as "nothing went out", or
+ *    the original is expunged in the name of a replacement that never left.
  */
 class LocalDraftUploadWiringTest {
 
@@ -162,7 +164,15 @@ class LocalDraftUploadWiringTest {
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "val drafts = mailboxDao.idForRole(credentials.id, \"drafts\") ?: error(\"This account has no Drafts folder.\")",
                 "val parts = imapDraftAttachments(attachments)",
-                "appendDraftUnlessAlreadyThere(",
+                // ⛔ `val wentOut =` is LOAD-BEARING, and dropping it compiles: the function
+                // already answers "did the bytes actually go out", and thrown away — as it was —
+                // a skipped APPEND (the lookup found the id already there, so this attempt sent
+                // nothing) still reaches `draftReplacementIsFaithful` as a proven replacement.
+                // The guard then weighs what the COMPOSER holds against what the ORIGINAL holds,
+                // finds them equal, and expunges the original in the name of a copy written by
+                // some earlier attempt — possibly with no `Bcc:` header, possibly one attachment
+                // short. The `val` is what carries the answer to the line below.
+                "val wentOut = appendDraftUnlessAlreadyThere(",
                 "row = row,",
                 // ⛔ NAMED, and it is not a matter of taste: `draftIsAlreadyThere` takes a folder
                 // and a Message-ID, both `String`, and swapping the two at the declaration compiles
@@ -195,6 +205,7 @@ class LocalDraftUploadWiringTest {
                 "val outcome = finishDraftSave(",
                 "credentials, replacesEmailId,",
                 "faithful = draftReplacementIsFaithful(",
+                "replacementWentOut = wentOut,",
                 "attachments.size, parts.size, row.bodyIsLossy,",
                 "addressingIsCarried = addressingIsCarried,",
                 "receiptRequestIsCarried = receiptIsCarried,",
@@ -205,6 +216,86 @@ class LocalDraftUploadWiringTest {
                 "return outcome",
             ),
             codeOf(body.substring(0, to + "return outcome".length)),
+        )
+    }
+
+    @Test fun `every destroy guard is told whether the replacement actually went out`() {
+        // ⛔ THE line that re-opens the defect, and it is one word: `replacementWentOut = true` on
+        // the IMAP branch. Every executable suite stays green — `draftReplacementIsFaithful` is
+        // then simply asked a question with a nicer answer — and a deferred upload whose APPEND
+        // was skipped destroys the original again, in the name of a server copy this attempt
+        // never wrote. Three answers, three reasons, whole lines and a closed list:
+        //  - IMAP: the real boolean the lookup produced;
+        //  - JMAP: the id the SERVER returned. The create does go out every time — no `Message-ID`
+        //    lookup exists on that path to skip anything — but `client.saveDraft` is declared
+        //    `: String?` and answers null when the response names neither a created id nor a
+        //    refusal. That is an unknown, and an unknown may not authorise a destroy;
+        //  - the SEND (`replaceableDraftIdOrNull`, DraftSave.kt): a literal true, because the send
+        //    sends — the id it returns is only ever written onto the outbox row as what the
+        //    delivery replaces.
+        val upload = DaoQuerySource.mailFunctionBody("MailRepository", "uploadDraft")
+        assertEquals(
+            "the APPEND's answer must be CAUGHT, not dropped: a bare call is the defect itself",
+            listOf("val wentOut = appendDraftUnlessAlreadyThere("),
+            codeLinesNaming(upload, "appendDraftUnlessAlreadyThere("),
+        )
+        assertEquals(
+            "the IMAP branch must hand the guard the boolean the lookup just produced, and the " +
+                "JMAP branch the id the SERVER returned — `client.saveDraft` is declared " +
+                "`: String?` and answers null when the response names neither a created id nor a " +
+                "refusal, which is an unknown, and an unknown may not authorise a destroy. " +
+                "`replacementWentOut = true` on either line is the defect, restored",
+            listOf(
+                "replacementWentOut = wentOut,",
+                "replacementWentOut = savedId != null,",
+            ),
+            codeLinesNaming(upload, "replacementWentOut"),
+        )
+        assertEquals(
+            "the send path answers true, and says so exactly once",
+            listOf("replacementWentOut = true,"),
+            codeLinesNaming(
+                DaoQuerySource.mailFunctionBody("DraftSave", "replaceableDraftIdOrNull"),
+                "replacementWentOut",
+            ),
+        )
+    }
+
+    @Test fun `the leg is declared with no default, and production answers it in three places`() {
+        // ⛔ THE guard is the ABSENT DEFAULT, not the position. `replacementWentOut: Boolean = true`
+        // compiles, leaves all three call sites untouched, leaves every assertion above green — and
+        // arms the defect for every caller written from then on, which inherits "it went out"
+        // without having established anything. Being first only broke the POSITIONAL calls that
+        // already existed; it says nothing about a call that does not exist yet. So the declaration
+        // is pinned as a WHOLE LINE, and so is the first term of the expression it opens.
+        assertEquals(
+            "draftReplacementIsFaithful must declare `replacementWentOut: Boolean,` bare — no " +
+                "`= true`, which would compile and silently arm every future caller — and weigh " +
+                "it as the FIRST term of the conjunction",
+            listOf(
+                "replacementWentOut: Boolean,",
+                "): Boolean = replacementWentOut &&",
+                "replacementWentOut = true,",
+            ),
+            codeLinesNaming(DaoQuerySource.mailSource("DraftSave"), "replacementWentOut"),
+        )
+        // ⛔ And a CLOSED set of answers: exactly three, each one read above. A fourth call site
+        // appearing in either file turns this red rather than shipping an unreviewed `true`.
+        // ⚠ Its reach, stated honestly: the function is `internal`, so a caller could in principle
+        // live anywhere in :core:data. These are the two files of the mail package that hold the
+        // save and the send; `DaoQuerySource` reads files, not directories, and inventing a walker
+        // for it was refused.
+        assertEquals(
+            "exactly three answers in production — the IMAP lookup's boolean, the JMAP server's " +
+                "id, and the send's justified literal. A fourth is an unreviewed authorisation " +
+                "to destroy an original",
+            listOf(
+                "replacementWentOut = wentOut,",
+                "replacementWentOut = savedId != null,",
+                "replacementWentOut = true,",
+            ),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "replacementWentOut =") +
+                codeLinesNaming(DaoQuerySource.mailSource("DraftSave"), "replacementWentOut ="),
         )
     }
 

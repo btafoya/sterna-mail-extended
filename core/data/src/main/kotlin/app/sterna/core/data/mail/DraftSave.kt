@@ -99,6 +99,23 @@ fun draftSaveParksTheQueuedRowAs(outcome: DraftSaveOutcome): OutboxState? =
  * Whether a re-saved draft reproduced the one it replaces, i.e. whether the original may be
  * destroyed. Pure decision logic of [MailRepository.saveDraft], extracted for unit tests:
  *
+ * - [replacementWentOut] says the replacement was actually PUT on the server by this very attempt.
+ *   Nothing went out, so nothing is proven: every other leg below weighs what the COMPOSER holds
+ *   against what the ORIGINAL holds, and that comparison describes the server's copy only when
+ *   this attempt is the one that wrote it. A deferred upload whose lookup found the `Message-ID`
+ *   already there skips the `APPEND` on purpose ([appendDraftUnlessAlreadyThere]) — and the copy
+ *   it found may have been deposited by an earlier attempt, or by an older build of this app that
+ *   wrote no `Bcc:` header at all, or by an attempt whose `imapDraftAttachments` silently dropped
+ *   a part it could not read from disk that time. What the composer holds does not describe what
+ *   the server holds, so the original stays: a duplicate is deletable, the destroyed original is
+ *   not. ⛔ It carries NO DEFAULT VALUE, and that — not its position — is the guard. Writing
+ *   `replacementWentOut: Boolean = true` compiles, leaves all three call sites and all three
+ *   source lints exactly as they are, and arms the defect for every caller yet to be written: a
+ *   new path would inherit "the replacement went out" without having established anything, which
+ *   is the very claim this leg exists to refuse. Being FIRST is the smaller half of it — it broke
+ *   the existing POSITIONAL calls at compile time, so no site could be updated in silence — and
+ *   it says nothing about a call that does not exist yet. The absent default is pinned as a whole
+ *   line by `LocalDraftUploadWiringTest`.
  * - every attachment handed to the save must have made it into the new draft
  *   ([attachmentsCarried] == [attachmentsIn]) — compose shows those parts as chips, so dropping
  *   them AND destroying the original would delete files the user was just looking at;
@@ -116,12 +133,14 @@ fun draftSaveParksTheQueuedRowAs(outcome: DraftSaveOutcome): OutboxState? =
  * Anything else is a duplicate in Drafts, which the user can delete. Data loss, they cannot undo.
  */
 internal fun draftReplacementIsFaithful(
+    replacementWentOut: Boolean,
     attachmentsIn: Int,
     attachmentsCarried: Int,
     bodyIsLossy: Boolean,
     addressingIsCarried: Boolean,
     receiptRequestIsCarried: Boolean,
-): Boolean = !bodyIsLossy &&
+): Boolean = replacementWentOut &&
+    !bodyIsLossy &&
     attachmentsCarried == attachmentsIn &&
     addressingIsCarried &&
     receiptRequestIsCarried
@@ -225,6 +244,11 @@ internal suspend fun replaceableDraftIdOrNull(
 ): String? {
     if (draftEmailId == null) return null
     val faithful = draftReplacementIsFaithful(
+        // True, and not a boolean read from anywhere: the send SENDS. There is no lookup on this
+        // path that could skip the work the way the deferred upload's `Message-ID` search skips an
+        // APPEND, and the destroyable id this returns is only ever written onto the outbox row as
+        // "what the delivery replaces" — `performSend` destroys it after the message has gone out.
+        replacementWentOut = true,
         attachmentsIn = attachmentCount,
         attachmentsCarried = attachmentCount,
         bodyIsLossy = bodyIsLossy,
