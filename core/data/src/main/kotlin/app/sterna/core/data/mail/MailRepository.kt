@@ -6711,21 +6711,31 @@ class MailRepository(
             )
             // What the copy about to be destroyed was addressed to, read back from the server —
             // the composer cannot vouch for it here. Reopening an IMAP draft rebuilds it from the
-            // cache row, which has no cc/bcc column at all: a draft whose Cc was never displayed
-            // and one that has no Cc reach this line identically, both with an empty Cc field.
+            // cache row, and that row's cc/bcc columns (schema v21) hold exactly what some sync
+            // once put in them: only what the server gave back, with no back-fill for rows written
+            // before the columns existed. So a row that never saw the header and a draft that
+            // truly has no Cc reach this line identically, both with an empty Cc field — the cache
+            // cannot answer in the server's place about the very copy this is about to destroy.
             // Unknown (a failed read) is not empty, and it forbids the destroy.
             //
-            // ⛔ Only the Cc counts as proof, never the Bcc. OutgoingMime.build writes `From:`,
-            // `To:` and `Cc:` and no `Bcc:` at all — a Bcc only ever reaches the RCPT TO of a
-            // send — so an address typed into the Bcc field is in NO header of the draft just
-            // appended. Counting it would re-open the whole loss with the guard green: the user
-            // re-types the Cc that came back empty, puts it in Bcc, the replacement "carries" it,
-            // and the server copy that actually held it is destroyed while the new one holds it
-            // nowhere. The price is assumed: an original whose envelope really does carry a Bcc
-            // can never be proven carried, so it stays — a duplicate in Drafts, as for a Cc.
+            // ⛔ The Cc AND the Bcc, and until 2026-08-25 it was the Cc ALONE — read the reason
+            // before touching this, because the old rule was RIGHT and is what closed #63.
+            // It said: OutgoingMime.build writes `From:`, `To:` and `Cc:` and no `Bcc:` at all, a
+            // Bcc only ever reaching the RCPT TO of a send, so an address typed into the Bcc field
+            // was in NO header of the draft just appended. Counting it then would have re-opened
+            // the measured loss with the guard green: the user re-types the Cc that came back
+            // empty, puts it in Bcc, the replacement "carries" it, and the server copy that
+            // actually held it is destroyed while the new one holds it nowhere.
+            // ⭐ ONE thing changed, and nothing else: the header IS written now. This APPEND builds
+            // its MIME with `BlindCopies.WRITTEN` (see `ImapMailService.appendDraft`, pinned by
+            // DraftAppendCarriesBccWiringTest), so the copy the server keeps carries a real `Bcc:`
+            // and reopening it hands the address back. The Bcc is therefore carried IN FACT, and
+            // leaving it out is what now costs a duplicate in Drafts on every save of a draft with
+            // a Cci. ⛔ If that argument ever goes off this APPEND, this line goes back to the Cc alone
+            // the same day, or #63's loss returns through the Bcc field.
             val addressingIsCarried = draftAddressingIsCarried(
                 replacesEmailId = replacesEmailId,
-                replacement = ccTrimmed.toSet(),
+                replacement = draftReplacementAddressing(ccTrimmed, bccTrimmed),
                 // NO_BUDGET, explicitly, and it now means two different things depending on WHO
                 // is uploading — because `uploadDraft` serves both:
                 //  - under the interactive save, it is what it always was: a blocking read, whose
@@ -6906,9 +6916,17 @@ class MailRepository(
     /**
      * Whether the message being queued provably carries the addressing of the draft it will
      * destroy on delivery — the send-path twin of the question [saveDraft] asks before its own
-     * destroy, and the same doctrine: only the Cc counts as proof (the outgoing message writes no
-     * `Bcc:` header, so a Bcc can prove nothing), and a read that fails is an unknown, which
-     * forbids the destroy ([draftAddressingIsCarried] answers false for it).
+     * destroy, and the same doctrine: the proof is [draftReplacementAddressing], the Cc AND the
+     * Bcc, and a read that fails is an unknown, which forbids the destroy
+     * ([draftAddressingIsCarried] answers false for it).
+     *
+     * ⭐ The Bcc counts here even though the outgoing message still writes no `Bcc:` header — it
+     * writes none, that was true before 2026-08-25 and is still true, and a submission that wrote
+     * one would hand every hidden recipient to every visible one. What carries it is the ENVELOPE:
+     * the blind copies go out in the `RCPT TO` and the mail is delivered to them. So an original
+     * whose Bcc the composer still holds is losing nothing by being destroyed — its blind copy has
+     * just been sent. Read the Cc alone, as this did until 2026-08-25, and the draft of every
+     * message with a Cci stays in Drafts for ever.
      *
      * JMAP is exempt for the same reason its save is (see the comment in [saveDraft]): reopening
      * a JMAP draft goes through Email/get, so the composer's fields ARE the original's
@@ -6920,11 +6938,12 @@ class MailRepository(
         credentials: AccountCredentials,
         replacesEmailId: String,
         cc: List<String>,
+        bcc: List<String>,
     ): Boolean {
         if (credentials.protocol != MailProtocol.IMAP) return true
         return draftAddressingIsCarried(
             replacesEmailId = replacesEmailId,
-            replacement = cc.toSet(),
+            replacement = draftReplacementAddressing(cc, bcc),
             // Bounded, unlike the save's twin read: this runs inside enqueueSend BEFORE the
             // outbox row is inserted, while the message is only in the composer's RAM — see
             // SEND_PROOF_BUDGET_MS. Expiry throws, the wrapper answers null, unknown keeps
@@ -7232,7 +7251,7 @@ class MailRepository(
         // still goes out (nothing ever holds a send back), and the original survives in Drafts.
         val replaceableDraftId =
             replaceableDraftIdOrNull(draftEmailId, attachments.size, bodyIsLossy) { id ->
-                sendCarriesDraftAddressing(credentials, id, ccTrimmed)
+                sendCarriesDraftAddressing(credentials, id, ccTrimmed, bccTrimmed)
             }
 
         // An encrypted payload replaces the plaintext everywhere at rest: the row keeps headers

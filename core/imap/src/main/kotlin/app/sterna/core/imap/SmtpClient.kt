@@ -82,12 +82,34 @@ data class OutgoingAttachment(
     val inline: Boolean = false,
 )
 
+/**
+ * Whether a built message writes its blind copies as a `Bcc:` header.
+ *
+ * ⛔ **A type, and not a `Boolean` — that IS the guard.** `build(m, true)` compiled and named
+ * nothing: a positional `true` puts the header into a message while the word "Bcc" appears nowhere
+ * on the line, so a rule stated over source text cannot see it, and the one call site that must
+ * never ask for it (the JMAP pre-built path, submitted verbatim) is written across several lines
+ * where a call-line pin cannot reach it either. [WRITTEN] cannot be passed without spelling itself
+ * out, positionally or not.
+ */
+enum class BlindCopies {
+    /** No `Bcc:` header at all. The default, and what every byte that LEAVES the phone gets. */
+    OMITTED,
+
+    /** Write the blind recipients as a `Bcc:` header. Stored copies only — see [OutgoingMime.build]. */
+    WRITTEN,
+}
+
 /** A message to submit over SMTP. Addresses are bare "name <addr>" or "addr" strings. */
 data class OutgoingMessage(
     val from: String,
     val to: List<String>,
     val cc: List<String> = emptyList(),
-    /** Blind-copy recipients: in the SMTP envelope (RCPT TO) but never in the headers. */
+    /**
+     * Blind-copy recipients: in the SMTP envelope (RCPT TO) and, on the wire, nowhere else.
+     * A `Bcc:` header exists in exactly one place — the copy APPENDed to the Drafts folder,
+     * which is read back and by nobody else ([OutgoingMime.build] asked for [BlindCopies.WRITTEN]).
+     */
     val bcc: List<String> = emptyList(),
     val subject: String,
     val body: String,
@@ -384,7 +406,24 @@ class SmtpClient {
 
 /** Builds the RFC 5322 message for both SMTP submission and IMAP APPEND. */
 object OutgoingMime {
-    fun build(m: OutgoingMessage): String {
+    /**
+     * [blindCopies] says whether the blind-copy recipients are written as a `Bcc:` header.
+     *
+     * ⛔ **[BlindCopies.OMITTED] by default, and that default IS the blind copy.** What this
+     * function returns is fed to SMTP's `DATA` line by line, with no header filter of any kind
+     * between here and the socket, so a `Bcc:` written for a submission hands every hidden
+     * recipient to every visible one — the one mistake a mail client cannot take back. Over SMTP
+     * the blind copies travel as `RCPT TO` envelope commands, and as nothing else.
+     *
+     * ⭐ The ONE caller that asks for [BlindCopies.WRITTEN] is the Drafts-folder APPEND
+     * (ImapMailService's `appendDraft`), whose bytes are transmitted to no recipient at all: they
+     * are stored, and that header is the only place a Cci can survive until the draft is reopened.
+     *
+     * ⚠ [BlindCopies] and not a `Boolean` since 2026-08-25: the parameter was a flag, and a
+     * positional `true` — which names neither the flag nor the header — put the disclosure back
+     * into a submitted message with every guard still green. See the enum.
+     */
+    fun build(m: OutgoingMessage, blindCopies: BlindCopies = BlindCopies.OMITTED): String {
         val date = ZonedDateTime.ofInstant(
             java.time.Instant.ofEpochMilli(m.dateMillis),
             java.time.ZoneOffset.UTC,
@@ -395,6 +434,9 @@ object OutgoingMime {
             // it entirely. A real send always has recipients, so this only affects saved drafts.
             if (m.to.isNotEmpty()) append("To: ${m.to.joinToString(", ") { headerSafe(it) }}\r\n")
             if (m.cc.isNotEmpty()) append("Cc: ${m.cc.joinToString(", ") { headerSafe(it) }}\r\n")
+            // Stored copies only — see [blindCopies]. Without that test this line is a disclosure,
+            // not a header: the same bytes are what a submission writes into DATA.
+            if (blindCopies == BlindCopies.WRITTEN && m.bcc.isNotEmpty()) append("Bcc: ${m.bcc.joinToString(", ") { headerSafe(it) }}\r\n")
             append("Subject: ${encodeHeader(m.subject)}\r\n")
             append("Date: $date\r\n")
             append("Message-ID: <${headerSafe(m.messageId.trim('<', '>'))}>\r\n")

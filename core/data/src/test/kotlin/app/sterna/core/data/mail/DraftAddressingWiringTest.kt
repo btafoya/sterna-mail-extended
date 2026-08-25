@@ -19,8 +19,11 @@ import org.junit.Test
  * replacement provably carries the addressing. Every single word below is one that, changed alone,
  * brings the measured loss back while every executable test stays green:
  * - `addressingIsCarried = addressingIsCarried` → `= true` re-authorises every destroy;
- * - `replacement = ccTrimmed.toSet()` → `+ bccTrimmed` lets an address typed into Bcc count as
- *   carried, though `OutgoingMime.build` writes no `Bcc:` header at all;
+ * - `replacement = draftReplacementAddressing(ccTrimmed, bccTrimmed)` → `ccTrimmed.toSet()`, which
+ *   is what shipped until 2026-08-25, now leaves a duplicate in Drafts on every save of a draft
+ *   with a Cci: the server's copy carries a real `Bcc:` header since the APPEND passes
+ *   `BlindCopies.WRITTEN`, so `ccAndBccOf` reads that address on the ORIGINAL side and a
+ *   Cc-only replacement can never match it;
  * - `?: return null` → `?: return emptySet()` turns "I could not read it" into "there was none".
  */
 class DraftAddressingWiringTest {
@@ -44,17 +47,30 @@ class DraftAddressingWiringTest {
         )
     }
 
-    @Test fun onlyTheCcIsOfferedAsProofNeverTheBcc() {
-        // THE line of the counter-expertise. OutgoingMime.build writes From/To/Cc and no `Bcc:`,
-        // so an address typed into Bcc reaches no header of the appended draft: counting it would
-        // let a user who re-types the lost Cc into Bcc destroy the copy that still held it.
-        // The second line is the read-receipt guard's own `replacement`, pinned by
-        // [DraftReceiptWiringTest]; it is listed here so this assertion keeps comparing WHOLE
+    @Test fun theProofIsTheCcAndTheBccSinceTheAppendedDraftCarriesBoth() {
+        // THE line of the counter-expertise, and it turned over on 2026-08-25. Until then
+        // OutgoingMime.build wrote From/To/Cc and no `Bcc:`, so an address typed into Bcc reached
+        // no header of the appended draft and counting it would have let a user who re-types the
+        // lost Cc into Bcc destroy the copy that still held it (#63). The APPEND now passes
+        // `BlindCopies.WRITTEN` (pinned by [DraftAppendCarriesBccWiringTest]), so that header is
+        // really written and the address really comes back on reopen.
+        // The second and third lines are the read-receipt guard's own `replacement`, pinned by
+        // [DraftReceiptWiringTest]; they are listed here so this assertion keeps comparing WHOLE
         // lines against a closed list rather than being loosened to a search.
         assertEquals(
-            "the replacement's proof is its Cc alone — a Bcc is never written into the appended " +
-                "draft, so it can prove nothing (#63)",
-            listOf("replacement = ccTrimmed.toSet(),", "replacement = requestReceipt,", "replacement = requestReceipt,"),
+            "the replacement's proof is draftReplacementAddressing(ccTrimmed, bccTrimmed) — the " +
+                "Cc AND the Bcc. Back to `ccTrimmed.toSet()` and every save of a draft with a " +
+                "Cci leaves a second copy in Drafts plus the 'original kept' notice, because the " +
+                "server-side read (ccAndBccOf = message.cc + message.bcc) sees the Bcc: header " +
+                "the APPEND now writes while the replacement offers nothing to match it. And the " +
+                "inclusion stays one way round: a bcc that came back EMPTY still fails the proof " +
+                "and still keeps the original (#63), which is what draftReplacementAddressing " +
+                "does NOT decide — draftAddressingIsCarried does",
+            listOf(
+                "replacement = draftReplacementAddressing(ccTrimmed, bccTrimmed),",
+                "replacement = requestReceipt,",
+                "replacement = requestReceipt,",
+            ),
             codeLinesNaming(bodyOf("MailRepository", "uploadDraft"), "replacement ="),
         )
     }

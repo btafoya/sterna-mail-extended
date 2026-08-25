@@ -16,18 +16,20 @@ import org.junit.Test
  * word below, changed alone, brings the loss back while every executable test stays green:
  * - `draftEmailId = replaceableDraftId` → `= draftEmailId` re-authorises every destroy — the
  *   whole defect, restored in four characters;
- * - the lambda `{ id -> sendCarriesDraftAddressing(credentials, id, ccTrimmed) }` → `{ true }`
- *   deletes the proof itself: offline, cache purged, message gone from the folder, everything
- *   becomes "addressing carried", the id is written and the original destroyed. That mutation
- *   leaves `sendCarriesDraftAddressing` dead code and NOTHING else in this repository notices
- *   (there is no `allWarningsAsErrors`) — hence the middle line is pinned as hard as the two
- *   around it, and `ccTrimmed` → `ccTrimmed + bccTrimmed` with it (#63);
+ * - the lambda `{ id -> sendCarriesDraftAddressing(credentials, id, ccTrimmed, bccTrimmed) }` →
+ *   `{ true }` deletes the proof itself: offline, cache purged, message gone from the folder,
+ *   everything becomes "addressing carried", the id is written and the original destroyed. That
+ *   mutation leaves `sendCarriesDraftAddressing` dead code and NOTHING else in this repository
+ *   notices (there is no `allWarningsAsErrors`) — hence the middle line is pinned as hard as the
+ *   two around it, and BOTH its address arguments with it: dropping `bccTrimmed` (as shipped until
+ *   2026-08-25) leaves the draft of every message with a Cci in Drafts for ever;
  * - `bodyIsLossy: Boolean = true` → `= false` in the DECLARATION, which no lint on a body can
  *   see: it silently re-arms every call site that forgets the parameter;
  * - `!= MailProtocol.IMAP) return true` → `==` skips the IMAP envelope read and destroys a draft
  *   whose Cc the composer never saw;
- * - `replacement = cc.toSet()` → `+ bccTrimmed` counts an address no header of the outgoing
- *   message carries.
+ * - `replacement = draftReplacementAddressing(cc, bcc)` → `cc.toSet()` stops counting a blind
+ *   copy that the envelope's `RCPT TO` has just DELIVERED, so the proof can never be met and the
+ *   original is never expunged.
  */
 class SendDraftDestructionWiringTest {
 
@@ -73,15 +75,17 @@ class SendDraftDestructionWiringTest {
         // because `{ true }` here is shorter than the shipped lambda and `contains` sees nothing.
         assertEquals(
             "the addressing proof handed to replaceableDraftIdOrNull must be the server read " +
-                "sendCarriesDraftAddressing(credentials, id, ccTrimmed) — nothing else. A lambda " +
+                "sendCarriesDraftAddressing(credentials, id, ccTrimmed, bccTrimmed) — nothing " +
+                "else. A lambda " +
                 "answering a constant (`{ true }`) reports 'addressing carried' while offline, " +
                 "with the cache purged, or for a message no longer in the folder: the id is then " +
                 "written on the row and the destroy takes the only copy that carried the Cc, in " +
                 "silence, with sendCarriesDraftAddressing left as dead code no build warning " +
-                "reaches. And the argument is `ccTrimmed` ALONE: the outgoing message writes no " +
-                "`Bcc:` header, so `+ bccTrimmed` would count as proof an address that never " +
-                "leaves this phone (#63).",
-            listOf("sendCarriesDraftAddressing(credentials, id, ccTrimmed)"),
+                "reaches. And the arguments are `ccTrimmed` AND `bccTrimmed`, both of them: a " +
+                "blind copy does leave this phone — the envelope's RCPT TO delivers it — so " +
+                "dropping `bccTrimmed`, as shipped until 2026-08-25, makes the proof " +
+                "unmeetable for any message with a Cci and leaves its draft in Drafts for ever.",
+            listOf("sendCarriesDraftAddressing(credentials, id, ccTrimmed, bccTrimmed)"),
             codeLinesNaming(bodyOf("enqueueSend"), "sendCarriesDraftAddressing("),
         )
     }
@@ -117,9 +121,14 @@ class SendDraftDestructionWiringTest {
             codeLinesNaming(body, "return true"),
         )
         assertEquals(
-            "the outgoing message's proof is its Cc alone — it writes no Bcc: header, so a Bcc " +
-                "can prove nothing (#63)",
-            listOf("replacement = cc.toSet(),"),
+            "the outgoing message's proof is draftReplacementAddressing(cc, bcc) — the same " +
+                "function the save uses. The Bcc counts even though the submission still writes " +
+                "no `Bcc:` header (it must not: that would hand the hidden recipients to every " +
+                "visible one) — the blind copy is DELIVERED, by the envelope's RCPT TO, so " +
+                "nothing is lost by destroying the draft it came from. Back to `cc.toSet()` and " +
+                "the server read (message.cc + message.bcc) names an address the replacement " +
+                "never offers: no id on the row, no destroy, the draft outlives the sent mail",
+            listOf("replacement = draftReplacementAddressing(cc, bcc),"),
             codeLinesNaming(body, "replacement ="),
         )
         assertEquals(

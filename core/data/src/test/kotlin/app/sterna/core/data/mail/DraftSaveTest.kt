@@ -174,6 +174,64 @@ class DraftSaveTest {
         assertTrue(draftAddressingIsCarried(original = setOf("", "   "), replacement = emptySet()))
     }
 
+    // ---- draftReplacementAddressing: what the replacement may offer as proof (2026-08-25) ----
+
+    /**
+     * ⭐ THE test of this volet, and it EXECUTES the decision rather than reading the call site.
+     * The original the server holds is `message.cc + message.bcc` (`ImapMailService.ccAndBccOf`),
+     * so a draft with a Cci offers a bcc address as the thing to prove. Since the Drafts APPEND
+     * writes a real `Bcc:` header, the replacement holds it too — and dropping the bcc from this
+     * set is what leaves a duplicate in Drafts on every save of a draft with a blind copy.
+     */
+    @Test fun aBlindCopyIsCarriedByTheReplacementsOwnBcc() {
+        assertTrue(
+            draftAddressingIsCarried(
+                original = setOf("sam.diaz@masto.top"),
+                replacement = draftReplacementAddressing(
+                    cc = listOf("jordan.lee@masto.top"),
+                    bcc = listOf("sam.diaz@masto.top"),
+                ),
+            ),
+        )
+    }
+
+    /**
+     * ⭐ The safe direction, unchanged: a replacement whose Bcc came back EMPTY (the reopen gave
+     * nothing back — a cache row with no bcc column, a read that failed) does NOT carry an
+     * original that had a blind copy. The proof fails and the server copy survives.
+     */
+    @Test fun aReplacementWithNoBccDoesNotCarryABlindCopy() {
+        assertFalse(
+            draftAddressingIsCarried(
+                original = setOf("sam.diaz@masto.top"),
+                replacement = draftReplacementAddressing(
+                    cc = listOf("jordan.lee@masto.top"),
+                    bcc = emptyList(),
+                ),
+            ),
+        )
+    }
+
+    /** And the Cc did not stop counting: both fields are offered, neither replaces the other. */
+    @Test fun theCcIsStillOfferedBesideTheBcc() {
+        assertTrue(
+            draftAddressingIsCarried(
+                original = setOf("jordan.lee@masto.top"),
+                replacement = draftReplacementAddressing(
+                    cc = listOf("jordan.lee@masto.top"),
+                    bcc = listOf("sam.diaz@masto.top"),
+                ),
+            ),
+        )
+        assertEquals(
+            setOf("jordan.lee@masto.top", "sam.diaz@masto.top"),
+            draftReplacementAddressing(
+                cc = listOf("jordan.lee@masto.top"),
+                bcc = listOf("sam.diaz@masto.top"),
+            ),
+        )
+    }
+
     // ---- draftAddressingIsCarried(replacesEmailId, …): the decision the save actually runs ----
 
     /** Nothing is being replaced, so nothing will be destroyed and there is nothing to prove. */

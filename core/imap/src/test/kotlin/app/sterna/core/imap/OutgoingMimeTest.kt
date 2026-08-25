@@ -22,10 +22,12 @@ class OutgoingMimeTest {
 
     @Test
     fun recipientCrlfCannotInjectExtraHeaders() {
-        // A crafted recipient tries to smuggle a hidden Bcc.
-        val mime = OutgoingMime.build(msg(to = listOf("bob@example.com\r\nBcc: victim@evil.com")))
-        // The CRLF is stripped, so "Bcc:" can never begin its own header line.
-        assertFalse("injected Bcc must not appear as a header", mime.contains("\nBcc:"))
+        // A crafted recipient tries to smuggle a header of its own. The smuggled name is one
+        // `build` never writes: `Bcc:` became a legitimate header here (for the stored draft
+        // copy), so its absence would no longer say anything about the CRLF filter.
+        val mime = OutgoingMime.build(msg(to = listOf("bob@example.com\r\nX-Injected: victim@evil.com")))
+        // The CRLF is stripped, so "X-Injected:" can never begin its own header line.
+        assertFalse("injected header must not appear", mime.contains("\nX-Injected:"))
         // The recipient stays on a single To line (the smuggled text is now inert).
         val toLine = mime.lineSequence().first { it.startsWith("To:") }
         assertTrue(toLine.contains("bob@example.com"))
@@ -33,15 +35,15 @@ class OutgoingMimeTest {
 
     @Test
     fun referencesCrlfIsStripped() {
-        val mime = OutgoingMime.build(msg(references = "<x@a>\r\nBcc: victim@evil.com"))
-        assertFalse(mime.contains("\nBcc:"))
+        val mime = OutgoingMime.build(msg(references = "<x@a>\r\nX-Injected: victim@evil.com"))
+        assertFalse(mime.contains("\nX-Injected:"))
     }
 
     @Test
     fun controlCharsInSubjectAreEncodedNotRaw() {
         // CR/LF in the subject must not break out into a new header line.
-        val mime = OutgoingMime.build(msg(subject = "Hello\r\nBcc: victim@evil.com"))
-        assertFalse(mime.contains("\nBcc:"))
+        val mime = OutgoingMime.build(msg(subject = "Hello\r\nX-Injected: victim@evil.com"))
+        assertFalse(mime.contains("\nX-Injected:"))
         val subjectLine = mime.lineSequence().first { it.startsWith("Subject:") }
         assertTrue("non-ASCII/control subject is RFC 2047 encoded", subjectLine.contains("=?utf-8?B?"))
     }
@@ -62,6 +64,85 @@ class OutgoingMimeTest {
         // The rest of the message still builds normally.
         assertTrue(mime.contains("From: alice@example.com"))
         assertTrue(mime.contains("Subject: Hi"))
+    }
+
+    // --- Bcc: written for a stored copy, never for a submission ---
+
+    private fun withCopies(bcc: List<String>) =
+        msg().copy(cc = listOf("carol@example.com"), bcc = bcc)
+
+    @Test
+    fun bccIsNotWrittenByDefault() {
+        // The default is what SmtpClient.buildMime uses, and its result goes into DATA unfiltered:
+        // a Bcc header here is the hidden recipients handed to everyone the message names.
+        val mime = OutgoingMime.build(withCopies(listOf("hidden@example.com")))
+
+        assertEquals(
+            "build() with the OMITTED default must write no Bcc header at all — these bytes are " +
+                "what a submission puts on the wire:\n" + mime.substringBefore("MIME-Version:"),
+            emptyList<String>(),
+            mime.lineSequence().filter { it.startsWith("Bcc:") }.toList(),
+        )
+        // And the blind recipient is nowhere else in the message either.
+        assertFalse("no trace of the blind recipient anywhere", mime.contains("hidden@example.com"))
+    }
+
+    @Test
+    fun blindCopiesWrittenPutsTheHeaderRightAfterCc() {
+        // The draft APPEND: the Cci the composer typed has nowhere else to survive, because the
+        // draft is reopened from the message the server kept.
+        val mime = OutgoingMime.build(withCopies(listOf("hidden@example.com")), BlindCopies.WRITTEN)
+
+        val lines = mime.lineSequence().toList()
+        assertEquals(
+            "BlindCopies.WRITTEN must write the blind recipients as a Bcc header:\n" +
+                mime.substringBefore("MIME-Version:"),
+            listOf("Bcc: hidden@example.com"),
+            lines.filter { it.startsWith("Bcc:") },
+        )
+        // Among the address headers, immediately below the Cc — the position a reader (and every
+        // envelope parser) expects, not somewhere down in the body.
+        val cc = lines.indexOfFirst { it.startsWith("Cc:") }
+        val bcc = lines.indexOfFirst { it.startsWith("Bcc:") }
+        assertTrue("there must be a Cc line to sit under", cc >= 0)
+        assertEquals("the Bcc line comes right after the Cc line", cc + 1, bcc)
+    }
+
+    @Test
+    fun blindCopiesWrittenWithNoBlindRecipientOmitsTheHeaderEntirely() {
+        // The #69 shape, one field down. Most drafts have no Cci, and "Bcc:" with nothing after it
+        // is a malformed header — an empty "To:" is what made recipient-less drafts unsaveable,
+        // because the APPEND itself is refused. WRITTEN says "you MAY write it", not "write it".
+        val mime = OutgoingMime.build(withCopies(emptyList()), BlindCopies.WRITTEN)
+
+        assertEquals(
+            "BlindCopies.WRITTEN with no blind recipient must write no Bcc header at all — an " +
+                "empty one is malformed, and the draft save is an APPEND a server may refuse " +
+                "outright:\n" +
+                mime.substringBefore("MIME-Version:"),
+            emptyList<String>(),
+            mime.lineSequence().filter { it.startsWith("Bcc") }.toList(),
+        )
+        // And the header above it is untouched: this omits one line, it does not skip the block.
+        assertTrue(mime.contains("Cc: carol@example.com"))
+    }
+
+    @Test
+    fun aCrlfInTheBccCannotSplitTheHeaderItIsNowAllowedToWrite() {
+        // headerSafe covers the Bcc exactly as it covers the To and the Cc: a saved draft can be
+        // reopened, edited and re-saved, so this value is as attacker-influenced as any other.
+        val mime = OutgoingMime.build(
+            withCopies(listOf("hidden@example.com\r\nX-Injected: victim@evil.com")),
+            BlindCopies.WRITTEN,
+        )
+
+        assertFalse("the smuggled header must not begin a line", mime.contains("\nX-Injected:"))
+        assertEquals(
+            "the blind recipient must stay on ONE header line, CRLF eaten by headerSafe:\n" +
+                mime.substringBefore("MIME-Version:"),
+            listOf("Bcc: hidden@example.comX-Injected: victim@evil.com"),
+            mime.lineSequence().filter { it.startsWith("Bcc:") }.toList(),
+        )
     }
 
     private fun htmlMsg(attachments: List<OutgoingAttachment>) = OutgoingMessage(
@@ -127,9 +208,9 @@ class OutgoingMimeTest {
 
     @Test
     fun inlineImageCannotInjectHeadersViaCid() {
-        val evil = image.copy(cid = "logo@x\r\nBcc: victim@evil.com")
+        val evil = image.copy(cid = "logo@x\r\nX-Injected: victim@evil.com")
         val mime = OutgoingMime.build(htmlMsg(listOf(evil)))
-        assertFalse("CRLF in cid stripped", mime.contains("\nBcc:"))
+        assertFalse("CRLF in cid stripped", mime.contains("\nX-Injected:"))
     }
 
     // --- From/address display-name encoding (#77) ---
@@ -261,12 +342,12 @@ class OutgoingMimeTest {
     fun receiptAddressCrlfCannotInjectExtraHeaders() {
         val mime = OutgoingMime.build(
             msg().copy(
-                from = "alice@example.com\r\nBcc: victim@evil.com",
+                from = "alice@example.com\r\nX-Injected: victim@evil.com",
                 requestReceipt = true,
             ),
         )
 
-        assertFalse("injected Bcc must not appear as a header", mime.contains("\nBcc:"))
+        assertFalse("injected header must not appear", mime.contains("\nX-Injected:"))
         // And the header that follows is still the real next header, not a fragment of the
         // smuggled text: a split here would silently drop the MIME structure.
         val lines = mime.lineSequence().toList()

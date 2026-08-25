@@ -180,7 +180,11 @@ class LocalDraftUploadWiringTest {
                 ")",
                 "val addressingIsCarried = draftAddressingIsCarried(",
                 "replacesEmailId = replacesEmailId,",
-                "replacement = ccTrimmed.toSet(),",
+                // The Cc AND the Bcc since 2026-08-25 — the appended draft carries a real `Bcc:`
+                // header now, so the server-side read has one to match. WHY it says that is
+                // [DraftAddressingWiringTest]'s and [DraftSaveTest]'s; this list only has to keep
+                // following the shipped body, or it pins a guard the app no longer runs.
+                "replacement = draftReplacementAddressing(ccTrimmed, bccTrimmed),",
                 "originalAddressing = { id -> imapDraftAddressing(credentials, id, ImapBudget.NO_BUDGET) },",
                 ")",
                 "val receiptIsCarried = draftReceiptRequestIsCarried(",

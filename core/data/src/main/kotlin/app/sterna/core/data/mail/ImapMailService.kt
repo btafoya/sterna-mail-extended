@@ -6,6 +6,7 @@ import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.MailboxEntity
+import app.sterna.core.imap.BlindCopies
 import app.sterna.core.imap.IMAP_FOLDER_PAGE
 import app.sterna.core.imap.IMAP_PREVIEW_FETCH_BYTES
 import app.sterna.core.imap.ImapClient
@@ -564,7 +565,7 @@ class ImapMailService(
      */
     suspend fun appendDraft(credentials: AccountCredentials, draftsMailbox: String, message: OutgoingMessage) =
         withSession(credentials, retryOnFailure = false) {
-            it.append(draftsMailbox, OutgoingMime.build(message), "\\Draft")
+            it.append(draftsMailbox, OutgoingMime.build(message, BlindCopies.WRITTEN), "\\Draft")
         }
 
     /**
@@ -1353,11 +1354,12 @@ internal fun ImapMessage.toEntity(accountId: String, mailboxId: String, uidValid
             cc.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
         ),
         // Envelope Bcc, in ITS OWN column. ⛔ Never folded into ccJson above: the whole point of
-        // the second column is that a blind copy stays blind. In practice this is empty for
-        // anything THIS app appended — not a property of IMAP, but of our own MIME builder, which
-        // emits From/To/Cc and no Bcc: at all (OutgoingMime.build, SmtpClient.kt:337-341). A draft
-        // another client left on the account with a Bcc: header does surface here, which is
-        // precisely why the value is stored rather than presumed lost.
+        // the second column is that a blind copy stays blind. A DRAFT this app appended does carry
+        // a Bcc: header and surfaces here — that header is the only place a Cci survives a save,
+        // since the draft is reopened from the server's copy (OutgoingMime.build's [BlindCopies],
+        // WRITTEN by [appendDraft] and by nothing else). A message this app SENT never carries one:
+        // the submitted bytes are built with the default, so what a correspondent receives names
+        // no blind recipient.
         bccJson = EmailRecipients.encode(
             bcc.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
         ),

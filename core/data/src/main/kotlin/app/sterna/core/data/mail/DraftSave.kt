@@ -255,6 +255,30 @@ internal fun draftAddressingIsCarried(original: Set<String>?, replacement: Set<S
 }
 
 /**
+ * The addressing a replacement can offer as proof: its Cc AND its Bcc.
+ *
+ * ⭐ The Bcc counts SINCE 2026-08-25, and it did not before — the change is in what the phone
+ * writes, not in what this rule wants. Both halves of the reason have to hold, and they do:
+ *  - at SAVE time, `OutgoingMime.build(…, BlindCopies.WRITTEN)` now writes a real `Bcc:` header into
+ *    the copy APPENDed to Drafts (and only into that copy), so an address typed into the composer's
+ *    Bcc really is in the replacement the server keeps. Reopening it hands the address back. It is
+ *    carried in fact, not by wish;
+ *  - at SEND time no `Bcc:` header is written anywhere, and the address is carried all the same:
+ *    the blind recipients go out in the envelope's `RCPT TO` and the mail is DELIVERED to them.
+ *    Nothing is lost by destroying an original whose blind copy has just been delivered, even
+ *    though no header of the sent message names it.
+ *
+ * ⛔ Being offered here is not being proven: this is one side of [draftAddressingIsCarried], whose
+ * safe direction is unchanged. If the reopened draft gave nothing back — a read that failed, a
+ * server copy that never carried the header, a cache row older than the `bccJson` column that no
+ * back-fill ever filled in (schema v21 added it and nothing rewrites old rows) — then [bcc] is
+ * empty here, the original's address is not in this set, the proof fails and the server copy
+ * SURVIVES as a duplicate in Drafts. The unknown still keeps the draft.
+ */
+internal fun draftReplacementAddressing(cc: List<String>, bcc: List<String>): Set<String> =
+    (cc + bcc).toSet()
+
+/**
  * The same question asked of the id being replaced, with [originalAddressing] doing the reading.
  *
  * Here so the decision — including "no original, nothing to prove" and "the read blew up, so the

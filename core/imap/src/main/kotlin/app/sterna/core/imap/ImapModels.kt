@@ -100,10 +100,17 @@ data class ImapMessage(
      * Envelope `Bcc` (index 7): the blind copies.
      *
      * ⚠ Practically always empty on a received message — a server does not tell a recipient who
-     * else was blind-copied. It is empty on the drafts THIS app appends for a reason of our own,
-     * not a rule of the protocol: the ENVELOPE mirrors the headers of whatever was APPENDed, and
-     * [OutgoingMime.build] writes `From`, `To` and `Cc` and no `Bcc:` at all. A draft another
-     * client appended with a `Bcc:` header does read back here. Read anyway, because it costs
+     * else was blind-copied — and empty too on the mail THIS app SENT, whose bytes are built with
+     * [BlindCopies.OMITTED]: a header there would hand the hidden recipients to everyone the
+     * message names.
+     *
+     * ⭐ The drafts THIS app APPENDs are the one exception, and they DO carry a `Bcc:` since
+     * 2026-08-25: the ENVELOPE mirrors the headers of whatever was APPENDed, and `appendDraft`
+     * asks [OutgoingMime.build] for [BlindCopies.WRITTEN]. That header is the only place a Cci
+     * survives a save — a draft is reopened from the server's copy, not from what the composer
+     * still remembers — so this field is where it comes back, and it is the only field of a
+     * Sterna message that ever holds one. A draft another client appended with a `Bcc:` header
+     * reads back here just the same. Read anyway, because it costs
      * nothing (the ENVELOPE is already fetched whole) and because a field that is never read is a
      * field one starts believing is lost somewhere else.
      *
