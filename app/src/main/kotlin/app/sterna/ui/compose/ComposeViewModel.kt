@@ -102,6 +102,23 @@ data class DraftFields(
      * tick a box for a request the message may not carry.
      */
     val requestReceipt: Boolean = false,
+    /**
+     * This body ALREADY carries the quoted original: true only for the reply/reply-all prefill
+     * built on the path where NOTHING was cached, the one that puts the quote straight inside
+     * [body] instead of handing it over out of band through `replyQuote`.
+     *
+     * The screen has to be told, because the screen is what survives. After a process death this
+     * ViewModel is brand new, `prepared` is an ordinary field and [prepare] runs again, while the
+     * composer comes back with its body, its baseline and its `applied` restored from
+     * `rememberSaveable`. On the uncached path no out-of-band hand-over ever runs, so nothing else
+     * could raise the screen's flag: left unsaid, the rebuilt ViewModel draws "Couldn't load the
+     * original message." over the quote that is plainly on screen.
+     *
+     * ⛔ The `false` default is what leaves every OTHER opening exactly as it was — a reopened
+     * draft, a mailto: link, an undone send, a queued item taken back out of the Outbox, and a
+     * forward, whose editable body carries no quote at all (its original travels separately).
+     */
+    val quoted: Boolean = false,
 )
 
 /** A "From" choice: one identity belonging to a specific account. */
@@ -189,6 +206,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * fetched over the network, which offline stalls on the timeout. Emitted once (null until the
      * fetch returns) so the screen can drop the quote into the body only while the body is still the
      * untouched initial prefill — never over text the user has begun typing.
+     *
+     * Consumed once ([consumeReplyQuote]), the moment the screen has either dropped it in or said
+     * it could not: left in place it is replayed to every new collector, and this ViewModel
+     * outlives its activity.
      */
     private val _replyQuote = MutableStateFlow<String?>(null)
     val replyQuote: StateFlow<String?> = _replyQuote.asStateFlow()
@@ -486,6 +507,25 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      */
     fun noticeQuoteNotAdded() {
         _notices.tryEmit(R.string.compose_quote_not_added)
+    }
+
+    /**
+     * The screen has dealt with [replyQuote] — dropped it into the body, or said it could not
+     * ([noticeQuoteNotAdded]): retire it so it is handled exactly once.
+     *
+     * `MainActivity` declares no `android:configChanges`, so a rotation, a light/dark flip, a
+     * language change or a multi-window resize RECREATES the activity while this ViewModel
+     * survives. Left non-null, the quote is replayed to the effect's new collector on every one of
+     * those: the body branch rewrites the body with the same string but the caret back at offset 0,
+     * on top of the selection `TextFieldValue.Saver` had just restored; the notice branch posts the
+     * B6 toast again, one per recreation, stacking in LENGTH_LONG.
+     *
+     * ⛔ Called only from the two branches that HANDLED it. On the third way out — the quote back
+     * before the header prefill landed — nothing has posted it and nothing has announced it, so
+     * consuming there would throw it away in silence.
+     */
+    fun consumeReplyQuote() {
+        _replyQuote.value = null
     }
 
     /** The identity's plain-text signature, with a legacy raw-HTML one flattened first. */
@@ -1045,6 +1085,16 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     /**
      * Build initial fields when opening as a reply/reply-all/forward of [replyToId], or, when [to]
      * is given (from the participant panel's "write to"), as a fresh mail pre-addressed to it.
+     *
+     * @param quoteAlreadyOnScreen the composer on screen ALREADY carries the quoted original, so
+     * neither of the two sentences below may be produced. It is the screen that knows it and not
+     * this ViewModel: after a real process death this object is brand new, [prepared] is an
+     * ordinary field and so is false again, and everything here runs a second time — while the
+     * screen restored its `body`, its `initialBody` and its `applied` from `rememberSaveable`.
+     * Left ungated, the second pass re-emits [replyQuote] onto a body that no longer matches its
+     * baseline (the B6 toast then says the quote was not added, over the quote) and re-announces
+     * `compose_prefill_failed` offline (the banner then covers the restored quote). Both would be
+     * messages contradicting what the reader is looking at.
      */
     fun prepare(
         replyToId: String?,
@@ -1057,6 +1107,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         subject: String? = null,
         body: String? = null,
         draftId: String? = null,
+        quoteAlreadyOnScreen: Boolean = false,
     ) {
         if (prepared) return
         prepared = true
@@ -1466,7 +1517,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // No full body available (offline, uncached, or the fetch failed). The headers are
                 // already prefilled from the cache if there was one; either way, say the original
                 // couldn't load so the missing quote / forward content isn't a silent surprise.
-                prefillFailed()
+                //
+                // ⛔ Unless the quote is already on screen: this is a composer being rebuilt after
+                // the app was killed, its body was restored WITH the quote in it, and the banner
+                // would be drawn on top of the very thing it says could not be loaded (G6). The
+                // sentence is what is dropped — the bail-out below is not, since `original` really
+                // is null and nothing under it can run.
+                if (!quoteAlreadyOnScreen) prefillFailed()
                 return@launch
             }
 
@@ -1492,9 +1549,16 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             references = original.references + original.messageId
             if (cached == null) {
                 _prefill.value = buildPrefill(original, mode, selves(credentials))
-            } else {
+            } else if (!quoteAlreadyOnScreen) {
                 // The whole body, not just the quote: the screen swaps it in wholesale, and it must
                 // keep the signature the cache-first prefill already put there.
+                //
+                // ⛔ Not a second time. After a process death the screen still shows the quote it
+                // restored, and by then the user may well have typed under it: handing the quote
+                // over again lands on a body that no longer equals its baseline, so the screen
+                // takes the other branch and toasts "quoted message not added" over a body that
+                // carries it (G5). Written as an `else if` rather than a guard on the line below
+                // so that emission stays the one line ReplyQuoteConsumedWiringTest pins whole.
                 _replyQuote.value = replyBody(quote(original, resolveOutgoingDateZone(settings.quotedDatesUtc)))
             }
         }
@@ -2522,11 +2586,20 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 to = replyAllRecipients(original, selves),
                 subject = withPrefix(original.subject, "Re:"),
                 body = replyBody(if (quoteBody) quote(original, zone) else ""),
+                // Travels with the body above, and says exactly what that body holds: when the
+                // original was not cached, THIS is how the quote reaches the screen (there is no
+                // out-of-band `replyQuote` on that path), so it is the only thing that can let the
+                // composer keep quiet about a quote it is showing after a process death.
+                quoted = quoteBody,
             )
             else -> DraftFields( // reply
                 to = replyRecipient(original),
                 subject = withPrefix(original.subject, "Re:"),
                 body = replyBody(if (quoteBody) quote(original, zone) else ""),
+                // Same claim as the reply-all above, and `quoteBody` and not `true`: when the full
+                // body could not be loaded the quote was skipped, the body carries none, and
+                // claiming otherwise would silence a failure the reader must hear about.
+                quoted = quoteBody,
             )
         }
     }

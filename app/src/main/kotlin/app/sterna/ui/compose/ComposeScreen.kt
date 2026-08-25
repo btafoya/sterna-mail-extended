@@ -285,8 +285,25 @@ fun ComposeScreen(
         viewModel.notices.collect { res -> Toast.makeText(context, res, Toast.LENGTH_LONG).show() }
     }
 
+    // Whether the body ON SCREEN already carries the reply's quoted original.
+    //
+    // ⚠ Declared HERE, away from the other `rememberSaveable`s further down, because the effect
+    // right below reads it and Kotlin does not read ahead — this position is a compile constraint,
+    // not a preference.
+    //
+    // ⚠ `rememberSaveable`, and NOT a ViewModel field or flow — same reason as `requestReceipt`
+    // and `applied` below, and the idiom `primingHandled` already follows in this file. The only
+    // case it exists for is the app being KILLED with the composer open: the ViewModel dies with
+    // the process, `prepared` is an ordinary field so `prepare()` runs again on a brand new one,
+    // while this screen comes back with its body, its baseline and its `applied` restored. A
+    // ViewModel-side flag would be false again in exactly that case and close nothing.
+    var quoteLanded by rememberSaveable { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        viewModel.prepare(replyTo, mode, accountId, restore, to, cc, bcc, subject, body, draftId)
+        viewModel.prepare(
+            replyTo, mode, accountId, restore, to, cc, bcc, subject, body, draftId,
+            quoteAlreadyOnScreen = quoteLanded,
+        )
         // Attach any files shared into the app (ACTION_SEND) — a one-shot handoff we read and
         // clear, so it only lands on this compose screen (Codeberg #45).
         val app = context.applicationContext as android.app.Application
@@ -499,6 +516,12 @@ fun ComposeScreen(
                 initialBcc = bcc
                 initialSubject = it.subject
                 initialBody = it.body
+                // This prefill CARRIED the quote — the original was not cached, so `prepare` built
+                // the whole body with the quoted original inside it and there is no out-of-band
+                // hand-over to raise the flag below. Without this post the flag stays false while
+                // the quote is plainly in the body, and after a process death the rebuilt
+                // ViewModel draws "Couldn't load the original message." straight over it (G6).
+                if (it.quoted) quoteLanded = true
                 // A reopened message that asked for a read receipt still asks (an undone send, a
                 // queued item taken back out of the Outbox): re-editing it enqueues a NEW row, so a
                 // box left clear here cancels the request. Applied with the other prefilled fields,
@@ -523,15 +546,42 @@ fun ComposeScreen(
     // prefill — never over text the user has started typing — and re-baseline so it isn't seen as an
     // unsaved edit. The caret stays at the top, above the quote, exactly as a fresh reply opens.
     LaunchedEffect(replyQuote) {
+        // ⛔ THE re-entry guard, and it became load-bearing with the consume below: retiring the
+        // quote writes `null` into the flow, which is a NEW value, so this effect is relaunched
+        // once more with `replyQuote == null`. Drop this `?:` and that second pass carries an
+        // empty quote into the branch below with `applied` true and the body still equal to the
+        // baseline just re-seated — the body and its baseline would both be emptied, the reply
+        // losing its quote AND its signature with nothing left dirty to warn about it.
         val quote = replyQuote ?: return@LaunchedEffect
         if (canApplyReplyQuote(applied, body.text, initialBody)) {
             body = TextFieldValue(quote, TextRange(0))
             initialBody = quote
+            // Dropped in exactly once, AFTER the write: the activity is recreated by a rotation, a
+            // theme flip, a language change or a multi-window resize while the ViewModel survives,
+            // and an unconsumed quote replays here and puts the caret back at offset 0 over the
+            // selection just restored. ⚠ The write-then-retire ORDER guards nothing today — no
+            // line between the two suspends, so cancellation cannot land there. It is the repo's
+            // order (ConnectScreen.kt:318-325) and it is pinned so that a suspending call added
+            // between them later cannot empty the flow before the quote has landed.
+            viewModel.consumeReplyQuote()
+            // The body now carries the quote, and this is the ONLY place that may say so: the flag
+            // is saved, so after the app is killed and the composer rebuilt it is what tells the
+            // fresh ViewModel to keep quiet about a quote that is already here. ⛔ Never posted at
+            // the top of this effect nor in the toast branch below — it would then mean "the effect
+            // ran", and a reply that genuinely has no quote would go out without one and without a
+            // word, which is the very thing the B6 toast exists to prevent.
+            quoteLanded = true
         } else if (applied) {
             // The user started writing before it arrived, so it is not dropped in over their text.
             // Say so instead of silently sending a reply with no quote (B6).
             viewModel.noticeQuoteNotAdded()
+            // Said exactly once, AFTER the notice — otherwise each activity recreation posts the
+            // toast again, and they stack up in LENGTH_LONG.
+            viewModel.consumeReplyQuote()
         }
+        // ⛔ No consume on the third way out (the quote came back before the header prefill
+        // landed): nothing has posted it and nothing has announced it, so retiring it there would
+        // lose it in silence.
     }
 
     // Which of the three screens a reopened draft gets. Taken HERE and not up with the two flows,
