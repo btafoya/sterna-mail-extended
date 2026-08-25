@@ -18,6 +18,7 @@ import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.autoconfig.MailAutoconfigResult
 import app.sterna.core.data.autoconfig.discoverMailAutoconfig
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.mail.NotifyRead
 import app.sterna.core.data.mail.OAuthDeniedException
 import app.sterna.core.imap.ImapException
 import app.sterna.core.data.mail.OAuthProvider
@@ -27,6 +28,7 @@ import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.OAuthMetadata
 import app.sterna.net.hasUsableNetwork
+import app.sterna.push.NewMailNotifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -171,6 +173,54 @@ internal suspend fun addAccountThenPrime(
         PrimedAccount(account.id, primeFailure = t)
     }
 }
+
+/**
+ * The ids an ADD should write into the new inbox's notification baseline, or null when it must
+ * write none.
+ *
+ * Why it exists: creating an account wrote no baseline at all, so the first background pass of a
+ * new account was also the first sight of its inbox — and a first sight seeds SILENTLY. The first
+ * message arriving after an add was therefore swallowed for good: cached, listed, never announced.
+ * On IMAP nothing else can write it (`FetchAndNotify.onInboxRefreshed` returns on its first line
+ * for IMAP), so for the routes that come through here the add is the only place left.
+ *
+ * ⚠ THE ROUTES THAT COME THROUGH HERE, and not every way an account is born. This closes the three
+ * that prime in [ConnectViewModel.primeInbox]; the OAuth device flow, the OAuth code flow, the
+ * Outlook IMAP sign-in and both K-9 import sign-ins prime inside `MailRepository` instead
+ * (`addOAuthAccount`, `signInImportedOAuth`), which is in a module that cannot reach this notifier,
+ * and they still seed nothing. Read, listed and left out on purpose — see
+ * `ai-work/issues/findings/un-compte-oauth-n-annonce-pas-son-premier-courrier.md`.
+ *
+ * ⛔ [NotifyRead.baselineIds], and NEVER `read.emails.map { it.id }`. `emails` is hydrated and
+ * therefore CAPPED (`NOTIFY_CANDIDATE_MAX`); `baselineIds` is bounded by the age floor alone.
+ * `NewMailNotifier.seed` REPLACES the set, so an id that falls out of it is forgotten — and a
+ * forgotten id that comes back into view announces as new mail and, through
+ * `unarchiveThreadsOnReply`, drags its thread back out of the Archive server-side. The asymmetry is
+ * written down in `MailRepository.notifyRead` and in the KDoc of `NewMailNotifier.seed`.
+ *
+ * ⛔ [hasBaseline] → null, meaning "touch nothing". An add that finds a baseline already there is a
+ * re-authentication or the re-add of an account that is already set up here; overwriting a LIVE
+ * baseline would swallow every arrival it had not announced yet — the very defect this function
+ * closes, one screen further along.
+ *
+ * ⛔ An EMPTY [NotifyRead.baselineIds] → null too, and this one is the dangerous half. It reads like
+ * "a brand-new account with an empty inbox", and sometimes it is — but on IMAP it is also what a
+ * page that could not say anything looks like: a SELECT that never stated a count leaves `exists`
+ * at 0, "which reads exactly like an empty folder" (`ImapMailService.pageVouchesForEmpty`), and
+ * `refreshImap` returns a perfectly normal `MailboxMeta` over that empty page instead of throwing.
+ * Nothing reaching this function tells the two apart.
+ *
+ * So the two outcomes are weighed instead. Seeding empty marks the folder KNOWN while remembering
+ * nothing, which flips `hasBaseline` to true and takes the next background pass off the silent
+ * path: it diffs against nothing, posts a banner per thread for everything inside the age floor,
+ * and `unarchiveThreadsOnReply` drags those threads back out of the Archive SERVER-SIDE. Not
+ * seeding costs the announcement of the first message in a genuinely empty new inbox — exactly the
+ * behaviour of the day before this function existed. One is mail moved on someone's server, the
+ * other is a silence; the silence wins, and `FetchAndNotify`'s own `?: return@forEach` was written
+ * out of the same arithmetic.
+ */
+internal fun baselineForAddedInbox(read: NotifyRead, hasBaseline: Boolean): List<String>? =
+    if (hasBaseline || read.baselineIds.isEmpty()) null else read.baselineIds
 
 class ConnectViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -1052,6 +1102,28 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         container.accountStore.saveInboxMetaFor(
             credentials.id, meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount,
         )
+        // ⛔ LAST, and therefore only after a refresh that SUCCEEDED: `refresh` throws on failure
+        // and [addAccountThenPrime] catches that into `primeFailure`, so an add whose inbox never
+        // loaded seeds nothing. Nothing above this line may move below it, and no `runCatching` /
+        // `try` may wrap it — a partial seed would mark the folder known while holding only part
+        // of it, and the next pass would announce the rest as new mail AND unarchive it
+        // server-side. No protocol branch either: the same gap exists on JMAP between the add and
+        // the first list refresh, it is only shorter there.
+        seedInboxBaseline(credentials.id, meta.mailboxId)
+    }
+
+    /**
+     * Mark the inbox this add just loaded as "already seen", from the page the add itself read.
+     *
+     * [mailboxId] is `meta.mailboxId` and nothing else: it is the key every later pass reads the
+     * baseline back under. The decision of WHAT (and whether) to write is [baselineForAddedInbox],
+     * which is where the reasoning — and the test that executes it — lives.
+     */
+    private suspend fun seedInboxBaseline(accountId: String, mailboxId: String) {
+        val read = container.mailRepository.notifyRead(accountId, mailboxId)
+        val baseline = baselineForAddedInbox(read, NewMailNotifier.hasBaseline(app, accountId, mailboxId))
+            ?: return
+        NewMailNotifier.seed(app, accountId, mailboxId, baseline)
     }
 
     /** Validate against [server], persist on success. Runs in the caller's coroutine. */

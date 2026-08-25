@@ -567,6 +567,108 @@ class ConnectPrimingWiringTest {
         )
     }
 
+    /**
+     * SOURCE LINT — an account that was just added must have its inbox baseline WRITTEN by the add
+     * itself, from the page the add already loaded.
+     *
+     * Without this line the first background pass of a new account is also the first sight of its
+     * inbox, and a first sight seeds SILENTLY (`FetchAndNotify` takes `seedsSilently` and calls
+     * `NewMailNotifier.seed`). So the first message that arrives after an account is added is
+     * swallowed for good: cached, listed, never announced. On IMAP nothing else can write that
+     * baseline — `FetchAndNotify.onInboxRefreshed` returns on its first line for IMAP — so the add
+     * is the only place left to write it.
+     *
+     * ⛔ Whole trimmed lines, as the whole body, in order, and that is the point:
+     *  - `contains("seedInboxBaseline(")` would stay green on
+     *    `seedInboxBaseline(credentials.id, meta.mailboxName)`, which writes the baseline under a
+     *    key no pass ever reads back — the defect intact, with a green lint;
+     *  - the ORDER is the rule that says the seed happens after a successful `refresh()`. `refresh`
+     *    throws on failure and `addAccountThenPrime` catches that into `primeFailure`; moved above
+     *    it, the seed would run on an add whose inbox never loaded, marking a folder "known,
+     *    remembering nothing" — and the next pass would then announce the backlog AND unarchive it
+     *    server-side. No `runCatching`, no `try` here either: they would restore that order.
+     */
+    @Test fun `priming an added account seeds its inbox baseline, last`() {
+        assertEquals(
+            "ConnectViewModel.primeInbox must end by seeding the inbox baseline of the account it " +
+                "just primed:\n  seedInboxBaseline(credentials.id, meta.mailboxId)\n" +
+                "Without it, the first mail arriving after an account is added is never announced " +
+                "(the first background pass seeds silently). With the wrong argument, or seeded " +
+                "before the refresh, it is the same defect with a green test.",
+            listOf(
+                "private suspend fun primeInbox(credentials: AccountCredentials) {",
+                "val meta = container.mailRepository.refresh(credentials)",
+                "container.accountStore.saveInboxMetaFor(",
+                "credentials.id, meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount,",
+                ")",
+                "seedInboxBaseline(credentials.id, meta.mailboxId)",
+                "}",
+            ),
+            codeLines(functionBody("primeInbox")),
+        )
+    }
+
+    /**
+     * SOURCE LINT, NEGATIVE SPACE — ⛔ this screen writes ONE baseline, and there is no second.
+     *
+     * The rule above asks that a line be PRESENT, and a presence check cannot see a line that was
+     * ADDED. A seed written anywhere else on this screen — a re-authentication path, an import
+     * sign-in, a "refresh the folders" helper — passes every rule in this file and overwrites a
+     * LIVE baseline, which swallows every arrival not yet announced: the reported defect, one
+     * screen further along.
+     *
+     * Compared as a LIST of whole lines: an argument swapped (`read.emails`, `meta.mailboxName`) or
+     * a second call site added are both a different list. A `contains` would see neither.
+     */
+    @Test fun `this screen writes exactly one baseline, through the seeding helper`() {
+        assertEquals(
+            "ConnectViewModel seeds a baseline somewhere new, or with something other than the " +
+                "decision's answer. There is exactly one seed point on this screen — " +
+                "seedInboxBaseline, reached from primeInbox after a successful refresh — and it " +
+                "writes what baselineForAddedInbox returned, never a list it picked itself.",
+            listOf("NewMailNotifier.seed(app, accountId, mailboxId, baseline)"),
+            codeLinesNaming(code(), "NewMailNotifier.seed("),
+        )
+    }
+
+    /**
+     * SOURCE LINT — and the seed goes through the decision, which is the part
+     * [AddedInboxBaselineTest] actually EXECUTES.
+     *
+     * The two lines this pins whole are the two that cannot be read from the executed test:
+     *  - `NewMailNotifier.hasBaseline(app, accountId, mailboxId)` is the question that keeps a
+     *    re-add / re-authentication from overwriting a baseline that is already alive. Passed
+     *    `false` on the spot, or asked about another key, an add would erase a live baseline and
+     *    swallow whatever it had not announced yet;
+     *  - `?: return` is what a null MEANS here. Written `?: emptyList()` — the mutation
+     *    `FetchAndNotify`'s own lint exists for — the add would seed an EMPTY baseline over the
+     *    live one, and the next pass would announce every unread message inside the notifier's age
+     *    floor, unarchiving their threads server-side.
+     */
+    @Test fun `the seeding helper asks the decision, and a null answer writes nothing`() {
+        assertEquals(
+            "ConnectViewModel.seedInboxBaseline must read the notifier's bounded read, ask " +
+                "baselineForAddedInbox whether this add may write a baseline at all, and RETURN " +
+                "on null. Any other shape either bypasses the decision or turns \"do not touch " +
+                "this baseline\" into \"replace it with nothing\".",
+            listOf(
+                "private suspend fun seedInboxBaseline(accountId: String, mailboxId: String) {",
+                "val read = container.mailRepository.notifyRead(accountId, mailboxId)",
+                "val baseline = baselineForAddedInbox(read, NewMailNotifier.hasBaseline(app, accountId, mailboxId))",
+                "?: return",
+                "NewMailNotifier.seed(app, accountId, mailboxId, baseline)",
+                "}",
+            ),
+            codeLines(functionBody("seedInboxBaseline")),
+        )
+        assertEquals(
+            "baselineForAddedInbox is called from exactly one place — seedInboxBaseline. A second " +
+                "caller is how a seed that skipped the decision gets into this file.",
+            listOf("val baseline = baselineForAddedInbox(read, NewMailNotifier.hasBaseline(app, accountId, mailboxId))"),
+            codeLinesNaming(code(), "baselineForAddedInbox(").filterNot { it.startsWith("internal fun ") },
+        )
+    }
+
     // -- reading the file --------------------------------------------------------------------------
 
     /**
@@ -609,6 +711,44 @@ class ConnectPrimingWiringTest {
             DECLARATION.find(lines[i])?.let { return it.groupValues[1] }
         }
         error("no function declaration above line ${line + 1} of ConnectViewModel — is the file still Kotlin?")
+    }
+
+    /**
+     * The file's CODE, comments cut — the same helper [app.sterna.push.NotifyCandidatesWiringTest]
+     * reads with, and needed for the same reason: the comments beside these call sites name the
+     * very expressions the rules forbid (`read.emails.map { it.id }`, `?: emptyList()`), so a rule
+     * reading the raw text would answer about a sentence instead of about the code.
+     */
+    private fun code(): String = codeOf(source())
+
+    /** [text]'s code lines, trimmed, comments and blank lines cut. */
+    private fun codeLines(text: String): List<String> = codeOf(text).lines().map { it.trim() }
+
+    /** The code lines of [source] naming [needle] — WHOLE lines, never a `contains`, which is
+     *  blind to anything a mutation lengthens. */
+    private fun codeLinesNaming(source: String, needle: String): List<String> =
+        source.lines().map { it.trim() }.filter { needle in it }
+
+    private fun codeOf(text: String): String = text.lines().mapNotNull { line ->
+        val trimmed = line.trimStart()
+        if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) null
+        else withoutTrailingComment(line).takeIf { it.isNotBlank() }
+    }.joinToString("\n")
+
+    /** [line] up to its first `//` outside a double-quoted string; `\` escapes the next character. */
+    private fun withoutTrailingComment(line: String): String {
+        var inString = false
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            when {
+                inString && c == '\\' -> i++
+                c == '"' -> inString = !inString
+                !inString && c == '/' && line.getOrNull(i + 1) == '/' -> return line.substring(0, i).trimEnd()
+            }
+            i++
+        }
+        return line.trimEnd()
     }
 
     private fun source(): String = CONNECT_VIEW_MODEL.readText()
