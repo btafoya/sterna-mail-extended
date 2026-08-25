@@ -1616,8 +1616,22 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // ⭐ Armed from the two terms the row carries, at the one place they are read, so the delete
         // confirmation can say BEFORE the tap that the copy on the server stays (#95). The decision
         // is the same one the empty save's notice is posted from — one function, executed.
-        _deleteKeepsServerCopy.value =
-            emptiedLocalDraftKeepsServerCopy(fields.replacedServerDraftId, fields.bodyIsLossy)
+        // ⛔ `addressingIsProvenEmpty = true`, and it is NOT an assertion that the original was
+        // copied to nobody: this dialog answers BEFORE the finger, and the addressing cannot be
+        // established there without a server read at every reopen of the composer — a blocking read
+        // in front of the gesture that exists because there was no network. Passing "proven empty"
+        // leaves this dialog's rule EXACTLY what it was.
+        // ⭐ The gap that leaves is ONE-WAY, which is the whole reason it is acceptable: this
+        // dialog only ever ADDS a line, `compose_emptied_draft_server_copy_kept`
+        // (`ComposeScreen`, the second element of the body). Answering `true` here can only make it
+        // withhold that line for a copy the destruction then keeps — and posts the same sentence
+        // about, a moment later. It can never make the dialog promise a copy stays when the
+        // gesture is about to destroy it, which is the direction that would lie.
+        _deleteKeepsServerCopy.value = emptiedLocalDraftKeepsServerCopy(
+            fields.replacedServerDraftId,
+            fields.bodyIsLossy,
+            addressingIsProvenEmpty = true,
+        )
     }
 
     /**
@@ -1646,6 +1660,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * ⭐ A draft this phone never read WHOLE keeps its server copy, and the screen says so: see
      * [planForEmptiedLocalDraft]. `editingDraftLossy` is that verdict, carried off the row by
      * `localDraftPrefill` — the same value the save opposes to `draftReplacementIsFaithful`.
+     *
+     * ⭐ …and so does a copy whose ADDRESSING this phone cannot prove was empty
+     * ([MailRepository.emptiedDraftAddressingIsProvenEmpty]), the second term of that same
+     * decision: the row cannot tell a draft with no Cc from a Cc it never read, and the copy behind
+     * it is the only thing still holding those addresses.
      */
     private suspend fun destroyReplacedServerDraft(localDraftId: String) {
         // ⛔ **The account the ROW was leased under, and never the one being written as.** Handed
@@ -1670,6 +1689,20 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             replacedServerDraftUidValidity = replacedServerDraftUidValidity,
             mailboxId = serverDraft?.let { repo.draftMailboxOf(credentials, it) },
             bodyIsLossy = editingDraftLossy,
+            // Read here, like `mailboxId` just above, because establishing it means asking the
+            // server and the decision itself stays pure. ⛔ Under the account the ROW was leased
+            // under, never the one being written as — the id belongs to that server.
+            // ⛔ **And the two guards in front of the read are not a second decision** — each one
+            // skips a question whose answer cannot reach the outcome, and hands over `false`,
+            // "not proven", which is the only honest word for something never asked. With no
+            // server draft the guard's first term has already decided; with a lossy body its
+            // second has (`emptiedLocalDraftKeepsServerCopy(id, true, x)` is the same for both
+            // values of x, executed in EmptiedLocalDraftTest). ⚠ Unlike `mailboxId`, this read
+            // leaves the phone: unguarded it would put a blocking IMAP fetch in front of the one
+            // gesture that exists BECAUSE there was no network (#95), for an answer that could
+            // change nothing.
+            addressingIsProvenEmpty = serverDraft != null && !editingDraftLossy &&
+                repo.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),
         )
         destroyThenConsumeEmptiedLocalDraft(
             localDraftId = localDraftId,
@@ -2341,28 +2374,48 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // expunges, for ever, what was never shown. The word is owed, and it is emitted
                 // INSIDE the lambda: submit() reaches Done after this returns, and a notice posted
                 // to a screen already gone is a notice nobody reads.
+                // ⛔ …and the same is true of the ADDRESSING, which is the second term of that
+                // decision and the one both routes were deciding without: the copy about to be
+                // expunged is the only thing that still holds a Cc this composer never managed to
+                // display, and the ordinary save has refused to destroy a copy on less than a
+                // server-side proof since #63. Here there is not even a duplicate left behind.
                 // ⛔ And the credentials submit() resolved are NOT what it goes out under: they
                 // belong to the "From" identity on show, while the id and the numbering being
                 // expunged were read off the account the draft was OPENED from — hence `{ _, _ ->`
                 // and the resolution below, from the frozen account, with no fallback.
                 submit(to) { _, _ ->
-                    if (emptiedServerDraftIsKept(editingDraftLossy)) {
-                        _notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)
-                    } else {
-                        // ⛔ The account the draft was READ FROM, resolved here and nowhere else.
-                        // `?: credentials` appended to this call is the whole defect back: an id
-                        // JMAP's destroyAll spares (the emptied draft returns on the next sync), or
-                        // an IMAP number expunged in the OTHER account's Drafts when the two
-                        // UIDVALIDITYs happen to agree — and its cached bodies dropped even when
-                        // they do not. Gone account, no credentials: this throws, submit() catches
-                        // it, the banner is drawn and NOTHING is destroyed. The refusal itself is
-                        // executed in EmptiedServerDraftTest.
-                        val credentials = credentialsDestroyingEmptiedServerDraft(
+                    // ⛔ The account the draft was READ FROM, resolved here and nowhere else.
+                    // `?: credentials` appended to this call is the whole defect back: an id
+                    // JMAP's destroyAll spares (the emptied draft returns on the next sync), or
+                    // an IMAP number expunged in the OTHER account's Drafts when the two
+                    // UIDVALIDITYs happen to agree — and its cached bodies dropped even when
+                    // they do not. Gone account, no credentials: this throws, submit() catches
+                    // it, the banner is drawn and NOTHING is destroyed. The refusal itself is
+                    // executed in EmptiedServerDraftTest.
+                    // ⛔ A local fun, and NOT a val computed up front: for a draft this composer
+                    // never read whole the copy is kept whatever the account says, and resolving
+                    // an account that was removed from the phone during the edit would turn that
+                    // true notice into a "could not save" banner over a gesture that failed at
+                    // nothing. It is asked only where an answer is going to be used.
+                    fun destroyingCredentials(): AccountCredentials =
+                        credentialsDestroyingEmptiedServerDraft(
                             openedUnderAccountId = originalAccountId,
                             composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,
                             lookup = { store.credentials(it) },
                         ) ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
-                        repo.discardDraft(credentials, original, originalUidValidity)
+                    // ⛔ NOT a decision taken here — the decision is the one function below, and
+                    // this is the term it reads. `!editingDraftLossy &&` skips a server read whose
+                    // answer cannot change the outcome (emptiedServerDraftIsKept(true, x) is true
+                    // for both values of x, executed in EmptiedServerDraftTest), and what it hands
+                    // over when it skips is `false` — "not proven", which is exactly what a
+                    // question never asked deserves. ⛔ Under the account the draft was OPENED
+                    // from: `credentials` here would read the addressing of another server.
+                    val addressingIsProvenEmpty = !editingDraftLossy &&
+                        repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)
+                    if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {
+                        _notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)
+                    } else {
+                        repo.discardDraft(destroyingCredentials(), original, originalUidValidity)
                     }
                 }
             }

@@ -211,6 +211,31 @@ private const val BODY_CACHE_CAP = 100
 private const val SEND_PROOF_BUDGET_MS = 10_000
 
 /**
+ * The same wall-clock budget for the IMAP envelope read the EMPTYING gestures make before they may
+ * destroy the server copy of a draft judged empty
+ * ([MailRepository.emptiedDraftAddressingIsProvenEmpty]) — same shape of read as the send's, one
+ * SELECT and one envelope FETCH, so the same order of deadline.
+ *
+ * ⛔ **Its own name, and not [SEND_PROOF_BUDGET_MS] borrowed**, because `imapDraftAddressing` takes
+ * no default precisely so that each call site answers this question in the open. That constant's
+ * reason is the send's ("nothing ever holds a send back"); this one's is the opposite end of the
+ * app, and the two are free to diverge the day either gesture asks for it.
+ *
+ * ⛔ **And bounded rather than [ImapBudget.NO_BUDGET], which is what the ordinary save passes.** The
+ * emptying is reached by the gesture that exists BECAUSE there was no network (#95): a draft the
+ * phone is keeping, emptied or deleted with the radio off. Unbounded, this read would put a socket
+ * with no deadline in front of that gesture, holding the composer in `Sending` for as long as the
+ * OS takes to give up — the very window the send's budget was written to shorten, reopened one
+ * route along. ⛔ It does NOT touch the save's own `NO_BUDGET` read: that debt is older than this
+ * gesture and is not settled here.
+ *
+ * Safe in the only direction that matters: expiry throws, [draftAddressingIsCarried] reads a throw
+ * as "could not be established", and an addressing that could not be established is not an empty
+ * one — the server copy is KEPT and the screen says so.
+ */
+private const val EMPTIED_DRAFT_PROOF_BUDGET_MS = 10_000
+
+/**
  * Largest body row we will write (characters of JSON, body + inline images). SQLite's cursor
  * window is 2 MB by default, and a row past it can be inserted but never read back — every
  * later read throws. Staying well under keeps the cache readable; a body over this is served
@@ -7050,6 +7075,55 @@ class MailRepository(
                 part.disposition ?: "attachment", part.cid,
             )
         }.getOrNull()
+    }
+
+    /**
+     * Was the draft [emailId] PROVABLY addressed to nobody but the people the composer is showing?
+     * — the term the two emptying gestures (#69 × #95) were deciding without, and the same proof
+     * the ordinary save already demands before it replaces a draft ([draftAddressingIsCarried]).
+     *
+     * "Addressing" here is the COPIED parties, the Cc and the Bcc, exactly the set the ordinary
+     * save proves and the set the composer cannot vouch for: the To is typed and displayed, a Cc
+     * may be on the server copy and on no screen.
+     *
+     * ⛔ **`false` answers two different questions on purpose**: "it was addressed to somebody" and
+     * "I could not find out". The composer cannot tell a draft that has no Cc from a Cc it never
+     * managed to read — a cache row older than the v21 columns that no back-fill ever filled in, a
+     * read that failed, an address the envelope gave back unreadable — and an emptying that
+     * expunges on the strength of the fields it is showing destroys the only copy that still holds
+     * those recipients, for ever, in silence. An unknown is NOT an empty addressing: it is the same
+     * rule, in the same direction, as [draftAddressingIsCarried] answering false for
+     * `original == null`, and the callers read a false as "keep the server copy, and say so".
+     *
+     * ⛔ [EMPTIED_DRAFT_PROOF_BUDGET_MS], and NOT the [ImapBudget.NO_BUDGET] the interactive save
+     * passes: one of the two callers is the gesture reached with the radio off (#95), and an
+     * unbounded socket there holds the composer in `Sending` until the OS gives up. See that
+     * constant. ⛔ The save's own unbounded read is a question of its own and is left exactly as it
+     * was — answering it here, either way, would answer it for a gesture that never asked.
+     */
+    suspend fun emptiedDraftAddressingIsProvenEmpty(
+        credentials: AccountCredentials,
+        emailId: String,
+    ): Boolean {
+        if (credentials.protocol == MailProtocol.IMAP) {
+            // The server's own envelope for the id about to be expunged, read exactly as the
+            // ordinary save reads it, and weighed by the same decision: with an EMPTY replacement
+            // the inclusion "everything the original had is in the replacement" can only hold for
+            // an original the server said had nothing. A read that throws becomes null in there,
+            // and null is the unknown that forbids the destroy.
+            return draftAddressingIsCarried(
+                replacesEmailId = emailId,
+                replacement = emptySet(),
+                originalAddressing = { id -> imapDraftAddressing(credentials, id, EMPTIED_DRAFT_PROOF_BUDGET_MS) },
+            )
+        }
+        // JMAP proves it without a read, for the reason `uploadDraft`'s own `addressingIsCarried =
+        // true` gives one branch away: a JMAP draft is reopened through Email/get, which hands back
+        // the server's to/cc/bcc, so the fields the user has just emptied ARE the original's
+        // addressing — there is nothing left on the server side to establish. The single case where
+        // they would not be is a reopen that FAILED, and that one arrives at the callers with
+        // `editingDraftLossy` armed, where the other term of the same guard keeps the copy.
+        return true
     }
 
     /**

@@ -316,6 +316,33 @@ class DraftSaveTest {
         )
     }
 
+    /**
+     * ⭐ The EMPTYING gestures (#69 × #95) ask THIS question, with an empty replacement — the
+     * composer has just been emptied, so it offers nothing at all — and read the answer as "was the
+     * original provably copied to nobody?". `MailRepository.emptiedDraftAddressingIsProvenEmpty` is
+     * the one line of wiring between the two, pinned by [DraftAddressingWiringTest] because nothing
+     * here can instantiate the repository; the decision is this, and it is executed.
+     *
+     * ⛔ Three of the four answers must be the SAME false. The emptying destroys the server copy
+     * outright and leaves not even the duplicate an ordinary save leaves, so "there was a Cc" and
+     * "I could not find out" have to weigh alike: an unknown is not a void.
+     */
+    @Test fun theEmptyingProvesAnEmptyAddressingOnlyWhenTheServerSaidSo() = runTest {
+        val reads = listOf<suspend (String) -> Set<String>?>(
+            { emptySet() },                    // the server answered: copied to nobody
+            { setOf("jordan.lee@masto.top") }, // the server answered: there was a Cc
+            { null },                          // the row or the UID is gone: no answer
+            { throw IOException("offline") },  // …and neither is this one
+        )
+        assertEquals(
+            "only the first may license the destroy. A guard that read the last two as \"nothing " +
+                "to lose\" expunges the only copy that still holds those recipients, silently — " +
+                "and on this route the user is left with no draft at all",
+            listOf(true, false, false, false),
+            reads.map { read -> draftAddressingIsCarried("imap:acct:Drafts:42", emptySet(), read) },
+        )
+    }
+
     // ---- copiedAddressesOrNull: what the envelope read may and may not round down ----
 
     /** The ordinary read: every entry names a mailbox, so the set is the addressing. */

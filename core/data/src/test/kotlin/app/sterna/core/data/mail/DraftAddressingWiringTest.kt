@@ -31,12 +31,16 @@ class DraftAddressingWiringTest {
     private fun bodyOf(file: String, function: String): String =
         DaoQuerySource.mailFunctionBody(file, function)
 
-    /** The code lines of [body] naming [needle] — comments dropped, so prose can neither satisfy
-     *  a rule nor break one. Whole lines: the assertions compare them, never search inside them. */
-    private fun codeLinesNaming(body: String, needle: String): List<String> =
+    /** The code lines of [body] — comments dropped, so prose can neither satisfy a rule nor break
+     *  one. Whole lines: the assertions compare them, never search inside them. */
+    private fun codeLines(body: String): List<String> =
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
-            .filter { needle in it }
+            .filter { it.isNotEmpty() }
+
+    /** …the ones naming [needle]. */
+    private fun codeLinesNaming(body: String, needle: String): List<String> =
+        codeLines(body).filter { needle in it }
 
     @Test fun theSaveAsksWhetherTheAddressingSurvivedBeforeDestroyingAnything() {
         assertEquals(
@@ -126,6 +130,54 @@ class DraftAddressingWiringTest {
                 "here re-opens the unbounded read for the send path however bounded its call is",
             listOf("return imap.ccAndBccOf(credentials, cached.mailboxId, uid, budgetMs)"),
             codeLinesNaming(body, "ccAndBccOf("),
+        )
+    }
+
+    /**
+     * The EMPTYING gestures ask the same question, and until 2026-08-25 they asked nothing at all
+     * (#69 × #95 × #63). Emptying a draft and saving destroys the server copy outright — the
+     * hardest of the three routes, since it does not even leave the duplicate an ordinary save
+     * leaves — and both guards weighed one term, the body verdict. The composer cannot tell a draft
+     * that has no Cc from a Cc it never managed to read, so that route destroyed the only copy
+     * holding those addresses with nothing on screen.
+     *
+     * The decision is the SAME pure function the save uses ([draftAddressingIsCarried]) with an
+     * empty replacement, and it is executed by [DraftSaveTest]; what nothing in a JVM can see is
+     * this wiring, so it is pinned here, WHOLE LINES.
+     */
+    @Test fun theEmptyingAsksTheServerWhetherTheOriginalWasCopiedToAnybody() {
+        assertEquals(
+            "⛔ the whole body. Every line of it can be mutated into the loss with every " +
+                "executable test still green: `replacement = emptySet()` → any non-empty set and " +
+                "an original with a Cc suddenly counts as 'nothing to lose'; " +
+                "`EMPTIED_DRAFT_PROOF_BUDGET_MS` → NO_BUDGET, and the gesture made with the " +
+                "radio off waits on a socket with no deadline; " +
+                "`imapDraftAddressing` → the CACHE, whose cc/bcc columns answer empty for every " +
+                "row written before schema v21 (no back-fill), which is the loss itself; " +
+                "`return true` moved out of the JMAP branch and the IMAP read is skipped " +
+                "altogether; the protocol test inverted and JMAP pays a read it cannot make while " +
+                "IMAP asserts an emptiness nobody established. ⭐ The `true` is legitimate on JMAP " +
+                "ALONE, and for the reason uploadDraft's own `addressingIsCarried = true` gives: " +
+                "a JMAP draft reopens through Email/get, which returns the server's to/cc/bcc, so " +
+                "the fields the user has just emptied ARE the original's addressing. Body was:",
+            listOf(
+                // ⛔ The braces are IN the expected list, and the body is compared WHOLE. Dropped
+                // — `.drop(1).dropLast(1)`, which reads as tidier — the opening brace's own line
+                // is thrown away before the comparison, and `{ if (emailId.isNotEmpty()) return
+                // true` restores the defect entire with every line below it still matching. The
+                // line is the unit, so no line may be discarded.
+                "{",
+                "if (credentials.protocol == MailProtocol.IMAP) {",
+                "return draftAddressingIsCarried(",
+                "replacesEmailId = emailId,",
+                "replacement = emptySet(),",
+                "originalAddressing = { id -> imapDraftAddressing(credentials, id, EMPTIED_DRAFT_PROOF_BUDGET_MS) },",
+                ")",
+                "}",
+                "return true",
+                "}",
+            ),
+            codeLines(bodyOf("MailRepository", "emptiedDraftAddressingIsProvenEmpty")),
         )
     }
 

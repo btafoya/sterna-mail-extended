@@ -38,12 +38,26 @@ package app.sterna.ui.compose
  * `R.string.compose_emptied_draft_server_copy_kept` — the same sentence the other route posts, for
  * the same fact.
  *
- * ⛔ **And no wider than that.** A draft this composer read WHOLE and the user emptied by hand is
- * still destroyed, exactly as before: that is the rule of #69 ("the original is deleted so no empty
- * shell lingers in Drafts, nor reappears on sync"), and turning "she emptied it" into "never destroy
- * anything" would leave an empty shell at the top of Drafts after every hand-emptied save.
+ * ⭐ **[addressingIsProvenEmpty] is the second term, and it is the one the ordinary save has had
+ * all along.** Re-saving a draft over its server copy is allowed to destroy that copy only once the
+ * replacement PROVABLY carries the addresses the original was addressed to
+ * (`draftReplacementIsFaithful`, term `addressingIsCarried`); emptying it — the harder route, which
+ * leaves not even the duplicate a save leaves — asked nothing of the sort. The composer cannot tell
+ * a draft that has no Cc from a Cc it never managed to read (a cache row older than the v21
+ * columns, with no back-fill; a read that failed; an address the envelope gave back unreadable), so
+ * "the fields on screen are empty" was never a statement about the copy being expunged. `false`
+ * here therefore covers BOTH "there were addresses on it" AND "the read did not answer", and that
+ * is deliberate: an unknown is not a void, and it keeps the copy. Same rule and same direction as
+ * `draftAddressingIsCarried(original = null)` answering false.
+ *
+ * ⛔ **And no wider than that.** A draft this composer read WHOLE, whose addressing the server
+ * confirmed empty, and which the user emptied by hand is still destroyed, exactly as before: that
+ * is the rule of #69 ("the original is deleted so no empty shell lingers in Drafts, nor reappears
+ * on sync"), and turning "she emptied it" into "never destroy anything" would leave an empty shell
+ * at the top of Drafts after every hand-emptied save.
  */
-fun emptiedServerDraftIsKept(bodyIsLossy: Boolean): Boolean = bodyIsLossy
+fun emptiedServerDraftIsKept(bodyIsLossy: Boolean, addressingIsProvenEmpty: Boolean): Boolean =
+    bodyIsLossy || !addressingIsProvenEmpty
 
 /**
  * Whose credentials expunge the SERVER draft this composer opened, once it has been emptied and

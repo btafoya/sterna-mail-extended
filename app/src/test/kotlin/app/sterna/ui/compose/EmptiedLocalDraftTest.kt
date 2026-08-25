@@ -40,6 +40,7 @@ class EmptiedLocalDraftTest {
                 replacedServerDraftUidValidity = 9_001L,
                 mailboxId = "INBOX.Drafts",
                 bodyIsLossy = false,
+                addressingIsProvenEmpty = true,
             ).order,
         )
     }
@@ -55,6 +56,7 @@ class EmptiedLocalDraftTest {
                 replacedServerDraftUidValidity = null,
                 mailboxId = "mbx-drafts",
                 bodyIsLossy = false,
+                addressingIsProvenEmpty = true,
             ).order,
         )
     }
@@ -64,7 +66,8 @@ class EmptiedLocalDraftTest {
             "the numbering travels off the row and is never looked up on the way out (#99): the " +
                 "value read here must be the value handed in, whatever it is",
             4_242L,
-            planForEmptiedLocalDraft("Mb42", 4_242L, "mbx-drafts", bodyIsLossy = false).order?.uidValidity,
+            planForEmptiedLocalDraft("Mb42", 4_242L, "mbx-drafts", bodyIsLossy = false, addressingIsProvenEmpty = true)
+                .order?.uidValidity,
         )
     }
 
@@ -74,6 +77,7 @@ class EmptiedLocalDraftTest {
             replacedServerDraftUidValidity = 9_001L,
             mailboxId = "INBOX.Drafts",
             bodyIsLossy = false,
+            addressingIsProvenEmpty = true,
         )
         assertNull(
             "the ordinary case — a draft written from scratch with no network replaces no server " +
@@ -89,7 +93,8 @@ class EmptiedLocalDraftTest {
             "the notice belongs to a server copy that was KEPT. With nothing replaced there is no " +
                 "such copy, and saying \"the copy on the server was kept\" would name a message " +
                 "that does not exist",
-            planForEmptiedLocalDraft(null, null, "INBOX.Drafts", bodyIsLossy = true).tellServerCopyKept,
+            planForEmptiedLocalDraft(null, null, "INBOX.Drafts", bodyIsLossy = true, addressingIsProvenEmpty = true)
+                .tellServerCopyKept,
         )
     }
 
@@ -98,11 +103,11 @@ class EmptiedLocalDraftTest {
             "no cached row and no Drafts role: an order without a folder is enqueued, runs, " +
                 "destroys nothing and the eviction that follows it takes the draft off the phone " +
                 "anyway. Answering null leaves it where the user can still see it",
-            planForEmptiedLocalDraft("Mb42", null, null, bodyIsLossy = false).order,
+            planForEmptiedLocalDraft("Mb42", null, null, bodyIsLossy = false, addressingIsProvenEmpty = true).order,
         )
         assertNull(
             "an empty folder id is no folder",
-            planForEmptiedLocalDraft("Mb42", null, "", bodyIsLossy = false).order,
+            planForEmptiedLocalDraft("Mb42", null, "", bodyIsLossy = false, addressingIsProvenEmpty = true).order,
         )
     }
 
@@ -114,6 +119,7 @@ class EmptiedLocalDraftTest {
             replacedServerDraftUidValidity = 9_001L,
             mailboxId = "INBOX.Drafts",
             bodyIsLossy = true,
+            addressingIsProvenEmpty = true,
         )
         assertNull(
             "⛔ IRREVERSIBLE, and it beats the rule of #69. `bodyIsLossy` says the row holds what " +
@@ -133,7 +139,75 @@ class EmptiedLocalDraftTest {
         assertNull(
             "the guard is not \"lossy AND unresolvable\": a perfectly resolvable folder, a frozen " +
                 "numbering and a valid id still destroy nothing when the phone had not read it all",
-            planForEmptiedLocalDraft("Mb42", 4_242L, "mbx-drafts", bodyIsLossy = true).order,
+            planForEmptiedLocalDraft("Mb42", 4_242L, "mbx-drafts", bodyIsLossy = true, addressingIsProvenEmpty = true).order,
+        )
+    }
+
+    // -- the addressing of the copy behind the row -------------------------------------------------
+
+    @Test fun `an addressing this phone could not prove empty leaves the server copy alone`() {
+        val plan = planForEmptiedLocalDraft(
+            replacedServerDraftId = "imap:acc-1:INBOX.Drafts:441",
+            replacedServerDraftUidValidity = 9_001L,
+            mailboxId = "INBOX.Drafts",
+            bodyIsLossy = false,
+            addressingIsProvenEmpty = false,
+        )
+        assertNull(
+            "⛔ THE DEFECT, and the plan is where it shows: a body read WHOLE says nothing about " +
+                "the recipients of the copy this order would expunge. The phone cannot tell a " +
+                "draft with no Cc from a Cc it never read — a cache row older than the v21 " +
+                "columns and never back-filled, a read that failed, an address the envelope gave " +
+                "back unreadable — so an order minted here destroys, for ever, the only copy that " +
+                "still held them. The ordinary save has demanded this proof since #63; this " +
+                "gesture demanded nothing. Order was:",
+            plan.order,
+        )
+        assertTrue(
+            "…and the copy being kept is owed the word, exactly as the lossy case is: kept in " +
+                "silence, the draft is back at the next sync and reads as a bug",
+            plan.tellServerCopyKept,
+        )
+    }
+
+    @Test fun `the eight cases are eight, and only one of them destroys`() {
+        // Every combination EXECUTED against a literal table — the two keeping terms crossed with
+        // "this row stands in for nothing". A constant, or a term dropped, fails whole rows here.
+        val ids = listOf(null, "Mb42")
+        assertEquals(
+            "⛔ the whole decision, as a table. The copy is kept when there IS one and either " +
+                "term says something may be lost; with no server draft behind the row nothing is " +
+                "kept and nothing is said, whatever the other two answer, because the sentence " +
+                "would name a message that does not exist. The single destroying row is a body " +
+                "read whole over an addressing the server proved empty — the rule of #69",
+            mapOf(
+                Triple(null, false, false) to false,
+                Triple(null, false, true) to false,
+                Triple(null, true, false) to false,
+                Triple(null, true, true) to false,
+                Triple("Mb42", false, false) to true,
+                Triple("Mb42", false, true) to false,
+                Triple("Mb42", true, false) to true,
+                Triple("Mb42", true, true) to true,
+            ),
+            ids.flatMap { id ->
+                listOf(false, true).flatMap { lossy ->
+                    listOf(false, true).map { proven ->
+                        Triple(id, lossy, proven) to emptiedLocalDraftKeepsServerCopy(id, lossy, proven)
+                    }
+                }
+            }.toMap(),
+        )
+    }
+
+    @Test fun `the plan and the dialog stay one decision on the addressing term too`() {
+        assertEquals(
+            "the notice posted after an empty save and the sentence shown before a delete are " +
+                "still the same fact once the addressing weighs in: two implementations drift, " +
+                "and the one that drifts warns about a copy the other destroys",
+            planForEmptiedLocalDraft("Mb42", null, "mbx-drafts", bodyIsLossy = false, addressingIsProvenEmpty = false)
+                .tellServerCopyKept,
+            emptiedLocalDraftKeepsServerCopy("Mb42", bodyIsLossy = false, addressingIsProvenEmpty = false),
         )
     }
 
@@ -293,7 +367,7 @@ class EmptiedLocalDraftTest {
                 "that this gesture KEEPS, so \"this draft hasn't reached the server, and this " +
                 "can't be undone\" is the opposite of what happens — the pre-edit draft comes back " +
                 "at the top of Drafts the moment the row goes",
-            emptiedLocalDraftKeepsServerCopy("imap:acc-1:INBOX.Drafts:441", bodyIsLossy = true),
+            emptiedLocalDraftKeepsServerCopy("imap:acc-1:INBOX.Drafts:441", bodyIsLossy = true, addressingIsProvenEmpty = true),
         )
     }
 
@@ -301,7 +375,7 @@ class EmptiedLocalDraftTest {
         assertFalse(
             "with nothing behind the row there is no copy to keep, and the sentence would name a " +
                 "message that does not exist",
-            emptiedLocalDraftKeepsServerCopy(null, bodyIsLossy = true),
+            emptiedLocalDraftKeepsServerCopy(null, bodyIsLossy = true, addressingIsProvenEmpty = true),
         )
     }
 
@@ -309,7 +383,7 @@ class EmptiedLocalDraftTest {
         assertFalse(
             "this phone read it all, so the copy behind the row is destroyed by this very gesture " +
                 "— announcing that it stays is the same lie the other way round",
-            emptiedLocalDraftKeepsServerCopy("imap:acc-1:INBOX.Drafts:441", bodyIsLossy = false),
+            emptiedLocalDraftKeepsServerCopy("imap:acc-1:INBOX.Drafts:441", bodyIsLossy = false, addressingIsProvenEmpty = true),
         )
     }
 
@@ -318,8 +392,9 @@ class EmptiedLocalDraftTest {
             "the notice posted after an empty save and the sentence shown before a delete are the " +
                 "same fact: two implementations drift, and the one that drifts warns about a copy " +
                 "the other destroys",
-            planForEmptiedLocalDraft("Mb42", null, "mbx-drafts", bodyIsLossy = true).tellServerCopyKept,
-            emptiedLocalDraftKeepsServerCopy("Mb42", bodyIsLossy = true),
+            planForEmptiedLocalDraft("Mb42", null, "mbx-drafts", bodyIsLossy = true, addressingIsProvenEmpty = true)
+                .tellServerCopyKept,
+            emptiedLocalDraftKeepsServerCopy("Mb42", bodyIsLossy = true, addressingIsProvenEmpty = true),
         )
     }
 

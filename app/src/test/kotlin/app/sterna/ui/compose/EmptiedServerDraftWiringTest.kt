@@ -21,12 +21,16 @@ class EmptiedServerDraftWiringTest {
 
     @Test fun `the empty save asks the decision about this screen's own verdict`() {
         assertEquals(
-            "⛔ the decision must be fed `editingDraftLossy`, whole — the verdict `prepare()` " +
-                "computed from the draft it fetched. `false` here (or any other term) is the defect " +
-                "with a decision bolted on top: the answer is then always \"destroy\", and a draft " +
-                "made of one inline image — drawn EMPTY, because draftHasContent counts neither " +
-                "inline images nor calendar parts — is expunged on the server without a word.",
-            mapOf("#0" to "editingDraftLossy"),
+            "⛔ the decision must be fed BOTH terms, whole: `editingDraftLossy`, the verdict " +
+                "`prepare()` computed from the draft it fetched, and the addressing term read " +
+                "just above it. `false` for the first (or any other term) is the defect with a " +
+                "decision bolted on top: the answer is then always \"destroy\", and a draft made " +
+                "of one inline image — drawn EMPTY, because draftHasContent counts neither " +
+                "inline images nor calendar parts — is expunged on the server without a word. " +
+                "`true` for the second is the SAME defect one term along: a Cc this composer " +
+                "never managed to read is then declared absent, and the only copy that carried " +
+                "it is expunged (#63, on the route that leaves not even a duplicate).",
+            mapOf("#0" to "editingDraftLossy", "addressingIsProvenEmpty" to "addressingIsProvenEmpty"),
             callsOf(bodyOf("saveDraft"), "emptiedServerDraftIsKept(").single(),
         )
     }
@@ -56,19 +60,35 @@ class EmptiedServerDraftWiringTest {
                 "next sync. Body was:\n" + lines.joinToString("\n"),
             listOf(
                 "submit(to) { _, _ ->",
-                "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
-                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
-                "} else {",
-                "val credentials = credentialsDestroyingEmptiedServerDraft(",
+                // ⛔ The account is resolved by a LOCAL FUN and not into a val up front: a
+                // lossy draft keeps its copy whatever the account says, and resolving an account
+                // removed from the phone during the edit would turn that true notice into a
+                // "could not save" banner over a gesture that failed at nothing. Called only
+                // where an answer is used — and never with a fallback, which is what the
+                // `?: error(...)` line below pins.
+                "fun destroyingCredentials(): AccountCredentials =",
+                "credentialsDestroyingEmptiedServerDraft(",
                 "openedUnderAccountId = originalAccountId,",
                 "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
-                "repo.discardDraft(credentials, original, originalUidValidity)",
+                // ⭐ The second term of the guard, and the whole correction: the addressing
+                // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
+                // the account the draft was OPENED from — `credentials` here reads another
+                // server's Drafts. The `!editingDraftLossy &&` only skips a read whose answer
+                // cannot change the outcome; drop the term itself and a Cc this composer never
+                // managed to display is expunged with the copy that held it (#63 on the emptying
+                // route). `= true` written here is the defect with a parameter bolted on top.
+                "val addressingIsProvenEmpty = !editingDraftLossy &&",
+                "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
+                "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
+                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
+                "} else {",
+                "repo.discardDraft(destroyingCredentials(), original, originalUidValidity)",
                 "}",
                 "}",
             ),
-            lines.subList(at, (at + 12).coerceAtMost(lines.size)),
+            lines.subList(at, (at + 15).coerceAtMost(lines.size)),
         )
     }
 
@@ -106,7 +126,7 @@ class EmptiedServerDraftWiringTest {
             "⛔ …and it is resolved in exactly ONE place in this class. A second call — a helper, " +
                 "an \"already resolved above\" shortcut, a retry — is a second answer to the same " +
                 "question, and every rule above stays green. Lines were:",
-            listOf("val credentials = credentialsDestroyingEmptiedServerDraft("),
+            listOf("credentialsDestroyingEmptiedServerDraft("),
             codeLines(save).filter { "credentialsDestroyingEmptiedServerDraft(" in it },
         )
     }
@@ -116,7 +136,7 @@ class EmptiedServerDraftWiringTest {
             "⛔ exactly one `repo.discardDraft(` in this class, the one under the guard. A second " +
                 "call — a helper, an early return \"to be safe\" — is a second way out that reads " +
                 "no verdict at all, and every test above stays green. Lines were:",
-            listOf("repo.discardDraft(credentials, original, originalUidValidity)"),
+            listOf("repo.discardDraft(destroyingCredentials(), original, originalUidValidity)"),
             codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "repo.discardDraft(" in it },
         )
     }

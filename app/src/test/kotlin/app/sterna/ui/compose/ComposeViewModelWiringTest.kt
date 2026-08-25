@@ -232,19 +232,31 @@ class ComposeViewModelWiringTest {
                 // counts neither inline images nor calendar parts. The notice sits INSIDE the
                 // lambda: submit() reaches Done after it returns.
                 "submit(to) { _, _ ->",
-                "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
-                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
-                "} else {",
-                // ⛔ …and the expunge is addressed to the account the draft was READ FROM, resolved
-                // here and nowhere else, with no fallback: `?: credentials` appended to this call
-                // is the defect restored, and it lengthens a line — which is why these are compared
-                // whole. The decision itself is executed in EmptiedServerDraftTest.
-                "val credentials = credentialsDestroyingEmptiedServerDraft(",
+                // ⛔ The account is resolved by a LOCAL FUN and not into a val up front: a
+                // lossy draft keeps its copy whatever the account says, and resolving an account
+                // removed from the phone during the edit would turn that true notice into a
+                // "could not save" banner over a gesture that failed at nothing. Called only
+                // where an answer is used — and never with a fallback, which is what the
+                // `?: error(...)` line below pins.
+                "fun destroyingCredentials(): AccountCredentials =",
+                "credentialsDestroyingEmptiedServerDraft(",
                 "openedUnderAccountId = originalAccountId,",
                 "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
-                "repo.discardDraft(credentials, original, originalUidValidity)",
+                // ⭐ The second term of the guard, and the whole correction: the addressing
+                // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
+                // the account the draft was OPENED from — `credentials` here reads another
+                // server's Drafts. The `!editingDraftLossy &&` only skips a read whose answer
+                // cannot change the outcome; drop the term itself and a Cc this composer never
+                // managed to display is expunged with the copy that held it (#63 on the emptying
+                // route). `= true` written here is the defect with a parameter bolted on top.
+                "val addressingIsProvenEmpty = !editingDraftLossy &&",
+                "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
+                "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
+                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
+                "} else {",
+                "repo.discardDraft(destroyingCredentials(), original, originalUidValidity)",
                 "}",
                 "}",
                 "}",

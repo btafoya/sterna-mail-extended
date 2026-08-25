@@ -29,17 +29,18 @@ class EmptiedServerDraftTest {
                 "emptied what she was SHOWN, and on this route that may have been an empty editor " +
                 "for a draft that was never empty: expunging on the strength of it destroys, for " +
                 "ever, what she was never shown (arbitration rule 1)",
-            emptiedServerDraftIsKept(bodyIsLossy = true),
+            emptiedServerDraftIsKept(bodyIsLossy = true, addressingIsProvenEmpty = true),
         )
     }
 
     @Test fun `a draft this composer read whole and the user emptied by hand is still destroyed`() {
         assertFalse(
-            "⛔ the guard may not become \"never destroy anything\": that is the rule of #69 — the " +
+            "⛔ the guard may not become \"never destroy anything\": a body read WHOLE over an " +
+                "addressing the SERVER proved empty loses nothing, and that is the rule of #69 — the " +
                 "original is deleted so no empty shell lingers in Drafts, nor reappears on sync. " +
                 "Answering \"kept\" here leaves the pre-edit draft at the top of Drafts after every " +
                 "hand-emptied save, which is the symptom #69 was opened for",
-            emptiedServerDraftIsKept(bodyIsLossy = false),
+            emptiedServerDraftIsKept(bodyIsLossy = false, addressingIsProvenEmpty = true),
         )
     }
 
@@ -49,7 +50,64 @@ class EmptiedServerDraftTest {
             "kept when the read was lossy, destroyed when it was faithful — the two, from the one " +
                 "verdict. A constant here is a fix that either destroys everything (the defect) or " +
                 "destroys nothing (#69, reopened)",
-            emptiedServerDraftIsKept(bodyIsLossy = true) && !emptiedServerDraftIsKept(bodyIsLossy = false),
+            emptiedServerDraftIsKept(bodyIsLossy = true, addressingIsProvenEmpty = true) &&
+                !emptiedServerDraftIsKept(bodyIsLossy = false, addressingIsProvenEmpty = true),
+        )
+    }
+
+    // -- the addressing of the copy about to be expunged -----------------------------------------
+
+    @Test fun `an addressing this composer could not prove empty KEEPS the copy`() {
+        assertFalse(
+            "⛔ THE DEFECT. A faithful read of the body says nothing about the recipients of the " +
+                "copy being expunged: the composer cannot tell a draft with no Cc from a Cc it " +
+                "never managed to read — a cache row older than the v21 columns and never " +
+                "back-filled, a read that failed, an address the envelope gave back unreadable. " +
+                "Destroying on that reading takes the only copy that still held those addresses, " +
+                "for ever, with nothing on screen. The ordinary save has demanded this proof " +
+                "since #63 (draftReplacementIsFaithful, addressingIsCarried); this route, which " +
+                "leaves not even the duplicate a save leaves, demanded nothing",
+            !emptiedServerDraftIsKept(bodyIsLossy = false, addressingIsProvenEmpty = false),
+        )
+    }
+
+    @Test fun `a lossy body keeps the copy whatever the addressing says`() {
+        // ⭐ This is what licenses the call site to SKIP the server read when the body is lossy:
+        // the answer is the same for both values, so the read cannot change the outcome and the
+        // `false` handed over in its place ("not proven", because nothing was asked) is safe.
+        assertEquals(
+            "the two terms are OR-ed, so the body verdict alone still keeps the copy — and " +
+                "ComposeViewModel's `!editingDraftLossy &&` short-circuit only holds while this " +
+                "is true. Make the addressing term outrank the body one and a draft made of one " +
+                "inline image is expunged the moment the server says it was copied to nobody",
+            listOf(true, true),
+            listOf(
+                emptiedServerDraftIsKept(bodyIsLossy = true, addressingIsProvenEmpty = true),
+                emptiedServerDraftIsKept(bodyIsLossy = true, addressingIsProvenEmpty = false),
+            ),
+        )
+    }
+
+    @Test fun `the four cases are four, and only one of them destroys`() {
+        // Every combination EXECUTED, against a literal table: no case can be collapsed into
+        // another, and a constant fails three of the four rows at once.
+        assertEquals(
+            "⛔ the whole decision, as a table. The one destroying row is a body this composer " +
+                "read WHOLE whose addressing the SERVER said was empty — that is the rule of #69 " +
+                "(no empty shell left at the top of Drafts), and it is the only case in which " +
+                "nothing can be lost. Every other row keeps the copy and owes the user the word " +
+                "compose_emptied_draft_server_copy_kept",
+            mapOf(
+                (false to false) to true,
+                (false to true) to false,
+                (true to false) to true,
+                (true to true) to true,
+            ),
+            listOf(false, true).flatMap { lossy ->
+                listOf(false, true).map { proven ->
+                    (lossy to proven) to emptiedServerDraftIsKept(lossy, proven)
+                }
+            }.toMap(),
         )
     }
 

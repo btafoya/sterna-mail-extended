@@ -268,8 +268,18 @@ class LocalDraftReopenWiringTest {
                 // and by the same decision the empty save's notice is posted from (#95). Left out,
                 // the dialog goes on promising "this can't be undone" over a row whose server copy
                 // this gesture deliberately keeps.
-                "_deleteKeepsServerCopy.value =",
-                "emptiedLocalDraftKeepsServerCopy(fields.replacedServerDraftId, fields.bodyIsLossy)",
+                // ⛔ …and `addressingIsProvenEmpty = true`, which is NOT a claim that the copy
+                // was addressed to nobody: this dialog answers BEFORE the finger and the addressing
+                // cannot be established there without a server read at every reopen. It leaves this
+                // dialog's rule exactly what it was, and the gap is one-way — this dialog only ever
+                // ADDS the "copy on the server stays" line, so `true` can withhold that line for a
+                // copy the gesture then keeps and says so a moment later, and can never promise one
+                // that is about to be destroyed. ⛔ `false` here is the lie in the other direction.
+                "_deleteKeepsServerCopy.value = emptiedLocalDraftKeepsServerCopy(",
+                "fields.replacedServerDraftId,",
+                "fields.bodyIsLossy,",
+                "addressingIsProvenEmpty = true,",
+                ")",
             ),
             body,
         )
@@ -491,18 +501,31 @@ class LocalDraftReopenWiringTest {
                 // below took a draft made of one inline image on the first save — draftHasContent
                 // draws it EMPTY, since it counts neither inline images nor calendar parts.
                 "submit(to) { _, _ ->",
-                "if (emptiedServerDraftIsKept(editingDraftLossy)) {",
-                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
-                "} else {",
-                // ⛔ …and, exactly as on the LOCAL branch above, the credentials submit() resolved
-                // are NOT what the expunge goes out under: they belong to the identity on show.
-                // The account is the one frozen when the draft was read (#31 × #63).
-                "val credentials = credentialsDestroyingEmptiedServerDraft(",
+                // ⛔ The account is resolved by a LOCAL FUN and not into a val up front: a
+                // lossy draft keeps its copy whatever the account says, and resolving an account
+                // removed from the phone during the edit would turn that true notice into a
+                // "could not save" banner over a gesture that failed at nothing. Called only
+                // where an answer is used — and never with a fallback, which is what the
+                // `?: error(...)` line below pins.
+                "fun destroyingCredentials(): AccountCredentials =",
+                "credentialsDestroyingEmptiedServerDraft(",
                 "openedUnderAccountId = originalAccountId,",
                 "composingAsAccountId = _selectedFrom.value?.accountId ?: accountId,",
                 "lookup = { store.credentials(it) },",
                 ") ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
-                "repo.discardDraft(credentials, original, originalUidValidity)",
+                // ⭐ The second term of the guard, and the whole correction: the addressing
+                // of the copy about to be expunged, PROVEN empty or not proven at all. Read under
+                // the account the draft was OPENED from — `credentials` here reads another
+                // server's Drafts. The `!editingDraftLossy &&` only skips a read whose answer
+                // cannot change the outcome; drop the term itself and a Cc this composer never
+                // managed to display is expunged with the copy that held it (#63 on the emptying
+                // route). `= true` written here is the defect with a parameter bolted on top.
+                "val addressingIsProvenEmpty = !editingDraftLossy &&",
+                "repo.emptiedDraftAddressingIsProvenEmpty(destroyingCredentials(), original)",
+                "if (emptiedServerDraftIsKept(editingDraftLossy, addressingIsProvenEmpty = addressingIsProvenEmpty)) {",
+                "_notices.tryEmit(R.string.compose_emptied_draft_server_copy_kept)",
+                "} else {",
+                "repo.discardDraft(destroyingCredentials(), original, originalUidValidity)",
                 "}",
                 "}",
                 "}",
@@ -558,6 +581,15 @@ class LocalDraftReopenWiringTest {
                 "replacedServerDraftUidValidity = replacedServerDraftUidValidity,",
                 "mailboxId = serverDraft?.let { repo.draftMailboxOf(credentials, it) },",
                 "bodyIsLossy = editingDraftLossy,",
+                // ⭐ The second keeping term, read here for the same reason `mailboxId` is: it
+                // takes a server read, and the decision stays pure. Under the account the ROW was
+                // leased under. `= true` written here is the emptying destroying a Cc this phone
+                // never managed to read, which is #63 on the gesture that leaves no duplicate.
+                // ⛔ And the two guards stay in FRONT of the read: unlike `mailboxId` this one
+                // leaves the phone, and this gesture is the one reached with no network (#95).
+                // Neither skips anything the guard could have used — both hand over "not proven".
+                "addressingIsProvenEmpty = serverDraft != null && !editingDraftLossy &&",
+                "repo.emptiedDraftAddressingIsProvenEmpty(credentials, serverDraft),",
                 ")",
                 "destroyThenConsumeEmptiedLocalDraft(",
                 "localDraftId = localDraftId,",

@@ -63,10 +63,14 @@ data class EmptiedLocalDraftPlan(
  * and means "nothing to oppose" on IMAP, where the worker then destroys nothing and the re-query
  * brings the draft back — the safe end of an order that cannot be checked.
  *
+ * ⭐ **[addressingIsProvenEmpty] keeps it too, and for the same kind of damage** — see
+ * [emptiedLocalDraftKeepsServerCopy], where the term is argued. It is NOT computed here: the caller
+ * reads it, exactly as it reads [mailboxId], because establishing it means asking the server.
+ *
  * Empty plans, all deliberate:
  *  - [replacedServerDraftId] null — the ordinary case, a draft written from scratch that stands in
  *    for nothing at all. There is nothing to destroy, nothing to evict and nothing to say;
- *  - lossy — the copy is kept, and said;
+ *  - lossy, or an addressing not proven empty — the copy is kept, and said;
  *  - no folder ([draftDestroyFolder] answered neither) — an order with no folder would be enqueued,
  *    run, destroy nothing and evict the draft from the phone all the same. ⚠ Silent, unlike the
  *    lossy case: the copy is kept and the screen says nothing. Known debt, not a second string.
@@ -76,8 +80,9 @@ fun planForEmptiedLocalDraft(
     replacedServerDraftUidValidity: Long?,
     mailboxId: String?,
     bodyIsLossy: Boolean,
+    addressingIsProvenEmpty: Boolean,
 ): EmptiedLocalDraftPlan {
-    if (emptiedLocalDraftKeepsServerCopy(replacedServerDraftId, bodyIsLossy)) {
+    if (emptiedLocalDraftKeepsServerCopy(replacedServerDraftId, bodyIsLossy, addressingIsProvenEmpty)) {
         return EmptiedLocalDraftPlan(null, tellServerCopyKept = true)
     }
     val serverDraft = replacedServerDraftId ?: return EmptiedLocalDraftPlan(null, tellServerCopyKept = false)
@@ -105,14 +110,33 @@ fun planForEmptiedLocalDraft(
  * `ComposeViewModel` an `AndroidViewModel` — a decision left in either is a decision no JVM test
  * here ever runs, and this one decides whether a warning is shown before an irreversible tap.
  *
- * Both terms are needed, and neither alone is the question:
+ * ⭐ **[addressingIsProvenEmpty] is the term the ordinary save has always had and this gesture had
+ * not.** A save may replace a server copy only once the replacement PROVABLY carries the addresses
+ * the original was addressed to (`draftReplacementIsFaithful`, term `addressingIsCarried`); the
+ * emptying, which destroys that copy and leaves not even the duplicate a save leaves, was deciding
+ * on the body verdict alone. The composer cannot tell a draft that has no Cc from a Cc it never
+ * managed to read (a cache row older than the v21 columns and never back-filled, a read that
+ * failed, an address the envelope gave back unreadable), so "the fields are empty on screen" says
+ * nothing about the copy being destroyed.
+ *
+ * ⛔ **The unknown KEEPS.** `addressingIsProvenEmpty == false` covers "there were addresses" AND
+ * "the read did not answer", and the two are deliberately not distinguished: an unknown is not a
+ * void. It is the same rule, in the same direction, as `draftAddressingIsCarried(original = null)`
+ * answering false — the copy on the server is then the only thing still holding those recipients.
+ *
+ * The three terms, and no one of them is the question on its own:
  *  - no [replacedServerDraftId] — the ordinary draft written from scratch. Nothing is behind it, so
  *    "the copy on the server stays" would name a message that does not exist;
- *  - not [bodyIsLossy] — this phone read the draft whole, so the copy behind it is destroyed by the
- *    same gesture and saying it stays is the same lie the other way round.
+ *  - not [bodyIsLossy] — this phone read the draft whole, so on that count the copy behind it is
+ *    destroyed by the same gesture and saying it stays is the same lie the other way round;
+ *  - [addressingIsProvenEmpty] — the server itself said the original was copied to nobody, so the
+ *    destroy takes no recipient with it.
  */
-fun emptiedLocalDraftKeepsServerCopy(replacedServerDraftId: String?, bodyIsLossy: Boolean): Boolean =
-    replacedServerDraftId != null && bodyIsLossy
+fun emptiedLocalDraftKeepsServerCopy(
+    replacedServerDraftId: String?,
+    bodyIsLossy: Boolean,
+    addressingIsProvenEmpty: Boolean,
+): Boolean = replacedServerDraftId != null && (bodyIsLossy || !addressingIsProvenEmpty)
 
 /**
  * Who gets the phone's own draft row back once a DELETION asked for is over (#95 × #127) — the row
