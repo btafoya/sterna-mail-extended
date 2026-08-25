@@ -29,7 +29,7 @@
     <string name="compose_could_not_send">Não foi possível enviar: %1$s</string>
     <string name="compose_could_not_save">Não foi possível salvar o rascunho: %1$s</string>
     <string name="compose_prefill_failed">Não foi possível carregar a mensagem original.</string>
-    <string name="compose_draft_original_kept">Salvo como um novo rascunho. O original foi mantido, porque esta cópia não conseguia levar tudo o que ele continha.</string>
+    <string name="compose_draft_original_kept">Salvo como novo rascunho. O original foi mantido.</string>
     <string name="compose_draft_offline">Não foi possível carregar este rascunho: não há ligação. Volte com uma ligação e abra-o novamente.</string>
     <string name="compose_draft_load_failed">Não foi possível carregar o texto deste rascunho. Feche este ecrã e tente abri-lo novamente.</string>
     <string name="compose_local_draft_gone">Este rascunho já não está neste telefone. Se chegou ao servidor, vai encontrá-lo em Rascunhos.</string>

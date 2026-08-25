@@ -29,7 +29,7 @@
     <string name="compose_could_not_send">Senden fehlgeschlagen: %1$s</string>
     <string name="compose_could_not_save">Entwurf konnte nicht gespeichert werden: %1$s</string>
     <string name="compose_prefill_failed">Ursprüngliche Nachricht konnte nicht geladen werden.</string>
-    <string name="compose_draft_original_kept">Als neuer Entwurf gespeichert. Das Original wurde behalten, weil diese Kopie nicht alles übernehmen konnte, was darin stand.</string>
+    <string name="compose_draft_original_kept">Als neuer Entwurf gespeichert. Original behalten.</string>
     <string name="compose_draft_offline">Dieser Entwurf konnte nicht geladen werden: keine Verbindung. Komm mit einer Verbindung zurück und öffne ihn erneut.</string>
     <string name="compose_draft_load_failed">Der Text dieses Entwurfs konnte nicht geladen werden. Schließe diesen Bildschirm und versuche, ihn erneut zu öffnen.</string>
     <string name="compose_local_draft_gone">Dieser Entwurf ist nicht mehr auf diesem Telefon. Wenn er den Server erreicht hat, findest du ihn in den Entwürfen.</string>

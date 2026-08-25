@@ -1426,8 +1426,12 @@ internal sealed interface DraftReopenView {
  * ⭐ Wanted side effect: `carryDraftAttachments` runs AFTER `_prefill` is emitted and BEFORE the
  * `finally` that lowers [loading]. With this argument the editor comes back as soon as the text is
  * there, instead of sitting behind a bare spinner through the download AND the re-upload of an
- * attachment of several MB (in JMAP `stageOutgoing` is a full network round trip). `editingDraftId`
- * is still only set after that carry, so nothing destructive is armed during that window.
+ * attachment of several MB (in JMAP `stageOutgoing` is a full network round trip). ⛔ What keeps
+ * that window safe is NOT that the id is missing from it — it is armed before the coroutine, so it
+ * is there from the first frame. It is that the LICENCE is missing: `editingDraftLossy` is armed
+ * `true` at the same moment and lowered only by the last statement of the branch, after the carry
+ * has answered. An id with a lossy verdict destroys nothing, so nothing destructive is armed during
+ * that window either — but the reason has to be read off the verdict now, not off a null id.
  *
  * [loading] wins over [failureNotice]. It is not a tie-break for tidiness: a notice left over from
  * an earlier attempt must never be read as the verdict of the one now in flight, and while the

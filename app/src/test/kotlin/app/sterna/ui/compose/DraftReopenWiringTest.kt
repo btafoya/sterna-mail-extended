@@ -141,10 +141,14 @@ class DraftReopenWiringTest {
      *
      * The damage is the reported symptom, word for word, dressed up as an improvement: the cache
      * lands BEFORE the fetch, so `applied` latches on the cached fields and the editor is drawn and
-     * frozen on them. Save is armed while `editingDraftId` is still null — it is set last, after the
-     * attachment carry — so a save writes a SECOND draft while the server's first one stays there,
-     * intact and invisible. And a row cached before v21 has no Cc/Bcc columns at all, so the copies
-     * show as empty: an address the server did return reads as an address that was never there.
+     * frozen on them — on data the server never confirmed, with the whole bar live over it. ⚠ The
+     * second half of that sentence used to read "Save is armed while `editingDraftId` is still null
+     * — it is set last, after the attachment carry"; that is no longer true and has not been since
+     * the id moved to the top of the branch, armed together with a pessimistic `editingDraftLossy`
+     * (see DraftVerdictWiringTest). The damage here is unchanged all the same, and it is now the
+     * OTHER one: the editor shows fields nobody proved, and a save from it commits them. And a row
+     * cached before v21 has no Cc/Bcc columns at all, so the copies show as empty: an address the
+     * server did return reads as an address that was never there.
      */
     @Test fun `every line of the draft branch that names the prefill`() {
         val branch = draftBranch()
@@ -152,8 +156,7 @@ class DraftReopenWiringTest {
             "the reopened-draft branch must name _prefill on exactly one line, the one that fills " +
                 "the editor from the FETCHED draft. Any other line — above all one that prefills " +
                 "from the cache before the fetch — draws an editor over data the server has not " +
-                "confirmed, arms Save before editingDraftId exists, and a save then adds a SECOND " +
-                "draft. Branch was:\n$branch",
+                "confirmed and lets a save commit fields nobody read back. Branch was:\n$branch",
             listOf("_prefill.value = draftFieldsOf(draft, _editingDraft.value)"),
             branch.lines().map { it.trim() }.filter { it.contains("_prefill") },
         )

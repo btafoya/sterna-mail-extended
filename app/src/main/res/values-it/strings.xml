@@ -29,7 +29,7 @@
     <string name="compose_could_not_send">Impossibile inviare: %1$s</string>
     <string name="compose_could_not_save">Impossibile salvare la bozza: %1$s</string>
     <string name="compose_prefill_failed">Impossibile caricare il messaggio originale.</string>
-    <string name="compose_draft_original_kept">Salvato come nuova bozza. L\'originale è stato mantenuto, perché questa copia non poteva riportare tutto ciò che conteneva.</string>
+    <string name="compose_draft_original_kept">Salvato come nuova bozza. Originale mantenuto.</string>
     <string name="compose_draft_offline">Impossibile caricare questa bozza: nessuna connessione. Torna con una connessione e riaprila.</string>
     <string name="compose_draft_load_failed">Impossibile caricare il testo di questa bozza. Chiudi questa schermata e prova ad aprirla di nuovo.</string>
     <string name="compose_local_draft_gone">Questa bozza non è più su questo telefono. Se è arrivata al server, la trovi in Bozze.</string>

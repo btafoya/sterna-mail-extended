@@ -29,7 +29,7 @@
     <string name="compose_could_not_send">Kon niet verzenden: %1$s</string>
     <string name="compose_could_not_save">Kon het concept niet opslaan: %1$s</string>
     <string name="compose_prefill_failed">Kon het oorspronkelijke bericht niet laden.</string>
-    <string name="compose_draft_original_kept">Opgeslagen als nieuw concept. Het origineel is behouden, omdat deze kopie niet alles kon meenemen wat erin stond.</string>
+    <string name="compose_draft_original_kept">Opgeslagen als nieuw concept. Origineel behouden.</string>
     <string name="compose_draft_offline">Kon dit concept niet laden: geen verbinding. Kom terug met een verbinding en open het opnieuw.</string>
     <string name="compose_draft_load_failed">Kon de tekst van dit concept niet laden. Sluit dit scherm en probeer het opnieuw te openen.</string>
     <string name="compose_local_draft_gone">Dit concept staat niet meer op deze telefoon. Als het de server heeft bereikt, vind je het in Concepten.</string>

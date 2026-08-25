@@ -743,8 +743,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * number the id belongs to and the server refuses instead (silently: nothing was lost, the
      * draft simply stays).
      *
-     * ⛔ It is read ONCE, beside [editingDraftId], and never re-read on the way out — re-reading it
-     * is the defect itself, not a safety net. Same reason `InboxViewModel.flushPendingDestroy` is
+     * ⛔ It is read ONCE and never re-read on the way out — re-reading it is the defect itself, not
+     * a safety net. ⚠ Not "beside [editingDraftId]" any more: the id is armed before the coroutine
+     * and this is read further down, at the first line that CAN answer it — just after the fetch,
+     * and above all BEFORE the attachment carry, whose per-part network waits are all the room a
+     * background pass needs to notice Drafts renumbered. That gap is safe because an id on its own
+     * no longer destroys anything: the verdict beside it stays `true` until the very last statement
+     * of the branch. Same reason `InboxViewModel.flushPendingDestroy` is
      * deliberately not `suspend`.
      *
      * On IMAP, null — a folder never observed, a draft this screen was not opened on — destroys
@@ -851,10 +856,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * The saved draft behind this composer AS A MESSAGE — the cached row, ready to be deleted —
      * or null when there is none to delete (#127).
      *
-     * Not derived from [editingDraftId]: that one is a private var with no flow, and it is set
-     * AFTER the draft has been fetched and never at all if the fetch fails, so a screen cannot
-     * follow it. This is set at the same moment, and only if the cache also holds the row the
-     * delete needs. Offline, a reopened draft leaves it null — the composer then knows it cannot
+     * Not derived from [editingDraftId]: that one is a private var with no flow, so a screen
+     * cannot follow it. ⚠ And it no longer answers the same question — since the reopen branch arms
+     * the id before the coroutine, [editingDraftId] is set on EVERY reopen, including one whose
+     * fetch then failed. (It used to be set after the fetch and not at all on a failure, which is
+     * what let a save write a silent second draft.) This flow is set only where the draft was read
+     * AND the cache also holds the row the delete needs — which is why Delete stays absent after a
+     * failed reopen (#127) and must never start reading the id instead. Offline, a reopened draft leaves it null — the composer then knows it cannot
      * offer a delete, rather than offering one that would do nothing.
      */
     private val _editingDraft = MutableStateFlow<Email?>(null)
@@ -1201,6 +1209,68 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // against that changing, not a reading of it. The waiting the reader SEES on this
                 // arm is the network's; the local arm raises the same flag for a Room read.
                 _draftLoading.value = true
+                // ⭐ THE ID AND ITS VERDICT, ARMED AS ONE GESTURE — here, beside the flag above and
+                // for the very same reason: before the first suspension point, so before any frame
+                // the fetch could delay.
+                //
+                // ⛔ The invariant of this branch is no longer "the id is laid LAST". It is "the
+                // LICENCE TO DESTROY is laid last". The id used to be the try's last statement,
+                // because the id is what arms the destroy and a send tapped while the attachment
+                // carry was still downloading went out amputated and destroyed the only copy (#63).
+                // That paid for the race with a hole: `applied` is a rememberSaveable in
+                // ComposeScreen, so after the process is killed the editor comes back WITH the
+                // typed text and a live bar while prepare() re-runs. Offline, repo.fetchEmail
+                // throws, we leave by the catch, and that last statement is never reached — Save
+                // then sees `replacesEmailId = null`, `finishDraftSave` answers SAVED and
+                // `draftSaveNeedsNotice` answers false: a SECOND draft on the server, and not one
+                // word on screen. Two more legs never even reached the catch: the seconds while the
+                // fetch is in flight (the bar is alive from the first frame, the fetch blocks to the
+                // connect timeout), and the `credentials() ?: return@launch` below, which leaves
+                // before it.
+                //
+                // ⭐ An id on its own destroys nothing now, because the verdict armed with it is
+                // pessimistic: `draftReplacementIsFaithful` is `!bodyIsLossy && …`
+                // (core/data/…/mail/DraftSave.kt). ⛔ It must be armed to `true` and not left at the
+                // field's `false` default — that default IS the destroy: the same function compares
+                // the composer's attachments with THEMSELVES, so an unread draft's files count 0
+                // against 0 and pass, and on JMAP `addressingIsCarried` is a hard-coded `true`
+                // (MailRepository, the JMAP branch of uploadDraft). The identical trap was met on
+                // the LOCAL route and answered the same way — `bodyIsLossy = 1` forced on every
+                // rescued row rather than on a condition that would have to stay right for ever
+                // (core/data/…/db/LocalDraftDao.kt, revertStagedToPendingLossy, whose comment
+                // spells out the same "0 compared to 0"). Same rule as
+                // SendOutbox.ComposeDraft.draftBodyIsLossy: a site that cannot prove fidelity
+                // answers `true`.
+                //
+                // ⚠ The duplicate that survives a failed reopen is DELIBERATE and stays: the
+                // original was never read, so replacing it would take it and its attachments with
+                // it. What is fixed here is the SILENCE — the save now answers ORIGINAL_KEPT, so
+                // the notice (compose_draft_original_kept) is finally shown.
+                editingDraftId = draftId
+                // ⭐ …AND THE ACCOUNT IT WAS READ UNDER, IN THE SAME BREATH — because a server
+                // draft id must never travel without it. `unlessDraftBelongsElsewhere`
+                // (core/data/…/mail/LocalDraftReopen.kt) lets a NULL draft account THROUGH on
+                // purpose: null is supposed to mean "no server draft is open behind this composer".
+                // An id armed beside a null account therefore disarms that guard completely.
+                // ⛔ Frozen after the fetch, as it was while the id was still laid last, every way
+                // the read can fail left exactly that pair standing for good — offline, the process
+                // killed and prepare() re-run under a bar `applied` has already redrawn, or the
+                // `credentials() ?: return@launch` below, which leaves before the fetch. Switch
+                // "From" to another account (the picker covers them all and resets nothing), tap
+                // Save, and the guard waves A's id into a save made under B: `repo.saveDraft`
+                // updates the row `forServerDraft(B, D)` finds, and server draft ids COLLIDE
+                // between two accounts of one server (#31, core/data/…/mail/LocalDraftSave.kt),
+                // so B's own pending draft is overwritten by A's text — the only copy of it.
+                // ⛔ Read with `credentials()`, which is NOT `suspend` and answers here exactly what
+                // it answers below: `_selectedFrom` is not populated yet at the entry of prepare()
+                // (`prepared` guards the entry, and the ViewModel is new after a process death), so
+                // both calls resolve the same account.
+                // ⛔ And it is frozen HERE ONLY — not here and again after the fetch. Two writes of
+                // one field a few lines apart is a value free to go stale against the id it
+                // describes, and DraftNumberingFreezeWiringTest counts exactly two in this whole
+                // class: the restore of an undone send, and this one.
+                editingDraftAccountId = credentials()?.id
+                editingDraftLossy = true
                 viewModelScope.launch {
                     try {
                         // No account to ask means the draft cannot be read either, so this path
@@ -1225,20 +1295,21 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         references = draft.references
                         // The numbering the draft's id belongs to, frozen HERE and never read again:
                         // at save time it would be the number a refresh recorded after the folder was
-                        // renumbered, and the expunge would land on another draft (#99). Frozen before
-                        // the attachment carry, though the id below is armed after it: a numbering on
-                        // its own destroys nothing, so the earliest read is also the safest one.
+                        // renumbered, and the expunge would land on another draft (#99). ⚠ It is now
+                        // read AFTER the id is armed, and that is safe: a numbering on its own
+                        // destroys nothing, and neither does the id on its own any more — what
+                        // destroys is the PAIR (id + a CLEAN verdict), and the verdict is only
+                        // lowered a few lines below, on a draft that was actually read. Still taken
+                        // before the attachment carry: the earliest read is the safest one.
                         editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)
-                        // …and the ACCOUNT that numbering and that id belong to, frozen here with
-                        // them and never looked up again, off the credentials that have just read
-                        // the draft so the three can never disagree. The "From" picker covers every
-                        // account and resets nothing: read at save time, the account is whatever
-                        // identity is on show, and an emptied draft of account A was expunged under
-                        // B — an id B's server never issued (JMAP spares it, so the draft comes
-                        // back on the next sync) or, on IMAP, a bare number in B's own Drafts.
-                        // Before the attachment carry, like the numbering: neither destroys
-                        // anything on its own, so the earliest read is the safest one.
-                        editingDraftAccountId = credentials.id
+                        // ⛔ THE ACCOUNT IS NOT FROZEN HERE. It is armed at the entry, beside the id
+                        // it describes and before this coroutine starts — see the block above
+                        // `viewModelScope.launch`. Moved back down to this line it would be frozen
+                        // only on the paths that reach it, and every failed reopen would leave an
+                        // armed id with a null account, which is the one shape
+                        // `unlessDraftBelongsElsewhere` waves through. `credentials()` there and
+                        // `credentials` here are the same account: `_selectedFrom` is still empty
+                        // at the entry of prepare().
                         // What this editor cannot give back on a re-save: rich formatting (the HTML
                         // body is flattened to text), inline images and calendar parts (not carried),
                         // and the read receipt the draft asked for — its header is on the server copy
@@ -1247,19 +1318,39 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // Every leg is read off the DRAFT that was just fetched, never off this
                         // screen's state, and the decision itself lives in core:data so a JVM test
                         // can execute it — nothing here can (see DraftVerdictWiringTest).
-                        editingDraftLossy = reopenedDraftIsLossy(
+                        // ⚠ INTO A LOCAL, NOT INTO THE FIELD. Written straight to
+                        // [editingDraftLossy] here, this line would hand the screen a clean licence
+                        // to destroy while the carry below has not even started — and the carry
+                        // suspends once per attachment on a network download and publishes nothing
+                        // into [_attachments] until its very last statement. The editor and the
+                        // whole bar are already drawn by then (`_prefill` was emitted above, so
+                        // `applied` is true and draftReopenView answers Editor), so a Send tapped
+                        // in that window goes out with NO attachments against a faithful verdict —
+                        // 0 parts compared with 0 — and the original holding the only copy of the
+                        // files is expunged on delivery. That is #63, word for word.
+                        val lossy = reopenedDraftIsLossy(
                             hasHtmlBody = draft.htmlContent() != null,
                             inlineImageCount = draft.inlineImageParts().size,
                             calendarPartCount = draft.calendarParts().size,
                             receiptHeader = draft.dispositionNotificationTo,
                         )
-                        if (!carryDraftAttachments(credentials, draft)) editingDraftLossy = true
-                        // The id is set LAST, strictly after the attachment carry has answered: it is
-                        // what arms the destroy, and a send tapped while the carry was still
-                        // downloading used to go out without the attachments — flag still false —
-                        // and destroy the only copy. No id yet means no destroy, at the price of a
-                        // duplicate if the user saves during those seconds.
-                        editingDraftId = draftId
+                        // ⛔ Its own `val`, and NEVER `lossy || !carryDraftAttachments(…)`: `||`
+                        // short-circuits, so a draft already judged lossy would never have its
+                        // attachments carried at all and they would never come back on screen. The
+                        // carry runs on every reopen; only the ASSIGNMENT waits.
+                        val carried = carryDraftAttachments(credentials, draft)
+                        // ⭐ THE LICENCE TO DESTROY, LAID LAST — one assignment, the final statement
+                        // of this branch, and the only place the pessimistic verdict armed on entry
+                        // is ever lowered. Until this line runs, `editingDraftLossy` is `true` from
+                        // the first frame onwards, so every Send, Save or empty-and-save tapped
+                        // during the fetch AND during the carry keeps the original: an id with a
+                        // lossy verdict destroys nothing (`draftReplacementIsFaithful` is
+                        // `!bodyIsLossy && …`, core/data/…/mail/DraftSave.kt).
+                        // ⛔ It reads BOTH answers. `= lossy` alone would call a draft faithful
+                        // whose files failed to download — the destroy of the only copy of them —
+                        // which is why `carryDraftAttachments` returning the strict count
+                        // (`staged.size == parts.size`) is now what the whole of #63 rests on.
+                        editingDraftLossy = lossy || !carried
                     } catch (t: Throwable) {
                         // The draft could not be read. NOTHING is prefilled and, above all, no
                         // editor is drawn (draftReopenView): a blank editable composer titled
@@ -1272,7 +1363,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // would make it say nothing at all. It is unchanged on the reply path.
                         //
                         // Whatever the draft held is unknown to us now, so a later save must not
-                        // destroy it — even though nothing on this screen can save any more.
+                        // destroy it. ⚠ Redundant since the verdict is armed `true` on entry — a
+                        // belt over braces, kept because it costs nothing and it documents the
+                        // path. ⛔ What it must no longer claim is the sentence that used to close
+                        // it, "nothing on this screen can save any more": that was the false
+                        // invariant behind the whole defect. `applied` survives process death, so
+                        // on a reopen the editor and the bar are back over the typed text while
+                        // this catch runs, and Save is one tap away.
                         editingDraftLossy = true
                         val app = getApplication<Application>()
                         _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))

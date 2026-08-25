@@ -31,7 +31,7 @@
     <string name="compose_could_not_send">Could not send: %1$s</string>
     <string name="compose_could_not_save">Could not save the draft: %1$s</string>
     <string name="compose_prefill_failed">Couldn\'t load the original message.</string>
-    <string name="compose_draft_original_kept">Saved as a new draft. The original was kept, because this copy couldn\'t carry everything it held.</string>
+    <string name="compose_draft_original_kept">Saved as a new draft. The original was kept.</string>
     <string name="compose_draft_offline">Couldn\'t load this draft: there is no connection. Come back with a connection and open it again.</string>
     <string name="compose_draft_load_failed">Couldn\'t load this draft\'s text. Close this screen and try opening it again.</string>
     <string name="compose_local_draft_gone">This draft is no longer on this phone. If it reached the server, you\'ll find it in Drafts.</string>

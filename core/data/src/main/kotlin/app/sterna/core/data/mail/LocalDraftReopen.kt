@@ -439,10 +439,24 @@ fun SendDraftTarget.unlessBodyIsLossy(bodyIsLossy: Boolean): SendDraftTarget =
  * the id names nothing in B — and an id IS a number in a folder on IMAP, where two accounts on one
  * server can share a UIDVALIDITY. This states it instead, once, where the row is written.
  *
- * ⛔ **A null [draftAccountId] does NOT refuse.** It means "no server draft is open behind this
- * composer" — a brand-new message, a reply, a local row that replaces nothing — which is the
- * ordinary route, and the pair it is applied to is `(null, null)` there anyway. Refusing on it
- * would be free of consequence today and a trap the day it is not.
+ * ⛔ **A null [draftAccountId] does NOT refuse, and that laissez-passer RESTS ON AN INVARIANT
+ * HELD ELSEWHERE.** Null is read as "no server draft is open behind this composer" — a brand-new
+ * message, a reply, a local row that replaces nothing — which is the ordinary route. That reading
+ * is only true while **a server draft id never travels without the account it was read under**:
+ * `ComposeViewModel.prepare()` arms `editingDraftId` and `editingDraftAccountId` in one gesture, at
+ * the entry of the reopen branch, before the coroutine and before anything that can fail
+ * (`DraftNumberingFreezeWiringTest` pins that order, and says what is lost if it drifts).
+ *
+ * ⛔ It was NOT always true, and the day it was not this function was the hole. While the account
+ * was frozen after `repo.fetchEmail` and the id before it, any failed reopen — offline, the
+ * process killed and `prepare()` re-run under a bar the composer had already redrawn, or the early
+ * `credentials() ?: return` — left an armed id beside a null account. The pair applied here was
+ * then `(D, null)`, not `(null, null)`: switching "From" to another account and saving walked
+ * straight through, and the save landed on a row `forServerDraft` matched under the WRONG account
+ * — server draft ids collide between two accounts of one server (#31, `LocalDraftSave`).
+ *
+ * Refusing on null instead would be free of consequence today and a trap the day it is not: it is
+ * the ordinary route's own shape.
  *
  * ⛔ A null [writingAccountId] DOES refuse: the two cannot be shown to be the same account, and an
  * unproven sameness is exactly what this exists to stop.

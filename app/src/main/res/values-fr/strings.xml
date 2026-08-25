@@ -29,7 +29,7 @@
     <string name="compose_could_not_send">Échec de l\'envoi : %1$s</string>
     <string name="compose_could_not_save">Échec de l\'enregistrement du brouillon : %1$s</string>
     <string name="compose_prefill_failed">Impossible de charger le message d\'origine.</string>
-    <string name="compose_draft_original_kept">Enregistré comme nouveau brouillon. L\'original a été conservé, car cette copie ne pouvait pas tout reprendre.</string>
+    <string name="compose_draft_original_kept">Enregistré comme nouveau brouillon. Original conservé.</string>
     <string name="compose_draft_offline">Impossible de charger ce brouillon : pas de connexion. Revenez avec une connexion et rouvrez-le.</string>
     <string name="compose_draft_load_failed">Impossible de charger le texte de ce brouillon. Fermez cet écran et rouvrez-le.</string>
     <string name="compose_local_draft_gone">Ce brouillon n\'est plus sur ce téléphone. S\'il est arrivé sur le serveur, vous le trouverez dans Brouillons.</string>

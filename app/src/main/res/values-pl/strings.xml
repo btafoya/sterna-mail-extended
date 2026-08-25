@@ -29,7 +29,7 @@
     <string name="compose_could_not_send">Nie udało się wysłać: %1$s</string>
     <string name="compose_could_not_save">Nie udało się zapisać wersji roboczej: %1$s</string>
     <string name="compose_prefill_failed">Nie udało się wczytać oryginalnej wiadomości.</string>
-    <string name="compose_draft_original_kept">Zapisano jako nową wersję roboczą. Oryginał zachowano, ponieważ ta kopia nie mogła przenieść wszystkiego, co zawierał.</string>
+    <string name="compose_draft_original_kept">Zapisano jako nową wersję roboczą. Oryginał zachowano.</string>
     <string name="compose_draft_offline">Nie udało się wczytać tej wersji roboczej: brak połączenia. Wróć z połączeniem i otwórz ją ponownie.</string>
     <string name="compose_draft_load_failed">Nie udało się wczytać tekstu tej wersji roboczej. Zamknij ten ekran i spróbuj otworzyć ją ponownie.</string>
     <string name="compose_local_draft_gone">Tej wersji roboczej nie ma już na tym telefonie. Jeśli dotarła na serwer, znajdziesz ją w Wersjach roboczych.</string>

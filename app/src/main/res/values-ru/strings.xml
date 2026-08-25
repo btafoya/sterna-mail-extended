@@ -29,7 +29,7 @@
     <string name="compose_could_not_send">Не удалось отправить: %1$s</string>
     <string name="compose_could_not_save">Не удалось сохранить черновик: %1$s</string>
     <string name="compose_prefill_failed">Не удалось загрузить исходное сообщение.</string>
-    <string name="compose_draft_original_kept">Сохранено как новый черновик. Оригинал оставлен, потому что эта копия смогла перенести не всё, что в нём было.</string>
+    <string name="compose_draft_original_kept">Сохранено как новый черновик. Оригинал оставлен.</string>
     <string name="compose_draft_offline">Не удалось загрузить этот черновик: нет подключения. Вернитесь с подключением и откройте его снова.</string>
     <string name="compose_draft_load_failed">Не удалось загрузить текст этого черновика. Закройте этот экран и попробуйте открыть его снова.</string>
     <string name="compose_local_draft_gone">Этого черновика больше нет на телефоне. Если он попал на сервер, вы найдёте его в Черновиках.</string>

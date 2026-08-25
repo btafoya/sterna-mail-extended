@@ -18,9 +18,43 @@ import java.io.File
  * that noticed the Drafts folder renumbered has already written the NEW number to the store by
  * then, so the guard compared it with itself, said SAME, and expunged a UID from the OLD numbering
  * — destroying whatever message now carries that number in Drafts, silently. The number therefore
- * has to be FROZEN at the moment this composer reads the draft's id, carried in memory beside
- * `editingDraftId`, and handed to the repository. Re-reading it at save time is the defect, not a
+ * has to be FROZEN at the earliest moment this composer can answer it — after the fetch, which is
+ * the first line that CAN answer it, and above all before the attachment carry, whose per-part
+ * network waits are all the room a renumbering needs — carried in memory beside `editingDraftId`,
+ * and handed to the repository. Re-reading it at save time is the defect, not a
  * refinement of it: the whole value of freezing is that it happened BEFORE the renumbering.
+ *
+ * ⭐ THE INVARIANT THIS PINS CHANGED, and the order below with it. It used to read "the id is laid
+ * LAST" (#63: the id is what arms the destroy, so nothing armed it until the attachment carry had
+ * answered). A draft reopened over a link that then died came back through `applied` — a
+ * `rememberSaveable` — with the editor and the whole bar alive, while `prepare()` re-ran, the fetch
+ * threw, and the id was never reached: Save then wrote a SECOND draft with nothing said on screen,
+ * because `replacesEmailId = null` makes `finishDraftSave` answer SAVED and `draftSaveNeedsNotice`
+ * answer false. The invariant is now "the LICENCE TO DESTROY is laid last": the id and a pessimistic
+ * `editingDraftLossy = true` are armed together before the coroutine, and only a draft that was
+ * actually READ lowers that verdict. An id on its own destroys nothing any more, so freezing the
+ * numbering after it is as safe as it ever was — it is the PAIR (id + clean verdict) that destroys.
+ *
+ * ⭐ AND THE INVARIANT THIS FILE NOW EXISTS FOR, restored after the move above broke it:
+ * **A SERVER DRAFT ID NEVER TRAVELS WITHOUT THE ACCOUNT IT WAS READ UNDER.** They are armed
+ * together, at the entry of the reopen branch, before the coroutine — one gesture, two adjacent
+ * lines, nothing between them.
+ *
+ * It is not decoration, it is what `unlessDraftBelongsElsewhere`
+ * (`core/data/…/mail/LocalDraftReopen.kt`) ASSUMES in order to let a NULL draft account through:
+ * null is read as "no server draft is open behind this composer", which is only true while the two
+ * are laid together. Freeze the account inside the coroutine — as this branch did for a while,
+ * after `repo.fetchEmail` — and every failed reopen leaves an armed id beside a null account:
+ * offline, the process killed and `prepare()` re-run under a bar `applied` has already redrawn, or
+ * the early `credentials() ?: return@launch`, which never even reaches the catch. WHAT THE READER
+ * LOSES THEN: she reopens draft D of account A, the link dies, her text is still on screen, she
+ * switches "From" to an identity of account B — the picker covers every account and resets
+ * nothing — and taps Save. The guard sees a null draft account and waves D through, so
+ * `repo.saveDraft(B, …, replacesEmailId = D)` goes down into `forServerDraft(B, D)`; server draft
+ * ids COLLIDE between two accounts of one server (#31, `LocalDraftSave`), so B's own pending local
+ * draft is UPDATED IN PLACE with A's text and a fresh Message-ID. That text was its only copy.
+ * Without a collision the row written under B carries `replacesEmailId = D` and HIDES the real
+ * server draft D from B's Drafts list (`LocalDraftRows.hidesServerRow`).
  *
  * Whole lines are compared, never `contains`: a substring check is blind to any mutation that
  * LENGTHENS the line, and `?: repo.recordedUidValidityForDraft(credentials, draftId)` appended to
@@ -32,7 +66,7 @@ import java.io.File
  */
 class DraftNumberingFreezeWiringTest {
 
-    @Test fun `the numbering is frozen where the draft's id is read, and nowhere else`() {
+    @Test fun `the numbering is frozen at the first read that can answer it, and nowhere else`() {
         val prepare = codeLines(bodyOf("prepare"))
         val id = prepare.indexOf(REMEMBER_ID)
         val freeze = prepare.indexOf(FREEZE)
@@ -48,23 +82,33 @@ class DraftNumberingFreezeWiringTest {
             freeze >= 0,
         )
         assertEquals(
-            "every line of prepare() that arms the destroy — the id — or freezes the numbering it " +
-                "belongs to, whole and IN ORDER: the restore branch reads both back from the " +
-                "undone send; the reopen branch freezes the numbering FIRST and arms the id LAST " +
-                "(#63: the id is set only after the attachment carry has answered, so a send " +
-                "tapped during that download destroys nothing). The numbering must be read at the " +
-                "earliest possible moment and never again: anywhere later is a different number — " +
-                "the one a refresh recorded after the renumbering, i.e. exactly the value that " +
-                "lets the expunge through on another message. An extra line here (an alias, a " +
-                "'re-read to be safe') is the defect restored. Body was:\n" +
+            "every line of prepare() that names the reopened draft's id, the account it was read " +
+                "under, or the numbering it belongs to — whole lines, IN ORDER. The restore " +
+                "branch reads all three back from the undone send. The reopen branch then arms " +
+                "THE ID AND ITS ACCOUNT TOGETHER, before the coroutine, in the same breath as the " +
+                "pessimistic `editingDraftLossy = true` that makes an early id harmless, and only " +
+                "afterwards freezes the numbering at the first line that can answer it. ⛔ The " +
+                "account BELOW the numbering is the ordering this rule was rewritten to refuse: " +
+                "it puts the account inside the coroutine, so a reopen that fails (offline, the " +
+                "process killed, no credentials) leaves an id armed with a NULL account — and a " +
+                "null account is the one value `unlessDraftBelongsElsewhere` waves THROUGH. The " +
+                "reader then switches \"From\" to another account over her still-visible text, " +
+                "taps Save, and A's draft id is used to replace a row under B: on a server where " +
+                "two accounts mint the same draft id (#31) that OVERWRITES B's own pending draft " +
+                "with A's text, which was its only copy. The numbering, for its part, must still " +
+                "be read at the earliest possible moment and never again: anywhere later is a " +
+                "different number — the one a refresh recorded after the renumbering, i.e. " +
+                "exactly the value that lets the expunge through on another message. An extra " +
+                "line here (an alias, a 're-read to be safe') is one of those defects restored. " +
+                "Body was:\n" +
                 prepare.joinToString("\n"),
             listOf(
                 "editingDraftId = d.draftEmailId",
                 "editingDraftUidValidity = d.draftUidValidity",
                 "editingDraftAccountId = d.fromAccountId",
-                FREEZE,
-                FREEZE_ACCOUNT,
                 REMEMBER_ID,
+                FREEZE_ACCOUNT,
+                FREEZE,
             ),
             prepare.filter {
                 it.startsWith("editingDraftId =") ||
@@ -72,32 +116,75 @@ class DraftNumberingFreezeWiringTest {
                     it.startsWith("editingDraftAccountId =")
             },
         )
-        assertTrue(
-            "…and in the reopen branch the freeze must come BEFORE the id is armed: the id read " +
-                "and the number must belong to the same numbering, and the earliest read is the " +
-                "safest one. Body was:\n" + prepare.joinToString("\n"),
-            freeze < id,
-        )
-        // ⛔ And the ACCOUNT those two belong to is frozen in the same breath, for the same reason.
-        // The "From" picker below covers EVERY account and resets nothing: read at save time
-        // instead, the account is whatever identity is on show, and the expunge of the id and the
-        // numbering frozen here leaves for a server that never issued them — JMAP spares the id
-        // (the emptied draft comes back on the next sync), IMAP compares two NUMBERS and an equal
-        // UIDVALIDITY expunges in the OTHER account's Drafts. Placed after the attachment carry it
-        // is no longer "the same breath": the freeze pair would straddle a download of unbounded
-        // length, on the one path where the account can still change under it.
         val carry = prepare.indexOfFirst { "carryDraftAttachments(" in it }
+        assertTrue(
+            "prepare() no longer carries the reopened draft's attachments — did the branch move?",
+            carry >= 0,
+        )
+        assertTrue(
+            "⭐ …and the freeze must come BEFORE the attachment carry. Nothing above asserted this " +
+                "— the ordered list is filtered, so it cannot see a line that is not in it, and " +
+                "moving the freeze down past the carry left every rule in this file green while " +
+                "restoring #99 whole: the carry suspends once per attachment on a network " +
+                "download, which is exactly the room a background pass needs to notice Drafts " +
+                "renumbered and write the NEW number to the store. Read after that, the freeze " +
+                "answers the numbering of the renumbering, the guard compares it with itself, and " +
+                "the expunge lands on another message. Body was:\n" + prepare.joinToString("\n"),
+            freeze < carry,
+        )
+        assertTrue(
+            "…and in the reopen branch the id must be armed BEFORE the freeze, not after. This is " +
+                "the assertion that INVERTED: the id used to come last because it was what armed " +
+                "the destroy, and a draft whose fetch died never got one at all — Save then wrote " +
+                "a second draft in silence. The id is now armed on entry beside a pessimistic " +
+                "verdict, so it arms nothing on its own; what is laid last is the LOWERING of that " +
+                "verdict (see DraftVerdictWiringTest), and a numbering read after an id that " +
+                "cannot destroy is exactly as safe as one read before it. Body was:\n" +
+                prepare.joinToString("\n"),
+            id < freeze,
+        )
         val account = prepare.indexOf(FREEZE_ACCOUNT)
         assertTrue(
             "prepare() must still carry the reopened draft's attachments, and must still freeze " +
-                "the account as '$FREEZE_ACCOUNT' — read off the credentials that have just read " +
-                "the draft, so the two can never disagree. Body was:\n" + prepare.joinToString("\n"),
+                "the account as '$FREEZE_ACCOUNT' — `credentials()` is deliberately not `suspend`, " +
+                "so the account can be read at the entry, beside the id, before anything can fail. " +
+                "Body was:\n" + prepare.joinToString("\n"),
             carry >= 0 && account >= 0,
         )
+        assertEquals(
+            "⭐ A SERVER DRAFT ID NEVER TRAVELS WITHOUT THE ACCOUNT IT WAS READ UNDER: the account " +
+                "freeze is the very NEXT code line after the id, one gesture, nothing between " +
+                "them, and both before `viewModelScope.launch`. ⛔ This is the assertion the " +
+                "previous version of this file got wrong: it read `id < freeze && freeze < " +
+                "account && account < carry`, i.e. it REQUIRED the account to be frozen inside the " +
+                "coroutine, after the fetch. Every way the reopen can fail then leaves an id " +
+                "armed with a NULL account — offline, the process killed and prepare() re-run " +
+                "under a bar `applied` has already redrawn, or the early `credentials() ?: " +
+                "return@launch`, which never even reaches the catch. That is precisely the value " +
+                "`unlessDraftBelongsElsewhere` (core/data/…/mail/LocalDraftReopen.kt) lets " +
+                "THROUGH, because null is supposed to mean \"no server draft is open behind this " +
+                "composer\". WHAT THE READER LOSES: draft D of account A reopened, link dead, her " +
+                "text still on screen; she switches \"From\" to account B (the picker covers " +
+                "every account and resets nothing) and taps Save. The guard waves D through, " +
+                "`repo.saveDraft(B, …, replacesEmailId = D)` reaches `forServerDraft(B, D)`, and " +
+                "server draft ids collide between two accounts of one server (#31) — B's own " +
+                "pending draft is overwritten in place by A's text, the only copy of it. Body " +
+                "was:\n" + prepare.joinToString("\n"),
+            listOf(REMEMBER_ID, FREEZE_ACCOUNT),
+            prepare.subList(id, (id + 2).coerceAtMost(prepare.size)),
+        )
+        // ⛔ The FIRST `viewModelScope.launch {` of prepare() belongs to another branch — the one
+        // that prefills a reply. The coroutine meant here is the one that opens AFTER the account
+        // freeze, so it is looked for from there; searching from the top pins nothing at all.
+        val launch = (account until prepare.size).firstOrNull { prepare[it] == "viewModelScope.launch {" } ?: -1
         assertTrue(
-            "…and the account freeze belongs WITH the numbering — after it, and before both the " +
-                "attachment carry and the id. Body was:\n" + prepare.joinToString("\n"),
-            freeze < account && account < carry && carry < id,
+            "…and both are armed OUTSIDE the coroutine: this branch's `viewModelScope.launch {` " +
+                "must come after them, and the numbering and the attachment carry after that. The " +
+                "whole order this file pins is id → account → launch → numbering → carry. Pushed " +
+                "inside the launch, the account is frozen only on the runs that get that far — " +
+                "and a reopen that never gets that far is exactly the case the guard has to " +
+                "survive. Body was:\n" + prepare.joinToString("\n"),
+            launch > account && launch < freeze && freeze < carry,
         )
     }
 
@@ -119,7 +206,11 @@ class DraftNumberingFreezeWiringTest {
                 "a write, which is why this looks for the assignment and not for the start of the " +
                 "line: `this.editingDraftAccountId = option.accountId` written into selectFrom " +
                 "sails past a startsWith, and it is the reported defect itself — the picker " +
-                "re-freezing the account it was never allowed to touch. Lines were:\n" +
+                "re-freezing the account it was never allowed to touch. \u26d4 And still exactly " +
+                "TWO after the freeze moved up to the entry of the reopen branch: MOVED, not " +
+                "duplicated. A second write a few lines below the first is a value free to go " +
+                "stale against the id it describes, and the later one wins — which on this path " +
+                "means the account is whatever the picker was showing by then. Lines were:\n" +
                 lines.filter { "editingDraftAccountId" in it }.joinToString("\n"),
             listOf("editingDraftAccountId = d.fromAccountId", FREEZE_ACCOUNT),
             lines.filter { ASSIGNS_ACCOUNT.containsMatchIn(it) },
@@ -255,7 +346,7 @@ class DraftNumberingFreezeWiringTest {
         private const val REMEMBER_ID = "editingDraftId = draftId"
         private const val FREEZE =
             "editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)"
-        private const val FREEZE_ACCOUNT = "editingDraftAccountId = credentials.id"
+        private const val FREEZE_ACCOUNT = "editingDraftAccountId = credentials()?.id"
 
         private const val COMPOSE_VIEW_MODEL_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"

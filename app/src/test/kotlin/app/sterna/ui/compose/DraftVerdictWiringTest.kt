@@ -69,7 +69,7 @@ class DraftVerdictWiringTest {
         // between a reopened HTML/inline/calendar draft and its destruction on send.
         val body = bodyOf(COMPOSE_VIEW_MODEL, "prepare")
         val lines = body.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        val at = lines.indexOfFirst { it.startsWith("editingDraftLossy = reopenedDraftIsLossy(") }
+        val at = lines.indexOfFirst { it.startsWith("val lossy = reopenedDraftIsLossy(") }
         assertTrue("prepare() no longer computes the verdict from the fetched draft — did the reopen path move?", at >= 0)
         assertEquals(
             "the verdict must be the pure function's — `reopenedDraftIsLossy` in core:data, the " +
@@ -79,7 +79,7 @@ class DraftVerdictWiringTest {
                 "holds (the checkbox comes back clear — D1). Any leg dropped is that content, or " +
                 "that request, silently destroyed on the next send.",
             listOf(
-                "editingDraftLossy = reopenedDraftIsLossy(",
+                "val lossy = reopenedDraftIsLossy(",
                 "hasHtmlBody = draft.htmlContent() != null,",
                 "inlineImageCount = draft.inlineImageParts().size,",
                 "calendarPartCount = draft.calendarParts().size,",
@@ -103,44 +103,169 @@ class DraftVerdictWiringTest {
         )
         assertEquals(
             "every assignment of the verdict in prepare(), whole lines and in order: the restore " +
-                "branch reads it back from the undone send; the reopen branch computes it from " +
-                "the draft, then hardens it on a failed attachment carry; the catch answers " +
-                "`true` — unknown — for a draft that could not be read at all. " +
-                "`editingDraftLossy = false` anywhere here is the defect, whole.",
+                "branch reads it back from the undone send; the reopen branch ARMS IT PESSIMISTIC " +
+                "on entry, before the coroutine, beside the id it makes harmless; then — ONCE, and " +
+                "as the last thing it does — it lowers it from what the draft said AND what the " +
+                "attachment carry answered; the catch answers `true` — unknown — for a draft that " +
+                "could not be read at all. ⛔ FOUR assignments, not five: the body verdict and the " +
+                "carry verdict must reach the field on ONE line. Two assignments — computing the " +
+                "body verdict into the field and hardening it back afterwards — leave a window, " +
+                "between them, in which the id is armed and the verdict is a clean `false` while " +
+                "the carry is still suspended per part and `_attachments` is still empty. A send " +
+                "tapped there goes out with NO attachments and destroys the original that held " +
+                "the only copy of the files: #63, word for word. Drop the entry arming instead " +
+                "and a fetch that dies (offline, process killed, no credentials) leaves the " +
+                "verdict at its field default `false` with an id already armed, which is the same " +
+                "destroy. `editingDraftLossy = false` anywhere here is the defect, whole.",
             listOf(
                 "editingDraftLossy = d.draftBodyIsLossy",
-                "editingDraftLossy = reopenedDraftIsLossy(",
-                "if (!carryDraftAttachments(credentials, draft)) editingDraftLossy = true",
+                "editingDraftLossy = true",
+                "editingDraftLossy = lossy || !carried",
                 "editingDraftLossy = true",
             ),
             lines.filter { "editingDraftLossy" in it },
         )
     }
 
-    @Test fun `the reopened draft's id is set only after the attachment carry has answered`() {
-        // The race: editingDraftId used to be set BEFORE carryDraftAttachments. Sending while the
-        // carry was still downloading went out without the attachments — flag still false — and
-        // destroyed the only copy. No id until the carry has answered means no destroy; the price
-        // is a duplicate if the user saves during those seconds.
+    @Test fun `the reopened draft's id and a pessimistic verdict are armed together, before the coroutine`() {
+        // ⭐ THIS INVARIANT IS THE INVERSE OF THE ONE THIS TEST USED TO PIN, and the old race is why
+        // it existed: editingDraftId was once set BEFORE carryDraftAttachments, so sending while
+        // the carry was still downloading went out without the attachments — verdict still false —
+        // and destroyed the only copy (#63). The answer then was to lay the id LAST, after the
+        // carry had answered: no id, no destroy, at the price of a duplicate if the user saved
+        // during those seconds.
+        //
+        // That answer paid for the race with a hole. `applied` (a `rememberSaveable` in
+        // ComposeScreen) survives process death, so a draft reopened before the process was killed
+        // comes back with its editor, its text and a live bar, while prepare() re-runs; offline,
+        // repo.fetchEmail throws, the catch runs, and the last line of the try — the id — is never
+        // reached. Save then sees `replacesEmailId = null`, finishDraftSave answers SAVED,
+        // draftSaveNeedsNotice answers false: a SECOND draft on the server and not one word on
+        // screen. Two more legs of the same hole never even reached the catch — the seconds while
+        // the fetch is in flight (the bar is already alive), and the `credentials() ?: return`.
+        //
+        // So the id no longer buys the safety; the VERDICT does, and the invariant moved WITH it:
+        // it is not "the id is laid last", it is "the LICENCE TO DESTROY is laid last". The pair is
+        // armed together on entry — id + `editingDraftLossy = true` — and the single line allowed
+        // to lower that verdict is the LAST statement of the try, once the body has been read AND
+        // the attachment carry has answered. ⛔ Lowering it in two steps (compute into the field,
+        // harden afterwards) puts the whole carry — which suspends per part, publishing nothing
+        // until it ends — inside a window where the id is armed and the verdict is clean. That is
+        // #63 restored, and it is what this rule now refuses. An id with a lossy verdict destroys
+        // nothing: `draftReplacementIsFaithful` is `!bodyIsLossy && …`
+        // (`core/data/.../mail/DraftSave.kt`). Same rule as `SendOutbox.ComposeDraft.draftBodyIsLossy`
+        // and as `LocalDraftDao.revertStagedToPendingLossy`: a site that cannot prove fidelity says
+        // `true`.
         val lines = bodyOf(COMPOSE_VIEW_MODEL, "prepare").lines().map { it.trim() }
         val assignments = lines.withIndex()
             .filter { Regex("""\beditingDraftId\s*=""").containsMatchIn(it.value) }
         assertEquals(
             "every assignment of editingDraftId in prepare(), whole lines: exactly the restore " +
                 "branch's and the reopen branch's, nothing else. An extra one — an alias like " +
-                "`this.editingDraftId = draftId` slipped in above the carry — re-arms the destroy " +
-                "before the verdict is settled, and the equality-only filter this test used to " +
-                "run was blind to it.",
+                "`this.editingDraftId = draftId` slipped in further down — arms a SECOND id whose " +
+                "verdict nothing on that line makes pessimistic, and the equality-only filter this " +
+                "test used to run was blind to it.",
             listOf("editingDraftId = d.draftEmailId", "editingDraftId = draftId"),
             assignments.map { it.value },
         )
-        val carry = lines.indexOfFirst { "carryDraftAttachments(" in it }
-        assertTrue("prepare() no longer carries the draft's attachments — did the reopen path move?", carry >= 0)
+        val code = lines.filter { it.isNotEmpty() }
+        val armed = code.indexOf("editingDraftId = draftId")
+        assertTrue("prepare() no longer arms the reopened draft's id — did the reopen path move?", armed > 0)
+        assertEquals(
+            "⭐ THE ARMING IS ONE GESTURE, AND IT IS PLAYED BEFORE THE COROUTINE. These five code " +
+                "lines, whole and adjacent, in this order: the wait flag, the id, THE ACCOUNT THE " +
+                "ID WAS READ UNDER, the pessimistic verdict, then `viewModelScope.launch`. " +
+                "Nothing else may sit between them — an extra line between the id and the verdict " +
+                "is a window in which an id is armed and the verdict is still its `false` " +
+                "default. And the four must stay OUTSIDE the launch, for the reason the wait flag " +
+                "is already raised outside it: `applied` draws the editor and the whole bar from " +
+                "the first frame, while the fetch blocks until the connect timeout, so a Save " +
+                "tapped in that window would read a clean verdict and DESTROY the original, " +
+                "attachments included — `draftReplacementIsFaithful` compares the composer's " +
+                "attachments with themselves, and on JMAP `addressingIsCarried` is a hard-coded " +
+                "true. Moving any of it onto the coroutine's first line re-opens exactly that " +
+                "window.\n" +
+                "⛔ THE ACCOUNT LINE IS PART OF THE GESTURE, not a neighbour of it. Frozen after " +
+                "the fetch instead — where it lived until this rule was rewritten — a failed " +
+                "reopen leaves an armed id with a NULL account, and null is the one value " +
+                "`unlessDraftBelongsElsewhere` waves through: switch \"From\" to another account " +
+                "over the text still on screen, tap Save, and A's draft id replaces a row under " +
+                "B, overwriting B's own pending draft where the two accounts share a server (#31). " +
+                "The order pinned there is DraftNumberingFreezeWiringTest's. Body was:\n" +
+                code.joinToString("\n"),
+            listOf(
+                "_draftLoading.value = true",
+                "editingDraftId = draftId",
+                "editingDraftAccountId = credentials()?.id",
+                "editingDraftLossy = true",
+                "viewModelScope.launch {",
+            ),
+            code.subList(armed - 1, (armed + 4).coerceAtMost(code.size)),
+        )
+        val read = code.indexOfFirst { it == "val draft = repo.fetchEmail(credentials, draftId)" }
+        assertTrue("prepare() no longer fetches the draft it reopens — did the reopen path move?", read >= 0)
+        val computed = code.indexOfFirst { it == "val lossy = reopenedDraftIsLossy(" }
         assertTrue(
-            "prepare() must settle the lossy verdict (carryDraftAttachments included) BEFORE the " +
-                "reopen branch sets editingDraftId — the id is what arms the destroy, so it comes " +
-                "last",
-            assignments.last().index > carry,
+            "the body verdict must be COMPUTED after the draft has actually been read — computing " +
+                "it above repo.fetchEmail would judge a draft nobody has seen. ⚠ Computed, not " +
+                "assigned: it lands in a local, and the field is written further down. Body was:\n" +
+                code.joinToString("\n"),
+            computed > read,
+        )
+        val carry = code.indexOfFirst { "carryDraftAttachments(" in it }
+        assertTrue(
+            "…and the attachment carry must come after that computation and still run on EVERY " +
+                "reopen. Body was:\n" + code.joinToString("\n"),
+            carry > computed,
+        )
+        assertEquals(
+            "⛔ THE LICENCE TO DESTROY IS LAID LAST, AND IT IS ONE LINE. These three code lines, " +
+                "whole and adjacent, close the try: the carry into its own `val`, the single " +
+                "assignment that lowers the verdict, then the catch. Nothing may follow them in " +
+                "the try — whatever is added there runs with the destroy already licensed.\n" +
+                "⛔ The two `val`s MUST NOT collapse into `lossy || !carryDraftAttachments(…)`: " +
+                "`||` short-circuits, so a draft already judged lossy would never have its " +
+                "attachments carried at all and they would never come back on screen. The carry " +
+                "always runs; only the assignment waits.\n" +
+                "⛔ And the assignment must read BOTH answers. `editingDraftLossy = lossy` alone " +
+                "hands a clean verdict to a draft whose files could not be downloaded, and the " +
+                "next save destroys the original that held the only copy of them. Body was:\n" +
+                code.joinToString("\n"),
+            listOf(
+                "val carried = carryDraftAttachments(credentials, draft)",
+                "editingDraftLossy = lossy || !carried",
+                "} catch (t: Throwable) {",
+            ),
+            code.subList(carry, (carry + 3).coerceAtMost(code.size)),
+        )
+    }
+
+    /**
+     * ⭐ AND THE ANSWER THE WHOLE THING NOW RESTS ON. Since the verdict is lowered from
+     * `lossy || !carried`, everything #63 buys hangs off the one line `carryDraftAttachments`
+     * returns: answer `true` unconditionally and a draft whose attachment failed to download comes
+     * back looking complete, with a clean verdict, and the next save destroys the original that
+     * held the only copy of the file. The two rules above pin the CALL SITE as text; neither can
+     * see the answer, and a counter-expertise walked straight through that gap.
+     */
+    @Test fun `the attachment carry answers whether EVERY part came across`() {
+        val body = bodyOf(COMPOSE_VIEW_MODEL, "carryDraftAttachments")
+        assertEquals(
+            "carryDraftAttachments must answer by COUNTING what it staged against what the draft " +
+                "held, on exactly this line and no other. `return true` (or `staged.isNotEmpty()`, " +
+                "or a count against itself) is the #63 destroy restored at its source: the caller " +
+                "believes the files came over, lowers the verdict to clean, and the save expunges " +
+                "the original. ⚠ Best-effort per part is deliberate — one failed download must not " +
+                "drop the rest — which is exactly why the ANSWER has to be the strict count. " +
+                "Body was:\n$body",
+            listOf("return staged.size == parts.size"),
+            body.lines().map { it.trim() }.filter { it.startsWith("return") },
+        )
+        assertEquals(
+            "…and it must still publish what it did manage to stage, so the chips come back on " +
+                "screen even on a partial carry. Body was:\n$body",
+            listOf("if (staged.isNotEmpty()) _attachments.value = _attachments.value + staged"),
+            body.lines().map { it.trim() }.filter { it.contains("_attachments.value =") },
         )
     }
 
