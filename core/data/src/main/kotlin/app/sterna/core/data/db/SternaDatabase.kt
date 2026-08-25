@@ -13,7 +13,7 @@ import androidx.room.migration.Migration
  * very constant. Bumping it without adding the matching step to [SternaDatabase.ALL_MIGRATIONS]
  * is the destructive case: Room finds no path and drops every table, the outbox included.
  */
-internal const val SCHEMA_VERSION = 25
+internal const val SCHEMA_VERSION = 26
 
 @Database(
     entities = [
@@ -66,13 +66,16 @@ abstract class SternaDatabase : RoomDatabase() {
          * (#95) — a third store of text the user typed that the server has not got, and like the
          * other two it is never rebuilt destructively; 24→25 adds `uidValidity` to `emails`, the
          * IMAP numbering each cached row was READ under, so a permanent delete opposes the
-         * numbering its ids belong to instead of the folder's current one (#99).
+         * numbering its ids belong to instead of the folder's current one (#99); 25→26 adds
+         * `isSubscribed` to `mailboxes`, what the server reports about a folder's subscription
+         * (#174), defaulting to 1 so a folder cached before the column existed stays visible —
+         * an unknown subscription hides nothing.
          */
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_9_10, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
             MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
             MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
-            MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
+            MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
         )
 
         fun build(context: Context): SternaDatabase =

@@ -494,6 +494,6 @@ class LocalDraftsMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v25 (emails.uidValidity, #99)", 25, SCHEMA_VERSION)
+        assertEquals("the schema now declares v26 (mailboxes.isSubscribed, #174)", 26, SCHEMA_VERSION)
     }
 }

@@ -618,6 +618,19 @@ class AccountStore(context: Context) {
         saveAccounts(accounts().map { if (it.id == id) it.copy(uploadSentCopy = enabled) else it })
     }
 
+    /**
+     * Whether this account's folder lists hide the folders it is not subscribed to on the server
+     * (#174). Defaults to false, including for an id no account carries — see
+     * [showOnlySubscribedFoldersOf].
+     */
+    fun showOnlySubscribedFolders(id: String): Boolean = showOnlySubscribedFoldersOf(account(id))
+
+    /** Store the account's subscribed-folders-only choice. No-op if the id is unknown. */
+    @Synchronized
+    fun setShowOnlySubscribedFolders(id: String, enabled: Boolean) {
+        saveAccounts(withShowOnlySubscribedFolders(accounts(), id, enabled))
+    }
+
     /** Extra folders watched for new mail (beyond the Inbox, which is always watched). */
     fun watchedFolders(id: String): Set<String> = account(id)?.watchedFolders ?: emptySet()
 

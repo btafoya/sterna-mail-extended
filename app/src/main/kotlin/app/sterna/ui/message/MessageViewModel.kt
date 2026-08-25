@@ -46,6 +46,7 @@ import app.sterna.net.hasUsableNetwork
 import app.sterna.ui.readerActionFailureText
 import app.sterna.ui.inbox.isSelfAuthored
 import app.sterna.ui.inbox.moveTargets
+import app.sterna.ui.inbox.showOnlySubscribedFor
 import app.sterna.ui.sender.trashFilePath
 import app.sterna.ui.showsRecipients
 import kotlinx.coroutines.CancellationException
@@ -551,13 +552,19 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      * message on screen can belong to a sibling account, and mailbox ids collide between two
      * accounts of the same server (#92) — a picker fed the wrong account's folders would move
      * the message somewhere nobody chose. Empty until the message (and its account) is known.
+     *
+     * The same account decides whether unsubscribed folders are offered (#174): the flag is read
+     * off THAT record, and handed to [moveTargets] as a parameter rather than applied here, so
+     * only the targets are filtered while the parent path under each row is still resolved
+     * against the whole list ([accountMailboxes], #109).
      */
     val moveTargets: StateFlow<List<Mailbox>> = combine(
         _ownerAccountId.flatMapLatest { id ->
             if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
         },
         _mailboxId,
-    ) { folders, current -> moveTargets(folders, current) }
+        combine(store.accountsFlow, _ownerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },
+    ) { folders, current, onlySubscribed -> moveTargets(folders, current, onlySubscribed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**

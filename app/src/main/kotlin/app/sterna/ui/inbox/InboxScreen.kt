@@ -255,6 +255,10 @@ fun InboxScreen(
     // account's — so a secondary-account message moved from the unified inbox lands in its own
     // folders (#73). Empty until something is selected.
     val moveTargetMailboxes by viewModel.selectionMailboxes.collectAsStateWithLifecycle()
+    // …and whether THAT account hides its unsubscribed folders (#174). Read next to the list and
+    // not folded into it: moveTargets needs the whole list for the parent paths it shows (#109)
+    // and the flag only for the targets it offers.
+    val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()
     // Inline conversation expansion: which threads are unfolded, and their lazily-loaded members.
     val expandedThreads by viewModel.expandedThreads.collectAsStateWithLifecycle()
     val threadMembers by viewModel.threadMembers.collectAsStateWithLifecycle()
@@ -348,7 +352,7 @@ fun InboxScreen(
     // Move-to-folder picker for the current selection. The offered folders (and their order)
     // come from [moveTargets], shared with the reader's own picker (#73).
     if (showMoveSheet) {
-        val targets = moveTargets(moveTargetMailboxes, ui.selectedMailboxId)
+        val targets = moveTargets(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed)
         AlertDialog(
             onDismissRequest = { showMoveSheet = false },
             title = { Text(stringResource(R.string.inbox_move_to_folder)) },
@@ -882,7 +886,7 @@ fun InboxScreen(
                     },
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
-                mailboxTree(ui.mailboxes, collapsedFolders).forEach { node ->
+                mailboxTree(ui.visibleMailboxes, collapsedFolders).forEach { node ->
                     val mailbox = node.mailbox
                     val displayName = mailboxDisplayName(mailbox.role, mailbox.name)
                     val label = if (mailbox.unreadForList > 0) {
@@ -2741,26 +2745,21 @@ private fun sortLabel(order: SortOrder): Int = when (order) {
 }
 
 /** One folder in the drawer tree: the mailbox, its [depth], and whether it has children. */
-private data class MailboxNode(val mailbox: Mailbox, val depth: Int, val hasChildren: Boolean)
+internal data class MailboxNode(val mailbox: Mailbox, val depth: Int, val hasChildren: Boolean)
 
 /**
  * Flatten mailboxes into a depth-first tree. Nesting comes from the JMAP `parentId`
- * or, for IMAP, the path delimiter in the id; a child whose parent isn't present
+ * or, for IMAP, the path delimiter in the id ([folderParentId], shared with the subscription
+ * filter so the two agree on what a parent is); a child whose parent isn't present
  * falls back to top level. Ids in [collapsed] hide their descendants. The incoming
  * order is preserved within each level.
+ *
+ * `internal` for `MailboxTreeTest`, which is the drawer's only test: this is drawn on every frame
+ * of the drawer and had none until [visibleFolders] started choosing what goes into it (#174).
  */
-private fun mailboxTree(mailboxes: List<Mailbox>, collapsed: Set<String>): List<MailboxNode> {
+internal fun mailboxTree(mailboxes: List<Mailbox>, collapsed: Set<String>): List<MailboxNode> {
     val byId = mailboxes.associateBy { it.id }
-    fun parentOf(m: Mailbox): String? {
-        if (m.parentId != null && byId.containsKey(m.parentId)) return m.parentId
-        val delim = when {
-            m.id.contains('/') -> "/"
-            m.id.contains('.') -> "."
-            else -> return null
-        }
-        val parent = m.id.substringBeforeLast(delim, "")
-        return if (parent.isNotEmpty() && byId.containsKey(parent)) parent else null
-    }
+    fun parentOf(m: Mailbox): String? = folderParentId(m, byId)
     // Order each level by role so the standard folders come first in a familiar order
     // (Inbox, Drafts, Sent, Trash, Spam, Archive), then any custom folders keep their
     // server order (sortedBy is stable, so same-rank items aren't reshuffled).
@@ -2780,7 +2779,7 @@ private fun mailboxTree(mailboxes: List<Mailbox>, collapsed: Set<String>): List<
 }
 
 /** Drawer ordering rank for a folder's role: standard folders first, custom folders last. */
-private fun folderRank(role: String?): Int = when (role) {
+internal fun folderRank(role: String?): Int = when (role) {
     "inbox" -> 0
     "drafts" -> 1
     "sent" -> 2

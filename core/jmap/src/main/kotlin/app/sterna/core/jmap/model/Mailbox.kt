@@ -21,4 +21,16 @@ data class Mailbox(
      * from [unreadEmails] (the server's stored count, kept for meta/reconciliation).
      */
     val unreadForList: Int = 0,
+    /**
+     * Whether the server reports this mailbox as subscribed (RFC 8621 §2, Codeberg #174).
+     *
+     * ⛔ The `true` default is load-bearing, not a nicety. `JmapClient` decodes with
+     * `ignoreUnknownKeys = true`, which forgives a property the SERVER sends and we do not know —
+     * it forgives nothing about a property WE declare and the server omits, where a non-defaulted
+     * field throws. `decodeList` turns that into a `JmapException`, so on a server that does not
+     * report subscription the whole `Mailbox/get` would fail: no drawer at all, account unusable.
+     * With the default, such a server simply reports every folder subscribed, which is what
+     * "nobody said" has to mean here — the unknown never hides a folder.
+     */
+    val isSubscribed: Boolean = true,
 )

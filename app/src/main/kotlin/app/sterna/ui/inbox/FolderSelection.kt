@@ -26,6 +26,71 @@ internal fun selectionIsGone(selectedMailboxId: String?, mailboxes: List<Mailbox
     return mailboxes.none { it.id == selectedMailboxId }
 }
 
+/**
+ * True when the folder currently on screen is one the user can no longer REACH, so the list must
+ * fall back to the Inbox. Two ways in, one answer:
+ *
+ *  - it is GONE from the account's folder list ([selectionIsGone], #89) — deleted from the drawer
+ *    here, or from another client and dropped by the next folder sync;
+ *  - it is still in the list but HIDDEN, because the account asks for its subscribed folders only
+ *    ([visibleFolders], #174) and this one is not subscribed, carries no role, and has nothing
+ *    visible under it.
+ *
+ * ⚠ The second half REVERSES what #174 first shipped ("hidden is not deleted"), on the bench pass
+ * of 2026-08-25 and on rule 3, WYSIWYG: with the box ticked, the screen kept the header and the
+ * messages of a folder that no list — neither the drawer nor "move to" — would still offer. It was
+ * also a trap, because leaving that folder was a one-way trip until the box came back off.
+ *
+ * ⛔ Both lists are judged, never the visible one alone, and [selectionIsGone]'s two conservative
+ * guards are what make this safe to run on every setting change as well as on every folder list.
+ * Its empty-list guard now covers a second case: a VISIBLE list that came out empty (a server
+ * reporting nothing subscribed, an account whose folders are not cached yet) means "not known
+ * yet", never "the folder on screen was taken away".
+ *
+ * ⛔ This is the SELECTION's rule and no one else's. A hidden folder is still a real folder
+ * everywhere else: `InboxViewModel.subfolderIdsOf` must still find its children when a parent is
+ * deleted (a child left behind is mail nobody can reach), and the reader still names it in a path.
+ */
+internal fun selectionIsUnreachable(
+    selectedMailboxId: String?,
+    mailboxes: List<Mailbox>,
+    showOnlySubscribed: Boolean,
+): Boolean =
+    selectionIsGone(selectedMailboxId, mailboxes) ||
+        selectionIsGone(selectedMailboxId, visibleFolders(mailboxes, showOnlySubscribed))
+
+/**
+ * The folder a tapped notification may switch the list to, or null to leave the list where it is —
+ * [NotificationFolderSwitch.resolve]'s answer, put through the one rule that outranks it: **one
+ * cannot be parked in a folder no list offers, by any route** (#174, arbitration of 2026-08-25,
+ * rule 3 — WYSIWYG).
+ *
+ * #91 opens the list behind the message on the message's own folder, so Back lands where the mail
+ * is. When the account asks for its subscribed folders only and that folder is not one of them,
+ * that route would drop the user exactly where [selectionIsUnreachable] exists to say nobody may
+ * be: a header naming a folder the drawer does not list and "move to" does not offer, with no way
+ * back in. So the switch is dropped and the list stays where it was — the MESSAGE still opens, it
+ * is the reader that opens it, not this.
+ *
+ * ⛔ [mailboxes] is the WHOLE list, and so is the one [NotificationFolderSwitch.resolve] was given:
+ * handing that one a filtered list would make it answer null for the wrong reason (folder unknown)
+ * on folders that are merely hidden, and its "not in the list" branch means deleted. It is the
+ * RESULT that is judged here, never the input.
+ *
+ * ⛔ The judgement is [selectionIsUnreachable]'s, the same function the fallback runs, deliberately:
+ * two rules would disagree the day one of them is edited, and this route would put back exactly
+ * what the other one takes away.
+ */
+internal fun notificationFolderToShow(
+    resolvedMailboxId: String?,
+    mailboxes: List<Mailbox>,
+    showOnlySubscribed: Boolean,
+): String? {
+    val target = resolvedMailboxId ?: return null
+    if (selectionIsUnreachable(target, mailboxes, showOnlySubscribed)) return null
+    return target
+}
+
 /** Lead order of the standard (special-use) folders in a move-to-folder picker; everything
  *  else — a folder the user made on their own server — shares the last rank (#25). */
 private fun roleRank(role: String?): Int = when (role) {
@@ -40,8 +105,9 @@ private fun roleRank(role: String?): Int = when (role) {
 
 /**
  * The folders a move-to-folder picker offers: [mailboxes] minus the one the message(s) are
- * already filed under, standard folders first in a fixed order, then the user's own folders
- * BY PATH — parent before child, siblings in alphabetical order.
+ * already filed under, minus what [showOnlySubscribed] hides ([visibleFolders], #174), standard
+ * folders first in a fixed order, then the user's own folders BY PATH — parent before child,
+ * siblings in alphabetical order.
  *
  * Custom folders used to come out in the order the server sent them (an IMAP `LIST`, a JMAP
  * `sortOrder`), which is no order at all on screen: "Zulu" before "Alpha". The path is compared
@@ -52,6 +118,12 @@ private fun roleRank(role: String?): Int = when (role) {
  * Names go through a [Collator], never [String.compareTo]: comparing UTF-16 units files "Über"
  * after "Zoo" and all of Cyrillic after all of Latin, in an app translated into nine languages.
  * The default follows the device locale; the parameter exists so a test can pin one.
+ *
+ * ⛔ [showOnlySubscribed] is a parameter here rather than a filter applied by the CALLER, and that
+ * is the whole reason it exists: [mailboxes] is passed twice — once as the set of targets, once as
+ * the context the ancestors are resolved against — and only the TARGETS may be filtered. Hand this
+ * function a pre-filtered list and a child whose parent is hidden loses a segment of the path shown
+ * under its name (#109), which is the one thing that path is there to prevent.
  *
  * Each folder's ancestors are resolved ONCE, before the sort ([ancestorsOf], decorate/sort/
  * undecorate), not from inside the comparator: a resolution walks a map rebuilt over the whole
@@ -72,10 +144,11 @@ private fun roleRank(role: String?): Int = when (role) {
 internal fun moveTargets(
     mailboxes: List<Mailbox>,
     currentMailboxId: String?,
+    showOnlySubscribed: Boolean = false,
     collator: Collator = Collator.getInstance(),
     ancestorsOf: (Mailbox, List<Mailbox>) -> List<String> = ::mailboxAncestors,
 ): List<Mailbox> =
-    mailboxes.filter { it.id != currentMailboxId }
+    visibleFolders(mailboxes, showOnlySubscribed).filter { it.id != currentMailboxId }
         .map { it to (ancestorsOf(it, mailboxes) + it.name) }
         .sortedWith(
             compareBy<Pair<Mailbox, List<String>>> { roleRank(it.first.role) }

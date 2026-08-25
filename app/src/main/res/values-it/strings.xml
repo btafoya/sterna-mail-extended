@@ -497,6 +497,8 @@
     <string name="settings_discard">Scarta</string>
     <string name="settings_sync_section">Sincronizzazione</string>
     <string name="settings_messages_to_sync_title">Messaggi da sincronizzare</string>
+    <string name="settings_subscribed_folders_title">Mostrare solo le cartelle sottoscritte</string>
+    <string name="settings_subscribed_folders_subtitle">Nasconde dagli elenchi delle cartelle quelle a cui questo account non è iscritto sul server.</string>
     <string name="settings_sync_last_30_days">Ultimi 30 giorni</string>
     <string name="settings_sync_last_90_days">Ultimi 90 giorni</string>
     <string name="settings_sync_last_year">Ultimo anno</string>

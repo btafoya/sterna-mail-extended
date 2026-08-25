@@ -14,6 +14,7 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.SyncWindow
+import app.sterna.core.data.account.subscriptionSyncOnToggle
 import app.sterna.core.data.account.syncWindowChanged
 import app.sterna.core.data.mail.OAuthDeniedException
 import app.sterna.core.data.mail.OAuthProvider
@@ -41,6 +42,14 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     private val store = application.container.accountStore
     private val storage = application.container.storageRepository
     private val mail = application.container.mailRepository
+
+    /**
+     * Outlives this screen. Settings is a `NavHost` destination, so `viewModelScope` belongs to
+     * its `NavBackStackEntry` and `popBackStack()` cancels it — work started by a switch and
+     * finished after the back gesture has to run here (#174). Same handle as
+     * `ComposeViewModel`'s, same reason as `ScheduledSendsViewModel.cancel`'s.
+     */
+    private val appScope = application.container.appScope
     private val pgp = application.container.pgpEngine
     private val settings = application.container.settingsRepository
 
@@ -228,6 +237,48 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     fun setUploadSentCopy(id: String, enabled: Boolean) {
         store.setUploadSentCopy(id, enabled)
         refresh()
+    }
+
+    /**
+     * Turn "show only subscribed folders" on/off for an account (#174). Written at the toggle, not
+     * at Save, like the neighbouring switches: this screen's Save button belongs to the text fields,
+     * and a switch that waited for it would lose the choice to a back gesture.
+     *
+     * ⛔ No cursor purge here, unlike [setSyncWindow]. That one changes WHAT IS CACHED, so the
+     * folders already synced have to be re-queried; this one changes only which folders the lists
+     * draw, out of what the app already holds. Dropping the cursors would re-download mailboxes
+     * over a folder setting, and the account's cached mail with them.
+     *
+     * ⭐ What it DOES cost, when the switch goes on, is one folder refresh
+     * ([subscriptionSyncOnToggle]). Nothing in the cache says which folders the account subscribes
+     * to until a listing asks — IMAP sends `LSUB` only when it is asked to — so on the very first
+     * tick every folder is still at its `isSubscribed = true` default and the drawer hides nothing.
+     * ⚠ On the wire that refresh is `LIST` + `LSUB`, then a `SELECT` of the inbox, a `SEARCH` and
+     * one discarded `FETCH` (measured in `SubscriptionToggleAsksTheServerTest`). It caches no
+     * message body and purges no sync cursor, but it is not a bare listing either.
+     *
+     * ⛔ **[appScope], never `viewModelScope`, and that is the whole difference between working and
+     * not.** Settings is a `NavHost` destination: its view model store belongs to the
+     * `NavBackStackEntry`, and the back gesture pops it and cancels `viewModelScope` with it. Tick
+     * the box and leave — the reported gesture, exactly — and a screen-scoped sync dies mid round
+     * trip, before `mailboxDao.replaceAll` writes a single row: the drawer would then still be
+     * waiting for a pull-to-refresh, which is the defect this is meant to remove.
+     *
+     * ⛔ At best, and for THIS account. The setting is stored one line above whatever the network
+     * does, [runCatching] keeps an offline account from taking the settings screen down with it —
+     * but the failure is LOGGED rather than swallowed, because a sync that quietly does nothing is
+     * indistinguishable from the bug — and the sync is aimed at the id that was toggled, this
+     * screen being openable on an account that is not the selected one. Turning the switch OFF
+     * costs nothing: what the server said is already cached and the filter switches itself off.
+     */
+    fun setShowOnlySubscribedFolders(id: String, enabled: Boolean) {
+        store.setShowOnlySubscribedFolders(id, enabled)
+        refresh()
+        val sync = subscriptionSyncOnToggle(id, enabled) ?: return
+        appScope.launch {
+            runCatching { mail.refreshFolderList(sync.accountId, sync.onlySubscribed) }
+                .onFailure { android.util.Log.w("SternaAccounts", "the subscribed-folders sync failed; every folder stays in the drawer", it) }
+        }
     }
 
     /** Load this account's cached-message count into [cacheCount]. */

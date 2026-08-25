@@ -450,8 +450,8 @@ class DraftNumberingMigrationSqlTest {
             columnShapes("scheduled_sends")["draftUidValidity"],
         )
         assertEquals(
-            "and the chain must reach v25: emails.uidValidity must be there, otherwise Room has no " +
-                "24→25 path and drops the whole database — outbox, scheduled_sends and local_drafts",
+            "and the chain must still run 24→25: emails.uidValidity must be there, otherwise Room " +
+                "has no path and drops the whole database — outbox, scheduled_sends and local_drafts",
             Triple("INTEGER", 0, null),
             columnShapes("emails")["uidValidity"],
         )
@@ -506,7 +506,7 @@ class DraftNumberingMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("this branch takes the schema to v25", 25, SCHEMA_VERSION)
+        assertEquals("the schema now declares v26 (mailboxes.isSubscribed, #174)", 26, SCHEMA_VERSION)
     }
 
     // --- v24 → v25: the numbering each cached row was read under ---------------------------------

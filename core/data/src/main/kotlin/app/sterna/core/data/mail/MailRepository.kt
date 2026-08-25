@@ -3389,7 +3389,7 @@ class MailRepository(
         val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
         return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
             folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
-            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onPage) },
+            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage) },
             writePage = { page ->
                 checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
                 emailDao.upsertAll(page)
@@ -5182,12 +5182,41 @@ class MailRepository(
     suspend fun hideMailboxesLocally(accountId: String, mailboxIds: List<String>) =
         mailboxDao.deleteByIds(accountId, mailboxIds)
 
+    /**
+     * Re-fetch ONE account's folder list into the cache under a STATED [onlySubscribed] (#174) —
+     * the door the "show only subscribed folders" switch comes in by.
+     *
+     * ⭐ The value is an ARGUMENT, not a second reading of the store, and that is the whole point:
+     * `LSUB` only goes out on a listing that asked for it, so the tick has to reach the wire. Were
+     * this to re-read the setting instead, the order of the switch's two steps (write, then sync)
+     * would become load-bearing and any later reordering would list the folders under the OLD
+     * value — no LSUB, nothing cached, the switch inert again.
+     *
+     * ⚠ What it COSTS, measured on the wire (`SubscriptionToggleAsksTheServerTest`): `CAPABILITY`,
+     * `LIST`, `LSUB`, then a `SELECT` of the inbox, a `SEARCH UNSEEN UNDELETED` and one
+     * `FETCH … (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)` whose rows are thrown away — plus
+     * `reconcileNumbering`, which drops the inbox's cached BODIES if its UIDVALIDITY changed. Not
+     * a bare listing, then. What IS true: no sync cursor is purged and no message body is cached
+     * by this path (`onPage = {}`), so nothing has to be re-fetched afterwards.
+     * ⛔ Unknown account id: nothing happens, quietly. There is no account to list folders for.
+     */
+    suspend fun refreshFolderList(accountId: String, onlySubscribed: Boolean) {
+        val credentials = accountStore.credentials(accountId) ?: return
+        refreshMailboxes(credentials, onlySubscribed)
+    }
+
     /** Re-fetch the folder list into the cache (after a create/rename/delete). */
-    private suspend fun refreshMailboxes(credentials: AccountCredentials) {
+    private suspend fun refreshMailboxes(credentials: AccountCredentials) =
+        refreshMailboxes(credentials, accountStore.showOnlySubscribedFolders(credentials.id))
+
+    /** [refreshMailboxes] for a caller that already knows what to ask the server about (#174). */
+    private suspend fun refreshMailboxes(credentials: AccountCredentials, onlySubscribed: Boolean) {
         if (credentials.protocol == MailProtocol.IMAP) {
-            // The folder list, and nothing else: an empty `onPage` is this caller saying out loud
-            // that it caches no message. It writes nothing, so it also reconciles nothing.
-            val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onPage = {})
+            // An empty `onPage` is this caller saying out loud that it caches no message: the
+            // walk's page is dropped on the floor. ⚠ It is not free and not silent on the wire
+            // either — the listing still SELECTs the inbox, counts its unseen, fetches one
+            // envelope it discards, and reconciles that folder's numbering.
+            val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onlySubscribed = onlySubscribed, onPage = {})
             mailboxDao.replaceAll(credentials.id, load.mailboxes)
             return
         }
@@ -5199,28 +5228,21 @@ class MailRepository(
     /**
      * The account's archive folder id: by JMAP `archive` role, or — when the server set
      * no role (some accounts only have a plain folder named "Archive"/"Archives"/… ) — by
-     * a recognised archive name. Null when the account has neither. The name match is
-     * cached into the context's role map so a bulk archive resolves it once instead of
-     * making every message try (and fail) to create a duplicate archive folder.
+     * a recognised archive name, run by [archiveFolderByName]. Null when the account has neither.
+     * The name match is cached into the context's role map so a bulk archive resolves it once
+     * instead of making every message try (and fail) to create a duplicate archive folder.
+     *
+     * ⛔ [ARCHIVE_FOLDER_NAMES] lives outside this class on purpose: `visibleFolders` runs the very
+     * same election to decide it may not hide this folder (#174). Two copies of the table would
+     * drift, and the app would file mail where it refuses to look.
      */
-    /** Lowercased folder names that clearly denote an archive, across Sterna's locales. */
-    private val ARCHIVE_FOLDER_NAMES = listOf(
-        "archive", "archives", "archived",
-        "archivé", "archivés", "archiv", "archivio",
-        "arquivo", "arquivos", "archief", "archiwum", "архив",
-    )
-
     private suspend fun archiveMailboxId(ctx: Context): String? {
         ctx.rolesToMailboxId["archive"]?.let { return it }
         // Match THIS account's own folders by name (top-level preferred), not the global
         // mailbox cache — otherwise archiving a non-current account from the unified inbox
         // would target the current account's Archive id (which doesn't exist server-side for
         // the message's account), and the move would silently no-op.
-        val byName = ctx.mailboxes
-            .filter { it.name.lowercase() in ARCHIVE_FOLDER_NAMES }
-            .minByOrNull { if (it.parentId == null) 0 else 1 }
-            ?.id
-            ?: return null
+        val byName = archiveFolderByName(ctx.mailboxes) ?: return null
         context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to byName), ctx.mailboxes)
         return byName
     }
@@ -5237,8 +5259,7 @@ class MailRepository(
         }.getOrElse { err ->
             val mbs = runCatching { client.getMailboxes(ctx.session, ctx.accountId, ctx.auth) }.getOrDefault(emptyList())
             mbs.firstOrNull { it.role == "archive" }?.id
-                ?: mbs.filter { it.name.lowercase() in ARCHIVE_FOLDER_NAMES }
-                    .minByOrNull { if (it.parentId == null) 0 else 1 }?.id
+                ?: archiveFolderByName(mbs)
                 ?: throw err
         }
         context = Context(ctx.credentials, ctx.session, ctx.accountId, ctx.auth, ctx.rolesToMailboxId + ("archive" to id), ctx.mailboxes)

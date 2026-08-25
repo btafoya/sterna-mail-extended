@@ -497,6 +497,8 @@
     <string name="settings_discard">Descartar</string>
     <string name="settings_sync_section">Sincronización</string>
     <string name="settings_messages_to_sync_title">Mensajes para sincronizar</string>
+    <string name="settings_subscribed_folders_title">Mostrar solo las carpetas suscritas</string>
+    <string name="settings_subscribed_folders_subtitle">Oculta de las listas de carpetas aquellas a las que esta cuenta no está suscrita en el servidor.</string>
     <string name="settings_sync_last_30_days">Últimos 30 días</string>
     <string name="settings_sync_last_90_days">Últimos 90 días</string>
     <string name="settings_sync_last_year">Último año</string>

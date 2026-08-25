@@ -9,6 +9,7 @@ import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
@@ -348,6 +349,70 @@ class JmapClientTest {
         val sent = server.takeRequest().body.readUtf8()
         assertTrue(sent.contains("Mailbox/get"))
         assertTrue(sent.contains("urn:ietf:params:jmap:mail"))
+    }
+
+    /**
+     * Codeberg #174. `isSubscribed` (RFC 8621 §2) has to survive the WHOLE client path — the wire,
+     * `DefaultJson`, `decodeList` — not just a hand-rolled decode, because the drawer will hide a
+     * folder on the strength of it. Both values ride in the same response on purpose: a test that
+     * only played `false` would still pass against `isSubscribed = false` nailed down somewhere.
+     * The Stalwart probe of 2026-08-25 answered exactly this shape, `Sent` unsubscribed included.
+     */
+    @Test fun getMailboxes_believesWhatTheServerSaidAboutEachFolderSubscription() = runBlocking {
+        server.enqueue(MockResponse().setBody(MAILBOX_SUBSCRIPTION_JSON))
+
+        val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
+        val mailboxes = client.getMailboxes(session, "acc1", BasicAuth("u", "p"))
+
+        assertEquals(listOf("mb1", "mb2"), mailboxes.map { it.id })
+        assertTrue("the server reported Inbox subscribed", mailboxes[0].isSubscribed)
+        assertFalse("the server reported Sent UNSUBSCRIBED", mailboxes[1].isSubscribed)
+    }
+
+    /**
+     * The witness: [MAILBOX_JSON] is a server that never mentions subscription at all, and it must
+     * come back with every folder subscribed. A throw here (a non-defaulted field) would not
+     * degrade the drawer, it would empty it — `Mailbox/get` fails and the account lists nothing.
+     * ⛔ Do not add the property to that payload; its silence IS the fixture.
+     */
+    @Test fun getMailboxes_leavesEveryFolderSubscribedWhenTheServerNeverMentionsSubscription() = runBlocking {
+        server.enqueue(MockResponse().setBody(MAILBOX_JSON))
+
+        val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
+        val mailboxes = client.getMailboxes(session, "acc1", BasicAuth("u", "p"))
+
+        assertEquals(2, mailboxes.size)
+        assertTrue(
+            "a server that omits isSubscribed leaves the folder SUBSCRIBED: the unknown never " +
+                "hides a folder",
+            mailboxes.all { it.isSubscribed },
+        )
+    }
+
+    /**
+     * And it costs nothing on the wire: the subscription arrives because `Mailbox/get` asks for NO
+     * property list, which RFC 8621 §2.1 reads as "send them all". Naming any `properties` here
+     * would silently drop `isSubscribed` from the answer and every folder would read subscribed
+     * again; a second method call would be a second round trip we never took.
+     */
+    @Test fun getMailboxes_asksForNoPropertyListSoTheServerSendsSubscriptionUnasked() = runBlocking {
+        server.enqueue(MockResponse().setBody(MAILBOX_SUBSCRIPTION_JSON))
+
+        val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
+        client.getMailboxes(session, "acc1", BasicAuth("u", "p"))
+
+        val calls = Json.parseToJsonElement(server.takeRequest().body.readUtf8())
+            .jsonObject["methodCalls"]!!.jsonArray
+        assertEquals("one Mailbox/get and nothing else", 1, calls.size)
+        val call = calls[0].jsonArray
+        assertEquals("Mailbox/get", call[0].jsonPrimitive.content)
+        val args = call[1].jsonObject
+        assertFalse(
+            "Mailbox/get must not name properties, or the server stops sending isSubscribed",
+            args.containsKey("properties"),
+        )
+        assertEquals("ids stays null: still every mailbox, in one call", JsonNull, args["ids"])
+        assertEquals("acc1", args["accountId"]!!.jsonPrimitive.content)
     }
 
     @Test fun getEmail_coercesNullAddressFields() = runBlocking {
@@ -1954,6 +2019,27 @@ class JmapClientTest {
                   "list": [
                     {"id":"mb1","name":"Inbox","role":"inbox","sortOrder":1,"totalEmails":10,"unreadEmails":3},
                     {"id":"mb2","name":"Sent","role":"sent","sortOrder":2,"totalEmails":5,"unreadEmails":0}
+                  ]
+                }, "c0"]
+              ],
+              "sessionState": "abc"
+            }
+        """
+
+        /**
+         * A server that reports subscription on every folder, one of each value (Codeberg #174).
+         * `Sent` unsubscribed is what Stalwart actually answered on the 2026-08-25 probe.
+         */
+        const val MAILBOX_SUBSCRIPTION_JSON = """
+            {
+              "methodResponses": [
+                ["Mailbox/get", {
+                  "accountId": "acc1",
+                  "state": "m1",
+                  "notFound": [],
+                  "list": [
+                    {"id":"mb1","name":"Inbox","role":"inbox","sortOrder":1,"totalEmails":10,"unreadEmails":3,"isSubscribed":true},
+                    {"id":"mb2","name":"Sent","role":"sent","sortOrder":2,"totalEmails":5,"unreadEmails":0,"isSubscribed":false}
                   ]
                 }, "c0"]
               ],

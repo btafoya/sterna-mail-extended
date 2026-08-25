@@ -54,6 +54,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -93,6 +94,14 @@ data class MailUi(
      *  dropped): the count above the results then says "at least N". */
     val searchComplete: Boolean = true,
     val mailboxes: List<Mailbox>,
+    /** The SAME list minus what the account's "subscribed folders only" setting hides (#174,
+     *  [visibleFolders]) — what the drawer draws, and nothing else.
+     *
+     *  ⛔ A second field, never a replacement for [mailboxes]: that one is read to find a folder's
+     *  children before a delete ([InboxViewModel.subfolderIdsOf] — a hidden child left behind is
+     *  mail nobody can reach), to tell a DELETED folder from a hidden one (#89), and to name a
+     *  row's folder and its role. Filtering at the source poisons all three. */
+    val visibleMailboxes: List<Mailbox> = emptyList(),
     val refreshing: Boolean,
     val error: String?,
     /** Event-driven "no usable network" flag from [ConnectivityWatcher] (#65): true the moment
@@ -112,6 +121,8 @@ private data class Base(
      *  flow, so it is seeded here and copied there. */
     val accountId: String? = null,
     val mailboxes: List<Mailbox>,
+    /** Folded in after the five-flow combine below, from the setting's own flow. */
+    val visibleMailboxes: List<Mailbox> = emptyList(),
     val selectedMailboxId: String?,
     val unified: Boolean,
     val unreadView: Boolean,
@@ -678,16 +689,71 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val unifiedInboxScopes = MutableStateFlow(store.allInboxScopes())
 
     /**
-     * The folders the "unread" view ([Sel.Unread]) pages — the current account's, minus Trash,
-     * Junk/Spam, Sent and Drafts. The decision is [unreadViewScopes]'s, which a JVM test runs; this
-     * only holds its answer.
+     * Whether the CURRENT account hides the folders it is not subscribed to (#174). Off for every
+     * account until one ticks the box.
+     *
+     * Hung off `accountsFlow` — the single point every account write is published from
+     * (`saveAccounts`) — so ticking the box in Settings redraws the drawer without a restart. The
+     * decision itself is [showOnlySubscribedFor]'s, which a JVM test runs.
+     */
+    private val showOnlySubscribed: StateFlow<Boolean> =
+        combine(store.accountsFlow, currentAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * The last folder list [mailboxes] delivered, WITH the account it belonged to — the raw list,
+     * unfiltered.
+     *
+     * ⚠ This exists because two different things must re-derive the "unread" view's scope: a new
+     * folder list, and the setting being toggled. [mailboxes] carries side effects (#91's parked
+     * notification folder, #89's vanished-folder fallback) and must be collected ONCE, so the
+     * setting cannot be combined into it — the scope is derived from this record instead, and the
+     * side effects stay where they are, replayed by neither. The account travels WITH the list:
+     * re-reading `currentAccountId.value` at derivation time would, for the tick between an
+     * account switch and the new list arriving, pair the new account with the previous account's
+     * folder ids (#121/#31).
+     */
+    private val folderSnapshot = MutableStateFlow<Pair<String?, List<Mailbox>>>(null to emptyList())
+
+    /**
+     * The folders the "unread" view ([Sel.Unread]) pages — the current account's VISIBLE ones,
+     * minus Trash, Junk/Spam, Sent and Drafts. The decisions are [visibleFolders]'s and
+     * [unreadViewScopes]'s, both of which a JVM test runs; this only combines them.
      *
      * Starts EMPTY rather than from a synchronous read of the store: the store knows the account,
      * not its folder list, and an empty scope list is what [MailRepository.pagedMailbox] answers
-     * `PagingData.empty()` to. Filled from the [mailboxes] flow's existing `onEach` — declared
-     * before it, because that is where it is written.
+     * `PagingData.empty()` to. The badge under the entry follows this scope and is not filtered a
+     * second time ([unreadViewCount]).
      */
-    private val unreadScopes = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    private val unreadScopes: StateFlow<List<Pair<String, String>>> =
+        combine(folderSnapshot, showOnlySubscribed) { (accountId, folders), onlySubscribed ->
+            unreadViewScopes(accountId, visibleFolders(folders, onlySubscribed))
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Back to the Inbox when the folder ON SCREEN stops being one the user can reach — the two
+     * causes, one rule: it was DELETED (#89), or the account just ticked "show only subscribed
+     * folders" and this one is not among them (#174). The decision is [selectionIsUnreachable]'s,
+     * which a JVM test runs; this only feeds it and acts on the answer.
+     *
+     * ⛔ Derived from [folderSnapshot], never from a second collection of [mailboxes]: that flow
+     * carries side effects (#91's parked notification folder) and a second collector would replay
+     * them every time the box is ticked.
+     *
+     * ⚠ The setting half reverses what #174 first shipped ("hidden is not deleted"), on the bench
+     * pass of 2026-08-25 and on rule 3, WYSIWYG: the list stayed titled `Vieux`, showing `Vieux`,
+     * while the setting claimed only subscribed folders were shown and neither the drawer nor
+     * "move to" would still offer it — and leaving it was a one-way trip.
+     *
+     * The WHOLE list goes in, with the flag: [selectionIsUnreachable] needs both lists to keep a
+     * folder that was taken away apart from one nobody has loaded yet. [showInbox] is a no-op when
+     * the Inbox is already selected, so a repeated answer costs nothing.
+     */
+    private val inboxFallback: Job =
+        combine(folderSnapshot, showOnlySubscribed) { (_, folders), onlySubscribed ->
+            selectionIsUnreachable((selection.value as? Sel.Folder)?.id, folders, onlySubscribed)
+        }.onEach { unreachable -> if (unreachable) showInbox() }
+            .launchIn(viewModelScope)
 
     private val meta = MutableStateFlow(
         Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()),
@@ -705,26 +771,29 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     // The drawer shows the CURRENT account's folders: the cache now keeps every account's
     // rows side by side, so the flow re-scopes when the user switches accounts.
-    // Codeberg #89: the folder list is also where a folder VANISHING is observed — deleted
-    // from the drawer here, or from another client and dropped by the next folder sync. When
-    // the one on screen goes, fall back to the Inbox instead of leaving the app parked in a
-    // folder that no longer exists. Hung off this flow (not off the combined [state]) so it
-    // runs once per actual folder-list change and adds no second collection of the cache.
+    // ⛔ This flow carries SIDE EFFECTS and is collected exactly once — a second collector
+    // would replay them. Everything judged in here is therefore judged when a folder LIST
+    // ARRIVES and at no other moment, which is why the Inbox fallback is not here but hangs
+    // off the recorded snapshot instead ([inboxFallback]): ticking "show only subscribed
+    // folders" hides a folder without any folder list arriving.
     private val mailboxes = currentAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(emptyList()) else repo.observeMailboxes(accountId)
     }.onEach { folders ->
         // Issue #91: a notification opened for a message living in another folder parks its
         // request here until the folder list it has to be judged against actually exists — see
-        // [showFolderFromNotification]. Before the vanished-folder check, so a folder we are
-        // about to select is never first bounced to the Inbox for being the previous account's.
+        // [showFolderFromNotification]. It is handed `folders`, the WHOLE list, and only ever on
+        // the arrival of one.
+        // ⛔ It can no longer select a folder the setting hides ([notificationFolderToShow]): the
+        // ORDER of these two lines protects nothing at all, because [inboxFallback] collects
+        // asynchronously and resumes after this whole body — it would read the selection this line
+        // just made and bounce it to the Inbox. Intermittently, on top of that, since
+        // [folderSnapshot] conflates an equal folder list. One rule, both routes: nobody is parked
+        // in a folder no list offers.
         applyNotificationFolder(folders)
-        if (selectionIsGone((selection.value as? Sel.Folder)?.id, folders)) showInbox()
-        // The "unread" view's scope, recomputed from the folder list that just arrived — a folder
-        // created, deleted or given a role by the server changes what that view pages. One more
-        // line in THIS onEach, deliberately, and never a second collector of [mailboxes]: this
-        // flow carries side effects (#91's parked notification folder, #89's vanished-folder
-        // fallback) and a second collection would replay them.
-        unreadScopes.value = unreadViewScopes(currentAccountId.value, folders)
+        // The folder list that just arrived, recorded for what derives from it — the "unread"
+        // view's scope and the Inbox fallback, both of which also have to follow the
+        // subscription setting ([folderSnapshot], [unreadScopes], [inboxFallback]).
+        folderSnapshot.value = currentAccountId.value to folders
     }
 
     /**
@@ -800,6 +869,21 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 if (accountId == null) flowOf(emptyList()) else repo.observeMailboxes(accountId)
             }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Whether the picker above must hide unsubscribed folders — the setting of the SAME account
+     * [selectionMailboxes] is scoped to, never [showOnlySubscribed] (the current account's): from
+     * the unified inbox the selected message can belong to a sibling account whose answer differs
+     * (#92, #174).
+     *
+     * Beside the list rather than folded into it, because [moveTargets] takes the folder list and
+     * the flag apart: only the targets are filtered, the parent paths shown under them are
+     * resolved against the whole list (#109).
+     */
+    val selectionOnlySubscribed: StateFlow<Boolean> =
+        combine(selectionAccountId, currentAccountId, store.accountsFlow) { selId, curId, accounts ->
+            showOnlySubscribedFor(selId ?: curId, accounts)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
      * The browse list, paged from Room. A single folder uses the RemoteMediator-backed
@@ -987,14 +1071,19 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      *
      * The folder list comes back out of [Base] and is NOT collected again — [mailboxes] carries side
      * effects (#91's parked notification folder, #89's vanished-folder fallback) that a second
-     * collector would replay. The count is [unreadViewCount]'s, run by `UnreadViewCountTest`, and it
+     * collector would replay. That is also why the subscription filter (#174) is applied HERE, on
+     * the list [Base] carries, and why its answer is a SECOND field: the drawer draws
+     * [MailUi.visibleMailboxes], everything else — a row's folder and role, the children of a
+     * folder about to be deleted, #89's fallback — keeps reading the whole [MailUi.mailboxes].
+     *
+     * The count is [unreadViewCount]'s, run by `UnreadViewCountTest`, and it
      * is handed the same scope the pager is built from — so the entry offers the folders the list
      * pages, and carries the same aggregate as the folder rows under it. ⛔ Not "the number of rows
      * you will see": in conversation view a thread unread in two folders of the scope is summed
      * twice here and drawn once. See [unreadViewCount].
      */
-    private val badgedState = combine(baseState, unreadScopes, currentAccountId) { base, scopes, accountId ->
-        base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes))
+    private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed) { base, scopes, accountId, onlySubscribed ->
+        base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed))
     }
 
     val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
@@ -1011,6 +1100,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             searchResults = search.results.orEmpty(),
             searchComplete = search.complete,
             mailboxes = base.mailboxes,
+            visibleMailboxes = base.visibleMailboxes,
             refreshing = base.refreshing,
             error = base.error,
             offline = !online,
@@ -1119,7 +1209,10 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         // Cleared, not recomputed: the folder list in hand is the PREVIOUS account's, and pairs
         // built from it under the new account's id would page a sibling account's folders (#121).
         // The [mailboxes] flow re-scopes on currentAccountId and refills this within the tick.
-        unreadScopes.value = emptyList()
+        // Clearing the RECORD, not the scope derived from it: the scope is a combine now (it also
+        // follows the subscription setting), so anything written straight into it is overwritten
+        // by the next derivation — with the stale list still in the record.
+        folderSnapshot.value = null to emptyList()
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refreshWatchedFolders()
         refresh()
@@ -1363,8 +1456,13 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             selectedMailboxId = (selection.value as? Sel.Folder)?.id,
             unifiedView = selection.value is Sel.Unified,
             knownMailboxIds = folders.map { it.id },
-        ) ?: return
-        folders.firstOrNull { it.id == target }?.let(::select)
+        )
+        // ⛔ [NotificationFolderSwitch.resolve] gets the WHOLE list — a folder the setting hides is
+        // not a folder it does not know, and its "unknown" branch means deleted. It is its RESULT
+        // that is judged, by the same rule the fallback runs ([notificationFolderToShow]): the flag
+        // is the current account's, which the guard two lines up is what makes true.
+        val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return
+        folders.firstOrNull { it.id == show }?.let(::select)
     }
 
     /** Return to the account's Inbox — Back from any other folder lands here. */

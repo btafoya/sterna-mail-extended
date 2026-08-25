@@ -497,6 +497,8 @@
     <string name="settings_discard">Verwerfen</string>
     <string name="settings_sync_section">Synchronisierung</string>
     <string name="settings_messages_to_sync_title">Zu synchronisierende Nachrichten</string>
+    <string name="settings_subscribed_folders_title">Nur abonnierte Ordner anzeigen</string>
+    <string name="settings_subscribed_folders_subtitle">Blendet in den Ordnerlisten die Ordner aus, die dieses Konto auf dem Server nicht abonniert hat.</string>
     <string name="settings_sync_last_30_days">Letzte 30 Tage</string>
     <string name="settings_sync_last_90_days">Letzte 90 Tage</string>
     <string name="settings_sync_last_year">Letztes Jahr</string>

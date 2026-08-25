@@ -158,32 +158,47 @@ class PageKeyWiringLintTest {
 
     /**
      * ⛔ SOURCE LINT. The rule above pins that the unread view's scope is HANDED to the paging key;
-     * this one pins that anything ever puts a value in it. Drop the one line in the `mailboxes`
-     * `onEach` that fills it and every other rule here stays green while the view pages an empty
-     * scope list for ever — `pagedMailbox` answers `PagingData.empty()`, so the screen is simply
-     * blank and nothing fails.
+     * this one pins that anything ever puts a value in what the scope is derived from. Drop the one
+     * line in the `mailboxes` `onEach` that records the folder list and every other rule here stays
+     * green while the view pages an empty scope list for ever — `pagedMailbox` answers
+     * `PagingData.empty()`, so the screen is simply blank and nothing fails.
      *
-     * Whole assignments, arguments included. `unreadViewScopes(store.currentId(), folders)` would
-     * compile and read plausibly, and it is the #121 mistake: the folder list in hand belongs to the
-     * account the flow was scoped to, and `store.currentId()` is whatever the store says NOW.
+     * ⚠ The scope stopped being a written value in #174: it is derived from this record AND from
+     * the account's "subscribed folders only" setting, because ticking that box has to re-scope the
+     * view while the [mailboxes] flow — which carries side effects (#89, #91) — is still collected
+     * exactly once. So what is pinned here is the RECORD's writers, and the derivation below them.
+     *
+     * Whole assignments, arguments included. `store.currentId() to folders` would compile and read
+     * plausibly, and it is the #121 mistake: the folder list in hand belongs to the account the flow
+     * was scoped to, and `store.currentId()` is whatever the store says NOW. Recording the list
+     * WITHOUT its account is the same mistake one hop later — the derivation would have to re-read
+     * the current account, and pair it with the previous account's folder ids.
      *
      * ⛔ It must also stay TWO. A third writer is a third resolution, and the clearing one exists
      * only because `onAccountChanged` holds the previous account's folder list.
      */
     @Test
     fun `the unread scope has exactly two writers, and each says what it writes`() {
-        val writes = codeText(INBOX_VIEW_MODEL).map { it.trim() }.filter { it.startsWith("unreadScopes.value") }
+        val writes = codeText(INBOX_VIEW_MODEL).map { it.trim() }.filter { it.startsWith("folderSnapshot.value") }
         assertEquals(
-            "InboxViewModel must fill the unread view's scope from the folder list the [mailboxes] " +
-                "flow just delivered, with the account THAT FLOW is scoped to (currentAccountId.value, " +
-                "not a fresh store read — #121), and clear it on an account switch, where the folder " +
-                "list in hand is still the previous account's. Nothing else may write it. Writes " +
-                "found were:\n${writes.joinToString("\n")}",
+            "InboxViewModel must record the folder list the [mailboxes] flow just delivered, with " +
+                "the account THAT FLOW is scoped to (currentAccountId.value, not a fresh store read " +
+                "— #121), and clear it on an account switch, where the folder list in hand is still " +
+                "the previous account's. Nothing else may write it. Writes found were:" +
+                "\n${writes.joinToString("\n")}",
             listOf(
-                "unreadScopes.value = emptyList()",
-                "unreadScopes.value = unreadViewScopes(currentAccountId.value, folders)",
+                "folderSnapshot.value = currentAccountId.value to folders",
+                "folderSnapshot.value = null to emptyList()",
             ),
             writes.sorted(),
+        )
+        val derivation = codeText(INBOX_VIEW_MODEL).map { it.trim() }
+            .filter { it.startsWith("unreadViewScopes(") }
+        assertEquals(
+            "…and the scope must be DERIVED from that record and from the subscription setting, in " +
+                "one place. Derivations found were:\n${derivation.joinToString("\n")}",
+            listOf("unreadViewScopes(accountId, visibleFolders(folders, onlySubscribed))"),
+            derivation,
         )
     }
 

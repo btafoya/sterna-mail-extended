@@ -62,6 +62,14 @@ data class ImapFolder(
      * so that convention lives in a comment on both sides and nowhere in code here.
      */
     val unelectedRole: String? = null,
+    /**
+     * What the server answered about this folder's subscription (`LSUB` / `LIST (SUBSCRIBED)`),
+     * and nothing else — this module reports, it decides nothing.
+     *
+     * `true` when we do not know: a listing read without asking about subscription says nothing
+     * about it, and the unknown must never hide a folder.
+     */
+    val isSubscribed: Boolean = true,
 )
 
 /** One decoded envelope address (either part may be absent). */

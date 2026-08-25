@@ -497,6 +497,8 @@
     <string name="settings_discard">Abandonner</string>
     <string name="settings_sync_section">Synchronisation</string>
     <string name="settings_messages_to_sync_title">Messages à synchroniser</string>
+    <string name="settings_subscribed_folders_title">N\'afficher que les dossiers abonnés</string>
+    <string name="settings_subscribed_folders_subtitle">Masque des listes de dossiers ceux auxquels ce compte n\'est pas abonné sur le serveur.</string>
     <string name="settings_sync_last_30_days">30 derniers jours</string>
     <string name="settings_sync_last_90_days">90 derniers jours</string>
     <string name="settings_sync_last_year">Dernière année</string>

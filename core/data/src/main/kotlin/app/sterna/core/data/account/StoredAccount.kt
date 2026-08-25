@@ -36,6 +36,19 @@ data class StoredAccount(
      */
     val uploadSentCopy: Boolean = true,
     /**
+     * Whether the folder lists hide the folders this account is NOT subscribed to on the server
+     * (#174): a mailbox left behind but never opened is still a mailbox the server lists, and a
+     * long-lived account ends up with a folder list nobody can read.
+     *
+     * ⛔ Defaults to FALSE, and that is load-bearing, not a taste: this is the setting that makes
+     * folders DISAPPEAR from the lists. A record written before this field existed — i.e. every
+     * record on every phone — decodes to "show everything", which is the behaviour it was written
+     * under. Any other default would hide folders on the update, on installs whose owner never
+     * asked for it, with nothing on screen saying where they went (rule 1: the option that cannot
+     * lose data wins).
+     */
+    val showOnlySubscribedFolders: Boolean = false,
+    /**
      * Extra folders watched for new mail, by mailbox id (JMAP id / IMAP path).
      * The Inbox is always watched and never stored here; empty = inbox only.
      */

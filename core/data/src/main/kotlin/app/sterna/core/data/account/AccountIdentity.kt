@@ -129,8 +129,9 @@ fun resolveExistingLoginAmong(accounts: List<StoredAccount>, keys: List<AccountK
  *
  * Kept from [existing], because no sign-in proves any of them: the id (the encrypted secret is
  * bound to it, and every table refers to it), accountName, color, loginId, jmapAccountId, the inbox
- * metadata, syncWindow, notificationsEnabled, uploadSentCopy, watchedFolders, signature,
- * identities, serverIdentities, defaultIdentityId and the PGP settings. Overwriting accountName
+ * metadata, syncWindow, notificationsEnabled, uploadSentCopy, showOnlySubscribedFolders,
+ * watchedFolders, signature, identities, serverIdentities, defaultIdentityId and the PGP
+ * settings. Overwriting accountName
  * alone would mean a user re-adding her account with the "account name" field left empty loses the
  * name she gave it; overwriting color, watchedFolders or the identities loses settings the add
  * never even asked about.

@@ -378,9 +378,42 @@ class ImapSession(private var socket: Socket) : Closeable {
      */
     private fun mailboxArg(path: String): String = quote(encodeModifiedUtf7(path))
 
-    /** Create a mailbox (folder). Succeeds quietly if it already exists. */
+    /**
+     * Create a mailbox (folder) and SUBSCRIBE to it. Succeeds quietly if it already exists.
+     *
+     * The subscription is not decoration: `CREATE` does not touch the subscription list
+     * (RFC 3501 §6.3.3 says nothing of it, and a server measured on 2026-08-25 leaves the new
+     * mailbox unsubscribed), so with "subscribed folders only" on, the folder the user has just
+     * created would vanish from the drawer the instant it appeared (#174).
+     *
+     * ⛔ This is the ONLY subscription Sterna ever writes. It does not drive subscriptions:
+     * no `UNSUBSCRIBE` anywhere, no `SUBSCRIBE` on any other path, and none on screen. The one
+     * mailbox it subscribes to is the one it created itself.
+     *
+     * Two decisions, written down so they are not undone as tidying:
+     *
+     * 1. **The SUBSCRIBE is sent even when the CREATE failed** — and the two `runCatching` are
+     *    separate for exactly that. The failure this method is DOCUMENTED to swallow is "the
+     *    mailbox already exists", which is precisely the case of a mailbox that is there and
+     *    unsubscribed; skipping the SUBSCRIBE would leave the user's folder hidden with no way
+     *    back inside the app. Telling that failure from a real one would mean reading the
+     *    response code (`ALREADYEXISTS`) and trusting servers to send it — more surface for
+     *    nothing, because a SUBSCRIBE aimed at a mailbox that genuinely does not exist is
+     *    harmless either way: refused (swallowed below), or accepted and inert, since
+     *    [listFolders] intersects LSUB with LIST and a subscription no LIST names adds no folder.
+     * 2. **A refused SUBSCRIBE never fails the creation.** The folder EXISTS by then; returning
+     *    an error on it would tell the user their folder was not created, and could send them
+     *    creating it again. The cost of losing it is one folder hidden until they subscribe
+     *    server-side — never a lost creation.
+     *
+     * Both commands carry the SAME [mailboxArg] value, computed once: a subscription under any
+     * other spelling of the name is a subscription to another mailbox, or to none — and that is
+     * every non-ASCII folder (Codeberg #101), which travels in modified UTF-7.
+     */
     fun createFolder(path: String) {
-        runCatching { command("CREATE ${mailboxArg(path)}") }
+        val mailbox = mailboxArg(path)
+        runCatching { command("CREATE $mailbox") }
+        runCatching { command("SUBSCRIBE $mailbox") }
     }
 
     /** Rename a mailbox from [oldPath] to [newPath]. */
@@ -554,10 +587,28 @@ class ImapSession(private var socket: Socket) : Closeable {
      * it for a return option and it answers BAD: the LIST throws, the folder drawer comes back
      * empty and the account is unusable — a worse failure than the one being avoided. Servers
      * that never announced SPECIAL-USE keep exactly the command they have always been sent.
+     *
+     * [onlySubscribed] adds a SECOND round trip, `LSUB "" "*"`, and marks each listed folder by
+     * whether the answer named its path ([withSubscriptions]) — what K-9 does, and the only thing
+     * this panel does: nothing is filtered here, the flag is carried and `:core:data` decides.
+     * Off by default, so every caller that has no use for a subscription (the rename delimiter
+     * lookup, the connection test, the push-wake folder refresh) keeps its single LIST.
+     *
+     * ⛔ NOT `LIST … RETURN (SUBSCRIBED)`, and above all NOT under a capability guard like the one
+     * above: Stalwart — our own server — advertises neither LIST-EXTENDED nor SPECIAL-USE, so a
+     * guard would switch the feature off exactly where it is used. `LSUB` is IMAP4rev1 core
+     * (RFC 3501 §6.3.9) and every server answers it.
+     *
+     * ⛔ And a LSUB that FAILS means "unknown", never "subscribed to nothing": the round trip is
+     * wrapped, `getOrNull()` hands `null` to [withSubscriptions], and every folder stays
+     * subscribed. A refusal, a dropped connection or a garbled answer must never empty the drawer.
      */
-    fun listFolders(): List<ImapFolder> {
+    fun listFolders(onlySubscribed: Boolean = false): List<ImapFolder> {
         val list = if (hasCapability("SPECIAL-USE")) "LIST \"\" \"*\" RETURN (SPECIAL-USE)" else "LIST \"\" \"*\""
-        return parseListFolders(command(list).untagged)
+        val folders = parseListFolders(command(list).untagged)
+        if (!onlySubscribed) return folders
+        val subscribed = runCatching { parseLsubPaths(command("LSUB \"\" \"*\"").untagged) }.getOrNull()
+        return withSubscriptions(folders, subscribed)
     }
 
     /**
@@ -1387,6 +1438,45 @@ internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> {
             unelectedRole = roles[i].unelected,
         )
     }
+}
+
+/**
+ * The mailbox paths an `LSUB` answer named, decoded EXACTLY as [parseListFolders] decodes a LIST
+ * name — [decodeMailboxPath], faithful, nothing filtered — because the two sets are intersected by
+ * path. Decode them differently by a single character and every non-ASCII folder falls out of the
+ * intersection, is reported unsubscribed, and vanishes from the drawer in silence (#101, #174).
+ *
+ * The anti-spoofing filter of [ImapFolder.name] has no place here: these are identifiers, never
+ * displayed, only compared.
+ *
+ * A path the LIST did not carry is kept: a subscription may outlive its mailbox (RFC 3501 §6.3.9),
+ * and it is the intersection — not this parser — that ignores it. Lines that are not `LSUB`, and
+ * `LSUB` lines with no mailbox name, are dropped.
+ */
+internal fun parseLsubPaths(untagged: List<List<Any?>>): Set<String> =
+    untagged.mapNotNullTo(mutableSetOf()) { resp ->
+        // * LSUB (attrs) "delim" "name"
+        if (resp.getOrNull(1) != "LSUB") return@mapNotNullTo null
+        (resp.getOrNull(4) as? String)?.let { decodeMailboxPath(it) }
+    }
+
+/**
+ * [folders] with each entry marked by whether [subscribed] named its path. Adds no folder and
+ * removes none: a subscription to a mailbox that is not listed is ignored.
+ *
+ * ⛔ [subscribed] `null` — the server was not asked, or its answer never arrived — leaves every
+ * folder subscribed, because the unknown may not hide anything.
+ *
+ * ⛔ And an EMPTY set is treated as that same unknown, deliberately. "The account is subscribed to
+ * nothing" and "the server said nothing usable" are indistinguishable on the wire, one of them is
+ * a legitimate state and the other is an accident, and the two possible mistakes are not worth the
+ * same: reading an accident as "subscribed to nothing" hides EVERY folder — an empty drawer, with
+ * the inbox gone — while reading a genuinely empty subscription as "unknown" shows a few folders
+ * the user asked to hide. The second is the one this returns.
+ */
+internal fun withSubscriptions(folders: List<ImapFolder>, subscribed: Set<String>?): List<ImapFolder> {
+    if (subscribed.isNullOrEmpty()) return folders
+    return folders.map { it.copy(isSubscribed = it.path in subscribed) }
 }
 
 /** One selectable mailbox as the LIST described it, before its role is settled. Roles cannot be

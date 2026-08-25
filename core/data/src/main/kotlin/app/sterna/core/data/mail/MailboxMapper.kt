@@ -12,6 +12,7 @@ internal fun Mailbox.toEntity(accountId: String): MailboxEntity = MailboxEntity(
     sortOrder = sortOrder,
     totalEmails = totalEmails,
     unreadEmails = unreadEmails,
+    isSubscribed = isSubscribed,
 )
 
 /**
@@ -43,4 +44,7 @@ internal fun MailboxEntity.toMailbox(): Mailbox = Mailbox(
     // Default the badge to the stored server counter (the IMAP path); the repository
     // overrides it with the live local count for JMAP accounts.
     unreadForList = unreadEmails,
+    // Carried, not decided: what the server said about the subscription crosses to the UI model
+    // as it is. Nothing on screen reads it yet (#174).
+    isSubscribed = isSubscribed,
 )

@@ -77,7 +77,7 @@ class ImapWindowWiringTest {
             val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
             return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
             folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
-            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onPage) },
+            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage) },
             writePage = { page ->
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
             emailDao.upsertAll(page)

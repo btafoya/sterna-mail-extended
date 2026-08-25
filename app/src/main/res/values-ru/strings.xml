@@ -497,6 +497,8 @@
     <string name="settings_discard">Не сохранять</string>
     <string name="settings_sync_section">Синхронизация</string>
     <string name="settings_messages_to_sync_title">Письма для синхронизации</string>
+    <string name="settings_subscribed_folders_title">Показывать только подписанные папки</string>
+    <string name="settings_subscribed_folders_subtitle">Скрывает из списков папок те, на которые эта учётная запись не подписана на сервере.</string>
     <string name="settings_sync_last_30_days">Последние 30 дней</string>
     <string name="settings_sync_last_90_days">Последние 90 дней</string>
     <string name="settings_sync_last_year">Последний год</string>

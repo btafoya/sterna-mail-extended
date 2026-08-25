@@ -238,6 +238,7 @@ class AccountIdentityTest {
         syncWindow = SyncWindow.YEAR_1,
         notificationsEnabled = false,
         uploadSentCopy = false,
+        showOnlySubscribedFolders = true,
         watchedFolders = setOf("mbx-2", "mbx-3"),
         color = 0x33445566,
         signature = "Ana",
@@ -301,6 +302,10 @@ class AccountIdentityTest {
         assertEquals("the sync window fell back to the default", SyncWindow.YEAR_1, r.syncWindow)
         assertEquals("her per-account notification opt-out is gone", false, r.notificationsEnabled)
         assertEquals("her sent-copy choice is gone", false, r.uploadSentCopy)
+        // #174: `proven` carries this one OFF (a sign-in form builds the default), so a
+        // re-add written as `proven.copy(...)` would silently UNHIDE the folders she chose to hide,
+        // and only this direction can tell the two spellings apart.
+        assertEquals("her subscribed-folders-only choice is gone", true, r.showOnlySubscribedFolders)
         assertEquals("the folders she watches for new mail are gone", setOf("mbx-2", "mbx-3"), r.watchedFolders)
         assertEquals("her signature is gone", "Ana", r.signature)
         assertEquals("her manual sending identities are gone", settled.identities, r.identities)

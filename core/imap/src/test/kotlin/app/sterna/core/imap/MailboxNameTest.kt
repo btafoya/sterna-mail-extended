@@ -278,6 +278,9 @@ class MailboxNameTest {
             assertEquals(
                 listOf(
                     """CREATE "${hello.first}"""",
+                    // The SUBSCRIBE that follows a CREATE (#174) is here for the same reason as
+                    // the line above it: it names a mailbox, so it must carry the wire form.
+                    """SUBSCRIBE "${hello.first}"""",
                     """RENAME "${hello.first}" "INBOX/${flagged.first}"""",
                     """DELETE "INBOX/${flagged.first}"""",
                     "LOGOUT",

@@ -659,6 +659,8 @@
     <string name="settings_discard">Discard</string>
     <string name="settings_sync_section">Sync</string>
     <string name="settings_messages_to_sync_title">Messages to sync</string>
+    <string name="settings_subscribed_folders_title">Show only subscribed folders</string>
+    <string name="settings_subscribed_folders_subtitle">Hides the folders this account is not subscribed to on the server from the folder lists.</string>
     <string name="settings_sync_last_30_days">Last 30 days</string>
     <string name="settings_sync_last_90_days">Last 90 days</string>
     <string name="settings_sync_last_year">Last year</string>

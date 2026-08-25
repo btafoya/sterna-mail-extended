@@ -549,3 +549,35 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
         db.execSQL("ALTER TABLE `emails` ADD COLUMN `uidValidity` INTEGER")
     }
 }
+
+/**
+ * Additive 25→26: `mailboxes` gains `isSubscribed`, what the server reports about the folder's
+ * subscription ([MailboxEntity.isSubscribed], Codeberg #174) — IMAP's `LSUB`, JMAP's
+ * `isSubscribed`. The column only exists here; reading it off the wire and acting on it are later
+ * steps, and until they land every row simply says "subscribed".
+ *
+ * One plain `ALTER TABLE … ADD COLUMN`, on the model of [MIGRATION_21_22], layered on top rather
+ * than folded into a released migration (rewriting one breaks the installs that replay the older
+ * statements and fails Room's identity check on the next launch).
+ *
+ * ⭐ `INTEGER NOT NULL DEFAULT 1`, and the `1` is not cosmetic. The entity field is a non-null
+ * `Boolean`, so SQLite requires a default to add the column to a populated table — but the VALUE
+ * of that default is the decision: a folder cached before v26 was cached by a build that never
+ * asked the server about subscription, so what it holds is not "unsubscribed", it is UNKNOWN, and
+ * the unknown never hides anything. `DEFAULT 0` would take every folder of every existing install
+ * out of the drawer at the first launch after the update, on no evidence at all.
+ *
+ * Room compares defaults at open time only when the ENTITY declares one via
+ * `@ColumnInfo(defaultValue = …)`, and a Kotlin default is not one (b/136515305) — so the `1` here
+ * is safe, exactly as the `0` of [MIGRATION_21_22] is.
+ *
+ * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * `fallbackToDestructiveMigration()`, so this step missing from [SternaDatabase.ALL_MIGRATIONS] —
+ * written but not registered — has Room find no 25→26 path and DROP every table: `outbox`,
+ * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left.
+ */
+val MIGRATION_25_26 = object : Migration(25, 26) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `mailboxes` ADD COLUMN `isSubscribed` INTEGER NOT NULL DEFAULT 1")
+    }
+}

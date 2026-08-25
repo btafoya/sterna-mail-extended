@@ -497,6 +497,8 @@
     <string name="settings_discard">Negeren</string>
     <string name="settings_sync_section">Synchronisatie</string>
     <string name="settings_messages_to_sync_title">Te synchroniseren berichten</string>
+    <string name="settings_subscribed_folders_title">Alleen geabonneerde mappen tonen</string>
+    <string name="settings_subscribed_folders_subtitle">Verbergt in de mappenlijsten de mappen waarop dit account op de server niet is geabonneerd.</string>
     <string name="settings_sync_last_30_days">Laatste 30 dagen</string>
     <string name="settings_sync_last_90_days">Laatste 90 dagen</string>
     <string name="settings_sync_last_year">Laatste jaar</string>

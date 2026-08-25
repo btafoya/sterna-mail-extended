@@ -616,6 +616,13 @@ class ImapMailService(
      * Used to resolve a role's folder for the message's own account — the global mailbox
      * cache only holds the last-synced account, so it's wrong for a non-current account
      * in the unified inbox.
+     *
+     * ⛔ A BARE `listFolders()`, with no subscription question and therefore no LSUB, and it must
+     * stay that way (#174). Its one caller (`MailRepository.imapRoleFolder`) reads a role and an
+     * id off these rows and WRITES NONE of them, so a subscription fetched here is paid for and
+     * thrown away — on every archive, every delete to Trash and every junk move, for an account
+     * that has a lot of folders, which is the very reporter this feature is for. The rows that a
+     * subscription must reach are the ones the cache keeps, and they come from [loadFolder].
      */
     suspend fun listMailboxes(credentials: AccountCredentials): List<MailboxEntity> =
         withSession(credentials) { session ->
@@ -633,6 +640,10 @@ class ImapMailService(
      * the folder list and nothing else, which is what the folder-list refresh does. There is no
      * default for it, deliberately: "where do these messages go" is a question every caller has to
      * answer out loud.
+     *
+     * ⛔ [onlySubscribed] is asked of the SERVER, not applied here: it adds the `LSUB` round trip
+     * that fills [MailboxEntity.isSubscribed] on the rows below (#174). Nothing is dropped from
+     * [ImapFolderLoad.mailboxes] because of it, and the target folder is chosen the same way.
      *
      * ⛔ And [ImapFolderLoad.walk] carries [ImapFolderWalk.moved], which a caller that DELETES on
      * the strength of this walk must honour ([reconcilableIds]).
@@ -656,10 +667,11 @@ class ImapMailService(
         credentials: AccountCredentials,
         requestedMailboxId: String?,
         limit: Int,
+        onlySubscribed: Boolean = false,
         onPage: suspend (List<EmailEntity>) -> Unit,
     ): ImapFolderLoad {
         return withSession(credentials) { session ->
-            val folders = session.listFolders()
+            val folders = session.listFolders(onlySubscribed)
             val mailboxes = folders.mapIndexed { index, folder ->
                 imapMailboxEntity(credentials.id, folder, index)
             }
@@ -1284,6 +1296,9 @@ internal fun imapMailboxEntity(accountId: String, folder: ImapFolder, index: Int
         sortOrder = rolePriority(role) * 1000 + index,
         totalEmails = 0,
         unreadEmails = 0,
+        // What the listing said about the subscription, copied as it is (#174). `ImapFolder`
+        // defaults it to `true`, so a listing read without asking leaves the folder visible.
+        isSubscribed = folder.isSubscribed,
     )
 }
 

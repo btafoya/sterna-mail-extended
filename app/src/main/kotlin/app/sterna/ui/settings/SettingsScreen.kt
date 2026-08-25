@@ -1451,6 +1451,7 @@ private fun AccountDetailScreen(
     var colorArgb by remember(accountId) { mutableStateOf(account.color) }
     var notificationsEnabled by remember(accountId) { mutableStateOf(account.notificationsEnabled) }
     var uploadSentCopy by remember(accountId) { mutableStateOf(account.uploadSentCopy) }
+    var showOnlySubscribedFolders by remember(accountId) { mutableStateOf(account.showOnlySubscribedFolders) }
     var imapHost by remember(accountId) { mutableStateOf(account.imapHost) }
     var imapPort by remember(accountId) { mutableStateOf(account.imapPort.toString()) }
     var imapSecurity by remember(accountId) { mutableStateOf(account.imapSecurity) }
@@ -2132,6 +2133,23 @@ private fun AccountDetailScreen(
                         syncWindow = it
                         viewModel.setSyncWindow(accountId, it)
                         onAccountsChanged()
+                    },
+                )
+                // ⛔ HERE, and not in the `if (isImap)` block above where the "Upload sent messages"
+                // switch legitimately sits. That one switches off a second WRITE that only IMAP
+                // sending performs; this one is about what the folder lists SHOW, and both
+                // protocols carry the subscription (IMAP LSUB, JMAP Mailbox.isSubscribed, RFC 8621
+                // §2). Inside that branch it would be invisible on every JMAP account — the app's
+                // default protocol, and the reporter's own case (#174).
+                // Written at the toggle, not at Save: the Save button belongs to the text fields,
+                // and a switch that waited for it would lose the choice to a back gesture.
+                SettingSwitch(
+                    title = stringResource(R.string.settings_subscribed_folders_title),
+                    subtitle = stringResource(R.string.settings_subscribed_folders_subtitle),
+                    checked = showOnlySubscribedFolders,
+                    onCheckedChange = {
+                        showOnlySubscribedFolders = it
+                        viewModel.setShowOnlySubscribedFolders(accountId, it)
                     },
                 )
             }

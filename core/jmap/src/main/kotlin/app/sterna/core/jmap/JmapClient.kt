@@ -1403,6 +1403,14 @@ class JmapClient internal constructor(
                         putJsonObject("create") {
                             putJsonObject("new") {
                                 put("name", name)
+                                // ALWAYS, never conditionally: `isSubscribed` is writable at
+                                // create time (RFC 8621 §2), and a create that omits it reads
+                                // back `false` (probed against Stalwart, 2026-08-25) — so with
+                                // "subscribed folders only" on, the folder the user has just
+                                // created would vanish from the drawer at once (#174). ⛔ This is
+                                // the only subscription Sterna writes: it does not drive
+                                // subscriptions anywhere else, on any other method call.
+                                put("isSubscribed", true)
                                 if (role != null) put("role", role)
                                 if (parentId != null) put("parentId", parentId)
                             }

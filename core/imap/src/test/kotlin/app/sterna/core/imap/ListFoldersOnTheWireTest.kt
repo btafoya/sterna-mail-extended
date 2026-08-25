@@ -112,19 +112,28 @@ class ListFoldersOnTheWireTest {
     }
 
     /**
-     * A source lint on the one line that builds the command, pinned WHOLE. It is a secondary net
-     * behind the two wire cases: `in`/`contains` on a source line is blind to any mutation that
-     * LENGTHENS it, which is how three of this project's regressions got through.
+     * A source lint on the whole body that builds the two commands, pinned LINE BY LINE. It is a
+     * secondary net behind the wire cases: `in`/`contains` on a source line is blind to any
+     * mutation that LENGTHENS it, which is how three of this project's regressions got through.
+     *
+     * The LSUB lines are here for two reasons a wire test cannot state: the guard above it must
+     * stay a plain `if (!onlySubscribed)` — no capability test, since Stalwart advertises neither
+     * LIST-EXTENDED nor SPECIAL-USE and a capability guard would switch the feature off on our
+     * own server — and the round trip must stay wrapped in a `runCatching`, whose `getOrNull()`
+     * is what turns a refused LSUB into "subscription unknown" instead of an empty drawer.
      */
     @Test
     fun `the LIST command line is built under the capability guard`() {
         assertEquals(
             listOf(
-                "fun listFolders(): List<ImapFolder> {",
+                "fun listFolders(onlySubscribed: Boolean = false): List<ImapFolder> {",
                 """val list = if (hasCapability("SPECIAL-USE")) "LIST \"\" \"*\" RETURN (SPECIAL-USE)" else "LIST \"\" \"*\"""" + "\"",
-                "return parseListFolders(command(list).untagged)",
+                "val folders = parseListFolders(command(list).untagged)",
+                "if (!onlySubscribed) return folders",
+                """val subscribed = runCatching { parseLsubPaths(command("LSUB \"\" \"*\"").untagged) }.getOrNull()""",
+                "return withSubscriptions(folders, subscribed)",
             ),
-            sourceBlock("fun listFolders()", 3),
+            sourceBlock("fun listFolders(", 6),
         )
     }
 
