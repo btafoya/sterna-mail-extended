@@ -403,6 +403,9 @@ private fun MessagePager(
         if (entryAt(pagerState.settledPage) == null) activeMessage = null
     }
     val scope = rememberCoroutineScope()
+    // The finger's travel across the pager, watched without consuming anything, so the fling below
+    // can demand 25 dp of it. See PagerFlingDistance.kt.
+    val pagerTravel = remember { PagerTouchTravel() }
     Scaffold(
         topBar = {
             Column {
@@ -425,7 +428,7 @@ private fun MessagePager(
         Box(Modifier.fillMaxSize().padding(padding)) {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().then(pagerTravel.modifier),
                 // Key by entry identity — (account, id), never the bare id — so pages keep their
                 // identity when rows are inserted around them; warm one neighbour each side so a
                 // swipe reveals the adjacent body without a flash. The bare id made two messages
@@ -434,6 +437,13 @@ private fun MessagePager(
                 // a single account: the pair differs exactly where the id does.
                 key = { i -> entryAt(i)?.let(::pagerKey) ?: "page-$i" },
                 beyondViewportPageCount = 1,
+                // Demand 25 dp of FINGER travel before a flick may change message: the library's
+                // own rule is velocity-only, so a 10-20 dp brush of the thumb turned the page. The
+                // travel is read from the pointer stream by pagerTravel.modifier above, NOT from
+                // the pager's own offset, which is short by the touch slop and by whatever the body
+                // WebView held back. See PagerFlingDistance.kt — the rest of the fling is the
+                // library's.
+                flingBehavior = rememberPageFlingBehavior(pagerState, pagerTravel),
             ) { page ->
                 val entry = entryAt(page)
                 if (entry == null) {
