@@ -25,6 +25,16 @@ import java.io.File
  * deleted elsewhere it never leaves (Codeberg #134). The cure is that the verdict comes from
  * `expectedChildIds`, the set the caller computed for AFTER the pass ([Notifications.liveChildIdsAfter]).
  *
+ * ⭐ And the verdict may only demolish what the repair can REBUILD ([Notifications.teardownRepairable]).
+ * The repair is `repostSilently`, which copies a `StatusBarNotification` the shade handed over, so
+ * an id the caller expects while the shade does not show it yet has nothing to copy: it is counted
+ * into the teardown, cascaded away by it, and put back by nobody. Two banners read from another
+ * client while a third arrives, one push pass over all three: the new mail rings, its banner goes
+ * within seconds, and nothing announces that message again — `seed` has taken it into the folder's
+ * baseline. So while `expectedChildIds` holds an id `shownChildIds` does not, the function declines
+ * to demolish and returns; the next pass decides on a shade that has caught up. ⛔ Never
+ * "re-post the expected ones too": `expectedChildIds` is a `Set<Int>`, there is nothing to post.
+ *
  * TWO sets, and the split is load-bearing. What is dropped from the shade's answer is what the
  * caller has just CANCELLED (`cancelledChildIds`, both id shapes, [Notifications.childIdsOf]), never
  * "what the caller expects": the cascade takes down every live child of the group, including the
@@ -110,7 +120,11 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "nobody left to put them back: unread mail, gone from the shade for good; and " +
                 "`notifyGroupSummary(…, children.size, …)` publishes the size of a list the " +
                 "shade's stale answer built, so two banners arriving into an empty group get a " +
-                "\"0 new messages\" header sitting over them. Only the whole body sees them",
+                "\"0 new messages\" header sitting over them. And the one THIS fix makes " +
+                "falsifiable: dropping `teardownRepairable(expectedChildIds, shownChildIds) &&` " +
+                "lets a teardown counted over a banner posted moments ago cascade that banner " +
+                "away, with no object anywhere to put it back — the message rang, its banner went " +
+                "in seconds, and nothing ever announces it again. Only the whole body sees them",
             listOf(
                 "{",
                 "val manager = context.getSystemService(NotificationManager::class.java)",
@@ -122,9 +136,11 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "(sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&",
                 "sbn.id !in cancelledChildIds",
                 "}.sortedByDescending { it.postTime }",
-                "val live = expectedChildIds + children.map { it.id }",
+                "val shownChildIds = children.mapTo(mutableSetOf()) { it.id }",
+                "val live = expectedChildIds + shownChildIds",
                 "if (!summaryShownFor(live.size)) {",
-                "if (active.any { it.id == summaryId && it.notification.group == group }) {",
+                "if (teardownRepairable(expectedChildIds, shownChildIds) &&",
+                "active.any { it.id == summaryId && it.notification.group == group }) {",
                 "manager.cancel(summaryId)",
                 "children.forEach { child -> repostSilently(context, manager, child) }",
                 "}",
@@ -157,12 +173,16 @@ class LiveBannerSurvivesItsSummaryWiringTest {
             codeLinesNaming(body, "cancelledChildIds"),
         )
         assertEquals(
-            "…and the expected set is used for ONE thing: to be unioned with what is on screen. " +
-                "It is what carries a banner this pass has just posted and the shade does not " +
-                "show yet — `notify` is asynchronous exactly like `cancel` — so without it the " +
-                "teardown swallows a fresh arrival, which is the whole of Codeberg #134's second " +
-                "half. `children.map { it.id }` is the other half: what is up and is not going",
-            listOf("val live = expectedChildIds + children.map { it.id }"),
+            "…and the expected set is used for exactly TWO things, both pinned whole. It is " +
+                "unioned with what is on screen — it carries a banner this pass has just posted " +
+                "and the shade does not show yet, `notify` being asynchronous exactly like " +
+                "`cancel`, so without it the teardown swallows a fresh arrival (Codeberg #134's " +
+                "second half) — and it is put to `teardownRepairable`, which is what stops that " +
+                "same fresh banner being counted INTO a teardown that cannot put it back",
+            listOf(
+                "val live = expectedChildIds + shownChildIds",
+                "if (teardownRepairable(expectedChildIds, shownChildIds) &&",
+            ),
             codeLinesNaming(body, "expectedChildIds"),
         )
         assertEquals(
@@ -181,6 +201,39 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "a bare %1\$d in all nine languages)",
             listOf("notifyGroupSummary(context, accountId, accountLabel, live.size, lines, silent)"),
             codeLinesNaming(body, "notifyGroupSummary("),
+        )
+    }
+
+    @Test fun `the teardown is refused unless every id it counted can be put back`() {
+        val body = bodyOf(NOTIFICATIONS, "updateGroupSummary")
+        assertEquals(
+            "the guard, whole, WITH ITS ARGUMENTS — and the arguments are the point. That the " +
+                "function is called proves nothing: `teardownRepairable(expectedChildIds, live)` " +
+                "compiles, reads right, and is always true, because `live` contains " +
+                "`expectedChildIds` by construction. Handed the wrong pair, the summary comes " +
+                "down over a banner posted moments ago, the cascade takes it, and nothing on the " +
+                "shade can put it back: the user hears the new mail, watches its banner go, and " +
+                "is never told about that message again",
+            listOf("if (teardownRepairable(expectedChildIds, shownChildIds) &&"),
+            codeLinesNaming(body, "teardownRepairable("),
+        )
+        assertEquals(
+            "…and what is on screen is named ONCE, from `children` — the list already stripped of " +
+                "this account's summary, of other accounts' banners and of what the caller has " +
+                "just cancelled. Built from `active` instead, the guard would see the summary and " +
+                "the neighbouring account and call every teardown repairable; built from a second " +
+                "read of `manager.activeNotifications`, it would see banners this pass has already " +
+                "taken down and hold the summary up for ever",
+            listOf("val shownChildIds = children.mapTo(mutableSetOf()) { it.id }"),
+            codeLinesNaming(body, "val shownChildIds"),
+        )
+        assertEquals(
+            "…and the union is that same named set, so the guard and the published count can " +
+                "never be asked about two different shades. Re-deriving one of them inline is how " +
+                "the two drift apart, and a guard that is true of a set nobody counted protects " +
+                "nothing",
+            listOf("val live = expectedChildIds + shownChildIds"),
+            codeLinesNaming(body, "val live"),
         )
     }
 

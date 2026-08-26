@@ -11,6 +11,12 @@ import org.junit.Test
  * blanket "children stay quiet" makes a SINGLE message silent, because a single message gets no
  * summary to speak for it. The rule that decides which of the two speaks is [summaryShownFor],
  * fed by [liveChildIdsAfter]; both are tested here rather than left inside the builder.
+ *
+ * ⭐ The same for the rule that decides whether the summary may be torn DOWN
+ * ([Notifications.teardownRepairable]). This file is the one place in the module where these
+ * decisions are EXECUTED — `updateGroupSummary` itself needs a `NotificationManager` and is only
+ * ever read as text, next door — so every decision that can be a pure function is one, and is
+ * exercised here on its real arguments.
  */
 class GroupAlertTest {
 
@@ -200,5 +206,98 @@ class GroupAlertTest {
         val live = Notifications.liveChildIdsAfter(setOf(legacy, other), "acct-a", listOf("M1"), emptyList())
         assertEquals(setOf(other), live)
         assertFalse(Notifications.summaryShownFor(live.size))
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // [Notifications.teardownRepairable] — "may this teardown be undone?", executed here.
+    //
+    // Cancelling the summary cascades EVERY live child of the group away
+    // (REASON_GROUP_SUMMARY_CANCELED), and the only repair is to copy back the notification
+    // OBJECTS the shade handed over. An id the caller expects but the shade does not show yet —
+    // `notify` is asynchronous exactly like `cancel` — has no object to copy: it is counted in the
+    // verdict, cascaded away by it, and put back by nobody. So the verdict may only demolish what
+    // the repair can rebuild. The symptom that is the whole of this: two banners are read
+    // elsewhere while a third arrives, one push pass covers all three, the new message rings, its
+    // banner vanishes within seconds, and nothing ever announces it again — `seed` has taken it
+    // into the baseline, so no later pass and no restart brings it back.
+    // ------------------------------------------------------------------------------------------
+
+    @Test fun `the banner this pass has just posted forbids the teardown`() {
+        // The reported path. Two messages cleared from another client, one arriving: the arrival
+        // is all that is expected, and the shade — read before the post has landed — shows none of
+        // it. Demolishing here takes the fresh banner with it and the user never hears of that
+        // message again.
+        val expected = Notifications.liveChildIdsAfter(
+            active = setOf(Notifications.childId("acct-a", "M1"), Notifications.childId("acct-a", "M2")),
+            accountId = "acct-a",
+            cleared = listOf("M1", "M2"),
+            added = listOf("M3"),
+        )
+        assertEquals(setOf(Notifications.childId("acct-a", "M3")), expected)
+        assertFalse(Notifications.teardownRepairable(expected, shownChildIds = emptySet()))
+    }
+
+    @Test fun `a summary over nothing at all may still come down`() {
+        // The mirror, and it must stay allowed: every child gone, nothing expected, nothing on
+        // screen. Refusing here would leave a "3 new messages" header standing alone on the bar
+        // with no way to ever remove it.
+        assertTrue(Notifications.teardownRepairable(emptySet(), emptySet()))
+    }
+
+    @Test fun `what the shade already shows can be put back, so it may be taken down`() {
+        // The ordinary teardown: the account is down to one banner, that banner IS on screen, and
+        // the copy the shade handed over is what goes back up under its own id.
+        val lone = Notifications.childId("acct-a", "M1")
+        assertTrue(Notifications.teardownRepairable(setOf(lone), setOf(lone)))
+    }
+
+    @Test fun `a banner the caller never heard of does not block the teardown`() {
+        // A snooze wake-up posted into this same group, or a message that arrived during the
+        // seconds the diff pass spends on its server round trip: the caller expects nothing, the
+        // shade shows it, and it is re-postable like any other. Reading the guard as "the two sets
+        // are equal" would freeze the summary up for good over mail the caller cannot name.
+        val snoozed = Notifications.childId("acct-a", "M9")
+        assertTrue(Notifications.teardownRepairable(expectedChildIds = emptySet(), shownChildIds = setOf(snoozed)))
+        // …and the reverse of that same pair is exactly what must be refused.
+        assertFalse(Notifications.teardownRepairable(expectedChildIds = setOf(snoozed), shownChildIds = emptySet()))
+    }
+
+    @Test fun `an expected banner wearing the pre-#92 id counts as shown when it is on screen`() {
+        // A banner posted by a build older than #92 carries the bare message id, and that is the
+        // id the shade reports for it. If the guard could not see it, the summary of an account
+        // updated mid-batch could never be rebuilt again.
+        val legacy = "M1".hashCode()
+        val expected = Notifications.liveChildIdsAfter(
+            active = setOf(legacy),
+            accountId = "acct-a",
+            cleared = emptyList(),
+            added = emptyList(),
+        )
+        assertEquals(setOf(legacy), expected)
+        assertTrue(Notifications.teardownRepairable(expected, shownChildIds = setOf(legacy)))
+        // The same message under its current shape is a DIFFERENT banner: it is not on screen, so
+        // it may not be demolished on the strength of the old one.
+        assertFalse(
+            Notifications.teardownRepairable(
+                expectedChildIds = setOf(Notifications.childId("acct-a", "M1")),
+                shownChildIds = setOf(legacy),
+            ),
+        )
+    }
+
+    @Test fun `another account's banners do not make this account's teardown repairable`() {
+        // #92: two accounts on one server. B having plenty on screen says nothing about A's fresh
+        // arrival, which is still un-repostable — and the summary being torn down is A's.
+        val mine = Notifications.childId("acct-a", "M1")
+        val theirs = setOf(Notifications.childId("acct-b", "M1"), Notifications.childId("acct-b", "M2"))
+        assertFalse(Notifications.teardownRepairable(expectedChildIds = setOf(mine), shownChildIds = theirs))
+    }
+
+    @Test fun `one missing id out of several is enough to hold the summary up`() {
+        // Half a repair is not one: the banner nobody can put back is unread mail gone for good,
+        // whatever else the shade is showing.
+        val standing = Notifications.childId("acct-a", "M1")
+        val fresh = Notifications.childId("acct-a", "M2")
+        assertFalse(Notifications.teardownRepairable(setOf(standing, fresh), setOf(standing)))
     }
 }

@@ -438,6 +438,41 @@ object Notifications {
     }
 
     /**
+     * Whether tearing the group summary down can be UNDONE, given what the caller expects the
+     * account to be left with ([expectedChildIds]) and what the shade actually shows right now
+     * ([shownChildIds]).
+     *
+     * ⭐ The verdict may only demolish what the repair can rebuild. Cancelling a
+     * `FLAG_GROUP_SUMMARY` notification cascades every live child of the group away
+     * (`cancelGroupChildrenLocked`, `REASON_GROUP_SUMMARY_CANCELED`), and the only repair
+     * [updateGroupSummary] has is [repostSilently] — which COPIES a `StatusBarNotification` the
+     * shade handed over. An id that is expected but not on screen has no such object: it is
+     * counted into the verdict, cascaded away by it, and put back by nobody.
+     *
+     * ⛔ Which is also why the answer is not "re-post the expected ones too": [expectedChildIds]
+     * is a `Set<Int>`, there is nothing there to post. The banner exists, it is simply still on
+     * `notify`'s handler — `notify` is asynchronous exactly like `cancel`. So this pass declines
+     * to demolish and returns; the next pass decides on a shade that has caught up.
+     *
+     * The reported path: two messages are read from another client while a third arrives and one
+     * push pass covers all three. The arrival is the only thing expected, the shade does not show
+     * it yet, the count says one — and the teardown takes the banner that has just rung. Nothing
+     * announces that message again: [NewMailNotifier.seed] has already taken it into the folder's
+     * baseline, so no later pass and no restart finds it new.
+     *
+     * ⛔ NOT "the two sets are equal": a child the caller never heard of and that the shade IS
+     * showing (a snooze wake-up, a message that landed during the pass's server round trip) is
+     * re-postable like any other, and must never freeze a summary up for good.
+     *
+     * ⚠ Its own limit, so this is never read as more than it is: what the shade does not show
+     * and no caller expects is invisible to both sets and still falls with the cascade. A snooze
+     * wake-up whose own `notify` is still on the handler is exactly that, and `SnoozeWorker`
+     * never refreshes the summary. This guard covers what the PASS knows about, no wider.
+     */
+    fun teardownRepairable(expectedChildIds: Set<Int>, shownChildIds: Set<Int>): Boolean =
+        shownChildIds.containsAll(expectedChildIds)
+
+    /**
      * Rebuild the account's group summary from the currently ACTIVE child
      * notifications, so successive per-folder diff passes accumulate instead of the
      * last one overwriting the account's count and lines.
@@ -447,6 +482,10 @@ object Notifications {
      * answer, so they are neither listed, nor counted, nor put back. [expectedChildIds] is what
      * the account is left with once the pass is DONE ([liveChildIdsAfter]), and it is what the
      * verdict is taken on, together with whatever is on screen and survives.
+     *
+     * ⛔ And the verdict may only demolish what the repair can rebuild ([teardownRepairable]): an
+     * expected id the shade does not show yet has no notification object to copy back, so the
+     * summary's cascade would eat it with nobody left to put it back.
      *
      * The shade is read for the notification OBJECTS (their title, their text, the very clone to
      * put back), never for the verdict alone: `NotificationManager.cancel` returns as soon as the
@@ -496,11 +535,14 @@ object Notifications {
         }.sortedByDescending { it.postTime }
         // ⭐ The union, and it is the ONLY number this function decides or publishes.
         // `expectedChildIds` brings what this pass has just posted and the shade does not show
-        // yet (`notify` is asynchronous exactly like `cancel`); `children` brings what IS on
+        // yet (`notify` is asynchronous exactly like `cancel`); `shownChildIds` brings what IS on
         // screen and the caller knows nothing about. An id being cancelled is in neither.
-        // Deciding on `children` alone would let the teardown swallow a fresh banner; publishing
-        // `children.size` would headline "0 new messages" over two of them.
-        val live = expectedChildIds + children.map { it.id }
+        // Deciding on `shownChildIds` alone would let the teardown swallow a fresh banner;
+        // publishing its size would headline "0 new messages" over two of them.
+        // ⭐ The two halves are also what the teardown's own guard is asked about, below: the
+        // difference between them is exactly the set of banners nothing could put back.
+        val shownChildIds = children.mapTo(mutableSetOf()) { it.id }
+        val live = expectedChildIds + shownChildIds
         if (!summaryShownFor(live.size)) {
             // Cancelling a FLAG_GROUP_SUMMARY notification makes the system cancel every live
             // child of the group with it — cancelGroupChildrenLocked, REASON_GROUP_SUMMARY_CANCELED,
@@ -512,7 +554,13 @@ object Notifications {
             // GROUP_ALERT_ALL — the flag a single arrival is given precisely so that it may
             // announce itself ([summaryShownFor]). That is the commonest path in this app:
             // one message, no summary, and it must keep its voice (Codeberg #56).
-            if (active.any { it.id == summaryId && it.notification.group == group }) {
+            //
+            // ⛔ …and ONLY when every id the verdict counted can be put back, i.e. is on screen
+            // ([teardownRepairable]). An expected id the shade does not show yet is a banner
+            // posted moments ago: counting it into the teardown and then cascading it away leaves
+            // nothing to re-post it from, and the message is never announced again.
+            if (teardownRepairable(expectedChildIds, shownChildIds) &&
+                active.any { it.id == summaryId && it.notification.group == group }) {
                 manager.cancel(summaryId)
                 children.forEach { child -> repostSilently(context, manager, child) }
             }
