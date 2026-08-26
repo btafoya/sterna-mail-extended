@@ -44,8 +44,8 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
     fun clearMessage() { _message.value = null }
 
     /**
-     * Cancel a scheduled send: file the message back in Drafts, then drop its job and its row —
-     * and say which of the three things happened (#170).
+     * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its
+     * job — and say which of the three things happened (#170).
      *
      * ⛔ **On `appScope`, not `viewModelScope`.** The X is at the end of a row and this screen is
      * left the moment it is tapped; the screen's own scope dies with its `NavBackStackEntry`, and

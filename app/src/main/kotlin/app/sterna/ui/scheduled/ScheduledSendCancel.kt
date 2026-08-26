@@ -104,13 +104,22 @@ fun scheduledCancelDropsTheRow(report: ScheduledCancelReport): Boolean =
     report != ScheduledCancelReport.NOT_CANCELLED
 
 /**
- * Cancel the scheduled send [id]: file it in Drafts, and ONLY THEN drop its job and its row (#170).
+ * Cancel the scheduled send [id]: file it in Drafts, and ONLY THEN drop its row and its job (#170).
  *
- * ⛔ **The order is the whole correction**, and it is grid rule 1 (nothing irreversible first). The
- * scheduled row is the only copy of the message; [saveDraft] is what creates the other one. Deleted
- * first — or in a `finally` — a deposit that throws leaves the message on NEITHER side: the
- * reported defect, in worse. Same shape, and the same reason, as
- * [app.sterna.core.data.mail.commitThenConsumeLocalDraft].
+ * ⛔ **Two orders, and together they are the whole correction**; both are grid rule 1 (nothing
+ * irreversible first).
+ *
+ * ⛔ **[saveDraft] before the destruction.** The scheduled row is the only copy of the message;
+ * [saveDraft] is what creates the other one. Deleted first — or in a `finally` — a deposit that
+ * throws leaves the message on NEITHER side: the reported defect, in worse. Same shape, and the
+ * same reason, as [app.sterna.core.data.mail.commitThenConsumeLocalDraft].
+ *
+ * ⛔ **[deleteRow] before [dropWorker].** The delete is a committed write when it returns;
+ * `WorkManager.cancelUniqueWork` is asynchronous and its return proves nothing. A row that outlives
+ * its job is re-armed at EVERY process start (`AppContainer.init`) and the cancelled message goes
+ * out at its hour, with a copy left in Drafts. A job that outlives its row fires on nothing
+ * (`ScheduledSendWorker.kt:24` returns on a missing row), so the row is the single source of truth
+ * and the job a satellite. Pinned as source text by `ScheduledCancelDropOrderTest`.
  *
  * ⚠ **What actually reaches [ScheduledCancelReport.NOT_CANCELLED] is narrow, and saying otherwise
  * once cost this file a review.** `saveDraft` does NOT throw for a transport failure: offline, a
@@ -172,8 +181,8 @@ suspend fun <C> cancelScheduledSend(
         }
         val report = scheduledCancelReport(outcome)
         if (scheduledCancelDropsTheRow(report)) {
-            dropWorker(id)
             deleteRow(id)
+            dropWorker(id)
         }
         report
     }

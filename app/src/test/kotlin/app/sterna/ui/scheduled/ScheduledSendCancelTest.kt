@@ -96,8 +96,10 @@ class ScheduledSendCancelTest {
         assertEquals(ScheduledCancelReport.RETURNED_TO_DRAFTS, report)
         assertEquals(
             "the queued row is the ONLY copy of the text: the deposit has to be complete before " +
-                "the delete, never after it and never in a finally",
-            listOf("save", "dropWorker", "delete"),
+                "the delete, never after it and never in a finally — and the row goes BEFORE the " +
+                "job, because deleting it is a committed write while cancelling the job proves " +
+                "nothing when it returns. A row that survives is re-armed at every process start",
+            listOf("save", "delete", "dropWorker"),
             r.log,
         )
         assertTrue(
@@ -136,7 +138,7 @@ class ScheduledSendCancelTest {
             ScheduledCancelReport.RETURNED_TO_DRAFTS,
             report,
         )
-        assertEquals(listOf("save", "dropWorker", "delete"), r.log)
+        assertEquals(listOf("save", "delete", "dropWorker"), r.log)
     }
 
     @Test fun `a draft saved on the server is a success and the row goes`() = runTest {
@@ -145,7 +147,7 @@ class ScheduledSendCancelTest {
             ScheduledCancelReport.RETURNED_TO_DRAFTS,
             cancel(row(), outcome = DraftSaveOutcome.SAVED, run = r),
         )
-        assertEquals(listOf("save", "dropWorker", "delete"), r.log)
+        assertEquals(listOf("save", "delete", "dropWorker"), r.log)
     }
 
     @Test fun `a deposit that spared some original is a success and the row goes`() = runTest {
@@ -154,7 +156,7 @@ class ScheduledSendCancelTest {
             ScheduledCancelReport.RETURNED_TO_DRAFTS,
             cancel(row(), outcome = DraftSaveOutcome.ORIGINAL_KEPT, run = r),
         )
-        assertEquals(listOf("save", "dropWorker", "delete"), r.log)
+        assertEquals(listOf("save", "delete", "dropWorker"), r.log)
     }
 
     // --- 5. an account that is gone ---------------------------------------------------------
@@ -166,8 +168,10 @@ class ScheduledSendCancelTest {
         assertEquals(ScheduledCancelReport.ACCOUNT_GONE, report)
         assertEquals(
             "there is no account left to file it under and none left to send it either, so the " +
-                "row goes — but no deposit was attempted and the screen must not claim one",
-            listOf("dropWorker", "delete"),
+                "row goes first — a committed write, and the only thing the re-arming at start-up " +
+                "reads — and the job after it. No deposit was attempted and the screen must not " +
+                "claim one",
+            listOf("delete", "dropWorker"),
             r.log,
         )
         assertNull(r.saved)
@@ -291,7 +295,7 @@ class ScheduledSendCancelTest {
         assertEquals(
             "cancellation landing between the deposit and the delete leaves the message in Drafts " +
                 "AND still scheduled, so the cancelled message goes out at its hour anyway",
-            listOf("save", "dropWorker", "delete"),
+            listOf("save", "delete", "dropWorker"),
             r.log,
         )
     }
