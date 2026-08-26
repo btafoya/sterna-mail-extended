@@ -1487,7 +1487,10 @@ internal data class ListedFolder(
  *    trash icon, renameable, deletable, and never the destination of a delete. That is not a
  *    property of the marked role `:core:data` stores for it — it holds because the mark is ERASED
  *    at the crossing to the UI model (`MailboxMapper.toMailbox`, and dropped from `folderRoleMap`),
- *    so nothing above `:core:data` can tell that folder from a role-less one. What it does NOT
+ *    so nothing above `:core:data` reads a ROLE on that folder. The one thing that does cross is
+ *    the bare fact of the loss (`Mailbox.lostRoleClaim`), which keeps it LISTED when the account
+ *    shows only its subscribed folders — being out of search and out of the drawer at once would
+ *    leave it reachable from nowhere. What it does NOT
  *    stay is searchable when what it claimed was the trash or the junk. A mailbox the server
  *    itself marked `\Trash`, or one the name table reads as a trash, holds mail the user threw
  *    away — an account with a personal `Trash` and a shared `Shared/…/Trash` has two of them, and

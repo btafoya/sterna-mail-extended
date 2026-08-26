@@ -24,7 +24,15 @@ class VisibleFoldersTest {
         name: String = id,
         parentId: String? = null,
         subscribed: Boolean = true,
-    ) = Mailbox(id = id, name = name, role = role, parentId = parentId, isSubscribed = subscribed)
+        lostClaim: Boolean = false,
+    ) = Mailbox(
+        id = id,
+        name = name,
+        role = role,
+        parentId = parentId,
+        isSubscribed = subscribed,
+        lostRoleClaim = lostClaim,
+    )
 
     private fun account(id: String, on: Boolean) = StoredAccount(
         id = id,
@@ -99,6 +107,107 @@ class VisibleFoldersTest {
                 "app does not translate. Only the role-less unsubscribed folder goes.",
             listOf("inbox", "trash", "sent", "drafts", "archive", "junk", "flagged", "templates"),
             visibleFolders(folders, true).map { it.id },
+        )
+    }
+
+    // ── T3b: a folder that CLAIMED a role and lost the election ──────────────────────────────────
+
+    /**
+     * ⭐ The defect. An IMAP account with both a `Junk` and a `Spam`: only one can be THE junk
+     * (`ImapClient.assignRoles`), and the loser is stored with a marked role, then reaches the
+     * screen with NO role at all (`MailboxMapper.toMailbox`). Unsubscribed, role-less and no
+     * routing target, it fell through all four earlier guards at once — out of the drawer, out of
+     * both move pickers, out of the unread view, out of the ⋮ menu. It is out of search and out of
+     * the FTS index by an older and deliberate decision, so the drawer was its last way in: the
+     * folder holding the false positives became unreachable from the app, with its mail still
+     * sitting on the server.
+     *
+     * ⛔ The ordinary unsubscribed folder in the same list still goes. The claim is what buys the
+     * reprieve, not the filter having been softened.
+     */
+    @Test fun `an unsubscribed folder that claimed a role and LOST it stays`() {
+        val folders = listOf(
+            folder("inbox", role = "inbox"),
+            folder("Junk", name = "Junk", role = "junk", subscribed = false),
+            folder("Spam", name = "Spam", subscribed = false, lostClaim = true),
+            folder("Old", name = "Old", subscribed = false),
+        )
+        assertEquals(
+            "the folder that lost the junk election must stay listed — it is unsubscribed, it has " +
+                "no role by the time it gets here, it is no routing target, and it is already out " +
+                "of search: hiding it puts the spam false positives out of the app's reach",
+            listOf("inbox", "Junk", "Spam"),
+            visibleFolders(folders, true).map { it.id },
+        )
+    }
+
+    /** The claim guard and the ancestor guard compose, exactly like the role guard does: a losing
+     *  folder pulls its whole unsubscribed line up with it, or the drawer draws it at the root and
+     *  lies about the hierarchy. */
+    @Test fun `a losing folder pulls its unsubscribed ancestors up with it`() {
+        val folders = listOf(
+            folder("inbox", role = "inbox"),
+            folder("Shared", name = "Shared", subscribed = false),
+            folder("Shared/team", name = "team", subscribed = false),
+            folder("Shared/team/Spam", name = "Spam", subscribed = false, lostClaim = true),
+            folder("Old", name = "Old", subscribed = false),
+        )
+        val visible = visibleFolders(folders, true)
+        assertEquals(
+            listOf("inbox", "Shared", "Shared/team", "Shared/team/Spam"),
+            visible.map { it.id },
+        )
+        assertEquals(
+            "with Shared/team dropped, mailboxTree reparents the losing Spam and the drawer lies " +
+                "about where it lives",
+            listOf("Shared/team/Spam" to 2),
+            mailboxTree(visible, emptySet()).filter { it.mailbox.id == "Shared/team/Spam" }
+                .map { it.mailbox.id to it.depth },
+        )
+    }
+
+    /** A JMAP-shaped parent works the same way — the walk is [folderParentId]'s, not a path trick. */
+    @Test fun `a losing child of a hidden JMAP parent keeps that parent`() {
+        val folders = listOf(
+            folder("mb1", name = "Inbox", role = "inbox"),
+            folder("mb7", name = "Shared", subscribed = false),
+            folder("mb8", name = "Spam", parentId = "mb7", subscribed = false, lostClaim = true),
+            folder("mb9", name = "Old", subscribed = false),
+        )
+        assertEquals(listOf("mb1", "mb7", "mb8"), visibleFolders(folders, true).map { it.id })
+    }
+
+    /** ⛔ With the box UNTICKED the list is handed back as it stands — the claim changes nothing
+     *  about the default path, which is still an identity and not a rebuild. */
+    @Test fun `with the setting off a losing folder changes nothing about the untouched list`() {
+        val folders = listOf(
+            folder("inbox", role = "inbox"),
+            folder("Spam", name = "Spam", subscribed = false, lostClaim = true),
+            folder("Old", name = "Old", subscribed = false),
+        )
+        assertSame(folders, visibleFolders(folders, false))
+        assertEquals(listOf("inbox", "Spam", "Old"), visibleFolders(folders, false).map { it.id })
+    }
+
+    /**
+     * The reprieve KEEPS the row, it does not rewrite it: the folder comes out of the filter with
+     * the `role == null` it went in with, which is what `InboxScreen` gates Rename / Delete / New
+     * subfolder on.
+     *
+     * ⚠ This pins the filter and nothing more. That the losing folder ARRIVES here role-less is
+     * the erasure's doing, one module away, and it is pinned where it happens
+     * (`UnelectedRoleStopsAtTheDataBoundaryTest`) — not here, where the fixture would just be
+     * reading back its own input.
+     */
+    @Test fun `the filter hands back the row it kept, role and all`() {
+        val loser = folder("Spam", name = "Spam", subscribed = false, lostClaim = true)
+        val visible = visibleFolders(listOf(loser), true)
+        assertEquals(listOf("Spam"), visible.map { it.id })
+        assertEquals(
+            "a folder kept by its lost claim must still show as role-less, or it loses Rename and " +
+                "Delete from its ⋮ menu",
+            listOf<String?>(null),
+            visible.map { it.role },
         )
     }
 

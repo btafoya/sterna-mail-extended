@@ -341,14 +341,24 @@ internal val NOT_SEARCHED_BASE_ROLES = setOf("trash", "junk", "spam")
  * The mark exists so a losing trash can be excluded from search without being a trash. Two things
  * bound it, and both are code, not prose:
  *
- * 1. It is a value of the CACHE ROW and of nothing else. It is erased at the one crossing to the
- *    UI model ([MailboxEntity.toMailbox]) and dropped from [folderRoleMap], so outside `:core:data`
- *    a folder that lost its claim is byte for byte the role-less folder it was before this fix —
- *    same icon, same name, same rank in the drawer, same ⋮ menu with Rename and Delete in it.
- * 2. Inside `:core:data` its ONE difference from a role-less folder is membership of
- *    [NOT_SEARCHED_ROLES] below. Everything else there compares roles by exact equality with an
- *    `else` (the role→mailbox lookups, the snooze rule, `deleteWouldDestroy`), so a marked folder
- *    is never the destination of a delete and never answers as a trash.
+ * 1. The MARK ITSELF is a value of the CACHE ROW and of nothing else. It is erased at the one
+ *    crossing to the UI model ([MailboxEntity.toMailbox]) and dropped from [folderRoleMap], so
+ *    outside `:core:data` a folder that lost its claim carries NO ROLE — same icon, same name,
+ *    same rank in the drawer, same ⋮ menu with Rename and Delete in it.
+ *
+ *    ⚠ What DOES cross is the FACT of the loss, as [isLostRoleClaim] → `Mailbox.lostRoleClaim`,
+ *    and it is the one field on which such a folder differs from the role-less one it used to be
+ *    equal to. This paragraph used to promise "byte for byte the role-less folder it was", and it
+ *    named the drawer in that promise: the loser stayed listed, which is what made excluding it
+ *    from search acceptable in the first place. #174 then hid unsubscribed folders and the loser
+ *    fell out of every listing surface at once — out of search AND out of the drawer is reachable
+ *    from nowhere. The boolean is what makes the rest of this paragraph true again. It names no
+ *    role and resolves no destination.
+ * 2. Inside `:core:data` its differences from a role-less folder are exactly two: membership of
+ *    [NOT_SEARCHED_ROLES] below, and the reading of it by [isLostRoleClaim] at that crossing.
+ *    Everything else there compares roles by exact equality with an `else` (the role→mailbox
+ *    lookups, the snooze rule, `deleteWouldDestroy`), so a marked folder is never the destination
+ *    of a delete and never answers as a trash.
  *
  * ⛔ Only the roles of [NOT_SEARCHED_BASE_ROLES] are ever marked ([imapMailboxEntity]) — a `~sent`
  * has no meaning anywhere and nothing would give it one.
@@ -364,6 +374,26 @@ internal const val UNELECTED_ROLE_MARK = "~"
  */
 internal fun unmarkedRole(role: String?): String? =
     role?.takeUnless { it.startsWith(UNELECTED_ROLE_MARK) }
+
+/**
+ * The other half of the same reading: does [role], as the CACHE stores it, say "this folder claimed
+ * a role and LOST the election" ([UNELECTED_ROLE_MARK])?
+ *
+ * [unmarkedRole] answers what such a folder is NOT outside this module (it has no role, and that
+ * does not change); this answers the one thing that is still TRUE about it, as a boolean carried on
+ * [app.sterna.core.jmap.model.Mailbox.lostRoleClaim]. The drawer needs it: a losing `Spam` that
+ * is unsubscribed has no role by the erasure above and is no routing target, so
+ * "subscribed folders only" (#174) dropped it from every listing surface at once — and it is out of
+ * search by an older, deliberate decision, so the drawer was its last way in.
+ *
+ * Pure and shared with [unmarkedRole] for the reason [unmarkedRole] is: ONE reading of the mark to
+ * test, not two that can drift apart and disagree about the same stored row.
+ *
+ * ⛔ It answers a VISIBILITY question and never a routing one. It names no role, so nothing can
+ * resolve a destination through it.
+ */
+internal fun isLostRoleClaim(role: String?): Boolean =
+    role != null && role.startsWith(UNELECTED_ROLE_MARK)
 
 internal val NOT_SEARCHED_ROLES =
     NOT_SEARCHED_BASE_ROLES + NOT_SEARCHED_BASE_ROLES.map { UNELECTED_ROLE_MARK + it }

@@ -12,7 +12,7 @@ import app.sterna.core.jmap.model.Mailbox
  * ⛔ [showOnlySubscribed] false hands the list back UNTOUCHED, the same object: that is the default
  * every account is on, so it must be trivially true and cost nothing.
  *
- * A folder survives on any ONE of four counts:
+ * A folder survives on any ONE of five counts:
  *
  *  1. **the server says it is subscribed** ([Mailbox.isSubscribed]) — the setting's whole point.
  *     A server that never reports subscription leaves every folder subscribed (the field defaults
@@ -36,6 +36,17 @@ import app.sterna.core.jmap.model.Mailbox
  *  4. ⛔ **something visible lives under it.** Drop a parent and keep its child and the child is an
  *     orphan: `mailboxTree` reparents it to the root, the drawer draws it one level up and the
  *     hierarchy on screen is a lie. `ProjectA` unsubscribed, `ProjectA/Done` subscribed: BOTH stay.
+ *  5. ⛔ **it CLAIMED a role and lost the election** ([Mailbox.lostRoleClaim]). An IMAP account with
+ *     both a `Junk` and a `Spam` has two junks and only one can be THE junk
+ *     (`ImapClient.assignRoles`); the loser is stored with a marked role and reaches this function
+ *     with `role == null`, and it is a routing target for nothing — so an unsubscribed one falls
+ *     through rules 1 to 3 at once and left the drawer, both move pickers, the unread view and the
+ *     ⋮ menu together. It is out of search and out of the FTS index by an older and deliberate
+ *     decision that stands, which makes the drawer its ONLY way back: hidden here, the folder
+ *     holding the spam false positives cannot be reached from the app at all while its mail sits on
+ *     the server. ⛔ The boolean is NOT a role and must not be read as one — `role` stays null on
+ *     that folder on purpose (`MailboxMapper.toMailbox`), which is what keeps its Rename and Delete
+ *     and keeps it the destination of nothing.
  *
  * Filiation is resolved by [folderParentId] — the same walk the drawer's tree uses, because they
  * have to agree on what a parent is or rule 4 protects the wrong folder.
@@ -51,7 +62,9 @@ internal fun visibleFolders(mailboxes: List<Mailbox>, showOnlySubscribed: Boolea
     val byId = mailboxes.associateBy { it.id }
     val keep = mutableSetOf<String>()
     mailboxes.forEach { mailbox ->
-        if (!mailbox.isSubscribed && mailbox.role == null && !isRoutingTargetByName(mailbox)) return@forEach
+        val survives = mailbox.isSubscribed || mailbox.role != null ||
+            isRoutingTargetByName(mailbox) || mailbox.lostRoleClaim
+        if (!survives) return@forEach
         // Rule 4, walked from the visible folder UP: every ancestor of something visible is
         // visible. `seen` is the guard the two neighbouring walks also carry — a `parentId` that
         // points back down its own chain is a server answer, not an impossibility, and it would

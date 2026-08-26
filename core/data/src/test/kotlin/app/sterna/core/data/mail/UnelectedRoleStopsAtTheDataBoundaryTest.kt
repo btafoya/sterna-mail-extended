@@ -2,7 +2,9 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.data.db.MailboxIdRole
+import app.sterna.core.jmap.model.Mailbox
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -86,8 +88,44 @@ class UnelectedRoleStopsAtTheDataBoundaryTest {
         assertEquals(12, marked.totalEmails)
         assertEquals(3, marked.unreadEmails)
         assertEquals(3, marked.unreadForList)
-        // …and it is the same row as the role-less one it used to be, field for field.
-        assertEquals(row(null).toMailbox(), marked)
+        assertNull("the role is still erased, and that is what buys the ⋮ menu back", marked.role)
+    }
+
+    /**
+     * ⭐ The ONE field that now differs from the role-less row this used to be equal to, and why it
+     * had to: the drawer is the only way back into a folder that lost its claim (it is out of search
+     * by an older, deliberate decision), and "subscribed folders only" (#174) hides a folder that is
+     * unsubscribed, role-less and no routing target — which is precisely this one.
+     *
+     * The rest of the row is pinned above, field by field; only [Mailbox.lostRoleClaim] parts ways.
+     */
+    @Test fun theLostClaimIsTheSINGLEDifferenceFromTheRoleLessRow() {
+        val marked = row("~trash").toMailbox()
+        val roleLess = row(null).toMailbox()
+        assertEquals(roleLess.copy(lostRoleClaim = true), marked)
+        assertTrue(marked.lostRoleClaim)
+        assertFalse(roleLess.lostRoleClaim)
+    }
+
+    /**
+     * ⭐ The case that closes the defect: a `Junk` and a `Spam` on one IMAP account, one of them
+     * elected. The loser crosses with NO role — nothing about its icon, its menu or its
+     * destinations changes — and with the claim carried as a boolean, which is all the drawer needs
+     * to keep listing it.
+     */
+    @Test fun aLosingJunkCrossesWithNoRoleAndACarriedClaim() {
+        val loser = row("~junk").toMailbox()
+        assertNull("a lost claim is not a role and must not reach the screen as one", loser.role)
+        assertTrue("the losing Spam must stay reachable from the drawer (#174)", loser.lostRoleClaim)
+    }
+
+    /** ⛔ And nothing else carries it: an elected role, and no role at all, are not lost claims. */
+    @Test fun anElectedRoleAndNoRoleAtAllCarryNoClaim() {
+        assertFalse(row("junk").toMailbox().lostRoleClaim)
+        assertFalse(row("trash").toMailbox().lostRoleClaim)
+        assertFalse(row("inbox").toMailbox().lostRoleClaim)
+        assertFalse(row("sent").toMailbox().lostRoleClaim)
+        assertFalse(row(null).toMailbox().lostRoleClaim)
     }
 
     /**

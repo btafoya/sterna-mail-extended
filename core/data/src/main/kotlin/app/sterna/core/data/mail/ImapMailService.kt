@@ -1267,10 +1267,13 @@ class ImapMailService(
  * puts it in [NOT_SEARCHED_ROLES], so the second trash stays out of search results and out of the
  * FTS crawl — it used to be searched and indexed, and a cache purge could not clear it.
  *
- * ⛔ The mark does not leave `:core:data`. It is erased at the crossing to the UI model
- * ([MailboxEntity.toMailbox]) and dropped from [folderRoleMap], so every screen sees the same
- * role-less folder it saw before this fix: raw name, no trash icon, renameable, deletable, never
- * the destination of a delete. That erasure is load-bearing, not tidiness — `ui.inbox.InboxScreen`
+ * ⛔ The mark does not leave `:core:data` AS A ROLE. It is erased at the crossing to the UI model
+ * ([MailboxEntity.toMailbox]) and dropped from [folderRoleMap], so every screen sees a role-less
+ * folder: raw name, no trash icon, renameable, deletable, never the destination of a delete. ⚠ The
+ * FACT of the loss does cross, as the boolean `Mailbox.lostRoleClaim` ([isLostRoleClaim]), read by
+ * `ui.inbox.visibleFolders` and by nothing else — without it "show subscribed folders only" (#174)
+ * dropped the loser from every listing surface while it was already out of search, which left it
+ * reachable from nowhere. That erasure is load-bearing, not tidiness — `ui.inbox.InboxScreen`
  * gates Rename and Delete on `role == null`, and a mark reaching it costs the user the ⋮ menu of
  * her shared trash.
  *
