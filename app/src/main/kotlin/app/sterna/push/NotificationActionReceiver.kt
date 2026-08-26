@@ -95,7 +95,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                             container.mailRepository, credentials, accountId, emailId,
                         )
                     }
-                    if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)
+                    if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)
                 }
             } catch (_: Throwable) {
                 // Best-effort; leave the notification so the user can retry from the app.
@@ -160,7 +160,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             runCatching { send(repo, credentials, emailId, outcome) }.isSuccess
         when (val act = quickReplyAct(outcome, queued)) {
             QuickReplyAct.DoNothing -> Unit
-            QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, notifId)
+            QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, emailId, notifId)
             // Read here and not before: the setting is only needed on the end that posts a banner,
             // and it decides how much of the message that banner may name (the subject used to go
             // out whatever the user had chosen).
@@ -246,10 +246,27 @@ class NotificationActionReceiver : BroadcastReceiver() {
         return fetched
     }
 
-    /** Take the notification down, keeping the account's group summary in step (#56, #92). */
-    private fun dismiss(context: Context, accountId: String, credentials: AccountCredentials?, notifId: Int) {
+    /** Take the notification down, keeping the account's group summary in step (#56, #92, #134). */
+    private fun dismiss(
+        context: Context,
+        accountId: String,
+        credentials: AccountCredentials?,
+        emailId: String,
+        notifId: Int,
+    ) {
+        // ⭐ The shade is read BEFORE the cancel below, not after. `cancel` returns once the
+        // system has queued the work, and `getActiveNotifications` does not drain that queue: a
+        // read taken afterwards still shows the banner just taken down, and the summary refresh
+        // would put it straight back on screen (#134). Read first, then subtract what leaves.
+        val active = Notifications.activeChildIds(context, accountId)
         NotificationManagerCompat.from(context).cancel(notifId)
-        credentials?.let { Notifications.updateGroupSummary(context, accountId, it.username, silent = true) }
+        credentials?.let {
+            Notifications.updateGroupSummary(
+                context, accountId, it.username, silent = true,
+                expectedChildIds = Notifications.liveChildIdsAfter(active, accountId, listOf(emailId), emptyList()),
+                cancelledChildIds = Notifications.childIdsOf(accountId, listOf(emailId)),
+            )
+        }
     }
 
     companion object {

@@ -109,7 +109,10 @@ object Notifications {
         added: Collection<String>,
     ): Set<Int> {
         val live = active.toMutableSet()
-        cleared.forEach { live -= childId(accountId, it); live -= legacyChildId(it) }
+        // Both id shapes of everything cleared, through [childIdsOf] — the one place that says
+        // what ids a banner can be wearing, so this subtraction can never drift from the filter
+        // and from the cancels that use the same function.
+        live -= childIdsOf(accountId, cleared)
         added.forEach { live += childId(accountId, it) }
         return live
     }
@@ -172,6 +175,19 @@ object Notifications {
      * or cancelled and would sit there forever.
      */
     private fun legacyChildId(emailId: String): Int = emailId.hashCode()
+
+    /**
+     * Every notification id the messages [emailIds] can be wearing on [accountId]'s shade: the
+     * current shape ([childId]) AND the one from before #92 ([legacyChildId]), for each of them.
+     *
+     * BOTH shapes, always, and that is the whole point of having one function for it. A banner
+     * posted by a build older than #92 carries the bare message id; a caller that lists only the
+     * current shape leaves it unmatched, and an unmatched banner is immortal — nothing cancels
+     * it, and every summary teardown puts it straight back. One definition of "the ids of a
+     * banner", so no caller can spell it half-way.
+     */
+    fun childIdsOf(accountId: String, emailIds: Collection<String>): Set<Int> =
+        emailIds.flatMapTo(mutableSetOf()) { listOf(childId(accountId, it), legacyChildId(it)) }
 
     /** Whether [emailId] of [accountId] has a live notification among [active] ids, either form. */
     fun isChildActive(active: Set<Int>, accountId: String, emailId: String): Boolean =
@@ -425,17 +441,67 @@ object Notifications {
      * Rebuild the account's group summary from the currently ACTIVE child
      * notifications, so successive per-folder diff passes accumulate instead of the
      * last one overwriting the account's count and lines.
+     *
+     * TWO sets, because the two questions are not the same one. [cancelledChildIds] is what the
+     * caller has JUST cancelled — those banners, and only those, are dropped from the shade's
+     * answer, so they are neither listed, nor counted, nor put back. [expectedChildIds] is what
+     * the account is left with once the pass is DONE ([liveChildIdsAfter]), and it is what the
+     * verdict is taken on, together with whatever is on screen and survives.
+     *
+     * The shade is read for the notification OBJECTS (their title, their text, the very clone to
+     * put back), never for the verdict alone: `NotificationManager.cancel` returns as soon as the
+     * system has posted the work on its own handler, and `getActiveNotifications` reads the list
+     * without draining that queue. A cancel this same pass just asked for is therefore still on
+     * screen when we look, and a banner posted moments ago is not there yet.
+     *
+     * ⛔ The filter may NOT be "what the caller expects": the cancel of a summary takes down every
+     * live child of the group, including children this caller has never heard of — the snooze
+     * wake-up posts one, and the seconds `NewMailNotifier` spends between its read of the shade
+     * and this call are room for another. Dropping them from `children` hands them to the cascade
+     * with nobody left to put them back: unread mail, gone from the shade for good.
+     *
+     * That stale read is the second half of Codeberg #134. Summary up, exactly one child, the
+     * message is deleted from another client: the pass cancels the child, the read still shows
+     * it, the count says one, the summary is torn down — and the child that was just cancelled is
+     * put straight BACK, its re-post landing on the handler behind the pending cancel and
+     * winning. The banner the user dismissed returns; for a message deleted elsewhere it never
+     * goes away, and tapping it opens a message that no longer exists.
+     *
+     * ⛔ No default value on either of them, deliberately: a caller that forgets one must fail to
+     * COMPILE. A defaulted last argument goes missing in silence — the trap
+     * `DepartedMailLosesItsBannerWiringTest` already writes out for `departedIds`.
      */
-    fun updateGroupSummary(context: Context, accountId: String, accountLabel: String, silent: Boolean) {
+    fun updateGroupSummary(
+        context: Context,
+        accountId: String,
+        accountLabel: String,
+        silent: Boolean,
+        expectedChildIds: Set<Int>,
+        cancelledChildIds: Set<Int>,
+    ) {
         val manager = context.getSystemService(NotificationManager::class.java)
         val group = GROUP_PREFIX + accountId
         val summaryId = ("summary:" + accountId).hashCode()
         val active = manager.activeNotifications
         val children = active.filter { sbn ->
             sbn.id != summaryId && sbn.notification.group == group &&
-                (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0
+                (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
+                // ⭐ …and the caller has NOT just cancelled it. A banner whose cancel is already
+                // decided is neither listed, nor counted, nor put back — that, and nothing wider:
+                // everything else alive stays, including children this caller never heard of, or
+                // the summary's cascade takes them and nobody puts them back. Matched on the ID,
+                // both shapes of it ([childIdsOf]), so the pre-#92 id a banner from an older
+                // build carries is covered by the same line.
+                sbn.id !in cancelledChildIds
         }.sortedByDescending { it.postTime }
-        if (!summaryShownFor(children.size)) {
+        // ⭐ The union, and it is the ONLY number this function decides or publishes.
+        // `expectedChildIds` brings what this pass has just posted and the shade does not show
+        // yet (`notify` is asynchronous exactly like `cancel`); `children` brings what IS on
+        // screen and the caller knows nothing about. An id being cancelled is in neither.
+        // Deciding on `children` alone would let the teardown swallow a fresh banner; publishing
+        // `children.size` would headline "0 new messages" over two of them.
+        val live = expectedChildIds + children.map { it.id }
+        if (!summaryShownFor(live.size)) {
             // Cancelling a FLAG_GROUP_SUMMARY notification makes the system cancel every live
             // child of the group with it — cancelGroupChildrenLocked, REASON_GROUP_SUMMARY_CANCELED,
             // and it has been so since API 21. Those children are unread mail the server still
@@ -459,7 +525,7 @@ object Notifications {
                 ?: context.getString(R.string.message_no_subject)
             context.getString(R.string.notif_group_line, sender, subject)
         }
-        notifyGroupSummary(context, accountId, accountLabel, children.size, lines, silent)
+        notifyGroupSummary(context, accountId, accountLabel, live.size, lines, silent)
     }
 
     /**
@@ -558,7 +624,20 @@ object Notifications {
         val hit = emailIds.filter { isChildActive(active, accountId, it) }
         if (hit.isEmpty()) return
         hit.forEach { cancelChild(context, accountId, it) }
-        updateGroupSummary(context, accountId, accountLabel, silent = true)
+        // The cancels just asked for are still in flight, so the shade would still show their
+        // banners: `active` is the read from the TOP of this function, and what the account is
+        // left with is that read minus the hits. Handing the shade's own answer over instead is
+        // what put a dismissed banner back on screen (#134).
+        updateGroupSummary(
+            context,
+            accountId,
+            accountLabel,
+            silent = true,
+            expectedChildIds = liveChildIdsAfter(active, accountId, cleared = hit, added = emptyList()),
+            // …and exactly what the loop above cancelled, in both id shapes — no more: any other
+            // banner of this group must stay on screen and be put back if the summary falls.
+            cancelledChildIds = childIdsOf(accountId, hit),
+        )
     }
 
     /**

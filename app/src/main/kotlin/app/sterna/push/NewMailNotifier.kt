@@ -245,9 +245,12 @@ object NewMailNotifier {
             // group summary if this account is left with enough notifications to get one, the
             // messages themselves otherwise — a single arrival gets no summary, so silencing it
             // "under" one would silence it outright.
-            val summarised = Notifications.summaryShownFor(
-                Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id }).size,
-            )
+            //
+            // Hoisted into a `val` because the SAME set is what the group summary must decide on
+            // at the bottom of this pass: recomputing it there, or re-reading the shade, would
+            // read a system list the pass's own cancels have not reached yet (#134).
+            val live = Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id })
+            val summarised = Notifications.summaryShownFor(live.size)
             // ⛔ The openings are read HERE, in one pre-pass, BEFORE the first notification is
             // posted — never inside the loop below. A network round trip between two posts would
             // put an exception in the middle of a half-announced batch, and the [seed] at the
@@ -316,6 +319,16 @@ object NewMailNotifier {
                 credentials.id,
                 credentials.username,
                 silent = silent || newMail.isEmpty(),
+                // The set computed BEFORE anything was posted or cancelled, i.e. what this
+                // account is left with now that the pass is done. Named, and never recomputed
+                // here: `active` above is the pre-pass read, and that is exactly the one wanted.
+                expectedChildIds = live,
+                // What this pass took down, and only that. Everything else in the group stays
+                // in `children` and is put back if the summary falls: seconds go by between the
+                // read of the shade at the top of this function and here (a server round trip
+                // for the departures, then the preview pre-pass), and a snooze wake-up posting
+                // into this same group in that window would otherwise be cascaded away for good.
+                cancelledChildIds = Notifications.childIdsOf(credentials.id, readIds + departed),
             )
         }
         seed(context, credentials.id, mailboxId, baselineIds)

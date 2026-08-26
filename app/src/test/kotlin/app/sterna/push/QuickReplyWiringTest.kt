@@ -26,7 +26,7 @@ class QuickReplyWiringTest {
                 "nothing (the message was already in Trash — evicted from the cache and from the " +
                 "search index while the server kept it) or after a throw that had already " +
                 "unlisted the message from an Empty-trash order and marked it read",
-            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)"),
+            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)"),
             codeLinesNaming(body, "dismiss("),
         )
         assertEquals(
@@ -56,7 +56,7 @@ class QuickReplyWiringTest {
             listOf(
                 "var mayDismiss = true",
                 "ACTION_DELETE -> mayDismiss = deleteFromBanner(",
-                "if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)",
+                "if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)",
             ),
             codeLinesNaming(body, "mayDismiss"),
         )
@@ -92,7 +92,7 @@ class QuickReplyWiringTest {
                 "account gets a Delete and a Mark as read that reach no server, take the banner " +
                 "down anyway, and leave nothing behind that would do the work: the user is told " +
                 "the message was deleted and it never was",
-            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, notifId)"),
+            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)"),
             codeLinesNaming(block, "dismiss("),
         )
         assertEquals(
@@ -204,7 +204,7 @@ class QuickReplyWiringTest {
                 "same set of lines. This is the shape the lint can hold; the ORDER is held next door",
             listOf(
                 "QuickReplyAct.DoNothing -> Unit",
-                "QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, notifId)",
+                "QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, emailId, notifId)",
                 "is QuickReplyAct.HandBack -> {",
             ),
             codeLinesNaming(body, "QuickReplyAct."),

@@ -45,11 +45,42 @@ class DepartedMailLosesItsBannerWiringTest {
         )
         assertEquals(
             "the summary count must be told about the departures too, or it keeps counting a " +
-                "message that is gone and the wrong voice announces the batch (#56)",
+                "message that is gone and the wrong voice announces the batch (#56). Computed " +
+                "ONCE, into `live`, from the pre-pass read: it is also what the group summary is " +
+                "handed below, and a second computation there would drift from the voice already " +
+                "chosen",
             listOf(
-                "Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id }).size,",
+                "val live = Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id })",
             ),
             codeLinesNaming(body, "liveChildIdsAfter("),
+        )
+        assertEquals(
+            "…and the voice for this batch is decided from that same set, by the pure rule",
+            listOf("val summarised = Notifications.summaryShownFor(live.size)"),
+            codeLinesNaming(body, "summaryShownFor("),
+        )
+        assertEquals(
+            "…and `live` is what descends to the group summary. Codeberg #134: `cancel` returns " +
+                "once the system has queued the work and `getActiveNotifications` does not drain " +
+                "that queue, so a summary that re-reads the shade still sees the banners this " +
+                "pass just cancelled — it tears the summary down and puts them BACK. The set from " +
+                "BEFORE the pass, minus what left and plus what was posted, is the only honest " +
+                "answer. Anything else here (a fresh `activeChildIds`, a second " +
+                "`liveChildIdsAfter`) re-opens the race",
+            listOf("expectedChildIds = live,"),
+            codeLinesNaming(body, "expectedChildIds"),
+        )
+        assertEquals(
+            "…and what this pass CANCELLED is handed over separately, in both id shapes, because " +
+                "that — not `live` — is what the summary refresh removes from the shade before " +
+                "re-posting. `live` is a set the caller computed for itself: everything alive it " +
+                "never heard of is missing from it, and using it to filter would let the " +
+                "summary's cancel cascade those banners away with nobody to put them back. This " +
+                "function is a long way from its own read of the shade — a server round trip for " +
+                "the departures, then the preview pre-pass — and a snooze wake-up posts into " +
+                "this very group",
+            listOf("cancelledChildIds = Notifications.childIdsOf(credentials.id, readIds + departed),"),
+            codeLinesNaming(body, "cancelledChildIds"),
         )
         assertEquals(
             "removing a banner re-posts the summary, so it must stay SILENT when the pass brought " +
