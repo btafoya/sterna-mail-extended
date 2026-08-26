@@ -78,8 +78,20 @@ class ComposeDeleteWiringTest {
                 "with the plain-pop callback: `onDone()` there flies the tern away and lands on " +
                 "the inbox, and `ComposeState.Done` (which is what this branch used to end on) " +
                 "does both. Lines naming the signal were:",
-            listOf("viewModel.localDraftDeleted.collect { onCancel() }"),
+            listOf("viewModel.localDraftDeleted.collect {"),
             screen.filter { "localDraftDeleted" in it },
+        )
+        // The collector's body, WHOLE LINES and in order. The one-liner this used to be could not
+        // hold anything else; now that it has a body, the rule above only pins where it opens, so
+        // what is inside is pinned here — `onDone()` or `ComposeState.Done` slipped in would be the
+        // very regression this test exists for, and it would sit in these two lines.
+        val opens = screen.indexOf("viewModel.localDraftDeleted.collect {")
+        assertEquals(
+            "⛔ …and its body must be exactly the resume slot being closed, then the plain-pop " +
+                "callback. The slot holds the composer's body in cleartext under filesDir, so a " +
+                "deleted draft that skips the close leaves its text on disk after the row is gone.",
+            listOf("resume.close(resumeSlot)", "onCancel()", "}"),
+            screen.subList(opens + 1, opens + 4),
         )
         val route = composeRoute()
         assertEquals(
@@ -180,7 +192,7 @@ class ComposeDeleteWiringTest {
             "the confirming button must take the draft through the taker and hand it to " +
                 "onDeleteDraft — one shot, refused while a send is in flight (INV-6). " +
                 "Dialog was:\n$dialog",
-            "onDeleteDraft { viewModel.takeEditingDraft() }" in flat,
+            "onDeleteDraft { viewModel.takeEditingDraft()?.also { resume.close(resumeSlot) } }" in flat,
         )
         assertTrue(
             "there must be a Cancel that only closes the dialog: the way back to the draft. " +
@@ -263,17 +275,19 @@ class ComposeDeleteWiringTest {
         val click = confirmOnClick()
         assertEquals(
             "⛔ the confirming button, whole and in order. `viewModel.deleteEditingLocalDraft()` on " +
-                "the local branch: `onDeleteDraft { viewModel.takeEditingDraft() }` put back there " +
+                "the local branch: the server branch's taker put back there " +
                 "hands the inbox a null server row — nothing is deleted, nothing is said, and the " +
                 "draft is still at the top of Drafts when the screen closes. And the SERVER branch " +
-                "must stay word for word what it was, taker included, since that one really does " +
-                "own a cached row to move to the Trash. Block was:\n" + click.joinToString("\n"),
+                "must stay word for word what it is, taker included, since that one really does " +
+                "own a cached row to move to the Trash — and it closes the composer's resume slot " +
+                "on the taker's result, or the deleted draft's body stays in cleartext under " +
+                "filesDir. Block was:\n" + click.joinToString("\n"),
             listOf(
                 "viewModel.clearDraftDelete()",
                 "if (editingLocalDraftId != null) {",
                 "viewModel.deleteEditingLocalDraft()",
                 "} else {",
-                "onDeleteDraft { viewModel.takeEditingDraft() }",
+                "onDeleteDraft { viewModel.takeEditingDraft()?.also { resume.close(resumeSlot) } }",
                 "}",
             ),
             click,

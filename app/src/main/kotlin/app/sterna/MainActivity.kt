@@ -18,6 +18,7 @@ import app.sterna.core.data.settings.PURE_BLACK_DEFAULT
 import app.sterna.core.data.settings.ThemeMode
 import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
 import app.sterna.ui.SternaApp
+import app.sterna.ui.compose.ComposerResumeSlot
 import app.sterna.ui.message.NavFadeGuard
 import app.sterna.ui.components.LocalListDensity
 import app.sterna.ui.components.LocalListMonogram
@@ -53,6 +54,16 @@ class MainActivity : AppCompatActivity() {
             pendingEmailOpen.value = parseEmailOpen(intent)
             pendingUnifiedOpen.value = parseUnifiedOpen(intent)
             consumeOAuthRedirect()
+            // Sweep the orphaned composer resumes. With no saved state there is no
+            // `rememberSaveable` left anywhere that could consume ANY slot, so every file still
+            // sitting there is the leftover of a crash or a kill whose screen never came back —
+            // this is the only moment that can be said without guessing. ⭐ ALL of them, which is
+            // safer and not less so: there is one file per composer entry, and a sweep that knew
+            // only a single name would leave the others' cleartext under filesDir for good.
+            // ⛔ Not on every recreation: a rotation, a theme flip or a language change DOES come
+            // back to that composer, and sweeping there would delete the very file the
+            // recomposition is about to read.
+            ComposerResumeSlot.sweep(filesDir)
         }
         val settings = application.container.settingsRepository
         setContent {

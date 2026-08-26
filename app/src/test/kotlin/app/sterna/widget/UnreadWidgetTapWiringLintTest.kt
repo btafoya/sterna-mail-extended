@@ -105,6 +105,11 @@ class UnreadWidgetTapWiringLintTest {
                 "pendingEmailOpen.value = parseEmailOpen(intent)",
                 "pendingUnifiedOpen.value = parseUnifiedOpen(intent)",
                 "consumeOAuthRedirect()",
+                // The composer's resume slots, swept here for the same reason the three parses sit
+                // here: with no saved state nothing can consume any of them, so a file left over is
+                // a crash's orphan. Swept outside the guard it would delete the file a rotation is
+                // about to read. See ComposerBodyLeavesTheParcelTest.
+                "ComposerResumeSlot.sweep(filesDir)",
                 "}",
             ),
             blockContaining(MAIN_ACTIVITY, "pendingUnifiedOpen.value = parseUnifiedOpen(intent)", "if (savedInstanceState == null) {"),

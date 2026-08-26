@@ -393,6 +393,27 @@ fun ComposeScreen(
         }
     }
 
+    // The body and its baseline are the two big things on this screen, and they are the ONLY two
+    // that do not travel in the activity's saved-state parcel. Replying to a ~324 kB message and
+    // pressing HOME killed the activity on TransactionTooLargeException (a 1 340 240 byte parcel)
+    // and the draft was gone without a word: `Parcel.writeString` writes UTF-16, so each of the two
+    // saveables cost 4 bytes of parcel per character of body. They go through an app-private file
+    // instead, and the parcel carries only its short token. See [ComposerResumeSlot].
+    //
+    // ⚠ Declared HERE, well above `body` which delegates to it, because the four exits below
+    // close it and Kotlin does not read ahead — this position is a compile constraint, not a
+    // preference. Same reason `quoteLanded` sits where it does.
+    // ⛔ ONE SLOT PER NAVIGATION ENTRY, named by an id that is itself parcelled (a dozen bytes).
+    // Two composers ARE reachable — MainActivity is singleTask, onNewIntent feeds pendingMailto,
+    // and the host navigates to `compose` unguarded — so a mailto: link or a share arriving with
+    // the composer open stacks a SECOND composer on the first. Sharing one file, closing the one on
+    // top erased the record of the one underneath and the long reply came back blank.
+    val slotId = rememberSaveable { newComposerSlotId() }
+    val resumeSlot = remember(context, slotId) { ComposerResumeSlot(composerResumeFile(context, slotId)) }
+    val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot)) {
+        ComposerResumeState(TextFieldValue(), "")
+    }
+
     // "Takes flight": when the message is queued (Done), play a brief lift-off — the
     // content rises and fades, a tern arcs off-screen — then navigate back. The send
     // already fired in viewModel.send(); this is purely cosmetic and must not delay it.
@@ -409,6 +430,10 @@ fun ComposeScreen(
                 flying = true
                 delay(320)
             }
+            // Sent, saved as a draft or scheduled: every one of them lands on Done, and the parked
+            // body must go with the screen — see the `closed` flag in [ComposerResumeState] for why
+            // a bare clear() here would be written straight back out at teardown.
+            resume.close(resumeSlot)
             onDone()
         }
     }
@@ -421,7 +446,10 @@ fun ComposeScreen(
     // durable, the server copy evicted and the row consumed first — a deletion that throws keeps
     // this screen up, with its error banner.
     LaunchedEffect(Unit) {
-        viewModel.localDraftDeleted.collect { onCancel() }
+        viewModel.localDraftDeleted.collect {
+            resume.close(resumeSlot)
+            onCancel()
+        }
     }
 
     // Which field opens focused — decided once, from how this composer was opened, before the
@@ -448,7 +476,7 @@ fun ComposeScreen(
     var subject by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
     // The body carries its caret with it (a TextFieldValue, not a bare String), so a prefilled
     // compose can open with the cursor where writing continues (#63).
-    var body by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
+    var body by resume.bodyState
     var expanded by rememberSaveable { mutableStateOf(false) }
     var applied by rememberSaveable { mutableStateOf(false) }
     // "Ask for a read receipt" (RFC 8098), per message, from the overflow menu.
@@ -465,7 +493,7 @@ fun ComposeScreen(
     var initialCc by rememberSaveable { mutableStateOf("") }
     var initialBcc by rememberSaveable { mutableStateOf("") }
     var initialSubject by rememberSaveable { mutableStateOf("") }
-    var initialBody by rememberSaveable { mutableStateOf("") }
+    var initialBody by resume.baselineState
     // …the box included: a reopened outbox message can OPEN ticked, so "ticked" is not an edit while
     // ticking or clearing it is. Without this baseline the leave guard could not see either, and
     // clearing the box then leaving sent the message still asking (see [ComposeDirty]).
@@ -604,6 +632,7 @@ fun ComposeScreen(
     // else this is a no-op and the screen just closes.
     val cancel = {
         viewModel.abandon()
+        resume.close(resumeSlot)
         onCancel()
     }
 
@@ -973,7 +1002,16 @@ fun ComposeScreen(
                         // The message is taken INSIDE the navigation guard (see SternaApp): a tap
                         // the guard refuses must not have consumed the draft on its way to being
                         // ignored.
-                        onDeleteDraft { viewModel.takeEditingDraft() }
+                        //
+                        // ⛔ THE FOURTH EXIT, and the one that was missed. A SERVER draft leaves
+                        // through the host's popBackStack(), not through Done, not through
+                        // localDraftDeleted and not through `cancel` — so nothing closed the slot,
+                        // and the entry's teardown wrote the file back out with `closed` still
+                        // false: the body of the draft just DELETED stayed on disk, consumable by
+                        // nobody. The encrypted case takes this same branch. Closed on the TAKER'S
+                        // RESULT so it happens exactly when the deletion really departs: a tap the
+                        // guard drops must neither consume the draft nor throw its text away.
+                        onDeleteDraft { viewModel.takeEditingDraft()?.also { resume.close(resumeSlot) } }
                     }
                 }) {
                     Text(stringResource(R.string.inbox_delete), color = MaterialTheme.colorScheme.error)

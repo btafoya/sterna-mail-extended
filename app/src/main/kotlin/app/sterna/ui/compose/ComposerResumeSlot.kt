@@ -1,0 +1,332 @@
+package app.sterna.ui.compose
+
+import android.content.Context
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import java.io.File
+import java.util.concurrent.atomic.AtomicLong
+
+/**
+ * The composer's body, parked on disk instead of in the activity's saved-state parcel.
+ *
+ * WHY IT EXISTS. Replying to a ~324 kB message, letting the quote land, then pressing HOME killed
+ * the activity with `TransactionTooLargeException` (a 1 340 240 byte parcel under the key
+ * `androidx.lifecycle.BundlableSavedStateRegistry.key`) and the draft was gone without a word. Two
+ * `rememberSaveable`s each carried the WHOLE body into that parcel — the text being edited and the
+ * baseline it is compared against — and `Parcel.writeString` writes UTF-16, so every character of
+ * the body cost 4 bytes of parcel. Everything else on that screen weighs ~12 kB.
+ *
+ * WHAT CHANGES. The parcel now carries a short TOKEN and nothing else; the body, its caret and the
+ * baseline go into an app-private file under `filesDir`. The token proves the parcel and the file
+ * are talking about the same record — it has no security role whatsoever.
+ *
+ * ⛔ ONE FILE PER COMPOSER, not one per app. Two composers ARE reachable: `MainActivity` is
+ * singleTask, `onNewIntent` feeds `pendingMailto`, and the host navigates to `compose` unguarded,
+ * so a mailto: link or a share arriving with the composer open stacks a SECOND composer on the
+ * first. On a single shared file, closing the one on top erased the record of the one underneath
+ * and the long reply came back blank — a loss this whole change would have CREATED.
+ *
+ * ⛔ THE FILE IS NOT AN AUTOSAVE. It is the same lifetime the parcel had: written when the screen
+ * is saved, consumed by the restore that follows, erased when that composer closes for good.
+ * A composer typing an ENCRYPTED message keeps its cleartext there like any other, so it must
+ * never be allowed to outlive its screen.
+ */
+class ComposerResumeSlot(private val file: File) {
+
+    /** What one saved composer holds. Text is handed back exactly as it went in, never hashed. */
+    data class Resume(
+        val body: String,
+        val selectionStart: Int,
+        val selectionEnd: Int,
+        val baseline: String,
+    )
+
+    /**
+     * Parks [body] (with its caret at [selectionStart]..[selectionEnd]) and [baseline] under
+     * [token], and says whether it got there; `false` means nothing could be written (a full disk,
+     * an `IOException`) and no half-written file was left behind.
+     *
+     * ⛔ THE TOKEN IS AN ARGUMENT, never minted here. The saver runs TWICE per activity
+     * recreation — `SaveableStateHolderImpl.saveAll()` parcels a COPY of the saved states, then
+     * `SaveableStateProvider`'s `onDispose` calls `saveTo` again on the live map as the
+     * composition is torn down — so a token minted per write put the file under a name the parcel,
+     * already built, could no longer ask for. On the bench that was a rotation coming back with an
+     * EMPTY body, at any size, with no exception and no word. See [ComposerResumeState.token].
+     *
+     * ⛔ Written to a NEIGHBOURING temporary and then renamed over the real file, never in place: an
+     * in-place write that dies halfway leaves a file whose header still promises the old lengths,
+     * and the next restore would either refuse it or, worse, hand back an amputated draft.
+     */
+    fun write(token: String, body: String, selectionStart: Int, selectionEnd: Int, baseline: String): Boolean {
+        val tmp = tempFile()
+        return try {
+            file.parentFile?.mkdirs()
+            tmp.outputStream().bufferedWriter(Charsets.UTF_8).use { out ->
+                out.write(header(token, selectionStart, selectionEnd, body.length, baseline.length))
+                out.write(body)
+                out.write(baseline)
+            }
+            // ⛔ `false`, and it matters as much as the `catch` below: a refused rename reported as
+            // success hands back a token for a file that is not there, the inline fallback is
+            // never reached, and the composer comes back EMPTY at any size — the very defect this
+            // whole slot exists to remove.
+            if (tmp.renameTo(file)) true else { tmp.delete(); false }
+        } catch (e: Exception) {
+            tmp.delete()
+            false
+        }
+    }
+
+    /**
+     * Reads back what [write] parked under [token], or `null` when the file is missing, unreadable,
+     * truncated, or was written under a DIFFERENT token.
+     *
+     * ⭐ A successful read ERASES the file: a resume is consumed once. A refused read leaves it
+     * alone — the token that does match may still be about to ask for it.
+     */
+    fun read(token: String): Resume? = try {
+        if (!file.isFile) null else parse(file.readText(Charsets.UTF_8), token)?.also { file.delete() }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Erases THIS slot and any temporary beside it. Never throws: callers are leaving the screen. */
+    fun clear() {
+        try {
+            file.delete()
+            tempFile().delete()
+        } catch (e: Exception) {
+            // Nothing to do and nothing to say: the caller is on its way out of the composer.
+        }
+    }
+
+    // -- the format on disk -------------------------------------------------------------------
+    //
+    // One self-describing header line, then the two texts back to back:
+    //
+    //     sterna-composer-resume/1 <token> <selStart> <selEnd> <bodyChars> <baselineChars>\n
+    //     <body><baseline>
+    //
+    // The lengths are in CHARACTERS (UTF-16 code units, i.e. Kotlin's String.length) on both
+    // sides, so an emoji's surrogate pair counts as the two it is and the split lands where it
+    // was made. The two texts are separated by nothing at all — a delimiter would have to be
+    // escaped out of a body that can contain anything, including newlines and \r\n.
+    //
+    // ⛔ NOT DataOutputStream.writeUTF: it caps a string at 64 kB and the body that caused this
+    // whole change is 324 kB. Encoding is UTF-8, named explicitly at both ends.
+
+    private fun header(token: String, start: Int, end: Int, bodyLen: Int, baseLen: Int): String =
+        "$MAGIC $token $start $end $bodyLen $baseLen\n"
+
+    private fun parse(text: String, token: String): Resume? {
+        val newline = text.indexOf('\n')
+        if (newline < 0) return null
+        val head = text.substring(0, newline).split(' ')
+        if (head.size != 6 || head[0] != MAGIC) return null
+        // The token, and the whole point of it: this file belongs to some OTHER saved composer.
+        if (head[1] != token) return null
+        val start = head[2].toIntOrNull() ?: return null
+        val end = head[3].toIntOrNull() ?: return null
+        val bodyLen = head[4].toIntOrNull() ?: return null
+        val baseLen = head[5].toIntOrNull() ?: return null
+        if (bodyLen < 0 || baseLen < 0) return null
+        val rest = text.substring(newline + 1)
+        // The verification the header exists for: a file cut short by a crash or a full disk has
+        // fewer characters than it promised, and is refused whole rather than handed back short.
+        if (rest.length != bodyLen + baseLen) return null
+        return Resume(rest.substring(0, bodyLen), start, end, rest.substring(bodyLen))
+    }
+
+    private fun tempFile(): File = File(file.parentFile, file.name + ".tmp")
+
+    companion object {
+        /**
+         * Erases EVERY composer slot in [dir], and only those (the prefix is the whole test).
+         *
+         * ⭐ Sweeping them all is SAFER than sweeping one name, not less so. It is called from a
+         * launch with no saved state, where no `rememberSaveable` exists anywhere that could still
+         * name a slot, so every file present is the orphan of a crash. With one file per composer
+         * entry, a sweep that knew only a single name would leave the others' cleartext under
+         * `filesDir` for good.
+         */
+        fun sweep(dir: File) {
+            try {
+                dir.listFiles()?.forEach { if (it.name.startsWith(COMPOSER_SLOT_PREFIX)) it.delete() }
+            } catch (e: Exception) {
+                // A launch is not the place to fail over housekeeping.
+            }
+        }
+
+        private const val MAGIC = "sterna-composer-resume/1"
+    }
+}
+
+/**
+ * The composer's body and baseline, held as ordinary Compose state so the ~71 sites that read and
+ * write them do not change at all, plus the one flag that decides whether they get parked.
+ */
+class ComposerResumeState(
+    body: TextFieldValue,
+    baseline: String,
+    /**
+     * Names the record this composer parks, and it is minted ONCE — here — never per write.
+     *
+     * ⛔ THE ROTATION DEFECT LIVES HERE. The saver runs twice for every activity recreation: once
+     * when the parcel is built (`SaveableStateHolderImpl.saveAll()`, which parcels a COPY) and
+     * once at teardown (`SaveableStateProvider`'s `onDispose`, which calls `saveTo` again on the
+     * live map). With a token minted inside [ComposerResumeSlot.write], the second run renamed the
+     * file to something the parcel — already sealed — could never ask for, and the composer came
+     * back with an empty body on EVERY rotation, at any size, in complete silence. Pressing HOME
+     * never showed it: HOME does not tear the composition down.
+     *
+     * ⚠ Held for the life of ONE state object, and no longer: a restore builds a new composer with
+     * a name of its own. Carrying the old name across the restore was tried and taken back out —
+     * nothing could be made to depend on it, and a line that cannot be falsified is a comment
+     * pretending to be code.
+     */
+    val token: String = newComposerToken(),
+) {
+    val bodyState: MutableState<TextFieldValue> = mutableStateOf(body)
+    val baselineState: MutableState<String> = mutableStateOf(baseline)
+
+    /**
+     * Raised when the composer closes FOR GOOD (sent, saved, scheduled, deleted, abandoned).
+     *
+     * ⛔ Do not "simplify" this into a bare `clear()` at the exit. `SaveableStateProvider` saves a
+     * navigation entry as it LEAVES the composition, so a `clear()` in the exit callback is
+     * followed by a re-WRITE of the file when the screen tears down, and the user's cleartext —
+     * including a composer that was encrypting — stays on disk. The flag makes the saver return
+     * `null` and write nothing at all.
+     */
+    var closed: Boolean = false
+
+    /** The composer is done: nothing more gets parked, and what was parked goes away now. */
+    fun close(slot: ComposerResumeSlot) {
+        closed = true
+        slot.clear()
+    }
+}
+
+/**
+ * THE DECISION, on the way out. Two forms may go into the parcel, and they say which they are:
+ *
+ *  - `t:<token>` — the ordinary one. The text is in the file; the parcel carries a dozen bytes.
+ *  - `v:<start>:<end>:<bodyChars>:<body><baseline>` — the FALLBACK, only when the file could not
+ *    be written at all and the text is small enough to be carried the way it was carried before
+ *    any of this existed.
+ *
+ * ⛔ Why the fallback is not optional. A failed write used to return `null`, so the saver parcelled
+ * nothing: the composer came back EMPTY over an `applied` that had survived in the parcel,
+ * `draftReopenView` drew that blank editor as if it were the draft, and `ComposeDirty` seeing no
+ * change let the back gesture leave without a word. A short body never depended on a disk before,
+ * and it must not start now.
+ *
+ * ⛔ Why it is bounded. [INLINE_LIMIT] characters is ~64 kB of UTF-16 parcel — far under the 1 MB
+ * transaction buffer, and less than this screen was already sending yesterday. Above it there is
+ * nothing safe left: forcing it into the parcel is the very kill this change exists to prevent, so
+ * it returns `null` and loses exactly what the crash already lost. The fallback can never make
+ * anything worse; that is the whole of its justification.
+ */
+internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResumeSlot): String? {
+    if (state.closed) return null
+    val body = state.bodyState.value
+    val baseline = state.baselineState.value
+    val parked = slot.write(
+        token = state.token,
+        body = body.text,
+        selectionStart = body.selection.start,
+        selectionEnd = body.selection.end,
+        baseline = baseline,
+    )
+    if (parked) return TOKEN_FORM + state.token
+    if (body.text.length + baseline.length > INLINE_LIMIT) return null
+    return INLINE_FORM + "${body.selection.start}:${body.selection.end}:${body.text.length}:" +
+        body.text + baseline
+}
+
+/** THE DECISION, on the way back: rebuild the composer's text, caret and baseline, or nothing. */
+internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): ComposerResumeState? {
+    val resume = when {
+        saved.startsWith(TOKEN_FORM) -> slot.read(saved.substring(TOKEN_FORM.length))
+        saved.startsWith(INLINE_FORM) -> parseInlineResume(saved)
+        // Anything else is not ours: a value from an older build, a truncated one, or nothing at
+        // all. A fresh composer is the only honest answer, and it is never an exception.
+        else -> null
+    } ?: return null
+    // ⛔ A name of its own, not the one just read: `read` has CONSUMED the file, so the composer
+    // rebuilt here parks a new record from scratch. What matters is that every save of THAT
+    // composer names the same one — see [ComposerResumeState.token].
+    return ComposerResumeState(
+        TextFieldValue(resume.body, TextRange(resume.selectionStart, resume.selectionEnd)),
+        resume.baseline,
+    )
+}
+
+/** Reads `v:<start>:<end>:<bodyChars>:<body><baseline>`; only the first three `:` are separators,
+ *  so a body full of colons, newlines or surrogate pairs cannot be split in the wrong place. */
+private fun parseInlineResume(saved: String): ComposerResumeSlot.Resume? {
+    val at = INLINE_FORM.length
+    val a = saved.indexOf(':', at)
+    if (a < 0) return null
+    val b = saved.indexOf(':', a + 1)
+    if (b < 0) return null
+    val c = saved.indexOf(':', b + 1)
+    if (c < 0) return null
+    val start = saved.substring(at, a).toIntOrNull() ?: return null
+    val end = saved.substring(a + 1, b).toIntOrNull() ?: return null
+    val bodyLen = saved.substring(b + 1, c).toIntOrNull() ?: return null
+    val payload = saved.substring(c + 1)
+    if (bodyLen < 0 || bodyLen > payload.length) return null
+    return ComposerResumeSlot.Resume(
+        payload.substring(0, bodyLen), start, end, payload.substring(bodyLen),
+    )
+}
+
+/** What goes into the activity's parcel for the composer's body: a short token, and that is all. */
+fun composerResumeSaver(slot: ComposerResumeSlot): Saver<ComposerResumeState, String> = Saver(
+    save = { saveComposerResume(it, slot) },
+    restore = { restoreComposerResume(it, slot) },
+)
+
+/** Names one composer's slot for as long as that navigation entry lives. Parcelled (a dozen
+ *  bytes), so the composer rebuilt after a process death still knows which file is its own. */
+fun newComposerSlotId(): String = shortId(SLOT_IDS)
+
+/** Names one composer's parked RECORD. ⛔ Distinct per composer, and the same for every save of
+ *  the same one — see [ComposerResumeState.token] for the rotation that taught us the difference. */
+fun newComposerToken(): String = shortId(TOKENS)
+
+/**
+ * The file one composer uses. ⛔ Through `applicationContext`, never the activity's own `Context`:
+ * this object is built inside a composition that is torn down and rebuilt, and holding the activity
+ * from a `remember` is how an activity leak starts.
+ */
+fun composerResumeFile(context: Context, slotId: String): File =
+    composerResumeSlotFile(context.applicationContext.filesDir, slotId)
+
+/** The same naming, on a plain directory, so the slot can be exercised without a `Context`. */
+fun composerResumeSlotFile(dir: File, slotId: String): File = File(dir, COMPOSER_SLOT_PREFIX + slotId)
+
+/** What [ComposerResumeSlot.sweep] recognises as ours, and nothing else in `filesDir` starts with it. */
+const val COMPOSER_SLOT_PREFIX = "composer-resume-"
+
+private const val TOKEN_FORM = "t:"
+private const val INLINE_FORM = "v:"
+
+/** ~64 kB of UTF-16 parcel: far under the 1 MB transaction buffer, and less than this screen was
+ *  already sending before any of this existed. See [saveComposerResume] for why it is bounded. */
+private const val INLINE_LIMIT = 16_384
+
+private val SLOT_IDS = AtomicLong(0)
+
+/** ⛔ Not `Math.random()`: two composers opened in the same millisecond must not be able to collide,
+ *  and a counter is the only thing that says so with certainty. */
+private val TOKENS = AtomicLong(0)
+
+/** Short, and distinct on each call within a process — which is all either of its users needs. */
+private fun shortId(sequence: AtomicLong): String =
+    java.lang.Long.toUnsignedString(System.nanoTime(), 36) + "-" +
+        java.lang.Long.toUnsignedString(sequence.incrementAndGet(), 36)
