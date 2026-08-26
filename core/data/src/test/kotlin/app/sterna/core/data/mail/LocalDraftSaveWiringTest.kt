@@ -52,15 +52,20 @@ class LocalDraftSaveWiringTest {
             "⛔ the row a save lands on must be looked up by BOTH keys, with the REAL statements: " +
                 "`forServerDraft = { null }`, or dropping the second lookup, mints a fresh row on " +
                 "every re-save of an edited server draft — N rows, N Message-IDs, N uploads and N " +
-                "attempts to destroy the same original:",
+                "attempts to destroy the same original. ⛔ And the row it found is READ OUT, whole: " +
+                "`target.existing?.takeIf { … }` compiles, is in no other window of this file, and " +
+                "is the one line that carries the stored body to localDraftBodyToWrite — narrowed " +
+                "there, a save that lost its body writes an empty one onto the only copy again, and " +
+                "saveDraftLocalFirst's rollback goes back to deleting a row a PREVIOUS save wrote:",
             listOf(
                 "val target = localDraftTarget(",
                 "replacesEmailId,",
                 "byId = { localDraftDao.byId(credentials.id, it) },",
                 "forServerDraft = { localDraftDao.forServerDraft(credentials.id, it) },",
                 ")",
+                "val existing = target.existing",
             ),
-            body.drop(at).take(5),
+            body.drop(at).take(6),
         )
         assertEquals(
             "⛔ the server draft to destroy must go through serverDraftReplacedBy: a local id " +

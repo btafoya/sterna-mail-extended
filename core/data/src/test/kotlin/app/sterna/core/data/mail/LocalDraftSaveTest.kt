@@ -163,6 +163,13 @@ class LocalDraftSaveTest {
         attachments: List<EmailBodyPart> = emptyList(),
         replacesEmailId: String? = null,
         replacesUidValidity: Long? = null,
+        /**
+         * The composer's own verdict on the body it is handing over, exactly as
+         * `MailRepository.saveDraft` receives it from `editingDraftLossy`: true when this text
+         * cannot answer for the draft behind it — a reopened HTML draft flattened to plain text, or
+         * a body the resume slot could not park on disk during an activity recreation.
+         */
+        bodyIsLossy: Boolean = false,
         /** Run inside the staging step, i.e. while the row is written but its files are not. */
         stagingProbe: suspend () -> Unit = {},
         /**
@@ -192,6 +199,7 @@ class LocalDraftSaveTest {
             subject = subject, body = body,
             replacesEmailId = serverDraftReplacedBy(replacesEmailId),
             replacesUidValidity = replacesUidValidity,
+            bodyIsLossy = bodyIsLossy,
             existing = existing,
             nowMillis = NOW,
         )
@@ -751,6 +759,112 @@ class LocalDraftSaveTest {
         assertEquals(DraftSaveOutcome.KEPT_ON_DEVICE, outcome)
         assertEquals("just a note to myself", requireNotNull(stored())["textBody"])
         assertEquals("", requireNotNull(stored())["toAddresses"])
+    }
+
+    // ---- 3 bis. ⛔ a body the composer says it LOST never writes over the one already stored ----------
+
+    @Test fun `the four answers of the rule that decides which body is written`() {
+        // The decision itself, EXECUTED — not the line of source that contains it.
+        assertEquals(
+            "armed + nothing to write + something already written: the stored text stands",
+            "what was typed", localDraftBodyToWrite("", "what was typed", bodyIsLossy = true),
+        )
+        assertEquals(
+            "whitespace is not text either — `draftHasContent` reads a body the same way",
+            "what was typed", localDraftBodyToWrite("  \n\t ", "what was typed", bodyIsLossy = true),
+        )
+        assertEquals(
+            "⛔ armed but the composer HAS a body: an HTML draft reopened from the server arms the " +
+                "flag every time, and what the user just typed is what she means to keep",
+            "the new text", localDraftBodyToWrite("the new text", "what was typed", bodyIsLossy = true),
+        )
+        assertEquals(
+            "⛔ not armed: emptying a draft on purpose still takes, or no re-save could shorten one",
+            "", localDraftBodyToWrite("", "what was typed", bodyIsLossy = false),
+        )
+        assertEquals(
+            "a first save has no row under it and writes what it has",
+            "", localDraftBodyToWrite("", null, bodyIsLossy = true),
+        )
+        assertEquals(
+            "and a row holding nothing worth keeping has nothing to protect",
+            "", localDraftBodyToWrite("", "   ", bodyIsLossy = true),
+        )
+    }
+
+    @Test fun `a re-save whose body was lost keeps the text the row already holds`() {
+        // D7. A draft composed with no network, whose `local_drafts` row is the ONLY copy: during an
+        // activity recreation the resume slot could not park a body above INLINE_LIMIT (16 384), so
+        // the composer came back with an EMPTY body and a MARKED one — `editingDraftLossy` true. A
+        // surviving recipient kept Save lit, and the save arrived here with `body = ""` and
+        // `bodyIsLossy = true`. Written straight onto the row, the only copy of the text was gone,
+        // definitively and without a word on screen.
+        val existing = row().copy(textBody = LONG)
+        val resaved = localDraftRow(
+            accountId = ACCOUNT, id = existing.id, messageId = "v2@example.org",
+            to = listOf("carol@example.org"), cc = emptyList(), bcc = emptyList(),
+            subject = "Now with a subject", body = "",
+            bodyIsLossy = true, existing = existing, nowMillis = NOW + 5_000L,
+        )
+
+        // Length first, content second: a wiped body fails on a number one can read, and the exact
+        // text is still asserted right behind it.
+        assertEquals(
+            "the only copy of the text survives a body the composer could not give back",
+            LONG.length, resaved.textBody.length,
+        )
+        assertEquals(LONG, resaved.textBody)
+        assertEquals("…and the rest of the save is NOT held back: the subject is the new one", "Now with a subject", resaved.subject)
+        assertEquals("nor the addressing", "carol@example.org", resaved.toAddresses)
+        assertEquals("nor the instant it was saved at", NOW + 5_000L, resaved.updatedAtMillis)
+        assertTrue("and the row still says this save cannot answer for the original", resaved.bodyIsLossy)
+    }
+
+    @Test fun `an offline re-save that lost its body leaves the draft whole, on its one row`() = runTest {
+        save(body = LONG, upload = offline)
+        val id = requireNotNull(stored())["id"]!!
+
+        save(body = "", bodyIsLossy = true, replacesEmailId = id, upload = offline)
+
+        assertEquals("one draft, one row", listOf(ACCOUNT to id), allRows())
+        val after = requireNotNull(stored())
+        assertEquals(
+            "the text is still on the phone after the save that lost it",
+            LONG.length, after["textBody"]!!.length,
+        )
+        assertEquals(LONG, after["textBody"])
+        assertEquals("and the row still carries the loss, for every destroy guard downstream", "1", after["bodyIsLossy"])
+        assertNull("re-saving the phone's own draft still replaces nothing on the server", after["replacesEmailId"])
+    }
+
+    @Test fun `a body the composer did NOT lose still overwrites, shortened or emptied`() = runTest {
+        // ⛔ The witness that forbids turning the guard on `existing != null`: a draft the user cuts
+        // down, or empties on purpose, must still take. Guarded on the row alone, no re-save could
+        // ever shorten a draft again.
+        save(body = LONG, upload = offline)
+        val id = requireNotNull(stored())["id"]!!
+
+        save(body = "cut down to one line", replacesEmailId = id, upload = offline)
+        assertEquals("cut down to one line", requireNotNull(stored())["textBody"])
+
+        save(body = "", replacesEmailId = id, upload = offline)
+        assertEquals("emptying a draft on purpose still takes", "", requireNotNull(stored())["textBody"])
+    }
+
+    @Test fun `a reopened HTML draft re-saved with its text keeps every word typed since`() = runTest {
+        // ⛔ The witness that forbids turning the guard on `bodyIsLossy` alone: ANY draft reopened
+        // from the server with an HTML body arms it (`reopenedDraftIsLossy`, DraftSave.kt:190) while
+        // the composer plainly HAS its text. That is the everyday route, and on the flag alone every
+        // re-save of such a draft would put the old body back and drop what was just typed.
+        val server = "imap:acc:Drafts:12"
+        save(body = LONG, bodyIsLossy = true, replacesEmailId = server, upload = offline)
+
+        save(body = "rewritten from top to bottom", bodyIsLossy = true, replacesEmailId = server, upload = offline)
+
+        assertEquals(
+            "a body the composer HAS is what the user means to keep, marked or not",
+            "rewritten from top to bottom", requireNotNull(stored())["textBody"],
+        )
     }
 
     // ---- 4. attachments: staged durably, or no row at all --------------------------------------------
@@ -1545,5 +1659,8 @@ class LocalDraftSaveTest {
         const val ACCOUNT = "acc"
         const val NOW = 1_760_000_000_000L
         const val TEXT = "I will be there at six, do not wait for me at the station"
+
+        /** A body no parcel carries: well above the resume slot's INLINE_LIMIT of 16 384 characters. */
+        val LONG = (1..600).joinToString("\n") { "line $it of what the user typed with no network" }
     }
 }
