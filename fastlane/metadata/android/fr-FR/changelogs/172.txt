@@ -1,0 +1,47 @@
+Lecture
+
+- Un message relayé par un alias ou une redirection porte souvent l'adresse de celui que le relais dit être le véritable auteur. Cette adresse a désormais sa ligne dans le panneau des participants, sous le libellé « Expéditeur d'origine (non vérifié) » : l'en-tête vient du côté qui envoie et rien ici ne peut le vérifier. Sur du courrier chiffré, la ligne ne s'affiche pas.
+- Quand le serveur n'a aucune identité pour l'expéditeur d'un message, le lecteur nomme l'adresse portée par l'enveloppe au lieu de laisser la ligne à personne.
+- Une ligne de la vue des non-lus dit de quel dossier elle vient.
+- Sur un message chiffré dont l'objet réel voyage à l'intérieur du chiffré, cet objet prend la place du texte de remplacement une fois le message déchiffré.
+- Le blanc que le lecteur garde autour d'un message est une part de la vue plutôt qu'une hauteur fixe, si bien que l'en-tête ne couvre plus les premières lignes.
+- Le balayage d'un message au suivant demande une vraie distance sous le doigt : un défilement qui part de côté ne change plus de message.
+
+Écriture
+
+- OpenPGP a un quatrième mode, « Chiffrer sans signer », qui chiffre pour le destinataire sans prouver que le message vient de vous. Un appui long sur le cadenas ouvre la liste des modes ; l'appui court continue de faire défiler.
+- La barre du haut du composeur rend à l'objet la place qu'il lui faut.
+- Un corps de message long est garé sur le disque au lieu d'être remis entier à l'écran qui le rouvre, si bien qu'un composeur portant plusieurs centaines de kilo-octets de texte survit à sa réouverture.
+- Les copies cachées d'un brouillon sont portées dans la copie que garde le serveur.
+- Une ligne Cc qui ne nomme aucune adresse, « undisclosed-recipients:; » comprise, est conservée telle qu'écrite au lieu d'être lue comme vide.
+- Un enregistrement qui n'a pas pu remplacer le brouillon qu'il avait rouvert dit « Enregistré comme nouveau brouillon. Original conservé. », au lieu de répondre que l'enregistrement a abouti pendant qu'un second brouillon part au serveur.
+- Le texte cité d'une réponse est remis au composeur exactement une fois, quel que soit le nombre de reconstructions de l'écran.
+- Un brouillon n'est détruit que sous le compte qui le porte, et un brouillon vidé seulement sous la preuve qu'il n'a copié personne.
+- Un brouillon déjà enregistré garde son texte quand le composeur revient sans corps.
+
+Envoi
+
+- Annuler un envoi programmé rend le message aux brouillons et le dit. Quand son compte n'existe plus, il dit à la place qu'aucun brouillon n'a été conservé.
+- Un envoi programmé que le système a oublié est réarmé au démarrage de l'application.
+- Un envoi dont le processus est mort en chemin est garé sous « Interrompu, peut-être déjà envoyé » au lieu d'être remis une seconde fois. Le renvoyer reste votre décision, jamais celle de l'application.
+- Un envoi durable dont la tâche ne peut pas être armée reste en file au lieu d'être annoncé en échec.
+- Un envoi n'est plus abandonné sur un départ de compte qui n'a jamais été prouvé.
+
+Dossiers
+
+- Un nouveau réglage, « N'afficher que les dossiers abonnés », retire des listes de dossiers ceux auxquels ce compte n'est pas abonné sur le serveur. Un dossier qui porte un rôle, ou dans lequel l'application sait classer du courrier par son nom, ou sous lequel vit un dossier visible, reste dans les listes dans tous les cas.
+- Un dossier masqué mais toujours surveillé continue de notifier, et son menu vit dans le tiroir : éteindre le réglage le rend joignable.
+- Un dossier dont le parcours a dû sauter une marche n'est plus mis à jour par comparaison, si bien que rien n'est supprimé sur la foi d'une lecture partielle.
+
+Notifications
+
+- Un bandeau de nouveau message ne propose plus une action qu'il ne peut pas mener sur un compte qui a été déconnecté, et ses bandeaux partent avec le compte.
+- Le canal des nouveaux messages est créé avant qu'un bandeau y soit posé.
+- Un bandeau que vous écartez reste écarté au lieu d'être reposé aussitôt.
+- Un bandeau que la passe en cours vient de poser n'est plus emporté quand le résumé de groupe au-dessus de lui est démoli.
+
+Comptes et écran d'accueil
+
+- Ajouter un compte note où en est sa boîte de réception à cet instant, si bien que le courrier déjà présent n'est pas annoncé comme neuf. Trois des chemins d'ajout le font ; ceux qui passent par OAuth pas encore.
+- La cellule du compteur et la cellule des messages sont redessinées quand le nombre de comptes franchit le seuil où leur mise en page change.
+- Connexion par le navigateur : l'étape de l'adresse utilise la réponse qu'OAuth a déjà donnée au lieu de la redemander, et le compte est classé sous l'hôte que sa session résout plutôt que sous l'adresse saisie.

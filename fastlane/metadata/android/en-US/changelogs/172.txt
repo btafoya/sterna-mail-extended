@@ -1,0 +1,47 @@
+Reading
+
+- A message relayed by an alias or a redirection often carries the address of whoever the relay says really wrote it. That address gets its own line in the participants panel, labelled "Original sender (unverified)": the header comes from the sending side and nothing here can check it. On encrypted mail the line does not appear.
+- When the server has no identity for the sender of a message, the reader names the address the envelope carries instead of leaving the line to nobody.
+- A row of the unread view says which folder it came from.
+- On an encrypted message whose real subject travels inside the ciphertext, that subject takes the place of the placeholder once the message is decrypted.
+- The blank the reader keeps around a message is a share of the view rather than a fixed height, so the header stops covering the first lines.
+- Flicking from one message to the next asks for real finger travel: a scroll that drifts sideways no longer changes message.
+
+Writing
+
+- OpenPGP has a fourth mode, "Encrypt without signing", which encrypts for the recipient without proving the message comes from you. A long press on the lock opens the list of modes; a short press still cycles.
+- The composer's top bar gives the subject back the room it needs.
+- A long message body is parked on disk instead of being handed whole to the screen that reopens it, so a composer carrying several hundred kilobytes of text survives being reopened.
+- The blind copies of a draft are carried into the copy the server keeps.
+- A Cc line that names no address, "undisclosed-recipients:;" among them, is kept as written instead of being read as empty.
+- A save that could not replace the draft it reopened says "Saved as a new draft. The original was kept.", rather than answering that the save went through while a second draft goes to the server.
+- A reply's quoted text is handed to the composer exactly once, however often the screen is rebuilt.
+- A draft is destroyed only under the account that holds it, and an emptied draft only under proof that it copied nobody.
+- A draft already saved keeps its text when the composer comes back without a body.
+
+Sending
+
+- Cancelling a scheduled send returns the message to Drafts and says so. When its account is gone, it says instead that no draft was kept.
+- A scheduled send the system forgot is armed again when the app starts.
+- A send whose process died on the way is parked as "Interrupted, it may already have been sent" instead of being handed over a second time. Sending it again stays your decision, never the app's.
+- A durable send whose worker cannot be armed stays queued instead of being announced as failed.
+- A send is no longer abandoned on an account departure that was never proven.
+
+Folders
+
+- A new setting, "Show only subscribed folders", hides from the folder lists the folders this account is not subscribed to on the server. A folder that carries a role, or that the app can file mail into by name, or that has a visible folder under it, stays in the lists either way.
+- A folder that is hidden but still watched keeps notifying, and its own menu lives in the drawer: turn the setting off to reach it.
+- A folder whose listing had to skip a step is no longer reconciled, so nothing is deleted on the strength of a partial reading.
+
+Notifications
+
+- A new-mail banner no longer offers an action it cannot perform on an account that has been disconnected, and its banners leave with the account.
+- The new-mail channel is created before a banner is posted on it.
+- A banner you dismiss stays dismissed instead of being put straight back.
+- A banner the current pass has just posted is no longer carried off when the group summary above it is torn down.
+
+Accounts and home screen
+
+- Adding an account writes down where its inbox stands at that moment, so the mail already there is not announced as new. Three of the ways in do this; the OAuth ones do not yet.
+- The counter cell and the message cell are redrawn when the number of accounts crosses the point where their layout changes.
+- Signing in through the browser: the address step uses the answer OAuth already gave instead of asking for it again, and the account is filed under the host its session resolves to rather than under the address that was typed.
