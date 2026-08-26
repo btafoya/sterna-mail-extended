@@ -216,8 +216,19 @@ Out of scope:
   stores only its ciphertext entity; the plaintext body is cleared at rest. Attachments
   are the exception: an attachment you open is written to the app's own storage until
   the cache is cleared.
-- The message **subject is not encrypted** (sent in the clear, matching common OpenPGP
-  practice); protected headers are out of scope for now.
+- The message **subject is not encrypted** on the way out (sent in the clear, matching
+  common OpenPGP practice). Protected headers (RFC 9788) are **read, never written**: a
+  decrypted PGP/MIME entity whose own header block carries a non-blank `Subject` is shown
+  under that subject instead of the envelope's, while an empty or absent one leaves the
+  envelope's subject untouched. It is sender-controlled content just like the envelope's
+  own subject, and it is read through `MimeParser.decodedHeaderOf`, the app's single header
+  sanitising chain: coming from inside the ciphertext makes a subject no more trustworthy
+  than one on the envelope, and decryption is not signature verification. The substitution
+  is **display-only and contained**: it lives in the reader's in-memory copy and reaches
+  neither the Room row, nor the search index, nor a notification, nor the widget, so the
+  message list deliberately keeps the cover subject; and a reply, a forward and a read
+  receipt all take the cover subject too, since anything else would send the real subject of
+  an encrypted message in the clear.
 
 ### Android platform surface
 

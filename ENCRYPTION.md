@@ -106,25 +106,31 @@ another, so pick your key again afterwards.
 ## Step 3: Send signed / encrypted mail
 
 When composing, a **padlock button** in the toolbar cycles through three modes,
-and a short banner explains each as you switch:
+and a short banner explains each as you switch. A **long press** on that same
+button opens a menu holding those three plus a fourth one, which the cycle never
+reaches: a short tap must not walk anyone into sending unsigned mail. That
+fourth mode is a stop, not a station: tap the button while it is set and you go
+straight back to **Off**, not on to another encrypting mode.
 
 | Icon | Mode | What it means |
 |------|------|---------------|
 | open padlock | **Off** | Not encrypted. Anyone handling the mail can read it. |
 | pen / seal | **Sign** | Readable by everyone, but proves it comes from you. |
 | closed padlock | **Encrypt** | Encrypted **and** signed. Only the recipient can read it. |
+| key (long press only) | **Encrypt without signing** | Encrypted, not signed: only the recipient can read it, but it doesn't prove it comes from you. |
 
 To **encrypt**, Sterna needs a public key for every recipient. A recipient
 without a known key is flagged, and you will not be able to send encrypted until
 their key is imported into your OpenPGP app (ask them for it, or fetch it from a
 key server). **Signing** has no such requirement: you can sign to anyone.
 
-A few things behave differently while a message is set to encrypt: it cannot be
-saved as a plaintext draft, and scheduled send is unavailable (both would put
-readable content on the server). Closing the composer therefore offers only
-Discard or Cancel, and says why: there is nowhere the message could be kept
-without handing your text to the server in the clear. Your own **Sent** copy
-stays readable, because Sterna also encrypts it to your own key.
+A few things behave differently while a message is set to either encrypting
+mode: it cannot be saved as a plaintext draft, and scheduled send is
+unavailable (both would put readable content on the server). Closing the
+composer therefore offers only Discard or Cancel, and says why: there is
+nowhere the message could be kept without handing your text to the server in
+the clear. Your own **Sent** copy stays readable, because Sterna also encrypts
+it to your own key.
 
 ## Step 4: Read encrypted / signed mail
 
