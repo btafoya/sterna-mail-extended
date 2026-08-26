@@ -188,6 +188,17 @@ class ComposerResumeState(
      * pretending to be code.
      */
     val token: String = newComposerToken(),
+    /**
+     * Whether THIS composer has already lost a body on its way into a parcel — a disk write that
+     * failed on a text too big for the inline fallback (see [saveComposerResume]).
+     *
+     * ⛔ A `val`, and that is the whole of its design: it is raised at construction, by the restore
+     * that reads the mark out of the parcel, and there is nowhere it can be lowered. What comes
+     * back after a loss is NOT what was lost, so a later save that parks perfectly must keep
+     * saying so — a flag that could fall would be clean again one rotation later, and the save
+     * after that would destroy the server copy of a draft whose body is already gone.
+     */
+    val bodyWasLost: Boolean = false,
 ) {
     val bodyState: MutableState<TextFieldValue> = mutableStateOf(body)
     val baselineState: MutableState<String> = mutableStateOf(baseline)
@@ -211,12 +222,14 @@ class ComposerResumeState(
 }
 
 /**
- * THE DECISION, on the way out. Two forms may go into the parcel, and they say which they are:
+ * THE DECISION, on the way out. Two forms carry the text, and a third mark carries a LOSS:
  *
  *  - `t:<token>` — the ordinary one. The text is in the file; the parcel carries a dozen bytes.
  *  - `v:<start>:<end>:<bodyChars>:<body><baseline>` — the FALLBACK, only when the file could not
  *    be written at all and the text is small enough to be carried the way it was carried before
  *    any of this existed.
+ *  - `l:` — THE LOSS. On its own when neither of the two above could carry anything, and as a
+ *    PREFIX on either of them (`l:t:…`, `l:v:…`) once this composer has lost a body.
  *
  * ⛔ Why the fallback is not optional. A failed write used to return `null`, so the saver parcelled
  * nothing: the composer came back EMPTY over an `applied` that had survived in the parcel,
@@ -226,9 +239,24 @@ class ComposerResumeState(
  *
  * ⛔ Why it is bounded. [INLINE_LIMIT] characters is ~64 kB of UTF-16 parcel — far under the 1 MB
  * transaction buffer, and less than this screen was already sending yesterday. Above it there is
- * nothing safe left: forcing it into the parcel is the very kill this change exists to prevent, so
- * it returns `null` and loses exactly what the crash already lost. The fallback can never make
- * anything worse; that is the whole of its justification.
+ * nothing safe left to CARRY: forcing the text into the parcel is the very kill this whole change
+ * exists to prevent, so the text is dropped.
+ *
+ * ⛔ AND THE LOSS IS MARKED, BECAUSE THE FALLBACK IS NOT HARMLESS. The sentence that used to close
+ * this comment — "the fallback can never make anything worse" — was false, and it cost a draft.
+ * It compared this refusal with the crash it replaced, but `TransactionTooLargeException` took the
+ * WHOLE parcel with it, `applied` included: the composer came back unprimed, the prefill replayed
+ * the draft from the server, and nothing durable was lost. Returning `null` loses only the body and
+ * leaves `applied` standing — the editor is redrawn empty over a draft nobody re-reads, `initialBody`
+ * comes back empty too so `ComposeDirty` answers "unchanged", and the Save icon is still lit because
+ * a recipient survived. That save goes out with `replacesEmailId` armed and a CLEAN verdict, and
+ * `draftReplacementIsFaithful` never compares bodies: the server copy is destroyed and a bodiless one
+ * takes its place. Irreversible, in silence, on a plain screen rotation.
+ *
+ * ⭐ So `l:` travels instead of the text, and it is STICKY: every later save of this composer keeps
+ * it, even the ones that park perfectly. What came back after the loss is not what was lost.
+ *
+ * ⛔ `l:`, not `x:` — `x:whatever` is pinned in the list of values that must restore to nothing.
  */
 internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResumeSlot): String? {
     if (state.closed) return null
@@ -241,27 +269,51 @@ internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResume
         selectionEnd = body.selection.end,
         baseline = baseline,
     )
-    if (parked) return TOKEN_FORM + state.token
-    if (body.text.length + baseline.length > INLINE_LIMIT) return null
-    return INLINE_FORM + "${body.selection.start}:${body.selection.end}:${body.text.length}:" +
-        body.text + baseline
+    val carried = when {
+        parked -> TOKEN_FORM + state.token
+        body.text.length + baseline.length <= INLINE_LIMIT ->
+            INLINE_FORM + "${body.selection.start}:${body.selection.end}:${body.text.length}:" +
+                body.text + baseline
+        // Nothing can be carried: the disk refused and the text is over the bound. This is the
+        // loss itself, and the ONLY thing left to do about it is to say so.
+        else -> null
+    }
+    // ⛔ Never `null` from here on — the one `null` this function still returns is `state.closed`
+    // above. A parcel with no value at all restores no state, and a restore that yields no state
+    // takes the flag down with it.
+    if (state.bodyWasLost || carried == null) return LOST_FORM + carried.orEmpty()
+    return carried
 }
 
-/** THE DECISION, on the way back: rebuild the composer's text, caret and baseline, or nothing. */
+/**
+ * THE DECISION, on the way back: rebuild the composer's text, caret and baseline — or, when the
+ * body was lost, rebuild a composer that KNOWS it, which is not the same thing as nothing.
+ */
 internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): ComposerResumeState? {
+    val lost = saved.startsWith(LOST_FORM)
+    val form = if (lost) saved.substring(LOST_FORM.length) else saved
     val resume = when {
-        saved.startsWith(TOKEN_FORM) -> slot.read(saved.substring(TOKEN_FORM.length))
-        saved.startsWith(INLINE_FORM) -> parseInlineResume(saved)
+        form.startsWith(TOKEN_FORM) -> slot.read(form.substring(TOKEN_FORM.length))
+        form.startsWith(INLINE_FORM) -> parseInlineResume(form)
         // Anything else is not ours: a value from an older build, a truncated one, or nothing at
         // all. A fresh composer is the only honest answer, and it is never an exception.
         else -> null
-    } ?: return null
+    }
+    // ⛔ `null` ONLY when there was no mark either. With the mark there, returning `null` would
+    // drop the loss along with the text: `rememberSaveable` would fall back to its factory, the
+    // composer would come back empty AND clean, and the next save would destroy the server copy of
+    // a draft whose body is gone. An empty state carrying the flag is the whole fix.
+    if (resume == null && !lost) return null
     // ⛔ A name of its own, not the one just read: `read` has CONSUMED the file, so the composer
     // rebuilt here parks a new record from scratch. What matters is that every save of THAT
     // composer names the same one — see [ComposerResumeState.token].
     return ComposerResumeState(
-        TextFieldValue(resume.body, TextRange(resume.selectionStart, resume.selectionEnd)),
-        resume.baseline,
+        TextFieldValue(
+            resume?.body.orEmpty(),
+            TextRange(resume?.selectionStart ?: 0, resume?.selectionEnd ?: 0),
+        ),
+        resume?.baseline.orEmpty(),
+        bodyWasLost = lost,
     )
 }
 
@@ -315,6 +367,10 @@ const val COMPOSER_SLOT_PREFIX = "composer-resume-"
 
 private const val TOKEN_FORM = "t:"
 private const val INLINE_FORM = "v:"
+
+/** The mark that says this composer lost a body. Composes with the two forms above, or stands
+ *  alone when neither of them could carry anything — see [saveComposerResume]. */
+private const val LOST_FORM = "l:"
 
 /** ~64 kB of UTF-16 parcel: far under the 1 MB transaction buffer, and less than this screen was
  *  already sending before any of this existed. See [saveComposerResume] for why it is bounded. */

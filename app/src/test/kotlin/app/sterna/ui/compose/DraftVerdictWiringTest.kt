@@ -57,8 +57,11 @@ class DraftVerdictWiringTest {
         assertEquals(
             "prepare()'s restore branch must read the verdict back from the restored draft — the " +
                 "whole line; before it existed, editingDraftLossy silently reset to false here " +
-                "while editingDraftId came back, and that pair is exactly the destroy",
-            listOf("editingDraftLossy = d.draftBodyIsLossy"),
+                "while editingDraftId came back, and that pair is exactly the destroy. ⛔ The name " +
+                "is `editingDraftLossyOnOpen`: what the reopened draft HELD. `editingDraftLossy` " +
+                "is now the read-only OR of that and what the composer lost since, and a write " +
+                "landing on it would not compile — which is the point.",
+            listOf("editingDraftLossyOnOpen = d.draftBodyIsLossy"),
             codeLinesNaming(bodyOf(COMPOSE_VIEW_MODEL, "prepare"), "d.draftBodyIsLossy"),
         )
     }
@@ -116,12 +119,19 @@ class DraftVerdictWiringTest {
                 "the only copy of the files: #63, word for word. Drop the entry arming instead " +
                 "and a fetch that dies (offline, process killed, no credentials) leaves the " +
                 "verdict at its field default `false` with an id already armed, which is the same " +
-                "destroy. `editingDraftLossy = false` anywhere here is the defect, whole.",
+                "destroy. `editingDraftLossyOnOpen = false` anywhere here is the defect, whole.\n" +
+                "⛔ AND EVERY ONE OF THEM NAMES `editingDraftLossyOnOpen`, the field that says what " +
+                "the draft HELD when it was opened — never `editingDraftLossy`, which is now a " +
+                "read-only OR of that and the body this COMPOSER lost on the way into a parcel. " +
+                "The four routes that destroy still read `editingDraftLossy` and not one of them " +
+                "changed; if prepare() could write to it, its last statement would wipe the lost " +
+                "body on every reopen. ⚠ The filter below is a substring, so a write that came " +
+                "back to `editingDraftLossy` itself lands right here.",
             listOf(
-                "editingDraftLossy = d.draftBodyIsLossy",
-                "editingDraftLossy = true",
-                "editingDraftLossy = lossy || !carried",
-                "editingDraftLossy = true",
+                "editingDraftLossyOnOpen = d.draftBodyIsLossy",
+                "editingDraftLossyOnOpen = true",
+                "editingDraftLossyOnOpen = lossy || !carried",
+                "editingDraftLossyOnOpen = true",
             ),
             lines.filter { "editingDraftLossy" in it },
         )
@@ -197,7 +207,7 @@ class DraftVerdictWiringTest {
                 "_draftLoading.value = true",
                 "editingDraftId = draftId",
                 "editingDraftAccountId = credentials()?.id",
-                "editingDraftLossy = true",
+                "editingDraftLossyOnOpen = true",
                 "viewModelScope.launch {",
             ),
             code.subList(armed - 1, (armed + 4).coerceAtMost(code.size)),
@@ -227,13 +237,13 @@ class DraftVerdictWiringTest {
                 "`||` short-circuits, so a draft already judged lossy would never have its " +
                 "attachments carried at all and they would never come back on screen. The carry " +
                 "always runs; only the assignment waits.\n" +
-                "⛔ And the assignment must read BOTH answers. `editingDraftLossy = lossy` alone " +
+                "⛔ And the assignment must read BOTH answers. `editingDraftLossyOnOpen = lossy` alone " +
                 "hands a clean verdict to a draft whose files could not be downloaded, and the " +
                 "next save destroys the original that held the only copy of them. Body was:\n" +
                 code.joinToString("\n"),
             listOf(
                 "val carried = carryDraftAttachments(credentials, draft)",
-                "editingDraftLossy = lossy || !carried",
+                "editingDraftLossyOnOpen = lossy || !carried",
                 "} catch (t: Throwable) {",
             ),
             code.subList(carry, (carry + 3).coerceAtMost(code.size)),

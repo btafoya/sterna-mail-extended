@@ -413,6 +413,20 @@ fun ComposeScreen(
     val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot)) {
         ComposerResumeState(TextFieldValue(), "")
     }
+    // ⛔ THE BODY DID NOT COME BACK, AND THE SAVE MUST BE TOLD. Above the inline bound a failed
+    // disk write parks nothing, so the saver carries the LOSS instead of the text. Everything else
+    // on this screen comes back from saveables of its own — `applied`, `to`, `cc`, `subject` — so
+    // the editor is redrawn looking like the draft with an empty body, `initialBody` is empty too
+    // (the leave guard sees no change), and the Save icon is lit as soon as one recipient survived.
+    // That save carries `replacesEmailId` and, without this line, a clean verdict:
+    // `draftReplacementIsFaithful` never compares bodies, so the server copy is destroyed and a
+    // bodiless one takes its place. On a rotation. Without a word.
+    //
+    // ⚠ An EFFECT into the view model, not an argument on `saveDraft`/`send`/`schedule`: FOUR
+    // routes destroy (the interactive save, the deferred upload the worker finishes, the discard,
+    // the send) and all four read one field, `editingDraftLossy`. Threading a per-call argument
+    // through them is four chances to forget one, and the one forgotten is the lost draft.
+    LaunchedEffect(resume.bodyWasLost) { if (resume.bodyWasLost) viewModel.onComposerBodyLost() }
 
     // "Takes flight": when the message is queued (Done), play a brief lift-off — the
     // content rises and fades, a tern arcs off-screen — then navigate back. The send

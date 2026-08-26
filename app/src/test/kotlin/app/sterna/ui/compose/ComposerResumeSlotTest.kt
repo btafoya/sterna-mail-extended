@@ -366,19 +366,115 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * Above the bound there is nothing safe left to do: the parcel is what killed the activity in
-     * the first place. This is the ONE case that still loses text, and it is exactly what a crash
-     * lost yesterday — the fallback may never make anything worse, which is its whole point.
+     * ⛔ REWRITTEN, and the rule it carries is now half of what it used to be. What stays true:
+     * above the bound the text is NOT forced into the parcel — the parcel is what killed the
+     * activity in the first place. What was false: "the fallback may never make anything worse".
+     * The crash took the WHOLE parcel, `applied` with it, so the composer came back unprimed and
+     * the prefill replayed the draft from the server. Returning nothing loses only the body and
+     * leaves `applied` standing: the editor is redrawn empty over a draft nobody re-reads, and the
+     * next Save destroys the server copy and replaces it with a bodiless one, in silence.
+     *
+     * So the text is dropped and the LOSS is carried in its place.
      */
     @Test
-    fun `a body over the inline bound is not forced into the parcel`() {
+    fun `a body over the inline bound is not forced into the parcel, and the loss travels instead`() {
         val state = ComposerResumeState(TextFieldValue("x".repeat(16_385), TextRange(0)), "")
 
-        assertNull(
+        val saved = saveComposerResume(state, unwritableSlot())
+        assertEquals(
             "16 384 characters is ~64 kB of UTF-16 parcel, far under the 1 MB buffer; past that " +
-                "the fallback must refuse rather than kill the activity it exists to save",
-            saveComposerResume(state, unwritableSlot()),
+                "the fallback must refuse to carry the TEXT rather than kill the activity it " +
+                "exists to save — and it must say, in the parcel, that the body was lost. `null` " +
+                "here is the destroy: the composer comes back empty over a live `applied` and the " +
+                "save takes the server copy with it.",
+            "l:", saved,
         )
+        assertFalse("not one character of the body may reach the parcel: `$saved`", saved!!.contains("x"))
+
+        val back = restoreComposerResume(saved, unwritableSlot())
+        assertTrue(
+            "a lost body must still rebuild a composer: `null` would drop the flag along with the " +
+                "text, and the flag is the only thing standing between the empty editor and the " +
+                "destruction of the draft on the server",
+            back != null,
+        )
+        assertEquals("nothing may be invented in place of the lost body", "", back!!.bodyState.value.text)
+        assertEquals("nor in place of its baseline", "", back.baselineState.value)
+        assertTrue(
+            "…and the composer it rebuilds must KNOW its body was lost. An empty composer that " +
+                "believes it is clean is the destroy: the screen pushes this flag into the view " +
+                "model, where `editingDraftLossy` reads it, and the four destroy routes keep the " +
+                "server copy instead of replacing it with a bodiless one.",
+            back.bodyWasLost,
+        )
+    }
+
+    /**
+     * ⭐ THE FLAG IS STICKY, and this is the only test that says so. Without it, raising the flag
+     * solely on the save that fails passes everything else: the very next save — a rotation a
+     * second later, with the disk free again — parks the body perfectly and carries NO flag, the
+     * verdict falls back to clean, and the Save after that destroys the server copy of a draft
+     * whose body was lost two rotations ago. What came back after the loss is not what was lost.
+     */
+    @Test
+    fun `the lost flag is sticky, so every later save carries it, including the ones that work`() {
+        val lost = restoreComposerResume("l:", slot)
+        assertTrue("`l:` must rebuild a composer that knows its body was lost", lost != null)
+        assertTrue("`l:` alone must raise the flag on the composer it rebuilds", lost!!.bodyWasLost)
+        lost.bodyState.value = TextFieldValue("what she retyped after the loss", TextRange(4))
+
+        val again = saveComposerResume(lost, slot)
+        assertEquals(
+            "a save that PARKS PERFECTLY, on a composer that has already lost a body, must still " +
+                "carry the loss — the parked text is not the text that went missing",
+            "l:t:", again?.take(4),
+        )
+
+        val back = restoreComposerResume(again!!, slot)
+        assertEquals("the retyped text must come back whole under the flag",
+            "what she retyped after the loss", back!!.bodyState.value.text)
+        assertTrue("and the composer rebuilt from `l:t:…` must still know it lost a body", back.bodyWasLost)
+        assertEquals(
+            "…and a THIRD save must carry it too: the flag is raised once and never lowered",
+            "l:t:", saveComposerResume(back, slot)?.take(4),
+        )
+    }
+
+    /** A composer that has lost nothing says nothing: neither the parked form nor the inline one. */
+    @Test
+    fun `a save that works, and an inline fallback under the bound, carry no lost flag`() {
+        val parked = saveComposerResume(ComposerResumeState(TextFieldValue("a draft", TextRange(0)), "b"), slot)
+        assertFalse("an ordinary restore must hand back a composer that has lost nothing",
+            restoreComposerResume(parked!!, slot)!!.bodyWasLost)
+        assertEquals(
+            "an ordinary save must NOT claim a loss — a flag raised on every save is a verdict " +
+                "stuck at `lossy` forever, which quietly stops every legitimate draft replacement",
+            "t:", parked?.take(2),
+        )
+        val inline = saveComposerResume(
+            ComposerResumeState(TextFieldValue("a short draft", TextRange(0)), "b"), unwritableSlot(),
+        )
+        assertEquals("the inline fallback carried the text WHOLE — nothing was lost, so nothing is claimed",
+            "v:", inline?.take(2))
+    }
+
+    /** The prefix rides on the form, it does not eat it: body, baseline and caret come back whole. */
+    @Test
+    fun `a lost flag over an inline fallback leaves the payload untouched`() {
+        val lost = restoreComposerResume("l:", slot)!!
+        val body = "v:1:2:3: still not a header\nnor is this: 😀"
+        val baseline = "> the quoted original, with a : in it"
+        lost.bodyState.value = TextFieldValue(body, TextRange(3, 9))
+        lost.baselineState.value = baseline
+
+        val saved = saveComposerResume(lost, unwritableSlot())!!
+        assertEquals("under the bound the text must still travel, flag or no flag", "l:v:", saved.take(4))
+
+        val back = restoreComposerResume(saved, unwritableSlot())!!
+        assertEquals("the prefix ate into the body", body, back.bodyState.value.text)
+        assertEquals("the prefix ate into the baseline", baseline, back.baselineState.value)
+        assertEquals("the prefix ate into the caret", TextRange(3, 9), back.bodyState.value.selection)
+        assertTrue("…and the flag rode along with it", back.bodyWasLost)
     }
 
     /** Exactly at the bound, body plus baseline: accepted, so the bound is a bound and not a guess. */

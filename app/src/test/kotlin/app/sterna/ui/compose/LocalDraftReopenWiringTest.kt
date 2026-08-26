@@ -260,7 +260,7 @@ class LocalDraftReopenWiringTest {
                 "_selectedFrom.value = it",
                 "refreshPgp()",
                 "}",
-                "editingDraftLossy = fields.bodyIsLossy",
+                "editingDraftLossyOnOpen = fields.bodyIsLossy",
                 "editingDraftId = fields.editingDraftId",
                 "replacedServerDraftId = fields.replacedServerDraftId",
                 "replacedServerDraftUidValidity = fields.replacedServerDraftUidValidity",
@@ -789,9 +789,11 @@ class LocalDraftReopenWiringTest {
         )
         assertEquals(
             "…and the fidelity verdict travels WITH it, off the row that carries it: `false` here " +
-                "authorises destroying an original this composer cannot reproduce. Assignments " +
-                "found were:",
-            listOf("editingDraftLossy = fields.bodyIsLossy"),
+                "authorises destroying an original this composer cannot reproduce. ⛔ It is written " +
+                "to `editingDraftLossyOnOpen` — what the ROW held — while the destroy routes read " +
+                "`editingDraftLossy`, the OR of that and the body this composer lost on the way " +
+                "into a parcel. Assignments found were:",
+            listOf("editingDraftLossyOnOpen = fields.bodyIsLossy"),
             body.filter { it.startsWith("editingDraftLossy") },
         )
         assertEquals(

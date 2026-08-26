@@ -823,12 +823,51 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private var editingDraftAccountId: String? = null
 
     /**
-     * Whether the draft being edited holds content this plain-text composer cannot put back: a
+     * What the draft held WHEN IT WAS OPENED and this plain-text composer cannot put back: a
      * genuine HTML body (flattened to text on open), inline images or a calendar part (never
-     * carried), or a file attachment that failed to re-stage. Re-saving then leaves the original
-     * alone instead of destroying the only copy of what compose is unable to reproduce (#63).
+     * carried), or a file attachment that failed to re-stage (#63).
+     *
+     * ⛔ Written in five places, and read only by [editingDraftLossy] — never by a destroy route,
+     * which must see the OTHER source too. `prepare()` arms this one pessimistically before its
+     * coroutine and LOWERS it as the last statement of the reopen, so anything else stored here
+     * would be wiped by the next reopen.
      */
-    private var editingDraftLossy = false
+    private var editingDraftLossyOnOpen = false
+
+    /**
+     * …and what THIS COMPOSER has lost since, on the way into an activity's saved-state parcel: a
+     * body whose disk write failed on a text too big for the inline fallback
+     * ([saveComposerResume]). The screen pushes it here once, and it is never taken back down.
+     *
+     * The path it closes is a plain activity recreation — a rotation, a theme flip, a language
+     * change. The ViewModel survives it, so nothing here was ever `false` by accident; the parcel
+     * is what lost the body, while `applied`, `to`, `cc` and `subject` came back intact from their
+     * own saveables. The editor is then redrawn empty over a draft nobody re-reads, `initialBody`
+     * is empty too so the leave guard sees no change, and one tap on a Save icon that is still lit
+     * destroys the server copy and puts a bodiless one in its place.
+     */
+    private var composerBodyWasLost = false
+
+    /**
+     * THE LICENCE TO DESTROY, and the only name any of the four destroy routes reads
+     * (`finishDraftSave` on save and on deferred upload, `discardDraft`, `performSend`,
+     * `destroyReplacedServerDraft`). It has TWO sources now, and either one alone is a data loss:
+     * what the reopened draft held that cannot be reproduced, OR a body this composer has lost.
+     *
+     * ⛔ A computed `val`, not a `var`. As one field, `prepare()`'s last statement
+     * (`= lossy || !carried`) would overwrite a lost-body flag on every draft reopen, and there is
+     * no ordering that fixes it: `prepare()` runs from a `LaunchedEffect(Unit)` whose coroutine
+     * lands whenever the fetch does.
+     */
+    private val editingDraftLossy: Boolean get() = editingDraftLossyOnOpen || composerBodyWasLost
+
+    /**
+     * The composer could not park its body, and the text is gone. Raised from the screen, once,
+     * and idempotent: there is no gesture, anywhere, that makes a lost body come back.
+     */
+    fun onComposerBodyLost() {
+        composerBodyWasLost = true
+    }
 
     /**
      * The row of `local_drafts` this composer holds a lease on (#95), and the account it belongs to
@@ -1183,7 +1222,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // The fidelity verdict travels WITH the id: before it did, undoing a send
                 // restored the id while this flag fell back to false, and re-sending destroyed
                 // an original the first send had deliberately spared.
-                editingDraftLossy = d.draftBodyIsLossy
+                editingDraftLossyOnOpen = d.draftBodyIsLossy
                 // Restore the PGP mode the message carried (#35/#70): a signed item reopens signed,
                 // an undone encrypted send reopens with the padlock on — never silently downgraded.
                 d.pgpMode?.let { mode ->
@@ -1321,7 +1360,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // describes, and DraftNumberingFreezeWiringTest counts exactly two in this whole
                 // class: the restore of an undone send, and this one.
                 editingDraftAccountId = credentials()?.id
-                editingDraftLossy = true
+                editingDraftLossyOnOpen = true
                 viewModelScope.launch {
                     try {
                         // No account to ask means the draft cannot be read either, so this path
@@ -1370,7 +1409,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // screen's state, and the decision itself lives in core:data so a JVM test
                         // can execute it — nothing here can (see DraftVerdictWiringTest).
                         // ⚠ INTO A LOCAL, NOT INTO THE FIELD. Written straight to
-                        // [editingDraftLossy] here, this line would hand the screen a clean licence
+                        // [editingDraftLossyOnOpen] here, this line would hand the screen a clean licence
                         // to destroy while the carry below has not even started — and the carry
                         // suspends once per attachment on a network download and publishes nothing
                         // into [_attachments] until its very last statement. The editor and the
@@ -1401,7 +1440,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // whose files failed to download — the destroy of the only copy of them —
                         // which is why `carryDraftAttachments` returning the strict count
                         // (`staged.size == parts.size`) is now what the whole of #63 rests on.
-                        editingDraftLossy = lossy || !carried
+                        editingDraftLossyOnOpen = lossy || !carried
                     } catch (t: Throwable) {
                         // The draft could not be read. NOTHING is prefilled and, above all, no
                         // editor is drawn (draftReopenView): a blank editable composer titled
@@ -1421,7 +1460,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // invariant behind the whole defect. `applied` survives process death, so
                         // on a reopen the editor and the bar are back over the typed text while
                         // this catch runs, and Save is one tap away.
-                        editingDraftLossy = true
+                        editingDraftLossyOnOpen = true
                         val app = getApplication<Application>()
                         _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))
                     } finally {
@@ -1660,7 +1699,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // The fidelity verdict travels WITH the id, exactly as it does for an undone send: `false`
         // here would launder a body the composer already knows it cannot reproduce, and the next
         // send would destroy the original this row was written to spare (#63).
-        editingDraftLossy = fields.bodyIsLossy
+        editingDraftLossyOnOpen = fields.bodyIsLossy
         // ⭐ The row's OWN id: `localDraftTarget` looks a `local-draft:` id up by id, so a re-save
         // lands on this very row. The server draft this row stands in for is NOT armed here — a
         // local id names nothing a server can be asked to destroy (`serverDraftReplacedBy`), and
@@ -1691,6 +1730,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // withhold that line for a copy the destruction then keeps — and posts the same sentence
         // about, a moment later. It can never make the dialog promise a copy stays when the
         // gesture is about to destroy it, which is the direction that would lie.
+        // ⚠ A SECOND way into that same one-way gap since the composer can lose its body on the
+        // way into a parcel: this line reads what the ROW held, while the gesture reads
+        // [editingDraftLossy], which also carries what was lost SINCE. After such a loss the
+        // dialog withholds the line and the destruction keeps the copy anyway. Same direction,
+        // same debt, widened — not a second one, and deliberately not closed here: recomputing it
+        // would put a second writer on a flow that is armed at the one place its terms are read.
         _deleteKeepsServerCopy.value = emptiedLocalDraftKeepsServerCopy(
             fields.replacedServerDraftId,
             fields.bodyIsLossy,
