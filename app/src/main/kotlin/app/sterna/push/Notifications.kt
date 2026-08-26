@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import app.sterna.MainActivity
@@ -429,13 +430,26 @@ object Notifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         val group = GROUP_PREFIX + accountId
         val summaryId = ("summary:" + accountId).hashCode()
-        val children = manager.activeNotifications.filter { sbn ->
+        val active = manager.activeNotifications
+        val children = active.filter { sbn ->
             sbn.id != summaryId && sbn.notification.group == group &&
                 (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0
         }.sortedByDescending { it.postTime }
         if (!summaryShownFor(children.size)) {
-            // The system shows a lone child by itself; drop any stale summary.
-            manager.cancel(summaryId)
+            // Cancelling a FLAG_GROUP_SUMMARY notification makes the system cancel every live
+            // child of the group with it — cancelGroupChildrenLocked, REASON_GROUP_SUMMARY_CANCELED,
+            // and it has been so since API 21. Those children are unread mail the server still
+            // holds, so each one captured above is put straight back under its own id.
+            //
+            // ⛔ ONLY when a summary is really on screen. With none there the cancel is a no-op,
+            // nothing cascades, and a re-post would still overwrite the lone child's
+            // GROUP_ALERT_ALL — the flag a single arrival is given precisely so that it may
+            // announce itself ([summaryShownFor]). That is the commonest path in this app:
+            // one message, no summary, and it must keep its voice (Codeberg #56).
+            if (active.any { it.id == summaryId && it.notification.group == group }) {
+                manager.cancel(summaryId)
+                children.forEach { child -> repostSilently(context, manager, child) }
+            }
             return
         }
         val lines = children.map { sbn ->
@@ -446,6 +460,31 @@ object Notifications {
             context.getString(R.string.notif_group_line, sender, subject)
         }
         notifyGroupSummary(context, accountId, accountLabel, children.size, lines, silent)
+    }
+
+    /**
+     * Put a per-message banner back under its own id after the group summary's cancellation
+     * cascaded it away. [Notification.Builder.recoverBuilder] re-uses the very clone
+     * [NotificationManager.getActiveNotifications] handed over, so the banner comes back
+     * identical — same title and text (already filtered by the privacy setting, #84), same
+     * subText, same BigTextStyle, same action PendingIntents. Rebuilding from the extras would
+     * lose the buttons in silence: [actionsFor] needs a real sender and a real subject, and the
+     * extras cannot tell those apart from the "New message" / "(no subject)" stand-ins.
+     *
+     * It re-posts mail that has ALREADY been announced, so it may never ring, vibrate or take
+     * the screen: that is Codeberg #56, and the promise made there on 2026-07-28. A grouped
+     * child carrying GROUP_ALERT_SUMMARY is muted by the system for BOTH the buzz and the
+     * heads-up, whether or not a summary is on screen — and at minSdk 26 sound and vibration
+     * come from the channel anyway. The silence is by construction, not a setting.
+     */
+    private fun repostSilently(context: Context, manager: NotificationManager, child: StatusBarNotification) {
+        ensureMailChannel(context)
+        manager.notify(
+            child.id,
+            Notification.Builder.recoverBuilder(context, child.notification)
+                .setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)
+                .build(),
+        )
     }
 
     /**
