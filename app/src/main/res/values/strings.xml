@@ -336,6 +336,10 @@
     <string name="participants_cc">Cc</string>
     <!-- Which of your own addresses the message was addressed to (multi-alias accounts) -->
     <string name="participants_received_at">Received at</string>
+    <!-- Who a forwarding service (an alias, a redirection) SAYS really wrote the message.
+         "(unverified)" is load-bearing: the header is sender-controlled and nothing checks
+         that the message was relayed at all, so the label must not assert what it shows. -->
+    <string name="participants_original_sender">Original sender (unverified)</string>
     <string name="participant_add_to_contacts">Add to contacts</string>
     <string name="participant_compose">Write to this contact</string>
     <string name="participant_copy_address">Copy address</string>

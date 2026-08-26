@@ -958,26 +958,51 @@ class JmapClient internal constructor(
         accountId: String,
         emailId: String,
         auth: JmapAuth,
-    ): List<app.sterna.core.jmap.model.EmailHeader> = withContext(Dispatchers.IO) {
-        val payload = buildJsonObject {
-            putJsonArray("using") {
-                add(Jmap.CORE_CAPABILITY)
-                add(Jmap.MAIL_CAPABILITY)
-            }
-            putJsonArray("methodCalls") {
-                addJsonArray {
-                    add("Email/get")
-                    addJsonObject {
-                        put("accountId", accountId)
-                        putJsonArray("ids") { add(emailId) }
-                        putJsonArray("properties") { add("id"); add("headers") }
+    ): List<app.sterna.core.jmap.model.EmailHeader> =
+        getEmailsHeaders(session, accountId, listOf(emailId), auth)[emailId] ?: emptyList()
+
+    /**
+     * The same read for MANY messages at once, keyed by id — what the body prefetch needs to name
+     * a forwarded message's real author on the whole window it caches (#160), for ONE round trip
+     * instead of one per message.
+     *
+     * The single-id form above is now a thin call into this one, deliberately: both must send the
+     * same [HEADER_FIELDS_PROPERTIES] and there is one place that writes them, so the two cannot
+     * drift apart the way a second copy of the payload would.
+     *
+     * Split by [getInBatches] like every other `get`: RFC 8620 §5.1 has the server reject the
+     * WHOLE call past its `maxObjectsInGet`, so an unsplit call over a prefetch window would fail
+     * outright on a strict server — and, since the caller treats this as best effort, would do so
+     * in silence.
+     *
+     * An id the server did not answer for is simply absent from the map; no entry is invented.
+     */
+    suspend fun getEmailsHeaders(
+        session: JmapSession,
+        accountId: String,
+        ids: List<String>,
+        auth: JmapAuth,
+    ): Map<String, List<app.sterna.core.jmap.model.EmailHeader>> = withContext(Dispatchers.IO) {
+        getInBatches(session, ids) { batch ->
+            val payload = buildJsonObject {
+                putJsonArray("using") {
+                    add(Jmap.CORE_CAPABILITY)
+                    add(Jmap.MAIL_CAPABILITY)
+                }
+                putJsonArray("methodCalls") {
+                    addJsonArray {
+                        add("Email/get")
+                        addJsonObject {
+                            put("accountId", accountId)
+                            putJsonArray("ids") { batch.forEach { add(it) } }
+                            putJsonArray("properties") { HEADER_FIELDS_PROPERTIES.forEach { add(it) } }
+                        }
+                        add("g0")
                     }
-                    add("g0")
                 }
             }
-        }
-        val body = postJmap(session, auth, payload)
-        decodeList(body, "Email/get", Email.serializer()).firstOrNull()?.headers ?: emptyList()
+            decodeList(postJmap(session, auth, payload), "Email/get", Email.serializer())
+        }.associate { it.id to it.headers }
     }
 
     /**
@@ -2654,6 +2679,17 @@ class JmapClient internal constructor(
             "header:List-Unsubscribe:asText",
             "header:List-Unsubscribe-Post:asText",
         )
+
+        /**
+         * What a RAW-header read asks for (RFC 8621 §4.1.3 `headers`): the id, so the answer can be
+         * keyed, and the header fields themselves. Named here once so the single-id form and the
+         * grouped form cannot disagree — the same reason [UNSUBSCRIBE_PROPERTIES] is named here.
+         *
+         * ⛔ Nothing else belongs in it. This is the ONE fetch that carries `headers`, and it
+         * carries nothing else: adding a body property here would put whole messages on a call the
+         * prefetch makes for twenty ids at a time.
+         */
+        internal val HEADER_FIELDS_PROPERTIES = listOf("id", "headers")
 
         /**
          * The header property an opened message's read receipt is read from (RFC 8098, in RFC 8621

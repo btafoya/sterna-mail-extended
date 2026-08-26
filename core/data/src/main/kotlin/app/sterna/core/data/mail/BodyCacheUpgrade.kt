@@ -46,12 +46,42 @@ const val BODY_CACHE_PURGE_VERSION = 168
 const val BODY_CACHE_PURGE_VERSION_2 = 170
 
 /**
+ * The THIRD such version — a third constant for the same reason the second one exists: 168 and 170
+ * are facts about upgrades that have already happened and must keep answering for them.
+ *
+ * **Why 172 needs the bodies gone.** The release that publishes the origin-sender work (#160) reads
+ * an `X-…-Original-From…` field off the message (`Email.originalSender`). A body serialised by
+ * 1.5.1 simply has no such field — it deserialises without error, defaulting to null — and
+ * `openMessage` serves the cached body before touching the network, so the "Original sender" line
+ * cannot appear on mail already in the cache, and no amount of reopening brings it back. The
+ * prefetch keeps the twenty newest inbox messages warm, which is exactly where a freshly relayed
+ * message sits: the reporter would try the update on the one message that cannot show it.
+ *
+ * ⛔ And the two earlier thresholds cannot help: whoever runs 1.5.1 recorded
+ * `purgedForVersion = 171`, which is past both. Without a third threshold that install never
+ * purges again for the life of it.
+ *
+ * ⚠ **172 must be the `versionCode` of the cut that CARRIES #160**, not merely the next number.
+ * `versionCode` is 171 (1.5.1) as this is written, so the next cut is 172 — but a cut that skips
+ * #160 breaks this. Late is harmless: with no 172 ever published, 171 → 173 still crosses 172 and
+ * purges. ⛔ **The dangerous case is an INTERLEAVED release**: ship a corrective as `versionCode`
+ * 172 WITHOUT #160, and the 1.5.1 user purges their bodies for nothing, records 172, then gets
+ * #160 in 173 — no threshold left to cross, no line, ever, in silence and with the suite green
+ * from end to end.
+ *
+ * So `/release` checks one thing: this value is the `versionCode` of the release that publishes
+ * #160. If an unrelated cut takes 172 first, this constant moves up to the one that does carry it.
+ */
+const val BODY_CACHE_PURGE_VERSION_3 = 172
+
+/**
  * The thresholds, in the order they were needed. Crossing ANY of them purges once.
  *
  * ⛔ A list of one-off answers, never a policy: nothing here is derived from the current build
  * number, so no entry ever appears on its own when the version moves.
  */
-private val BODY_CACHE_PURGE_VERSIONS = listOf(BODY_CACHE_PURGE_VERSION, BODY_CACHE_PURGE_VERSION_2)
+private val BODY_CACHE_PURGE_VERSIONS =
+    listOf(BODY_CACHE_PURGE_VERSION, BODY_CACHE_PURGE_VERSION_2, BODY_CACHE_PURGE_VERSION_3)
 
 /**
  * Which version to record after dropping the cached message bodies at startup, or null when

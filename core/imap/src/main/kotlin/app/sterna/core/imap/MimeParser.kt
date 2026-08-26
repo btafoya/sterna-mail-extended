@@ -189,6 +189,22 @@ object MimeParser {
     fun decodedHeaderOf(raw: String, name: String): String? = decodeWords(headerOf(raw, name))
 
     /**
+     * The SAME door as [decodedHeaderOf], for a value that has already been separated from its
+     * message: the header field's text goes in, what is safe to show comes out.
+     *
+     * It is a second entrance and not a second chain — [decodeWords] is `internal` to `:core:imap`
+     * exactly so that "there is exactly ONE sanitising chain in this app and a second copy of it
+     * would drift" ([decodedHeaderOf]) stays true. [decodedHeaderOf] takes `(raw, name)` and can
+     * only serve a caller holding the message source; a JMAP `headers` answer (RFC 8621 §4.1.3) is
+     * a list of name/value pairs with no source behind it, and a value read out of one is
+     * sender-controlled text bound for the screen just the same.
+     *
+     * Encoded-words decoded, raw 8-bit bytes read as text, bidi overrides and control characters
+     * removed, and the leading space RFC 8621 keeps after the colon trimmed off.
+     */
+    fun decodedHeaderValue(value: String?): String? = decodeWords(value)
+
+    /**
      * Every top-level header field of a raw message, in original order with duplicates kept
      * (folded continuation lines joined) — the IMAP counterpart of JMAP's `headers` property,
      * for the reader's "view headers" action (issue #60). Values are otherwise unaltered:

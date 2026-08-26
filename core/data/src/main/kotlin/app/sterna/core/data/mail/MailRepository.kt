@@ -663,6 +663,76 @@ internal fun readReceiptHeaderOf(raw: String): String? =
     MimeParser.headerOf(raw, "Disposition-Notification-To")
 
 /**
+ * The address a relay says REALLY wrote this message, out of a list of header fields in document
+ * order with duplicates kept — the shape both protocols hand over: `MimeParser.rawHeaders(raw)` on
+ * IMAP, `JmapClient.getEmailHeaders(...)` on JMAP. ONE function serves both, so an alias cannot be
+ * unmasked on one account and not on the other (#160).
+ *
+ * A named function for the same reason as [unsubscribeHeadersOf] and [readReceiptHeaderOf]: WHICH
+ * header is read is a decision, and the repository around it needs Room and an Android context, so
+ * nothing inside it can be reached from a JVM test. Named, the choice is executable.
+ *
+ * ⛔ The rule is the SHAPE of the field name and never a list of vendors: name lowercased, it must
+ * BEGIN with `x-` AND CONTAIN `original-from`. That covers `X-AnonAddy-Original-From-Header`,
+ * `X-Google-Original-From`, `X-SimpleLogin-Original-From` and the bare `X-Original-From` without
+ * this app promising to chase whichever forwarding service ships next. Both halves are required:
+ * `original-from` alone would admit any future standard field of that name, and `x-` alone admits
+ * `X-Mailer`.
+ *
+ * ⭐ The FIRST occurrence, and ⛔ NOT because it is known to be the right one. On a chain of two
+ * relays, WHICH of the two fields names the author is NOT established here: header fields are
+ * prepended as a message travels, which would make the first one the OUTERMOST relay's — but no
+ * message with two of these fields has ever been seen in this project, and the services that write
+ * them do not agree on much. The first is taken because it is stable and deterministic, so the
+ * same message always reads the same way, and because guessing a rule from a case nobody has
+ * observed is worse than keeping a plain one.
+ *
+ * ⛔ Accepted debt, stated here rather than discovered later: a relay chain is reported by ONE of
+ * its hops, possibly the wrong one, and nothing on screen says there was a chain — the same kind of
+ * debt [unsubscribeHeadersOf] writes down about duplicates. The label says "(unverified)" for this
+ * reason among others.
+ *
+ * The value crosses [MimeParser.decodedHeaderValue] and is never handed over raw: it is entirely
+ * sender-controlled and it is going to a screen. ⚠ `rawHeaders` has already run `decodeHeaderBytes`
+ * over it and `decodeWords` runs it again; that is harmless, because `decodeHeaderBytes` returns
+ * its input untouched as soon as it is pure ASCII or carries a character above `0xFF` — i.e. as
+ * soon as it is not a byte container.
+ *
+ * `null` when nothing matches, or when what comes out of the door is blank: a field that is there
+ * and says nothing is no origin at all.
+ */
+internal fun originalSenderHeaderOf(headers: List<Pair<String, String>>): String? =
+    headers.firstOrNull { (name, _) ->
+        val lower = name.lowercase()
+        lower.startsWith("x-") && lower.contains("original-from")
+    }
+        ?.let { MimeParser.decodedHeaderValue(it.second) }
+        ?.takeIf { it.isNotBlank() }
+
+/**
+ * Whether an opened message's body may be written to the body cache, given how its origin header
+ * was obtained — the decision `MailRepository.openMessage` runs before [MailRepository] persists
+ * anything, as a pure function so the one case that costs the feature is EXECUTED by a test.
+ *
+ * ⛔ THE case. On JMAP the origin header is a separate best-effort read, and a null from it means
+ * two different things: "this message carries none" and "the read did not happen". Caching the
+ * second as if it were the first writes a body that says "no origin" FOR EVER — `openMessage`
+ * serves the cache before any network call, so nothing ever asks again. One second of bad network
+ * would cost that message its line permanently.
+ *
+ * Not caching is the honest price, and it is the price `persistBody` already accepts for an
+ * oversized body: "it costs a refetch on every open, which is the honest price, where writing it
+ * would poison the cache with a row that throws on every read." Here the poison is quieter — a row
+ * that reads back fine and is simply wrong.
+ *
+ * ⭐ IMAP always caches: there the header was read off the message source that was already in hand
+ * ([originalSenderHeaderOf] over `MimeParser.rawHeaders`), so there is no separate read to fail and
+ * its null is always the real answer.
+ */
+internal fun cachesBodyAfterOriginRead(protocol: MailProtocol, originReadSucceeded: Boolean): Boolean =
+    protocol == MailProtocol.IMAP || originReadSucceeded
+
+/**
  * Whether the IMAP message whose source is [raw] asks for a read receipt — `null` for "cannot
  * say". The decision of `MailRepository.imapDraftReceiptRequested`, as a pure function, so the
  * one case that costs data is EXECUTED by a test instead of being read as source text.
@@ -3454,6 +3524,89 @@ class MailRepository(
     }
 
     /**
+     * The outcome of ONE best-effort origin read (#160): [header] is what was found — null when
+     * the message carries no such field — and [succeeded] says whether the read HAPPENED at all.
+     *
+     * ⛔ The two are not the same fact, and conflating them is what would cost the feature: a null
+     * that came from a failed read, written to the body cache, says "this message has no origin"
+     * for ever, because `openMessage` serves that cache before any network call.
+     * [cachesBodyAfterOriginRead] is what keeps them apart.
+     */
+    private class OriginRead(val header: String?, val succeeded: Boolean)
+
+    /**
+     * Read the origin header of one opened message, BEST EFFORT: a failure costs the line, never
+     * the message.
+     *
+     * ⭐ Called from [openMessage] and NOT from [openEmail], deliberately. `openEmail` has three
+     * callers and only one of them shows this line — `rawHeaders` and `decryptMessage` would each
+     * pay a round trip for a value they discard, the second before an OpenPGP decrypt. And a
+     * failure has to be visible from the site that decides whether to CACHE, which is `openMessage`.
+     *
+     * ⭐ IMAP needs no read at all: `openEmailImap` lifted the field off the message source it had
+     * to fetch anyway, so its answer is already on [email] and cannot have failed.
+     *
+     * ⛔ NOT by adding `headers` to `EMAIL_BODY_PROPERTIES`: a server that refuses one requested
+     * property rejects the WHOLE `Email/get`, so that would mean no message opening at all on that
+     * account until a third nested fallback were built over `withUnsubscribeHeaderFallback` and
+     * `withReceiptHeaderFallback` — and `JmapClient` states why those two are deliberately not
+     * merged. The dedicated `getEmailHeaders` call has no such blast radius. The price, accepted:
+     * ONE extra round trip per online JMAP open of an uncached message.
+     *
+     * ⚠ `try`/`catch` and not `runCatching`, for the reason [openEmailImap] spells out: an
+     * `AccountGoneException` IS a `CancellationException` in this code, and swallowing it would
+     * both dress a sign-out up as "no origin header" and stop the cancellation from doing its job
+     * upstream. It is rethrown untouched; everything else becomes a failed read.
+     */
+    private suspend fun originReadFor(
+        credentials: AccountCredentials,
+        emailId: String,
+        email: Email,
+    ): OriginRead {
+        if (credentials.protocol == MailProtocol.IMAP) {
+            return OriginRead(email.originalSender, succeeded = true)
+        }
+        return try {
+            val ctx = connect(credentials)
+            OriginRead(
+                header = originalSenderHeaderOf(
+                    client.getEmailHeaders(ctx.session, ctx.accountId, emailId, ctx.auth)
+                        .map { it.name to it.value },
+                ),
+                succeeded = true,
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            android.util.Log.w("MailRepository", "origin header of $emailId unreadable", failure)
+            OriginRead(header = null, succeeded = false)
+        }
+    }
+
+    /**
+     * The same read for MANY messages, keyed by id, and on exactly the same terms: ONE grouped
+     * `Email/get` for the whole set, best effort, cancellation rethrown untouched. The two forms
+     * are siblings on purpose — a failure must mean the same thing on both paths, namely "no line
+     * on these messages" and never "no message".
+     *
+     * ⛔ Not twenty single calls: this runs on every inbox refresh, in [bgScope]. And ⛔ `null` on
+     * failure rather than an empty map — see [cachesBodyAfterOriginRead] for what caching an
+     * unmeasured null costs.
+     */
+    private suspend fun originalSendersOf(ctx: Context, ids: List<String>): Map<String, String?>? = try {
+        client.getEmailsHeaders(ctx.session, ctx.accountId, ids, ctx.auth)
+            .mapValues { (_, headers) -> originalSenderHeaderOf(headers.map { it.name to it.value }) }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        android.util.Log.w("MailRepository", "origin headers of ${ids.size} prefetched messages unreadable", failure)
+        // ⛔ null, never emptyMap(): an empty map is indistinguishable from "none of them carries
+        // one", and the caller would cache twenty bodies saying so — permanently, since the cache
+        // is served before any network call.
+        null
+    }
+
+    /**
      * IMAP message open: fetch the raw source, parse the body, mark seen when [markRead].
      *
      * ⭐ The envelope comes from the cache when there is one and FROM THE SERVER when there is not
@@ -3527,6 +3680,10 @@ class MailRepository(
             // JMAP this is a requested property, here it is two lines of an answer already in
             // hand, so both protocols hand the reader the same raw text.
             dispositionNotificationTo = readReceiptHeaderOf(raw),
+            // Free on the same source too, and read through `rawHeaders` rather than `headerOf`:
+            // `headerOf` is a Map where the LAST occurrence wins, and for a relay header that is
+            // not neutral — it would name the outermost alias instead of the innermost hop.
+            originalSender = originalSenderHeaderOf(MimeParser.rawHeaders(raw)),
         )
     }
 
@@ -3611,9 +3768,22 @@ class MailRepository(
             // must not land in the Room cache, and the ciphertext body is useless.
             return MessageBody(email, emptyMap(), crypto = MessageCrypto.Locked(kind))
         }
-        val inline = fetchInlineImages(credentials, email, emailId)
-        persistBody(credentials.id, emailId, email, inline)
-        return MessageBody(email, inline)
+        // Who a forwarding service says really wrote this (#160), read HERE and not inside
+        // `openEmail`: this is the only caller that shows the line, and it is the only place that
+        // can act on a failed read — which it does by not caching. On IMAP nothing is fetched, the
+        // field came free with the source.
+        val origin = originReadFor(credentials, emailId, email)
+        val shown = email.copy(originalSender = origin.header)
+        val inline = fetchInlineImages(credentials, shown, emailId)
+        // ⛔ The cache write is CONDITIONAL. A body cached after a failed read would say "no
+        // origin" for the life of the install: this cache is served before any network call, so
+        // nothing ever asks again. Not caching costs a refetch on the next open — the same honest
+        // price `persistBody` already accepts for an oversized body, and the alternative is the
+        // same poisoned row, only quieter, because it reads back perfectly well and is wrong.
+        if (cachesBodyAfterOriginRead(credentials.protocol, origin.succeeded)) {
+            persistBody(credentials.id, emailId, shown, inline)
+        }
+        return MessageBody(shown, inline)
     }
 
     /**
@@ -3975,7 +4145,25 @@ class MailRepository(
             if (missing.isEmpty()) return
             val ctx = connect(credentials)
             val emails = client.getEmailsWithBody(ctx.session, ctx.accountId, missing, ctx.auth)
-            for (email in emails) persistBody(credentials.id, email.id, email, emptyMap())
+            // ⭐ The origin header (#160) is posed HERE and not only in `openEmail`, because
+            // `openMessage` answers from this cache BEFORE any network call — so for the twenty
+            // newest messages of the inbox, which is exactly the case a relayed mail lands in,
+            // `openEmail` is never reached and the reader's "Original sender" line would never
+            // appear at all.
+            //
+            // ⛔ One GROUPED call for the whole window, not one per message, and only on a prefetch
+            // that already had work to do (`missing` is non-empty above): the cost is ONE extra
+            // round trip per prefetch. Best effort — a failure costs these messages their line and
+            // never the prefetch, and never the bodies.
+            // ⛔ `?: return` — a window whose origin read failed is NOT persisted. Twenty bodies
+            // written with an unmeasured null would each say "no origin" for good, and these are
+            // exactly the twenty messages a reader tries a new feature on. A skipped prefetch
+            // costs latency on the next open; a poisoned one costs the feature.
+            val origins = originalSendersOf(ctx, missing) ?: return
+            for (email in emails) {
+                val withOrigin = email.copy(originalSender = origins[email.id])
+                persistBody(credentials.id, email.id, withOrigin, emptyMap())
+            }
         }
     }
 

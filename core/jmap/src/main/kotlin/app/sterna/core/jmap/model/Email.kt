@@ -154,6 +154,23 @@ data class Email(
      */
     @SerialName("header:Disposition-Notification-To:asText")
     val dispositionNotificationTo: String? = null,
+    /**
+     * Who a forwarding service says really wrote this message, already decoded and filtered —
+     * read off an `X-…-Original-From…` field when the message carries one (#160). Null for very
+     * nearly every message; the `From` above is NEVER replaced by it.
+     *
+     * ⛔ No `@SerialName`, deliberately, and that is the difference from the three fields above:
+     * this is NOT a JMAP property and is never requested from a server. It is filled by the
+     * repository on both protocols — off the source already in hand on IMAP, off the dedicated
+     * `getEmailHeaders` call on JMAP — so a name matching a wire property would be a claim the
+     * server never made.
+     *
+     * Like [listUnsubscribe] and [dispositionNotificationTo], it is NOT carried by
+     * `EmailMapper.toEmail`: these header fields live only in the body cache, which serialises the
+     * whole `Email` (`MailRepository.persistBody`). No column, no migration, and a folder page
+     * pays nothing for it.
+     */
+    val originalSender: String? = null,
 ) {
     /** Whether the message has been read ($seen keyword). */
     val isSeen: Boolean get() = keywords["\$seen"] == true

@@ -1927,6 +1927,8 @@ private fun MessageHeader(
             to = full?.to ?: emptyList(),
             cc = full?.cc ?: emptyList(),
             deliveredTo = deliveredTo,
+            // Decided HERE and handed over already decided: the panel renders, it does not judge.
+            originalSender = originalSenderToShow(full?.originalSender, msg.header.from),
             onComposeTo = { address -> showParticipants = false; onComposeTo(address) },
             senderRule = senderRule,
             onDismiss = { showParticipants = false },
@@ -1964,6 +1966,7 @@ private fun ParticipantsSheet(
     to: List<EmailAddress>,
     cc: List<EmailAddress>,
     deliveredTo: String?,
+    originalSender: EmailAddress?,
     onComposeTo: (address: String) -> Unit,
     senderRule: SenderRuleOffer,
     onDismiss: () -> Unit,
@@ -1986,6 +1989,10 @@ private fun ParticipantsSheet(
             // First, because it is the one line the panel is opened for on a multi-alias account:
             // scanning a long To/Cc list for your own address is exactly what this spares (#81).
             ReceivedAtGroup(deliveredTo)
+            // Under "Received at" and ABOVE "From", which is the order the reader asks the panel
+            // its question in: what did this arrive on, what does it claim about where it came
+            // from, who does it say sent it.
+            OriginalSenderGroup(originalSender)
             // isSender is TRUE for the From group and false for the other two, and it is an
             // argument of the decision rather than "whichever group got a callback": a rule on
             // FROM aimed at someone who was merely in Cc is a rule about mail that person has
@@ -2019,6 +2026,56 @@ private fun ReceivedAtGroup(address: String?) {
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
     )
+}
+
+/**
+ * What the message SAYS about who wrote it, when a forwarding service relayed it (#160): an alias
+ * puts its own address in both `From` and `To`, and nothing on screen then names the author, so a
+ * reader cannot rule out a forgery. Rendered from [address], already decided by
+ * [originalSenderToShow] — nothing is judged here.
+ *
+ * ⛔ No avatar, no menu, no action, on the shape of [ReceivedAtGroup] and not of [ParticipantRow]:
+ * this is not a participant to write to, it is a claim the message makes about its own origin.
+ * ⛔ And the `From` above is not replaced by it: what arrived is still what arrived.
+ */
+@Composable
+private fun OriginalSenderGroup(address: EmailAddress?) {
+    if (address == null) return
+    HorizontalDivider()
+    // ⛔ The LABEL is not bounded: it wraps, like `participants_received_at` which is already 19
+    // characters in fr and ru. Only what comes from the sender is clamped.
+    Text(
+        stringResource(R.string.participants_original_sender),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+    )
+    // ⛔ maxLines = 1 + ellipsis on both lines, exactly as [ParticipantRow] clamps a display name:
+    // this text is ENTIRELY sender-controlled, and `stripBidiAndControls` lets 0x09 and 0x0A
+    // through (HeaderText.kt:124-128), so an unbounded Text here could be pushed down the panel
+    // by a tab-and-newline header until the groups under it leave the screen.
+    Text(
+        address.display(),
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(start = 24.dp, end = 24.dp),
+    )
+    // The bare address under the name, as [ParticipantRow] does — and here it is the whole point
+    // rather than a detail: a display name is precisely what a forgery gets right, so the address
+    // itself must always be readable. Omitted when there is no name, since `display()` IS the
+    // address then and one line would simply be printed twice.
+    if (!address.name.isNullOrBlank()) {
+        Text(
+            address.email,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp),
+        )
+    }
+    Spacer(Modifier.height(8.dp))
 }
 
 /** One labelled block (From / To / Cc) in [ParticipantsSheet]; renders nothing when [people] empty. */
@@ -3435,6 +3492,37 @@ internal fun bodyTakesGestureAtDown(travelBack: Int, travelForward: Int, minTrav
  * That is what let 3px of border kill swipe-between-messages. Same numbers, a usable threshold.
  */
 internal fun bodyCanTravel(travel: Int, minTravel: Int): Boolean = travel >= minTravel
+
+/**
+ * The "Original sender" line of the participants panel: the address to show, or null for no line
+ * at all (#160). [headerValue] is `Email.originalSender` — what a forwarding service said about
+ * the author — and [from] is the message's `From`, which this NEVER replaces.
+ *
+ * ⭐ A plain function and not a branch inside the panel's composable, on purpose: R8 has already
+ * inlined a small `@Composable` of this module until it painted nothing at all (`Monogram`, kept
+ * alive by an explicit keep rule), so a guard living in the painting is only ever proven by a
+ * bench run on a release build. Out here it is executed by a unit test.
+ *
+ * The address is parsed on the same rule as `MailRepository.parseAddress`: `name <addr>`, or the
+ * bare string as the address. That rule is `private` to the repository and is restated here rather
+ * than widening the repository's surface for one line of one screen.
+ *
+ * Two refusals, and they are the point of the function:
+ * ⛔ nothing address-shaped in it (no `@`) → no line. The header is entirely sender-controlled and
+ *    the line it feeds reads as "here is who really wrote to you"; arbitrary text must not be
+ *    presented under that promise.
+ * ⛔ the same address as the first `From`, case-insensitively → no line. Showing one address twice
+ *    under two labels is noise on the one screen this exists to make legible.
+ */
+internal fun originalSenderToShow(headerValue: String?, from: List<EmailAddress>): EmailAddress? {
+    val value = headerValue?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val bracketed = Regex("^(.*?)<([^>]+)>").find(value)
+    val name = bracketed?.groupValues?.get(1)?.trim()?.ifBlank { null }
+    val email = bracketed?.groupValues?.get(2)?.trim() ?: value
+    if (!email.contains('@')) return null
+    if (email.equals(from.firstOrNull()?.email?.trim(), ignoreCase = true)) return null
+    return EmailAddress(name = name, email = email)
+}
 
 /**
  * The message-body WebView. It fills the viewport and OWNS its vertical scroll, so Blink culls
