@@ -1389,6 +1389,141 @@ class LocalDraftSaveTest {
         )
     }
 
+    // ---- 9. a token that cannot be an address goes out as a group naming nobody ---------------
+
+    /**
+     * ⭐ THE case, measured on `emu`/Stalwart on 2026-08-26. Appending `Cc: undisclosed-recipients`
+     * as a bare atom makes Stalwart answer `cc = NIL` for that message: the value never reaches the
+     * parser, the second open shows an EMPTY Cc, and the second save reads "addressing proved
+     * empty" and expunges the copy that still held the header (UID 431 gone, UID 432 with no `Cc:`
+     * at all). Written as RFC 5322 group syntax the same field survives.
+     */
+    @Test fun `a Cc that cannot be an address is appended as a group naming nobody`() {
+        val row = row(cc = "undisclosed-recipients")
+
+        assertEquals(
+            "⛔ a bare atom is what the server drops on the floor — the APPEND must write the " +
+                "group form, which Stalwart hands back as a start and an end",
+            listOf("undisclosed-recipients:;"),
+            localDraftOutgoing(row, "alex@example.org", emptyList(), NOW).cc,
+        )
+    }
+
+    /** All THREE fields, so "only the cc is rewritten" is not a shape this can be left in. */
+    @Test fun `the To the Cc and the Bcc all write the group form`() {
+        val row = row(toAddresses = "the-team", cc = "undisclosed-recipients", bcc = "blind-list")
+
+        val message = localDraftOutgoing(row, "alex@example.org", emptyList(), NOW)
+
+        assertEquals(listOf("the-team:;"), message.to)
+        assertEquals(listOf("undisclosed-recipients:;"), message.cc)
+        assertEquals(
+            "the Bcc too: a blind copy only survives a save because the appended draft carries the " +
+                "header, so a token lost there is lost for good",
+            listOf("blind-list:;"), message.bcc,
+        )
+    }
+
+    /**
+     * ⛔ THE witness, and the one that matters most: a real address goes out UNTOUCHED. `a@b` is
+     * here on purpose — `isValidEmail` (the composer's typo-catcher) rejects it, RFC 5322 does not,
+     * and judging with that function would send `a@b:;` to the server and destroy a real address.
+     */
+    @Test fun `a real address is appended unchanged`() {
+        val row = row(
+            toAddresses = "bob@exemple.org",
+            cc = "a@b",
+            bcc = "Alex <alex@exemple.org>",
+        )
+
+        val message = localDraftOutgoing(row, "alex@example.org", emptyList(), NOW)
+
+        assertEquals(listOf("bob@exemple.org"), message.to)
+        assertEquals("a@b is a valid addr-spec, and rewriting it would destroy a recipient", listOf("a@b"), message.cc)
+        assertEquals(listOf("Alex <alex@exemple.org>"), message.bcc)
+    }
+
+    /** A token that already holds a group delimiter is left alone: `foo:bar:;` is a worse header. */
+    @Test fun `a token already carrying a group delimiter is appended unchanged`() {
+        val row = row(toAddresses = "foo:bar", cc = "already-a-group:;")
+
+        val message = localDraftOutgoing(row, "alex@example.org", emptyList(), NOW)
+
+        assertEquals(listOf("foo:bar"), message.to)
+        assertEquals(listOf("already-a-group:;"), message.cc)
+    }
+
+    /** Mixed in one field: only the token that cannot be an address moves, and the order stands. */
+    @Test fun `only the token that cannot be an address is rewritten, in place`() {
+        val row = row(cc = "bob@exemple.org,undisclosed-recipients,carol@exemple.org")
+
+        assertEquals(
+            listOf("bob@exemple.org", "undisclosed-recipients:;", "carol@exemple.org"),
+            localDraftOutgoing(row, "alex@example.org", emptyList(), NOW).cc,
+        )
+    }
+
+    /**
+     * ⭐ D1 — what a user who KNOWS the syntax actually produces. Typing `undisclosed-recipients:;`
+     * into the Cc goes through the composer's `parseAddrs`, which splits on `,` AND on `;`
+     * (`ComposeText.kt:664`): the stored token is `undisclosed-recipients:` — a group start with no
+     * end, which is not group syntax either. Appended as such it is the SAME loss, replayed: an
+     * empty Cc on the second open and the copy expunged.
+     *
+     * ⛔ The rule is "ENDS with a `:`", never "holds one": `foo:bar` is left alone here, in the same
+     * test, or lengthening it to `foo:bar:;` would be a new malformed header.
+     */
+    @Test fun `a trailing colon is completed into the group form, an inner one is left alone`() {
+        val row = row(toAddresses = "foo:bar", cc = "undisclosed-recipients:", bcc = "the-team:")
+
+        val message = localDraftOutgoing(row, "alex@example.org", emptyList(), NOW)
+
+        assertEquals(
+            "⛔ `undisclosed-recipients:` opens a group and never closes it — the token the " +
+                "composer's own splitter hands over must go out completed",
+            listOf("undisclosed-recipients:;"), message.cc,
+        )
+        assertEquals(listOf("the-team:;"), message.bcc)
+        assertEquals("an inner colon is not a group start, and must not be lengthened", listOf("foo:bar"), message.to)
+    }
+
+    /**
+     * ⭐ THE case the whole thing exists for, and the one every other test here misses: a row that
+     * REPLACES a server draft. `replacesEmailId == null` is a first save — there is no original, so
+     * nothing can be expunged and the defect cannot happen. Every assertion above runs on that
+     * harmless shape, so a fix that skipped the rewrite whenever a draft has an original would pass
+     * them all while leaving the data loss exactly where it was.
+     */
+    @Test fun `the group form is written on the save that replaces a server draft`() {
+        val row = row(cc = "undisclosed-recipients").copy(
+            replacesEmailId = "imap:acc:INBOX/Drafts:431",
+            replacesUidValidity = 9L,
+        )
+
+        assertEquals(
+            "⛔ the replacing save is the one that expunges UID 431 — this is the path the token " +
+                "has to survive, not the first save",
+            listOf("undisclosed-recipients:;"),
+            localDraftOutgoing(row, "alex@example.org", emptyList(), NOW).cc,
+        )
+    }
+
+    /** A token holding the group TERMINATOR and no start is left alone: `the-list;:;` is worse. */
+    @Test fun `a token already carrying a group terminator is appended unchanged`() {
+        assertEquals(
+            listOf("the-list;"),
+            localDraftOutgoing(row(cc = "the-list;"), "alex@example.org", emptyList(), NOW).cc,
+        )
+    }
+
+    /** A short name is a name: an internal alias like `hr` is exactly what such a header holds. */
+    @Test fun `a short token is written as a group too`() {
+        val message = localDraftOutgoing(row(toAddresses = "hr", cc = "team"), "alex@example.org", emptyList(), NOW)
+
+        assertEquals(listOf("hr:;"), message.to)
+        assertEquals(listOf("team:;"), message.cc)
+    }
+
     // ---- the fixture --------------------------------------------------------------------------------------
 
     @Suppress("LongParameterList")

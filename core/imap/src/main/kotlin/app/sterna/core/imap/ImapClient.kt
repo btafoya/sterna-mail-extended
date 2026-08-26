@@ -1109,17 +1109,10 @@ class ImapSession(private var socket: Socket) : Closeable {
         val fromEmail = if (mailbox != null && hostPart != null) "$mailbox@$hostPart" else null
         // Envelope "to" (index 5): every parseable address — Sent-folder rows show the
         // recipients, not the sender (Codeberg #59). Group-syntax delimiters (no host) are
-        // skipped.
+        // skipped. The halves of an address get [decodeHeaderBytes], same treatment as the From
+        // address above and for the same reason — see [envelopeAddresses].
         @Suppress("UNCHECKED_CAST")
-        val toAddrs = ((envelope?.getOrNull(5) as? List<Any?>).orEmpty()).mapNotNull { entry ->
-            val addr = entry as? List<Any?> ?: return@mapNotNull null
-            val name = decodeWords(addr.getOrNull(0) as? String)
-            // Same treatment as the From address above, and for the same reason.
-            val box = (addr.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
-            val host = (addr.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
-            val email = if (box != null && host != null) "$box@$host" else null
-            if (email == null && name == null) null else ImapAddress(name = name, email = email)
-        }
+        val toAddrs = envelopeAddresses(envelope?.getOrNull(5) as? List<Any?>)
         // Envelope "reply-to" (index 4): where the SENDER said to answer. Read exactly like the
         // recipients above, decodeHeaderBytes included — this address is not displayed and
         // forgotten, it is the one a reply is addressed to, so a mangled one sends mail nowhere.
@@ -1127,27 +1120,13 @@ class ImapSession(private var socket: Socket) : Closeable {
         // ⛔ Index 4, between sender (3) and to (5). Taking its neighbour would answer the copied
         // parties instead, and the address the sender designated would hear nothing.
         @Suppress("UNCHECKED_CAST")
-        val replyToAddrs = ((envelope?.getOrNull(4) as? List<Any?>).orEmpty()).mapNotNull { entry ->
-            val addr = entry as? List<Any?> ?: return@mapNotNull null
-            val name = decodeWords(addr.getOrNull(0) as? String)
-            val box = (addr.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
-            val host = (addr.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
-            val email = if (box != null && host != null) "$box@$host" else null
-            if (email == null && name == null) null else ImapAddress(name = name, email = email)
-        }
+        val replyToAddrs = envelopeAddresses(envelope?.getOrNull(4) as? List<Any?>)
         // Envelope "cc" (index 6): the people put in copy. Read exactly like the recipients above,
         // decodeHeaderBytes on BOTH halves included — a copied address is not displayed and
         // forgotten, it is prefilled as a recipient of a reply-all and re-sent, so a mangled host
         // sends the copy to a domain that does not exist while the message looks sent.
         @Suppress("UNCHECKED_CAST")
-        val ccAddrs = ((envelope?.getOrNull(6) as? List<Any?>).orEmpty()).mapNotNull { entry ->
-            val addr = entry as? List<Any?> ?: return@mapNotNull null
-            val name = decodeWords(addr.getOrNull(0) as? String)
-            val box = (addr.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
-            val host = (addr.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
-            val email = if (box != null && host != null) "$box@$host" else null
-            if (email == null && name == null) null else ImapAddress(name = name, email = email)
-        }
+        val ccAddrs = envelopeAddresses(envelope?.getOrNull(6) as? List<Any?>)
         // Envelope "bcc" (index 7): the BLIND copies, and the reason the two slots are read
         // separately here and stored in separate columns downstream.
         //
@@ -1155,14 +1134,7 @@ class ImapSession(private var socket: Socket) : Closeable {
         // the recipient list of a reply-all, addresses the sender chose to hide — the one mistake
         // in this function that cannot be walked back once the reply is sent.
         @Suppress("UNCHECKED_CAST")
-        val bccAddrs = ((envelope?.getOrNull(7) as? List<Any?>).orEmpty()).mapNotNull { entry ->
-            val addr = entry as? List<Any?> ?: return@mapNotNull null
-            val name = decodeWords(addr.getOrNull(0) as? String)
-            val box = (addr.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
-            val host = (addr.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
-            val email = if (box != null && host != null) "$box@$host" else null
-            if (email == null && name == null) null else ImapAddress(name = name, email = email)
-        }
+        val bccAddrs = envelopeAddresses(envelope?.getOrNull(7) as? List<Any?>)
         val messageId = envelope?.getOrNull(9) as? String
         val inReplyTo = envelope?.getOrNull(8) as? String
 

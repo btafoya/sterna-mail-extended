@@ -465,6 +465,37 @@ class DraftSaveTest {
         assertNull(copiedAddressesOrNull(listOf(ImapAddress(name = "aa", email = "   "))))
     }
 
+    /**
+     * ⭐ `Cc: undisclosed-recipients:;`, the entry the envelope parser now produces for it, and the
+     * decision that follows — EXECUTED, not described.
+     *
+     * A group that names nobody is a name and no address. Before it was carried, the whole field
+     * arrived empty, `copiedAddressesOrNull(emptyList())` answered `emptySet()`, and
+     * `draftAddressingIsCarried(emptySet(), …)` answered TRUE: proof the replacement carried
+     * everything, so the server copy holding the only trace of that header was expunged. Now the
+     * read is unknown and the answer is FALSE — the copy stays.
+     *
+     * ⛔ The last two lines are the inverse witness on the very same call: read as an empty
+     * addressing instead, this identical save destroys the original. That is the difference the
+     * defect erased, so it is asserted rather than assumed.
+     */
+    @Test fun aCcThatIsOnlyAGroupNamingNobodyKeepsTheServerCopy() {
+        val read = copiedAddressesOrNull(
+            listOf(ImapAddress(name = "undisclosed-recipients", email = null)),
+        )
+        assertNull("a group naming nobody is addressing that yielded no address: unknown", read)
+        assertFalse(
+            "and an unknown addressing keeps the original — the copy is the only thing left " +
+                "holding `Cc: undisclosed-recipients:;`",
+            draftAddressingIsCarried(original = read, replacement = setOf("quelqu-un@masto.top")),
+        )
+        assertTrue(
+            "whereas an addressing read as EMPTY authorises the destroy, which is precisely what " +
+                "the dropped group used to produce",
+            draftAddressingIsCarried(original = emptySet(), replacement = setOf("quelqu-un@masto.top")),
+        )
+    }
+
     // ---- draftReceiptRequestIsCarried: the same rule, for the read receipt (D2) ---------------
 
     /**

@@ -235,6 +235,11 @@ internal fun localDraftAddresses(column: String?): List<String> =
  * single-line check on every address before any of it becomes a header (CRLF injection), the first
  * `In-Reply-To` and the joined `References`.
  *
+ * ⭐ One difference, and it is a data loss either way: every token of the three address fields goes
+ * through [asGroupWhenItCannotBeAnAddrSpec] first, so a token that cannot be an address is appended
+ * as a group naming nobody instead of as a bare atom the server drops. The CRLF check runs on the
+ * TRANSFORMED values — the guard has to judge what really goes on the wire.
+ *
  * ⚠ JMAP has no equivalent: `JmapClient.saveDraft` builds an `Email/set` create and the server mints
  * the `Message-ID`. The row's value is still frozen there — it just does not reach the wire, so a
  * JMAP re-upload cannot be de-duplicated by header. Stated, not fixed here.
@@ -246,9 +251,9 @@ internal fun localDraftOutgoing(
     nowMillis: Long,
 ): OutgoingMessage {
     val from = formatFromAddress(row.fromName, row.fromEmail) ?: loginAddress
-    val to = localDraftAddresses(row.toAddresses)
-    val cc = localDraftAddresses(row.cc)
-    val bcc = localDraftAddresses(row.bcc)
+    val to = localDraftAddresses(row.toAddresses).map(::asGroupWhenItCannotBeAnAddrSpec)
+    val cc = localDraftAddresses(row.cc).map(::asGroupWhenItCannotBeAnAddrSpec)
+    val bcc = localDraftAddresses(row.bcc).map(::asGroupWhenItCannotBeAnAddrSpec)
     requireSingleLineAddresses(listOf(from) + to + cc + bcc)
     return OutgoingMessage(
         from = from,
@@ -265,6 +270,41 @@ internal fun localDraftOutgoing(
         attachments = attachments,
         requestReceipt = row.requestReceipt,
     )
+}
+
+/**
+ * One addressing token as the APPEND must write it: a token that CANNOT be an `addr-spec` goes out
+ * as RFC 5322 group syntax naming nobody — `undisclosed-recipients` becomes
+ * `undisclosed-recipients:;`. Anything else is handed over untouched.
+ *
+ * ⛔ **Not a validity check, and not a second judge of one.** The composer's `isValidEmail` and
+ * `parseAddrs` remain the only ones. This is RFC 5322 read literally: with no `@` a token is not an
+ * `addr-spec` at all, so a group is the only header shape that can carry it. ⛔ In particular NOT
+ * `isValidEmail`, which lives in `:app`, is a deliberate typo-catcher stricter than the RFC and
+ * rejects `a@b` — a perfectly valid `addr-spec` that this would then rewrite to `a@b:;`, destroying
+ * a real recipient in the server's copy.
+ *
+ * Why the rewrite exists at all, measured on `emu`/Stalwart on 2026-08-26: saving such a draft used
+ * to APPEND the bare atom `Cc: undisclosed-recipients`, and Stalwart answers `cc = NIL` in the
+ * ENVELOPE for it. The value never reaches [app.sterna.core.imap.envelopeAddresses], so the second
+ * open shows an EMPTY Cc, `copiedAddressesOrNull` reads "addressing proved empty", and the save
+ * expunges the copy that still held the header. Written `undisclosed-recipients:;` the same field
+ * comes back as `((NIL NIL "undisclosed-recipients" NIL)(NIL NIL NIL NIL))`, which that parser
+ * carries as one entry with a name and no address.
+ *
+ * ⭐ A single TRAILING `:` is dropped and the group completed, because that is what a user who
+ * knows the syntax actually produces: typing `undisclosed-recipients:;` goes through the composer's
+ * `parseAddrs`, which splits on `,` AND on `;`, so the stored token is `undisclosed-recipients:` —
+ * a group start with no end, i.e. the same loss again. ⛔ It is "ENDS with a `:`", never "holds
+ * one": an inner delimiter (`foo:bar`) is left alone, and lengthening it to `foo:bar:;` would only
+ * make a header malformed in a new way. Same for a token already holding a `;`.
+ *
+ * The `:;` never travels back into a composer field — the reopened composer rebuilds it from the
+ * group NAME the ENVELOPE hands over.
+ */
+private fun asGroupWhenItCannotBeAnAddrSpec(token: String): String {
+    val name = token.removeSuffix(":")
+    return if (name.isNotBlank() && '@' !in name && ':' !in name && ';' !in name) "$name:;" else token
 }
 
 /** The per-draft directory name for [id] — the id with anything a file name cannot hold replaced. */
