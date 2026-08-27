@@ -92,6 +92,10 @@ class ScheduledCancelScopeWiringTest {
                 // Without the chosen identity the draft goes back under the login address (#31).
                 "fromName" to "d.fromName",
                 "fromEmail" to "d.fromEmail",
+                // ⛔ No composer in this story: the row is read from the database and deposited
+                // whole, so nothing was lost on the way into a parcel. `true` here would refuse to
+                // write the body of a message whose text is genuinely empty.
+                "composerBodyWasLost" to "false",
                 "requestReceipt" to "d.requestReceipt",
             ),
             save,

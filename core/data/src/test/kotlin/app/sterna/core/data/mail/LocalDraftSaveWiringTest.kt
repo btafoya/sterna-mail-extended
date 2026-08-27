@@ -28,6 +28,20 @@ class LocalDraftSaveWiringTest {
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") || it.isEmpty() }
 
+    /**
+     * The parameter list of `fun [function]` in the `mail` file [file], comments cut and lines
+     * trimmed — from the `fun …(` line down to the line that closes it. Read through
+     * [DaoQuerySource] like every other source rule here; nothing new opens a file.
+     */
+    private fun declarationOf(file: String, function: String): List<String> {
+        val lines = DaoQuerySource.mailSource(file).lines()
+        val at = lines.indexOfFirst { Regex("""\bfun\s+$function\s*\(""").containsMatchIn(it) }
+        assertTrue("$file declares no 'fun $function(' any more — was it renamed?", at >= 0)
+        val closes = lines.drop(at + 1).indexOfFirst { it.trimStart().startsWith(")") }
+        assertTrue("the parameter list of $file.$function never closes", closes >= 0)
+        return codeOf(lines.subList(at, at + closes + 2).joinToString("\n"))
+    }
+
     @Test fun `saveDraft itself touches no network at all`() {
         // ⛔ The point of the volet, stated where it can rot: every byte that leaves goes through
         // uploadDraft, which is reached only after the row is durable. A single `imap.` or
@@ -194,12 +208,43 @@ class LocalDraftSaveWiringTest {
                 "mailboxUidValidityDao.recorded(credentials.id, mailboxId)",
                 "},",
                 "bodyIsLossy = bodyIsLossy,",
+                // ⛔ Beside it, NOT instead of it. The column keeps the disjunction (every destroy
+                // guard downstream reads it); this one is the composer's own loss, and it is all
+                // the WRITE guard weighs — folded back together, erasing a marked draft's body is
+                // refused in silence again.
+                "composerBodyWasLost = composerBodyWasLost,",
                 "requestReceipt = requestReceipt,",
                 "existing = existing,",
                 "nowMillis = System.currentTimeMillis(),",
                 ")",
             ),
-            body.drop(at).take(22),
+            body.drop(at).take(23),
+        )
+    }
+
+    @Test fun `saveDraft gives the composer's own loss no default, so a new call site cannot forget it`() {
+        val declaration = declarationOf("MailRepository", "saveDraft")
+        assertTrue(
+            "MailRepository.saveDraft must declare `composerBodyWasLost: Boolean` with NO default " +
+                "value. A `= false` there is silent: the next save path written (a save on leave, " +
+                "an incoming share, a worker) compiles without saying anything, and the first time " +
+                "it runs from a composer that came back from a parcel without its body it writes " +
+                "that empty body over the ONLY copy of the user's text — no screen says a word, " +
+                "and no test in this repository would see it. Declaration was:\n" +
+                declaration.joinToString("\n") { "    $it" },
+            "composerBodyWasLost: Boolean," in declaration,
+        )
+    }
+
+    @Test fun `localDraftRow gives it no default either, for the same silence`() {
+        val declaration = declarationOf("LocalDraftSave", "localDraftRow")
+        assertTrue(
+            "localDraftRow must declare `composerBodyWasLost: Boolean` with NO default value. It " +
+                "is the argument the write guard weighs, so a `= false` here lets any future " +
+                "builder of a row erase the stored body of a draft whose composer lost it, with " +
+                "every executed rule of this suite still green. Declaration was:\n" +
+                declaration.joinToString("\n") { "    $it" },
+            "composerBodyWasLost: Boolean," in declaration,
         )
     }
 

@@ -121,6 +121,7 @@ class LocalDraftVersionIsNamedTest {
             body = body,
             replacesEmailId = serverDraftReplacedBy(SERVER_DRAFT),
             existing = existing,
+            composerBodyWasLost = false,
             nowMillis = NOW,
         )
         saveDraftLocalFirst(

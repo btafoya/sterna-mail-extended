@@ -6668,6 +6668,20 @@ class MailRepository(
         replacesUidValidity: Long?,
         attachments: List<EmailBodyPart> = emptyList(),
         bodyIsLossy: Boolean = false,
+        /**
+         * Whether THIS COMPOSER lost the body it is handing over — ⛔ NOT [bodyIsLossy], and the two
+         * must not be folded back together. [bodyIsLossy] is the composer's disjunction
+         * (`editingDraftLossyOnOpen || composerBodyWasLost`): it is the licence to destroy a server
+         * original (#63), it goes on the row, and it is true for EVERY server draft reopened with an
+         * HTML body. Read as "the text is gone" it refused a body the user had erased on purpose,
+         * in silence, on a screen that said the draft was saved. This one says only what the
+         * composer lost, and it is all the write guard weighs (see [localDraftBodyToWrite]).
+         *
+         * ⛔ No default on purpose, as for [replacesUidValidity]: `true` would put the silent
+         * refusal back at any call site that forgets it, `false` would let a future one delete the
+         * only copy of a draft's text. Each caller states which of the two it is.
+         */
+        composerBodyWasLost: Boolean,
         // The composer's chosen From, so a delegated sub-account's draft is honest about the
         // identity it will be sent as instead of falling back to the login's address (issue #31).
         fromName: String? = null,
@@ -6721,6 +6735,7 @@ class MailRepository(
                 mailboxUidValidityDao.recorded(credentials.id, mailboxId)
             },
             bodyIsLossy = bodyIsLossy,
+            composerBodyWasLost = composerBodyWasLost,
             requestReceipt = requestReceipt,
             existing = existing,
             nowMillis = System.currentTimeMillis(),

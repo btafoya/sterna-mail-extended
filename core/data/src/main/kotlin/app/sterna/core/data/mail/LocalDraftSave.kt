@@ -141,29 +141,37 @@ internal suspend fun localDraftUidValidity(
  * `replacesEmailId == null`: there is nothing on a server to fall back on). A composer that comes
  * back from an activity recreation without its body still comes back with everything else — the
  * recipients, the subject, `applied` — so the Save button is lit and a save runs, carrying an empty
- * body and [bodyIsLossy] set by the site that lost it. Written as-is, that save is a silent,
+ * body and [composerBodyWasLost] set by the site that lost it. Written as-is, that save is a silent,
  * definitive deletion of the user's text: nothing on screen says a word, and there is no second copy.
  * Refusing it costs a stale body on the row, which is the direction that cannot lose data (grid
  * rule 1).
  *
+ * ⛔ **The guard arms on [composerBodyWasLost] ALONE, never on the row's `bodyIsLossy`.** The two
+ * are not the same question, and taking the second cost a user her erasure: `bodyIsLossy` is the
+ * DISJUNCTION `editingDraftLossyOnOpen || composerBodyWasLost` (the licence to destroy a server
+ * original, #63), and its first term is true for EVERY server draft reopened with an HTML body —
+ * exactly where the composer plainly HAS its text. Emptying such a draft by hand was therefore
+ * refused in silence, the screen said the draft was saved, and the text was back at the next
+ * reopen. ⛔ The row still STORES the disjunction, and every destroy guard downstream still reads
+ * it: what changed is only which term decides this write.
+ *
  * ⛔ **All three terms are load-bearing, and none of them is "a row is already there".**
  *
- * - [bodyIsLossy] — without it, no re-save could ever shorten or empty a draft again: every save
- *   with less text than the row holds would be read as a loss.
- * - [body] being blank — without it, the everyday route breaks. ANY draft reopened from the server
- *   with an HTML body arms [bodyIsLossy] through [reopenedDraftIsLossy] while the composer plainly
- *   HAS its text, so a re-save would put the old body back and drop everything just typed. Blank and
- *   not empty, as `draftHasContent` reads a body: whitespace is not text either.
+ * - [composerBodyWasLost] — without it, no re-save could ever shorten or empty a draft again: every
+ *   save with less text than the row holds would be read as a loss.
+ * - [body] being blank — without it, a composer that lost its body but was handed a fresh one (the
+ *   user retyped before saving) would have the retyped text thrown away for the stale row. Blank
+ *   and not empty, as `draftHasContent` reads a body: whitespace is not text either.
  * - [existingBody] being neither null nor blank — a first save (no row under it) writes what it has,
  *   and so does a save onto a row that holds nothing to protect.
  *
  * ⚠ It does NOT recover the body: the text the resume slot could not park is nowhere. What is kept
  * is the last version that reached the disk. Everything else the save carries — addresses, subject,
  * `requestReceipt`, the fresh `Message-ID`, the timestamps — is written normally, and the row still
- * carries [bodyIsLossy] so every destroy guard downstream keeps refusing.
+ * carries `bodyIsLossy` so every destroy guard downstream keeps refusing.
  */
-internal fun localDraftBodyToWrite(body: String, existingBody: String?, bodyIsLossy: Boolean): String =
-    if (bodyIsLossy && body.isBlank() && !existingBody.isNullOrBlank()) existingBody else body
+internal fun localDraftBodyToWrite(body: String, existingBody: String?, composerBodyWasLost: Boolean): String =
+    if (composerBodyWasLost && body.isBlank() && !existingBody.isNullOrBlank()) existingBody else body
 
 /**
  * The row to write, built from what the composer handed over plus [existing] (the row a re-save
@@ -199,6 +207,13 @@ internal fun localDraftRow(
     replacesEmailId: String? = null,
     replacesUidValidity: Long? = null,
     bodyIsLossy: Boolean = false,
+    /**
+     * ⛔ Whether THIS COMPOSER lost the body it is handing over — NOT [bodyIsLossy], which is the
+     * disjunction stored on the row (see [localDraftBodyToWrite]). ⛔ No default on purpose: `true`
+     * would put the silent refusal back for every distracted caller, `false` would let a future
+     * site quietly delete a draft's only copy. Every call states which one it is.
+     */
+    composerBodyWasLost: Boolean,
     requestReceipt: Boolean = false,
     existing: LocalDraftEntity? = null,
     nowMillis: Long,
@@ -210,7 +225,7 @@ internal fun localDraftRow(
     cc = joinAddresses(cc),
     bcc = joinAddresses(bcc),
     subject = subject,
-    textBody = localDraftBodyToWrite(body, existing?.textBody, bodyIsLossy),
+    textBody = localDraftBodyToWrite(body, existing?.textBody, composerBodyWasLost),
     htmlBody = html,
     fromName = fromName,
     fromEmail = fromEmail,

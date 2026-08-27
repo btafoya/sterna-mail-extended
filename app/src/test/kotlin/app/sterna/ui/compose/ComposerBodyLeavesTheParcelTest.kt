@@ -193,12 +193,19 @@ class ComposerBodyLeavesTheParcelTest {
         val assignments = codeLines(VIEW_MODEL).filter { LOST_ASSIGNED.containsMatchIn(it) }
         assertEquals(
             "every line of $VIEW_MODEL that ASSIGNS `composerBodyWasLost`, whole lines and in " +
-                "order: its declaration, and the single line that raises it. Nothing else, ever. " +
+                "order: its declaration, the single line that raises it, and the named ARGUMENT " +
+                "that hands it to the save (which this rule also pins by value — " +
+                "`composerBodyWasLost = false` there puts the silent refusal of an erasure back). " +
+                "Nothing else, ever. " +
                 "`prepare()` starts from a `LaunchedEffect(Unit)` and its last statement writes the " +
                 "reopen verdict, so a flag living in that same field would be wiped by a rotation " +
                 "that reopens a draft — which is why there are two fields and why this one may only " +
                 "go up. Found:\n" + assignments.joinToString("\n") { "    $it" },
-            listOf("private var composerBodyWasLost = false", "composerBodyWasLost = true"),
+            listOf(
+                "private var composerBodyWasLost = false",
+                "composerBodyWasLost = true",
+                "composerBodyWasLost = composerBodyWasLost,",
+            ),
             assignments,
         )
         // ⛔ AND THE WHOLE BODY OF THE RAISER, because the list above only sees lines that ASSIGN.

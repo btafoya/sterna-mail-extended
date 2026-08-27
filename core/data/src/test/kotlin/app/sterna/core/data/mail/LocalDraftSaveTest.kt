@@ -170,6 +170,13 @@ class LocalDraftSaveTest {
          * a body the resume slot could not park on disk during an activity recreation.
          */
         bodyIsLossy: Boolean = false,
+        /**
+         * …and the OTHER half of that verdict, on its own: whether THIS COMPOSER lost the body it
+         * is handing over. Only this one may refuse to write an empty body over a stored one; the
+         * disjunction above cannot, because a reopened HTML draft arms it while the composer has
+         * its text.
+         */
+        composerBodyWasLost: Boolean = false,
         /** Run inside the staging step, i.e. while the row is written but its files are not. */
         stagingProbe: suspend () -> Unit = {},
         /**
@@ -200,6 +207,7 @@ class LocalDraftSaveTest {
             replacesEmailId = serverDraftReplacedBy(replacesEmailId),
             replacesUidValidity = replacesUidValidity,
             bodyIsLossy = bodyIsLossy,
+            composerBodyWasLost = composerBodyWasLost,
             existing = existing,
             nowMillis = NOW,
         )
@@ -763,32 +771,45 @@ class LocalDraftSaveTest {
 
     // ---- 3 bis. ⛔ a body the composer says it LOST never writes over the one already stored ----------
 
-    @Test fun `the four answers of the rule that decides which body is written`() {
-        // The decision itself, EXECUTED — not the line of source that contains it.
+    @Test fun `the answers of the rule that decides which body is written`() {
+        // The decision itself, EXECUTED — not the line of source that contains it. ⛔ The flag it
+        // weighs is the COMPOSER's own loss, never the row's `bodyIsLossy` (the disjunction that
+        // licenses a destroy, #63): the last two answers are what the row-level flag got wrong.
         assertEquals(
             "armed + nothing to write + something already written: the stored text stands",
-            "what was typed", localDraftBodyToWrite("", "what was typed", bodyIsLossy = true),
+            "what was typed", localDraftBodyToWrite("", "what was typed", composerBodyWasLost = true),
         )
         assertEquals(
             "whitespace is not text either — `draftHasContent` reads a body the same way",
-            "what was typed", localDraftBodyToWrite("  \n\t ", "what was typed", bodyIsLossy = true),
+            "what was typed", localDraftBodyToWrite("  \n\t ", "what was typed", composerBodyWasLost = true),
         )
         assertEquals(
-            "⛔ armed but the composer HAS a body: an HTML draft reopened from the server arms the " +
-                "flag every time, and what the user just typed is what she means to keep",
-            "the new text", localDraftBodyToWrite("the new text", "what was typed", bodyIsLossy = true),
+            "⛔ armed but the composer HAS a body: it was retyped after the loss, and what the user " +
+                "just typed is what she means to keep",
+            "the new text", localDraftBodyToWrite("the new text", "what was typed", composerBodyWasLost = true),
         )
         assertEquals(
             "⛔ not armed: emptying a draft on purpose still takes, or no re-save could shorten one",
-            "", localDraftBodyToWrite("", "what was typed", bodyIsLossy = false),
+            "", localDraftBodyToWrite("", "what was typed", composerBodyWasLost = false),
         )
         assertEquals(
             "a first save has no row under it and writes what it has",
-            "", localDraftBodyToWrite("", null, bodyIsLossy = true),
+            "", localDraftBodyToWrite("", null, composerBodyWasLost = true),
         )
         assertEquals(
             "and a row holding nothing worth keeping has nothing to protect",
-            "", localDraftBodyToWrite("", "   ", bodyIsLossy = true),
+            "", localDraftBodyToWrite("", "   ", composerBodyWasLost = true),
+        )
+    }
+
+    @Test fun `a MARKED draft the composer never lost is emptied on the user's word`() {
+        // The reported defect, at the level of the decision alone. A server HTML draft reopened
+        // MARKS the row (`bodyIsLossy = true`) for every destroy guard downstream, and the composer
+        // has its 1 020 characters all along. Weighed on that mark, the erasure was refused: the
+        // decision must be taken on the composer's own loss, which here is false.
+        assertEquals(
+            "an erasure the composer made on purpose is written, whatever the row is marked with",
+            "", localDraftBodyToWrite("", LONG, composerBodyWasLost = false),
         )
     }
 
@@ -804,7 +825,8 @@ class LocalDraftSaveTest {
             accountId = ACCOUNT, id = existing.id, messageId = "v2@example.org",
             to = listOf("carol@example.org"), cc = emptyList(), bcc = emptyList(),
             subject = "Now with a subject", body = "",
-            bodyIsLossy = true, existing = existing, nowMillis = NOW + 5_000L,
+            bodyIsLossy = true, composerBodyWasLost = true,
+            existing = existing, nowMillis = NOW + 5_000L,
         )
 
         // Length first, content second: a wiped body fails on a number one can read, and the exact
@@ -820,11 +842,40 @@ class LocalDraftSaveTest {
         assertTrue("and the row still says this save cannot answer for the original", resaved.bodyIsLossy)
     }
 
+    @Test fun `a marked draft the user emptied on purpose is written empty`() {
+        // The bench measurement of 2026-08-26. A draft reopened from the server with an HTML body
+        // arms the ROW's `bodyIsLossy` for every destroy guard downstream (#63) — while the
+        // composer plainly HAS its text. The user selects the whole body, deletes it, taps Save:
+        // the erasure is refused in silence, the screen says the draft was saved, and the text is
+        // back at the next reopen. Nothing was lost HERE; only the row is marked.
+        val existing = row().copy(textBody = LONG, bodyIsLossy = true)
+        val saved = localDraftRow(
+            accountId = ACCOUNT, id = existing.id, messageId = "v2@example.org",
+            to = listOf("bob@example.org"), cc = emptyList(), bcc = emptyList(),
+            subject = "Half written", body = "",
+            // The row is MARKED (a reopened HTML draft) and the composer lost NOTHING.
+            bodyIsLossy = true, composerBodyWasLost = false,
+            existing = existing, nowMillis = NOW + 5_000L,
+        )
+
+        // Length first, so the failure is a number one can read rather than 600 lines of fixture.
+        assertEquals(
+            "a body erased on purpose is written, on a MARKED draft too",
+            0, saved.textBody.length,
+        )
+        assertEquals("", saved.textBody)
+        assertTrue(
+            "…and the row goes on saying this copy cannot answer for the server original (#63): " +
+                "the write guard and the destroy guards are two different questions",
+            saved.bodyIsLossy,
+        )
+    }
+
     @Test fun `an offline re-save that lost its body leaves the draft whole, on its one row`() = runTest {
         save(body = LONG, upload = offline)
         val id = requireNotNull(stored())["id"]!!
 
-        save(body = "", bodyIsLossy = true, replacesEmailId = id, upload = offline)
+        save(body = "", bodyIsLossy = true, composerBodyWasLost = true, replacesEmailId = id, upload = offline)
 
         assertEquals("one draft, one row", listOf(ACCOUNT to id), allRows())
         val after = requireNotNull(stored())
@@ -1099,6 +1150,7 @@ class LocalDraftSaveTest {
             replacesEmailId = serverDraftReplacedBy(existing.id),
             replacesUidValidity = null,
             existing = existing,
+            composerBodyWasLost = false,
             nowMillis = NOW,
         )
         assertEquals("second pass", resaved.textBody)
@@ -1126,6 +1178,7 @@ class LocalDraftSaveTest {
             subject = "Half written", body = "second pass",
             replacesEmailId = "imap:acc:Drafts:99", replacesUidValidity = 7L,
             existing = existing, nowMillis = NOW,
+            composerBodyWasLost = false,
         )
         assertNull(resaved.replacesEmailId)
         assertNull(resaved.replacesUidValidity)
@@ -1136,6 +1189,7 @@ class LocalDraftSaveTest {
             subject = "Half written", body = "first pass",
             replacesEmailId = "imap:acc:Drafts:99", replacesUidValidity = 7L,
             existing = null, nowMillis = NOW,
+            composerBodyWasLost = false,
         )
         assertEquals("at CREATION they are written, or a re-save could never arm one", "imap:acc:Drafts:99", created.replacesEmailId)
         assertEquals(7L, created.replacesUidValidity)
@@ -1231,6 +1285,7 @@ class LocalDraftSaveTest {
             bodyIsLossy = true,
             requestReceipt = true,
             existing = previous,
+            composerBodyWasLost = false,
             nowMillis = NOW,
         )
 
@@ -1276,6 +1331,7 @@ class LocalDraftSaveTest {
             accountId = ACCOUNT, id = "local-draft:x", messageId = "m@example.org",
             to = listOf("bob@example.org"), cc = emptyList(), bcc = emptyList(),
             subject = "", body = "", existing = null, nowMillis = NOW,
+            composerBodyWasLost = false,
         )
         assertEquals(NOW, built.createdAtMillis)
         assertNull(built.cc)
@@ -1305,6 +1361,7 @@ class LocalDraftSaveTest {
                     cc = if (field == "cc") injected else emptyList(),
                     bcc = if (field == "bcc") injected else emptyList(),
                     subject = "Half written", body = TEXT, nowMillis = NOW,
+                    composerBodyWasLost = false,
                 )
             }
             assertTrue("the $field field must be refused: ${failure.message}", "line break" in failure.message.orEmpty())
@@ -1318,6 +1375,7 @@ class LocalDraftSaveTest {
             accountId = ACCOUNT, id = "local-draft:x", messageId = "m@example.org",
             to = listOf("bob@example.org\n", "\n carol@example.org "), cc = emptyList(), bcc = emptyList(),
             subject = "", body = TEXT, nowMillis = NOW,
+            composerBodyWasLost = false,
         )
         assertEquals("bob@example.org,carol@example.org", built.toAddresses)
     }

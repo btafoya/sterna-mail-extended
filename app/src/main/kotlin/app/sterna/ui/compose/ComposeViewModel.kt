@@ -828,8 +828,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * carried), or a file attachment that failed to re-stage (#63).
      *
      * ⛔ Written in five places, and read only by [editingDraftLossy] — never by a destroy route,
-     * which must see the OTHER source too. `prepare()` arms this one pessimistically before its
-     * coroutine and LOWERS it as the last statement of the reopen, so anything else stored here
+     * which must see the OTHER source too, and ⛔ never by the save's WRITE guard, which weighs
+     * [composerBodyWasLost] alone. This term is true for every server draft reopened with an HTML
+     * body, i.e. exactly where the composer HAS its text; weighed on a write it refused an erasure
+     * the user had made on purpose, in silence. `prepare()` arms this one pessimistically before
+     * its coroutine and LOWERS it as the last statement of the reopen, so anything else stored here
      * would be wiped by the next reopen.
      */
     private var editingDraftLossyOnOpen = false
@@ -845,6 +848,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * own saveables. The editor is then redrawn empty over a draft nobody re-reads, `initialBody`
      * is empty too so the leave guard sees no change, and one tap on a Save icon that is still lit
      * destroys the server copy and puts a bodiless one in its place.
+     *
+     * ⛔ Read in TWO places, and they ask different questions. Through [editingDraftLossy] it is
+     * half of the licence to destroy a server original (#63). On its own it is handed to
+     * `repo.saveDraft(composerBodyWasLost = …)`, where it is the ONLY term that may refuse to write
+     * an empty body over a stored one: the disjunction cannot do that job, because its other half
+     * is true for every reopened HTML draft.
      */
     private var composerBodyWasLost = false
 
@@ -855,7 +864,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * `addressingIsProvenEmpty` beside it), `sendInternal` (the `bodyIsLossy` of `enqueueSend`, and
      * the `draftBodyIsLossy` put back when the send is cancelled), `scheduleSend`
      * (`unlessBodyIsLossy`), and `saveDraft` (`addressingIsProvenEmpty`, `emptiedServerDraftIsKept`
-     * and the `bodyIsLossy` of the save itself). ⚠ `grep -n 'editingDraftLossy\b'` finds them, but
+     * and the `bodyIsLossy` of the save itself). ⛔ The `composerBodyWasLost` argument beside that
+     * last one is NOT a ninth: it is the other field, passed raw, because the body a save may
+     * refuse to overwrite is not a question of licence to destroy.
+     * ⚠ `grep -n 'editingDraftLossy\b'` finds the eight, but
      * it does not COUNT them: it also matches this header, the declaration and five other comments.
      * It has TWO sources, and either one alone is a data loss:
      * what the reopened draft held that cannot be reproduced, OR a body this composer has lost.
@@ -2563,6 +2575,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 replacesUidValidity = replaces.uidValidity,
                 attachments = _attachments.value,
                 bodyIsLossy = editingDraftLossy,
+                composerBodyWasLost = composerBodyWasLost,
                 fromName = identity?.name, fromEmail = identity?.email,
                 requestReceipt = requestReceipt,
             )

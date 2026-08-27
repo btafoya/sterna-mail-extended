@@ -279,6 +279,11 @@ class ComposeViewModelWiringTest {
                 "replacesUidValidity = replaces.uidValidity,",
                 "attachments = _attachments.value,",
                 "bodyIsLossy = editingDraftLossy,",
+                // ⛔ Both, and each with its own name. The disjunction goes on the row and licenses
+                // the destroy (#63); the composer's own loss is the only term the write guard may
+                // weigh. Passing `editingDraftLossy` here too refuses an erasure the user made on
+                // purpose on every reopened HTML draft, in silence.
+                "composerBodyWasLost = composerBodyWasLost,",
                 "fromName = identity?.name, fromEmail = identity?.email,",
                 "requestReceipt = requestReceipt,",
                 ")",

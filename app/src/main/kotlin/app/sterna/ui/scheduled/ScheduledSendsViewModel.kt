@@ -92,6 +92,12 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             // …and the numbering that goes with it, explicit because the parameter
                             // has no default (#99), and because we aim at no original.
                             replacesUidValidity = null,
+                            // No composer in this story at all: the row of a scheduled send is
+                            // read from the database and deposited whole, so nothing can have been
+                            // lost on the way into a parcel. False, explicit because the parameter
+                            // has no default, and it must not be: `true` here would silently refuse
+                            // to deposit a message whose body is genuinely empty.
+                            composerBodyWasLost = false,
                             fromName = d.fromName,
                             fromEmail = d.fromEmail,
                             requestReceipt = d.requestReceipt,
