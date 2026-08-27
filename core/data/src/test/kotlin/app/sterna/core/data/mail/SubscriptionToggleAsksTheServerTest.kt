@@ -154,6 +154,10 @@ class SubscriptionToggleAsksTheServerTest {
                 "this is what one tick of the switch costs a server, and the KDocs beside it are " +
                     "answerable to this list",
                 listOf(
+                    // The first is the connect-time question of the RFC 2971 ID command (#173),
+                    // whose answer is deliberately kept by nobody; the second is the listing's own
+                    // SPECIAL-USE question, which is why it is asked again.
+                    "CAPABILITY",
                     "CAPABILITY",
                     """LIST "" "*"""",
                     """LSUB "" "*"""",

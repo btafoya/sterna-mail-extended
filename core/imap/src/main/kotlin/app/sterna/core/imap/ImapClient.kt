@@ -48,7 +48,17 @@ internal fun SSLSocket.verifyingHostname(): SSLSocket = apply {
 }
 
 /** Opens authenticated IMAP sessions. The session object carries the live connection. */
-class ImapClient {
+class ImapClient(
+    /**
+     * What this build calls itself on the wire — the `version` field of the RFC 2971 `ID` command
+     * (see [ImapSession.identify]). `null`, the default, sends the name alone.
+     *
+     * A parameter and not a constant because `core/imap` is plain Kotlin/JVM: it has no
+     * `BuildConfig` and must not gain an Android dependency to read one. `:app` hands its
+     * `BuildConfig.VERSION_NAME` down through `DataFactory.create`.
+     */
+    private val clientVersion: String? = null,
+) {
     suspend fun connect(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession =
         withContext(Dispatchers.IO) { openSession(config, connectTimeoutMs) }
 
@@ -82,6 +92,13 @@ class ImapClient {
             } else {
                 session.login(config.username, config.password)
             }
+            // Last thing before the session is handed out: post-authentication (so the capability
+            // list is the real one, RFC 3501 §7.1) and ahead of any SELECT the caller makes, which is the window
+            // NetEase's servers judge (Codeberg #173). Bounded by the connect timeout like every
+            // other read here. Both openers go through this one place — the pooled sessions of
+            // ImapMailService and the IDLE connection — so an account with push sends two IDs,
+            // one per connection, which is what RFC 2971 describes.
+            session.identify(clientVersion)
         }
         return session
     }
@@ -133,6 +150,12 @@ class ImapSession(private var socket: Socket) : Closeable {
      * case-insensitive). Post-authentication and cached: asked at most once per session, and
      * usually not asked at all, because most servers volunteer the list in the `[CAPABILITY …]`
      * response code of their LOGIN/AUTHENTICATE completion.
+     *
+     * ⚠ "At most once" is true OF THIS FUNCTION, not of the session: [identify] puts a `CAPABILITY`
+     * of its own at connect time on a server that volunteered nothing, and deliberately throws the
+     * answer away rather than fill this cache — see its KDoc for the mail-losing reason. Such a
+     * session therefore sends two, and `IdOnTheWireTest.asking for the ID capability leaves the
+     * session cache cold` pins exactly that.
      *
      * Deliberately a set of names and not a boolean per feature: the first caller needs UIDPLUS
      * (whether `UID EXPUNGE` exists, see [delete]), and the next one will need something else
@@ -191,6 +214,73 @@ class ImapSession(private var socket: Socket) : Closeable {
                 }
                 // else: an untagged "*" status line — ignore and read on for the tag.
             }
+        }
+    }
+
+    /**
+     * Tell the server who this client is: `ID ("name" "Sterna Mail" "version" "…")`, RFC 2971.
+     *
+     * Not politeness. NetEase (`imap.163.com`, `126.com`, `188.com`, `yeah.net`) authenticates an
+     * anonymous client and then refuses every SELECT with `NO SELECT Unsafe Login`, so the account
+     * logs in and syncs nothing (Codeberg #173). The reporter's own transcript shows a bare `ID
+     * NIL` accepted and the SELECT still refused: what is demanded is a client that NAMES itself.
+     *
+     * The question is PUT, never presumed: RFC 2971 §3 says a client must not send ID to a server
+     * that has not advertised it. A server that published its list in the authentication
+     * completion (Dovecot, Stalwart, Gmail) is read from that list and costs nothing; a server
+     * that published nothing is asked, and pays one `CAPABILITY` per connection. That round trip
+     * is the accepted price of the rule above.
+     *
+     * ⚠ Which of those two branches Coremail (163/126/188/yeah) takes, and whether its list even
+     * carries `ID`, is NOT known here: the reporter's transcript goes LOGIN → SELECT → ID and
+     * never puts a `CAPABILITY`. So this guard is where the fix can quietly do nothing, and the
+     * answer costs one question to the reporter rather than a guess in this comment.
+     *
+     * ⛔ **The question is put BY HAND, and its answer is thrown away** — `parseCapabilities` on a
+     * `CAPABILITY` of our own, never [capabilities] or [hasCapability]. Those two CACHE what they
+     * learn (`:143-145`), and this session's cache must still be COLD when the session is handed
+     * out. [move] decides its destructive copy fallback on
+     * `runCatching { hasCapability(CAP_MOVE) }.getOrDefault(true)`: a probe that cannot be answered
+     * means "the socket is gone, do not copy". Fill the cache here and that question can no longer
+     * fail, so a `UID MOVE` cut mid-command walks straight into `UID COPY` + `\Deleted` + purge.
+     * Measured, with `hasCapability` in this spot:
+     *
+     * `the mail was copied: [CAPABILITY, SELECT "INBOX", UID MOVE 1:3 "Archive", UID COPY 1:3
+     * "Archive", LOGOUT]`
+     *
+     * — i.e. `ExpungeTest.a move cut mid-command does not enter the fallback on a probe it cannot
+     * answer` failing, next to `IdOnTheWireTest.asking for the ID capability leaves the session
+     * cache cold`, which pins the cold cache directly. ⛔ So no `.also { advertisedCapabilities =
+     * it }` on the line below, ever. A later reader asking the same question again is waste, and
+     * waste is what was chosen over a mailbox.
+     *
+     * ⛔ **Best effort, all of it inside one `runCatching`** — the question included, since that
+     * `CAPABILITY` can throw too. A fatal command here would be fatal twice over:
+     * [ImapClient.openSession] has no `try/finally` and `ImapMailService.runWithRetry` connects
+     * OUTSIDE its `try`, so a throw leaks the socket, and it would break every account whose server
+     * answers this command with a NO.
+     *
+     * Every value is [quote]d, keys included — a CR/LF in the version would otherwise inject a
+     * second, authenticated command. `quote` refuses those, the refusal lands in the `runCatching`,
+     * and the session goes on without having said its name.
+     *
+     * Nothing is read back: the server's own `* ID (…)` lands in the untagged lines and is dropped.
+     */
+    internal fun identify(clientVersion: String?) {
+        runCatching {
+            val published = advertisedCapabilities
+            // ⛔ No `.also { advertisedCapabilities = it }` here — see above: the cache stays cold.
+            val advertised = published ?: parseCapabilities(command("CAPABILITY").untagged)
+            if (CAP_ID !in advertised) return@runCatching
+            val fields = buildList {
+                add(quote("name"))
+                add(quote(CLIENT_NAME))
+                if (clientVersion != null) {
+                    add(quote("version"))
+                    add(quote(clientVersion))
+                }
+            }
+            command("ID (${fields.joinToString(" ")})")
         }
     }
 
@@ -1219,6 +1309,16 @@ internal fun flatten(v: Any?): String = when (v) {
     null -> "NIL"
     else -> v.toString()
 }
+
+/**
+ * The ID extension (RFC 2971): the one that lets a client name itself. Looked for in the
+ * post-authentication list — see [ImapSession.identify].
+ */
+internal const val CAP_ID = "ID"
+
+/** What Sterna calls itself in the RFC 2971 `ID` command. Not a user-visible string: it is a
+ *  protocol field, it is never translated, and no `strings.xml` carries it. */
+internal const val CLIENT_NAME = "Sterna Mail"
 
 /** The UIDPLUS extension (RFC 4315): the one that provides `UID EXPUNGE <set>`. */
 internal const val CAP_UIDPLUS = "UIDPLUS"

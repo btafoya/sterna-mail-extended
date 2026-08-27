@@ -7,7 +7,7 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-08-16.
+explains exactly what that means, in plain terms. Last updated: 2026-08-27.
 
 ## What Sterna does NOT do
 
@@ -79,7 +79,11 @@ sets it off.
 1. **Your mail server**, over **JMAP** or over **IMAP/SMTP**, depending on what
    your account uses. This is where mail is read, searched, sent and synced, and
    where a JMAP EventSource or an IMAP IDLE connection is held open, or a
-   periodic check made, to learn about new mail.
+   periodic check made, to learn about new mail. On IMAP, Sterna also tells the
+   server its own name and version once per connection (the `ID` command, RFC
+   2971), because some providers refuse to open a mailbox for a client that
+   stays anonymous. It is skipped when the server's own list of supported
+   commands says it would not understand it.
 2. **The domain of the address you type, and its mail-named subdomains**, asked
    when you leave the address field or tap Continue, so you do not have to know
    your server's name. This happens at the address step, before there is any

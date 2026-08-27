@@ -100,6 +100,9 @@ class SearchHitOpensFromTheServerTest {
                     "else, and neither of them naming the other's value. Commands were: " +
                     "${server.issued()}",
                 listOf(
+                    // Every session opens by asking whether the server knows the RFC 2971 ID
+                    // command (#173); this fixture answers without it, so nothing is named.
+                    "CAPABILITY",
                     "SELECT \"$FOLDER\"",
                     "UID FETCH $UID (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
                 ),

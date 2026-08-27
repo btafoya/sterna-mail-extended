@@ -57,7 +57,12 @@ class AppContainer(context: Context) {
     val pgpEngine: OpenKeychainPgpEngine =
         OpenKeychainPgpEngine(context.applicationContext, settingsRepository)
     private val dataLayer =
-        DataFactory.create(context.applicationContext, jmapClient, accountStore, pgpEngine, settingsRepository)
+        DataFactory.create(
+            context.applicationContext, jmapClient, accountStore, pgpEngine, settingsRepository,
+            // What the IMAP client names itself as to the server (RFC 2971 ID, Codeberg #173).
+            // It can only come from here: core/imap and core/data have no BuildConfig.
+            clientVersion = BuildConfig.VERSION_NAME,
+        )
     val mailRepository: MailRepository = dataLayer.mailRepository
     val storageRepository: StorageRepository = dataLayer.storageRepository
     val appLock: AppLock = AppLock(accountStore)

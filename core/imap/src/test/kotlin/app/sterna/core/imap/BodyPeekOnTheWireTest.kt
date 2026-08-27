@@ -55,7 +55,9 @@ class BodyPeekOnTheWireTest {
         }
 
         assertEquals(
-            listOf("SELECT \"INBOX\"", "UID FETCH 7 (BODY.PEEK[1]<0.8192>)", "LOGOUT"),
+            // Every session opens by asking whether the server knows the RFC 2971 ID
+            // command (#173); this fixture answers without it, so nothing is named.
+            listOf("CAPABILITY", "SELECT \"INBOX\"", "UID FETCH 7 (BODY.PEEK[1]<0.8192>)", "LOGOUT"),
             issued,
         )
     }
@@ -65,7 +67,9 @@ class BodyPeekOnTheWireTest {
             session.fetchSection(7L, "2")
         }
 
-        assertEquals(listOf("SELECT \"INBOX\"", "UID FETCH 7 (BODY.PEEK[2])", "LOGOUT"), issued)
+        // Every session opens by asking whether the server knows the RFC 2971 ID
+        // command (#173); this fixture answers without it, so nothing is named.
+        assertEquals(listOf("CAPABILITY", "SELECT \"INBOX\"", "UID FETCH 7 (BODY.PEEK[2])", "LOGOUT"), issued)
     }
 
     @Test fun `a source fetch peeks`() {
@@ -73,7 +77,9 @@ class BodyPeekOnTheWireTest {
             session.fetchSource(7L)
         }
 
-        assertEquals(listOf("SELECT \"INBOX\"", "UID FETCH 7 (BODY.PEEK[])", "LOGOUT"), issued)
+        // Every session opens by asking whether the server knows the RFC 2971 ID
+        // command (#173); this fixture answers without it, so nothing is named.
+        assertEquals(listOf("CAPABILITY", "SELECT \"INBOX\"", "UID FETCH 7 (BODY.PEEK[])", "LOGOUT"), issued)
     }
 
     /**

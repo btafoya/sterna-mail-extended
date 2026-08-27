@@ -223,7 +223,14 @@ class FirstTextPartTest {
         assertEquals("Lunch", message?.subject)
         assertEquals(true, message?.hasAttachment)
         assertEquals(
-            listOf("SELECT \"INBOX\"", "UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)", "LOGOUT"),
+            // Every session opens by asking whether the server knows the RFC 2971 ID
+            // command (#173); this fixture answers without it, so nothing is named.
+            listOf(
+                "CAPABILITY",
+                "SELECT \"INBOX\"",
+                "UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
+                "LOGOUT",
+            ),
             server.issued(),
         )
     }

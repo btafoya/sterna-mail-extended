@@ -277,6 +277,9 @@ class MailboxNameTest {
 
             assertEquals(
                 listOf(
+                    // Every session opens by asking whether the server knows the RFC 2971 ID
+                    // command (#173); this fixture answers without it, so nothing is named.
+                    "CAPABILITY",
                     """CREATE "${hello.first}"""",
                     // The SUBSCRIBE that follows a CREATE (#174) is here for the same reason as
                     // the line above it: it names a mailbox, so it must carry the wire form.

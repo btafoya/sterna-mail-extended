@@ -31,6 +31,13 @@ object DataFactory {
         accountStore: AccountStore,
         pgpEngine: PgpEngine? = null,
         settings: SettingsRepository? = null,
+        /**
+         * `BuildConfig.VERSION_NAME` of `:app`, handed down to [ImapClient] so it can name itself
+         * to an IMAP server (RFC 2971 `ID`, Codeberg #173). Defaulted like every optional argument
+         * above it: `core/data` has no BuildConfig of its own, and a caller that says nothing gets
+         * the name without a version.
+         */
+        clientVersion: String? = null,
     ): DataLayer {
         val appContext = context.applicationContext
         val database = SternaDatabase.build(appContext)
@@ -44,7 +51,8 @@ object DataFactory {
         // purge that sweeps an empty directory and reports success.
         val localDraftFiles = java.io.File(appContext.filesDir, LOCAL_DRAFT_FILES_DIR)
         val imapService = ImapMailService(
-            ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), accountStore), uidValidity,
+            ImapClient(clientVersion), SmtpClient(), OAuthTokenRefresher(OAuthClient(), accountStore),
+            uidValidity,
         )
         return DataLayer(
             mailRepository = MailRepository(

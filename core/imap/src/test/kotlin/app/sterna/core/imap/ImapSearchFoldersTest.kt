@@ -40,6 +40,9 @@ class ImapSearchFoldersTest {
             }
             assertEquals(
                 listOf(
+                    // Every session opens by asking whether the server knows the RFC 2971 ID
+                    // command (#173); this fixture answers without it, so nothing is named.
+                    "CAPABILITY",
                     """SELECT "INBOX"""",
                     """UID SEARCH FROM "alex.rivera@masto.top" OR TO "team@masto.top" CC "team@masto.top" """ +
                         """SUBJECT "facture" SINCE 1-Jun-2026 BEFORE 16-Jun-2026 TEXT "invoice"""",
@@ -410,7 +413,11 @@ class ImapSearchFoldersTest {
             assertEquals(10, issued.count { it.startsWith("SELECT") })
             assertEquals(10, issued.count { it.startsWith("UID SEARCH") })
             assertEquals(2, issued.count { it.startsWith("UID FETCH") })
-            assertEquals(22, issued.size)
+            // 22 + the one CAPABILITY every session opens with, to know whether the server
+            // takes the RFC 2971 ID command (#173): the search itself still costs two commands
+            // per folder and a fetch where it matched.
+            assertEquals(1, issued.count { it.startsWith("CAPABILITY") })
+            assertEquals(23, issued.size)
             assertFalse(issued.any { it.startsWith("LOGIN") })
             println("[search cost] ${folders.size} folders -> ${issued.size} commands in ${elapsedMs}ms (loopback)")
         }

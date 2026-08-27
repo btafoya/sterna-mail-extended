@@ -57,6 +57,9 @@ class GroupCcIsUnknownNotEmptyTest {
             assertEquals(
                 "and it is read off the draft the caller named, in the folder it named",
                 listOf(
+                    // Every session opens by asking whether the server knows the RFC 2971 ID
+                    // command (#173); this fixture answers without it, so nothing is named.
+                    "CAPABILITY",
                     "SELECT \"$DRAFTS\"",
                     "UID FETCH $UID (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
                 ),

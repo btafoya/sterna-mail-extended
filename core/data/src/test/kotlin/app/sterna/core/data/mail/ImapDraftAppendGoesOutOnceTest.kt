@@ -131,6 +131,9 @@ class ImapDraftAppendGoesOutOnceTest {
                 "and it gets there by enumerating the folder and reading the envelopes back — " +
                     "`ALL` is the one search key every server implements",
                 listOf(
+                    // Every session opens by asking whether the server knows the RFC 2971 ID
+                    // command (#173); this fixture answers without it, so nothing is named.
+                    "CAPABILITY",
                     "SELECT \"$DRAFTS\"",
                     "UID SEARCH ALL",
                     "UID FETCH 4,9,11 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
@@ -183,7 +186,9 @@ class ImapDraftAppendGoesOutOnceTest {
             assertFalse("an empty folder holds no draft of ours — append it", there)
             assertEquals(
                 "and nothing is fetched to find that out",
-                listOf("SELECT \"$DRAFTS\"", "UID SEARCH ALL"),
+                // Every session opens by asking whether the server knows the RFC 2971 ID
+                // command (#173); this fixture answers without it, so nothing is named.
+                listOf("CAPABILITY", "SELECT \"$DRAFTS\"", "UID SEARCH ALL"),
                 server.issued(),
             )
         }

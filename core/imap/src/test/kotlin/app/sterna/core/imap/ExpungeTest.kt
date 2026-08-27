@@ -160,7 +160,14 @@ class ExpungeTest {
 
             val issued = server.issued()
             assertTrue("only one chunk: $issued", issued.setsOf("UID STORE").size > 1)
-            assertEquals("the capability was asked per chunk: $issued", 1, issued.count { it.startsWith("CAPABILITY") })
+            // `drop(1)`: index 0 is the connect-time question of the RFC 2971 ID command (#173),
+            // which every session now puts and which deliberately keeps nothing. What is counted
+            // here is what the PURGE asked — one for the whole purge, not one per chunk.
+            assertEquals(
+                "the capability was asked per chunk: $issued",
+                1,
+                issued.drop(1).count { it.startsWith("CAPABILITY") },
+            )
             assertEquals("DELETED was searched per chunk: $issued", 1, issued.count { it.startsWith("UID SEARCH") })
         }
     }
@@ -246,7 +253,10 @@ class ExpungeTest {
             }
 
             val issued = server.issued()
-            assertEquals(listOf("""SELECT "Trash"""", "CAPABILITY"), issued.take(2))
+            // CAPABILITY first: every session asks whether the server knows the RFC 2971 ID
+            // command before the caller says anything (#173). That answer is deliberately NOT
+            // kept — see ImapSession.identify — so the second one here really is the delete's.
+            assertEquals(listOf("CAPABILITY", """SELECT "Trash"""", "CAPABILITY"), issued.take(3))
             assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
             // No question to ask: UID EXPUNGE already names its victims.
             assertTrue("DELETED was searched: $issued", issued.none { it.startsWith("UID SEARCH") })
@@ -287,7 +297,8 @@ class ExpungeTest {
         scriptedServer(uidPlus = false).use { server ->
             server.session().use { it.delete(emptyList()) }
 
-            assertEquals(listOf("LOGOUT"), server.issued())
+            // The CAPABILITY is the connect-time ID question (RFC 2971, #173), not the deletion.
+            assertEquals(listOf("CAPABILITY", "LOGOUT"), server.issued())
         }
     }
 
@@ -420,7 +431,13 @@ class ExpungeTest {
 
             val issued = server.issued()
             assertTrue("a search went out: $issued", issued.none { it.startsWith("UID SEARCH") })
-            assertTrue("the capability was asked for nothing: $issued", issued.none { it.startsWith("CAPABILITY") })
+            // Past the connect-time ID question (#173, index 0, kept by nobody): the MOVE
+            // succeeded, so nothing behind it had a capability to ask.
+            assertEquals(
+                "the capability was asked for nothing: $issued",
+                0,
+                issued.drop(1).count { it.startsWith("CAPABILITY") },
+            )
             assertEquals(0, issued.bareExpunges())
         }
     }
@@ -525,11 +542,14 @@ class ExpungeTest {
             server.awaitDone()
 
             val issued = server.issued()
+            // Counted from the UID MOVE on: the question put at connect for the RFC 2971 ID
+            // command (#173) is a live-socket one and keeps nothing, so the probe below is still
+            // the first thing the fallback asks — and it still cannot be answered.
             assertEquals(
                 "the client kept probing on a dead socket, i.e. it was setting up the copy " +
                     "fallback without ever having established that MOVE is absent: $issued",
                 1,
-                issued.count { it.startsWith("CAPABILITY") },
+                issued.dropWhile { !it.startsWith("UID MOVE") }.count { it.startsWith("CAPABILITY") },
             )
             assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
             assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
@@ -572,7 +592,13 @@ class ExpungeTest {
             assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
             assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
             assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
-            assertEquals("the capability was not asked: $issued", 1, issued.count { it.startsWith("CAPABILITY") })
+            // From the UID MOVE on, for the same reason as above: the connect-time ID question
+            // (#173) sits at index 0 and keeps nothing.
+            assertEquals(
+                "the capability was not asked: $issued",
+                1,
+                issued.dropWhile { !it.startsWith("UID MOVE") }.count { it.startsWith("CAPABILITY") },
+            )
             assertTrue("expected a read timeout, got $failure", failure is SocketTimeoutException)
         }
     }

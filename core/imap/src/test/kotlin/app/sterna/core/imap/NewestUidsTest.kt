@@ -53,7 +53,12 @@ class NewestUidsTest {
                 session.newestUids(cap = 50)
             }
 
-            assertEquals(listOf("""SELECT "Drafts"""", "UID SEARCH ALL", "LOGOUT"), server.issued())
+            // Every session opens by asking whether the server knows the RFC 2971 ID
+            // command (#173); this fixture answers without it, so nothing is named.
+            assertEquals(
+                listOf("CAPABILITY", """SELECT "Drafts"""", "UID SEARCH ALL", "LOGOUT"),
+                server.issued(),
+            )
         }
     }
 
@@ -149,7 +154,8 @@ class NewestUidsTest {
             val newest = server.session().use { it.newestUids(cap = 0) }
 
             assertEquals(emptyList<Long>(), newest)
-            assertEquals(listOf("LOGOUT"), server.issued())
+            // The CAPABILITY is the connect-time ID question (RFC 2971, #173), not the enumeration.
+            assertEquals(listOf("CAPABILITY", "LOGOUT"), server.issued())
         }
     }
 

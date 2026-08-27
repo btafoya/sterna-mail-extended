@@ -50,7 +50,9 @@ class CreatedFolderIsSubscribedTest {
             server.session().use { it.createFolder("Projets") }
 
             assertEquals(
-                listOf("""CREATE "Projets"""", """SUBSCRIBE "Projets""""),
+                // Every session opens by asking whether the server knows the RFC 2971 ID
+                // command (#173); this fixture answers without it, so nothing is named.
+                listOf("CAPABILITY", """CREATE "Projets"""", """SUBSCRIBE "Projets""""),
                 server.folderCommands(),
             )
         }

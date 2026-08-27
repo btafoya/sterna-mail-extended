@@ -61,7 +61,9 @@ class AllUidsTest {
             }
 
             assertEquals(
-                listOf("""SELECT "Trash"""", "UID SEARCH ALL", "LOGOUT"),
+                // Every session opens by asking whether the server knows the RFC 2971 ID
+                // command (#173); this fixture answers without it, so nothing is named.
+                listOf("CAPABILITY", """SELECT "Trash"""", "UID SEARCH ALL", "LOGOUT"),
                 server.issued(),
             )
         }
@@ -129,7 +131,8 @@ class AllUidsTest {
             val all = server.session().use { it.allUids(cap = 0) }
 
             assertEquals(emptyList<Long>(), all)
-            assertEquals(listOf("LOGOUT"), server.issued())
+            // The CAPABILITY is the connect-time ID question (RFC 2971, #173), not the enumeration.
+            assertEquals(listOf("CAPABILITY", "LOGOUT"), server.issued())
         }
     }
 
