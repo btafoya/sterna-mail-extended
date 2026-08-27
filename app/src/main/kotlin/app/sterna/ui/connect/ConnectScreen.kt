@@ -88,6 +88,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import app.sterna.R
 import app.sterna.core.data.autoconfig.MailAutoconfigResult
+import app.sterna.core.jmap.withLoginHint
 import app.sterna.ui.components.AppPasswordHelpLink
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.PendingImportAccountsSection
@@ -1146,7 +1147,11 @@ private fun SecretField(
 @Composable
 private fun DeviceApprovalPanel(state: ConnectState.AwaitingApproval, onCancel: () -> Unit) {
     Spacer(Modifier.height(8.dp))
-    DeviceApprovalContent(state.userCode, state.verificationUri, state.verificationUriComplete, onCancel)
+    // ⛔ state.loginHint, and NOT the composable's own username field: this panel is shown for the
+    // generic JMAP flow AND for the app-scoped Outlook one, and only the state tells them apart.
+    DeviceApprovalContent(
+        state.userCode, state.verificationUri, state.verificationUriComplete, state.loginHint, onCancel,
+    )
 }
 
 /**
@@ -1213,6 +1218,7 @@ private fun DeviceApprovalContent(
     userCode: String,
     verificationUri: String,
     verificationUriComplete: String?,
+    loginHint: String?,
     onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1242,7 +1248,11 @@ private fun DeviceApprovalContent(
     }
     Button(
         onClick = {
-            val target = verificationUriComplete ?: verificationUri
+            val approval = verificationUriComplete ?: verificationUri
+            // ⚠ Computed OUTSIDE the guard on purpose — the hand-off itself stays inside it, which
+            // is what NavHostSourceRulesTest holds. A hint the server already wrote wins, and an
+            // unreadable URL comes back untouched: see withLoginHint.
+            val target = if (loginHint.isNullOrBlank()) approval else withLoginHint(approval, loginHint)
             leaveOnce {
                 runCatching {
                     context.startActivity(
@@ -1272,9 +1282,10 @@ private fun ImportAccountSignIn(target: ConnectViewModel.SignInTarget, viewModel
     when {
         approval != null -> {
             Spacer(Modifier.height(8.dp))
+            // ⛔ No login hint: this is the post-import Microsoft sign-in, out of #55's scope.
             DeviceApprovalContent(
                 approval.userCode, approval.verificationUri,
-                approval.verificationUriComplete, onCancel = viewModel::cancelImportOAuth,
+                approval.verificationUriComplete, null, onCancel = viewModel::cancelImportOAuth,
             )
         }
         target.account.authType == AuthType.OAUTH && !target.forcePassword ->

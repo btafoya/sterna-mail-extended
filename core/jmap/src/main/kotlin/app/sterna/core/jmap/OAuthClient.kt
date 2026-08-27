@@ -188,6 +188,48 @@ private val GRANT_PARAMETERS = listOf(
 )
 
 /**
+ * Add `login_hint` (OIDC Core §3.1.2.1) to a device-flow verification URL, so the approval page
+ * opens on the address the user typed a screen earlier instead of asking for it again (#55).
+ * Pure: String in, String out, no I/O.
+ *
+ * ⚠ This URL is the SERVER's, so it is never refused, and nothing here throws: anything that
+ * cannot be read (a scheme `HttpUrl` will not parse, a blank hint) gives the ORIGINAL string back,
+ * verbatim. A page that still asks for the address is a sign-in; a button that opens nothing is not.
+ *
+ * ⛔ NOT over cleartext, and that is a REFUSAL OF THE HINT, not of the URL (#2). `toHttpUrlOrNull`
+ * takes `http://` as happily as `https://`, and a hint is an IDENTITY: a cleartext verification URL
+ * carried none until this function existed, and with one it would put the user's full address in
+ * front of every proxy log and browser history on the path. On `http` the URL is handed back
+ * untouched — the sign-in works exactly as it did before, only unassisted.
+ *
+ * ⚠ A `login_hint` already on the URL WINS and nothing is added. RFC 6749 §3.1 forbids a parameter
+ * twice, and a duplicate leaves the server to arbitrate between the two, usually in favour of the
+ * first — the one we did not write.
+ *
+ * ⚠ It goes in the QUERY, through `HttpUrl`, and not by concatenation: appended by hand to a bare
+ * `https://host/approve` the pair lands in the path (`/approve&login_hint=…`) and the page 404s.
+ * The value is PERCENT-encoded (RFC 3986), never form-encoded: `URLEncoder` writes a SPACE as `+`
+ * (and `~` as `%7E`), so an address typed with a space in it would arrive carrying a plus — a
+ * different address, matched by nobody. ⚠ A literal `+` is NOT the tell: `URLEncoder`
+ * percent-encodes that one exactly like [percentEncode] does, which is why a `nina+qa@…` case alone
+ * stayed green under a `URLEncoder` mutant. Same reason, same [percentEncode], as
+ * [buildAuthorizationUrl].
+ */
+fun withLoginHint(verificationUri: String, loginHint: String): String {
+    if (loginHint.isBlank()) return verificationUri
+    val url = verificationUri.toHttpUrlOrNull() ?: return verificationUri
+    if (url.scheme != "https") return verificationUri
+    if (LOGIN_HINT in url.queryParameterNames) return verificationUri
+    return url.newBuilder()
+        .addEncodedQueryParameter(LOGIN_HINT, percentEncode(loginHint))
+        .build()
+        .toString()
+}
+
+/** The hint's name (OIDC Core §3.1.2.1) — also the one the server may have written itself. */
+private const val LOGIN_HINT = "login_hint"
+
+/**
  * RFC 3986 percent-encoding: everything outside `unreserved` becomes `%XX` over its UTF-8 bytes.
  * A space is `%20` and never `+` — see [buildAuthorizationUrl]. Uppercase hex, no locale involved.
  */

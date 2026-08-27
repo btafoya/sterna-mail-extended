@@ -49,6 +49,13 @@ sealed interface ConnectState {
         val userCode: String,
         val verificationUri: String,
         val verificationUriComplete: String?,
+        /**
+         * The address the user typed, for the approval page to pre-fill (#55) — null when there is
+         * none to give. ⛔ It travels in the STATE and not in the screen: `ConnectScreen` cannot
+         * tell the two producers apart, so reading the composable's own `username` would hand the
+         * hint to Microsoft as well, which is not what was asked for.
+         */
+        val loginHint: String? = null,
     ) : ConnectState
     /** Authorization-code flow started: the browser must be sent to [authorizationUrl] (#55). */
     data class AwaitingBrowser(val authorizationUrl: String) : ConnectState
@@ -651,8 +658,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 )
                 return@launch
             }
+            // ⚠ emailTrim travels on: the approval page can pre-fill it (#55) instead of asking
+            // for the address the user typed one screen ago.
             _state.value = ConnectState.AwaitingApproval(
-                device.userCode, device.verificationUri, device.verificationUriComplete,
+                device.userCode, device.verificationUri, device.verificationUriComplete, emailTrim,
             )
             pollForToken(host, found, device, emailTrim, accountName)
         }
@@ -759,8 +768,12 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 _state.value = when (p) {
                     OutlookProgress.Idle -> return@collect
                     OutlookProgress.Starting -> ConnectState.Discovering
+                    // ⛔ No login hint on this one: the Microsoft device page is out of #55's
+                    // scope, and OutlookProgress carries no address to give it anyway.
                     is OutlookProgress.AwaitingApproval ->
-                        ConnectState.AwaitingApproval(p.userCode, p.verificationUri, p.verificationUriComplete)
+                        ConnectState.AwaitingApproval(
+                            p.userCode, p.verificationUri, p.verificationUriComplete, null,
+                        )
                     OutlookProgress.Connecting -> ConnectState.Connecting
                 }
             }

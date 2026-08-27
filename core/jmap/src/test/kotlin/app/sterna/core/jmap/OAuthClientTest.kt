@@ -755,6 +755,154 @@ class OAuthClientTest {
         )
     }
 
+    // -- login_hint on the approval page (#55) -----------------------------------------------------
+
+    /**
+     * The whole string is pinned, literally, and NOT recomputed here: a test that rebuilds the URL
+     * with the same rule the code uses is a copy of the decision, and stays green when the decision
+     * is inverted. `?` and not `&`: a hint appended by hand to a bare URL lands in the PATH, and
+     * the approval page 404s instead of opening.
+     */
+    @Test fun loginHint_isAddedAsAQueryToABareUrl() {
+        assertEquals(
+            "https://idp.example.com/device?login_hint=nina%40example.com",
+            withLoginHint("https://idp.example.com/device", "nina@example.com"),
+        )
+    }
+
+    /** The server's own `code=` is what the page needs to identify the request: it must survive
+     *  untouched, and the hint arrives after it. */
+    @Test fun loginHint_keepsTheQueryTheServerAlreadySent() {
+        assertEquals(
+            "https://idp.example.com/device?code=QA-BENCH&login_hint=nina%40example.com",
+            withLoginHint("https://idp.example.com/device?code=QA-BENCH", "nina@example.com"),
+        )
+    }
+
+    /** A fragment ends the URL, so a parameter written after it is read by nobody — it must stay
+     *  in the query, ahead of the `#`. */
+    @Test fun loginHint_staysInTheQueryAheadOfAFragment() {
+        assertEquals(
+            "https://idp.example.com/device?code=QA-BENCH&login_hint=nina%40example.com#form",
+            withLoginHint("https://idp.example.com/device?code=QA-BENCH#form", "nina@example.com"),
+        )
+    }
+
+    /**
+     * ⛔ A URL we cannot read comes back WORD FOR WORD — not null, not "", not truncated, and not
+     * an exception. This URL is the server's, not ours: a sign-in that opens a page still asking
+     * for the address is a sign-in, a button that opens nothing is not.
+     */
+    @Test fun loginHint_givesAnUnreadableUrlBackVerbatim() {
+        assertEquals(
+            "sterna-device:approve?code=QA-BENCH",
+            withLoginHint("sterna-device:approve?code=QA-BENCH", "nina@example.com"),
+        )
+        assertEquals("", withLoginHint("", "nina@example.com"))
+        assertEquals("not a url at all", withLoginHint("not a url at all", "nina@example.com"))
+    }
+
+    /**
+     * The server wins. RFC 6749 §3.1 forbids a parameter twice, and a second `login_hint` would
+     * leave the server to arbitrate between the two — usually in favour of the first, the one we
+     * did not write. So the URL comes back untouched, encoding and all.
+     */
+    @Test fun loginHint_neverDoublesAHintTheServerAlreadyWrote() {
+        assertEquals(
+            "https://idp.example.com/device?code=QA-BENCH&login_hint=someone%40example.com",
+            withLoginHint(
+                "https://idp.example.com/device?code=QA-BENCH&login_hint=someone%40example.com",
+                "nina@example.com",
+            ),
+        )
+        assertEquals(
+            "an empty hint on the URL is still the server's hint",
+            "https://idp.example.com/device?login_hint=",
+            withLoginHint("https://idp.example.com/device?login_hint=", "nina@example.com"),
+        )
+    }
+
+    /**
+     * ⛔ `URLEncoder` writes a space as `+` — and, read back per RFC 3986, an address typed with a
+     * space in it arrives as a DIFFERENT address, one carrying a plus. `nina+qa@example.com` alone
+     * does not see that: `URLEncoder` percent-encodes a literal `+` exactly like [percentEncode]
+     * does, and this test stayed green under a `URLEncoder` mutant until the space and the `~`
+     * were added. The two characters that tell RFC 3986 from form encoding are pinned here:
+     * a space is `%20` and never `+`, and `~` is unreserved and stays a `~` (`URLEncoder`: `%7E`).
+     */
+    @Test fun loginHint_percentEncodesAndNeverFormEncodes() {
+        assertEquals(
+            "a space is %20, never +, or the address gains a plus on the way",
+            "https://idp.example.com/device?login_hint=nina%20qa%40example.com",
+            withLoginHint("https://idp.example.com/device", "nina qa@example.com"),
+        )
+        assertEquals(
+            "~ is unreserved (RFC 3986 §2.3) and must survive as itself",
+            "https://idp.example.com/device?login_hint=nina~qa%40example.com",
+            withLoginHint("https://idp.example.com/device", "nina~qa@example.com"),
+        )
+        assertEquals(
+            "https://idp.example.com/device?login_hint=nina%2Bqa%40example.com",
+            withLoginHint("https://idp.example.com/device", "nina+qa@example.com"),
+        )
+        assertEquals(
+            "https://idp.example.com/device?login_hint=n%C3%AFna%40example.com",
+            withLoginHint("https://idp.example.com/device", "nïna@example.com"),
+        )
+        assertEquals(
+            "a hint with a query separator in it must not open a parameter of its own",
+            "https://idp.example.com/device?login_hint=a%26b%3Dc%40example.com",
+            withLoginHint("https://idp.example.com/device", "a&b=c@example.com"),
+        )
+    }
+
+    /**
+     * ⛔ NOT over cleartext. `toHttpUrlOrNull` takes `http://` as happily as `https://`, and the
+     * hint is an IDENTITY: before this branch a cleartext verification URL carried none, with it
+     * the user's full address would travel in the clear, into every proxy log and browser history
+     * on the path. That is the same refusal issue #2 settled for the whole app. The URL itself is
+     * NOT refused — it is the server's, and the sign-in still works — only the hint is withheld.
+     */
+    @Test fun loginHint_refusesToPutAnIdentityOnACleartextUrl() {
+        assertEquals(
+            "http://idp.example.com/device?code=QA-BENCH",
+            withLoginHint("http://idp.example.com/device?code=QA-BENCH", "nina@example.com"),
+        )
+    }
+
+    /**
+     * The whole URL is rebuilt through `HttpUrl`, so what the SERVER wrote in its own query has to
+     * survive byte for byte: a `code=` the approval page cannot read back is a page that cannot be
+     * completed. A `+` in the server's own value is the one okhttp could plausibly touch.
+     */
+    @Test fun loginHint_leavesTheServersOwnQueryBytesAlone() {
+        assertEquals(
+            "https://idp.example.com/device?code=A+B&login_hint=nina%40example.com",
+            withLoginHint("https://idp.example.com/device?code=A+B", "nina@example.com"),
+        )
+    }
+
+    /** A bare `?` with nothing behind it: pinned as okhttp actually renders it, not as it ought to
+     *  look — this one is an observation, and a change of okhttp must be seen here. */
+    @Test fun loginHint_pinsWhatABareQuestionMarkBecomes() {
+        assertEquals(
+            "https://idp.example.com/device?&login_hint=nina%40example.com",
+            withLoginHint("https://idp.example.com/device?", "nina@example.com"),
+        )
+    }
+
+    /** Nothing to pre-fill is not a reason to rewrite the URL: no empty parameter is sent. */
+    @Test fun loginHint_leavesTheUrlAloneWhenThereIsNoHint() {
+        assertEquals(
+            "https://idp.example.com/device?code=QA-BENCH",
+            withLoginHint("https://idp.example.com/device?code=QA-BENCH", ""),
+        )
+        assertEquals(
+            "https://idp.example.com/device?code=QA-BENCH",
+            withLoginHint("https://idp.example.com/device?code=QA-BENCH", "   "),
+        )
+    }
+
     private companion object {
         /** ⛔ `example.com` everywhere: `NoPrivateHostInTreeTest` refuses any private host. */
         const val AUTHORIZE = "https://idp.example.com/authorize"
