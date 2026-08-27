@@ -188,12 +188,37 @@ data class ImapMailboxStatus(
  * never opened this is the ONLY number an Undo can oppose (Codeberg #99). Null when no `COPYUID`
  * came back at all, and null when the chunks of one move disagreed about it (see [ImapSession.move]).
  *
- * ⛔ Reporting it refuses nothing here: `core/imap` states what the server said and decides
+ * [confirmedGone] is the SOURCE side of the same answer: the handed-in UIDs this session holds a
+ * server's word for — that they have LEFT the folder they were moved out of, or that the server
+ * itself declared it copied them OUT of it. The second half is the copy fallback and only it:
+ * there the originals are still in the source, flagged `\Deleted` and hidden from every fetch,
+ * awaiting a purge that [ImapSession.move] may legitimately decline to finish. The mail has
+ * landed at the destination either way, which is why the two are reported as one — but the
+ * difference is written here rather than glossed over, because this is the field a caller reads
+ * before deciding what to forget. It exists because [uids] cannot say any of it.
+ * An empty [uids] is ambiguous — "this server states no destination UIDs at all" and "this
+ * particular message did not move" are the same `emptyMap()` — and the difference is the whole
+ * question, because a `UID MOVE` naming a UID that is already gone (moved or destroyed from
+ * another client since the list was drawn) is a NO-OP the server accepts with a plain `OK`. A
+ * caller that counts a whole batch as moved because the command did not throw therefore reports
+ * mail as moved that never moved.
+ *
+ * ⛔ Empty means "nothing is confirmed", NEVER "nothing moved". A server that reports no `COPYUID`
+ * and refuses the probe has very probably moved everything; this field simply holds no proof of
+ * it. Read the other way round it destroys working moves on a whole class of servers. What is IN
+ * the set is proved; what is out of it is unknown, and the next sync is what settles the rest.
+ *
+ * ⛔ Reporting all this refuses nothing here: `core/imap` states what the server said and decides
  * nothing from it, exactly as [ImapFolder.unelectedRole] does.
  */
-data class ImapMoved(val uids: Map<Long, Long>, val destinationUidValidity: Long?) {
+data class ImapMoved(
+    val uids: Map<Long, Long>,
+    val destinationUidValidity: Long?,
+    val confirmedGone: Set<Long>,
+) {
     companion object {
-        /** Nothing moved, nothing stated — what a caller answers when the move never went out. */
-        val NONE = ImapMoved(emptyMap(), null)
+        /** Nothing moved, nothing stated, nothing proved — what a caller answers when the move
+         *  never went out. */
+        val NONE = ImapMoved(emptyMap(), null, emptySet())
     }
 }

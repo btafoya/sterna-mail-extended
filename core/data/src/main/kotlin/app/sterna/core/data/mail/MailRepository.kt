@@ -452,6 +452,49 @@ internal fun noOpEvictionFor(mailboxId: String, role: String?): NoOpEviction =
 internal fun idsAlreadyIn(rows: List<EmailEntity>, ids: Set<String>, mailboxId: String): List<String> =
     rows.filter { it.id in ids && it.mailboxId == mailboxId }.map { it.id }
 
+/** How a confirmed batch `UID MOVE` splits — see [imapMoveOutcome]. */
+internal data class ImapMoveOutcome(
+    /** The ids the session can PROVE left the source folder: credit them, drop their rows. */
+    val gone: List<String>,
+    /** The ids it cannot: NOT "they stayed", but "nothing said". They fail. */
+    val unproven: List<String>,
+)
+
+/**
+ * Which ids of a batch IMAP move really left the source folder, told from the ids nothing said
+ * anything about — the IMAP twin of [idsAlreadyIn], which asks the same question of a JMAP bulk
+ * move ("which of this batch actually moved?") the only way that protocol allows.
+ *
+ * [uidToId] is the batch as it was sent, in arrival order; [confirmedGone] is `ImapMoved`'s set of
+ * SOURCE uids the session holds proof are no longer in the folder it moved them out of. Both
+ * returned lists keep the arrival order, because they are what the caller credits, what it fails,
+ * and what the caller of THAT re-queries.
+ *
+ * ⛔ An empty [confirmedGone] means "nothing is confirmed", NEVER "nothing moved" — a server that
+ * states no `COPYUID` and refuses the probe has very probably moved everything, it simply handed
+ * back no proof. So what is IN the set is proved and what is OUT of it is UNKNOWN, not "stayed".
+ *
+ * ⭐ And the unknown is treated as a failure, which is the whole point: keeping a row that did move
+ * is undone by the very next sync, while un-indexing a message that did NOT move is not undone by
+ * anything — nothing re-indexes a message the cache no longer holds (`EmailFtsDao.seedFromEmails`
+ * only rewrites rows whose message is still cached, and there is no IMAP crawl to find it again),
+ * so that message leaves offline search for good. A `UID MOVE` naming a uid that is already gone
+ * (moved or destroyed from another client since the list was drawn) is a NO-OP the server accepts
+ * with a plain `OK`, so "the command did not throw" says nothing about any one message.
+ *
+ * A uid confirmed gone that is not in [uidToId] invents no id: this batch is not the only one in
+ * flight, and the answer is about the ids that were HANDED IN.
+ *
+ * Pure, named, and here rather than inline in `MailRepository.imapMoveGroup`, for the reason
+ * written at `UidValidity.imapDestroyRoutes`: the repository cannot be built without Room, a
+ * `Context` and an `Application`, so a decision left inline is a decision no test can RUN — and a
+ * decision nothing runs is a decision a mutation walks straight through.
+ */
+internal fun imapMoveOutcome(uidToId: Map<Long, String>, confirmedGone: Set<Long>): ImapMoveOutcome {
+    val (proved, rest) = uidToId.entries.partition { it.key in confirmedGone }
+    return ImapMoveOutcome(gone = proved.map { it.value }, unproven = rest.map { it.value })
+}
+
 /**
  * Whether a search answer may be presented as a TOTAL ("3 results") rather than as a floor
  * ("at least 3" — and never the flat "No results" that an empty answer would otherwise state as a
@@ -4699,6 +4742,15 @@ class MailRepository(
      * CAN OPPOSE. Ids whose UID can't be parsed, or the whole group if the command fails, are
      * marked failed.
      *
+     * ⛔ So is every id the move did not PROVE left [source] — [imapMoveOutcome] draws that line
+     * from `ImapMoved.confirmedGone`, and it is drawn BEFORE anything local is dropped. An `OK`
+     * says the command ran, not that any one message moved: a `UID MOVE` naming a uid that is
+     * already gone (moved or destroyed from another client since the list was drawn) is a NO-OP
+     * the server accepts with a plain `OK`. Counting the batch on that alone un-indexed messages
+     * the server never touched, and nothing on IMAP re-indexes a message the cache no longer
+     * holds — offline search for it was lost for good. Keeping a row of a message that DID move
+     * is put right by the next sync; nothing puts an index row back.
+     *
      * ⚠ `landed.destinationUidValidity` is NOT a numbering read: it is what the server stated in
      * the very response that handed back these UIDs, and it is the only statement of [dest]'s
      * numbering this flow ever gets — a `UID MOVE` does not SELECT its destination (#99).
@@ -4734,9 +4786,14 @@ class MailRepository(
                         recentLocalMoves.mark(credentials.id, ImapMailService.emailId(credentials.id, dest, it))
                     }
                 }
-                deleteFromCacheAndIndex(credentials.id, uidToId.values)
-                succeeded += uidToId.values
-                adjustCountsForRemoval(rows.filter { it.id in uidToId.values }, dest)
+                // The verdict FIRST, and nothing is dropped before it: an OK says the command
+                // ran, not that any one message moved (a UID MOVE on a uid that is already gone
+                // is a no-op the server accepts). What is unproved is unknown, and unknown fails.
+                val outcome = imapMoveOutcome(uidToId, landed.confirmedGone)
+                succeeded += outcome.gone
+                failed += outcome.unproven
+                deleteFromCacheAndIndex(credentials.id, outcome.gone)
+                adjustCountsForRemoval(rows.filter { it.id in outcome.gone }, dest)
             }
             .onFailure { failed += uidToId.values }
     }

@@ -394,7 +394,15 @@ class ExpungeTest {
 
             val issued = server.issued()
             assertEquals("not exactly one EXPUNGE: $issued", 1, issued.bareExpunges())
-            assertEquals("DELETED was searched per chunk: $issued", 1, issued.count { it.startsWith("UID SEARCH") })
+            // `UID SEARCH DELETED` and not `UID SEARCH`: the identity probe a move now sends
+            // BEFORE each chunk (`UID SEARCH UID <set>`, see MoveConfirmsWhatLeftTheSourceTest)
+            // is a different question, asked of a set and not of the folder. What is pinned here
+            // is that the FOLDER-WIDE one still belongs to the operation, not to the chunk.
+            assertEquals(
+                "DELETED was searched per chunk: $issued",
+                1,
+                issued.count { it.startsWith("UID SEARCH DELETED") },
+            )
         }
     }
 
@@ -409,14 +417,16 @@ class ExpungeTest {
 
             val issued = server.issued()
             assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
-            assertTrue("DELETED was searched: $issued", issued.none { it.startsWith("UID SEARCH") })
+            // No question to ask about the folder: `UID EXPUNGE` names its victims. (The
+            // per-chunk `UID SEARCH UID <set>` of the move is another question entirely.)
+            assertTrue("DELETED was searched: $issued", issued.none { it.startsWith("UID SEARCH DELETED") })
             assertEquals(issued.setsOf("UID COPY"), issued.setsOf("UID EXPUNGE"))
         }
     }
 
     /** A move the server performs itself flags nothing, so there is nothing to purge or ask. */
     @Test
-    fun `a move the server performs itself asks and purges nothing`() {
+    fun `a move the server performs itself asks nothing of the folder and purges nothing`() {
         FakeImapServer { tag, line ->
             when {
                 line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
@@ -430,7 +440,10 @@ class ExpungeTest {
             }
 
             val issued = server.issued()
-            assertTrue("a search went out: $issued", issued.none { it.startsWith("UID SEARCH") })
+            // Nothing is flagged, so nothing is asked about the FOLDER's `\Deleted` set and
+            // nothing is purged. The `UID SEARCH UID 1:3` the move sends before the chunk is the
+            // source-side observation of [ImapMoved.confirmedGone] and belongs to another file.
+            assertTrue("DELETED was searched: $issued", issued.none { it.startsWith("UID SEARCH DELETED") })
             // Past the connect-time ID question (#173, index 0, kept by nobody): the MOVE
             // succeeded, so nothing behind it had a capability to ask.
             assertEquals(

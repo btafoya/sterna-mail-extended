@@ -550,6 +550,13 @@ class ImapSession(private var socket: Socket) : Closeable {
      * UIDPLUS exactly as it does in [delete] — same question, same single answer: see
      * [purgeWithoutUidPlus]. The capability is consulted BEFORE the first COPY, so a session
      * that cannot even answer that question fails without having duplicated anything.
+     *
+     * ⭐ And the SOURCE side of the answer, [ImapMoved.confirmedGone]: which of [uids] this
+     * session can prove are no longer in the selected folder — or, on the copy fallback, which
+     * the server itself stated it copied out of it — decided chunk by chunk by
+     * [confirmedGoneInChunk]. A `UID MOVE` naming a UID that is already gone is a no-op the
+     * server accepts with a plain `OK`, so "the command did not throw" proves nothing per
+     * message. What is not in the set is UNKNOWN, never "did not move".
      */
     fun move(uids: List<Long>, destination: String): ImapMoved {
         val mapping = LinkedHashMap<Long, Long>()
@@ -560,10 +567,34 @@ class ImapSession(private var socket: Socket) : Closeable {
         // the union of the chunks that actually took the copy fallback, and only those: a chunk
         // that went out as a UID MOVE flagged nothing.
         val flaggedByFallback = mutableSetOf<Long>()
+        // The source-side verdict, chunk by chunk: see [ImapMoved.confirmedGone].
+        val gone = LinkedHashSet<Long>()
         for (chunk in uids.distinct().chunked(UID_SET_CHUNK)) {
             val set = compressUidSet(chunk)
             if (set.isEmpty()) continue
+            // BEFORE the move touches anything: which of this chunk's UIDs the source folder
+            // still answers for. An absence read AFTER the move cannot tell "left because we
+            // moved it" from "left before we asked" — a UID somebody else moved or destroyed
+            // since the list was drawn answers neither probe — and the second reading is the
+            // destructive one upstairs. Only the DIFFERENCE between the two observations is a
+            // departure this session caused. A probe that fails proves no presence at all, so
+            // `emptySet()` is its answer: nothing gets confirmed beyond what COPYUID states.
+            // ⛔ Not gated on a capability: Stalwart advertises neither MOVE nor UIDPLUS and
+            // returns COPYUID anyway, so a gate would switch this guard off in silence on the
+            // very server the bench runs. The cost — one round trip per chunk, including chunks
+            // whose COPYUID will turn out to cover everything — is accepted, and it is accepted
+            // because losing a row here loses its FTS entry too, which nothing on IMAP rebuilds.
+            val presentBefore = runCatching { uidsStillInSource(set) }.getOrElse { emptySet() }
+            // Whether THIS chunk left as a real `UID MOVE`, which decides whether it may be
+            // probed at all: the copy fallback below leaves its originals in the source folder.
+            var byMove = true
             val result = runCatching { command("UID MOVE $set ${mailboxArg(destination)}") }.getOrElse {
+                // FIRST statement of the block, before anything here can throw, return or be
+                // guarded: from this point on the chunk is a fallback chunk whatever happens to
+                // it, and a probe sent on one is a false negative by construction (see
+                // [confirmedGoneInChunk]). Set at the bottom it would survive as `true` the day
+                // somebody adds an early exit above it.
+                byMove = false
                 // The fallback answers ONE question — "this server has no MOVE extension" — and it
                 // answers it destructively: copy, flag, purge the SOURCE folder. Everything else
                 // that can fail a UID MOVE (a NO [OVERQUOTA] or [TRYCREATE], a dead socket, a read
@@ -597,10 +628,115 @@ class ImapSession(private var socket: Socket) : Closeable {
             val landed = parseCopyUidReport(result)
             mapping.putAll(landed.uids)
             landed.destinationUidValidity?.let { statedNumbering += it }
+            gone += confirmedGoneInChunk(chunk, set, landed.uids.keys, byMove, presentBefore)
         }
         finishPurgeWithoutUidPlus(flaggedByFallback)
-        return ImapMoved(mapping, statedNumbering.singleOrNull())
+        return ImapMoved(mapping, statedNumbering.singleOrNull(), gone)
     }
+
+    /**
+     * Which UIDs of one chunk are PROVED to have left the selected source folder, for
+     * [ImapMoved.confirmedGone]. [namedByCopyUid] is what that chunk's `COPYUID` named (empty when
+     * the server stated none), [byMove] whether the chunk went out as a real `UID MOVE`.
+     *
+     * Three cases, in order:
+     *
+     * 1. A `COPYUID` covering the whole chunk is an authoritative per-UID report and the answer
+     *    is complete — no command goes out AFTER the move. This is the common path (Stalwart,
+     *    Dovecot), and there a verdict already in hand costs nothing more to read.
+     *
+     *    ⚠ It is not free, and the fee is paid one step earlier: [move] takes [presentBefore]
+     *    before every chunk, whatever the server will turn out to say, because nothing can know
+     *    beforehand that a covering `COPYUID` is coming. A move of 200 messages therefore costs
+     *    ONE round trip per chunk, here as everywhere else. That was weighed and accepted: the
+     *    alternative is to gate the observation on a capability, and Stalwart advertises neither
+     *    `MOVE` nor `UIDPLUS` while returning `COPYUID` anyway, so the gate would switch the
+     *    guard off in silence on the very server this is developed against.
+     *
+     * 2. Otherwise, and only for a chunk that went out as a `UID MOVE`: TWO identity probes of
+     *    the source folder, which is still SELECTed and was so throughout — [uidsStillInSource],
+     *    the same command each time. [presentBefore] was taken by [move] BEFORE the `UID MOVE`
+     *    went out; the one taken here reads what the move left. A UID is confirmed gone when it
+     *    was in the FIRST answer and is not in the second, and only then. The `COPYUID` keys are
+     *    added to that verdict rather than replacing it — the server named those messages as
+     *    copied out, in the same breath.
+     *
+     *    ⛔ The probe AFTER, alone, is not a verdict: a UID somebody else moved or destroyed
+     *    between the drawing of the list and the command answers neither probe, so "absent
+     *    afterwards" covers both "our move took it" and "it was already gone". Upstairs the
+     *    second case drops the row AND its FTS entry, which nothing on IMAP reindexes. What the
+     *    absence after DOES settle is the other ambiguity — "the server states no destination
+     *    UIDs" is not "this message did not move", because a `UID MOVE` naming an already-gone
+     *    UID is a no-op answered with a plain `OK`.
+     *
+     *    ⚠ [presentBefore] is empty when its own probe failed, and that is deliberate: a probe
+     *    that did not answer proves no presence, so it confirms nothing beyond `COPYUID`.
+     *
+     * 3. A probe that FAILS (NO/BAD, dead socket) confirms nothing for the chunk, and the
+     *    exception stops here. The move itself succeeded; letting it up would have the caller
+     *    retry a move that already happened. Half a verdict is dropped with it: what is not
+     *    confirmed is repaired by the next sync, what is wrongly confirmed is not.
+     *
+     * ⛔ The copy fallback is never probed AFTER its `UID COPY` ([byMove] false), and its
+     * [presentBefore] — taken before the `UID MOVE` was refused, i.e. before this question could
+     * be asked — is dropped unread. For it the answer is the WEAKER
+     * half of what this field promises: `COPYUID` says the server copied those messages OUT of
+     * the source, not that they have left it. They are still there, flagged `\Deleted`, and
+     * [finishPurgeWithoutUidPlus] deliberately declines to expunge when somebody else's message
+     * is flagged in the folder. Probing them anyway would answer "still there" for mail that has
+     * landed — a false negative on every server without the MOVE extension — so the server's own
+     * statement is taken, and [ImapMoved.confirmedGone] says what it says.
+     *
+     * ⚠ Per chunk, deliberately, unlike the UIDPLUS question of [move]/[delete]: this asks about
+     * exactly the UIDs of one chunk and nothing folder-wide, so it neither can nor should be
+     * hoisted before the first chunk.
+     */
+    private fun confirmedGoneInChunk(
+        chunk: List<Long>,
+        set: String,
+        namedByCopyUid: Set<Long>,
+        byMove: Boolean,
+        presentBefore: Set<Long>,
+    ): Set<Long> {
+        val handedIn = chunk.toSet()
+        val stated = namedByCopyUid intersect handedIn
+        if (stated.containsAll(handedIn)) return handedIn
+        if (!byMove) return stated
+        val stillThere = runCatching { uidsStillInSource(set) }.getOrElse { return emptySet() }
+        // Present before, absent after — nothing else. `handedIn - stillThere` alone would credit
+        // the move with a UID that had already left the folder before the command went out.
+        return stated + ((presentBefore intersect handedIn) - stillThere)
+    }
+
+    /**
+     * Which UIDs of [set] the SELECTED folder still answers for — `UID SEARCH UID <set>`, the
+     * identity probe of [confirmedGoneInChunk].
+     *
+     * ⛔ NO token cap, deliberately, unlike [allUids] and [nothingElseIsFlagged]: the answer is
+     * already bounded BY THE QUESTION — a search over a set of at most [UID_SET_CHUNK] UIDs
+     * cannot name more than those — so a cap buys nothing and costs a truncation. And truncation
+     * here falls the WRONG WAY: a UID dropped from this list drops out of the subtraction in
+     * [confirmedGoneInChunk] and is reported as PROVED GONE, i.e. a message still sitting in the
+     * source folder gets its row destroyed, and on IMAP nothing reindexes it. Where a cap is
+     * right ([nothingElseIsFlagged]) a short answer is a NO, the safe direction; here it would be
+     * a yes. Two things a cap cannot survive, both already documented in this file: a server free
+     * to SPLIT its result over several untagged lines (see [allUids]), and untagged traffic of
+     * its own arriving in the middle of the answer (`* n EXPUNGE` for what a move just removed).
+     *
+     * Every untagged `SEARCH` line is read for the same reason, not just the first — a dropped
+     * tail is a dropped tail whatever dropped it. Same shape as [newestUids], same reason.
+     *
+     * ⚠ The SAME command serves as the observation [move] takes BEFORE its `UID MOVE`, where
+     * truncation falls the other way: a UID missing from that answer is a presence not observed,
+     * so it drops out of the verdict and is NOT confirmed gone. Under-confirming costs a stale
+     * row the next sync repairs. So the no-cap rule is right for both readings, and for the
+     * probe after it is the only safe one.
+     */
+    private fun uidsStillInSource(set: String): Set<Long> =
+        command("UID SEARCH UID $set").untagged
+            .filter { it.getOrNull(1) == "SEARCH" }
+            .flatMap { line -> line.drop(2).mapNotNull { (it as? String)?.toLongOrNull() } }
+            .toSet()
 
     /** Fetch a single message by UID (envelope + flags), or null if not found — or hidden. */
     fun fetchByUid(uid: Long): ImapMessage? {
@@ -660,6 +796,10 @@ class ImapSession(private var socket: Socket) : Closeable {
         return ImapMoved(
             uids = copyUidMapping(m.groupValues[2], m.groupValues[3]),
             destinationUidValidity = m.groupValues[1].toLongOrNull()?.takeIf { it > 0L },
+            // Empty here on purpose: this parses ONE response and knows nothing about which
+            // command carried it. Whether a COPYUID amounts to "it left the source folder" is
+            // [move]'s to say — for the copy fallback it does not, the originals are still there.
+            confirmedGone = emptySet(),
         )
     }
 

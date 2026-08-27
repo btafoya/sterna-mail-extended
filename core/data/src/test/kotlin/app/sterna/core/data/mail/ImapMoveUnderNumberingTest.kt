@@ -306,8 +306,11 @@ class ImapMoveUnderNumberingTest {
             codeLinesNaming(body, ".onFailure"),
         )
         assertEquals(
-            "and nothing may be counted as succeeded outside the success branch. Body was:\n$body",
-            listOf("succeeded += uidToId.values"),
+            "and nothing may be counted as succeeded outside the success branch — nor, INSIDE " +
+                "it, beyond what the move proved left the source (`MoveCreditsOnlyWhatLeftTheSource" +
+                "Test`): an OK says the command ran, and a UID MOVE on a uid that is already gone " +
+                "is a no-op the server accepts. Body was:\n$body",
+            listOf("succeeded += outcome.gone"),
             codeLinesNaming(body, "succeeded +="),
         )
     }
