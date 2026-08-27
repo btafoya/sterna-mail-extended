@@ -849,9 +849,15 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private var composerBodyWasLost = false
 
     /**
-     * THE LICENCE TO DESTROY, and the only name any of the four destroy routes reads
-     * (`finishDraftSave` on save and on deferred upload, `discardDraft`, `performSend`,
-     * `destroyReplacedServerDraft`). It has TWO sources now, and either one alone is a data loss:
+     * THE LICENCE TO DESTROY, and the only name every destroy route reads. There are EIGHT read
+     * sites, not the four this sentence used to claim, spread over four functions:
+     * `destroyReplacedServerDraft` (the `bodyIsLossy` of `planForEmptiedLocalDraft`, and the
+     * `addressingIsProvenEmpty` beside it), `sendInternal` (the `bodyIsLossy` of `enqueueSend`, and
+     * the `draftBodyIsLossy` put back when the send is cancelled), `scheduleSend`
+     * (`unlessBodyIsLossy`), and `saveDraft` (`addressingIsProvenEmpty`, `emptiedServerDraftIsKept`
+     * and the `bodyIsLossy` of the save itself). ⚠ `grep -n 'editingDraftLossy\b'` finds them, but
+     * it does not COUNT them: it also matches this header, the declaration and five other comments.
+     * It has TWO sources, and either one alone is a data loss:
      * what the reopened draft held that cannot be reproduced, OR a body this composer has lost.
      *
      * ⛔ A computed `val`, not a `var`. As one field, `prepare()`'s last statement

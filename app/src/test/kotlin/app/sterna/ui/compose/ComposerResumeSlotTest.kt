@@ -410,6 +410,62 @@ class ComposerResumeSlotTest {
     }
 
     /**
+     * ⛔ THE PARCEL NAMED A RECORD, AND THE RECORD WAS NOT THERE. Measured on the bench on
+     * 2026-08-26: a 20 112 character server draft, HOME pressed, the slot written (40 284 bytes),
+     * the file then removed — the removal was provoked on the bench, and this test stands for the
+     * whole family `read` collapses into one `null`: a file no longer there, a truncated or foreign
+     * header, a read that threw. The composer came back with an EMPTY body,
+     * `To` and `Subject` intact from their own saveables, and the Save icon lit; that save left one
+     * 317 byte bodiless row on the server where 21 260 bytes had been. Irreversible, in silence.
+     *
+     * ⭐ A `t:` parcel is a PROMISE that a body was parked. Failing to read it back is a LOSS, not
+     * an absence: `read` collapses five different causes into one `null`, and none of them means
+     * "there was nothing to restore". The composer must come back knowing it, exactly as it does
+     * for the `l:` mark, so that `editingDraftLossy` keeps the server copy instead of replacing it.
+     *
+     * ⚠ The BOUND on this — a `t:` with no token at all must still restore to nothing — is the
+     * `"t:"` entry of the junk list in `an unrecognised parcel value restores nothing`. A parcel
+     * from an older build may not be allowed to arm the loss on a composer that never parked
+     * anything.
+     */
+    @Test
+    fun `a parked record that cannot be read back is a loss, not an empty composer`() {
+        val body = longBody(20_112)
+        val state = ComposerResumeState(TextFieldValue(body, TextRange(4_096, 4_096)), "> the quoted original")
+
+        val saved = saveComposerResume(state, slot)
+        assertEquals("the body had to be PARKED for this test to mean anything", "t:", saved?.take(2))
+        assertTrue("…and the record had to reach the disk", file.isFile)
+        assertTrue("the record is taken away behind the slot's back", file.delete())
+
+        val back = restoreComposerResume(saved!!, slot)
+        assertTrue(
+            "the parcel names a record that could not be read, and `null` here is the destroy: " +
+                "`rememberSaveable` falls back to its factory, the composer comes back empty AND " +
+                "clean over a live `applied`, and the next Save replaces the server draft with a " +
+                "bodiless one",
+            back != null,
+        )
+        assertTrue(
+            "…and the composer rebuilt from an unreadable record must KNOW its body was lost — a " +
+                "site that cannot prove fidelity says `true`",
+            back!!.bodyWasLost,
+        )
+        assertEquals("nothing may be invented in place of the body that was not read", "",
+            back.bodyState.value.text)
+        assertEquals("nor a caret into a body that is not there", TextRange(0, 0),
+            back.bodyState.value.selection)
+        assertEquals("nor a baseline, which would let the leave guard call this draft unchanged", "",
+            back.baselineState.value)
+
+        assertEquals(
+            "and the loss must travel on: the next save of this composer parks fine, and must " +
+                "still carry the mark that the body it holds is not the body that went missing",
+            "l:t:", saveComposerResume(back, slot)?.take(4),
+        )
+    }
+
+    /**
      * ⭐ THE FLAG IS STICKY, and this is the only test that says so. Without it, raising the flag
      * solely on the save that fails passes everything else: the very next save — a rotation a
      * second later, with the disk free again — parks the body perfectly and carries NO flag, the
@@ -456,6 +512,36 @@ class ComposerResumeSlotTest {
         )
         assertEquals("the inline fallback carried the text WHOLE — nothing was lost, so nothing is claimed",
             "v:", inline?.take(2))
+    }
+
+    /**
+     * ⛔ AN EMPTY BODY THAT WAS PARKED IS NOT A LOST ONE, and this is the counter-witness the
+     * decision hangs on: what says "lost" is the RECORD that could not be read, never the emptiness
+     * of what came back. Read the emptiness instead — the mutation looks like a hardening — and the
+     * most ordinary screen in the app is armed: a new message where the recipient and the subject
+     * are typed before a single word of body, a `mailto:` with no body, a reply not yet started.
+     * `ComposeScreen` would push the mark into `onComposerBodyLost()`, `editingDraftLossy` would
+     * stay raised for the life of the ViewModel, and EVERY save would leave a duplicate in Drafts
+     * under a notice about a server copy nobody needed to keep.
+     */
+    @Test
+    fun `an empty body that was parked and read back whole has lost nothing`() {
+        val saved = saveComposerResume(ComposerResumeState(TextFieldValue("", TextRange(0)), ""), slot)
+        assertEquals("the empty body had to be PARKED for this test to mean anything", "t:", saved?.take(2))
+
+        val back = restoreComposerResume(saved!!, slot)!!
+
+        assertFalse(
+            "the record was read back exactly as it was parked — an empty body is a VALUE, and " +
+                "calling it a loss arms the destroy licence on every composer whose body is still " +
+                "to be typed",
+            back.bodyWasLost,
+        )
+        assertEquals("", back.bodyState.value.text)
+        assertEquals(
+            "…and the next save must not claim a loss either",
+            "t:", saveComposerResume(back, slot)?.take(2),
+        )
     }
 
     /** The prefix rides on the form, it does not eat it: body, baseline and caret come back whole. */

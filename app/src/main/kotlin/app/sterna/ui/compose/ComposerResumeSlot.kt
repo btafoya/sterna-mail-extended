@@ -299,11 +299,34 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
         // all. A fresh composer is the only honest answer, and it is never an exception.
         else -> null
     }
+    // ⛔ A RECORD THE PARCEL NAMES AND THAT CAME BACK `null` IS A LOSS, NOT AN ABSENCE. `t:<token>`
+    // is a promise that a body WAS parked; [ComposerResumeSlot.read] collapses five different
+    // causes into one `null` — the file no longer there, a header truncated by a crash or a full
+    // disk, a foreign token (one slot per navigation entry, so a token that does not match means a
+    // NEWER record took the place of the one the parcel names), an `IOException`, an unparsable
+    // head — and not one of them means "there was nothing to restore". ⚠ WHAT takes the file away
+    // in ordinary use is not established: on the bench the deletion was provoked. The five causes
+    // are read here, the mechanism that fires them is not, and neither is claimed. On the bench a
+    // 20 112 character server draft came back with an empty body, `To` and `Subject` intact, and
+    // one tap on the still-lit Save icon left a 317 byte bodiless row where 21 260 bytes had been.
+    // A site that cannot prove fidelity says `true`.
+    //
+    // ⛔ The bound is the EMPTY token, and only that: `t:` on its own names nothing, so it must
+    // still restore to nothing, or a parcel that never promised a body arms the loss on a composer
+    // that never parked one. ⚠ A `t:` carrying any token at all IS treated as a promise, including
+    // one minted by an older build — the wrong side to err on is the other one, where the server
+    // copy is destroyed.
+    //
+    // ⛔ And it is `resume == null` that says "lost", never an empty body that came back. An empty
+    // body is a VALUE — the composer whose recipient is typed before its first word — and reading
+    // the emptiness instead would arm the destroy licence on the most ordinary screen in the app
+    // (pinned by `an empty body that was parked and read back whole has lost nothing`).
+    val unreadable = resume == null && form.startsWith(TOKEN_FORM) && form.length > TOKEN_FORM.length
     // ⛔ `null` ONLY when there was no mark either. With the mark there, returning `null` would
     // drop the loss along with the text: `rememberSaveable` would fall back to its factory, the
     // composer would come back empty AND clean, and the next save would destroy the server copy of
     // a draft whose body is gone. An empty state carrying the flag is the whole fix.
-    if (resume == null && !lost) return null
+    if (resume == null && !lost && !unreadable) return null
     // ⛔ A name of its own, not the one just read: `read` has CONSUMED the file, so the composer
     // rebuilt here parks a new record from scratch. What matters is that every save of THAT
     // composer names the same one — see [ComposerResumeState.token].
@@ -313,7 +336,7 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
             TextRange(resume?.selectionStart ?: 0, resume?.selectionEnd ?: 0),
         ),
         resume?.baseline.orEmpty(),
-        bodyWasLost = lost,
+        bodyWasLost = lost || unreadable,
     )
 }
 
