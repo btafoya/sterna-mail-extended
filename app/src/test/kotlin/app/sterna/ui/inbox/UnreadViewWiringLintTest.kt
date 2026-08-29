@@ -535,7 +535,7 @@ class UnreadViewWiringLintTest {
 
         /** Every line of the ViewModel that names the flag, or the number, the screen reads. */
         private val EXPECTED_VIEW_FLAG_LINES = listOf(
-            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed))",
+            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)",
             "unreadView = base.unreadView,",
             "unreadView = sel is Sel.Unread,",
             // The placeholder `state` starts on, below `}.stateIn(` — a SECOND SITE of the line
@@ -552,14 +552,17 @@ class UnreadViewWiringLintTest {
 
         /** The three declarations the badge travels through, whole. */
         private val EXPECTED_STATE_LINES = listOf(
-            "private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed) { base, scopes, accountId, onlySubscribed ->",
+            // The fold gained a FIFTH flow, the refresh indicator's visibility (#178): the
+            // display of the tern is derived, and the truth `refreshing` — carried by baseState
+            // above, untouched — is what still empties the centre of the screen (#63).
+            "private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed, indicatorShowing) { base, scopes, accountId, onlySubscribed, showing ->",
             "private val baseState = combine(mailboxes, selection, meta, status, unifiedUnread) { mailboxes, sel, meta, status, unifiedUnread ->",
             "val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->",
         )
 
         /** The badge, computed once, from the scope the pager uses. */
         private val EXPECTED_BADGE_CALL = listOf(
-            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed))",
+            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)",
         )
 
         /** Back's answer: carried once, decided nowhere but [isAtInbox]. Sorted. */

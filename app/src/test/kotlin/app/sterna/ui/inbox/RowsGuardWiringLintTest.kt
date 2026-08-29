@@ -39,7 +39,13 @@ class RowsGuardWiringLintTest {
                 "while its first page is still loading. (On the ordinary switch `ui.refreshing` " +
                 "is already true and its own branch catches first, leaving the centre empty and " +
                 "the tern to speak — #63's decision.) The indicator lines found were:",
-            listOf("refreshLoading || staleRows -> LoadingRing(Modifier.align(Alignment.Center))"),
+            // ⚠ The arm still CATCHES on the same predicate — that is what this rule is about.
+            // What changed (#178) is that it DRAWS only past the indicator grace: an `else Unit`
+            // keeps the centre empty for a fetch too short to see, without ever falling through
+            // to the scenes below. `ringShowing` is rememberGracedIndicator(refreshLoading ||
+            // staleRows), on the same functions as the tern; RefreshIndicatorWiringLintTest
+            // pins that it is fed this very predicate.
+            listOf("refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit"),
             codeLines(INBOX_SCREEN).map { it.trim() }.filter { it.startsWith("refreshLoading") && "LoadingRing" in it },
         )
     }
@@ -179,7 +185,7 @@ class RowsGuardWiringLintTest {
     @Test
     fun `the indicator branch stays above the scenes that would claim the folder is empty`() {
         val lines = codeLines(INBOX_SCREEN).map { it.trim() }
-        val indicator = lines.indexOf("refreshLoading || staleRows -> LoadingRing(Modifier.align(Alignment.Center))")
+        val indicator = lines.indexOf("refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit")
         val offline = lines.indexOf("notice == RefreshNotice.OFFLINE -> PullableCenter {")
         val error = lines.indexOf("notice == RefreshNotice.ERROR -> PullableCenter {")
         assertTrue("the three branches must all still be there: $indicator, $offline, $error", indicator >= 0 && offline >= 0 && error >= 0)

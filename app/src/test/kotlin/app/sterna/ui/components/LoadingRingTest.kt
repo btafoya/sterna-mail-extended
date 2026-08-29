@@ -480,7 +480,10 @@ class LoadingRingTest {
                 // PREVIOUS folder's snapshot and nothing else is claiming the centre. The WIDGET is
                 // what this entry guards, and it is unchanged — RowsGuardWiringLintTest pins the
                 // condition itself, and says which branch really catches the ordinary switch.
-                "refreshLoading || staleRows -> LoadingRing(Modifier.align(Alignment.Center))",
+                // 2026-08-29 (#178): the drawing — not the widget — is now held back by the
+                // same grace as the tern (`ringShowing`, rememberGracedIndicator). The WIDGET
+                // this entry guards is unchanged: it is still LoadingRing at the same place.
+                "refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit",
             ),
             RingSite(
                 INBOX_SCREEN,

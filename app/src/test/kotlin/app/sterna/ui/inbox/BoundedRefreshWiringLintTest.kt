@@ -17,7 +17,8 @@ import java.io.File
  *    budget, and the one the app ships with. [BoundedRefreshTest] pins [REFRESH_BUDGET_MS] and
  *    would not notice. That is the trap `1cee7f42` paid for on the discovery budget;
  *  - `Delivered -> Status(refreshing = true, …)` — every SUCCESSFUL refresh then leaves the tern
- *    turning for ever: the symptom of #130, shipped by the fix for #130;
+ *    turning for ever: the symptom of #130, shipped by the fix for #130. The same arm carries
+ *    #178's freshness stamp, which no other arm may carry;
  *  - `Failed -> Status(…, error = null)`, or the arm's `connectivity.reportFailure` dropped — a
  *    failure goes mute again, which is #65 undone;
  *  - `connectivity.reportFailure(…)` added to the abandoned arm, or `refreshing = true` left in
@@ -61,14 +62,18 @@ class BoundedRefreshWiringLintTest {
         val arm = whenArm("RefreshOutcome.Delivered")
         assertEquals(
             "The arm taken when the refresh landed must set refreshing = false and clear the error, " +
-                "then report the success to connectivity (#65: every refresh doubles as the probe). " +
+                "then report the success to connectivity (#65: every refresh doubles as the probe), " +
+                "then stamp the scopes this refresh actually reconciled — this is the ONLY arm that " +
+                "may, because a refresh that brought nothing back must not make a stale list look " +
+                "fresh for 30 s (#178; RefreshFreshnessWiringLintTest holds the rest of that rule). " +
                 "'refreshing = true' here is one word, compiles, and leaves the tern turning for ever " +
                 "after every SUCCESSFUL refresh — the symptom of #130, shipped by its own fix. " +
                 "Compared whole, since 'Status(refreshing = true, …)' contains none of the fragments " +
                 "a looser rule would look for. Arm was:\n$arm",
             "RefreshOutcome.Delivered -> { " +
                 "status.value = Status(refreshing = false, error = null) " +
-                "connectivity.reportSuccess() }",
+                "connectivity.reportSuccess() " +
+                "rememberReconciled(reconciled) }",
             arm,
         )
     }

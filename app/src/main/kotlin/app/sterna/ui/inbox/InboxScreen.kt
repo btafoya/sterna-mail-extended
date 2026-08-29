@@ -1,5 +1,6 @@
 package app.sterna.ui.inbox
 
+import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -1749,9 +1750,13 @@ fun InboxScreen(
                 OutboxFailureBanner(onClick = onOpenOutbox)
             }
             PullToRefreshBox(
-                isRefreshing = ui.refreshing,
+                // The DISPLAY, not the truth: fed ui.refreshing the tern lit the instant refresh()
+                // was called, i.e. on every folder tap, account switch and cold start, whether the
+                // fetch took 80 ms or 8 s (#178). ui.refreshing keeps its own two readers — the
+                // centre-empty arm below (#63) and the seed of the state flow.
+                isRefreshing = ui.showRefreshIndicator,
                 onRefresh = {
-                    viewModel.refresh()
+                    viewModel.refreshRequested()
                     // Also re-attempt a failed fetch-older append, so the pull gesture
                     // clears the sticky "couldn't load more" footer, not just Retry.
                     listRows.retry()
@@ -1761,7 +1766,7 @@ fun InboxScreen(
                 indicator = {
                     TernRefreshIndicator(
                         state = refreshState,
-                        isRefreshing = ui.refreshing,
+                        isRefreshing = ui.showRefreshIndicator,
                         modifier = Modifier.align(Alignment.TopCenter),
                     )
                 },
@@ -1801,6 +1806,12 @@ fun InboxScreen(
                 // AFTER the step, never hoisted above it: read first, this is the previous frame's
                 // answer, and the frame that arms the guard draws the old folder's rows anyway.
                 val staleRows = guard.value.stale
+                // The centred ring runs under the SAME grace as the tern, from the same functions
+                // (#178). It is invisible today — the ui.refreshing arm above catches first on an
+                // ordinary switch — but the arm below has to keep CATCHING whether or not it draws:
+                // letting it fall through hands the centre to the empty-folder or offline scene
+                // while a page is still loading, and the centre would then lie.
+                val ringShowing = rememberGracedIndicator(refreshLoading || staleRows)
                 when {
                     searchActive -> when (searchDisplay(ui.searchResults.size, ui.searchLoading, ui.searchComplete)) {
                         SearchDisplay.RESULTS ->
@@ -1955,7 +1966,7 @@ fun InboxScreen(
                     // above catches first (selecting a folder calls refresh(), so ui.refreshing is
                     // already true in the same emission): the centre is then EMPTY and the tern at
                     // the top is what speaks. That is #63's decision, not an oversight.
-                    refreshLoading || staleRows -> LoadingRing(Modifier.align(Alignment.Center))
+                    refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit
                     notice == RefreshNotice.OFFLINE -> PullableCenter {
                         EmptyState(
                             art = EmptyArt.OFFLINE,
@@ -1963,7 +1974,7 @@ fun InboxScreen(
                             body = stringResource(R.string.empty_offline_body),
                             modifier = Modifier.align(Alignment.Center),
                             action = {
-                                Button(onClick = viewModel::refresh) { Text(stringResource(R.string.inbox_retry)) }
+                                Button(onClick = viewModel::refreshRequested) { Text(stringResource(R.string.inbox_retry)) }
                             },
                         )
                     }
@@ -1982,7 +1993,7 @@ fun InboxScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                             )
-                            Button(onClick = viewModel::refresh) { Text(stringResource(R.string.inbox_retry)) }
+                            Button(onClick = viewModel::refreshRequested) { Text(stringResource(R.string.inbox_retry)) }
                         }
                     }
                     else -> {
@@ -2026,6 +2037,46 @@ fun InboxScreen(
             }
         }
     }
+}
+
+/**
+ * The centred ring's own grace, from the SAME functions that hold the tern back (#178) — never a
+ * second rule: `startRefreshRun`, `refreshIndicatorShowing` and `nextRefreshIndicatorChange`, on
+ * the same [REFRESH_INDICATOR_GRACE_MS] and [REFRESH_INDICATOR_MIN_SHOW_MS].
+ *
+ * Why it lives here and not in the ViewModel: what it watches is `listRows.loadState` and the rows
+ * guard, both of which exist only in composition — the ViewModel never sees the pager's load state
+ * nor the guard's verdict. So the stretch is held in `remember` beside its reader.
+ *
+ * ⛔ `instant = false` always, and there is no way to ask otherwise: this ring answers no gesture.
+ * The pull's answer is the tern at the top of the list, which the ViewModel drives.
+ *
+ * One wake-up per change, never a poll: the effect is keyed on [active], so a stretch that ended
+ * inside its grace schedules nothing at all ([nextRefreshIndicatorChange] returns null for it).
+ */
+@Composable
+private fun rememberGracedIndicator(active: Boolean): Boolean {
+    val run = remember { mutableStateOf<RefreshRun?>(null) }
+    val showing = remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        // The same DURATION clock the ViewModel's tern runs on, never a wall clock: the wake-up
+        // below is a monotonic `delay`, and an NTP correction landing between the two would skip
+        // the grace or hold the centre blank past it.
+        val now = SystemClock.elapsedRealtime()
+        run.value = if (active) {
+            startRefreshRun(run.value, now, instant = false)
+        } else {
+            run.value?.copy(endedAt = now)
+        }
+        val stretch = run.value
+        while (true) {
+            val instant = SystemClock.elapsedRealtime()
+            showing.value = refreshIndicatorShowing(stretch, instant)
+            val next = nextRefreshIndicatorChange(stretch, instant) ?: break
+            delay(next - instant)
+        }
+    }
+    return showing.value
 }
 
 /**

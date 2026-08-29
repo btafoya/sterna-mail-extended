@@ -303,7 +303,7 @@ class SubscribedFoldersSurfaceWiringTest {
         private const val NEW_BASE_COPY =
             "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, " +
                 "scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, " +
-                "onlySubscribed))"
+                "onlySubscribed), showRefreshIndicator = showing)"
 
         private const val INBOX_SCREEN_PATH = "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt"
 

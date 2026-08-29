@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
@@ -104,6 +105,16 @@ data class MailUi(
     val visibleMailboxes: List<Mailbox> = emptyList(),
     val refreshing: Boolean,
     val error: String?,
+    /** THE DISPLAY: whether the refresh indicator is drawn — never a synonym of [refreshing].
+     *
+     *  [refreshing] is the TRUTH ("a reconcile is running") and has two readers that must go on
+     *  seeing it the instant it turns true: the arm in `InboxScreen` that keeps the centre of the
+     *  screen EMPTY, so the empty-folder scene cannot claim the folder holds nothing while its
+     *  first fetch is out (#63); and the seed of this flow's `stateIn`, which is the first frame of
+     *  a cold start. This field is the drawing decision alone, held back by a grace and a floor
+     *  ([REFRESH_INDICATOR_GRACE_MS], [REFRESH_INDICATOR_MIN_SHOW_MS]) so the tern stops blinking
+     *  on every folder tap, account switch and cold start (#178). */
+    val showRefreshIndicator: Boolean = false,
     /** Event-driven "no usable network" flag from [ConnectivityWatcher] (#65): true the moment
      *  WiFi/mobile drops, without waiting for a refresh to fail. Drives the offline banner. */
     val offline: Boolean = false,
@@ -134,6 +145,8 @@ private data class Base(
     val unread: Int,
     val refreshing: Boolean,
     val error: String?,
+    /** Folded in after the five-flow combine below, from [refreshIndicatorVisibility]. */
+    val showRefreshIndicator: Boolean = false,
 )
 
 private data class SearchUi(
@@ -794,6 +807,40 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val status = MutableStateFlow(Status(refreshing = false, error = null))
 
     /**
+     * The clock every rule about the refresh indicator and the freshness register reads, as a field
+     * rather than a constructor parameter: this is an `AndroidViewModel`, the framework builds it,
+     * and nothing here could hand it another one. The decisions themselves take `now` as an
+     * argument and live in `RefreshIndicatorGrace.kt` and `RefreshFreshness.kt`, where plain JVM
+     * tests run them on a virtual clock.
+     *
+     * ⛔ `elapsedRealtime`, and this line is pinned by `RefreshIndicatorWiringLintTest` — because
+     * every other candidate is one word away and wrong in a way no test here can see:
+     *  - `System.currentTimeMillis` is a WALL clock. NTP or a hand-set time moves it, while the
+     *    `delay` that schedules the wake-ups is monotonic, so a correction landing mid-refresh
+     *    either skips the grace or holds the tern dark past it. It also makes the persisted
+     *    freshness register believe a stamp from before a clock correction;
+     *  - `System.nanoTime` compiles, is monotonic, and is in NANOSECONDS — the 250 ms grace becomes
+     *    250 ns, i.e. no grace at all, and #178 comes back whole with the suite green.
+     * `elapsedRealtime` is Android's DURATION clock: monotonic, counts through sleep, and survives
+     * process death, which is what the freshness register needs across the cold start (#178). It
+     * restarts at a reboot, so a stamp written before one reads as being in the future — which
+     * `RefreshFreshness.isFreshAt` already treats as stale, i.e. it reconciles. The safe side.
+     */
+    private val clock: () -> Long = SystemClock::elapsedRealtime
+
+    /** The stretch of refreshing currently on the screen's mind — see [RefreshRun]. */
+    private val refreshRun = MutableStateFlow<RefreshRun?>(null)
+
+    /**
+     * Set by [refreshRequested] and consumed by the very next [refresh], so the reader's own pull
+     * or Retry is drawn with no grace at all. A one-shot flag rather than a parameter on
+     * [refresh]: every other caller (the init, the reconnect walk, an account switch, a folder tap)
+     * would then have to spell `instant = false`, and the day one of them spells `true` by copy and
+     * paste the blink is back with the whole suite green.
+     */
+    private var refreshAnswersAGesture = false
+
+    /**
      * A folder a tapped notification asked the list to show, as (accountId, mailboxId), waiting
      * for that account's folder list to arrive. Non-null only between the tap and the first
      * loaded folder list — [applyNotificationFolder] consumes it either way, so it can never
@@ -1132,8 +1179,10 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * you will see": in conversation view a thread unread in two folders of the scope is summed
      * twice here and drawn once. See [unreadViewCount].
      */
-    private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed) { base, scopes, accountId, onlySubscribed ->
-        base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed))
+    private val indicatorShowing = refreshIndicatorVisibility(refreshRun, clock)
+
+    private val badgedState = combine(baseState, unreadScopes, currentAccountId, showOnlySubscribed, indicatorShowing) { base, scopes, accountId, onlySubscribed, showing ->
+        base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)
     }
 
     val state: StateFlow<MailUi> = combine(badgedState, searchState, settings.sortOrder, unreadOnly, connectivity.online) { base, search, sortOrder, unreadOnly, online ->
@@ -1153,6 +1202,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             visibleMailboxes = base.visibleMailboxes,
             refreshing = base.refreshing,
             error = base.error,
+            showRefreshIndicator = base.showRefreshIndicator,
             offline = !online,
             searching = search.active,
             searchQuery = search.query,
@@ -1178,13 +1228,18 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             atInbox = isAtInbox(selection.value) { store.inboxMailboxId() },
             mailboxes = emptyList(),
             refreshing = true,
+            // ⛔ Spelled out, not left to the field's default: this placeholder is a SECOND SITE of
+            // every rule the combine above states. 'refreshing = true' just above is the TRUTH and
+            // stays — it empties the centre while the first fetch is out (#63) — and this is the
+            // DISPLAY, which must not light before the grace has passed, cold start included (#178).
+            showRefreshIndicator = false,
             error = null,
             offline = !connectivity.online.value,
         ),
     )
 
     init {
-        refresh()
+        refreshUnlessFresh()
         connectivity.start()
         observeThreadMembers()
         // Recompute the read/unread toggle state whenever the selection set changes.
@@ -1210,6 +1265,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         // guard as the net.
         viewModelScope.launch {
             selection.collect { store.setStoredView(encodeSelection(store.currentId(), it)) }
+        }
+        // The END of an indicator stretch is DERIVED from the truth, in one place, rather than
+        // written into the three arms of refresh()'s `when` — those are pinned word for word by
+        // BoundedRefreshWiringLintTest and carry #130's decisions, and a fourth writer of the same
+        // fact is a fourth chance to forget one. Every path that stops a refresh goes through
+        // `status`, including the ones refresh() never sees (a superseding refresh's arms).
+        viewModelScope.launch {
+            status.map { it.refreshing }.distinctUntilChanged().collect { busy ->
+                if (!busy) refreshRun.value = refreshRun.value?.copy(endedAt = clock())
+            }
         }
     }
 
@@ -1284,16 +1349,70 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         folderSnapshot.value = null to emptyList()
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refreshWatchedFolders()
-        refresh()
+        refreshUnlessFresh()
     }
 
     /** The in-flight refresh, so a new one cancels-and-replaces it (never two reconciles at once). */
     private var refreshJob: Job? = null
 
+    /**
+     * The refresh the READER asked for in so many words: the pull gesture, and the two Retry
+     * buttons. Its indicator is the answer to the gesture, so it is drawn at once, with none of the
+     * grace that keeps the tern off a folder tap's 80 ms fetch (#178).
+     *
+     * ⛔ The flag is raised BEFORE the call and not after: `viewModelScope` is `Main.immediate`, so
+     * the body of refresh()'s `launch` has already begun by the time refresh() returns — there is
+     * no safe instant "after". It is cleared by the refresh that consumes it, so the next
+     * background reconcile is graced again.
+     */
+    fun refreshRequested() {
+        refreshAnswersAGesture = true
+        refresh()
+    }
+
+    /**
+     * Reconcile, UNLESS this very view came back successfully less than 30 s ago (#178).
+     *
+     * The reporter opens and closes the app all day, and every launch, account switch and folder
+     * tap fired a full reconcile she never asked for. The register is persisted and the decision is
+     * [isFresh]'s, run by `RefreshFreshnessTest`; this only reads the store and the clock.
+     *
+     * ⛔ This door is for the SIX reconciles that merely accompany a change of view. It is never
+     * put in front of [onReconnected] — the only thing that ever clears a FAILED reachability,
+     * which reads [refreshJob] straight after each call and would stop at its first attempt with
+     * the offline banner up (#65) — nor in front of [refreshRequested] (the pull and the two Retry
+     * buttons: a gesture is always answered), nor [forceRefresh], nor any of the reconciles that
+     * follow a write. `RefreshFreshnessWiringLintTest` holds that list.
+     */
+    private fun refreshUnlessFresh() {
+        if (isFresh(decodeFreshness(store.refreshFreshness()), currentScopes(), clock())) return
+        refresh()
+    }
+
+    /**
+     * Stamp [scopes] as reconciled now, pruning whatever fell out of the window on the way through
+     * ([recordFresh]) — which is what keeps the register the size of one reader's last 30 seconds.
+     *
+     * Called from ONE place: the Delivered arm of [refresh]. A failed or abandoned refresh brought
+     * nothing back, and stamping it would hold a stale list on screen for 30 s while the reader
+     * watches it fail to update.
+     */
+    private fun rememberReconciled(scopes: List<Pair<String, String>>) {
+        val register = recordFresh(decodeFreshness(store.refreshFreshness()), scopes, clock())
+        store.setRefreshFreshness(encodeFreshness(register))
+    }
+
     fun refresh() {
         refreshJob?.cancel()
+        val instant = refreshAnswersAGesture
+        refreshAnswersAGesture = false
+        refreshRun.value = startRefreshRun(refreshRun.value, clock(), instant)
         status.value = Status(refreshing = true, error = null)
         refreshJob = viewModelScope.launch {
+            // ⚠ Read HERE, not in the Delivered arm: the selection can move while this refresh is
+            // in flight (a folder tap, a tapped notification, an account switch), and stamping a
+            // folder this refresh never read is exactly how a stale list would pass for fresh.
+            val reconciled = currentScopes()
             try {
                 // #130: the fourth end of a refresh — never coming back — used to be covered by
                 // nothing, and the list then announced a refresh in progress for ever. The bound
@@ -1313,6 +1432,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                         // invisible to the framework (the Wi-Fi under the tunnel stays up and NOT_VPN),
                         // so what the requests live is the only thing that can correct what it claims.
                         connectivity.reportSuccess()
+                        // #178: only a refresh that LANDED answers for its view. The scopes are
+                        // the ones read when this refresh started.
+                        rememberReconciled(reconciled)
                     }
                     is RefreshOutcome.Failed -> {
                         val cause = outcome.cause
@@ -1457,7 +1579,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         selection.value = Sel.Unified
         unifiedInboxScopes.value = store.allInboxScopes()
         meta.value = Meta(UNIFIED_LABEL, UNIFIED_LABEL, store.totalUnreadCount())
-        refresh()
+        refreshUnlessFresh()
     }
 
     /**
@@ -1482,7 +1604,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         collapseThreads()
         selection.value = Sel.Unread
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
-        refresh()
+        refreshUnlessFresh()
     }
 
     fun select(mailbox: Mailbox) {
@@ -1490,7 +1612,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         collapseThreads()
         selection.value = Sel.Folder(mailbox.id)
         meta.value = Meta(store.accountLabel(), mailbox.name, mailbox.unreadEmails)
-        refresh()
+        refreshUnlessFresh()
     }
 
     /**
@@ -1558,7 +1680,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         collapseThreads()
         selection.value = Sel.Folder(inboxId)
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
-        refresh()
+        refreshUnlessFresh()
     }
 
     /** Drop all inline-expansion state — e.g. when the list's contents change underneath it. */

@@ -213,7 +213,7 @@ class UnreadRowFolderWiringLintTest {
 
         /** The one fold into [MailUi], carrying the badge AND the account that qualifies a folder. */
         private val EXPECTED_BASE_COPY_LINES = listOf(
-            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed))",
+            "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed), showRefreshIndicator = showing)",
         )
 
         private const val INBOX_SCREEN_PATH =

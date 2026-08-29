@@ -1093,6 +1093,24 @@ class AccountStore(context: Context) {
 
     fun setStoredView(value: String?) = prefs.edit().putString(KEY_VIEW, value).apply()
 
+    // ---- refresh freshness (#178) ----
+
+    /**
+     * When each (account, folder) pair was last reconciled successfully, as an OPAQUE string this
+     * store never interprets.
+     *
+     * Its shape belongs to `app.sterna.ui.inbox.RefreshFreshness`, in the :app module, which
+     * :core:data cannot see — same arrangement as [storedView], and for the same reason: the
+     * decision stays where it is used and the store only carries bytes.
+     *
+     * SharedPreferences and not `SettingsRepository`/DataStore: this is read in a ViewModel's
+     * CONSTRUCTOR, to decide whether the very first reconcile of a cold start is worth firing, and
+     * a constructor cannot wait on a Flow. The cold start IS the case #178 is about.
+     */
+    fun refreshFreshness(): String? = prefs.getString(KEY_FRESHNESS, null)
+
+    fun setRefreshFreshness(value: String?) = prefs.edit().putString(KEY_FRESHNESS, value).apply()
+
     // ---- internals ----
 
     /**
@@ -1186,6 +1204,11 @@ class AccountStore(context: Context) {
         // `Sel` lives in the :app module, which :core:data does not see, and this store must not
         // learn to read it. Written and parsed by app.sterna.ui.inbox.SelectionMemory.
         const val KEY_VIEW = "current_view"
+
+        // When each (account, folder) pair was last reconciled successfully, as an OPAQUE string.
+        // Deliberately opaque, exactly like KEY_VIEW: written and parsed by
+        // app.sterna.ui.inbox.RefreshFreshness, in the :app module this one does not see.
+        const val KEY_FRESHNESS = "refresh_freshness"
         const val KEY_PUSH_ALL = "push_all_accounts"
         const val KEY_APP_LOCK = "app_lock_enabled"
 
