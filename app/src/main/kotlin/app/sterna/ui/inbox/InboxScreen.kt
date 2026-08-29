@@ -1686,6 +1686,39 @@ fun InboxScreen(
             ) {
                 val searchActive = ui.searching && ui.searchQuery.isNotBlank()
                 val refreshLoading = listRows.loadState.refresh is LoadState.Loading
+                // Paging keeps presenting the PREVIOUS selection's snapshot until the new
+                // PagingData inserts its first page, so on a folder/account switch itemCount is
+                // still the old folder's. Without this guard the rows branch below wins and draws
+                // another folder's mail under the new folder's header. Every field of listKey is
+                // also a PageKey member (see ListKey), so a change here always rebuilds the pager
+                // and something eventually comes to disarm the guard.
+                val listKey = ListKey(ui.accountId, ui.selectedMailboxId, ui.unified, ui.unreadView)
+                // ONE read of the presented snapshot, shared by the two derivations below: the
+                // signature and the belonging test must describe the SAME rows, or the guard
+                // compares one folder's row against another folder's ownership.
+                val presentedRows = listRows.itemSnapshotList.items
+                val firstRow = presentedRows.firstOrNull()
+                val presented = rowsSignature(listRows.itemCount, firstRow)
+                // Do those rows PROVE they belong to another selection? Every other signal the
+                // guard has (a moved snapshot, a finished load, the elapsed valve) can be produced
+                // by the OLD generation on its own, which left the header of the new folder over
+                // the rows of the old one on 1 folder switch in 4 at the bench (2026-08-29). Both
+                // ENDS are asked, because in Drafts the first row is the phone's own draft — it
+                // belongs to the new folder and would vouch for the old folder's mail behind it.
+                // Only for a single folder is the question decidable — see rowsForeign.
+                val foreign = rowsForeign(listKey, firstRow, presentedRows.lastOrNull())
+                // Valve: after ROWS_GUARD_GIVE_UP_MS with nothing loading and nothing moved, give
+                // the screen back to the rows rather than spin for ever. Keyed on listKey so it is
+                // false again at the instant the next switch arms the guard.
+                val gaveUp = remember(listKey) { mutableStateOf(false) }
+                LaunchedEffect(listKey) { delay(ROWS_GUARD_GIVE_UP_MS); gaveUp.value = true }
+                // Written BEFORE it is read in the same pass, and idempotent: advanceRowsGuard
+                // converges, so this settles instead of recomposing for ever.
+                val guard = remember { mutableStateOf(RowsGuard(listKey, presented, refreshLoading, false)) }
+                guard.value = advanceRowsGuard(guard.value, listKey, presented, refreshLoading, gaveUp.value, foreign)
+                // AFTER the step, never hoisted above it: read first, this is the previous frame's
+                // answer, and the frame that arms the guard draws the old folder's rows anyway.
+                val staleRows = guard.value.stale
                 when {
                     searchActive -> when (searchDisplay(ui.searchResults.size, ui.searchLoading, ui.searchComplete)) {
                         SearchDisplay.RESULTS ->
@@ -1768,7 +1801,9 @@ fun InboxScreen(
                             modifier = Modifier.align(Alignment.Center),
                         )
                     }
-                    listRows.itemCount > 0 ->
+                    // !staleRows: these rows may still be the PREVIOUS selection's, and drawing
+                    // them under the new folder's header is the defect this guard exists for.
+                    listRows.itemCount > 0 && !staleRows ->
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize()
@@ -1831,7 +1866,14 @@ fun InboxScreen(
                     ui.refreshing -> Unit
                     // No tern for a paging refresh (it isn't the pull gesture's state), so here
                     // the centred indicator is the only thing saying anything, and it stays.
-                    refreshLoading -> LoadingRing(Modifier.align(Alignment.Center))
+                    // staleRows too, and it has to stay ABOVE the offline/error/empty scenes: on
+                    // a switch that runs no refresh of its own, gating the rows branch alone falls
+                    // through to them and the screen claims the folder is empty — or offline —
+                    // while its first page is still loading. ⚠ On the ordinary switch the branch
+                    // above catches first (selecting a folder calls refresh(), so ui.refreshing is
+                    // already true in the same emission): the centre is then EMPTY and the tern at
+                    // the top is what speaks. That is #63's decision, not an oversight.
+                    refreshLoading || staleRows -> LoadingRing(Modifier.align(Alignment.Center))
                     notice == RefreshNotice.OFFLINE -> PullableCenter {
                         EmptyState(
                             art = EmptyArt.OFFLINE,

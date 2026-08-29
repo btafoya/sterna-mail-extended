@@ -475,7 +475,12 @@ class LoadingRingTest {
                 INBOX_SCREEN,
                 "the inbox's centred refresh indicator (a paging refresh, the one on the " +
                     "reporter's screenshot)",
-                "refreshLoading -> LoadingRing(Modifier.align(Alignment.Center))",
+                // The condition gained `|| staleRows` (the stale-rows guard, RowsGuard.kt): the same
+                // ring, at the same place, now also reached when Paging is still presenting the
+                // PREVIOUS folder's snapshot and nothing else is claiming the centre. The WIDGET is
+                // what this entry guards, and it is unchanged — RowsGuardWiringLintTest pins the
+                // condition itself, and says which branch really catches the ordinary switch.
+                "refreshLoading || staleRows -> LoadingRing(Modifier.align(Alignment.Center))",
             ),
             RingSite(
                 INBOX_SCREEN,
