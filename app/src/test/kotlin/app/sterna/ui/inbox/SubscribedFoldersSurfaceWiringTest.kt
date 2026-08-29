@@ -154,14 +154,18 @@ class SubscribedFoldersSurfaceWiringTest {
             "the folder flow grew a line. It carries side effects and is collected ONCE: anything " +
                 "judged in here runs when a LIST ARRIVES and at no other moment, which is why the " +
                 "Inbox fallback no longer lives here (see the next test) and why the setting must " +
-                "never be read here — the box being ticked does not make this flow emit.",
+                "never be read here — the box being ticked does not make this flow emit. The third " +
+                "line is the restored view's missing folder name, filled in from this cached list " +
+                "and pinned in ORDER by RestoredHeaderWiringLintTest: it must stay AFTER the " +
+                "notification's folder, whose select() the memory then stands down for.",
             listOf(
                 "}.onEach { folders ->",
                 "applyNotificationFolder(folders)",
+                "applyRestoredMeta(folders)",
                 "folderSnapshot.value = currentAccountId.value to folders",
                 "}",
             ),
-            block(INBOX_VIEW_MODEL, "}.onEach { folders ->", 4),
+            block(INBOX_VIEW_MODEL, "}.onEach { folders ->", 5),
         )
         assertEquals(
             "the folder list must be recorded WITH the account it belongs to. Recomputing the scope " +

@@ -13,9 +13,10 @@ import java.io.File
  *
  * What it guards, all three of them one-word mutations that compile and leave the rest green:
  *  - the title argument — with the unified arm gone, the title falls back to
- *    `mailboxDisplayName(null, "All inboxes")`, i.e. the internal literal [InboxViewModel.Companion]
- *    puts in `Meta`, shown raw in all nine locales while the drawer entry that leads there is
- *    translated;
+ *    `mailboxDisplayName(null, "All inboxes")`, i.e. the internal [UNIFIED_LABEL] that
+ *    `SelectionMemory.kt` puts in the top-level [Meta] (it used to live in `InboxViewModel`'s
+ *    private companion, and both moved out so a JVM test could run the decision), shown raw in all
+ *    nine locales while the drawer entry that leads there is translated;
  *  - the subtitle guard — in the unified view `accountName` is ALSO the internal label, so dropping
  *    `!ui.unified` prints the title twice, one under the other;
  *  - the role arm — swapping `mailboxDisplayName(selectedRole, ui.mailboxName)` for the unified

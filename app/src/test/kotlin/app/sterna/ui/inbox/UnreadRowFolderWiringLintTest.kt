@@ -123,8 +123,14 @@ class UnreadRowFolderWiringLintTest {
      * The lines of the `val state: StateFlow<MailUi> = combine(…) { … }` builder, comments out.
      *
      * Anchored on both ends and loud if either moves: a rule that quietly reads an empty slice
-     * guards nothing. The `initialValue` below `}.stateIn(` is deliberately outside — it is the
-     * pre-collection placeholder, and it takes the field's default.
+     * guards nothing.
+     *
+     * ⛔ The `initialValue` below `}.stateIn(` is OUTSIDE this slice, and it does not take the
+     * fields' defaults: it builds a second `MailUi(...)` by hand, naming `selectedMailboxId`,
+     * `unified`, `atInbox` and the rest, from `selection.value` and `meta.value`. It is a SECOND
+     * SITE of every rule the combine states, and it is what the reader sees until the first
+     * emission. Any rule corrected in the flow has to be corrected there too: #155 (f9e6da37) fixed
+     * `atInbox` in the combine and left the placeholder's copy of the same expression untouched.
      */
     private fun stateBlock(): List<String> {
         val lines = codeLines(INBOX_VIEW_MODEL)

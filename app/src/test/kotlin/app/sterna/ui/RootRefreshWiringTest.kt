@@ -32,17 +32,20 @@ class RootRefreshWiringTest {
                 "fresh accountsUnreadable() read. Either it restates the rule (and RootRouteTest " +
                 "then proves nothing about the app), or it routes on a stale flag, or it is back " +
                 "to NeedAccount — which invites the user to add an account the store will refuse " +
-                "to save.",
+                "to save. The push seed on the line above the arm belongs to " +
+                "RestoredViewWiringLintTest, which says why it must stay there; it is in this " +
+                "block only because the block is contiguous.",
             listOf(
                 "fun refresh() {",
                 "val current = accountStore.currentId()?.takeIf { accountStore.credentials(it) != null }",
                 "?: accountStore.accounts().firstOrNull { accountStore.credentials(it.id) != null }?.id",
                 "if (current != null && accountStore.currentId() != current) accountStore.setCurrent(current)",
+                "PushController.unifiedInboxVisible = restoredUnifiedView()",
                 "PushController.apply(getApplication(), userInitiated = true)",
                 "_state.value = RootRoute.resolve(current, accountStore.accountsUnreadable())",
                 "}",
             ),
-            codeBlock(STERNA_APP, "fun refresh() {", 7),
+            codeBlock(STERNA_APP, "fun refresh() {", 8),
         )
     }
 

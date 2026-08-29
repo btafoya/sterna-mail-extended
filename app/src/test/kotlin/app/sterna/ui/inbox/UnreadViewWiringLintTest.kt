@@ -35,6 +35,10 @@ import java.io.File
  * A `contains` on a fragment is blind to any mutation that LENGTHENS it: `selected = ui.unreadView`
  * is contained in `selected = ui.unreadView && false`. The price is that a reformat reddens this
  * file; that direction of error is loud and one line to fix.
+ *
+ * ⭐ ONE rule is not a comparison of whole units, and cannot be: `the ViewModel declares no
+ * isAtInbox of its own` proves an ABSENCE, so it searches for a pattern and expects nothing back.
+ * There is no line to compare when the point is that no such line may exist.
  */
 class UnreadViewWiringLintTest {
 
@@ -196,19 +200,78 @@ class UnreadViewWiringLintTest {
      * side, no cached inbox id on the other — and the view silently becomes an exit. The structural
      * form cannot: a selection that is not a folder is not the inbox, whatever the store knows.
      * `Sel.Folder(null)` keeps the answer it always had, deliberately.
+     *
+     * The rule itself is [isAtInbox] and is EXECUTED by `AtInboxTest`; what is pinned here is that
+     * the ViewModel's two sites call it instead of restating it — the drift this file exists for.
      */
     @Test
     fun `no view without a folder can pass for the inbox`() {
         val lines = codeLines(INBOX_VIEW_MODEL).map { it.trim() }
             .filter { Regex("""\batInbox\s*=""").containsMatchIn(it) }
         assertEquals(
-            "atInbox must be decided structurally — 'sel is Sel.Folder && sel.id == …' — never by " +
-                "'(sel as? Sel.Folder)?.id == …', which is true for ANY non-folder selection the " +
-                "moment the cached inbox id is null. It is the Back gesture: true here and Back " +
-                "leaves the app from a view the reader chose. Lines found were:" +
+            "Every atInbox in the ViewModel must either carry the flag or delegate to " +
+                "isAtInbox(sel, inboxMailboxId) — the one rule, run by AtInboxTest. Restated " +
+                "inline it drifts, and the form it drifts back to, '(sel as? Sel.Folder)?.id == …', " +
+                "is true for ANY non-folder selection the moment the cached inbox id is null. It is " +
+                "the Back gesture: true here and Back LEAVES THE APP, from a view the reader chose. " +
+                "Compared as whole lines, sorted. Lines found were:" +
                 "\n${lines.joinToString("\n")}",
             EXPECTED_AT_INBOX_LINES,
             lines.sorted(),
+        )
+    }
+
+    /**
+     * ⛔ The delegation above is only worth what the NAME resolves to. Kotlin resolves a member
+     * before a top-level function of the same package, so a `private fun isAtInbox(sel: Sel,
+     * inboxMailboxId: String?)` declared anywhere inside `InboxViewModel` captures both call sites
+     * in silence: the rule above still reads exactly the two lines it expects, `AtInboxTest` still
+     * runs — a function nobody calls any more — and the loose form, with the Back gesture that
+     * leaves the app from the unread view, is back in full.
+     *
+     * So the rule here is an absence, and is written as one: a search that must find nothing.
+     */
+    @Test
+    fun `the ViewModel declares no isAtInbox of its own`() {
+        val declarations = codeLines(INBOX_VIEW_MODEL).map { it.trim() }
+            .filter { Regex("""\bfun\s+isAtInbox\b""").containsMatchIn(it) }
+        assertEquals(
+            "InboxViewModel.kt must declare NO function named isAtInbox. A member of that name wins " +
+                "over the top-level isAtInbox of the same package, so both 'atInbox = isAtInbox(…)' " +
+                "sites silently go to it, the rule above keeps passing on their text, AtInboxTest " +
+                "keeps exercising a function nothing calls, and the defect returns whole: Back " +
+                "LEAVES THE APP from the unread view. The rule lives in InboxBack.kt and is called " +
+                "from here, never redeclared. Declarations found were:" +
+                "\n${declarations.joinToString("\n")}",
+            emptyList<String>(),
+            declarations,
+        )
+    }
+
+    /**
+     * ⛔ The last link, and the only one: `InboxScreen.kt` is where `atInbox` is READ. Everything
+     * above proves the flag is computed by the one rule; nothing above notices if the screen stops
+     * asking that rule the right question, or stops acting on its answer.
+     *
+     * Both mutations compile, and both bring the whole symptom back:
+     *  - `inboxBackAction(selectionActive, ui.searching, ui.selectedMailboxId == null || ui.atInbox)`
+     *    — every view without a folder is "the inbox" again, at the reading end this time;
+     *  - the SHOW_INBOX handler deleted — Back then falls through to the system, i.e. out of the
+     *    app, from every folder and every view.
+     */
+    @Test
+    fun `the screen asks the back rule the right question, and binds its answer`() {
+        val lines = codeLines(INBOX_SCREEN).map { it.trim() }
+            .filter { Regex("""\bbackAction\b""").containsMatchIn(it) }
+        assertEquals(
+            "The list screen must hand inboxBackAction exactly these three flags and bind a handler " +
+                "for each of its three non-default outcomes. Widening the third argument (e.g. " +
+                "'ui.selectedMailboxId == null || ui.atInbox') restores the defect at the reading " +
+                "end, and dropping the SHOW_INBOX handler turns every Back outside the Inbox into " +
+                "leaving the app — neither is visible to any other test in this repo. Whole lines, " +
+                "in source order. Lines found were:\n${lines.joinToString("\n")}",
+            EXPECTED_BACK_ACTION_LINES,
+            lines,
         )
     }
 
@@ -475,6 +538,11 @@ class UnreadViewWiringLintTest {
             "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed))",
             "unreadView = base.unreadView,",
             "unreadView = sel is Sel.Unread,",
+            // The placeholder `state` starts on, below `}.stateIn(` — a SECOND SITE of the line
+            // above, and what the reader sees until the first emission. Left out it took the
+            // field's default `false`, so a RESTORED unread view opened on the folder arm of the
+            // title. Its own rule is `RestoredHeaderWiringLintTest`'s; here it must merely exist.
+            "unreadView = selection.value is Sel.Unread,",
             "unreadViewCount = base.unreadViewCount,",
             "val unreadView: Boolean = false,",
             "val unreadView: Boolean,",
@@ -494,11 +562,19 @@ class UnreadViewWiringLintTest {
             "base.copy(accountId = accountId, unreadViewCount = unreadViewCount(accountId, scopes, base.mailboxes), visibleMailboxes = visibleFolders(base.mailboxes, onlySubscribed))",
         )
 
-        /** Back's answer, structural where it has to be, unchanged where it was already right. */
+        /** Back's answer: carried once, decided nowhere but [isAtInbox]. Sorted. */
         private val EXPECTED_AT_INBOX_LINES = listOf(
             "atInbox = base.atInbox,",
-            "atInbox = sel is Sel.Unified || (sel is Sel.Folder && sel.id == store.inboxMailboxId()),",
-            "atInbox = selection.value is Sel.Unified || (selection.value as? Sel.Folder)?.id == store.inboxMailboxId(),",
+            "atInbox = isAtInbox(sel) { store.inboxMailboxId() },",
+            "atInbox = isAtInbox(selection.value) { store.inboxMailboxId() },",
+        )
+
+        /** The screen's whole use of the Back rule: the question, then the three handlers. */
+        private val EXPECTED_BACK_ACTION_LINES = listOf(
+            "val backAction = inboxBackAction(selectionActive, ui.searching, ui.atInbox)",
+            "BackHandler(enabled = backAction == InboxBackAction.CLEAR_SELECTION) { viewModel.clearSelection() }",
+            "BackHandler(enabled = backAction == InboxBackAction.CLOSE_SEARCH) { viewModel.setSearchActive(false) }",
+            "BackHandler(enabled = backAction == InboxBackAction.SHOW_INBOX) { viewModel.showInbox() }",
         )
 
         /** The search hint's three scopes, in source order. */

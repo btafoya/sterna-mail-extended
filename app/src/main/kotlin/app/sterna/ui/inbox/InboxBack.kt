@@ -44,3 +44,25 @@ internal fun inboxBackAction(
     !atInbox -> InboxBackAction.SHOW_INBOX
     else -> InboxBackAction.LEAVE_APP
 }
+
+/**
+ * Whether the list is showing the account's Inbox — the `atInbox` flag [inboxBackAction] reads, so this
+ * is what decides between "Back returns to the Inbox" and "Back LEAVES THE APP".
+ *
+ * ⛔ Structural, never `(sel as? Sel.Folder)?.id == inboxMailboxId`: that form answers
+ * `null == null` for ANY selection that is not a folder as soon as the account's inbox has never
+ * been synced. Since the selection is restored across a cold start, a reader who left the app in
+ * the unread view would come back to it and have her first Back close the app — from a view she
+ * chose. Run by `AtInboxTest`; the ViewModel must not restate it inline (`UnreadViewWiringLintTest`).
+ *
+ * [Sel.Folder] with a null id keeps the answer it always had: it IS the inbox selection the
+ * ViewModel builds before the inbox id is known, so `true` when the cached id is null too.
+ *
+ * [inboxMailboxId] is a lambda, not a `String?`, because the question only arises for a folder and
+ * the answer is not free: `AccountStore.inboxMailboxId()` parses the stored account blob on every
+ * call. The inline form it replaced short-circuited, so keeping it lazy leaves the unified and
+ * unread views exactly as cheap as they were — and this flag is recomputed on every emission of
+ * the five flows the list state is combined from.
+ */
+internal fun isAtInbox(sel: Sel, inboxMailboxId: () -> String?): Boolean =
+    sel is Sel.Unified || (sel is Sel.Folder && sel.id == inboxMailboxId())

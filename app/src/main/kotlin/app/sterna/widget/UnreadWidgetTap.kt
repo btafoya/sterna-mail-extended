@@ -7,9 +7,14 @@ import app.sterna.core.data.account.StoredAccount
  *
  *  - [UnifiedInbox] — ask the app for the cross-account "All inboxes" list, the very entry the
  *    drawer offers;
- *  - [AppAsIs] — open the app and ask for nothing at all. It already starts on the inbox of the
- *    current account (`InboxViewModel`, `Sel.Folder(store.inboxMailboxId())`), so there is nothing
- *    left to request; asking anyway would be the widget ordering a view the app does not have.
+ *  - [AppAsIs] — open the app and ask for nothing at all. "Where the app opens" is the app's
+ *    answer, not the widget's, and since the list reopens on the view it was left in (#179) that is
+ *    no longer always the Inbox: a tap here can land on Trash, on the unread view, on any folder.
+ *    ⛔ That is not a defect to correct from this side. The cell COUNTS inboxes — the per-account
+ *    breakdown `observeUnifiedInboxUnreadByAccount()`, totalled by [UnreadWidgetDraw] — and the
+ *    widget has no business commanding a view; ordering one would mean an intent extra, its
+ *    parser, `onNewIntent`, a strip, a second relay and a back stack to unwind — a pane of work to
+ *    override a choice the user herself made in the drawer.
  */
 internal enum class WidgetTapTarget { UnifiedInbox, AppAsIs }
 
@@ -33,8 +38,8 @@ internal enum class WidgetTapTarget { UnifiedInbox, AppAsIs }
  *     drawer posts its "All inboxes" entry under the same bound (`InboxScreen`), so from here up
  *     the view genuinely exists and the widget asks for it by the same route the drawer uses.
  *  2. **One account** → [AppAsIs]. ⛔ Never [UnifiedInbox]: the drawer offers no such entry with a
- *     single account, so the widget would be ordering a view that is not there. Opening the app
- *     plainly already lands on that account's inbox — which is exactly what the number counted.
+ *     single account, so the widget would be ordering a view that is not there. The app opens where
+ *     the app opens — the Inbox, or whatever view was left behind (#179) — and the widget lets it.
  *  3. **No account at all** → [AppAsIs], for a sharper version of the same reason. With nothing
  *     configured the app routes to the welcome/connect screen (`RootState.NeedAccount`): no list is
  *     composed, no `InboxViewModel` exists, and a request to select the unified view would be

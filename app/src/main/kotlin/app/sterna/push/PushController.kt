@@ -55,10 +55,19 @@ object PushController {
      * while the user is in Settings or the reader, and the mirror only moves when the list itself
      * reselects. Read by [shouldResetBaseline] alone, to decide which accounts a user-initiated
      * arm may reseed silently; false is the safe answer, since it reseeds fewer accounts and so
-     * announces more. It starts false because a cold start always lands on a single folder — the
-     * unified selection is not restored across process death — and an account switch clears it up
-     * front, before arming, rather than waiting for the recomposition that would otherwise set it
-     * a beat too late.
+     * announces more. It starts false, and `RootViewModel.refresh()` seeds it from the restored
+     * view on the line before it arms, rather than waiting for the recomposition that would
+     * otherwise set it a beat too late. (`switchAccount()` also clears it explicitly; that line is
+     * redundant with the seed and kept on purpose — see `RestoredViewWiringLintTest`.)
+     *
+     * ⚠ ITS INITIAL VALUE IS NOT THE COLD START'S ANSWER, and used to be read as though it were.
+     * Since the drawer reopens on the view you left (#179) a launch can land straight in the
+     * unified inbox, hence that seed. ⛔ The seed is placed BEFORE the arm because the value must
+     * be right when the arm reads it, which is not necessarily in the same call stack: [apply]
+     * decides inline on its worker branch, but on the direct branch it only asks
+     * `startForegroundService` for a service, which reads this flag later and on its own coroutine
+     * ([PushService]'s `watch`). `false` remains the value the field is BORN with, i.e. the safe
+     * answer for any arm that happens before anyone has said otherwise.
      */
     @Volatile
     var unifiedInboxVisible: Boolean = false

@@ -1077,6 +1077,22 @@ class AccountStore(context: Context) {
     fun appLockEnabled(): Boolean = prefs.getBoolean(KEY_APP_LOCK, false)
     fun setAppLockEnabled(value: Boolean) = prefs.edit().putBoolean(KEY_APP_LOCK, value).apply()
 
+    // ---- last drawer view ----
+
+    /**
+     * The view the mail list was last showing, as an OPAQUE string this store never interprets.
+     *
+     * Its shape belongs to `app.sterna.ui.inbox.SelectionMemory`, in the :app module, which
+     * :core:data cannot see — and that is the point: the selection type stays where it is used and
+     * the store only carries bytes.
+     *
+     * SharedPreferences and not `SettingsRepository`/DataStore: this is read in a ViewModel's
+     * CONSTRUCTOR, to seed the very first list, and a constructor cannot wait on a Flow.
+     */
+    fun storedView(): String? = prefs.getString(KEY_VIEW, null)
+
+    fun setStoredView(value: String?) = prefs.edit().putString(KEY_VIEW, value).apply()
+
     // ---- internals ----
 
     /**
@@ -1165,6 +1181,11 @@ class AccountStore(context: Context) {
         const val PREFS_NAME = "sterna_account"
         const val KEY_ACCOUNTS = "accounts"
         const val KEY_CURRENT = "current"
+
+        // The drawer view the list was last showing, as an OPAQUE string. Deliberately opaque:
+        // `Sel` lives in the :app module, which :core:data does not see, and this store must not
+        // learn to read it. Written and parsed by app.sterna.ui.inbox.SelectionMemory.
+        const val KEY_VIEW = "current_view"
         const val KEY_PUSH_ALL = "push_all_accounts"
         const val KEY_APP_LOCK = "app_lock_enabled"
 

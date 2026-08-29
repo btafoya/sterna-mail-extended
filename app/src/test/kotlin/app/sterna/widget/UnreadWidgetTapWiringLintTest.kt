@@ -207,8 +207,8 @@ class UnreadWidgetTapWiringLintTest {
                 "— the drawer's own call, with everything it does beyond moving the selection. " +
                 "The order must be CONSUMED and HELD when the list is not composed yet (the cold " +
                 "start, bench C1) and only then delivered, through WidgetTapRelay's three arms: an " +
-                "effect that merely returns on a null list is never re-run, and the tap opens the " +
-                "current account's Inbox instead of All inboxes. And it must ASK " +
+                "effect that merely returns on a null list is never re-run, and the tap opens " +
+                "whatever view the app reopened on (#179) instead of All inboxes. And it must ASK " +
                 "WidgetTapNavigation whether to pop, handing it the WHOLE back stack: " +
                 "selectUnified() moves a list that is one destination below the reader, so without " +
                 "the pop the user taps the counter, comes back to a message and sees nothing " +

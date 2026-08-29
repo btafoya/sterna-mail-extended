@@ -684,7 +684,21 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private val selection = MutableStateFlow<Sel>(Sel.Folder(store.inboxMailboxId()))
+    /**
+     * The view on screen. Seeded from what was stored last time ([restoredSelection], whose rule
+     * [restoreSelection] `SelectionMemoryTest` runs), falling back on the current account's Inbox —
+     * which is what this flow always held, and still holds whenever the memory is empty, another
+     * account's, or names a view this install does not offer.
+     *
+     * ⛔ Through [restoredSelection], never a store read written out here: `RootViewModel` needs the
+     * same answer before this ViewModel exists at all (the push arm, the notification switch), and
+     * two copies of that read are two answers waiting to disagree about the view the app reopened
+     * on. The bound it hands over is `AllInboxesView.existsFor`, the line that follows the drawer's
+     * own `accounts.size > 1`.
+     */
+    private val selection = MutableStateFlow<Sel>(
+        restoredSelection(store) ?: Sel.Folder(store.inboxMailboxId()),
+    )
     private val currentAccountId = MutableStateFlow(store.currentId())
     private val unifiedInboxScopes = MutableStateFlow(store.allInboxScopes())
 
@@ -755,8 +769,27 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }.onEach { unreachable -> if (unreachable) showInbox() }
             .launchIn(viewModelScope)
 
+    /**
+     * The header the list opens on, for the view [selection] was RESTORED to — decided by
+     * [restoredMeta], which a JVM test runs.
+     *
+     * ⚠ Reads `selection.value`, so it has to stay declared AFTER [selection]; it is a plain
+     * initialiser and the order is the whole guarantee it is not null here.
+     *
+     * It used to be the Inbox's name and count, written flat, which was true while every cold
+     * start landed on the Inbox. Restored onto the Trash it titled the Trash "Inbox" and badged it
+     * with the Inbox's unread count — and offline it said so for good, [refreshFolder] being the
+     * only other writer and only on success.
+     */
     private val meta = MutableStateFlow(
-        Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()),
+        restoredMeta(
+            selection.value,
+            store.inboxMailboxId(),
+            store.accountLabel(),
+            store.inboxMailboxName(),
+            store.unreadCount(),
+            store.totalUnreadCount(),
+        ),
     )
     private val status = MutableStateFlow(Status(refreshing = false, error = null))
 
@@ -768,6 +801,18 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * the folder flow that reads it, which is the only place it is judged.
      */
     private var notificationFolder: Pair<String, String>? = null
+
+    /**
+     * The RESTORED folder whose name [restoredMeta] left blank, waiting for a folder list to name
+     * it — the cache's list, so this lands in airplane mode too. Non-null only between the cold
+     * start and the first loaded list, consumed by [applyRestoredMeta] exactly like #91's parked
+     * notification folder, so it can never resurface and retitle a folder the reader chose herself.
+     *
+     * Armed only when the restored view is a folder that is NOT the Inbox: every other restored
+     * view already knows its own name without a list.
+     */
+    private var restoredFolder: String? =
+        (selection.value as? Sel.Folder)?.id?.takeIf { it != store.inboxMailboxId() }
 
     // The drawer shows the CURRENT account's folders: the cache now keeps every account's
     // rows side by side, so the flow re-scopes when the user switches accounts.
@@ -790,6 +835,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         // [folderSnapshot] conflates an equal folder list. One rule, both routes: nobody is parked
         // in a folder no list offers.
         applyNotificationFolder(folders)
+        // The restored view's missing folder name, filled in from this cached list (volet C).
+        // ⛔ AFTER the line above, and the order is the guard: a tapped notification has already
+        // written the header through select(), and [restoredFolderMeta]'s selection check then
+        // lets it win. Called from INSIDE this onEach and never from a second collection of
+        // [mailboxes], which carries side effects (#91).
+        applyRestoredMeta(folders)
         // The folder list that just arrived, recorded for what derives from it — the "unread"
         // view's scope and the Inbox fallback, both of which also have to follow the
         // subscription setting ([folderSnapshot], [unreadScopes], [inboxFallback]).
@@ -1052,11 +1103,10 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             selectedMailboxId = (sel as? Sel.Folder)?.id,
             unified = sel is Sel.Unified,
             unreadView = sel is Sel.Unread,
-            // ⛔ Structural, not `(sel as? Sel.Folder)?.id == …`: that form answers null == null for
-            // ANY selection that is not a folder as soon as the account's inbox has never been
-            // synced, and atInbox true means the system Back gesture LEAVES THE APP — from a view
-            // the reader chose. Sel.Folder(null) keeps the answer it always had.
-            atInbox = sel is Sel.Unified || (sel is Sel.Folder && sel.id == store.inboxMailboxId()),
+            // ⛔ The rule lives in [isAtInbox] and is NOT restated here: atInbox true means the
+            // system Back gesture LEAVES THE APP, and the inline form that answered null == null
+            // for any non-folder selection did exactly that from a view the reader chose.
+            atInbox = isAtInbox(sel) { store.inboxMailboxId() },
             accountName = meta.accountName,
             mailboxName = meta.mailboxName,
             unread = if (sel is Sel.Unified) unifiedUnread else meta.unread,
@@ -1119,7 +1169,13 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             unreadCount = meta.value.unread,
             selectedMailboxId = (selection.value as? Sel.Folder)?.id,
             unified = selection.value is Sel.Unified,
-            atInbox = selection.value is Sel.Unified || (selection.value as? Sel.Folder)?.id == store.inboxMailboxId(),
+            // ⛔ NOT the field's default: this placeholder is a SECOND SITE of every rule the
+            // combine above states, and it is what the reader sees until the first emission. Left
+            // out, a RESTORED unread view starts on `unreadView = false`, so InboxScreen takes the
+            // FOLDER arm and titles a list spanning the whole account with mailboxName — i.e. the
+            // Inbox's raw, untranslated name — and the search hint says "Search in <that>" too.
+            unreadView = selection.value is Sel.Unread,
+            atInbox = isAtInbox(selection.value) { store.inboxMailboxId() },
             mailboxes = emptyList(),
             refreshing = true,
             error = null,
@@ -1141,6 +1197,19 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         // the only place the answer exists: the selection is view state and nothing persists it.
         viewModelScope.launch {
             selection.collect { PushController.unifiedInboxVisible = it is Sel.Unified }
+        }
+        // Remember the view so a cold start reopens on it. The account is read HERE, at the moment
+        // of the write, and not captured: what makes the pair the arriving account's on a switch is
+        // RootViewModel.switchAccount(), which calls accountStore.setCurrent(id) BEFORE InboxScreen's
+        // LaunchedEffect(currentAccountId) gets to onAccountChanged() — so by the time the new
+        // selection is written, store.currentId() already answers the account being switched to.
+        // ⚠ That leaves a window: between setCurrent(B) and onAccountChanged(), the store already
+        // says B while [selection] still holds a view of A, so a refreshFolder() landing inside it
+        // would store (B, a folder id B's own server returned) — an id valid in B, i.e. a memory
+        // that can be stale but never crossed between accounts, with restoreSelection's account
+        // guard as the net.
+        viewModelScope.launch {
+            selection.collect { store.setStoredView(encodeSelection(store.currentId(), it)) }
         }
     }
 
@@ -1463,6 +1532,23 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         // is the current account's, which the guard two lines up is what makes true.
         val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return
         folders.firstOrNull { it.id == show }?.let(::select)
+    }
+
+    /**
+     * Name the RESTORED folder from a freshly loaded [folders] list. The decision is
+     * [restoredFolderMeta]'s, which a JVM test runs; this only feeds it, spends the one shot when
+     * it says the question is settled, and writes what it hands back.
+     *
+     * ⚠ Known and deliberately unguarded: should Room's FIRST [mailboxes] emission land AFTER a
+     * successful [refreshFolder], this overwrites that refresh's header with `folder.unreadEmails`
+     * where it wrote `updated.unreadCount` — the selection check cannot see it, both readings come
+     * out of the same database, and the count is drawn nowhere today. No guard for it (rules 5, 6).
+     */
+    private fun applyRestoredMeta(folders: List<Mailbox>) {
+        val step = restoredFolderMeta(restoredFolder, selection.value, folders, store.accountLabel())
+        if (!step.settled) return
+        restoredFolder = null
+        step.meta?.let { meta.value = it }
     }
 
     /** Return to the account's Inbox — Back from any other folder lands here. */
@@ -2853,11 +2939,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             // receivedAt is an ISO-8601 UTC string, so lexicographic sort == chronological.
             .sortedByDescending { it.receivedAt ?: "" }
 
-    private data class Meta(val accountName: String, val mailboxName: String, val unread: Int)
     private data class Status(val refreshing: Boolean, val error: String?)
 
     private companion object {
-        const val UNIFIED_LABEL = "All inboxes"
         const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
         const val PURGE_HOLD_BACK_MS = 5_000L
 

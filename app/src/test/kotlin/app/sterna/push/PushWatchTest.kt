@@ -785,6 +785,58 @@ class PushWatchTest {
     }
 
     /**
+     * SOURCE RULE — same weakness and same reason as the ones above, and it closes the WINDOW they
+     * leave. The two rules that read watch() pin its first two statements (`take(2)`) and then
+     * everything from `val mine =` down; the three statements in between were pinned by nothing,
+     * and one of them is the only place on the DIRECT path (IMAP IDLE, JMAP EventSource) that ever
+     * reads [PushController.unifiedInboxVisible].
+     *
+     * The mutation that stayed green until this rule existed: `val unified = false`. A cold start
+     * that reopens on "All inboxes" (#179) then arms as though a single folder were on screen —
+     * [shouldResetBaseline] reseeds the current account only, and every other watched account
+     * announces the backlog the reader has in front of her. Its twin `val unified = true` does the
+     * reverse: any user-initiated arm swallows every account's backlog silently, i.e. mail nobody
+     * is ever told about. [PushService] is an [android.app.Service] this module cannot instantiate,
+     * so reading the text is the only witness there is; the decision it feeds IS executed, by the
+     * [shouldResetBaseline] tests above.
+     *
+     * Whole statements, never `contains`: `PushController.unifiedInboxVisible && false` is a
+     * superstring of the line it replaces. And the flag is mentioned ONCE in the whole file,
+     * comments included — a second read is a second answer, taken at another moment.
+     */
+    @Test fun `the arm reads the unified flag itself, and hands it to the baseline decision`() {
+        val watch = pushServiceStatementsOf(WATCH_SIGNATURE)
+        assertEquals(
+            "watch() must read the current account and the unified view from their live sources, " +
+                "as whole statements. Frozen to `val unified = false`, a cold start restored into " +
+                "'All inboxes' (#179) reseeds only the current account and every other watched " +
+                "account re-announces mail the reader is already looking at; frozen to `true`, a " +
+                "user-initiated arm swallows every account's backlog. Both compile, and both leave " +
+                "the executed shouldResetBaseline tests above green.",
+            listOf(
+                "val currentId = application.container.accountStore.currentId()",
+                "val unified = PushController.unifiedInboxVisible",
+            ),
+            watch.dropWhile { !it.startsWith("val currentId =") }.take(2),
+        )
+        assertEquals(
+            "the value read above must be what shouldResetBaseline is GIVEN, whole and per " +
+                "account: `unified` and not a literal, `credentials.id` and not the group's owner. " +
+                "Statements starting with `val reset =` were:\n" +
+                watch.filter { it.startsWith("val reset =") }.joinToString("\n"),
+            listOf("val reset = shouldResetBaseline(credentials.id, userInitiated, currentId, unified)"),
+            watch.filter { it.startsWith("val reset =") },
+        )
+        assertEquals(
+            "expected exactly one mention of unifiedInboxVisible in PushService — the arm's own " +
+                "read. The flag mirrors the list's selection and it MOVES, so two reads are two " +
+                "answers, taken at two moments.",
+            1,
+            pushServiceOccurrencesOf("unifiedInboxVisible"),
+        )
+    }
+
+    /**
      * The statements of one function of [PushService], in order, trimmed, with comments and blank
      * lines dropped. Ends at the closing brace written at member indentation, which is how every
      * function in that file closes.
