@@ -157,10 +157,36 @@ class RefreshFreshnessWiringLintTest {
                 "resolves (account, folder) pairs for the unified and unread views too (#121) — and " +
                 "the clock, then returns. Scopes recomputed here by hand would be a second answer " +
                 "to a question that already has one; a guard that returns when isFresh is FALSE is " +
-                "one word and freezes the list for good. Compared whole. Body was:\n$body",
-            "private fun refreshUnlessFresh() { " +
+                "one word and freezes the list for good.\n" +
+                "Clearing the stale error belongs to the DOOR, at its head and unconditionally: a " +
+                "change of view never inherits the failure of the view before it. Every one of the " +
+                "six callers used to reach refresh(), whose first line resets status whole; this " +
+                "door returns above that line when the view is fresh, so without the clear one " +
+                "account's failed reconcile keeps its red notice over another account's correct, " +
+                "up-to-date rows for the 30 s of the window — and over a folder with nothing " +
+                "cached, the whole error scene with its Retry button stands in for the " +
+                "empty-folder one. Compared whole. Body was:\n$body",
+            "private fun refreshUnlessFresh() { clearRefreshError() " +
                 "if (isFresh(decodeFreshness(store.refreshFreshness()), currentScopes(), clock())) return " +
                 "refresh() }",
+            body,
+        )
+    }
+
+    @Test
+    fun `clearing the stale error drops the error and nothing else`() {
+        val body = declarationBody("private fun clearRefreshError()")
+        assertEquals(
+            "clearRefreshError() is now on the path of all SIX view-switch doors, not just " +
+                "onReconnected(), so its body carries the fix and is pinned here. Two guards, both " +
+                "load-bearing: it copies `error = null` and touches NOTHING else — a copy that also " +
+                "reset `refreshing` would relight #63, where the tern and the centred ring are " +
+                "drawn together, since `refreshing` is the truth the empty-centre read consults; " +
+                "and the condition is `error != null`, so inverting it means the error is never " +
+                "dropped at all, neither at a view switch nor on reconnect, and the red notice " +
+                "outlives the failure that raised it. Compared whole. Body was:\n$body",
+            "private fun clearRefreshError() { " +
+                "if (status.value.error != null) status.value = status.value.copy(error = null) }",
             body,
         )
     }

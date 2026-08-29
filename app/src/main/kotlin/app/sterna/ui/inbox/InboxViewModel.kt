@@ -1383,8 +1383,17 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * the offline banner up (#65) — nor in front of [refreshRequested] (the pull and the two Retry
      * buttons: a gesture is always answered), nor [forceRefresh], nor any of the reconciles that
      * follow a write. `RefreshFreshnessWiringLintTest` holds that list.
+     *
+     * ⭐ The stale error is dropped FIRST, unconditionally: a change of view never inherits the
+     * failure of the view before it. A fresh view returns above [refresh]'s opening line, the one
+     * that resets [status] whole, so one account's failed reconcile kept its red notice over
+     * another account's correct, up-to-date rows for the 30 s of the window — and over a folder
+     * with nothing cached, the whole error scene with its Retry button stood in for the empty-folder
+     * one. At the head and not in front of the `return`: the same screen either way (the path taken
+     * rewrites [status] whole anyway), one branch fewer, and the invariant said in one word.
      */
     private fun refreshUnlessFresh() {
+        clearRefreshError()
         if (isFresh(decodeFreshness(store.refreshFreshness()), currentScopes(), clock())) return
         refresh()
     }
