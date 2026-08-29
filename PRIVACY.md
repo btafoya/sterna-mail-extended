@@ -7,7 +7,7 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-08-27.
+explains exactly what that means, in plain terms. Last updated: 2026-08-29.
 
 ## What Sterna does NOT do
 
@@ -28,10 +28,12 @@ explains exactly what that means, in plain terms. Last updated: 2026-08-27.
 
 Everything Sterna keeps lives locally on your phone. None of it is collected, and none
 of it reaches the Sterna project, which has no server to receive it. What does leave the
-device goes only to the hosts listed under **Network connections** below: your
-credentials to your mail server, which is how it knows you, and, on an OAuth account,
-the stored refresh token to your provider's sign-in service, which is where a new access
-token comes from. The rest stays here:
+device goes only to the hosts listed under **Network connections** below: the address you
+type, which reaches the approval page your own server puts up when it signs you in with
+the device flow, before there is any token, and only when that page can take it; your
+credentials to your mail server, which is how it knows you; and, on an OAuth account, the
+stored refresh token to your provider's sign-in service, which is where a new access token
+comes from. The rest stays here:
 
 - **Account credentials**: stored encrypted, protected by the Android KeyStore.
 - **Cached mail**: messages, threads, and mailboxes are cached locally so the
@@ -82,8 +84,9 @@ sets it off.
    periodic check made, to learn about new mail. On IMAP, Sterna also tells the
    server its own name and version once per connection (the `ID` command, RFC
    2971), because some providers refuse to open a mailbox for a client that
-   stays anonymous. It is skipped when the server's own list of supported
-   commands says it would not understand it.
+   stays anonymous. It is skipped at the least doubt: when the server's own
+   list of supported commands says it would not understand it, and equally when
+   that list cannot be read or the command itself cannot be sent.
 2. **The domain of the address you type, and its mail-named subdomains**, asked
    when you leave the address field or tap Continue, so you do not have to know
    your server's name. This happens at the address step, before there is any
@@ -136,16 +139,18 @@ sets it off.
    It is the service that asks you to approve the sign-in and hands back the
    token. Which host that is comes from the discovery in point 2, which is run
    for every address; what only ever happens on an OAuth account is the token
-   itself travelling. Worth stating plainly: that host is the one the discovery
+   itself travelling, and, where your own server signs you in with the device
+   flow, the address you typed going to its approval page so it can fill the
+   field for you. Worth stating plainly: that host is the one the discovery
    document named, and the discovery follows redirects, so it need not sit under
    the domain of your own address. The one exception is the Outlook / Microsoft
    option, which is not discovered at all: it signs in against Microsoft's own
-   fixed address, `login.microsoftonline.com`. Sterna also goes back to it on its own: an
-   access token expires, so the stored refresh token is sent to the same token
-   endpoint for a fresh one whenever a sync, a send or a push check needs a
-   valid token, screen off and nobody watching. An account using a password or
-   an app password sends it nothing, though its domain was still asked point 2's
-   question.
+   fixed address, `login.microsoftonline.com`, and is not handed the address you
+   typed. Sterna also goes back to it on its own: an access token expires, so
+   the stored refresh token is sent to the same token endpoint for a fresh one
+   whenever a sync, a send or a push check needs a valid token, screen off and
+   nobody watching. An account using a password or an app password sends it
+   nothing, though its domain was still asked point 2's question.
 5. **The unsubscribe address the sender put in a newsletter**, and only when you
    tap Unsubscribe on that message. Sterna sends that address one HTTPS request
    whose content is fixed by the standard for one-click unsubscribe (RFC 8058).
