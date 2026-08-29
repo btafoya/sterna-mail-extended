@@ -6734,6 +6734,12 @@ class MailRepository(
          * in silence, on a screen that said the draft was saved. This one says only what the
          * composer lost, and it is all the write guard weighs (see [localDraftBodyToWrite]).
          *
+         * ⛔ …and it weighs the WRITE, and nothing else: it has never stopped this row from being
+         * DESTROYED. The same composer tapping Send instead of Save reaches `consumeLocalDraft`,
+         * which takes the row and its staged files whatever this says. The refusal of that tap is
+         * `composerMaySendBody`, in the composer, in front of both sends — nothing on this side of
+         * the seam can see one coming.
+         *
          * ⛔ No default on purpose, as for [replacesUidValidity]: `true` would put the silent
          * refusal back at any call site that forgets it, `false` would let a future one delete the
          * only copy of a draft's text. Each caller states which of the two it is.

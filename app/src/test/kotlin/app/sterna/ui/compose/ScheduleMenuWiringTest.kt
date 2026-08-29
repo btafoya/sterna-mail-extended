@@ -68,18 +68,54 @@ class ScheduleMenuWiringTest {
     @Test fun `closing, scheduling and the banner all live inside the guard`() {
         assertEquals(
             "everything between '$GUARD' and '$ELSE' must be exactly the schedule path, in this " +
-                "order. Moving the banner out makes it announce a send that was refused; moving " +
-                "the menu close out takes the choice off screen having scheduled nothing.",
+                "order. Moving the menu close out takes the choice off screen having scheduled " +
+                "nothing. ⛔ And the banner is INSIDE the schedule's own answer: `scheduleSend` " +
+                "returns false on every refusal it owns — the PGP/attachment choke point, and a " +
+                "body this composer LOST — so the confirmation and the schedule arrive together " +
+                "or not at all. Announced unconditionally it reads \"Scheduled — Mon 1 Sep, " +
+                "09:00\" over a message that was refused, and the refusal's own notice " +
+                "contradicts it one toast later.",
             listOf(
                 "scheduleMenu = false",
-                "viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)",
+                "if (viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)) {",
                 "Toast.makeText(",
                 "context,",
                 "context.getString(R.string.compose_scheduled_toast, label),",
                 "Toast.LENGTH_SHORT,",
                 ").show()",
+                "}",
             ),
             guardedBlock(),
+        )
+    }
+
+    /**
+     * The other confirmation, on the free picker three hundred lines above — the same rule, and it
+     * has no `else` branch to bound it, so it is read as the lines that FOLLOW the schedule.
+     */
+    @Test fun `the hand-picked confirmation lives inside the same answer`() {
+        val all = lines(COMPOSE_SCREEN)
+        val at = all.indexOf(PICKER_SCHEDULE)
+        assertTrue(
+            "the hand-picked schedule must read '$PICKER_SCHEDULE' — the confirmation belongs to " +
+                "the schedule's own answer, not to the tap.",
+            at >= 0,
+        )
+        assertEquals(
+            "everything under '$PICKER_SCHEDULE' must be exactly the confirmation, then the brace " +
+                "that closes it. Outside that block, \"Scheduled — <date>\" is announced over a " +
+                "send `scheduleSend` refused (PGP, attachments, or a body this composer LOST) and " +
+                "the notice saying why arrives right after it.",
+            listOf(
+                "val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)",
+                "Toast.makeText(",
+                "context,",
+                "context.getString(R.string.compose_scheduled_toast, shown),",
+                "Toast.LENGTH_SHORT,",
+                ").show()",
+                "}",
+            ),
+            all.drop(at + 1).take(7),
         )
     }
 
@@ -158,10 +194,12 @@ class ScheduleMenuWiringTest {
         // every line pinned above stays present.
         val calls = lines(COMPOSE_SCREEN).filter { "viewModel.scheduleSend(" in it }
         assertEquals(
-            "ComposeScreen must schedule from exactly two places, both deciding at the tap; found: $calls",
+            "ComposeScreen must schedule from exactly two places, both deciding at the tap, and " +
+                "both reading the answer: a call whose Boolean is dropped confirms a schedule that " +
+                "may not have happened. Found: $calls",
             listOf(
-                "viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)",
-                "viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)",
+                PICKER_SCHEDULE,
+                "if (viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)) {",
             ).sorted(),
             calls.sorted(),
         )
@@ -233,6 +271,10 @@ class ScheduleMenuWiringTest {
         private const val DECISION =
             "val sendAt = presetMillisAtTap(preset, drawnAt, System.currentTimeMillis(), java.time.ZoneId.systemDefault())"
         private const val GUARD = "if (sendAt != null) {"
+
+        /** The free picker's own call, WHOLE: the confirmation hangs off the answer, or off nothing. */
+        private const val PICKER_SCHEDULE =
+            "if (viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)) {"
         private const val ELSE = "} else {"
         private const val STAMP_STATE = "var menuOpenedAt by remember { mutableLongStateOf(0L) }"
         private const val STAMP_ON_OPEN =

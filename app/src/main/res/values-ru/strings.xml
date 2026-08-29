@@ -34,6 +34,8 @@
     <string name="compose_draft_load_failed">Не удалось загрузить текст этого черновика. Закройте этот экран и попробуйте открыть его снова.</string>
     <string name="compose_local_draft_gone">Этого черновика больше нет на телефоне. Если он попал на сервер, вы найдёте его в Черновиках.</string>
     <string name="compose_emptied_draft_server_copy_kept">Копия на сервере остаётся, потому что телефон смог прочитать не всё.</string>
+    <string name="compose_body_lost_cannot_send">Текст этого письма потерян. Введите его заново.</string>
+    <string name="compose_body_lost_reopen_draft">Текст потерян. Закройте экран и откройте черновик.</string>
     <string name="compose_forward_attachment_dropped">Некоторые вложения пересылаемого сообщения не удалось включить.</string>
     <string name="compose_scheduled_toast">Запланировано — %1$s</string>
     <string name="compose_discard_title">Удалить сообщение?</string>

@@ -36,6 +36,8 @@
     <string name="compose_draft_load_failed">Couldn\'t load this draft\'s text. Close this screen and try opening it again.</string>
     <string name="compose_local_draft_gone">This draft is no longer on this phone. If it reached the server, you\'ll find it in Drafts.</string>
     <string name="compose_emptied_draft_server_copy_kept">The copy on the server stays, because this phone couldn\'t read all of it.</string>
+    <string name="compose_body_lost_cannot_send">The text of this message was lost. Type it again.</string>
+    <string name="compose_body_lost_reopen_draft">Text lost. Close this screen and reopen the draft.</string>
     <string name="compose_forward_attachment_dropped">Some attachments from the forwarded message couldn\'t be included.</string>
     <string name="compose_scheduled_toast">Scheduled — %1$s</string>
     <string name="compose_discard_title">Discard message?</string>

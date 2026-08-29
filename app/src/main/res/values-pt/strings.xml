@@ -34,6 +34,8 @@
     <string name="compose_draft_load_failed">Não foi possível carregar o texto deste rascunho. Feche este ecrã e tente abri-lo novamente.</string>
     <string name="compose_local_draft_gone">Este rascunho já não está neste telefone. Se chegou ao servidor, vai encontrá-lo em Rascunhos.</string>
     <string name="compose_emptied_draft_server_copy_kept">A cópia no servidor mantém-se, porque este telefone não conseguiu ler tudo o que ela continha.</string>
+    <string name="compose_body_lost_cannot_send">O texto desta mensagem foi perdido. Escreva-o de novo.</string>
+    <string name="compose_body_lost_reopen_draft">Texto perdido. Feche o ecrã e reabra o rascunho.</string>
     <string name="compose_forward_attachment_dropped">Não foi possível incluir alguns anexos da mensagem encaminhada.</string>
     <string name="compose_scheduled_toast">Agendado — %1$s</string>
     <string name="compose_discard_title">Descartar mensagem?</string>

@@ -929,15 +929,22 @@ fun ComposeScreen(
                         // most the tail of one minute, and never on a day with hours left in it.
                         if (millis != null) {
                             viewModel.clearScheduleTime()
-                            viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)
-                            // ⛔ The INSTANT, formatted exactly as the Scheduled list formats it —
-                            // never a preset label, which would be a sentence about another time.
-                            val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.compose_scheduled_toast, shown),
-                                Toast.LENGTH_SHORT,
-                            ).show()
+                            // ⛔ The confirmation belongs to the schedule, not to the tap: the view
+                            // model answers `false` on every refusal it owns (the PGP/attachment
+                            // choke point, and a body this composer LOST, which the two greyed-out
+                            // buttons do not cover once the guard is real). Announced regardless,
+                            // "Scheduled — …" is a sentence about a message that was not scheduled,
+                            // immediately contradicted by the notice saying why.
+                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)) {
+                                // ⛔ The INSTANT, formatted exactly as the Scheduled list formats
+                                // it — never a preset label, a sentence about another time.
+                                val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.compose_scheduled_toast, shown),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
                         }
                     },
                 ) { Text(stringResource(R.string.settings_ok)) }
@@ -1383,15 +1390,21 @@ fun ComposeScreen(
                                         // translations do not buy a window a few seconds wide.
                                         if (sendAt != null) {
                                             scheduleMenu = false
-                                            viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)
-                                            // The LABEL, and it is true of what was just scheduled:
-                                            // "In 1 hour" is an hour from this tap, and "6 PM" is
-                                            // the 6 PM the entry was drawn for, or nothing left.
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.compose_scheduled_toast, label),
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
+                                            // ⛔ Scheduled AND confirmed, or neither: the view model
+                                            // answers `false` on the refusals it owns (PGP and
+                                            // attachments, and a body this composer LOST), and the
+                                            // banner below is a sentence about a message that would
+                                            // not have been scheduled at all.
+                                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)) {
+                                                // The LABEL, true of what was just scheduled: "In 1
+                                                // hour" is an hour from this tap, and "6 PM" is the
+                                                // 6 PM the entry was drawn for, or nothing left.
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.compose_scheduled_toast, label),
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
                                         } else {
                                             menuOpenedAt = System.currentTimeMillis()
                                         }

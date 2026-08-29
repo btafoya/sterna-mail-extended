@@ -155,6 +155,14 @@ internal suspend fun localDraftUidValidity(
  * reopen. ⛔ The row still STORES the disjunction, and every destroy guard downstream still reads
  * it: what changed is only which term decides this write.
  *
+ * ⛔ **And the term governs the WRITE of an empty body, and NOTHING ELSE — it has never stopped
+ * this row from being DESTROYED.** Reading the guard above as "a lost body is safe now" is what
+ * produced the defect it was written to prevent: the same composer, with the same lost body, taps
+ * Send instead of Save, and `commitThenConsumeLocalDraft` deletes the row and its staged files
+ * outright — the body this function protected included. What refuses that tap is
+ * `composerMaySendBody` (`app/src/main/kotlin/app/sterna/ui/compose/LostBodySend.kt`), UPSTREAM, in
+ * the composer and in front of both sends: nothing in this file can see a send coming.
+ *
  * ⛔ **All three terms are load-bearing, and none of them is "a row is already there".**
  *
  * - [composerBodyWasLost] — without it, no re-save could ever shorten or empty a draft again: every

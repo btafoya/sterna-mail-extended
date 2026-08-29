@@ -34,6 +34,8 @@
     <string name="compose_draft_load_failed">Nie udało się wczytać tekstu tej wersji roboczej. Zamknij ten ekran i spróbuj otworzyć ją ponownie.</string>
     <string name="compose_local_draft_gone">Tej wersji roboczej nie ma już na tym telefonie. Jeśli dotarła na serwer, znajdziesz ją w Wersjach roboczych.</string>
     <string name="compose_emptied_draft_server_copy_kept">Kopia na serwerze pozostaje, ponieważ ten telefon nie mógł jej całej odczytać.</string>
+    <string name="compose_body_lost_cannot_send">Utracono tekst tej wiadomości. Wpisz go ponownie.</string>
+    <string name="compose_body_lost_reopen_draft">Tekst utracony. Zamknij ekran i otwórz wersję roboczą.</string>
     <string name="compose_forward_attachment_dropped">Nie udało się dołączyć niektórych załączników przekazywanej wiadomości.</string>
     <string name="compose_scheduled_toast">Zaplanowano — %1$s</string>
     <string name="compose_discard_title">Odrzucić wiadomość?</string>

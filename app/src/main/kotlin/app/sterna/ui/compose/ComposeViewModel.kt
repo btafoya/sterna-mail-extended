@@ -2138,6 +2138,31 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private class PgpInteractionNeeded(val pendingIntent: PendingIntent) : Exception()
 
     private fun sendInternal(args: SendArgs, interactionResult: Intent?) {
+        // ⛔ A body this composer LOST never leaves, and never takes the only copy of the text with
+        // it (#95 × the resume parcel). The row in `local_drafts` under an offline draft is the ONLY
+        // place that text exists, and the commit below destroys it: sent on an empty body, the
+        // message goes out reduced to the signature and the draft is gone, in silence, with the undo
+        // record built after the consume carrying the same empty body. The decision is executed in
+        // `LostBodySendTest`; the guard only has to hand it the RAW body.
+        // ⛔ `args.body`, NEVER the `textBody` of `bodiesForSend` below — that one carries the
+        // signature, is never blank, and would make this line dead code that reads as a guard.
+        // ⛔ And ABOVE the re-entry guard: nothing is flagged `Sending` for a send that is refused.
+        // ⛔ `holdsStoredDraft` takes BOTH ids: what the refusal says is the whole point of it, and
+        // "type it again" is the one instruction that DESTROYS the text on the route this protects.
+        val lostBody = lostBodySendWording(
+            bodyWasLost = composerBodyWasLost,
+            body = args.body,
+            holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,
+        )
+        if (lostBody != null) {
+            _notices.tryEmit(
+                when (lostBody) {
+                    LostBodyWording.REOPEN_DRAFT -> R.string.compose_body_lost_reopen_draft
+                    LostBodyWording.RETYPE -> R.string.compose_body_lost_cannot_send
+                },
+            )
+            return
+        }
         if (_state.value is ComposeState.Sending) return
         _state.value = ComposeState.Sending
         val (to, cc, bcc, subject, body) = args
@@ -2288,6 +2313,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     /**
      * Schedule the message to be sent at [sendAtMillis]. Persisted to Room and fired by
      * WorkManager (survives the app closing). Attachments are not carried in v1.
+     *
+     * Answers whether the gesture was ACCEPTED, and nothing more: the row is written in
+     * `viewModelScope`, so `true` says only that this function reached the launch, never that the
+     * insert succeeded. The screen needs exactly that much — it confirms with
+     * `compose_scheduled_toast`, and every refusal below leaves without scheduling anything, two of
+     * them saying why on `_notices`. Announced unconditionally, that toast reads "Scheduled —
+     * Mon 1 Sep, 09:00" over a message that was refused, and the next toast contradicts it.
      */
     fun scheduleSend(
         to: String,
@@ -2297,7 +2329,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         body: String,
         sendAtMillis: Long,
         requestReceipt: Boolean,
-    ) {
+    ): Boolean {
         // A scheduled send is handed to a headless worker that can neither sign nor encrypt (so any
         // PgpMode but OFF would go out unsigned/plaintext, #35) and its table carries no attachments
         // yet (so it would send amputated, audit A2/A3). The toolbar disables the button for both;
@@ -2305,9 +2337,27 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // reach here through the UI.
         if (!scheduleSendAllowed(_pgpMode.value, _attachments.value.isNotEmpty())) {
             if (_pgpMode.value != PgpMode.OFF) _notices.tryEmit(R.string.compose_pgp_no_draft)
-            return
+            return false
         }
-        if (_state.value is ComposeState.Sending) return
+        // …and the same refusal as the immediate send, for the same reason: a scheduled send commits
+        // just as truly — the row is inserted, its worker booked — and consumes the phone's own
+        // draft row on the way out. ⛔ `body` is this function's own parameter, the raw one; the
+        // `textBody` computed below carries the signature and can never be blank.
+        val lostBody = lostBodySendWording(
+            bodyWasLost = composerBodyWasLost,
+            body = body,
+            holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,
+        )
+        if (lostBody != null) {
+            _notices.tryEmit(
+                when (lostBody) {
+                    LostBodyWording.REOPEN_DRAFT -> R.string.compose_body_lost_reopen_draft
+                    LostBodyWording.RETYPE -> R.string.compose_body_lost_cannot_send
+                },
+            )
+            return false
+        }
+        if (_state.value is ComposeState.Sending) return false
         _state.value = ComposeState.Sending
         viewModelScope.launch {
             try {
@@ -2385,6 +2435,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 _state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName)
             }
         }
+        // Accepted — the coroutine above owns what happens next. A failure inside it lands on
+        // `ComposeState.Error`, which the screen already shows; this answer is about the GESTURE.
+        return true
     }
 
     /**

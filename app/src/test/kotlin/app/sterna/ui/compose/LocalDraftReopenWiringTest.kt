@@ -357,7 +357,9 @@ class LocalDraftReopenWiringTest {
                 "raises the flag for the same reason as the three below: the X stays live, and " +
                 "abandon() reading a false flag would hand the row back to the upload worker while " +
                 "this gesture is destroying it — the deleted draft goes up to the server instead. " +
-                "Lines around each were:",
+                "⚠ The scheduled send leaves on `return false` and the other three on a bare " +
+                "`return`: only that one is asked for an answer, because the screen confirms with " +
+                "\"Scheduled — <date>\" on what it returns. Lines around each were:",
             listOf(
                 listOf(
                     "val id = heldEditingLocalDraft() ?: return",
@@ -372,7 +374,7 @@ class LocalDraftReopenWiringTest {
                     "viewModelScope.launch {",
                 ),
                 listOf(
-                    "if (_state.value is ComposeState.Sending) return",
+                    "if (_state.value is ComposeState.Sending) return false",
                     "_state.value = ComposeState.Sending",
                     "viewModelScope.launch {",
                     "try {",
@@ -411,9 +413,14 @@ class LocalDraftReopenWiringTest {
             send.subList(send.indexOf("val id = commitThenConsumeLocalDraft("), send.indexOf("val id = commitThenConsumeLocalDraft(") + 4),
         )
         assertEquals(
-            "…and the consume is the composer's own, once: the row AND its staged files. Lines " +
-                "naming the local draft in sendInternal were:",
+            "…and the consume is the composer's own, once: the row AND its staged files. ⚠ The " +
+                "row is named a fourth time, ABOVE all of them, and it is not a consume: the " +
+                "refusal reads it to know whether the text is still stored somewhere, and " +
+                "therefore whether the sentence it shows may say \"reopen the draft\" instead of " +
+                "\"type it again\" — which on this route is the instruction that destroys the " +
+                "text. Lines naming the local draft in sendInternal were:",
             listOf(
+                "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,",
                 "val id = commitThenConsumeLocalDraft(",
                 "localDraftId = _editingLocalDraftId.value,",
                 "consume = { local -> consumeEditingLocalDraft(local) },",
@@ -440,7 +447,10 @@ class LocalDraftReopenWiringTest {
             scheduled.subList(scheduled.indexOf("commitThenConsumeLocalDraft("), scheduled.indexOf("commitThenConsumeLocalDraft(") + 4),
         )
         assertEquals(
+            "the same three on the scheduled route, under the same fourth line: the refusal reads " +
+                "the row to choose its sentence, and it reads it BEFORE anything is committed.",
             listOf(
+                "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,",
                 "commitThenConsumeLocalDraft(",
                 "localDraftId = _editingLocalDraftId.value,",
                 "consume = { local -> consumeEditingLocalDraft(local) },",
@@ -457,6 +467,127 @@ class LocalDraftReopenWiringTest {
                 "repo.consumeLocalDraft(account, id)",
             ),
             functionBody(COMPOSE_VIEW_MODEL, "private suspend fun consumeEditingLocalDraft("),
+        )
+    }
+
+    /**
+     * ⛔ **A body this composer LOST is refused in front of BOTH sends** (#95 × the parcel).
+     *
+     * The gesture it stops: a draft composed with no network is a `local_drafts` row and nothing
+     * else — the only copy of the text. Reopened over a saved-state parcel that could not give the
+     * body back, the editor is redrawn empty while `To` and the subject come back intact from their
+     * own saveables, so the screen looks whole and both exits stay lit (`canSend` weighs recipients
+     * and keys, `scheduleSendAllowed` weighs PGP and attachments; neither has ever weighed the
+     * body). One tap ran `commitThenConsumeLocalDraft`, which destroys that row and its staged
+     * files, and what left carried a body cut down to the signature. There is no way back either:
+     * the record kept for the undo window is built AFTER the consume and carries the same empty
+     * body.
+     *
+     * ⛔ **THE ARGUMENT IS THE WHOLE PROOF, which is why the call line is pinned WHOLE.** Handed
+     * `textBody` — the body `bodiesForSend` returns — the guard reads a string the signature has
+     * already made non-blank, so it never arms once, in any state: dead code that reads exactly
+     * like a working guard. A `contains` check would not see the difference, because the mutation
+     * LENGTHENS the line.
+     *
+     * ⛔ The SECOND argument that is a whole proof: `holdsStoredDraft` ORs BOTH draft ids. Cut down
+     * to `_editingLocalDraftId.value != null`, the refusal answers "Type it again." over a SERVER
+     * draft still sitting whole in Drafts — and retyping is the ONE gesture that destroys the text
+     * on either route: three characters unblock the guard and the commit consumes the row.
+     *
+     * ⛔ And its POSITION is the other half: in front of `_state.value = ComposeState.Sending` and
+     * in front of the commit. Below either, the composer is already in `Sending` (the X and the
+     * abandon plan then read a send that is not happening) or the row is already destroyed.
+     *
+     * ⛔ On `scheduleSend` the exit is pinned too — `return false`, not `return`: the screen shows
+     * "Scheduled — <date>" on what that function answers, so a refusal reported as nothing is
+     * announced as a schedule, and contradicted one toast later by the refusal's own notice.
+     *
+     * SOURCE LINT, the last resort — `EXECUTED in LostBodySendTest`, which plays both the refusal
+     * and the wording; nothing in this module can instantiate this class.
+     */
+    @Test fun `a lost body is refused in front of both sends, on the RAW body`() {
+        val send = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "sendInternal"))
+        val sendGuard = lostBodyGuard(SEND_LOST_BODY_BODY, "return")
+        val inSend = send.indexOf(LOST_BODY_HEAD)
+        assertTrue(
+            "sendInternal opens with no lost-body guard at all, or no longer opens it with:\n" +
+                "    $LOST_BODY_HEAD\n⛔ Body was:\n" + send.joinToString("\n"),
+            inSend >= 0,
+        )
+        assertEquals(
+            "the guard, whole and adjacent: it decides, it SAYS THE RIGHT SENTENCE, and it " +
+                "returns. `args.body` is the composer's RAW body and the only argument that proves " +
+                "anything — `textBody` carries the signature, is never blank, and turns this into " +
+                "dead code. `holdsStoredDraft` must OR BOTH ids: cut to the local one it answers " +
+                "\"Type it again.\" over a server draft sitting intact in Drafts, and retyping is " +
+                "the one gesture that destroys the text. Without the notice the tap does nothing " +
+                "visible and the user taps again; with a line between the refusal and the return " +
+                "the send goes on anyway. Lines were:",
+            sendGuard,
+            send.subList(inSend, (inSend + sendGuard.size).coerceAtMost(send.size)),
+        )
+        assertTrue(
+            "…and it must sit ABOVE `_state.value = ComposeState.Sending` (index " +
+                "${send.indexOf(SENDING)}) and ABOVE the commit that consumes the row (index " +
+                "${send.indexOf(COMMIT)}); the guard is at $inSend. Below the flag the composer is " +
+                "already sending a message it is about to refuse; below the commit the only copy " +
+                "of the text is already destroyed.",
+            inSend < send.indexOf(SENDING) && inSend < send.indexOf(COMMIT),
+        )
+
+        val scheduled = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "scheduleSend"))
+        val scheduleGuard = lostBodyGuard(SCHEDULE_LOST_BODY_BODY, "return false")
+        val inScheduled = scheduled.indexOf(LOST_BODY_HEAD)
+        assertTrue(
+            "scheduleSend opens with no lost-body guard at all, or no longer opens it with:\n" +
+                "    $LOST_BODY_HEAD\n⛔ Body was:\n" + scheduled.joinToString("\n"),
+            inScheduled >= 0,
+        )
+        assertEquals(
+            "the same lines, for the same reasons, on the other route — `body` being this " +
+                "function's own parameter, the raw one, while the `textBody` computed below it " +
+                "carries the signature and can never be blank. A scheduled send commits just as " +
+                "truly (the row is written and its worker booked) and consumes the local draft the " +
+                "same way. ⛔ It leaves on `return false`, not on `return`: the screen puts up " +
+                "\"Scheduled — <date>\" on what this function answers, so a refusal that reports " +
+                "nothing is announced as a schedule and contradicted by the notice one line later. " +
+                "Lines were:",
+            scheduleGuard,
+            scheduled.subList(inScheduled, (inScheduled + scheduleGuard.size).coerceAtMost(scheduled.size)),
+        )
+        assertTrue(
+            "…and above `_state.value = ComposeState.Sending` (index ${scheduled.indexOf(SENDING)}) " +
+                "and above `commitThenConsumeLocalDraft(` (index " +
+                "${scheduled.indexOf("commitThenConsumeLocalDraft(")}); the guard is at " +
+                "$inScheduled.",
+            inScheduled < scheduled.indexOf(SENDING) &&
+                inScheduled < scheduled.indexOf("commitThenConsumeLocalDraft("),
+        )
+
+        assertEquals(
+            "…and the ACCEPTED path answers `true`, on the last line of scheduleSend. The screen " +
+                "shows \"Scheduled — <date>\" on that answer and on nothing else, so `false` here " +
+                "is a message scheduled in silence — the mirror of the defect above, and just as " +
+                "invisible from the pins on the refusals. Body ended with:",
+            "return true",
+            scheduled.last(),
+        )
+
+        val code = codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
+        assertEquals(
+            "⛔ …and the decision is asked in exactly TWO places, both of them a send. A third " +
+                "call — a save, a helper, a `canSend` recomputed — is a second answer to the same " +
+                "question, and the rules above all stay green. Lines calling it were:",
+            listOf(LOST_BODY_HEAD, LOST_BODY_HEAD),
+            code.filter { "lostBodySendWording(" in it },
+        )
+        assertEquals(
+            "⛔ …and the refusal itself is asked ONLY through that wording, never beside it: a " +
+                "second `composerMaySendBody(` in this file is a route refusing without saying " +
+                "which sentence it owes, which is exactly the state this branch shipped in. Lines " +
+                "calling it were:",
+            emptyList<String>(),
+            code.filter { "composerMaySendBody(" in it },
         )
     }
 
@@ -1021,6 +1152,51 @@ class LocalDraftReopenWiringTest {
     }
 
     private companion object {
+        /** The re-entry flag both sends raise, and the line every guard here must sit above. */
+        const val SENDING = "_state.value = ComposeState.Sending"
+
+        /** The line that destroys the row: the guard is above it or it guards nothing. */
+        const val COMMIT = "val id = commitThenConsumeLocalDraft("
+
+        /**
+         * The head of the two calls to `lostBodySendWording`, and the arguments each hands it —
+         * WHOLE lines, because the arguments ARE the proof, and every mutation that matters here
+         * LENGTHENS the line a `contains` would still accept:
+         *
+         *  - `textBody` slipped in place of the raw body is a body the signature has already made
+         *    non-blank, i.e. a guard that can never arm;
+         *  - `holdsStoredDraft` cut down to `_editingLocalDraftId.value != null` answers "type it
+         *    again" over a SERVER draft that is sitting intact in Drafts — the one instruction that
+         *    destroys the text, since retyping unblocks the guard and the commit then consumes the
+         *    row.
+         */
+        const val LOST_BODY_HEAD = "val lostBody = lostBodySendWording("
+        const val LOST_BODY_LOST = "bodyWasLost = composerBodyWasLost,"
+        const val SEND_LOST_BODY_BODY = "body = args.body,"
+        const val SCHEDULE_LOST_BODY_BODY = "body = body,"
+        const val LOST_BODY_HELD =
+            "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,"
+
+        /**
+         * …and the sentence the refusal owes the reader, which is TWO sentences and not one: a tap
+         * that does nothing is tapped again, and a tap answered with "Type it again." over a stored
+         * draft is answered with the only gesture that destroys the text. The `when` is pinned whole,
+         * both branches, so a wording wired to the wrong string is a changed line here.
+         */
+        val LOST_BODY_NOTICE = listOf(
+            "_notices.tryEmit(",
+            "when (lostBody) {",
+            "LostBodyWording.REOPEN_DRAFT -> R.string.compose_body_lost_reopen_draft",
+            "LostBodyWording.RETYPE -> R.string.compose_body_lost_cannot_send",
+            "},",
+            ")",
+        )
+
+        /** The refusal of one route, whole: decide, say which sentence, leave. */
+        fun lostBodyGuard(bodyArgument: String, exit: String): List<String> =
+            listOf(LOST_BODY_HEAD, LOST_BODY_LOST, bodyArgument, LOST_BODY_HELD, ")", "if (lostBody != null) {") +
+                LOST_BODY_NOTICE + listOf(exit, "}")
+
         val COMPOSE_VIEW_MODEL: File by lazy {
             repoFile("app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt")
         }

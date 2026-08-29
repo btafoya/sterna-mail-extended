@@ -34,6 +34,8 @@
     <string name="compose_draft_load_failed">Kon de tekst van dit concept niet laden. Sluit dit scherm en probeer het opnieuw te openen.</string>
     <string name="compose_local_draft_gone">Dit concept staat niet meer op deze telefoon. Als het de server heeft bereikt, vind je het in Concepten.</string>
     <string name="compose_emptied_draft_server_copy_kept">De kopie op de server blijft staan, omdat deze telefoon die niet volledig kon lezen.</string>
+    <string name="compose_body_lost_cannot_send">De tekst van dit bericht is verloren. Typ hem opnieuw.</string>
+    <string name="compose_body_lost_reopen_draft">Tekst verloren. Sluit dit scherm en open het concept.</string>
     <string name="compose_forward_attachment_dropped">Sommige bijlagen van het doorgestuurde bericht konden niet worden meegenomen.</string>
     <string name="compose_scheduled_toast">Gepland — %1$s</string>
     <string name="compose_discard_title">Bericht verwijderen?</string>
