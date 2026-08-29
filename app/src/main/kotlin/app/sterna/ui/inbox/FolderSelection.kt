@@ -360,3 +360,47 @@ private fun stripBidiAndControls(s: String): String = s.filterNot { c ->
     (code in 0x00..0x08) || (code in 0x0B..0x1F) || (code in 0x7F..0x9F) ||
         (code in 0x202A..0x202E) || (code in 0x2066..0x2069) || code == 0x200F || code == 0x200E
 }
+
+/**
+ * One row of a move-to-folder picker, ALREADY PAINTED: the folder itself, the name as the row
+ * shows it, and the parent path line under it (null when there is none).
+ */
+internal data class FolderPickerRow(val folder: Mailbox, val name: String, val path: String?)
+
+/**
+ * The rows a move-to-folder picker still shows once [query] is typed into its filter field
+ * (#182): an account with hundreds of folders stacked them all in one scroller, with nothing to
+ * narrow them down.
+ *
+ * ⛔ It FILTERS and never reorders, and that is the promise made on the thread: a fuzzy match
+ * needs a score, a score needs a sort, and a sort moves the first row for a reason nothing on
+ * screen explains — right under a finger about to file mail somewhere. The output is a
+ * SUBSEQUENCE of the input, by construction, so the picker's own order ([moveTargets]: standard
+ * folders first, then the user's own by path) is what the user still reads.
+ *
+ * The rows arrive PAINTED because the screen is the only place that can paint them: the name
+ * goes through `mailboxDisplayName`, which is `@Composable`, and matching the raw [Mailbox.name]
+ * would have someone type "Corb" and be answered nothing, because the row underneath is spelled
+ * "Trash" in the model and "Corbeille" on screen.
+ *
+ * The path compared is [mailboxPathLabel]'s ELIDED path, the very string under the name. An
+ * ancestor that was replaced by "…" is therefore not reachable — an assumed limit, not a defect:
+ * WYSIWYG, a row must never surface for text the screen does not show.
+ *
+ * Case is folded by [String.contains]'s own `ignoreCase`, never by a fold the DEFAULT LOCALE
+ * decides — `lowercase(Locale.getDefault())`, or Java's `toLowerCase()`. In Turkish "I" folds to
+ * "ı", so an account's Inbox would stop answering "inbox" on a Turkish phone and only there.
+ * (Kotlin's argument-less `lowercase()` is root-locale and would be safe; it is the locale-taking
+ * overload that is the trap, and it is one keystroke away.)
+ * Diacritics are NOT folded ("Über" does not answer "Uber") — KISS, settled with the same reply.
+ *
+ * ⛔ One rule and no special case for a blank query: a typed space filters on a space, which is
+ * exactly what the field shows.
+ */
+internal fun filterFolderRows(rows: List<FolderPickerRow>, query: String): List<FolderPickerRow> {
+    if (query.isEmpty()) return rows
+    return rows.filter { row ->
+        row.name.contains(query, ignoreCase = true) ||
+            row.path?.contains(query, ignoreCase = true) == true
+    }
+}

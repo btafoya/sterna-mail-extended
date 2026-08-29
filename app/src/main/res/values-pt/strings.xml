@@ -61,6 +61,8 @@
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Mover para pasta</string>
+    <string name="inbox_filter_folders">Filtrar pastas</string>
+    <string name="inbox_no_folder_matches">Nenhuma pasta corresponde</string>
     <string name="inbox_cancel">Cancelar</string>
     <string name="inbox_new_folder">Nova pasta</string>
     <string name="inbox_folder_name">Nome da pasta</string>

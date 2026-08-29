@@ -97,6 +97,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -148,6 +150,8 @@ import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
 import android.text.format.DateUtils
 import app.sterna.ui.canSnoozeIn
+import app.sterna.ui.inbox.FolderPickerRow
+import app.sterna.ui.inbox.filterFolderRows
 import app.sterna.ui.inbox.mailboxDisplayName
 import app.sterna.ui.inbox.mailboxPathLabel
 import app.sterna.ui.components.Monogram
@@ -983,45 +987,119 @@ private fun MessageActions(
     // folder the VM resolved and its owning account, exactly like archive/delete above) to the
     // shared inbox ViewModel, which moves it with the usual Undo and pops back to the list.
     if (movePicker) {
+        // The filter field's text (#182). Held INSIDE the `if`, so leaving the dialog drops the
+        // composition group and the field comes back empty next time it is opened.
+        var folderQuery by remember { mutableStateOf("") }
+        // Same rows as the list's picker, parent path included (#109), resolved against the
+        // account's WHOLE folder list. Memoized for the reason spelled out in InboxScreen's copy:
+        // each call walks a map rebuilt over that whole list, and the filter field re-runs this
+        // block on every keystroke.
+        val folderPaths = remember(folders, accountFolders) {
+            folders.map { folder -> mailboxPathLabel(folder, accountFolders) }
+        }
+        // Painted over the WHOLE offered list, never over the filtered one: what the filter
+        // compares is what the row shows, and how many rows are painted must not depend on what
+        // has been typed. [folders] already arrives sorted from the ViewModel, so there is no
+        // moveTargets call here.
+        val folderRows = ArrayList<FolderPickerRow>(folders.size)
+        for ((folder, path) in folders.zip(folderPaths)) {
+            folderRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
+        }
+        val shownFolderRows = filterFolderRows(folderRows, folderQuery)
         AlertDialog(
             onDismissRequest = { movePicker = false },
             title = { Text(stringResource(R.string.inbox_move_to_folder)) },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    folders.forEach { folder ->
-                        // Same rows as the list's picker, parent path included (#109).
-                        val path = mailboxPathLabel(folder, accountFolders)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    movePicker = false
-                                    onMove(
-                                        loaded.email.copy(
-                                            mailboxId = resolvedMailbox ?: loaded.email.mailboxId,
-                                            accountId = accountId ?: loaded.email.accountId,
-                                        ),
-                                        folder.id,
+                Column {
+                    // The filter field (#182), OUTSIDE the scroller so it stays put while the list
+                    // moves under it. Same shape as the list's search bar: transparent container and
+                    // indicators, hint drawn behind in a Box, a cross that empties it. Deliberately
+                    // WITHOUT a FocusRequester — unlike the folder-creation dialogs below, the keyboard
+                    // does not come up on its own — and without an IME "search" action: this filters
+                    // what is already on screen, it asks the server nothing.
+                    Box(Modifier.fillMaxWidth()) {
+                        if (folderQuery.isEmpty()) {
+                            Text(
+                                stringResource(R.string.inbox_filter_folders),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                // Bounded, for the reason spelled out in InboxScreen's copy: a
+                                // Box is as tall as its tallest child.
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .padding(horizontal = 16.dp),
+                            )
+                        }
+                        TextField(
+                            value = folderQuery,
+                            onValueChange = { folderQuery = it },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                            trailingIcon = {
+                                if (folderQuery.isNotEmpty()) {
+                                    IconButton(onClick = { folderQuery = "" }) {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = stringResource(R.string.inbox_clear),
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    // `weight(1f, fill = false)` on the scroller and nothing on the field, as
+                    // in InboxScreen's copy: the unweighted child is measured first.
+                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                        if (shownFolderRows.isEmpty() && folderQuery.isNotEmpty()) {
+                            Text(
+                                text = stringResource(R.string.inbox_no_folder_matches),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 12.dp),
+                            )
+                        }
+                        shownFolderRows.forEach { row ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        movePicker = false
+                                        onMove(
+                                            loaded.email.copy(
+                                                mailboxId = resolvedMailbox ?: loaded.email.mailboxId,
+                                                accountId = accountId ?: loaded.email.accountId,
+                                            ),
+                                            // The row's OWN folder, never a rank in the list.
+                                            row.folder.id,
+                                        )
+                                    }
+                                    .semantics(mergeDescendants = true) { role = Role.Button }
+                                    .padding(vertical = 12.dp),
+                            ) {
+                                Text(
+                                    text = row.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                if (row.path != null) {
+                                    Text(
+                                        text = row.path,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        // Two lines, for the reason spelled out in InboxScreen's
+                                        // copy of this row: one line elides at the end, in dp, and
+                                        // would cut off the nearest parent at a large font size.
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
-                                .semantics(mergeDescendants = true) { role = Role.Button }
-                                .padding(vertical = 12.dp),
-                        ) {
-                            Text(
-                                text = mailboxDisplayName(folder.role, folder.name),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            if (path != null) {
-                                Text(
-                                    text = path,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    // Two lines, for the reason spelled out in InboxScreen's
-                                    // copy of this row: one line elides at the end, in dp, and
-                                    // would cut off the nearest parent at a large font size.
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
                             }
                         }
                     }

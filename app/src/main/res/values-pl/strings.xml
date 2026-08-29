@@ -61,6 +61,8 @@
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Przenieś do folderu</string>
+    <string name="inbox_filter_folders">Filtruj foldery</string>
+    <string name="inbox_no_folder_matches">Brak pasujących folderów</string>
     <string name="inbox_cancel">Anuluj</string>
     <string name="inbox_new_folder">Nowy folder</string>
     <string name="inbox_folder_name">Nazwa folderu</string>

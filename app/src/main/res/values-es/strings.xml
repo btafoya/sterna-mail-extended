@@ -61,6 +61,8 @@
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Mover a carpeta</string>
+    <string name="inbox_filter_folders">Filtrar carpetas</string>
+    <string name="inbox_no_folder_matches">Ninguna carpeta coincide</string>
     <string name="inbox_cancel">Cancelar</string>
     <string name="inbox_new_folder">Nueva carpeta</string>
     <string name="inbox_folder_name">Nombre de la carpeta</string>

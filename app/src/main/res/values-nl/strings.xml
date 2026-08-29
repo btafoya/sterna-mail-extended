@@ -61,6 +61,8 @@
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Naar map verplaatsen</string>
+    <string name="inbox_filter_folders">Mappen filteren</string>
+    <string name="inbox_no_folder_matches">Geen map komt overeen</string>
     <string name="inbox_cancel">Annuleren</string>
     <string name="inbox_new_folder">Nieuwe map</string>
     <string name="inbox_folder_name">Mapnaam</string>

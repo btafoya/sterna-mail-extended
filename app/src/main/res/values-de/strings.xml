@@ -61,6 +61,8 @@
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">In Ordner verschieben</string>
+    <string name="inbox_filter_folders">Ordner filtern</string>
+    <string name="inbox_no_folder_matches">Kein Ordner passt</string>
     <string name="inbox_cancel">Abbrechen</string>
     <string name="inbox_new_folder">Neuer Ordner</string>
     <string name="inbox_folder_name">Ordnername</string>

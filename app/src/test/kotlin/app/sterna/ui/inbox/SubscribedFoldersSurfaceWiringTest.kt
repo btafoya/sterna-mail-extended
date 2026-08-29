@@ -41,14 +41,29 @@ class SubscribedFoldersSurfaceWiringTest {
         assertEquals(
             "the list's move picker no longer passes the account's whole folder list plus the flag. " +
                 "Filtering at the call site instead hands moveTargets the same filtered list twice, " +
-                "and a child whose parent is hidden loses a segment of its path (#109).",
-            listOf("val targets = moveTargets(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed)"),
-            block(INBOX_SCREEN, "val targets = moveTargets(", 1),
+                "and a child whose parent is hidden loses a segment of its path (#109). The three " +
+                "remember() keys are pinned too: the targets are memoized so typing in the filter " +
+                "field (#182) does not re-sort the whole account on every keystroke, and a key " +
+                "dropped from that list freezes the picker on a stale folder list.",
+            listOf(
+                "val targets = remember(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed) {",
+                "moveTargets(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed)",
+                "}",
+            ),
+            block(INBOX_SCREEN, "val targets = remember(", 3),
         )
         assertEquals(
-            "the picker's second line under a folder name must be resolved against the WHOLE list.",
-            listOf("val path = mailboxPathLabel(folder, moveTargetMailboxes)"),
-            block(INBOX_SCREEN, "val path = mailboxPathLabel(", 1),
+            "the picker's second line under a folder name must be resolved against the WHOLE list. " +
+                "It is lifted OUT of the painting loop and memoized on that list (#182): the filter " +
+                "field re-runs the block on every keystroke, and mailboxPathLabel rebuilds a map " +
+                "over the whole account each call — but the list it is handed must still be the " +
+                "whole one, or a child whose parent is hidden loses a segment of its path (#109).",
+            listOf(
+                "val movePaths = remember(targets, moveTargetMailboxes) {",
+                "targets.map { folder -> mailboxPathLabel(folder, moveTargetMailboxes) }",
+                "}",
+            ),
+            block(INBOX_SCREEN, "val movePaths = remember(", 3),
         )
         assertEquals(
             "the flag the picker uses must come from the SELECTION's account, not from a screen-" +

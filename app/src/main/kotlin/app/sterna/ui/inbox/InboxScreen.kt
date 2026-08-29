@@ -352,45 +352,127 @@ fun InboxScreen(
     // Move-to-folder picker for the current selection. The offered folders (and their order)
     // come from [moveTargets], shared with the reader's own picker (#73).
     if (showMoveSheet) {
-        val targets = moveTargets(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed)
+        // The filter field's text (#182). Held INSIDE the `if`, so leaving the dialog drops the
+        // composition group and the field comes back empty next time it is opened.
+        var moveQuery by remember { mutableStateOf("") }
+        val targets = remember(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed) {
+            moveTargets(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed)
+        }
+        // Nested folders sharing a leaf ("ProjectA.Done", "ProjectB.Done") are one and the same
+        // row without their parent path underneath (#109). Resolved against the WHOLE folder
+        // list, not the offered subset: the folder being moved out of is excluded there, and it
+        // may be a parent.
+        //
+        // Memoized on the same footing as [targets] and for the same reason (#182): every one of
+        // these calls walks a map rebuilt over the account's whole folder list, and the filter
+        // field re-runs this block on EVERY KEYSTROKE. Left in the loop it is the identical
+        // O(n^2) the memo above exists to stop — on the very account that reported this, the one
+        // with a thousand folders. `mailboxPathLabel` is not @Composable, so it can be lifted;
+        // `mailboxDisplayName` is (it resolves the translated name) and stays below.
+        val movePaths = remember(targets, moveTargetMailboxes) {
+            targets.map { folder -> mailboxPathLabel(folder, moveTargetMailboxes) }
+        }
+        // Painted here, over the WHOLE offered list and never over the filtered one: what the
+        // filter compares is what the row shows, and the number of rows painted must not depend
+        // on what has been typed.
+        val moveRows = ArrayList<FolderPickerRow>(targets.size)
+        for ((folder, path) in targets.zip(movePaths)) {
+            moveRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
+        }
+        val shownMoveRows = filterFolderRows(moveRows, moveQuery)
         AlertDialog(
             onDismissRequest = { showMoveSheet = false },
             title = { Text(stringResource(R.string.inbox_move_to_folder)) },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    targets.forEach { folder ->
-                        // Nested folders sharing a leaf ("ProjectA.Done", "ProjectB.Done") are
-                        // one and the same row without their parent path underneath (#109).
-                        // Resolved against the WHOLE folder list, not the offered subset: the
-                        // folder being moved out of is excluded there, and it may be a parent.
-                        val path = mailboxPathLabel(folder, moveTargetMailboxes)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.moveSelectedTo(folder.id)
-                                    showMoveSheet = false
-                                }
-                                .semantics(mergeDescendants = true) { role = Role.Button }
-                                .padding(vertical = 12.dp),
-                        ) {
+                Column {
+                    // The filter field (#182), OUTSIDE the scroller so it stays put while the list
+                    // moves under it. Same shape as the list's search bar: transparent container and
+                    // indicators, hint drawn behind in a Box, a cross that empties it. Deliberately
+                    // WITHOUT a FocusRequester — unlike the folder-creation dialogs below, the keyboard
+                    // does not come up on its own — and without an IME "search" action: this filters
+                    // what is already on screen, it asks the server nothing.
+                    Box(Modifier.fillMaxWidth()) {
+                        if (moveQuery.isEmpty()) {
                             Text(
-                                text = mailboxDisplayName(folder.role, folder.name),
+                                stringResource(R.string.inbox_filter_folders),
                                 style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                // Bounded, like the search bar this shape is copied from: a Box
+                                // is as tall as its tallest child, so an unbounded hint at a
+                                // large font scale would grow the field and steal that height
+                                // from the list underneath.
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .padding(horizontal = 16.dp),
                             )
-                            if (path != null) {
+                        }
+                        TextField(
+                            value = moveQuery,
+                            onValueChange = { moveQuery = it },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                            trailingIcon = {
+                                if (moveQuery.isNotEmpty()) {
+                                    IconButton(onClick = { moveQuery = "" }) {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = stringResource(R.string.inbox_clear),
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    // `weight(1f, fill = false)` on the scroller and NOTHING on the field: in a
+                    // Column the unweighted child is measured FIRST, so the field keeps its
+                    // height and it is the list that gives way — never the other way round.
+                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                        if (shownMoveRows.isEmpty() && moveQuery.isNotEmpty()) {
+                            Text(
+                                text = stringResource(R.string.inbox_no_folder_matches),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 12.dp),
+                            )
+                        }
+                        shownMoveRows.forEach { row ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        // The row's OWN folder, never a rank in the filtered list.
+                                        viewModel.moveSelectedTo(row.folder.id)
+                                        showMoveSheet = false
+                                    }
+                                    .semantics(mergeDescendants = true) { role = Role.Button }
+                                    .padding(vertical = 12.dp),
+                            ) {
                                 Text(
-                                    text = path,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    // TWO lines, not one: a single line elides at the END, in
-                                    // dp, AFTER the path was already trimmed by character
-                                    // count — and at a large font size that trailing cut would
-                                    // eat the nearest parent, which is the whole point of the
-                                    // row. Two lines hold the trimmed path at any font scale.
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
+                                    text = row.name,
+                                    style = MaterialTheme.typography.bodyLarge,
                                 )
+                                if (row.path != null) {
+                                    Text(
+                                        text = row.path,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        // TWO lines, not one: a single line elides at the END, in
+                                        // dp, AFTER the path was already trimmed by character
+                                        // count — and at a large font size that trailing cut would
+                                        // eat the nearest parent, which is the whole point of the
+                                        // row. Two lines hold the trimmed path at any font scale.
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }
