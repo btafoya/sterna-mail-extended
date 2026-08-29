@@ -325,6 +325,9 @@
     <string name="message_load_error">Could not load message:\n%1$s</string>
     <string name="message_retry">Retry</string>
     <string name="message_unknown_sender">(unknown sender)</string>
+    <!-- Third line of the open message's header: which of your OWN addresses the message arrived on
+         (%1$s = that address). Shown only on an account with more than one distinct address. -->
+    <string name="message_received_at">Received at %1$s</string>
     <string name="message_no_subject">(no subject)</string>
     <string name="message_no_content">(no content)</string>
     <!-- Sent/Drafts list rows: who the mail went to (%1$s = recipient names) -->

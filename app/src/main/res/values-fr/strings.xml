@@ -194,6 +194,7 @@
     <string name="message_load_error">Impossible de charger le message :\n%1$s</string>
     <string name="message_retry">Réessayer</string>
     <string name="message_unknown_sender">(expéditeur inconnu)</string>
+    <string name="message_received_at">Reçu à l\'adresse %1$s</string>
     <string name="message_no_subject">(sans objet)</string>
     <string name="message_no_content">(sans contenu)</string>
     <string name="list_to_recipients">À : %1$s</string>

@@ -194,6 +194,7 @@
     <string name="message_load_error">Nie udało się załadować wiadomości:\n%1$s</string>
     <string name="message_retry">Ponów</string>
     <string name="message_unknown_sender">(nieznany nadawca)</string>
+    <string name="message_received_at">Odebrano na adres %1$s</string>
     <string name="message_no_subject">(bez tematu)</string>
     <string name="message_no_content">(brak treści)</string>
     <string name="list_to_recipients">Do: %1$s</string>

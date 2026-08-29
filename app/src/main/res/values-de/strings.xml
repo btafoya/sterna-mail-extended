@@ -194,6 +194,7 @@
     <string name="message_load_error">Nachricht konnte nicht geladen werden:\n%1$s</string>
     <string name="message_retry">Erneut versuchen</string>
     <string name="message_unknown_sender">(unbekannter Absender)</string>
+    <string name="message_received_at">Empfangen an %1$s</string>
     <string name="message_no_subject">(kein Betreff)</string>
     <string name="message_no_content">(kein Inhalt)</string>
     <string name="list_to_recipients">An: %1$s</string>

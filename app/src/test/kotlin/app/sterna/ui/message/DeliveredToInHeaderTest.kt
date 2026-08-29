@@ -1,0 +1,139 @@
+package app.sterna.ui.message
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+/**
+ * [deliveredToInHeader], EXECUTED — whether the open message's header gets a third line naming
+ * which of the reader's OWN addresses the message came in on, and what that line says (#180).
+ *
+ * ⛔ Nothing here recomputes the rule. Every address list is a literal and every expectation is
+ * written out by hand: an expectation derived from the code under test is a copy of the decision,
+ * and inverting the shipped condition would leave it green.
+ *
+ * ⭐ The decision is a plain function and not a branch inside the header's composable, and this
+ * test is why that matters: R8 has already inlined a small `@Composable` of this module until it
+ * painted nothing at all (`Monogram`, kept by an explicit rule), so a guard living in the painting
+ * is only ever proven by a bench run on a release build. Here it is proven by the build itself.
+ */
+class DeliveredToInHeaderTest {
+
+    /** Two entries that really are two addresses. */
+    private val twoAddresses = listOf("moi@ex.test", "alias@ex.test")
+
+    @Test fun `nothing delivered means no line`() {
+        assertNull(deliveredToInHeader(null, twoAddresses, false))
+    }
+
+    /** A mailing list or a Bcc delivery names no address of the account: an empty label is worse
+     *  than no label. */
+    @Test fun `a blank delivery means no line`() {
+        assertNull(deliveredToInHeader("", twoAddresses, false))
+        assertNull(deliveredToInHeader("   ", twoAddresses, false))
+    }
+
+    /**
+     * ⭐ THE trap this guard exists for. `accountAddresses(identities, username)` is
+     * `identities.map { it.email } + listOfNotNull(username)`, and its own comment says the
+     * duplicates are deliberate — every other caller asks "is X in this list", never "how many".
+     * A one-identity account whose e-mail IS its login therefore hands over TWO entries for ONE
+     * address, so `ownAddresses.size > 1` would paint this line on every single-address account:
+     * exactly what the guard exists to prevent.
+     */
+    @Test fun `one address listed twice is still one address`() {
+        assertNull(deliveredToInHeader("moi@ex.test", listOf("moi@ex.test", "moi@ex.test"), false))
+    }
+
+    /** The same trap as the store actually spells it: the login and the identity differ in case. */
+    @Test fun `one address listed twice in two casings is still one address`() {
+        assertNull(deliveredToInHeader("moi@ex.test", listOf("Moi@Ex.test", "moi@ex.test"), false))
+    }
+
+    @Test fun `a single address means no line`() {
+        assertNull(deliveredToInHeader("moi@ex.test", listOf("moi@ex.test"), false))
+        assertNull(deliveredToInHeader("moi@ex.test", emptyList(), false))
+    }
+
+    /** A blank entry is not an address and does not make an account multi-address. */
+    @Test fun `a blank entry does not count as a second address`() {
+        assertNull(deliveredToInHeader("moi@ex.test", listOf("moi@ex.test", "   "), false))
+    }
+
+    @Test fun `two distinct addresses give the line`() {
+        assertEquals("alias@ex.test", deliveredToInHeader("alias@ex.test", twoAddresses, false))
+    }
+
+    /** Three entries collapsing to two distinct addresses is still a multi-address account. */
+    @Test fun `three entries for two distinct addresses give the line`() {
+        assertEquals(
+            "alias@ex.test",
+            deliveredToInHeader("alias@ex.test", listOf("moi@ex.test", "alias@ex.test", "moi@ex.test"), false),
+        )
+    }
+
+    /**
+     * ⭐ The spelling the message used is the spelling shown. Case folding is how two entries are
+     * COUNTED; it is never how one is displayed — the reader is being told which of her own
+     * addresses a correspondent wrote to, and that is her address as it was written.
+     */
+    @Test fun `the delivered address keeps its own spelling`() {
+        assertEquals(
+            "Alias@Ex.Test",
+            deliveredToInHeader("Alias@Ex.Test", listOf("moi@ex.test", "alias@ex.test"), false),
+        )
+    }
+
+    /**
+     * Only entries that look like an address are counted. An identity may carry an empty or
+     * non-address e-mail, and two distinct STRINGS are not two addresses.
+     */
+    @Test fun `an entry with no at-sign is not a second address`() {
+        assertNull(deliveredToInHeader("theo@ex.test", listOf("theo@ex.test", "theo"), false))
+    }
+
+    /**
+     * ⭐ THE reason this parameter is the IDENTITY list and not `accountAddresses`. Shared hosting
+     * authenticates as `sc12345@mail.hebergeur.tld` and receives at `moi@mondomaine.tld` — the
+     * `.k9s` import builds exactly that pair, from two independent XML fields. Handed
+     * `accountAddresses`, this function would see two distinct addresses that both pass the `@`
+     * filter, find the delivered one among them, and caption EVERY message of a single-address
+     * account for good. It is handed the identities instead, and a login is not an identity: that
+     * is why the list below has one entry, not two, on an account that authenticates as something
+     * else entirely.
+     */
+    @Test fun `a login that is a different address is not in this list at all`() {
+        assertNull(deliveredToInHeader("moi@mondomaine.tld", listOf("moi@mondomaine.tld"), false))
+    }
+
+    /**
+     * ⛔ An outgoing message has no arrival. Sent and Drafts are shown by their RECIPIENTS, and
+     * `receivingAddress` scans To+Cc without knowing the folder — so mail you addressed or copied
+     * to one of your own addresses would be captioned "Received at" though nobody received it.
+     */
+    @Test fun `the reader's own message never gets an arrival line`() {
+        assertNull(deliveredToInHeader("alias@ex.test", twoAddresses, true))
+    }
+
+    /** The same message, incoming, does get it: [ownMessage] is the only difference. */
+    @Test fun `the same message not marked own does get the line`() {
+        assertEquals("alias@ex.test", deliveredToInHeader("alias@ex.test", twoAddresses, false))
+    }
+
+    /**
+     * ⛔ The label asserts the address is YOURS. Today's only caller cannot produce anything else,
+     * but a raw `Delivered-To` header — the obvious next source — can, and it must not be shown
+     * under this label.
+     */
+    @Test fun `an address that is not one of yours gets no line`() {
+        assertNull(deliveredToInHeader("tiers@ailleurs.test", listOf("moi@ex.test", "alias@ex.test"), false))
+    }
+
+    /** Belonging is decided case-insensitively, like every other self-comparison here. */
+    @Test fun `an own address in another casing still belongs`() {
+        assertEquals(
+            "Alias@EX.test",
+            deliveredToInHeader("Alias@EX.test", listOf("moi@ex.test", "alias@ex.test"), false),
+        )
+    }
+}

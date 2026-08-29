@@ -194,6 +194,7 @@
     <string name="message_load_error">Impossibile caricare il messaggio:\n%1$s</string>
     <string name="message_retry">Riprova</string>
     <string name="message_unknown_sender">(mittente sconosciuto)</string>
+    <string name="message_received_at">Ricevuto su %1$s</string>
     <string name="message_no_subject">(nessun oggetto)</string>
     <string name="message_no_content">(nessun contenuto)</string>
     <string name="list_to_recipients">A: %1$s</string>

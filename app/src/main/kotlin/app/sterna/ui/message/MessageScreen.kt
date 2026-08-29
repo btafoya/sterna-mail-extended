@@ -1266,6 +1266,9 @@ private fun MessageContent(
     // executed by a test.
     val senderRules by viewModel.senderRules.collectAsStateWithLifecycle()
     val accountAddresses by viewModel.accountAddresses.collectAsStateWithLifecycle()
+    // The header's arrival line counts IDENTITIES, not `accountAddresses`: the latter folds in the
+    // login, which is an authentication identifier and not an address. See the flow in the VM.
+    val identityAddresses by viewModel.identityAddresses.collectAsStateWithLifecycle()
     val accountMailboxes by viewModel.accountMailboxes.collectAsStateWithLifecycle()
     val senderRuleStatus by viewModel.senderRuleStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -1336,6 +1339,12 @@ private fun MessageContent(
                 senderRule = senderRule,
                 showRecipients = ownMessage,
                 deliveredTo = deliveredTo,
+                // Which of the reader's own addresses this arrived on, as the header's third
+                // line (#180), on the data #81 already resolves. Decided HERE and once, like the
+                // "Original sender" line: the guard is a plain function a unit test executes, and
+                // the header only paints the answer. `ownMessage` is the SAME value that turns the
+                // line above into "To: …" two lines up — an outgoing message has no arrival.
+                deliveredToLine = deliveredToInHeader(deliveredTo, identityAddresses, ownMessage),
                 crypto = crypto,
                 onCryptoAction = {
                     when (val c = crypto) {
@@ -1396,6 +1405,9 @@ private fun ConversationBody(
     senderRule: SenderRuleOffer,
     showRecipients: Boolean = false,
     deliveredTo: String? = null,
+    /** The header's arrival line, already decided by [deliveredToInHeader] at the call site: the
+     *  address to name, or null for no line. ⛔ Nothing is re-judged on the way down. */
+    deliveredToLine: String? = null,
     crypto: CryptoUiState = CryptoUiState.None,
     onCryptoAction: () -> Unit = {},
     unsubscribe: UnsubscribeOptions? = null,
@@ -1669,6 +1681,7 @@ private fun ConversationBody(
             MessageHeader(
                 msg, full, attachmentStatus, onOpenAttachment, calendar, onRespondToInvite,
                 onComposeTo, senderRule, showRecipients, deliveredTo, crypto, onCryptoAction,
+                deliveredToLine = deliveredToLine,
                 imagesStrip = imagesStrip,
                 imagesBlocked = blockRemote,
                 onShowImages = onShowImages,
@@ -1749,6 +1762,11 @@ private fun MessageHeader(
     deliveredTo: String? = null,
     crypto: CryptoUiState = CryptoUiState.None,
     onCryptoAction: () -> Unit = {},
+    /** The arrival line to paint under the date, already decided by [deliveredToInHeader] — null
+     *  on a single-address account, which is the whole of the guard. ⛔ Not re-judged here.
+     *  ⚠ Declared AFTER [onCryptoAction] on purpose: the call above passes everything up to it
+     *  POSITIONALLY, so a parameter slipped in earlier silently shifts `crypto` by one. */
+    deliveredToLine: String? = null,
     /** Whether this message has remote content that was held back — decided in [ConversationBody],
      *  and held there for as long as the reading mode does NOT change. It is not frozen for the
      *  life of the page: a reading-mode toggle re-decides it, at the cost written out there. */
@@ -1818,6 +1836,25 @@ private fun MessageHeader(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Which of YOUR addresses this arrived on (#180), visible without opening anything.
+                // Already decided by `deliveredToInHeader` at MessageContent's call site — null on
+                // a single-address account — so nothing is judged here, and the participants
+                // panel's own ReceivedAtGroup stays unconditional: the panel is what one opens FOR
+                // this, and it is promised there even on an account with a single address.
+                if (deliveredToLine != null) {
+                    Text(
+                        text = stringResource(R.string.message_received_at, deliveredToLine),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // ⚠ 2 lines, not 1. The rule above OriginalSenderGroup — "only what comes
+                        // from the sender is clamped" — cannot be applied word by word here, since
+                        // the label and the address share ONE formatted string. Two lines let the
+                        // label wrap in de and ru while a long alias still cannot grow the header
+                        // without end (its height keys the body document, see ConversationBody).
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             // OpenPGP badges: a lock when the message is/was encrypted, a seal for the
             // signature state (colored by verdict). Mirrors the star/paperclip style.
@@ -3522,6 +3559,65 @@ internal fun originalSenderToShow(headerValue: String?, from: List<EmailAddress>
     if (!email.contains('@')) return null
     if (email.equals(from.firstOrNull()?.email?.trim(), ignoreCase = true)) return null
     return EmailAddress(name = name, email = email)
+}
+
+/**
+ * Which of the reader's OWN addresses this message came in on, as the third line of the open
+ * message's header (#180), or null for no third line at all. [deliveredTo] is what the delivery
+ * said — already resolved by the ViewModel, and shown verbatim — and [identityAddresses] is the
+ * addresses of the account's SEND-AS IDENTITIES — `store.identities(accountId).map { it.email }`,
+ * collected from `MessageViewModel.identityAddresses`. [ownMessage] is the reader's own mail
+ * (Sent, Drafts, or sent under one of the account's identities).
+ *
+ * ⭐ A plain function and not a branch inside the header's composable, for the same reason as
+ * [originalSenderToShow] above: R8 has already inlined a small `@Composable` of this module until
+ * it painted nothing at all (`Monogram`, kept alive by an explicit keep rule), so a guard living
+ * in the painting is only ever proven by a bench run on a release build. Out here a unit test
+ * EXECUTES it.
+ *
+ * Four refusals, and they are the point of the function:
+ * ⛔ [ownMessage] → no line. Sent and Drafts are shown by their RECIPIENTS ("To: …" on the line
+ *    above), and `receivingAddress` scans To+Cc with no idea which folder it is in: a message you
+ *    addressed, or copied, to one of your own addresses would otherwise be captioned "Received at"
+ *    though nobody ever received it. WYSIWYG — an outgoing message has no arrival.
+ * ⛔ nothing delivered, or blank → no line. A mailing-list post or a Bcc delivery names no address
+ *    of the account at all, and a label with nothing after it is worse than no label.
+ * ⛔ fewer than two DISTINCT own addresses → no line. On a single-address account the answer is
+ *    the address the account already is, so the header stays exactly as it was.
+ * ⛔ a [deliveredTo] that is not one of [identityAddresses] → no line. The label asserts it is
+ *    YOURS. Today's only caller passes `receivingAddress(...)`, which already returns nothing else,
+ *    so this changes nothing now; it is here because the obvious next source for this line is a raw
+ *    `Delivered-To` header, and that one would hand a stranger's address to the same label.
+ *
+ * ⛔ WHICH list this is, is the whole trap, and it is why the parameter is not `accountAddresses`.
+ * That list is `identities.map { it.email } + listOfNotNull(username)`, and the LOGIN in it is an
+ * authentication identifier, not an address one is reachable at. Two ways it lies here, both
+ * ordinary rather than exotic:
+ *  · the login is a bare username (`theo`) — the connect screen labels that field
+ *    "Email / username" — so `{"theo", "theo@ex.test"}` is two distinct strings for one address;
+ *  · the login IS an address, but ANOTHER one. Shared hosting authenticates as
+ *    `sc12345@mail.hebergeur.tld` and receives at `moi@mondomaine.tld`; the `.k9s` import builds
+ *    exactly that pair from two independent fields. Here `{sc12345@…, moi@…}` counts two, the
+ *    delivered address really is a member, and a single-address account would carry this line on
+ *    every message it ever shows. An `@` filter does not catch that one — only refusing the login
+ *    does.
+ * So: identities only. ⛔ `accountAddresses` keeps its login for `senderRuleEntry`, which asks a
+ * different question ("is this sender me?"); it is not to be aligned with this.
+ *
+ * ⚠ The accepted cost, and it is the safe direction: an account whose identities have not synced
+ * yet, or on which the user declared a single identity, gets NO line. No line is honest; a line
+ * naming the wrong address is not.
+ *
+ * The `@` filter stays — an identity may carry an empty e-mail — and so does the case folding:
+ * folding is how entries are COUNTED and compared, never how one is shown.
+ */
+internal fun deliveredToInHeader(deliveredTo: String?, identityAddresses: List<String>, ownMessage: Boolean): String? {
+    if (ownMessage) return null
+    val address = deliveredTo?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val distinct = identityAddresses.map { it.trim().lowercase() }.filter { '@' in it }.toSet()
+    if (distinct.size < 2) return null
+    if (address.lowercase() !in distinct) return null
+    return address
 }
 
 /**

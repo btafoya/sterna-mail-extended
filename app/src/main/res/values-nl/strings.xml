@@ -194,6 +194,7 @@
     <string name="message_load_error">Kon bericht niet laden:\n%1$s</string>
     <string name="message_retry">Opnieuw proberen</string>
     <string name="message_unknown_sender">(onbekende afzender)</string>
+    <string name="message_received_at">Ontvangen op %1$s</string>
     <string name="message_no_subject">(geen onderwerp)</string>
     <string name="message_no_content">(geen inhoud)</string>
     <string name="list_to_recipients">Aan: %1$s</string>

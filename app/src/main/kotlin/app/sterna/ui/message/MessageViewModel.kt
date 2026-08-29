@@ -600,6 +600,26 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private val _accountAddresses = MutableStateFlow<List<String>>(emptyList())
     val accountAddresses = _accountAddresses.asStateFlow()
 
+    /**
+     * The addresses the user has DECLARED as her own on this account — her send-as identities, and
+     * nothing else. Read by the header's arrival line ([app.sterna.ui.message.deliveredToInHeader]).
+     *
+     * ⛔ Deliberately NOT [accountAddresses], and the difference is the whole point: that list folds
+     * in the LOGIN, which is an authentication identifier and not an address one is reachable at.
+     * Shared hosting authenticates as `sc12345@mail.hebergeur.tld` and receives at
+     * `moi@mondomaine.tld` — the `.k9s` import produces exactly that pair, `username` from
+     * `<incoming-server>` and the address from `<identity><email>`, two independent fields — so a
+     * count that included the login would read every such SINGLE-address account as multi-alias.
+     *
+     * ⛔ And [accountAddresses] KEEPS its login, it is not to be "fixed" to match: `senderRuleEntry`
+     * asks "is this sender me?", where the login must count. Two lists because there are two
+     * questions — "which addresses am I reachable at" is not "which strings are me".
+     *
+     * Refilled per message like the other, and for the same reason: the pager crosses accounts.
+     */
+    private val _identityAddresses = MutableStateFlow<List<String>>(emptyList())
+    val identityAddresses = _identityAddresses.asStateFlow()
+
     /** One-shot word about the rule gesture (added / already there / failed), shown and cleared. */
     private val _senderRuleStatus = MutableStateFlow<String?>(null)
     val senderRuleStatus = _senderRuleStatus.asStateFlow()
@@ -1106,6 +1126,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         // are leaving, and toasted on the next page it would name the wrong mail.
         _actionStatus.value = null
         _accountAddresses.value = ownAddresses()
+        // Identities ONLY, no login — see the flow's own comment for why this list is not the one
+        // above. Same line, same moment, so neither can be the previous account's.
+        _identityAddresses.value = store.identities(accountId).map { it.email }
         viewModelScope.launch {
             // Account-scoped: a snooze belongs to one account's message (issue #31).
             _snoozedUntil.value = runCatching {
