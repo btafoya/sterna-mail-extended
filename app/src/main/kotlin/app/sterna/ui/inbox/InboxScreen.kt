@@ -850,7 +850,7 @@ fun InboxScreen(
                         }
                     }
                 }
-                HorizontalDivider()
+                HorizontalDivider(Modifier.padding(bottom = 12.dp))
                 if (accounts.size > 1) {
                     val unifiedLabel = if (ui.unified && ui.unreadCount > 0) {
                         stringResource(R.string.inbox_all_inboxes_unread, ui.unreadCount)
