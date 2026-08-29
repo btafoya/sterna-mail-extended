@@ -30,6 +30,7 @@ import app.sterna.core.data.mail.draftOpenRoute
 import app.sterna.core.data.mail.draftSaveConsumesTheQueuedRow
 import app.sterna.core.data.mail.draftSaveNeedsNotice
 import app.sterna.core.data.mail.draftSaveParksTheQueuedRowAs
+import app.sterna.core.data.mail.localDraftLeaseAfterSave
 import app.sterna.core.data.mail.localDraftPrefill
 import app.sterna.core.data.mail.reopenedDraftIsLossy
 import app.sterna.core.data.mail.scheduledSendDelayMillis
@@ -2662,14 +2663,37 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         if (_state.value is ComposeState.Sending) return
         _state.value = ComposeState.Sending
         viewModelScope.launch {
+            // The success as a VALUE, not as a position in the try: what the `finally` below does
+            // with the row depends on whether `op` came back, and nothing else can tell it.
+            var saved = false
             try {
                 val credentials = credentials() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
                 op(credentials, parseAddrs(to))
+                saved = true
                 _state.value = ComposeState.Done
             } catch (t: Throwable) {
                 // Saving a draft, not sending: the error banner must say so (#63 — a failed
                 // draft save used to read "couldn't send", pointing users at the wrong step).
                 _state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName, whileSaving = true)
+            } finally {
+                // ⛔ A save gives the phone's own row back too, and until this line nothing did
+                // (#95 × #31). `abandon()` is the only other release and only the CANCEL of the
+                // screen calls it; this route leaves on ComposeState.Done, on the understanding
+                // that the save rewrote the row itself. It did — unless the "From" picker was
+                // moved to another account, which it may be for any draft since that picker covers
+                // every account: `unlessDraftBelongsElsewhere` then answers SendDraftTarget(null,
+                // null), a NEW row is minted under the account being written as, and the reopened
+                // row stays EDITING for ever, which no startup sweep takes back.
+                // ⛔ HERE and not in saveDraft's lambda, on purpose. submit() has exactly three
+                // callers and all three are in saveDraft; send() and scheduleSend() do NOT come
+                // through it, each having its own viewModelScope.launch. So the risk
+                // abandonPlan(sending = true) closes elsewhere — re-arming the upload of a row a
+                // send in flight is already consuming — cannot arise at this point, and that is
+                // the reason the branching sits at this level rather than higher up.
+                // On both empty-save routes the lease is already null when this is reached:
+                // abandon(emptying = true) does not clear it (that is its whole object) and
+                // consumeEditingLocalDraft does.
+                localDraftLeaseAfterSave(_editingLocalDraftId.value, saved)?.let { releaseLocalDraftEdit(it) }
             }
         }
     }

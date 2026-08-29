@@ -383,7 +383,10 @@ class LocalDraftReopenWiringTest {
                     "if (_state.value is ComposeState.Sending) return",
                     "_state.value = ComposeState.Sending",
                     "viewModelScope.launch {",
-                    "try {",
+                    // The same shape as the deletion above, and for the same reason: whether the
+                    // gesture went through is a VALUE the `finally` reads, not a position in the
+                    // try — see `a save that went through gives the phone's own row back`.
+                    "var saved = false",
                 ),
             ),
             raised.map { lines.subList(it.index - 1, it.index + 3) },
@@ -853,6 +856,85 @@ class LocalDraftReopenWiringTest {
                 "whatever identity the \"From\" picker happens to be showing. The line after the " +
                 "declaration was: " + lines.getOrNull(at + 1),
             lines.getOrNull(at + 1)?.let { !it.startsWith("get()") && !it.startsWith("set(") } == true,
+        )
+    }
+
+    /**
+     * ⛔ **A save gives the row back too, and until this line nothing did** (#95 × #31).
+     * `abandon()` is the only other release in the class and only the CANCEL of the screen calls
+     * it; a save leaves on `ComposeState.Done` without passing through, on the understanding that
+     * the save rewrote the row itself. It did — unless the "From" picker was moved to another
+     * account, which it may be for any draft, since the picker covers every account on the phone.
+     * Then `unlessDraftBelongsElsewhere` answers `SendDraftTarget(null, null)`, `localDraftTarget`
+     * mints a NEW row under the account being written as, and the row that was reopened stays
+     * `EDITING` for ever — the startup sweep leaves `EDITING` alone, on purpose. It sits at the top
+     * of its own account's Drafts under its "not on the server yet" pill, masking the server draft
+     * it names, and it never goes up. Nothing is said, nothing is logged.
+     *
+     * ⭐ **Why HERE and not in `saveDraft`'s lambda.** `submit` has exactly three callers, all of
+     * them inside `saveDraft` — and `send()` / `scheduleSend()` do NOT come through it, each having
+     * its own `viewModelScope.launch`. ⚠ The second assertion below holds the COUNT and the order
+     * of those calls, not the function they sit in: it is a tripwire on that fact, never a proof
+     * of it. So the risk `abandonPlan(sending = true)` closes elsewhere,
+     * re-arming the upload of a row a send in flight is already consuming, cannot arise at this
+     * point; that is the reason the branching is here and not one level up. On both empty-save
+     * routes the lease is already null when the `finally` is reached (`abandon(emptying = true)`
+     * does not clear it — that is its whole object — and `consumeEditingLocalDraft` does).
+     *
+     * SOURCE LINT, the last resort: `ComposeViewModel` is an `AndroidViewModel` and nothing in this
+     * module instantiates it. `SendDraftTargetTest` (core:data) EXECUTES the decision this file can
+     * only locate — the four cases of `localDraftLeaseAfterSave` — so inverting the shipped
+     * decision goes red there, not here.
+     */
+    @Test fun `a save that went through gives the phone's own row back`() {
+        assertEquals(
+            "⛔ submit(), whole and in order, and two of these lines are defects on their own:\n" +
+                "  · the lease is read INSIDE the finally (`_editingLocalDraftId.value`), never " +
+                "captured into a val before the try. Captured, a stale id is handed to the upload " +
+                "worker — on the empty-save routes the row is consumed inside the gesture — and " +
+                "the draft that was just deleted goes back to PENDING and is filed in the " +
+                "server's Drafts, for good;\n" +
+                "  · `saved = true` sits AFTER op(...), never before it. Before, a save that threw " +
+                "releases the row while the composer is still open on it: the upload worker takes " +
+                "the half-typed text up to the server and discardLocalDraft deletes the row with " +
+                "its attachment folder, under a banner that says the save failed.\n" +
+                "Body was:",
+            listOf(
+                "if (_state.value is ComposeState.Sending) return",
+                "_state.value = ComposeState.Sending",
+                "viewModelScope.launch {",
+                "var saved = false",
+                "try {",
+                "val credentials = credentials() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))",
+                "op(credentials, parseAddrs(to))",
+                "saved = true",
+                "_state.value = ComposeState.Done",
+                "} catch (t: Throwable) {",
+                "_state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName, whileSaving = true)",
+                "} finally {",
+                "localDraftLeaseAfterSave(_editingLocalDraftId.value, saved)?.let { releaseLocalDraftEdit(it) }",
+                "}",
+                "}",
+            ),
+            codeLines(bodyOf(COMPOSE_VIEW_MODEL, "submit")),
+        )
+        assertEquals(
+            "⛔ …and these four lines, in this order — which is what this can see, and it is " +
+                "less than \"submit() is called from saveDraft and from nowhere else\": it reads " +
+                "TEXT, so a fourth caller adds an entry and goes red, while MOVING one of the " +
+                "three into a private helper declared in between and called from sendInternal " +
+                "would not. What a fourth caller brings is the case this wiring has no guard " +
+                "for: a send in flight consumes the local row itself (INV-6), and a release on " +
+                "its success hands the upload worker a copy of the message that has just gone " +
+                "out. So the day this list changes, go and read WHERE from. Declaration and " +
+                "calls were:",
+            listOf(
+                "submit(to) { _, _ -> destroyReplacedServerDraft(original) }",
+                "submit(to) { _, _ ->",
+                "submit(to) { credentials, recipients ->",
+                "private inline fun submit(",
+            ),
+            codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "submit(" in it },
         )
     }
 

@@ -2,6 +2,7 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.data.db.LOCAL_DRAFT_ID_PREFIX
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -425,6 +426,61 @@ class SendDraftTargetTest {
         assertEquals(
             AbandonPlan(null, 7L),
             abandonPlan(sending = false, emptying = true, localDraftId = null, outboxId = 7L),
+        )
+    }
+
+    // -- who gets the row back when a SAVE is over -----------------------------------------------
+
+    @Test fun `a save that went through hands the row back, or it stays EDITING for ever`() {
+        // ⛔ The defect this closes. `abandon()` is the only other release and only the CANCEL
+        // of the screen calls it: a save closes on ComposeState.Done without passing through, on
+        // the understanding that the save rewrote the row itself. Move the "From" picker to
+        // another account — it covers every account on the phone — and it did not:
+        // unlessDraftBelongsElsewhere answers SendDraftTarget(null, null), a NEW row is minted
+        // under the account being written as, and the reopened row is left EDITING, which no
+        // startup sweep takes back. It then sits at the top of its own account's Drafts under its
+        // "not on the server yet" pill, masking the server draft it names, and never goes up.
+        assertEquals(
+            "the row must go back to the upload worker. Under the SAME account this is a real " +
+                "no-op — the save already rewrote the row PENDING and giveLocalDraftEditBack " +
+                "refuses any state but EDITING — and under ANOTHER account it is the only " +
+                "thing left that can release it",
+            LOCAL_DRAFT_ID_PREFIX + "d1",
+            localDraftLeaseAfterSave(LOCAL_DRAFT_ID_PREFIX + "d1", saved = true),
+        )
+    }
+
+    @Test fun `a save that failed keeps the row, or the worker uploads the text being typed`() {
+        // ⛔ And giving it back on the failure is NOT the fix — word for word abandonPlan's
+        // own argument, one gesture along. The composer is still open, the user still holds the
+        // row, EDITING is the true state. Released here, the upload worker takes the half-typed
+        // text up to the server and discardLocalDraft then deletes the row with its attachment
+        // folder, while the screen still shows "couldn't save the draft".
+        assertNull(
+            "a failed save releases NOTHING: the screen is still open on that row",
+            localDraftLeaseAfterSave(LOCAL_DRAFT_ID_PREFIX + "d2", saved = false),
+        )
+    }
+
+    @Test fun `a composer holding no row of its own releases nothing on a save that went through`() {
+        // The lease is read AS IT STANDS at the end of the gesture, never captured at the start:
+        // on the empty-save routes the row is consumed INSIDE the gesture, so what is read here is
+        // null and must stay null. Released from a stale id it goes back to PENDING, and the
+        // upload worker files in the server's Drafts the draft that was just deleted, for good.
+        assertNull(
+            "nothing is held, so nothing may be handed to the upload worker",
+            localDraftLeaseAfterSave(null, saved = true),
+        )
+    }
+
+    @Test fun `a save that failed with no row held releases nothing either`() {
+        // ⚠ The weak one of the four, and said so rather than dressed up: `(null, false)` answers
+        // null under every variant of this shape, inversion included, so it falsifies nothing on
+        // its own. It is here to close the table — a decision that started FABRICATING an id out
+        // of a composer that holds none is the only thing it can catch.
+        assertNull(
+            "nothing is held and nothing went through: there is no id to hand anybody",
+            localDraftLeaseAfterSave(null, saved = false),
         )
     }
 }

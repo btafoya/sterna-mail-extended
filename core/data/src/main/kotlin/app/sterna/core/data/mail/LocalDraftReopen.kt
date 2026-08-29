@@ -568,6 +568,52 @@ fun abandonPlan(
 }
 
 /**
+ * Who gets the phone's own draft row back once a SAVE is over (#95 × #31) — the row to put from
+ * `EDITING` back to `PENDING`, or null when nobody may have it. The exact twin of
+ * `localDraftLeaseAfterDelete`, with the boolean the other way round.
+ *
+ * ⛔ **Until this existed a save answered the question NOWHERE, and that is the defect.**
+ * `abandon` is the only other release, and only the CANCEL of the screen reaches it: a save closes
+ * the composer on `ComposeState.Done` without passing through, on the understanding that the save
+ * has rewritten the row itself. It has — unless the "From" picker was moved to another account,
+ * which it may be for any draft, the picker covering every account on the phone. Then
+ * [unlessDraftBelongsElsewhere] answers `SendDraftTarget(null, null)`, `localDraftTarget` mints a
+ * NEW row under the account being written as, and the row that was reopened is left `EDITING` for
+ * ever — the startup sweep leaves `EDITING` alone, deliberately. It sits at the top of its own
+ * account's Drafts under its "not on the server yet" pill, masking for good the server draft it
+ * replaces, and it never goes up. Nothing is said, nothing is logged.
+ *
+ *  - [saved] true — the row goes back to the upload worker. On a save under the SAME account this
+ *    is a real no-op: the save has already rewritten the row `PENDING`, or consumed it after an
+ *    upload that got through, and [giveLocalDraftEditBack] refuses any state that is not
+ *    `EDITING`. On a save under ANOTHER account the save never touched that row — it created a
+ *    fresh one under the account being written as — and this is the only thing left that can
+ *    release it;
+ *  - [saved] false — NOTHING is given back, and that is not a precaution: the composer is still
+ *    open, the user still holds the row, and `EDITING` is the true state. Released here, the
+ *    upload worker takes the text she is in the middle of typing up to the server and
+ *    `discardLocalDraft` then deletes the row with its attachment folder, under a banner that says
+ *    the save failed. Word for word the argument [abandonPlan] already carries: giving it back on
+ *    the failure is NOT the fix.
+ *
+ * [lease] is read AS IT STANDS at the end of the gesture, never captured at the start — the same
+ * sentence as `localDraftLeaseAfterDelete`, and sharper here: on the empty-save route the row is
+ * consumed INSIDE the gesture, so an id captured beforehand is stale, and released from it the row
+ * goes back to `PENDING` and the upload worker files in the server's Drafts the draft that has just
+ * been deleted, permanently.
+ *
+ * ⛔ **What is left behind is stated and kept, not a defect to fix here** — and it is ONE draft per
+ * account, not two in either. A keeps what its row holds, i.e. the text from BEFORE the edit that
+ * was saved under B; B receives a fresh copy carrying the edit. [unlessDraftBelongsElsewhere] cuts
+ * the link between them on purpose: no transaction spans two servers, so nothing here may claim the
+ * edit reaches A, and nothing here may destroy A's copy on B's behalf. ⚠ Releasing the row is what
+ * lets it finally go up, and its upload then carries its own `replacesEmailId` — so on A the row
+ * takes the place of the server draft it was masking, rather than piling a second one on top of it.
+ */
+fun localDraftLeaseAfterSave(lease: String?, saved: Boolean): String? =
+    if (saved) lease else null
+
+/**
  * Commit the composer's message somewhere else — an outbox row, a scheduled-send row — and ONLY
  * THEN consume the local draft row it was reopened from (#95).
  *
