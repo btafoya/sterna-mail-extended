@@ -35,7 +35,7 @@
     <string name="compose_local_draft_gone">Ce brouillon n\'est plus sur ce téléphone. S\'il est arrivé sur le serveur, vous le trouverez dans Brouillons.</string>
     <string name="compose_emptied_draft_server_copy_kept">La copie sur le serveur reste, car ce téléphone n\'a pas pu tout en lire.</string>
     <string name="compose_body_lost_cannot_send">Le texte de ce message a été perdu. Retapez-le.</string>
-    <string name="compose_body_lost_reopen_draft">Texte perdu. Fermez cet écran et rouvrez le brouillon.</string>
+    <string name="compose_body_lost_reopen_draft">Texte perdu. Fermez cet écran et rouvrez le message.</string>
     <string name="compose_forward_attachment_dropped">Certaines pièces jointes du message transféré n\'ont pas pu être incluses.</string>
     <string name="compose_scheduled_toast">Programmé — %1$s</string>
     <string name="compose_discard_title">Abandonner le message ?</string>

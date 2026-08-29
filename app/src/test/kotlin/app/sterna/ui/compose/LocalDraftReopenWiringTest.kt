@@ -423,7 +423,8 @@ class LocalDraftReopenWiringTest {
                 "\"type it again\" — which on this route is the instruction that destroys the " +
                 "text. Lines naming the local draft in sendInternal were:",
             listOf(
-                "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,",
+                "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || " +
+                    "editingOutboxId != null,",
                 "val id = commitThenConsumeLocalDraft(",
                 "localDraftId = _editingLocalDraftId.value,",
                 "consume = { local -> consumeEditingLocalDraft(local) },",
@@ -453,7 +454,8 @@ class LocalDraftReopenWiringTest {
             "the same three on the scheduled route, under the same fourth line: the refusal reads " +
                 "the row to choose its sentence, and it reads it BEFORE anything is committed.",
             listOf(
-                "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,",
+                "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || " +
+                    "editingOutboxId != null,",
                 "commitThenConsumeLocalDraft(",
                 "localDraftId = _editingLocalDraftId.value,",
                 "consume = { local -> consumeEditingLocalDraft(local) },",
@@ -492,10 +494,13 @@ class LocalDraftReopenWiringTest {
      * like a working guard. A `contains` check would not see the difference, because the mutation
      * LENGTHENS the line.
      *
-     * ⛔ The SECOND argument that is a whole proof: `holdsStoredDraft` ORs BOTH draft ids. Cut down
-     * to `_editingLocalDraftId.value != null`, the refusal answers "Type it again." over a SERVER
-     * draft still sitting whole in Drafts — and retyping is the ONE gesture that destroys the text
-     * on either route: three characters unblock the guard and the commit consumes the row.
+     * ⛔ The SECOND argument that is a whole proof: `holdsStoredDraft` ORs all THREE stores — the
+     * phone's own draft, the server draft, and the queued outbox row reopened by Outbox → Edit. Cut
+     * down to any two, the refusal answers "Type it again." over a copy still sitting whole
+     * somewhere — and retyping is the gesture that sends the text after it: three characters
+     * unblock the guard and the commit consumes the phone's own draft row, or the outbox row that
+     * held the only copy. (The SERVER draft is the one spared: `unlessBodyIsLossy` holds its id
+     * back, so it survives as a duplicate rather than being destroyed.)
      *
      * ⛔ And its POSITION is the other half: in front of `_state.value = ComposeState.Sending` and
      * in front of the commit. Below either, the composer is already in `Sending` (the X and the
@@ -521,9 +526,10 @@ class LocalDraftReopenWiringTest {
             "the guard, whole and adjacent: it decides, it SAYS THE RIGHT SENTENCE, and it " +
                 "returns. `args.body` is the composer's RAW body and the only argument that proves " +
                 "anything — `textBody` carries the signature, is never blank, and turns this into " +
-                "dead code. `holdsStoredDraft` must OR BOTH ids: cut to the local one it answers " +
-                "\"Type it again.\" over a server draft sitting intact in Drafts, and retyping is " +
-                "the one gesture that destroys the text. Without the notice the tap does nothing " +
+                "dead code. `holdsStoredDraft` must OR all THREE stores: short of any of them it " +
+                "answers \"Type it again.\" over a copy sitting intact — a server draft in Drafts, " +
+                "a queued row parked EDITING behind Outbox → Edit — and retyping is what sends " +
+                "the text after it, the queued row included. Without the notice the tap does nothing " +
                 "visible and the user taps again; with a line between the refusal and the return " +
                 "the send goes on anyway. Lines were:",
             sendGuard,
@@ -1247,17 +1253,19 @@ class LocalDraftReopenWiringTest {
          *
          *  - `textBody` slipped in place of the raw body is a body the signature has already made
          *    non-blank, i.e. a guard that can never arm;
-         *  - `holdsStoredDraft` cut down to `_editingLocalDraftId.value != null` answers "type it
-         *    again" over a SERVER draft that is sitting intact in Drafts — the one instruction that
-         *    destroys the text, since retyping unblocks the guard and the commit then consumes the
-         *    row.
+         *  - `holdsStoredDraft` short of ANY of its three terms answers "type it again" over a
+         *    store that still holds the text — a SERVER draft sitting intact in Drafts, or the
+         *    QUEUED OUTBOX ROW parked `EDITING` behind Outbox → Edit — which is the instruction
+         *    that loses it, since retyping unblocks the guard and the commit then consumes the
+         *    store. (The server draft survives as a duplicate: `unlessBodyIsLossy` spares it.)
          */
         const val LOST_BODY_HEAD = "val lostBody = lostBodySendWording("
         const val LOST_BODY_LOST = "bodyWasLost = composerBodyWasLost,"
         const val SEND_LOST_BODY_BODY = "body = args.body,"
         const val SCHEDULE_LOST_BODY_BODY = "body = body,"
         const val LOST_BODY_HELD =
-            "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,"
+            "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || " +
+                "editingOutboxId != null,"
 
         /**
          * …and the sentence the refusal owes the reader, which is TWO sentences and not one: a tap

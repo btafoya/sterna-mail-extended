@@ -131,11 +131,13 @@ class LostBodyNoticeTextTest {
      * from, and because the difference between these two sentences is the whole of the second
      * defect this branch closes.
      *
-     * `compose_body_lost_reopen_draft` is shown where a draft is stored behind the screen (local or
-     * on the server). There the text is NOT gone, and "Type it again." is the one instruction that
-     * destroys it: three characters unblock the guard and `commitThenConsumeLocalDraft` deletes the
-     * row. It asks for a gesture and promises nothing about what will be found — the same shape as
-     * `compose_draft_load_failed` one line above it in the file.
+     * `compose_body_lost_reopen_draft` is shown where a copy is stored behind the screen: a local
+     * draft, a server draft, or the queued outbox row reopened by Outbox → Edit — which is why it
+     * says "the message" and not "the draft", the queued item being no draft. There the text is NOT
+     * gone, and "Type it again." is the one instruction that destroys it: three characters unblock
+     * the guard and the commit deletes the store that still holds it. It asks for a gesture and
+     * promises nothing about what will be found — the same shape as `compose_draft_load_failed`
+     * one line above it in the file.
      *
      * `compose_body_lost_cannot_send` stays for the composer that holds no draft at all: nothing to
      * reopen, so retyping is the only true instruction left.
@@ -216,7 +218,7 @@ class LostBodyNoticeTextTest {
 
         val ENGLISH = mapOf(
             "compose_body_lost_cannot_send" to "The text of this message was lost. Type it again.",
-            "compose_body_lost_reopen_draft" to "Text lost. Close this screen and reopen the draft.",
+            "compose_body_lost_reopen_draft" to "Text lost. Close this screen and reopen the message.",
         )
 
         /**

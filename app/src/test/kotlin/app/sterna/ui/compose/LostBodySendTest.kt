@@ -122,17 +122,18 @@ class LostBodySendTest {
     }
 
     /**
-     * ⛔ And the term is BOTH ids, which is why this case exists on its own: a SERVER draft reopened
-     * online whose body this composer lost is untouched on the server — the send that would have
-     * replaced it is the one being refused — so it reopens whole as well. A rule reading
-     * `_editingLocalDraftId` alone answers RETYPE here, i.e. the destructive advice, on a draft
-     * that is sitting in Drafts.
+     * ⛔ And the term is ALL THREE stores, which is why this case exists on its own: a SERVER draft
+     * reopened online whose body this composer lost is untouched on the server — the send that
+     * would have replaced it is the one being refused — so it reopens whole as well, and so does
+     * the QUEUED OUTBOX ROW behind Outbox → Edit, parked `EDITING` with the text it was queued
+     * with. A rule reading `_editingLocalDraftId` alone answers RETYPE on all of them, i.e. the
+     * advice that sends her to retype text she still has.
      */
     @Test fun `a stored draft is a stored draft, wherever it is stored`() {
         assertEquals(
-            "holdsStoredDraft is `_editingLocalDraftId.value != null || editingDraftId != null` — " +
-                "the caller ORs the two ids, and this function must give the same answer whichever " +
-                "of them raised it",
+            "holdsStoredDraft is `_editingLocalDraftId.value != null || editingDraftId != null " +
+                "|| editingOutboxId != null` — the caller ORs all three, and this function must " +
+                "give the same answer whichever of them raised it",
             LostBodyWording.REOPEN_DRAFT,
             lostBodySendWording(bodyWasLost = true, body = "   \n", holdsStoredDraft = true),
         )

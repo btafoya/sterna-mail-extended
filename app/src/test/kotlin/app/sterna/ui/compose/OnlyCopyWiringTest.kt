@@ -256,6 +256,13 @@ class OnlyCopyWiringTest {
      * `CONTRIBUTING.md` — an argument name says nothing about what the name is bound to — and here
      * the argument that matters is the one nobody wrote.
      *
+     * ⛔ The ONE line allowed to name the field is the lost-body refusal's `holdsStoredDraft`,
+     * pinned whole above: it READS the id — a queued row parked `EDITING` behind Outbox → Edit
+     * still holds the text, so the refusal owes "close and reopen the message" rather than the
+     * destructive "type it again" — and it sits above `consumeEditingOutbox()`, so it cannot put
+     * an id anywhere. It is pinned as text, not tolerated as a substring: shortening it, or naming
+     * the field on any second line, reddens this rule.
+     *
      * ⛔ This rule forbids ONE field at ONE site, and nothing else about that construction:
      *  - `consumeEditingOutbox()` stays ABOVE it — the row taken out for editing is dropped from
      *    the queue rather than given back (#70), which is exactly why the record built below can
@@ -272,14 +279,20 @@ class OnlyCopyWiringTest {
     @Test fun `the draft kept for undo names no queued row`() {
         val body = bodyOf("sendInternal")
         assertEquals(
-            "⛔ sendInternal now names editingOutboxId somewhere. The rule below reads the " +
-                "construction's argument names; this one reads the WHOLE body, because the record " +
-                "is built on one line and handed to the hold window on another: " +
-                "`outbox.hold(draft = draft.copy(editingOutboxId = id))` puts the row id back " +
-                "without the construction changing by one character, and the guard goes out with " +
-                "everything green. The field is named nowhere in this function, and a first use " +
-                "has to be argued for here. Lines naming it were:",
-            emptyList<String>(),
+            "⛔ sendInternal names editingOutboxId on a line that is not the refusal's. The rule " +
+                "below reads the construction's argument names; this one reads the WHOLE body, " +
+                "because the record is built on one line and handed to the hold window on " +
+                "another: `outbox.hold(draft = draft.copy(editingOutboxId = id))` puts the row id " +
+                "back without the construction changing by one character, and the guard goes out " +
+                "with everything green. EXACTLY ONE line may name the field, and it is the one " +
+                "below: the wording term of the lost-body refusal, which only READS the id to " +
+                "choose between \"reopen the message\" and \"type it again\", sits above " +
+                "consumeEditingOutbox(), and writes nothing. Any second line — and any change to " +
+                "that one — is the defect this rule exists for. Lines naming it were:",
+            listOf(
+                "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || " +
+                    "editingOutboxId != null,",
+            ),
             codeLinesNaming(body, "editingOutboxId"),
         )
         val call = callsOf(body, "SendOutbox.ComposeDraft(").single()

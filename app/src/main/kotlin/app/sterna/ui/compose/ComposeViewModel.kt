@@ -2148,12 +2148,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // ⛔ `args.body`, NEVER the `textBody` of `bodiesForSend` below — that one carries the
         // signature, is never blank, and would make this line dead code that reads as a guard.
         // ⛔ And ABOVE the re-entry guard: nothing is flagged `Sending` for a send that is refused.
-        // ⛔ `holdsStoredDraft` takes BOTH ids: what the refusal says is the whole point of it, and
-        // "type it again" is the one instruction that DESTROYS the text on the route this protects.
+        // ⛔ `holdsStoredDraft` takes ALL THREE stores — the reopened outbox row included: what the
+        // refusal says is the whole point of it, and "type it again" is the one instruction that
+        // DESTROYS the text on every route this protects.
         val lostBody = lostBodySendWording(
             bodyWasLost = composerBodyWasLost,
             body = args.body,
-            holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,
+            holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || editingOutboxId != null,
         )
         if (lostBody != null) {
             _notices.tryEmit(
@@ -2347,7 +2348,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         val lostBody = lostBodySendWording(
             bodyWasLost = composerBodyWasLost,
             body = body,
-            holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null,
+            holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || editingOutboxId != null,
         )
         if (lostBody != null) {
             _notices.tryEmit(

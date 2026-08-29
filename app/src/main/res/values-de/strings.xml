@@ -35,7 +35,7 @@
     <string name="compose_local_draft_gone">Dieser Entwurf ist nicht mehr auf diesem Telefon. Wenn er den Server erreicht hat, findest du ihn in den Entwürfen.</string>
     <string name="compose_emptied_draft_server_copy_kept">Die Kopie auf dem Server bleibt, weil dieses Telefon nicht alles davon lesen konnte.</string>
     <string name="compose_body_lost_cannot_send">Der Text dieser Nachricht ging verloren. Neu eingeben.</string>
-    <string name="compose_body_lost_reopen_draft">Text verloren. Schließe den Entwurf und öffne ihn neu.</string>
+    <string name="compose_body_lost_reopen_draft">Text verloren. Schließe und öffne die Nachricht neu.</string>
     <string name="compose_forward_attachment_dropped">Einige Anhänge der weitergeleiteten Nachricht konnten nicht übernommen werden.</string>
     <string name="compose_scheduled_toast">Geplant — %1$s</string>
     <string name="compose_discard_title">Nachricht verwerfen?</string>

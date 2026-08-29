@@ -73,7 +73,13 @@ internal enum class LostBodyWording {
      * `EDITING` to `PENDING`, and reopening goes through `prepareLocalDraft` → `localDraftPrefill`,
      * which returns the body whole. Server draft: the copy on the server was never touched — the
      * send that would have replaced it is the one being refused — and `unlessBodyIsLossy` is what
-     * keeps this composer from overwriting it.
+     * keeps this composer from overwriting it. Outbox row: a queued message reopened by Outbox →
+     * Edit waits in the queue marked `EDITING` with the text it was queued with, leaving runs
+     * `cancel()` → `abandon()` → `releaseOutboxEdit`, which only takes the row OUT of `EDITING` —
+     * back to `QUEUED`, or to `FAILED` where the attempts were already spent
+     * (`OutboxLogic.stateAfterEdit`) — without rebuilding a line of it, and reopening reads it
+     * again through `composeDraftOf`. Either way the text is there and the row is reopenable,
+     * which is all the sentence promises.
      */
     REOPEN_DRAFT,
 
@@ -95,9 +101,24 @@ internal enum class LostBodyWording {
  * `commitThenConsumeLocalDraft` deletes the row that still holds it. Where a draft is stored, the
  * true instruction is to leave and open it again.
  *
- * ⛔ **Both drafts count, not just the phone's own.** A SERVER draft reopened online whose body
- * this composer lost is intact on the server, and reopens whole; "type it again" is the wrong
- * advice there too. The caller passes `_editingLocalDraftId.value != null || editingDraftId != null`.
+ * ⛔ **All THREE stores count, not just the phone's own.** A SERVER draft reopened online whose
+ * body this composer lost is intact on the server, and reopens whole. So is the QUEUED OUTBOX ROW
+ * behind Outbox → Edit (#70): it is parked in the queue marked `EDITING` with the text it was
+ * queued with, nothing has been rebuilt from this screen, and `abandon()` → `releaseOutboxEdit`
+ * hands it back whole the moment the composer closes — to `QUEUED`, or to `FAILED` where the
+ * attempts were already spent. "Type it again." is the wrong advice on all three, because on all
+ * three the text is still somewhere and the sentence sends her to retype what she already has.
+ * ⚠ It is not equally DESTRUCTIVE on all three: three characters open [composerMaySendBody], and
+ * the send then consumes the phone's own draft row and the outbox row, while the SERVER draft is
+ * spared — `editingDraftLossy` is true whenever the body was lost, so `unlessBodyIsLossy` holds
+ * the id back and the original stays in Drafts as a duplicate (#63). The caller passes
+ * `_editingLocalDraftId.value != null || editingDraftId != null || editingOutboxId != null`.
+ *
+ * ⛔ **What the third term does NOT cover: the UNDO route.** An undone send comes back through the
+ * same `restore = true` block, but its `SendOutbox.ComposeDraft` carries no `editingOutboxId` (the
+ * queued row was dropped by the undo, and the field defaults to null): the message then lives ONLY
+ * on this screen, there is nothing to close and reopen, and [LostBodyWording.RETYPE] is the true
+ * sentence.
  */
 internal fun lostBodySendWording(
     bodyWasLost: Boolean,

@@ -35,7 +35,7 @@
     <string name="compose_local_draft_gone">Este borrador ya no está en este teléfono. Si llegó al servidor, lo encontrarás en Borradores.</string>
     <string name="compose_emptied_draft_server_copy_kept">La copia del servidor se conserva, porque este teléfono no pudo leerla por completo.</string>
     <string name="compose_body_lost_cannot_send">Se perdió el texto del mensaje. Escríbelo de nuevo.</string>
-    <string name="compose_body_lost_reopen_draft">Texto perdido. Cierra la pantalla y abre el borrador.</string>
+    <string name="compose_body_lost_reopen_draft">Texto perdido. Cierra la pantalla y abre el mensaje.</string>
     <string name="compose_forward_attachment_dropped">No se pudieron incluir algunos archivos adjuntos del mensaje reenviado.</string>
     <string name="compose_scheduled_toast">Programado — %1$s</string>
     <string name="compose_discard_title">¿Descartar mensaje?</string>
