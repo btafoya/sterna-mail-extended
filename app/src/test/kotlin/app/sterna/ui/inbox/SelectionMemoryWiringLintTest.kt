@@ -28,7 +28,8 @@ import java.io.File
  *    answer before the list exists (`RestoredViewWiringLintTest`), and the day it fetches the three
  *    arguments itself, one of the two copies drifts — silently, since both compile and both are
  *    three `String?`/`Boolean` in a row. Hence TWO counts below, because they catch different
- *    hands: one call to the rule `restoreSelection`, and one read of `store.storedView()`. A
+ *    hands: one call to the rule `restoreSelection`, and a NAMED list of the reads of
+ *    `store.storedView()` — two of them, each with the file it must sit in. A
  *    decoder written out on the spot (`storedView()?.split("\n")?.getOrNull(1) == "u"`) calls the
  *    rule never and only the second count sees it. Both are taken over the whole module, the bench
  *    source sets included.
@@ -75,20 +76,29 @@ class SelectionMemoryWiringLintTest {
      * `AccountStore`, and a reader that never calls the rule at all — `store.storedView()
      * ?.split("\n")?.getOrNull(1) == "u"`, three tokens of the format written out a second time —
      * leaves the count above at exactly 1 while the app carries two answers about the view it
-     * reopened on. So the READ is counted too, once, in the adapter.
+     * reopened on. So the READS are pinned too, by file, and there are exactly two: the adapter
+     * that reopens a view, and the sign-out that prunes a removed account's one out of the
+     * preferences ([prunedView]). Both hand the string to a pure function; neither splits it.
      */
     @Test
-    fun `the stored view is read out of the store in exactly one place`() {
+    fun `the stored view is read out of the store in exactly two named places`() {
         val reads = mainSources().flatMap { file ->
             callSitesTo("storedView", codeText(file)).map { "${file.name}: $it" }
-        }
+        }.sorted()
         assertEquals(
-            "the app module must call store.storedView() exactly ONCE, inside restoredSelection(). " +
-                "A second read here is a hand-rolled decoder of the stored format: it compiles, it " +
-                "calls no rule, and it answers a different view than the list the day either side " +
-                "changes. Reads found were:\n${reads.joinToString("\n")}",
-            1,
-            reads.size,
+            "the app module may read store.storedView() in exactly TWO places, and this rule names " +
+                "both, file included. Any OTHER read is a hand-rolled decoder of the stored " +
+                "format: it compiles, it calls no rule, and it answers a different view than the " +
+                "list the day either side changes.\n" +
+                "  - SelectionMemory.kt — restoredSelection(), the one reader that reopens a view;\n" +
+                "  - AccountsViewModel.kt — signOut(), which hands the value to prunedView() so a " +
+                "removed account's memory (an IMAP folder PATH, in cleartext) leaves the disk with " +
+                "the account, as PRIVACY.md promises. It decodes nothing: the whole line is pinned " +
+                "by SignOutStopsTheSyncWiringTest and the rule itself is executed by " +
+                "SelectionMemoryTest.\n" +
+                "Reads found were:\n${reads.joinToString("\n")}",
+            listOf("AccountsViewModel.kt: storedView()", "SelectionMemory.kt: storedView()"),
+            reads,
         )
     }
 

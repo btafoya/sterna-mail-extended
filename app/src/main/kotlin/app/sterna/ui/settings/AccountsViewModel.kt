@@ -24,6 +24,8 @@ import app.sterna.push.NewMailNotifier
 import app.sterna.push.Notifications
 import app.sterna.push.PushController
 import app.sterna.ui.connect.oauthFailureMessage
+import app.sterna.ui.inbox.prunedFreshness
+import app.sterna.ui.inbox.prunedView
 import app.sterna.widget.RecentMailWidgetDraw
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -592,6 +594,23 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         // their unread mail must stay on the shade. ⛔ And not from inside NewMailNotifier.clear,
         // whose other callers re-seed the baselines of accounts that are perfectly alive.
         removed.forEach { Notifications.cancelAccount(app, it) }
+        // The two preferences that are filed under an account but live OUTSIDE the account blob,
+        // and which removeCascading therefore does not touch: the last view shown (whose payload is
+        // an IMAP folder path the reader named herself, in cleartext) and the refresh register.
+        // PRIVACY.md promises everything filed under an account goes with it, with ONE stated
+        // exception (the addresses written to), and these two were a second and a third.
+        // ⛔ It does NOT make that sentence true on its own: the image allowlist
+        // (`SettingsRepository.image_allowlist`) is a fourth, and it holds addresses too.
+        // ⛔ Pruned, never cleared: the view is a single GLOBAL entry that may belong to a survivor,
+        // and a survivor's freshness entries must stay or it pays a refresh it does not need (#178).
+        // ⛔ `removed`, not `id`: a login's sub-accounts leave with it (#31).
+        // ⛔ Synchronous, above the coroutine: the coroutine may never be reached again, and a
+        // sign-out is not offered twice. That buys ORDER, not durability — both writes are
+        // `apply()` like every other write in the store, so a kill before the queue drains still
+        // loses them. It is the same bet the account removal itself takes, one line up.
+        val removedIds = removed.toSet()
+        store.setStoredView(prunedView(store.storedView(), removedIds))
+        store.setRefreshFreshness(prunedFreshness(store.refreshFreshness(), removedIds))
         refresh()
         mail.resetSyncState()
         viewModelScope.launch {

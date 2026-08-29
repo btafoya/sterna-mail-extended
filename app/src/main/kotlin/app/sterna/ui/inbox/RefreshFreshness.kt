@@ -135,3 +135,24 @@ internal fun recordFresh(
     val kept = entries.filter { it.isFreshAt(now) && (it.accountId to it.mailboxId) !in keys }
     return kept + recorded.map { (accountId, mailboxId) -> FreshScope(accountId, mailboxId, now) }
 }
+
+/**
+ * The register once [removedIds] have been signed out: their entries FILTERED OUT and the rest
+ * re-encoded, or `null` when nothing is left — [encodeFreshness] already answers `null` for an
+ * empty register, which the caller writes as `null`, i.e. the key leaves the preferences.
+ *
+ * Same promise as [prunedView]'s, on the other account-scoped preference: what an account left
+ * behind goes when the account goes (`PRIVACY.md`, "removed when you remove the account"). Here
+ * every entry is keyed on (account, folder), so a removed account's folder ids — IMAP paths the
+ * reader named herself — stayed on the disk with nobody left to read them.
+ *
+ * ⛔ A FILTER, never a wipe. [recordFresh] prunes by TIME only and there is no other pruning in
+ * this file; clearing the whole register would cost every SURVIVING account one full reconcile it
+ * did not need, which is the exact refresh #178 exists to avoid.
+ *
+ * ⛔ The `accountId` decides, never the `mailboxId`: two accounts on the same server number their
+ * mailboxes independently (#92 / #121), so a survivor's entry may carry the same folder id as a
+ * removed account's and must stay.
+ */
+internal fun prunedFreshness(stored: String?, removedIds: Set<String>): String? =
+    encodeFreshness(decodeFreshness(stored).filterNot { it.accountId in removedIds })

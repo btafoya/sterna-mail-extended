@@ -223,6 +223,85 @@ class RefreshFreshnessTest {
         assertNull(encodeFreshness(recorded)) // … and refused on the way to disk
     }
 
+    // -- what a sign-out takes with it (PRIVACY.md: "removed when you remove the account") --------
+
+    /**
+     * The register is read back with [decodeFreshness] and pinned entry by entry, and the string
+     * itself is pinned too: an answer that merely looks shorter is not a proof that the right
+     * account left.
+     */
+    @Test fun `the removed account's entries go and the survivor's stay`() {
+        val stored = "$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_B\t$ARCHIVE\t$T0"
+        val pruned = prunedFreshness(stored, setOf(ACCOUNT_A))
+        assertEquals(
+            "only the surviving account may be left in the register",
+            listOf(FreshScope(ACCOUNT_B, ARCHIVE, T0)),
+            decodeFreshness(pruned),
+        )
+        assertEquals("and it is re-encoded as itself", "$ACCOUNT_B\t$ARCHIVE\t$T0", pruned)
+    }
+
+    /** ⭐ A removed account can have visited several folders; they all go in one pass. */
+    @Test fun `several folders of the removed account all go at once`() {
+        val stored = "$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_A\t$ARCHIVE\t$T0\n$ACCOUNT_B\t$ARCHIVE\t$T0"
+        assertEquals(
+            listOf(FreshScope(ACCOUNT_B, ARCHIVE, T0)),
+            decodeFreshness(prunedFreshness(stored, setOf(ACCOUNT_A))),
+        )
+    }
+
+    /**
+     * ⭐ The `accountId` decides, never the `mailboxId`. Two accounts on the same server number
+     * their mailboxes independently (#92 / #121), so the survivor's entry here carries the very
+     * same folder id as the removed account's and must stay.
+     */
+    @Test fun `two accounts sharing a mailbox id lose only the removed one's entry`() {
+        val stored = "$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_B\t$INBOX\t$T0"
+        assertEquals(
+            listOf(FreshScope(ACCOUNT_B, INBOX, T0)),
+            decodeFreshness(prunedFreshness(stored, setOf(ACCOUNT_A))),
+        )
+    }
+
+    /** A login and its sub-accounts leave together (#31): every named id is filtered out. */
+    @Test fun `a cascade removes every id it names`() {
+        val stored = "$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_B\t$INBOX\t$T0\n$ACCOUNT_C\t$INBOX\t$T0"
+        assertEquals(
+            listOf(FreshScope(ACCOUNT_C, INBOX, T0)),
+            decodeFreshness(prunedFreshness(stored, setOf(ACCOUNT_A, ACCOUNT_B))),
+        )
+    }
+
+    @Test fun `removing the last account present takes the key away`() {
+        assertNull(
+            "nothing is left to remember, so the preference must go, not stay as an empty string",
+            prunedFreshness("$ACCOUNT_A\t$INBOX\t$T0", setOf(ACCOUNT_A)),
+        )
+    }
+
+    @Test fun `nothing stored gives nothing, and nothing removed keeps the register`() {
+        assertNull(prunedFreshness(null, setOf(ACCOUNT_A)))
+        assertEquals(
+            listOf(FreshScope(ACCOUNT_A, INBOX, T0), FreshScope(ACCOUNT_B, INBOX, T0)),
+            decodeFreshness(
+                prunedFreshness("$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_B\t$INBOX\t$T0", emptySet()),
+            ),
+        )
+    }
+
+    /**
+     * ⛔ It prunes by ACCOUNT, not by time. A surviving account's entry stamped well outside the
+     * window is stale, and staleness is [isFresh]'s business, read at the guard: dropping it here —
+     * or restamping it — would be a second answer to a question that already has one.
+     */
+    @Test fun `a survivor's out of window entry is carried through with its own stamp`() {
+        val stored = "$ACCOUNT_A\t$INBOX\t$T0\n$ACCOUNT_B\t$INBOX\t${T0 - 300_000L}"
+        assertEquals(
+            listOf(FreshScope(ACCOUNT_B, INBOX, T0 - 300_000L)),
+            decodeFreshness(prunedFreshness(stored, setOf(ACCOUNT_A))),
+        )
+    }
+
     private companion object {
         /** A literal instant; nothing here derives an expectation from the window's value. */
         const val T0 = 1_756_000_000_000L

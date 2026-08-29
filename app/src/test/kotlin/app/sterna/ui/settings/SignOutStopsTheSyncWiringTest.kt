@@ -1,5 +1,6 @@
 package app.sterna.ui.settings
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -49,6 +50,22 @@ class SignOutStopsTheSyncWiringTest {
         return at
     }
 
+    /**
+     * The leading whitespace of [line] inside the body, as written.
+     *
+     * ⚠ Why this exists: every other assertion in this file compares TRIMMED lines and their
+     * relative order, which knows nothing of blocks. Wrapping a pinned line in `if (…) { … }`
+     * leaves its text and its order untouched, so the whole file stays green while the line no
+     * longer runs. Indentation is the cheapest true reading of nesting available to a source lint,
+     * and ktlint already enforces it here, so a wrapper cannot dodge this by leaving the indent
+     * alone.
+     */
+    private fun indentOfLine(line: String): Int {
+        val raw = signOutBody().lines().firstOrNull { it.trim() == line }
+        assertTrue("AccountsViewModel.signOut no longer contains the line:\n  $line", raw != null)
+        return raw!!.takeWhile { it == ' ' }.length
+    }
+
     @Test fun `the account leaves the store before anything is purged, and before the coroutine`() {
         // ⛔ The removal is synchronous and the purges are not. Moving the removal into the
         // coroutine — or below the purge, which looks tidier — reopens the window this volet
@@ -83,6 +100,70 @@ class SignOutStopsTheSyncWiringTest {
         val removal = indexOfLine("val removed = store.removeCascading(id).ifEmpty { toRemove }")
         assertTrue("the cascade is now resolved after the removal", cascade < removal)
         assertTrue("push is now torn down after the credentials are gone", teardown < removal)
+    }
+
+    /**
+     * ⚠ SOURCE LINT, and it has to be one: `AccountsViewModel` is an `AndroidViewModel` that no JVM
+     * test in this module can construct, so the three lines below are only readable as text. The
+     * DECISIONS they carry are executed elsewhere — `SelectionMemoryTest.prunedView…` and
+     * `RefreshFreshnessTest.prunedFreshness…` run them on literal strings — and what is left here
+     * is the wiring itself, which those two cannot see: whether the pruning is called at all, and
+     * with WHICH ids.
+     *
+     * ⭐ `removedIds` comes from `removed`, never from `setOf(id)`: `removeCascading` also removes
+     * the sub-accounts linked to a login (#31), and their entries have to go with them. The two are
+     * one keystroke apart, both compile, and `setOf(id)` leaves a sub-account's folder path on the
+     * disk after its login is gone — the exact leak this volet closes. Hence the WHOLE argument
+     * pinned, via indexOfLine's whole-line comparison.
+     *
+     * The position is pinned too: after the removal (the ids are not known before it) and BEFORE
+     * `viewModelScope.launch`, i.e. synchronously. Moved into the coroutine, a process death
+     * between the two leaves both preferences behind for good, with no second sign-out to come.
+     */
+    @Test fun `both account-scoped preferences are pruned, with the ids that were really removed`() {
+        val removal = indexOfLine("val removed = store.removeCascading(id).ifEmpty { toRemove }")
+        val banners = indexOfLine("removed.forEach { Notifications.cancelAccount(app, it) }")
+        val ids = indexOfLine("val removedIds = removed.toSet()")
+        val view = indexOfLine("store.setStoredView(prunedView(store.storedView(), removedIds))")
+        val fresh = indexOfLine(
+            "store.setRefreshFreshness(prunedFreshness(store.refreshFreshness(), removedIds))",
+        )
+        val launch = indexOfLine("viewModelScope.launch {")
+
+        assertTrue("the removed ids are now taken before the removal that produces them", removal < ids)
+        assertTrue("the pruning now runs before the notification teardown", banners < ids)
+        assertTrue("the stored view is now pruned before the ids are resolved", ids < view)
+        assertTrue("the freshness register is now pruned before the ids are resolved", ids < fresh)
+        assertTrue(
+            "the freshness pruning moved into the sign-out's coroutine, where a sign-out that is " +
+                "never reached again leaves the register behind",
+            fresh < launch,
+        )
+        // ⛔ BOTH, not just the register. The stored view is the value that carries the IMAP folder
+        // PATH in cleartext, so it is the one that must not slip below the coroutine — and pinning
+        // only `fresh < launch` let exactly that move through green.
+        assertTrue(
+            "the stored view's pruning moved into the sign-out's coroutine: it is the value that " +
+                "holds a folder path the reader named herself",
+            view < launch,
+        )
+        // ⛔ And order is not enough: `indexOfLine` compares trimmed lines, so wrapping all three
+        // in `if (removed.size > 1) { … }` keeps every line and every relation above true while
+        // the pruning stops running on an ordinary single-account sign-out — the defect reopened
+        // in full, suite still green. The pruning runs UNCONDITIONALLY or it does not run.
+        val depth = indentOfLine("val removed = store.removeCascading(id).ifEmpty { toRemove }")
+        listOf(
+            "val removedIds = removed.toSet()",
+            "store.setStoredView(prunedView(store.storedView(), removedIds))",
+            "store.setRefreshFreshness(prunedFreshness(store.refreshFreshness(), removedIds))",
+        ).forEach {
+            assertEquals(
+                "the pruning is now nested deeper than the removal — a condition around it means " +
+                    "some sign-outs no longer prune anything:\n  $it",
+                depth,
+                indentOfLine(it),
+            )
+        }
     }
 
     private companion object {

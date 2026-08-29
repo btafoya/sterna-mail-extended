@@ -165,4 +165,64 @@ class SelectionMemoryTest {
         assertNull(restoreSelection("acc-1\n\nINBOX", "acc-1", true))
         assertNull(restoreSelection("hello", "acc-1", true))
     }
+
+    // -- what a sign-out takes with it (PRIVACY.md: "removed when you remove the account") --------
+
+    /**
+     * ⛔ Pins the string RETURNED, not merely whether it is null: a `prunedView` answering `""`, or
+     * answering the removed account's own id back, satisfies an assertNotNull and is still a
+     * memory nobody can read and nobody removed.
+     */
+    @Test
+    fun `a view naming a removed account is forgotten, a survivor's is kept byte for byte`() {
+        assertNull(prunedView("acc-1\nf\nINBOX", setOf("acc-1")))
+        assertEquals("acc-2\nf\nINBOX", prunedView("acc-2\nf\nINBOX", setOf("acc-1")))
+    }
+
+    @Test
+    fun `the unified and the unread memories are pruned on their account too`() {
+        assertNull(prunedView("acc-1\nu\n", setOf("acc-1")))
+        assertNull(prunedView("acc-1\nn\n", setOf("acc-1")))
+        assertEquals("acc-2\nu\n", prunedView("acc-2\nu\n", setOf("acc-1")))
+        assertEquals("acc-2\nn\n", prunedView("acc-2\nn\n", setOf("acc-1")))
+    }
+
+    /** A sign-out cascades over a login's sub-accounts (#31), so several ids arrive at once. */
+    @Test
+    fun `any of the removed ids prunes, and only they do`() {
+        assertNull(prunedView("acc-2\nf\nINBOX", setOf("acc-1", "acc-2")))
+        assertEquals("acc-3\nf\nINBOX", prunedView("acc-3\nf\nINBOX", setOf("acc-1", "acc-2")))
+    }
+
+    @Test
+    fun `nothing stored gives nothing, and nothing removed changes nothing`() {
+        assertNull(prunedView(null, setOf("acc-1")))
+        assertNull(prunedView("", setOf("acc-1")))
+        assertEquals("acc-1\nf\nINBOX", prunedView("acc-1\nf\nINBOX", emptySet()))
+    }
+
+    /**
+     * ⭐ The FIRST field decides, not a well-formed value. A folder id can hold a line feed — an
+     * IMAP path decoded from modified UTF-7 — so a memory can arrive with FOUR fields, which
+     * [restoreSelection] refuses to reopen and which therefore sat on the disk for ever. It is also
+     * the shape carrying a folder the reader named herself, in cleartext.
+     */
+    @Test
+    fun `a four field memory is pruned on its account like any other`() {
+        assertNull(prunedView("acc-1\nf\nParents\nDivorce", setOf("acc-1")))
+        assertEquals(
+            "acc-2\nf\nParents\nDivorce",
+            prunedView("acc-2\nf\nParents\nDivorce", setOf("acc-1")),
+        )
+    }
+
+    /**
+     * ⛔ The removed id is matched as the WHOLE first field, never looked for anywhere in the
+     * string: a folder whose name happens to be a removed account's id must not take a surviving
+     * account's memory down with it.
+     */
+    @Test
+    fun `a removed id sitting in the payload prunes nothing`() {
+        assertEquals("acc-2\nf\nacc-1", prunedView("acc-2\nf\nacc-1", setOf("acc-1")))
+    }
 }

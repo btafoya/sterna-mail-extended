@@ -224,3 +224,34 @@ internal fun restoredFolderMeta(
         ?: return RestoredMetaStep(settled = true, meta = null)
     return RestoredMetaStep(settled = true, meta = Meta(accountLabel, folder.name, folder.unreadEmails))
 }
+
+/**
+ * The stored view to keep once [removedIds] have been signed out, or `null` to forget it — which
+ * the caller writes as `setStoredView(null)`, and `putString(key, null)` REMOVES the key, so the
+ * value leaves the preferences file rather than sitting there empty.
+ *
+ * `PRIVACY.md` promises that everything is removed when you remove the account, "with one
+ * exception" — the list of addresses written to, which is filed under no account. This value was a
+ * second, undeclared exception: its first field is an account id, and on IMAP its third is a folder
+ * PATH the reader chose and named herself, left in cleartext on the disk after the account was
+ * gone. Nothing leaves the device (`allowBackup="false"`, both keys excluded from the extraction
+ * rules): what is corrected here is a false promise about the local disk.
+ *
+ * ⛔ The key is GLOBAL — ONE entry for the whole app, the last view shown, whichever account it
+ * belonged to. So it is dropped only when it names a removed account: removing it unconditionally
+ * would erase a SURVIVING account's memory every time a neighbour is signed out.
+ *
+ * ⭐ Decided on the FIRST field alone, not on a well-formed value. An account id cannot hold a
+ * `"\n"` ([AccountStore] mints them with `UUID.randomUUID()`) but a folder id can — an IMAP path
+ * decoded from modified UTF-7 — so a four-field value, already refused at read time by
+ * [restoreSelection], still carries a real account id in front, and is precisely the shape that
+ * holds a folder name in cleartext. It has to be pruned too.
+ *
+ * ⛔ It does NOT replace [restoreSelection]'s account guard. That one keeps another account's view
+ * off the SCREEN; this one keeps a removed account's view off the DISK. Both, not one instead of
+ * the other.
+ */
+internal fun prunedView(stored: String?, removedIds: Set<String>): String? {
+    if (stored.isNullOrEmpty()) return null
+    return if (stored.substringBefore("\n") in removedIds) null else stored
+}
