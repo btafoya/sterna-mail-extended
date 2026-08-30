@@ -72,6 +72,18 @@ class ReadReceiptOnTheWireTest {
              ["EmailSubmission/set",{"accountId":"acc1","created":{"sub":{"id":"s1"}}},"s0"]
            ]}"""
 
+    /**
+     * ⭐ The second request every JMAP send now makes: it reads back what the server did with the
+     * submission it just created (#183). Nothing is refused here, so the send goes through — but the
+     * response must be QUEUED, or the call sits on the read timeout.
+     */
+    private val submissionGetResponse =
+        """{"methodResponses":[
+             ["EmailSubmission/get",{"accountId":"acc1","list":[{"id":"s1","deliveryStatus":{
+                "bob@example.org":{"delivered":"unknown","smtpReply":"250 2.1.5 Queued"}}}],
+              "notFound":[]},"g0"]
+           ]}"""
+
     /** The arguments of the [name] method call in the request body the server received. */
     private fun argsOf(body: String, name: String): JsonObject =
         Json.parseToJsonElement(body).jsonObject["methodCalls"]!!.jsonArray
@@ -84,6 +96,7 @@ class ReadReceiptOnTheWireTest {
 
     private fun sendWith(requestReceipt: Boolean): String {
         server.enqueue(MockResponse().setBody(sendResponse))
+        server.enqueue(MockResponse().setBody(submissionGetResponse))
         runBlocking {
             client.sendEmail(
                 session = session(),
@@ -163,6 +176,7 @@ class ReadReceiptOnTheWireTest {
         // "On behalf" (issue #31): the submission runs on the login's account while From shows the
         // delegated address. The receipt has to come back to the address the correspondent sees.
         server.enqueue(MockResponse().setBody(sendResponse))
+        server.enqueue(MockResponse().setBody(submissionGetResponse))
         runBlocking {
             client.sendEmail(
                 session = session(),
@@ -220,6 +234,7 @@ class ReadReceiptOnTheWireTest {
             ).toByteArray(Charsets.UTF_8)
         server.enqueue(MockResponse().setBody("""{"blobId":"blob1","type":"message/rfc822","size":${raw.size}}"""))
         server.enqueue(MockResponse().setBody(importResponse))
+        server.enqueue(MockResponse().setBody(submissionGetResponse))
 
         val id = runBlocking {
             client.importAndSendEmail(

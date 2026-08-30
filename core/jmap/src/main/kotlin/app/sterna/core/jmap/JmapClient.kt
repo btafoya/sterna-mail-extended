@@ -30,6 +30,7 @@ import java.io.IOException
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1863,7 +1864,7 @@ class JmapClient internal constructor(
             .header("Accept", "application/json")
             .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        httpClient.newCall(request).execute().use { response ->
+        val created = httpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 throw JmapException("Send failed: HTTP ${response.code} ${response.message}")
@@ -1876,14 +1877,107 @@ class JmapClient internal constructor(
             (subArgs["notCreated"] as? JsonObject)?.get("sub")?.let {
                 throw JmapException("Could not send the message: $it")
             }
-            createdEmailId(emailArgs)
+            createdEmailId(emailArgs) to subArgs
         }
+        // ⛔ A CREATED submission is not a delivered message: a recipient refused before queueing
+        // arrives here, never in `notCreated`, and no bounce follows it (#183). Asked outside the
+        // `use` above so the first response is closed before the second request goes out.
+        val (emailId, submissionArgs) = created
+        failIfRecipientsWereRefused(session, accountId, auth, submissionArgs)
+        emailId
     }
 
     /** The Email id minted for the "draft" creation in an Email/set or Email/import response. */
     private fun createdEmailId(args: JsonObject): String? =
         (args["created"] as? JsonObject)?.get("draft")?.jsonObject
             ?.get("id")?.jsonPrimitive?.contentOrNull
+
+    /**
+     * Ask the server what it did with the submission it has just created, and FAIL the send if it
+     * refused a recipient (#183).
+     *
+     * ⛔ Why this exists at all: `notCreated` is not the only way a send can be refused, and on the
+     * commonest refusal of all it is silent. A recipient that does not exist on the server's own
+     * domain is rejected at submission time, BEFORE the message is queued — so the submission is
+     * `created` (it is a valid submission), no bounce will ever be generated (nothing was queued to
+     * bounce), and the client that only reads `notCreated` reports a perfect send. The message
+     * leaves Drafts, lands in Sent, the outbox row is deleted, and nothing anywhere says it was
+     * never delivered.
+     *
+     * ⛔ Why a SECOND HTTP request and not a back-reference in the first: `EmailSubmission/set`
+     * does not return `deliveryStatus` (measured, 2026-08-30: `created.sub` carries `id`, `sendAt`
+     * and `undoStatus`, nothing more), and an `EmailSubmission/get` back-referenced in the same
+     * request is refused with `invalidResultReference`. That is RFC 8621 §7.5, not a server quirk:
+     * `onSuccessUpdateEmail` inserts an implicit `Email/set` under the same call id, so the result
+     * reference no longer resolves to the submission.
+     *
+     * ⭐ ONE read, no wait, no polling: the status is complete at t+0.01 s (three runs out of three
+     * on the bench). A message whose delivery has not been decided yet reads "unknown", which is
+     * exactly what this treats as success.
+     *
+     * ⛔ EVERY doubt is a success, which is why the whole round trip sits in a `runCatching` whose
+     * fallback is "no refusal": an HTTP failure, a method error, unreadable JSON, a submission the
+     * server cannot find, an absent `deliveryStatus` (optional in the RFC) — none of them is
+     * evidence that the message did not go. This code may only ever turn a PROVEN refusal into a
+     * failure; it may never invent one, because by the time it runs the message has already been
+     * handed over and filed in Sent.
+     */
+    private suspend fun failIfRecipientsWereRefused(
+        session: JmapSession,
+        accountId: String,
+        auth: JmapAuth,
+        submissionSetArgs: JsonObject,
+    ) {
+        val refusals = runCatching {
+            val submissionId = ((submissionSetArgs["created"] as? JsonObject)?.get("sub") as? JsonObject)
+                ?.get("id")?.let { it as? JsonPrimitive }?.contentOrNull
+                ?: return@runCatching emptyList<String>()
+            deliveryRefusals(submissionDeliveryStatus(session, accountId, auth, submissionId))
+        }.getOrDefault(emptyList())
+        if (refusals.isEmpty()) return
+        // Permanent: the server has ruled on this delivery. Five auto-retries would put five copies
+        // in Sent, and on a PARTIAL refusal they would deliver the message five times over to the
+        // recipient that IS valid — worse than the defect being fixed.
+        throw JmapException("Not delivered to " + refusals.joinToString("; "), permanent = true)
+    }
+
+    /** The `deliveryStatus` object of one submission, read in its own request; null if unreadable. */
+    private fun submissionDeliveryStatus(
+        session: JmapSession,
+        accountId: String,
+        auth: JmapAuth,
+        submissionId: String,
+    ): JsonObject? {
+        val payload = buildJsonObject {
+            putJsonArray("using") {
+                add(Jmap.CORE_CAPABILITY)
+                add(Jmap.SUBMISSION_CAPABILITY)
+            }
+            putJsonArray("methodCalls") {
+                addJsonArray {
+                    add("EmailSubmission/get")
+                    addJsonObject {
+                        put("accountId", accountId)
+                        putJsonArray("ids") { add(submissionId) }
+                    }
+                    add("g0")
+                }
+            }
+        }
+        val request = Request.Builder()
+            .url(session.apiUrl)
+            .header("Authorization", auth.authorizationHeader())
+            .header("Accept", "application/json")
+            .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        return httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@use null
+            val body = response.body?.string().orEmpty()
+            val args = methodResponseArgsOrNull(body, "EmailSubmission/get") ?: return@use null
+            val entry = (args["list"] as? JsonArray)?.firstOrNull() as? JsonObject ?: return@use null
+            entry["deliveryStatus"] as? JsonObject
+        }
+    }
 
     /**
      * Send a message whose raw RFC 5322 bytes were built CLIENT-side (PGP/MIME:
@@ -1949,7 +2043,7 @@ class JmapClient internal constructor(
             .header("Accept", "application/json")
             .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        httpClient.newCall(request).execute().use { response ->
+        val created = httpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 throw JmapException("Send failed: HTTP ${response.code} ${response.message}")
@@ -1962,8 +2056,14 @@ class JmapClient internal constructor(
             (subArgs["notCreated"] as? JsonObject)?.get("sub")?.let {
                 throw JmapException("Could not send the message: $it")
             }
-            createdEmailId(importArgs)
+            createdEmailId(importArgs) to subArgs
         }
+        // The twin of the check in [sendEmail], through the SAME helper: the PGP/MIME route submits
+        // the same way and was refused the same way, in silence (#183). Two copies of this test is
+        // what let the `notCreated`-only check go unnoticed on both paths for so long.
+        val (emailId, submissionArgs) = created
+        failIfRecipientsWereRefused(session, accountId, auth, submissionArgs)
+        emailId
     }
 
     /**
@@ -2940,5 +3040,40 @@ private fun JsonObjectBuilder.addAttachments(attachments: List<EmailBodyPart>) {
                 if (att.size > 0) put("size", att.size)
             }
         }
+    }
+}
+
+/**
+ * The recipients an `EmailSubmission`'s [deliveryStatus] (RFC 8621 §7.5) says were REFUSED, each
+ * rendered as the one line the user will read: `<address>: <smtpReply>`, or the address alone when
+ * the server gave no reply text. Empty means "nothing was refused", and that is what every doubt
+ * answers.
+ *
+ * ⛔ The test is `delivered == "no"`, and nothing else. Measured against the bench's Stalwart on
+ * 2026-08-30: a recipient the server ACCEPTED comes back `delivered: "unknown"` with
+ * `smtpReply: "250 2.1.5 Queued"` — "unknown" is the NORMAL state of a message on its way, because
+ * the submission only knows what the queue has done so far. Written as `!= "yes"` this function
+ * would fail every send there is, which is the easy way to break sending while believing #183 is
+ * being fixed.
+ *
+ * ⛔ And nothing is invented from a missing field: `deliveryStatus` is optional in the RFC, an
+ * entry may hold no `delivered` at all, and a null or malformed value is NOT a refusal. Accusing a
+ * send that went out of having failed is worse than the silence this exists to break — the message
+ * is already in Sent and cannot be unsent.
+ *
+ * Pure, so a JVM test can execute the decision on the very JSON a server returns.
+ */
+internal fun deliveryRefusals(deliveryStatus: JsonObject?): List<String> {
+    if (deliveryStatus == null) return emptyList()
+    return deliveryStatus.entries.mapNotNull { (recipient, status) ->
+        val entry = status as? JsonObject ?: return@mapNotNull null
+        val delivered = (entry["delivered"] as? JsonPrimitive)?.contentOrNull
+        if (delivered != "no") return@mapNotNull null
+        // The address and the server's own reply, and STRICTLY nothing else: this text is thrown as
+        // an exception message, persisted in the outbox row's lastError and printed on screen under
+        // "Failed: %1$s". No subject, no body, no ids, no JSON excerpt — same rule as
+        // `SmtpClient.kt:344` and `JmapClient.kt:2600`.
+        val reply = (entry["smtpReply"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+        if (reply == null) recipient else "$recipient: $reply"
     }
 }

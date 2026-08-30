@@ -1,6 +1,7 @@
 package app.sterna.core.data.db
 
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.jmap.JmapException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -135,6 +136,121 @@ class OutboxLogicTest {
         assertTrue(OutboxLogic.shouldRetry(OutboxLogic.MAX_ATTEMPTS - 1))
         assertFalse(OutboxLogic.shouldRetry(OutboxLogic.MAX_ATTEMPTS))
         assertFalse(OutboxLogic.shouldRetry(OutboxLogic.MAX_ATTEMPTS + 1))
+    }
+
+    /**
+     * #183: a delivery the SERVER refused is over. Whatever the attempt count, the row is parked —
+     * it must NEVER go back to QUEUED, because the message is already in Sent and every retry adds
+     * a copy there and re-delivers it to any recipient that was valid.
+     */
+    @Test fun aRefusedDeliveryIsParkedAtOnce() {
+        val refused = JmapException("Not delivered to nope@masto.top: 550 5.1.2 Mailbox does not exist.", permanent = true)
+        for (attempts in listOf(0, 1, 4, OutboxLogic.MAX_ATTEMPTS, 99)) {
+            assertEquals(
+                "⛔ attemptCount=$attempts: a refusal the server has already ruled on must be " +
+                    "FAILED on the spot. Sent back to QUEUED it is re-delivered up to " +
+                    "${OutboxLogic.MAX_ATTEMPTS} times: five copies in the user's Sent folder, and " +
+                    "on a partial refusal the recipient who DOES exist receives the message five " +
+                    "times over — worse than the silence of #183",
+                OutboxState.FAILED,
+                OutboxLogic.stateAfterFailure(attempts, refused),
+            )
+        }
+    }
+
+    /**
+     * ⛔ THE CHAIN, not the links. Parking a refusal as FAILED is worth nothing on its own:
+     * [OutboxLogic.canEdit] offers Edit on a FAILED row, the user opens it precisely because an
+     * address needs fixing, and closing the composer untouched runs [OutboxLogic.stateAfterEdit] on
+     * whatever count was written. With `attemptCount = 1` that answers QUEUED and the message goes
+     * out AGAIN — a second copy in Sent, and on a partial refusal a second delivery to the
+     * recipient who was valid. So what is pinned here is the whole sequence: refuse → park → reopen
+     * → come back out, and it must still be parked at the end.
+     */
+    @Test fun aRefusedDeliveryStaysParkedEvenAfterBeingReopened() {
+        val refused = JmapException("Not delivered to nope@masto.top: 550 5.1.2 Mailbox does not exist.", permanent = true)
+        for (previous in listOf(0, 1, 4)) {
+            val attempts = OutboxLogic.attemptsAfterFailure(previous, refused)
+            assertEquals(
+                "the refusal itself parks the row",
+                OutboxState.FAILED,
+                OutboxLogic.stateAfterFailure(attempts, refused),
+            )
+            assertTrue(
+                "⛔ an attempt is never un-counted: $attempts must be at least ${previous + 1}",
+                attempts >= previous + 1,
+            )
+            assertEquals(
+                "⛔ from previous=$previous the row was parked with $attempts attempts, and " +
+                    "stateAfterEdit answers QUEUED for it: opening the refused line to fix the " +
+                    "address and coming straight back out puts the message on the wire again, " +
+                    "with no gesture asking for it (#70's door onto #183)",
+                OutboxState.FAILED,
+                OutboxLogic.stateAfterEdit(attempts),
+            )
+            // The second door, in the terms the SQL uses: OutboxDao.revertEditingExhaustedToFailed
+            // claims EDITING rows at `attemptCount >= MAX_ATTEMPTS` at startup and lets the rest
+            // fall through to QUEUED. Asserted as the comparison, not as the query text.
+            assertTrue(
+                "⛔ a refused row stranded in EDITING by a process death must be claimed by the " +
+                    "startup revert (attemptCount >= ${OutboxLogic.MAX_ATTEMPTS}), or it is " +
+                    "requeued and leaves on its own at the next cold start: got $attempts",
+                attempts >= OutboxLogic.MAX_ATTEMPTS,
+            )
+        }
+    }
+
+    /**
+     * ⛔ The counter-test of the ruse above, and it is the expensive one to get wrong: forcing the
+     * cap on an ORDINARY failure would park every send that only needed a second try — offline
+     * sends first of all.
+     */
+    @Test fun anOrdinaryFailureCountsOneAttemptAndNothingMore() {
+        for (failure in listOf(
+            java.io.IOException("connection reset"),
+            JmapException("JMAP request failed: HTTP 503 Service Unavailable", httpCode = 503),
+        )) {
+            for (previous in listOf(0, 1, 4)) {
+                assertEquals(
+                    "$failure from previous=$previous: exactly one more attempt",
+                    previous + 1,
+                    OutboxLogic.attemptsAfterFailure(previous, failure),
+                )
+            }
+            assertEquals(
+                "⛔ and it still comes back out of the composer as a QUEUED send while it is " +
+                    "under the cap — #70's contract, unchanged",
+                OutboxState.QUEUED,
+                OutboxLogic.stateAfterEdit(OutboxLogic.attemptsAfterFailure(0, failure)),
+            )
+        }
+    }
+
+    /**
+     * ⛔ And the other side of it, which is the easy thing to break: every ORDINARY failure keeps
+     * exactly the behaviour it had. A dropped network or a server hiccup says nothing about whether
+     * the message left, and the retries are what gets a queued send out when the link comes back.
+     */
+    @Test fun anOrdinaryFailureStillRetriesUntilTheCap() {
+        for (failure in listOf(
+            java.io.IOException("connection reset"),
+            // A JmapException that is NOT permanent: the type is not the rule, the flag is.
+            JmapException("JMAP request failed: HTTP 503 Service Unavailable", httpCode = 503),
+        )) {
+            assertEquals("$failure at 0", OutboxState.QUEUED, OutboxLogic.stateAfterFailure(0, failure))
+            assertEquals("$failure at 1", OutboxState.QUEUED, OutboxLogic.stateAfterFailure(1, failure))
+            assertEquals("$failure at 4", OutboxState.QUEUED, OutboxLogic.stateAfterFailure(4, failure))
+            assertEquals(
+                "$failure at the cap",
+                OutboxState.FAILED,
+                OutboxLogic.stateAfterFailure(OutboxLogic.MAX_ATTEMPTS, failure),
+            )
+            assertEquals(
+                "$failure past the cap",
+                OutboxState.FAILED,
+                OutboxLogic.stateAfterFailure(OutboxLogic.MAX_ATTEMPTS + 1, failure),
+            )
+        }
     }
 
     /**

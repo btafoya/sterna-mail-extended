@@ -14,6 +14,8 @@ import app.sterna.core.data.mail.accountDepartureIsProven
  * when the network returns. A HELD item (undo window / scheduled time) reschedules until due.
  * Transient failures retry with exponential backoff up to [OutboxLogic.MAX_ATTEMPTS], after which
  * the item is parked as FAILED — it stays in the outbox for manual retry/edit, never silently lost.
+ * A failure the SERVER ruled on (a refused recipient, #183) skips the retries entirely and is
+ * parked at once: see [OutboxLogic.stateAfterFailure].
  *
  * ⛔ A run that is KILLED mid-delivery is the other case, and it is not a failure: the row was left
  * saying SENDING and the message may or may not have reached the server. Such a row is parked by
@@ -80,15 +82,16 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             repo.deleteOutbox(id)
             Result.success()
         } catch (t: Throwable) {
-            val attempts = item.attemptCount + 1
+            val attempts = OutboxLogic.attemptsAfterFailure(item.attemptCount, t)
             val error = t.message ?: t.javaClass.simpleName
-            if (OutboxLogic.shouldRetry(attempts)) {
-                repo.updateOutboxState(id, OutboxState.QUEUED, attempts, error)
-                Result.retry()
-            } else {
-                repo.updateOutboxState(id, OutboxState.FAILED, attempts, error)
-                Result.failure()
-            }
+            // ⛔ The failure itself decides, not the count alone: a delivery the SERVER refused is
+            // parked at once (#183), because the message is already in Sent and each auto-retry
+            // would add a copy there — and, on a partial refusal, deliver it again to the address
+            // that was valid all along. OutboxLogic.stateAfterFailure is where that rule is
+            // executed by a JVM test; the worker only reads its answer.
+            val next = OutboxLogic.stateAfterFailure(attempts, t)
+            repo.updateOutboxState(id, next, attempts, error)
+            if (next == OutboxState.QUEUED) Result.retry() else Result.failure()
         }
     }
 

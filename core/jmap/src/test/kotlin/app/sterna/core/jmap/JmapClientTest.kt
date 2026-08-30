@@ -18,10 +18,12 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,6 +33,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 
 /** The ids one `Email/set` request body carries, in order — its `update` keys or its `destroy`. */
 /** The ids one `Email/get` request body asks for, in order. */
@@ -606,6 +609,9 @@ class JmapClientTest {
 
     @Test fun sendEmail_returnsTheCreatedEmailId() = runBlocking {
         server.enqueue(MockResponse().setBody(SEND_JSON))
+        // The send now reads back what the server did with the submission (#183), so the second
+        // request needs an answer too — without one this call sits on the read timeout.
+        server.enqueue(MockResponse().setBody(SUBMISSION_ACCEPTED_JSON))
         val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
 
         val emailId = client.sendEmail(
@@ -622,6 +628,284 @@ class JmapClientTest {
         )
 
         assertEquals("e123", emailId)
+    }
+
+    // ---- a submission the server CREATED and then REFUSED (issue #183) --------------------------
+    //
+    // The refusal of a recipient that does not exist on the server's own domain never reaches
+    // `notCreated`: the submission is valid, so it is created, and the rejection happens before the
+    // message is queued — which also means no bounce will ever be generated. Reading `notCreated`
+    // alone therefore reports a perfect send on a message nobody will ever receive.
+
+    /** One send through [JmapClient.sendEmail], with [submissionGet] answering the second request. */
+    private fun send(submissionGet: MockResponse): String? {
+        server.enqueue(MockResponse().setBody(SEND_JSON))
+        server.enqueue(submissionGet)
+        return doSend()
+    }
+
+    /** The call alone, enqueueing nothing — for the tests that install a dispatcher instead. */
+    private fun doSend(using: JmapClient = client): String? = runBlocking {
+        using.sendEmail(
+            session = JmapSession(apiUrl = server.url("/jmap/api/").toString()),
+            accountId = "acc1",
+            auth = BasicAuth("u", "p"),
+            identityId = "i1",
+            from = EmailAddress(name = "Jordan", email = "jordan@example.org"),
+            to = listOf(EmailAddress(email = "dest@example.org")),
+            subject = "Hi",
+            textBody = "Hello",
+            draftMailboxId = "mbDrafts",
+            sentMailboxId = "mbSent",
+        )
+    }
+
+    /** The same, through the PGP/MIME route — blob upload first, then the import + submission. */
+    private fun importAndSend(submissionGet: MockResponse): String? {
+        server.enqueue(MockResponse().setBody("""{"blobId":"blob1","type":"message/rfc822","size":12}"""))
+        server.enqueue(MockResponse().setBody(IMPORT_SEND_JSON))
+        server.enqueue(submissionGet)
+        return doImportAndSend()
+    }
+
+    /** The call alone, enqueueing nothing — for the tests that install a dispatcher instead. */
+    private fun doImportAndSend(using: JmapClient = client): String? = runBlocking {
+        val raw = "From: a@b\r\nTo: dest@example.org\r\nSubject: s\r\n\r\nbody\r\n".toByteArray()
+        using.importAndSendEmail(
+            session = JmapSession(
+                apiUrl = server.url("/jmap/api/").toString(),
+                uploadUrl = server.url("/jmap/upload/").toString() + "{accountId}",
+            ),
+            accountId = "acc1",
+            auth = BasicAuth("u", "p"),
+            identityId = "i1",
+            rawMessage = raw,
+            draftMailboxId = "mbDrafts",
+            sentMailboxId = "mbSent",
+        )
+    }
+
+    /**
+     * The same client with a two-second read timeout instead of thirty, so a server that never
+     * answers is an IOException in two seconds. ⛔ The TIMEOUT is all that changes: the code under
+     * test is the same, and what is being proved is what the send does with that exception.
+     */
+    private fun impatient(): JmapClient = JmapClient(
+        OkHttpClient.Builder().readTimeout(2, TimeUnit.SECONDS).build(),
+        JmapClient.DefaultJson,
+    )
+
+    private fun refusalOf(block: () -> Unit): JmapException {
+        try {
+            block()
+        } catch (e: JmapException) {
+            return e
+        }
+        throw AssertionError(
+            "⛔ the send REPORTED SUCCESS on a message the server refused to deliver (#183): it " +
+                "left Drafts, it is in Sent, the outbox row is gone, and no bounce will ever come " +
+                "because nothing was ever queued",
+        )
+    }
+
+    @Test fun sendEmail_failsWhenTheServerRefusedARecipient() {
+        val e = refusalOf { send(MockResponse().setBody(SUBMISSION_REFUSED_JSON)) }
+        // The address the user has to fix, and the server's own words about it — that string is
+        // persisted in the outbox row and shown under "Failed: %1$s".
+        assertTrue("the refused address must be named: ${e.message}", "nope@masto.top" in e.message!!)
+        assertTrue(
+            "the server's reply is the only explanation the user will ever get: ${e.message}",
+            "550 5.1.2 Mailbox does not exist." in e.message!!,
+        )
+        assertTrue(
+            "⛔ a refusal the server has already ruled on must be PERMANENT: five auto-retries put " +
+                "five copies in Sent and re-deliver the message to whoever was valid",
+            e.permanent,
+        )
+    }
+
+    /**
+     * ⭐ The counter-test of the trap. `delivered` is "unknown" for a recipient the server ACCEPTED
+     * — measured against Stalwart, alongside `smtpReply: "250 2.1.5 Queued"` — because a submission
+     * only knows what the queue has done so far. Anything stricter than `== "no"` fails every send.
+     */
+    @Test fun sendEmail_succeedsWhileDeliveryIsStillUnknown() {
+        assertEquals(
+            "⛔ an ACCEPTED recipient reads delivered=\"unknown\" with a 250 reply. Treating that " +
+                "as a refusal breaks EVERY send while looking like a fix for #183",
+            "e123",
+            send(MockResponse().setBody(SUBMISSION_ACCEPTED_JSON)),
+        )
+    }
+
+    @Test fun sendEmail_namesOnlyTheRefusedHalfOfAPartialRefusal() {
+        val e = refusalOf { send(MockResponse().setBody(SUBMISSION_PARTIAL_JSON)) }
+        assertTrue("the refused address must be named: ${e.message}", "nope@masto.top" in e.message!!)
+        assertFalse(
+            "⛔ bob@example.org was ACCEPTED (250 Queued) — naming him tells the user a message " +
+                "that WAS delivered failed, and the copy in Sent proves nothing either way: " +
+                "${e.message}",
+            "bob@example.org" in e.message!!,
+        )
+    }
+
+    /**
+     * ⭐ Every doubt is a success. The message has already been handed to the server by the time
+     * this request goes out; a failure to READ the verdict is not a verdict.
+     */
+    @Test fun sendEmail_succeedsWhenTheSubmissionCannotBeRead() {
+        // ⛔ The 500 carries a body that PARSES AS A REFUSAL on purpose: the status has to be
+        // checked, not just the JSON. A server that answers 500 has told us nothing about the mail.
+        assertEquals(
+            "HTTP failure",
+            "e123",
+            send(MockResponse().setResponseCode(500).setBody(SUBMISSION_REFUSED_JSON)),
+        )
+        assertEquals("method error", "e123", send(MockResponse().setBody(SUBMISSION_ERROR_JSON)))
+        assertEquals("unreadable body", "e123", send(MockResponse().setBody("<html>nope</html>")))
+        assertEquals("submission not found", "e123", send(MockResponse().setBody(SUBMISSION_NOTFOUND_JSON)))
+    }
+
+    /**
+     * ⛔ THE DOUBT THAT THROWS, which the four cases above never reach: they all fall on a `null`
+     * INSIDE the read. Here the server reads the verdict request and never answers it, so OkHttp
+     * raises an `IOException` out of it — the most ordinary event there is (the link goes, TLS
+     * breaks, DNS leaves), and it happens AFTER the server has taken the message.
+     *
+     * Without the outer catch such a send becomes a FAILURE, and a non-permanent one: the row goes
+     * back to QUEUED and the message is delivered up to five times over, with five copies in Sent.
+     * That is strictly worse than the silence of #183.
+     *
+     * ⛔ A DISPATCHER and not a queue, deliberately: OkHttp may retry a failed exchange, and a
+     * queue with nothing left in it would BLOCK the test for ever instead of failing it.
+     */
+    private fun serverThatNeverAnswersTheVerdictRequest() {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val body = request.body.readUtf8()
+                return when {
+                    // Read, recorded, and then NOTHING — the socket stays open and no answer ever
+                    // comes, which is what a link going away looks like from here. [impatient]
+                    // turns that into an IOException in two seconds instead of thirty.
+                    "EmailSubmission/get" in body -> MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
+                    "Email/import" in body -> MockResponse().setBody(IMPORT_SEND_JSON)
+                    "EmailSubmission/set" in body -> MockResponse().setBody(SEND_JSON)
+                    else -> MockResponse().setBody("""{"blobId":"blob1","type":"message/rfc822","size":12}""")
+                }
+            }
+        }
+    }
+
+    @Test fun sendEmail_succeedsWhenTheVerdictRequestItselfThrows() {
+        serverThatNeverAnswersTheVerdictRequest()
+        assertEquals(
+            "⛔ the message was HANDED OVER before this request was even made. An IOException on " +
+                "the verdict request is not a verdict: reported as a failure it is retried, and a " +
+                "message that DID go out is delivered five times",
+            "e123",
+            doSend(impatient()),
+        )
+    }
+
+    @Test fun importAndSendEmail_succeedsWhenTheVerdictRequestItselfThrows() {
+        serverThatNeverAnswersTheVerdictRequest()
+        assertEquals("e999", doImportAndSend(impatient()))
+    }
+
+    /**
+     * ⭐ The PLURAL. "the refused recipient(s)" is the promise, and naming only the first would send
+     * the user back to a message with two dead addresses in it having fixed one.
+     */
+    @Test fun sendEmail_namesEveryRefusedRecipient() {
+        val e = refusalOf { send(MockResponse().setBody(SUBMISSION_TWO_REFUSED_JSON)) }
+        assertTrue("the first refusal must be named: ${e.message}", "nope@masto.top" in e.message!!)
+        assertTrue(
+            "⛔ and the SECOND one too — `joinToString` reduced to `first()` compiles and reads " +
+                "fine, and leaves the user fixing one address out of two: ${e.message}",
+            "ghost@masto.top" in e.message!!,
+        )
+        assertTrue("both replies travel with them: ${e.message}", "550 5.1.2 Mailbox does not exist." in e.message!!)
+        assertTrue("${e.message}", "550 5.1.1 No such user here." in e.message!!)
+        assertFalse(
+            "the accepted recipient stays out of it: ${e.message}",
+            "bob@example.org" in e.message!!,
+        )
+    }
+
+    /** `deliveryStatus` is OPTIONAL in RFC 8621 §7.5: a server that omits it accuses nobody. */
+    @Test fun sendEmail_succeedsWhenNoDeliveryStatusIsReported() {
+        assertEquals("e123", send(MockResponse().setBody(SUBMISSION_NO_STATUS_JSON)))
+    }
+
+    /** The second request, pinned by its ARGUMENTS: the created submission id, and that one only. */
+    @Test fun sendEmail_asksTheServerAboutTheSubmissionItJustCreated() {
+        send(MockResponse().setBody(SUBMISSION_ACCEPTED_JSON))
+        // ⛔ Asserted BEFORE takeRequest, which blocks for ever on a request that never came: the
+        // verdict is read in a SECOND request, and no request at all means nothing was checked.
+        assertEquals("the send must ask the server what it did with the submission", 2, server.requestCount)
+        server.takeRequest() // the send itself
+        val get = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        val call = get["methodCalls"]!!.jsonArray.single().jsonArray
+        assertEquals("EmailSubmission/get", call[0].jsonPrimitive.content)
+        assertEquals("acc1", call[1].jsonObject["accountId"]!!.jsonPrimitive.content)
+        assertEquals(
+            "⛔ the id asked for is the one EmailSubmission/set created — anything else reads " +
+                "another message's verdict, or none at all",
+            listOf("sub1"),
+            call[1].jsonObject["ids"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+        // ⛔ A SECOND request, not a back-reference: RFC 8621 §7.5's onSuccessUpdateEmail inserts an
+        // implicit Email/set under the same call id, and the server answers invalidResultReference.
+        assertFalse("no result reference: $get", "#" in call[1].jsonObject.keys.joinToString())
+    }
+
+    // ---- and the twin site, which was not tested for any of this at all ------------------------
+
+    @Test fun importAndSendEmail_failsWhenTheServerRefusedARecipient() {
+        val e = refusalOf { importAndSend(MockResponse().setBody(SUBMISSION_REFUSED_JSON)) }
+        assertTrue("the refused address must be named: ${e.message}", "nope@masto.top" in e.message!!)
+        assertTrue("550 5.1.2 Mailbox does not exist." in e.message!!)
+        assertTrue("a PGP/MIME send is refused as permanently as any other", e.permanent)
+    }
+
+    @Test fun importAndSendEmail_succeedsWhileDeliveryIsStillUnknown() {
+        assertEquals("e999", importAndSend(MockResponse().setBody(SUBMISSION_ACCEPTED_JSON)))
+    }
+
+    @Test fun importAndSendEmail_namesOnlyTheRefusedHalfOfAPartialRefusal() {
+        val e = refusalOf { importAndSend(MockResponse().setBody(SUBMISSION_PARTIAL_JSON)) }
+        assertTrue("nope@masto.top" in e.message!!)
+        assertFalse("the accepted recipient is not named: ${e.message}", "bob@example.org" in e.message!!)
+    }
+
+    // ---- the decision itself, executed on the JSON a server returns ----------------------------
+
+    @Test fun deliveryRefusals_readsOnlyDeliveredNo() {
+        val status = Json.parseToJsonElement(
+            """{
+                 "bob@example.org": {"delivered":"unknown","smtpReply":"250 2.1.5 Queued"},
+                 "nope@masto.top":  {"delivered":"no","smtpReply":"550 5.1.2 Mailbox does not exist."},
+                 "gone@masto.top":  {"delivered":"no"},
+                 "yes@masto.top":   {"delivered":"yes","smtpReply":"250 ok"},
+                 "quiet@masto.top": {"smtpReply":"421 later"},
+                 "null@masto.top":  {"delivered":null},
+                 "junk@masto.top":  "not an object"
+               }""",
+        ).jsonObject
+
+        assertEquals(
+            "⛔ exactly the two delivered=\"no\" entries, each as `<address>: <smtpReply>` or the " +
+                "address alone when the server said nothing. \"unknown\" is a send ON ITS WAY, " +
+                "\"yes\" is a send that arrived, a missing or null field is not a refusal, and a " +
+                "malformed entry is not one either",
+            listOf("nope@masto.top: 550 5.1.2 Mailbox does not exist.", "gone@masto.top"),
+            deliveryRefusals(status),
+        )
+    }
+
+    @Test fun deliveryRefusals_answersNothingOnAnAbsentStatus() {
+        assertEquals(emptyList<String>(), deliveryRefusals(null))
+        assertEquals(emptyList<String>(), deliveryRefusals(buildJsonObject { }))
     }
 
     @Test fun copyEmailToAccount_copiesThenDestroysTheRealIdExplicitly() = runBlocking {
@@ -1926,6 +2210,126 @@ class JmapClientTest {
                   "accountId": "acc1",
                   "created": { "sub": { "id": "sub1", "undoStatus": "final" } }
                 }, "s0"]
+              ]
+            }
+        """
+
+        /** A submission created for the PGP/MIME route: Email/import, not Email/set. */
+        const val IMPORT_SEND_JSON = """
+            {
+              "methodResponses": [
+                ["Email/import", {
+                  "accountId": "acc1",
+                  "created": { "draft": { "id": "e999", "threadId": "t1", "blobId": "b1" } }
+                }, "i0"],
+                ["EmailSubmission/set", {
+                  "accountId": "acc1",
+                  "created": { "sub": { "id": "sub1", "undoStatus": "pending" } }
+                }, "s0"]
+              ]
+            }
+        """
+
+        /**
+         * What a server says about a submission it ACCEPTED, copied from the bench's Stalwart on
+         * 2026-08-30: `delivered` is "unknown" and the SMTP reply is a 250. ⛔ This is the normal
+         * shape of a message on its way — a check stricter than `delivered == "no"` fails here.
+         */
+        const val SUBMISSION_ACCEPTED_JSON = """
+            {
+              "methodResponses": [
+                ["EmailSubmission/get", {
+                  "accountId": "acc1",
+                  "list": [ { "id": "sub1", "undoStatus": "pending", "deliveryStatus": {
+                    "dest@example.org": { "delivered": "unknown", "smtpReply": "250 2.1.5 Queued",
+                                          "displayed": "unknown" }
+                  } } ],
+                  "notFound": []
+                }, "g0"]
+              ]
+            }
+        """
+
+        /** The refusal of issue #183: created submission, recipient rejected before queueing. */
+        const val SUBMISSION_REFUSED_JSON = """
+            {
+              "methodResponses": [
+                ["EmailSubmission/get", {
+                  "accountId": "acc1",
+                  "list": [ { "id": "sub1", "undoStatus": "pending", "deliveryStatus": {
+                    "nope@masto.top": { "delivered": "no",
+                                        "smtpReply": "550 5.1.2 Mailbox does not exist.",
+                                        "displayed": "unknown" }
+                  } } ],
+                  "notFound": []
+                }, "g0"]
+              ]
+            }
+        """
+
+        /** One recipient accepted, one refused — the message DID go out, to one of the two. */
+        const val SUBMISSION_PARTIAL_JSON = """
+            {
+              "methodResponses": [
+                ["EmailSubmission/get", {
+                  "accountId": "acc1",
+                  "list": [ { "id": "sub1", "undoStatus": "pending", "deliveryStatus": {
+                    "bob@example.org": { "delivered": "unknown", "smtpReply": "250 2.1.5 Queued" },
+                    "nope@masto.top":  { "delivered": "no",
+                                         "smtpReply": "550 5.1.2 Mailbox does not exist." }
+                  } } ],
+                  "notFound": []
+                }, "g0"]
+              ]
+            }
+        """
+
+        /** `deliveryStatus` is optional in RFC 8621 §7.5; plenty of servers omit it. */
+        const val SUBMISSION_NO_STATUS_JSON = """
+            {
+              "methodResponses": [
+                ["EmailSubmission/get", {
+                  "accountId": "acc1",
+                  "list": [ { "id": "sub1", "undoStatus": "pending" } ],
+                  "notFound": []
+                }, "g0"]
+              ]
+            }
+        """
+
+        /** TWO refused recipients beside an accepted one: the plural of the promise. */
+        const val SUBMISSION_TWO_REFUSED_JSON = """
+            {
+              "methodResponses": [
+                ["EmailSubmission/get", {
+                  "accountId": "acc1",
+                  "list": [ { "id": "sub1", "undoStatus": "pending", "deliveryStatus": {
+                    "bob@example.org": { "delivered": "unknown", "smtpReply": "250 2.1.5 Queued" },
+                    "nope@masto.top":  { "delivered": "no",
+                                         "smtpReply": "550 5.1.2 Mailbox does not exist." },
+                    "ghost@masto.top": { "delivered": "no",
+                                         "smtpReply": "550 5.1.1 No such user here." }
+                  } } ],
+                  "notFound": []
+                }, "g0"]
+              ]
+            }
+        """
+
+        const val SUBMISSION_NOTFOUND_JSON = """
+            {
+              "methodResponses": [
+                ["EmailSubmission/get", {
+                  "accountId": "acc1", "list": [], "notFound": ["sub1"]
+                }, "g0"]
+              ]
+            }
+        """
+
+        const val SUBMISSION_ERROR_JSON = """
+            {
+              "methodResponses": [
+                ["error", { "type": "serverFail" }, "g0"]
               ]
             }
         """

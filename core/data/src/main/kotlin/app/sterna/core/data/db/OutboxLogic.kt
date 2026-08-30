@@ -1,6 +1,7 @@
 package app.sterna.core.data.db
 
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.jmap.JmapException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -76,6 +77,72 @@ object OutboxLogic {
 
     /** After a failed attempt: retry while under the cap, otherwise give up (park as FAILED). */
     fun shouldRetry(attemptCount: Int): Boolean = attemptCount < MAX_ATTEMPTS
+
+    /**
+     * The state an outbox row goes to after a failed delivery attempt — the whole decision the send
+     * worker takes in its `catch`, in the one place a JVM test can execute it.
+     *
+     * Two answers, and the FIRST one is not about counting. A [JmapException] carrying
+     * `permanent` is a delivery the SERVER refused: it read the recipient, said no, and nothing
+     * about that verdict will be different in thirty seconds. ⛔ Retrying it is not merely useless,
+     * it does damage that the original defect did not:
+     *
+     *  - the message has already been handed over and filed in Sent, so five auto-retries leave
+     *    FIVE copies there for the user to find;
+     *  - and on a PARTIAL refusal — one address that exists, one that does not — every retry
+     *    re-delivers the message to the recipient who is perfectly valid. She receives it five
+     *    times, and nothing can recall any of them.
+     *
+     * So a permanent failure is parked as [OutboxState.FAILED] on the spot, whatever the attempt
+     * count: the row stays in the outbox with the server's own words on it, the badge counts it,
+     * the banner names it, and Retry is there for the user who has fixed the address.
+     *
+     * ⛔ Everything else keeps the behaviour it always had, through [shouldRetry] and nothing else.
+     * A network that dropped, a server that hiccupped, an HTTP 500: those say NOTHING about whether
+     * the message left, and the retries are exactly what gets a queued send out when the link comes
+     * back. Widening "permanent" to cover them would park messages that only needed a second try.
+     */
+    fun stateAfterFailure(attemptCount: Int, failure: Throwable): OutboxState = when {
+        failure is JmapException && failure.permanent -> OutboxState.FAILED
+        shouldRetry(attemptCount) -> OutboxState.QUEUED
+        else -> OutboxState.FAILED
+    }
+
+    /**
+     * How many attempts the row is written back with after a failed one — and on a PERMANENT
+     * refusal that number is the CAP, not `previousAttempts + 1`.
+     *
+     * ⛔ This is not bookkeeping, it is the guard [stateAfterFailure] would otherwise only appear
+     * to give. Parking a refused row as [OutboxState.FAILED] with an attemptCount of 1 leaves two
+     * doors wide open, both of which put the message back on the wire with nobody asking:
+     *
+     *  1. **The reopen door (#70).** [canEdit] offers Edit on a FAILED row — which is exactly what
+     *     the user does, because the whole point is that an address needs fixing. Closing the
+     *     composer untouched runs [stateAfterEdit] on that count, `1 >= 5` is false, and the row
+     *     goes back to [OutboxState.QUEUED] and is re-armed on the spot. Every "open it, look at
+     *     it, come back out" is one more delivery: another copy in Sent, and on a partial refusal
+     *     another copy to the recipient whose address was right all along.
+     *  2. **The startup door.** A row left in EDITING by a process death is reverted by
+     *     `OutboxDao.revertEditingExhaustedToFailed`, which claims rows at `attemptCount >=`
+     *     [MAX_ATTEMPTS] and lets the rest fall through to QUEUED — so a refused row would leave on
+     *     its own at the next cold start, with no gesture at all.
+     *
+     * [stateAfterEdit] states the invariant those two rely on: the count is "the faithful proxy for
+     * was-FAILED, because the cap is reached only on the FAILED-parking path". [stateAfterFailure]
+     * parks WITHOUT reaching the cap, so this function is what keeps that sentence true rather than
+     * leaving it quietly false. The same ruse is named in `MailRepository.parkOutboxEdit` — forcing
+     * the count to the cap is what was needed "while the parked state was FAILED", and here it is.
+     *
+     * ⭐ It costs the user nothing: `MailRepository.retryOutbox` sets `attemptCount = 0` before
+     * re-arming, so Retry on a corrected address works exactly as before. What is spent is the
+     * AUTOMATIC reserve, and a refusal has no automatic attempt left to spend by definition.
+     *
+     * ⛔ Everything else is untouched: an ordinary failure counts one more attempt, no more and no
+     * less, or a dropped network would park sends that only needed a second try.
+     */
+    fun attemptsAfterFailure(previousAttempts: Int, failure: Throwable): Int =
+        if (failure is JmapException && failure.permanent) maxOf(MAX_ATTEMPTS, previousAttempts + 1)
+        else previousAttempts + 1
 
     /**
      * The state a reopened item returns to once its edit ends — the composer was closed untouched,
