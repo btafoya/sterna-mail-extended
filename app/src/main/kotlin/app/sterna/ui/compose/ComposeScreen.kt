@@ -125,6 +125,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -1671,6 +1672,9 @@ fun ComposeScreen(
                 onValueChange = { body = it },
                 textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                // Capitalisation ONLY: no imeAction here on purpose, because the body is the only
+                // multi-line field of the screen and an action would take the newline's place (#26).
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier
                     .fillMaxWidth()
                     // Fills all the space below the header (so the whole area under it is the body's
@@ -1854,7 +1858,8 @@ private fun ComposeField(
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                // The subject is a sentence, so the keyboard arms its first capital (#184).
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier
                     .headerTapText(geometry)
                     .weight(1f)
