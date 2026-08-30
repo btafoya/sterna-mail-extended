@@ -412,6 +412,10 @@ class SubscribedFolderMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("this branch takes the schema to v26 (mailboxes.isSubscribed, #174)", 26, SCHEMA_VERSION)
+        assertEquals(
+            "the schema declares v27: `emails` gains the (accountId, mailboxId, sortKey) index",
+            27,
+            SCHEMA_VERSION,
+        )
     }
 }

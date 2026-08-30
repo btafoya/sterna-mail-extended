@@ -75,7 +75,13 @@ const val SENDER_VOLUME_SCOPE_SQL: String =
  * tolerated as a side effect.
  *
  * No `LIMIT`: the header total is the sum of these rows, and a silent truncation would make it a
- * lie. No index either — a full scan of a few thousand rows is cheap, an index is a migration.
+ * lie. And no index is built FOR it: `emails` carries a composite index on
+ * `(accountId, mailboxId, sortKey)` since schema v27, but that one is the folder list's, and it
+ * cannot serve this grouping — `LOWER(fromEmail)` is neither a column it holds nor a bare column
+ * at all. (Its leading `accountId` does match the scope clause above, so the planner may well
+ * reach for it; that is the planner's business and has not been measured either way.) The original
+ * reasoning stands for this query: a full scan of a few thousand rows is cheap, and an index built
+ * for it would be a migration of its own.
  */
 const val SENDER_VOLUMES_SQL: String =
     "SELECT fromEmail AS email, fromName AS name, COUNT(*) AS total, " +

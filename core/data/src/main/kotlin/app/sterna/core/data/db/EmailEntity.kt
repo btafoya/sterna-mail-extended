@@ -11,11 +11,37 @@ import androidx.room.Index
  * therefore mint two rows with the same [id]; keying on [id] alone would make one account's sync
  * clobber the other's cached row. [accountId] is the client-side StoredAccount id, so sub-accounts
  * of the same login stay on separate partitions.
+ *
+ * Two indices, and the second one is the folder list itself. `(accountId, mailboxId, sortKey)` is
+ * the three things every list query does with this table at once: the SCOPE — `folderScopeSql`
+ * selects on (account, folder) PAIRS and never on a bare mailbox id (Codeberg #121), which is why
+ * `accountId` comes first — then the ORDER, `sortKey DESC`, and finally the join that picks a
+ * thread's representative row in the conversation view (`e.accountId = g.gacc AND e.sortKey =
+ * g.maxKey`). Without it that join had to walk the ACCOUNT'S WHOLE PRIMARY KEY once per collapsed
+ * thread — the access that made a folder switch cost more the more mail was cached — while the two
+ * `GROUP BY` sub-queries reached the folder through `index_emails_mailboxId`, i.e. by the mailbox
+ * id ALONE: every account's rows carrying that server-assigned id, in no useful order. Switching
+ * folder with the conversation view on left the list blank for a second or two on mail already
+ * cached, with no sync running.
+ *
+ * ⛔ They did not re-scan the table, and it is worth not saying they did:
+ * `ConversationIndexPlanSqlTest.withoutTheStepThePlanFallsBackToTheMailboxIdAlone` keeps the old
+ * plan as a witness, and the two sub-queries are a SEARCH in it. On a single-account install the
+ * mailbox id alone already selected exactly the folder, so what this index buys THERE is the
+ * representative join and nothing else.
+ *
+ * ⚠ The column ORDER is the whole of it: the same three columns in any other order is an index
+ * that costs a write on every cached row and answers none of the three accesses. `Index("mailboxId")`
+ * stays beside it — dropping it would need its own `DROP INDEX` step and buys nothing here.
+ *
+ * ⛔ Changing this line without adding a migration step breaks UPDATED installs only, and at open
+ * time: a fresh install builds its schema from here, an updated one from the `CREATE INDEX` of the
+ * migration, and Room compares the two on every launch.
  */
 @Entity(
     tableName = "emails",
     primaryKeys = ["accountId", "id"],
-    indices = [Index("mailboxId")],
+    indices = [Index("mailboxId"), Index(value = ["accountId", "mailboxId", "sortKey"])],
 )
 data class EmailEntity(
     val id: String,

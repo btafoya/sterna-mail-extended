@@ -581,3 +581,52 @@ val MIGRATION_25_26 = object : Migration(25, 26) {
         db.execSQL("ALTER TABLE `mailboxes` ADD COLUMN `isSubscribed` INTEGER NOT NULL DEFAULT 1")
     }
 }
+
+/**
+ * Additive 26→27: `emails` gains the composite index `(accountId, mailboxId, sortKey)` — the three
+ * columns a list query reads a folder by, in the order it reads them.
+ *
+ * `(accountId, mailboxId)` is the SCOPE: `folderScopeSql` selects on (account, folder) PAIRS and
+ * never on a bare mailbox id (Codeberg #121 — a server numbers folders per account, so a bare id
+ * lets a sibling account's Inbox leak into the list), which is why `accountId` leads. `sortKey`
+ * comes last because it is the ORDER (`ORDER BY sortKey DESC`) and the join that picks a thread's
+ * representative row in the conversation view (`e.accountId = g.gacc AND e.sortKey = g.maxKey`),
+ * both applied to rows the first two columns have already narrowed down.
+ *
+ * What it closes: with `Index("mailboxId")` alone, the representative join of `conversationSql` had
+ * nothing to lean on and walked the account's whole primary key once per collapsed thread, while
+ * the two `GROUP BY` sub-queries reached the folder by the mailbox id alone — every account's rows
+ * carrying that server-assigned id, in no useful order. Switching folder with the conversation view
+ * ON left the list blank for a second or two on mail already cached and with no sync running; with
+ * the view OFF the same switch was instant.
+ *
+ * ⚠ What this step does NOT close, and it is the honest half: the `threadTotal` sub-query of
+ * `conversationSql` carries no folder scope at all, so it still groups the WHOLE table, every
+ * account and every folder, and no index can help it as written. It was measured to cost little
+ * once this one is in place, but "the list no longer re-reads the folder to collapse it" is the
+ * whole of what is claimed here.
+ *
+ * Additive — one `CREATE INDEX IF NOT EXISTS`, no table rebuilt, no row rewritten, and
+ * `index_emails_mailboxId` deliberately left in place (dropping it would need a `DROP INDEX` of its
+ * own and buys nothing). The index is NOT folded into [EMAILS_CREATE_SQL]: that constant is the
+ * frozen v16 shape every install coming from v15 replays, and rewriting a released migration breaks
+ * exactly those installs.
+ *
+ * ⭐ The NAME is not decoration: `index_emails_accountId_mailboxId_sortKey` is what Room derives
+ * from `@Entity(indices = [Index(value = ["accountId", "mailboxId", "sortKey"])])` on a FRESH
+ * install. An updated install must end up with the same name, or Room's `validateMigration` sees an
+ * index the entity never declared and refuses to open the database on every launch.
+ *
+ * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * `fallbackToDestructiveMigration()`, so this step missing from [SternaDatabase.ALL_MIGRATIONS] —
+ * written but not registered — has Room find no 26→27 path and DROP every table: `outbox`,
+ * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left.
+ */
+val MIGRATION_26_27 = object : Migration(26, 27) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_emails_accountId_mailboxId_sortKey` " +
+                "ON `emails` (`accountId`, `mailboxId`, `sortKey`)",
+        )
+    }
+}
