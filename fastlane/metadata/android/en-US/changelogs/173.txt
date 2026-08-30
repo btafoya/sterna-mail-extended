@@ -1,0 +1,25 @@
+Reading
+
+- The mail list reopens on the view you left. A folder, the unified inbox or the unread view is where you come back to, instead of the inbox every time.
+- Tapping a folder shows that folder's rows, rather than the rows of the folder you came from.
+- On an account that carries more than one address of yours, the open message gains a third line under the date, naming the address the message arrived on. It stays off your own outgoing mail, off a delivery that names no address, and off an address that is not one of yours.
+- The loading indicator no longer blinks for a refresh too short to see. A fetch answered in a quarter of a second draws nothing at all, and one that does appear stays long enough to be read instead of flashing.
+- Changing view no longer carries over the refresh error of the view you left, so a folder read moments ago stops showing another account's failure over its own up-to-date rows.
+
+Folders
+
+- Both move-to-folder dialogs open on a filter field, for accounts whose folder list runs to hundreds. It filters and never reorders: the row under your finger does not move for a reason the screen cannot explain.
+- A move on IMAP counts only the messages the server confirmed had left the source folder. One that another client had already moved or deleted is no longer counted as moved, so its row and its offline search entry stay put instead of disappearing while the message itself comes back at the next sync.
+
+Writing
+
+- A composer that lost its text no longer tells you to type it again when the outbox is still holding the message. Retyping was the one gesture that destroyed the copy the outbox was keeping, and the refusal now points away from it.
+- A send is refused while the composer cannot read its own body back, on the immediate send and on the scheduled one alike, instead of going out without the text.
+- A draft the phone is keeping gets its row back when a save goes through, including a save that moved the message to another account. The row no longer stays locked at the top of Drafts.
+
+Accounts
+
+- Signing in through the device flow carries the address you typed to the approval page your own server puts up, so you do not type it a second time. It travels only over an encrypted link.
+- Sterna names itself and its version to the IMAP servers that ask for it, and skips the answer at the least doubt.
+- Two preferences filed under an account, the view you last had open and its refresh register, now leave with the account when you sign it out.
+- The divider that closes the account list in the drawer has room under it.

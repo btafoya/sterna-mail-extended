@@ -1,0 +1,25 @@
+Lecture
+
+- La liste de courrier se rouvre sur la vue que vous aviez quittée. Un dossier, la boîte unifiée ou la vue des non-lus est l'endroit où vous revenez, au lieu de la boîte de réception à chaque fois.
+- Taper un dossier affiche les lignes de ce dossier, et non celles du dossier d'où vous venez.
+- Sur un compte qui porte plus d'une de vos adresses, le message ouvert gagne une troisième ligne sous la date, nommant l'adresse à laquelle le message est arrivé. Elle ne s'affiche pas sur votre propre courrier sortant, ni sur une remise qui ne nomme aucune adresse, ni sur une adresse qui n'est pas la vôtre.
+- L'indicateur de chargement ne clignote plus pour une relève trop courte pour être vue. Une relève répondue en un quart de seconde n'affiche rien du tout, et celle qui apparaît reste assez longtemps pour être lue au lieu de passer en un éclair.
+- Changer de vue ne reporte plus l'erreur de relève de la vue quittée : un dossier lu il y a un instant cesse d'afficher l'échec d'un autre compte par-dessus ses propres lignes à jour.
+
+Dossiers
+
+- Les deux dialogues de déplacement vers un dossier s'ouvrent sur un champ de filtre, pour les comptes dont la liste de dossiers se compte en centaines. Il filtre et ne réordonne jamais : la ligne sous votre doigt ne bouge pas pour une raison que l'écran ne peut pas expliquer.
+- Un déplacement en IMAP ne compte que les messages dont le serveur a confirmé le départ du dossier source. Celui qu'un autre client avait déjà déplacé ou supprimé n'est plus compté comme déplacé : sa ligne et son entrée de recherche hors ligne restent en place, au lieu de disparaître pendant que le message, lui, revient à la synchronisation suivante.
+
+Écriture
+
+- Un composeur qui a perdu son texte ne vous dit plus de le retaper quand la file d'envoi tient encore le message. Retaper était le seul geste qui détruisait la copie conservée par la file, et le refus vous en détourne désormais.
+- Un envoi est refusé tant que le composeur ne peut pas relire son propre corps, à l'envoi immédiat comme à l'envoi programmé, au lieu de partir sans le texte.
+- Un brouillon que le téléphone conserve retrouve sa ligne quand un enregistrement aboutit, y compris un enregistrement qui a déplacé le message vers un autre compte. La ligne ne reste plus bloquée en haut des brouillons.
+
+Comptes
+
+- La connexion par le flux appareil porte l'adresse que vous avez saisie jusqu'à la page d'approbation que votre propre serveur met en place, pour ne pas la saisir une seconde fois. Elle ne voyage que sur une liaison chiffrée.
+- Sterna donne son nom et sa version aux serveurs IMAP qui les demandent, et s'abstient au moindre doute.
+- Deux préférences classées sous un compte, la vue que vous aviez ouverte en dernier et son registre de relève, partent maintenant avec le compte quand vous le déconnectez.
+- Le séparateur qui referme la liste des comptes dans le tiroir a de l'air en dessous.

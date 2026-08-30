@@ -7,7 +7,7 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-08-29.
+explains exactly what that means, in plain terms. Last updated: 2026-08-30.
 
 ## What Sterna does NOT do
 
@@ -30,7 +30,7 @@ Everything Sterna keeps lives locally on your phone. None of it is collected, an
 of it reaches the Sterna project, which has no server to receive it. What does leave the
 device goes only to the hosts listed under **Network connections** below: the address you
 type, which reaches the approval page your own server puts up when it signs you in with
-the device flow, before there is any token, and only when that page can take it; your
+the device flow, before there is any token, and only over an encrypted link; your
 credentials to your mail server, which is how it knows you; and, on an OAuth account, the
 stored refresh token to your provider's sign-in service, which is where a new access token
 comes from. The rest stays here:
@@ -152,10 +152,13 @@ sets it off.
    nobody watching. An account using a password or an app password sends it
    nothing, though its domain was still asked point 2's question.
 5. **The unsubscribe address the sender put in a newsletter**, and only when you
-   tap Unsubscribe on that message. Sterna sends that address one HTTPS request
-   whose content is fixed by the standard for one-click unsubscribe (RFC 8058).
-   It carries none of your credentials, nothing is added to it about you, and no
-   page is loaded from it.
+   tap Unsubscribe on that message. Where the sender offers one-click unsubscribe
+   (RFC 8058), Sterna sends that address one HTTPS request whose content is fixed
+   by the standard: it carries none of your credentials, nothing is added to it
+   about you, and no page is loaded from it. Where the sender offers only a web
+   page, the button reads "Open page" instead, and Sterna hands that address to
+   your browser, which does load it. Sterna asks first, and says in the same
+   breath that the page can show the sender your IP address.
 6. **The hosts a sender chose for the remote images in their message**, and only
    for a message whose remote content you allowed. That is your doing, once per
    message or once per sender; see "Remote content is blocked by default" below
@@ -177,9 +180,10 @@ back to the direct connection, but it does accept a signal that arrives
 unencrypted. The mail itself is always fetched from your own server.
 
 Some addresses in the app are **links, not connections**: your provider's
-app-password page, the OAuth approval page, and the project's repository and
-F-Droid pages open in your browser when you tap them. That is your browser
-talking to those sites; Sterna never contacts them in the background.
+app-password page, the OAuth approval page, an unsubscribe page offered without
+one-click, and the project's repository and F-Droid pages open in your browser
+when you tap them. That is your browser talking to those sites; Sterna never
+contacts them in the background.
 
 There is no intermediary. Your mail never passes through any infrastructure
 operated by the Sterna project.
