@@ -18,6 +18,11 @@ import kotlinx.coroutines.flow.flow
  * ⛔ This is the DISPLAY only. "A refresh is running" is [MailUi.refreshing] and is
  * not delayed by a millisecond: it still empties the centre of the screen so "this folder is empty"
  * cannot lie during a fetch (#63), and it is still the seed of the state flow.
+ *
+ * ⚠ A FRESH view runs no refresh at all (`refreshUnlessFresh` returns inside its window), so on the
+ * common folder switch nothing empties the centre by that path any more. Emptying it there is the
+ * screen's own arm: it catches on `refreshLoading || staleRows` and draws only on
+ * `refreshLoading && !staleRows`.
  */
 internal const val REFRESH_INDICATOR_GRACE_MS = 250L
 

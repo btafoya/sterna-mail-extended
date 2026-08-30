@@ -246,19 +246,45 @@ class RefreshIndicatorWiringLintTest {
         val at = hits.single().range.first
         val arm = text.substring(at, minOf(at + EXPECTED_RING_ARM.length, text.length))
         assertEquals(
-            "The centred ring must be gated by rememberGracedIndicator, on the SAME predicate the " +
-                "arm catches on: the arm has to keep CATCHING (otherwise the screen falls through " +
-                "to the empty/offline scenes and lies mid-fetch) while DRAWING nothing during the " +
-                "grace. Compared as the whole arm. Arm was:\n$arm",
+            "The centred ring must be gated by rememberGracedIndicator. The arm CATCHES wider " +
+                "than it DRAWS, deliberately: it has to keep catching (otherwise the screen falls " +
+                "through to the empty/offline scenes and lies mid-fetch) while drawing nothing " +
+                "during the grace, and nothing at all on a change of view — the grace's own " +
+                "predicate is pinned below. Compared as the whole arm. Arm was:\n$arm",
             EXPECTED_RING_ARM,
             arm,
         )
+        // Whole line, not a `contains` nor a Regex without an end anchor: `...staleRows) || true`
+        // is a mutation that LENGTHENS the line, and both would wave it through.
         assertEquals(
-            "The ring's grace must be fed the same predicate as the arm it gates, or the two " +
-                "disagree about what is loading.",
-            1,
-            Regex("""val ringShowing = rememberGracedIndicator\(refreshLoading \|\| staleRows\)""")
-                .findAll(text).count(),
+            "The arm keeps CATCHING on refreshLoading || staleRows — letting it fall through hands " +
+                "the centre to the offline/error/empty scenes while a page is still loading, and " +
+                "the centre would lie. But it only DRAWS when a page really loads in the view " +
+                "already on screen: refreshLoading && !staleRows. A change of view has nothing to " +
+                "say to the centre — on a fresh view nothing is fetched at all, and announcing " +
+                "server work that isn't happening would be untrue (#63).",
+            listOf("val ringShowing = rememberGracedIndicator(refreshLoading && !staleRows)"),
+            codeLines(INBOX_SCREEN).map { it.trim() }.filter { it.startsWith("val ringShowing") },
+        )
+        // ⛔ The rule above holds the ARGUMENT; this one holds what the callee does with it.
+        // Inverting `if (active)` is ONE character, it puts the centred ring back on every folder
+        // switch (#63), and it leaves every other rule in this file green: the call line, the arm,
+        // the two clock reads and the single startRefreshRun are all untouched by it. Swapping the
+        // two branches does the same, which is why the whole decision is compared and not one line.
+        val grace = declarationBody(INBOX_SCREEN, "private fun rememberGracedIndicator(active: Boolean): Boolean")
+        val opens = grace.indexOf("run.value = if (")
+        assertTrue("rememberGracedIndicator no longer opens its stretch with `run.value = if (`.", opens >= 0)
+        // Cut to the expected length, like the arm rule above: a mutation that LENGTHENS the
+        // decision lands inside the window and mismatches instead of being waved through.
+        val decision = grace.substring(opens, minOf(opens + EXPECTED_GRACE_DECISION.length, grace.length))
+        assertEquals(
+            "rememberGracedIndicator must OPEN a stretch while its predicate holds and END it when " +
+                "the predicate drops — never the other way round, and never with the branches " +
+                "swapped. Inverted, the ring draws exactly when NO page is loading in the view on " +
+                "screen: the centred ring on every folder switch, with no tern beside it. Compared " +
+                "whole. The decision found was:\n$decision",
+            EXPECTED_GRACE_DECISION,
+            decision,
         )
     }
 
@@ -434,6 +460,14 @@ class RefreshIndicatorWiringLintTest {
                 "refreshAnswersAGesture = false " +
                 "refreshRun.value = startRefreshRun(refreshRun.value, clock(), instant) " +
                 "status.value = Status(refreshing = true, error = null)"
+
+        /** The whole of rememberGracedIndicator's open/close decision, comments out, one line. */
+        private const val EXPECTED_GRACE_DECISION =
+            "run.value = if (active) { " +
+                "startRefreshRun(run.value, now, instant = false) " +
+                "} else { " +
+                "run.value?.copy(endedAt = now) " +
+                "}"
 
         private const val RING_ARM_LABEL = "refreshLoading || staleRows ->"
 

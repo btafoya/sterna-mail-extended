@@ -36,15 +36,16 @@ class RowsGuardWiringLintTest {
             "⛔ The centred indicator must also cover the armed guard. On a switch that runs no " +
                 "refresh of its own, gating the rows branch alone falls through to the offline, " +
                 "error and empty scenes below, and the screen claims the folder holds nothing " +
-                "while its first page is still loading. (On the ordinary switch `ui.refreshing` " +
-                "is already true and its own branch catches first, leaving the centre empty and " +
-                "the tern to speak — #63's decision.) The indicator lines found were:",
-            // ⚠ The arm still CATCHES on the same predicate — that is what this rule is about.
-            // What changed (#178) is that it DRAWS only past the indicator grace: an `else Unit`
-            // keeps the centre empty for a fetch too short to see, without ever falling through
-            // to the scenes below. `ringShowing` is rememberGracedIndicator(refreshLoading ||
-            // staleRows), on the same functions as the tern; RefreshIndicatorWiringLintTest
-            // pins that it is fed this very predicate.
+                "while its first page is still loading. (On a FRESH switch nobody refreshes — " +
+                "refreshUnlessFresh() returns inside the window — so `ui.refreshing` is false and " +
+                "its branch does not catch; this arm catches and draws nothing, leaving the centre " +
+                "empty and the tern to speak — #63's decision.) The indicator lines found were:",
+            // ⚠ The arm CATCHES wider than it DRAWS, deliberately. It catches on refreshLoading ||
+            // staleRows — that is what this rule is about — and falling through would hand the
+            // centre to the scenes below mid-fetch. What it DRAWS is narrower: `ringShowing` is
+            // rememberGracedIndicator(refreshLoading && !staleRows), on the same functions as the
+            // tern, so a change of view keeps the centre empty (and a fetch too short to see is
+            // held back by the grace, #178). RefreshIndicatorWiringLintTest pins that predicate.
             listOf("refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit"),
             codeLines(INBOX_SCREEN).map { it.trim() }.filter { it.startsWith("refreshLoading") && "LoadingRing" in it },
         )

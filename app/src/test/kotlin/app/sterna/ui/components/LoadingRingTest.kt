@@ -476,10 +476,12 @@ class LoadingRingTest {
                 "the inbox's centred refresh indicator (a paging refresh, the one on the " +
                     "reporter's screenshot)",
                 // The condition gained `|| staleRows` (the stale-rows guard, RowsGuard.kt): the same
-                // ring, at the same place, now also reached when Paging is still presenting the
-                // PREVIOUS folder's snapshot and nothing else is claiming the centre. The WIDGET is
-                // what this entry guards, and it is unchanged — RowsGuardWiringLintTest pins the
-                // condition itself, and says which branch really catches the ordinary switch.
+                // ring, at the same place, now also REACHED when Paging is still presenting the
+                // PREVIOUS folder's snapshot and nothing else is claiming the centre — reached, but
+                // no longer drawn there: what draws is `ringShowing`, fed refreshLoading &&
+                // !staleRows, so a change of view leaves the centre empty. The pinned line itself is
+                // unchanged, and the WIDGET is what this entry guards — RowsGuardWiringLintTest
+                // pins the condition, RefreshIndicatorWiringLintTest the predicate that draws.
                 // 2026-08-29 (#178): the drawing — not the widget — is now held back by the
                 // same grace as the tern (`ringShowing`, rememberGracedIndicator). The WIDGET
                 // this entry guards is unchanged: it is still LoadingRing at the same place.

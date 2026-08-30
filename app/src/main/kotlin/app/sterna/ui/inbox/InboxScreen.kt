@@ -1807,11 +1807,16 @@ fun InboxScreen(
                 // answer, and the frame that arms the guard draws the old folder's rows anyway.
                 val staleRows = guard.value.stale
                 // The centred ring runs under the SAME grace as the tern, from the same functions
-                // (#178). It is invisible today — the ui.refreshing arm above catches first on an
-                // ordinary switch — but the arm below has to keep CATCHING whether or not it draws:
-                // letting it fall through hands the centre to the empty-folder or offline scene
-                // while a page is still loading, and the centre would then lie.
-                val ringShowing = rememberGracedIndicator(refreshLoading || staleRows)
+                // (#178), and it speaks for ONE thing: a page loading in the view already on
+                // screen. Hence refreshLoading && !staleRows: staleRows is the only term a change
+                // of view arms and a load never does (RowsGuard rule 1; rule 2 re-arms it on
+                // foreign rows, which is itself the aftermath of a switch). And a fresh view runs
+                // no refresh at all (refreshUnlessFresh returns inside its window), so a ring there
+                // would announce server work that is not happening. The arm below still has to keep
+                // CATCHING whether or not it draws:
+                // letting it fall through hands the centre to the empty-folder, error or offline
+                // scene while a page is still loading, and the centre would then lie.
+                val ringShowing = rememberGracedIndicator(refreshLoading && !staleRows)
                 when {
                     searchActive -> when (searchDisplay(ui.searchResults.size, ui.searchLoading, ui.searchComplete)) {
                         SearchDisplay.RESULTS ->
@@ -1962,10 +1967,19 @@ fun InboxScreen(
                     // staleRows too, and it has to stay ABOVE the offline/error/empty scenes: on
                     // a switch that runs no refresh of its own, gating the rows branch alone falls
                     // through to them and the screen claims the folder is empty — or offline —
-                    // while its first page is still loading. ⚠ On the ordinary switch the branch
-                    // above catches first (selecting a folder calls refresh(), so ui.refreshing is
-                    // already true in the same emission): the centre is then EMPTY and the tern at
-                    // the top is what speaks. That is #63's decision, not an oversight.
+                    // while its first page is still loading. ⚠ On a FRESH switch nobody refreshes
+                    // at all — select(), showInbox(), selectUnified(), selectUnread(),
+                    // onAccountChanged() and init all go through refreshUnlessFresh(), which
+                    // returns inside the freshness window — so ui.refreshing is false and the arm
+                    // above does NOT catch. This arm catches (staleRows) and draws NOTHING:
+                    // ringShowing is fed refreshLoading && !staleRows. The centre stays empty
+                    // until the new folder's first page arrives. ⛔ NOT bounded by the guard's
+                    // give-up valve: that valve is `gaveUp && !refreshLoading` (RowsGuard.kt), and
+                    // the very query being waited on holds refreshLoading true, so it is inert on
+                    // this path. The silence lasts what the local page costs. It is still the
+                    // honest reading — nothing is being fetched, and a ring would say otherwise
+                    // — and shortening it is the missing-index chantier, not this arm. #63's
+                    // decision, reached by the other path.
                     refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit
                     notice == RefreshNotice.OFFLINE -> PullableCenter {
                         EmptyState(
