@@ -17,6 +17,19 @@ sealed interface PushStatus {
     /** Instant via UnifiedPush; [distributorPackage] resolves to an app label in UI. */
     data class ViaUnifiedPush(val distributorPackage: String?) : PushStatus
 
+    /**
+     * Woken by a relay the user pasted this account's address into (#177), with the time the last
+     * wake really arrived — 0 never reaches here, since only a delivery arms a relay.
+     *
+     * ⛔ It carries a TIMESTAMP and not a verdict, and the difference is the whole point. The relay
+     * is not ours: it is a stranger's script or service, we never talk to it, and nothing in this
+     * app can tell a relay that died last week from one that simply has no mail to announce. What
+     * is knowable is when the last wake landed, so that is what the screen says. Reading "push is
+     * on" for weeks after a relay quietly stopped is the exact defect this state exists to stop,
+     * and it was promised to the reporter in those words.
+     */
+    data class ViaRelay(val lastDeliveryMillis: Long) : PushStatus
+
     /** Instant via a direct connection we hold, open right now (JMAP EventSource or IMAP IDLE). */
     data object Direct : PushStatus
 
@@ -87,7 +100,10 @@ object PushController {
             container.accountStore.account(credentials.id)?.isLinked == true -> Transport.PERIODIC
             // UnifiedPush stays on in battery saver too — it costs Sterna nothing;
             // "battery saver" means Sterna itself holds no persistent connection.
-            credentials.protocol == MailProtocol.JMAP && up.isActive(credentials.id) -> Transport.UNIFIED_PUSH
+            // Not gated on JMAP: an IMAP relay rides this too, but only once ACTIVE, which for it
+            // means a payload REALLY arrived ([RelayPush.onDelivery]) — never merely "an address
+            // exists", or installing any distributor would trade IMAP IDLE for a dead endpoint.
+            up.isActive(credentials.id) -> Transport.UNIFIED_PUSH
             batterySaver -> Transport.PERIODIC
             credentials.protocol == MailProtocol.JMAP -> Transport.EVENT_SOURCE
             else -> Transport.IMAP_IDLE
@@ -293,6 +309,21 @@ object PushController {
             // Honest status for a linked sub-account: it inherits the login's transport state
             // but the server never pushes its changes there (issue #31) — it is periodic.
             store.account(accountId)?.isLinked == true -> PushStatus.Periodic
+            // An armed relay (#177), ABOVE the UnifiedPush branch and not below it: an armed relay
+            // is ACTIVE, so isActive answers true for it as well and would swallow this case whole
+            // — leaving the screen reading "Push: UnifiedPush (…)" for an address a stranger's
+            // relay may have stopped posting to weeks ago.
+            //
+            // ⛔ And above NotWatched too, which is where it used to sit. The comment that put it
+            // there said "an account nothing watches is not woken by anyone, relay or not", and
+            // that is simply false: a POST on the relay address reaches onMessage, which enqueues
+            // [PushFetchWorker], and that worker gates on notificationsEnabled ALONE — never on
+            // the watched set. An unwatched account with an armed relay really is woken, really
+            // does fetch and really does notify, while the screen said nothing was watching it and
+            // offered it an address in the same breath. Of the two, the status line is what lies.
+            // Nothing moves for anyone else: NotWatched keeps its place for every account without
+            // an armed relay, which is every account this branch does not catch.
+            up.relayArmed(accountId) -> PushStatus.ViaRelay(up.relayLastDeliveryMillis(accountId))
             // Not watched at all (issue A8): neither the current account nor covered by push-all,
             // so no service connection and no 30-minute worker poll ever touches it. Decided before
             // every connecting/periodic branch below so it can never masquerade as one.

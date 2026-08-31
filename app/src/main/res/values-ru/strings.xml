@@ -93,6 +93,14 @@
     <string name="settings_push_status_connecting">Push: подключение…</string>
     <string name="settings_push_status_periodic">Проверка каждые 30 минут</string>
     <string name="settings_push_status_not_watched">Проверяется при открытии приложения</string>
+    <string name="settings_push_status_relay">Push: последнее пробуждение %1$s</string>
+    <string name="settings_push_relay_title">Push-адрес для ретранслятора</string>
+    <string name="settings_push_relay_explain">Ретранслятор с этим адресом может заставить Sterna проверить почту. Читать ваши письма он не может.</string>
+    <string name="settings_push_relay_get">Получить адрес</string>
+    <string name="settings_push_relay_waiting">Ожидание адреса…</string>
+    <string name="settings_push_relay_remove">Удалить адрес</string>
+    <string name="settings_push_relay_copied">Адрес скопирован</string>
+    <string name="settings_push_relay_no_distributor">Установите приложение UnifiedPush (например, ntfy), чтобы получить адрес.</string>
     <string name="settings_account_notifications_unwatched_note">Эта учётная запись не отслеживается. Включите «Push для всех аккаунтов», чтобы загружать её новые письма в фоновом режиме и получать уведомления о них.</string>
     <string name="up_picker_title">Доставлять уведомления через</string>
     <string name="inbox_delete_folder_recursive_title">Удалить также вложенные папки?</string>

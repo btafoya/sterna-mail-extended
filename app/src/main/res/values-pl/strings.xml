@@ -93,6 +93,14 @@
     <string name="settings_push_status_connecting">Push: łączenie…</string>
     <string name="settings_push_status_periodic">Sprawdzanie co 30 minut</string>
     <string name="settings_push_status_not_watched">Sprawdzane przy otwarciu aplikacji</string>
+    <string name="settings_push_status_relay">Push: ostatnie wybudzenie %1$s</string>
+    <string name="settings_push_relay_title">Adres push przekaźnika</string>
+    <string name="settings_push_relay_explain">Przekaźnik, który ma ten adres, może kazać Sternie sprawdzić pocztę. Nie może czytać twoich wiadomości.</string>
+    <string name="settings_push_relay_get">Uzyskaj adres</string>
+    <string name="settings_push_relay_waiting">Oczekiwanie na adres…</string>
+    <string name="settings_push_relay_remove">Usuń adres</string>
+    <string name="settings_push_relay_copied">Skopiowano adres</string>
+    <string name="settings_push_relay_no_distributor">Zainstaluj aplikację UnifiedPush (na przykład ntfy), aby uzyskać adres.</string>
     <string name="settings_account_notifications_unwatched_note">To konto nie jest monitorowane. Włącz „Push dla wszystkich kont”, aby pobierać jego nową pocztę w tle i otrzymywać o niej powiadomienia.</string>
     <string name="up_picker_title">Dostarczaj powiadomienia przez</string>
     <string name="inbox_delete_folder_recursive_title">Usunąć także podfoldery?</string>

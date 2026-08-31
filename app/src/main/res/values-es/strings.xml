@@ -93,6 +93,14 @@
     <string name="settings_push_status_connecting">Push: conectando…</string>
     <string name="settings_push_status_periodic">Comprobación cada 30 minutos</string>
     <string name="settings_push_status_not_watched">Se comprueba al abrir la aplicación</string>
+    <string name="settings_push_status_relay">Push: último aviso %1$s</string>
+    <string name="settings_push_relay_title">Dirección push de relé</string>
+    <string name="settings_push_relay_explain">Un relé que tenga esta dirección puede hacer que Sterna busque correo. No puede leer tus mensajes.</string>
+    <string name="settings_push_relay_get">Obtener una dirección</string>
+    <string name="settings_push_relay_waiting">Esperando una dirección…</string>
+    <string name="settings_push_relay_remove">Quitar la dirección</string>
+    <string name="settings_push_relay_copied">Dirección copiada</string>
+    <string name="settings_push_relay_no_distributor">Instala una aplicación UnifiedPush (como ntfy) para obtener una dirección.</string>
     <string name="settings_account_notifications_unwatched_note">Esta cuenta no se está vigilando. Activa «Push para todas las cuentas» para obtener su correo nuevo en segundo plano y que te avise.</string>
     <string name="up_picker_title">Entregar las notificaciones mediante</string>
     <string name="inbox_delete_folder_recursive_title">¿Eliminar también las subcarpetas?</string>

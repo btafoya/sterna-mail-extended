@@ -232,6 +232,63 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * The changing half of what the relay-address block draws, read in ONE pass so its two lines
+     * cannot describe two different moments. Not a flow: nothing here is observable, and the block
+     * is re-read on the user's own actions — the status line above it polls every 500 ms and must
+     * not grow a second file read per tick.
+     */
+    data class RelayAddress(
+        /** The user asked for an address (it may not have arrived yet). */
+        val requested: Boolean,
+        /** The published address, or null while none has arrived. */
+        val endpoint: String?,
+    )
+
+    /**
+     * What the relay-address block should draw for this account right now.
+     *
+     * ⛔ SharedPreferences only, and that is what makes it safe on a 500 ms loop. Whether a
+     * distributor is installed is deliberately NOT here: [distributorInstalled] is
+     * `UnifiedPush.getDistributors`, i.e. `packageManager.queryBroadcastReceivers`, a binder round
+     * trip — twice a second for as long as the screen is open, for an answer that cannot change
+     * while it is.
+     */
+    fun relayAddress(id: String): RelayAddress {
+        val up = getApplication<Application>().container.unifiedPushManager
+        return RelayAddress(
+            requested = up.relayRequested(id),
+            endpoint = up.relayEndpoint(id),
+        )
+    }
+
+    /**
+     * Is any UnifiedPush app installed? Read ONCE per visit to the screen, never on the block's
+     * tick: installing or removing a distributor while this screen is open is not a case worth a
+     * binder call twice a second, and the next visit sees it.
+     */
+    fun distributorInstalled(): Boolean =
+        getApplication<Application>().container.unifiedPushManager.distributorInstalled()
+
+    /**
+     * The user asked for a relay address on this IMAP account. The address arrives asynchronously
+     * from the distributor, so the caller redraws on this action and the block says it is waiting —
+     * it is not lying while it waits, and re-entering the screen settles it.
+     */
+    fun requestRelayAddress(id: String) {
+        val credentials = store.credentials(id) ?: return
+        getApplication<Application>().container.unifiedPushManager.requestRelayAddress(credentials)
+    }
+
+    /**
+     * The user withdrew the relay address. This talks to no server (a relay account never held a
+     * PushSubscription) and hands the account back to its own IMAP connection.
+     */
+    fun dropRelayAddress(id: String) {
+        val credentials = store.credentials(id) ?: return
+        getApplication<Application>().container.unifiedPushManager.dropRelayAddress(credentials)
+    }
+
+    /**
      * Turn the app's Sent-folder copy on/off for an account (IMAP only). Written at the toggle, not
      * at Save: this screen's Save button belongs to the text fields, and a switch that waited for it
      * would lose the choice to a back gesture.

@@ -93,6 +93,14 @@
     <string name="settings_push_status_connecting">Push : connexion en cours…</string>
     <string name="settings_push_status_periodic">Vérification toutes les 30 minutes</string>
     <string name="settings_push_status_not_watched">Relevé à l’ouverture de l’application</string>
+    <string name="settings_push_status_relay">Push : dernier réveil %1$s</string>
+    <string name="settings_push_relay_title">Adresse push de relais</string>
+    <string name="settings_push_relay_explain">Un relais qui possède cette adresse peut demander à Sterna de relever le courrier. Il ne peut pas lire vos messages.</string>
+    <string name="settings_push_relay_get">Obtenir une adresse</string>
+    <string name="settings_push_relay_waiting">En attente d’une adresse…</string>
+    <string name="settings_push_relay_remove">Retirer l’adresse</string>
+    <string name="settings_push_relay_copied">Adresse copiée</string>
+    <string name="settings_push_relay_no_distributor">Installez une application UnifiedPush (ntfy par exemple) pour obtenir une adresse.</string>
     <string name="settings_account_notifications_unwatched_note">Ce compte n’est pas surveillé. Activez « Push pour tous les comptes » pour récupérer ses nouveaux messages en arrière-plan et en être prévenu.</string>
     <string name="up_picker_title">Acheminer les notifications via</string>
     <string name="inbox_delete_folder_recursive_title">Supprimer aussi les sous-dossiers ?</string>

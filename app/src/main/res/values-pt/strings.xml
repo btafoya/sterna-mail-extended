@@ -93,6 +93,14 @@
     <string name="settings_push_status_connecting">Push: a ligar…</string>
     <string name="settings_push_status_periodic">Verificação a cada 30 minutos</string>
     <string name="settings_push_status_not_watched">Verificado ao abrir a aplicação</string>
+    <string name="settings_push_status_relay">Push: último despertar %1$s</string>
+    <string name="settings_push_relay_title">Endereço push de retransmissão</string>
+    <string name="settings_push_relay_explain">Uma retransmissão que tenha este endereço pode fazer com que o Sterna verifique o correio. Não pode ler as suas mensagens.</string>
+    <string name="settings_push_relay_get">Obter um endereço</string>
+    <string name="settings_push_relay_waiting">À espera de um endereço…</string>
+    <string name="settings_push_relay_remove">Remover o endereço</string>
+    <string name="settings_push_relay_copied">Endereço copiado</string>
+    <string name="settings_push_relay_no_distributor">Instale uma aplicação UnifiedPush (como o ntfy) para obter um endereço.</string>
     <string name="settings_account_notifications_unwatched_note">Esta conta não está a ser monitorizada. Ative «Push para todas as contas» para obter os seus novos e-mails em segundo plano e ser notificado sobre eles.</string>
     <string name="up_picker_title">Entregar as notificações através de</string>
     <string name="inbox_delete_folder_recursive_title">Eliminar também as subpastas?</string>

@@ -93,6 +93,14 @@
     <string name="settings_push_status_connecting">Push: Verbindung wird aufgebaut…</string>
     <string name="settings_push_status_periodic">Abruf alle 30 Minuten</string>
     <string name="settings_push_status_not_watched">Wird beim Öffnen der App geprüft</string>
+    <string name="settings_push_status_relay">Push: letzter Weckruf %1$s</string>
+    <string name="settings_push_relay_title">Push-Adresse für Relais</string>
+    <string name="settings_push_relay_explain">Ein Relais mit dieser Adresse kann Sterna dazu bringen, nach neuer Post zu sehen. Es kann deine E-Mails nicht lesen.</string>
+    <string name="settings_push_relay_get">Adresse anfordern</string>
+    <string name="settings_push_relay_waiting">Warte auf eine Adresse…</string>
+    <string name="settings_push_relay_remove">Adresse entfernen</string>
+    <string name="settings_push_relay_copied">Adresse kopiert</string>
+    <string name="settings_push_relay_no_distributor">Installiere eine UnifiedPush-App (etwa ntfy), um eine Adresse zu erhalten.</string>
     <string name="settings_account_notifications_unwatched_note">Dieses Konto wird nicht überwacht. Aktiviere „Push für alle Konten“, um seine neuen E-Mails im Hintergrund abzurufen und darüber benachrichtigt zu werden.</string>
     <string name="up_picker_title">Benachrichtigungen zustellen über</string>
     <string name="inbox_delete_folder_recursive_title">Auch Unterordner löschen?</string>

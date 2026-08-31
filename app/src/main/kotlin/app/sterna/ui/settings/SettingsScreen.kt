@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.text.format.DateUtils
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.compose.foundation.background
@@ -1683,6 +1684,14 @@ private fun AccountDetailScreen(
                     val statusText = when (val s = status) {
                         is PushStatus.ViaUnifiedPush ->
                             stringResource(R.string.settings_push_status_up, appLabelOf(appContext, s.distributorPackage))
+                        // A DATE, not a verdict: the relay belongs to the user, not to us, and
+                        // nothing here can tell one that died from one with nothing to announce
+                        // (#177). DateUtils localises the span itself, so the nine translations
+                        // carry one sentence and no units of time of their own.
+                        is PushStatus.ViaRelay -> stringResource(
+                            R.string.settings_push_status_relay,
+                            DateUtils.getRelativeTimeSpanString(s.lastDeliveryMillis),
+                        )
                         PushStatus.Direct -> stringResource(R.string.settings_push_status_direct)
                         PushStatus.Connecting -> stringResource(R.string.settings_push_status_connecting)
                         PushStatus.Periodic -> stringResource(R.string.settings_push_status_periodic)
@@ -1694,6 +1703,15 @@ private fun AccountDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
+                    // The relay address block (#177), inside BOTH guards and pinned there by
+                    // RelayAddressRowWiringTest. Inside notificationsEnabled because an address on
+                    // an account Sterna is told not to fetch is a trap — the relay posts, the wake
+                    // is ignored, and the screen still shows the address that was supposed to make
+                    // mail arrive. Inside isImap because a JMAP account holds a real
+                    // PushSubscription: it has a server that pushes to it and no use for a relay.
+                    if (isImap) {
+                        RelayAddressSection(accountId = accountId, viewModel = viewModel)
+                    }
                 }
             }
             SettingsSection(stringResource(R.string.settings_server_settings_section)) {
@@ -2290,6 +2308,108 @@ private fun AccountDetailScreen(
             }
         }
     }
+}
+
+/**
+ * The relay push address block (#177), for an IMAP account whose owner wants instant mail without
+ * a connection Sterna has to hold open. Sterna does not run a relay, does not ship one and does not
+ * document one: it PUBLISHES an address the user hands to whatever they already trust, and a POST
+ * to that address wakes the app up to check for mail. Nothing of the mailbox travels through it.
+ *
+ * Four states, and the first of them is the point: with no UnifiedPush app installed there is
+ * nothing that could ever mint an address, so the block says so and offers no button. A button
+ * that cannot work is the same on-screen lie as a status line that says push is on while nothing
+ * arrives — the very thing this volet was opened to remove.
+ */
+@Composable
+private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel) {
+    // Whether a UnifiedPush app is installed is read ONCE per visit: it is
+    // packageManager.queryBroadcastReceivers under the hood, and it cannot change while this
+    // screen is on top — if it does, the next visit sees it. It used to ride the tick below, which
+    // made that loop two binder calls a second for as long as the screen was open, under a comment
+    // claiming the read was "SharedPreferences only".
+    val distributorInstalled = remember(accountId) { viewModel.distributorInstalled() }
+    // The rest re-reads on the same 500 ms tick as the status line just above, and for the same
+    // reason: the distributor answers asynchronously, so an address that lands while this screen is
+    // open was shown nowhere until the screen was left and re-entered — with the block reading
+    // "Waiting for an address…" while the address was already in hand. ⛔ THIS read is
+    // SharedPreferences only, served from memory once loaded, exactly like the statusFor read that
+    // loop already does; no DataStore, no runBlocking and no PackageManager may join it.
+    var relay by remember(accountId) { mutableStateOf(viewModel.relayAddress(accountId)) }
+    LaunchedEffect(accountId) {
+        while (true) {
+            delay(500)
+            relay = viewModel.relayAddress(accountId)
+        }
+    }
+    val title = stringResource(R.string.settings_push_relay_title)
+    val endpoint = relay.endpoint
+    if (!distributorInstalled) {
+        RelayAddressNote(title, stringResource(R.string.settings_push_relay_no_distributor))
+    } else if (endpoint != null) {
+        SettingCopyableRow(
+            label = title,
+            value = endpoint,
+            copiedMessage = stringResource(R.string.settings_push_relay_copied),
+        )
+        // The same sentence as the empty state, and here is where it earns its keep: it used to
+        // vanish at the exact moment it matters, when the address is on screen and about to be
+        // pasted into somebody else's app. What the reader needs to know before doing that is what
+        // handing it out does and does not give away. No new string — the existing one, twice.
+        Text(
+            stringResource(R.string.settings_push_relay_explain),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        TextButton(
+            onClick = {
+                viewModel.dropRelayAddress(accountId)
+                relay = viewModel.relayAddress(accountId)
+            },
+            modifier = Modifier.padding(horizontal = 8.dp),
+        ) { Text(stringResource(R.string.settings_push_relay_remove)) }
+    } else if (relay.requested) {
+        RelayAddressNote(title, stringResource(R.string.settings_push_relay_waiting))
+        // ⛔ This state can be FINAL, so it gets the way out of it. For an account outside the
+        // watched set (push-all off, not the current account) the tap above is the only
+        // ensureRegistered of its life — PushController.apply and MailFetchWorker both filter on
+        // that set — so a registration that fails, or a distributor picker the reader dismisses,
+        // used to leave this sentence on screen for ever with nothing to press. "Remove address"
+        // puts the account back where it started, and the tap can happen again. No new string.
+        TextButton(
+            onClick = {
+                viewModel.dropRelayAddress(accountId)
+                relay = viewModel.relayAddress(accountId)
+            },
+            modifier = Modifier.padding(horizontal = 8.dp),
+        ) { Text(stringResource(R.string.settings_push_relay_remove)) }
+    } else {
+        RelayAddressNote(title, stringResource(R.string.settings_push_relay_explain))
+        TextButton(
+            onClick = {
+                viewModel.requestRelayAddress(accountId)
+                relay = viewModel.relayAddress(accountId)
+            },
+            modifier = Modifier.padding(horizontal = 8.dp),
+        ) { Text(stringResource(R.string.settings_push_relay_get)) }
+    }
+}
+
+/** The block's heading and its one sentence, for the three states that have no address to show. */
+@Composable
+private fun RelayAddressNote(title: String, note: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+    )
+    Text(
+        note,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    )
 }
 
 /**

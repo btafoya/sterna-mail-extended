@@ -14,6 +14,13 @@ enum class UpStatus {
     /** PushSubscription created; waiting for the server's PushVerification. */
     VERIFYING,
 
+    /**
+     * A relay address is published for this account (IMAP): the endpoint exists and is shown to
+     * the user, and nothing has ever been delivered through it. Deliberately NOT [ACTIVE]:
+     * ACTIVE means "something arrived", and the transport decisions read it that way.
+     */
+    PUBLISHED,
+
     /** Verified — StateChange events flow through the endpoint. */
     ACTIVE,
 
@@ -32,6 +39,10 @@ data class UpAccountState(
     val expiresAtMillis: Long = 0,
     /** When [status] last changed — drives the stale-pending watchdog. */
     val statusSinceMillis: Long = 0,
+    /** The user asked for a relay address on this (IMAP) account; no push without it. */
+    val relayRequested: Boolean = false,
+    /** When a payload last arrived through the relay endpoint (0 = never). */
+    val lastDeliveryMillis: Long = 0,
 )
 
 /**
@@ -52,6 +63,8 @@ class UnifiedPushStateStore(context: Context) {
                 ?: UpStatus.NONE,
             expiresAtMillis = prefs.getLong("$accountId.expires", 0),
             statusSinceMillis = prefs.getLong("$accountId.since", 0),
+            relayRequested = prefs.getBoolean("$accountId.relay", false),
+            lastDeliveryMillis = prefs.getLong("$accountId.delivered", 0),
         )
     }
 
@@ -67,6 +80,8 @@ class UnifiedPushStateStore(context: Context) {
             .putString("$accountId.status", state.status.name)
             .putLong("$accountId.expires", state.expiresAtMillis)
             .putLong("$accountId.since", state.statusSinceMillis)
+            .putBoolean("$accountId.relay", state.relayRequested)
+            .putLong("$accountId.delivered", state.lastDeliveryMillis)
             .apply()
     }
 

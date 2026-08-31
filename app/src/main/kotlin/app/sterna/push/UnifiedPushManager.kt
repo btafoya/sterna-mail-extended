@@ -104,15 +104,20 @@ class UnifiedPushManager(
     fun reconcileDistributorPresence() {
         val saved = UnifiedPush.getAckDistributor(context) ?: UnifiedPush.getSavedDistributor(context)
         if (saved != null && saved in UnifiedPush.getDistributors(context)) return
-        accountStore.allCredentials().forEach { credentials ->
-            store.load(credentials.id)
-                ?.takeIf { it.status != UpStatus.NONE && it.status != UpStatus.FAILED }
-                ?.let {
-                    store.save(
-                        credentials.id,
-                        it.copy(status = UpStatus.FAILED, statusSinceMillis = System.currentTimeMillis()),
-                    )
-                }
+        // The connector lookups above stay OUTSIDE the monitor (they are binder calls); only the
+        // read-decide-write below is protected, like every other state write in this file.
+        val credentials = accountStore.allCredentials()
+        synchronized(this) {
+            credentials.forEach { account ->
+                store.load(account.id)
+                    ?.takeIf { it.status != UpStatus.NONE && it.status != UpStatus.FAILED }
+                    ?.let {
+                        store.save(
+                            account.id,
+                            it.copy(status = UpStatus.FAILED, statusSinceMillis = System.currentTimeMillis()),
+                        )
+                    }
+            }
         }
     }
 
@@ -120,7 +125,7 @@ class UnifiedPushManager(
     fun isPending(accountId: String): Boolean {
         val state = store.load(accountId) ?: return false
         return (state.status == UpStatus.REGISTERING || state.status == UpStatus.VERIFYING) &&
-            System.currentTimeMillis() - state.statusSinceMillis < PENDING_GRACE_MS
+            System.currentTimeMillis() - state.statusSinceMillis < RelayPush.PENDING_GRACE_MS
     }
 
     /** Saved distributor's package name while this account rides UnifiedPush (status line). */
@@ -132,52 +137,166 @@ class UnifiedPushManager(
 
     /**
      * Drive the account towards ACTIVE: register when NONE/FAILED, re-register when a
-     * pending state went stale (lazy watchdog — no timers). No-op for IMAP accounts and
-     * whenever no distributor is usable.
+     * pending state went stale (lazy watchdog — no timers). No-op for an IMAP account whose
+     * owner never asked for a relay address, and whenever no distributor is usable.
+     *
+     * The decision itself is [RelayPush.shouldRegister] — it is pure and tested; everything
+     * left here is side effects.
      */
     // Synchronized: apply() runs from several call sites in quick succession (account
     // switch, transport callbacks) — without it the load/save race registers many times.
     @Synchronized
     fun ensureRegistered(credentials: AccountCredentials) {
-        if (credentials.protocol != MailProtocol.JMAP) return
         // Only the login holds a PushSubscription; its sub-accounts (issue #31) are served by it and
         // fanned to on delivery, so registering them would create redundant subscriptions.
         if (accountStore.account(credentials.id)?.isLinked == true) return
+        // Read, don't create: an IMAP account nobody asked a relay for must leave no trace here —
+        // and must not reach ensureDistributor(), whose picker is the one piece of UI in this
+        // subsystem. Hence that ONE question runs first, on a possibly absent record.
+        val known = store.load(credentials.id)
+        if (!RelayPush.mayUsePush(credentials.protocol, known?.relayRequested ?: false)) return
+        // ⛔ And ensureDistributor() runs BEFORE the registration window, not after it. It is not
+        // only a check: it silently enrols a single installed distributor and it is what raises the
+        // picker. Behind shouldRegister, an account that had just been marked FAILED — which is
+        // precisely what reconcileDistributorPresence does when the distributor is uninstalled —
+        // stopped reaching it for the whole 15-minute cooldown, so a freshly installed replacement
+        // went unseen. The window itself is asked next, and only decides whether to register.
         if (!ensureDistributor()) return
-        val state = store.getOrCreate(credentials.id)
-        val now = System.currentTimeMillis()
-        val stalePending = (state.status == UpStatus.REGISTERING || state.status == UpStatus.VERIFYING) &&
-            now - state.statusSinceMillis >= PENDING_GRACE_MS
-        // FAILED retries only after a cooldown. Critical: a failure invokes
-        // onTransportStateChanged → apply() → back here — without the cooldown that is
-        // a tight register/fail loop hammering the mail server (self-inflicted 429s).
-        val failedRetryDue = state.status == UpStatus.FAILED &&
-            now - state.statusSinceMillis >= FAILED_RETRY_MS
-        if (state.status == UpStatus.NONE || failedRetryDue || stalePending) {
-            store.save(credentials.id, state.copy(status = UpStatus.REGISTERING, statusSinceMillis = System.currentTimeMillis()))
-            scope.launch {
-                // VAPID (RFC 9749) when the server advertises it; Stalwart doesn't yet.
-                val vapid = runCatching { repo.pushVapidKey(credentials) }.getOrNull()
-                UnifiedPush.register(context, credentials.id, null, vapid)
-            }
+        if (!RelayPush.shouldRegister(
+                protocol = credentials.protocol,
+                relayRequested = known?.relayRequested ?: false,
+                status = known?.status ?: UpStatus.NONE,
+                statusSinceMillis = known?.statusSinceMillis ?: 0L,
+                now = System.currentTimeMillis(),
+            )
+        ) {
+            return
         }
+        val state = store.getOrCreate(credentials.id)
+        store.save(credentials.id, state.copy(status = UpStatus.REGISTERING, statusSinceMillis = System.currentTimeMillis()))
+        val relay = credentials.protocol != MailProtocol.JMAP
+        scope.launch {
+            // VAPID (RFC 9749) when the server advertises it; Stalwart doesn't yet. A relay
+            // account must NOT ask: pushVapidKey is a JMAP call, and its host speaks IMAP.
+            val vapid = if (relay) null else runCatching { repo.pushVapidKey(credentials) }.getOrNull()
+            UnifiedPush.register(context, credentials.id, null, vapid)
+        }
+    }
+
+    /**
+     * The user asked for a relay address on this account (settings).
+     *
+     * ⛔ [RelayPush.onRelayRequested] puts the status back to NONE, and that is the correction, not
+     * a detail: "Remove address" unregisters the instance, the distributor answers, [onUnregistered]
+     * writes FAILED stamped now — so tapping "Get an address" straight afterwards fell inside the
+     * 15-minute FAILED cooldown and did nothing at all, with not a word on screen. That cooldown
+     * exists to stop the AUTOMATIC loop (a failure calls onTransportStateChanged → apply() → back
+     * into shouldRegister); a deliberate tap is not a loop, and every automatic path still rides it.
+     *
+     * Under the same monitor as [ensureRegistered]: [onNewEndpoint] persists from Dispatchers.IO.
+     */
+    fun requestRelayAddress(credentials: AccountCredentials) {
+        synchronized(this) {
+            val state = store.getOrCreate(credentials.id)
+            store.save(credentials.id, RelayPush.onRelayRequested(state, System.currentTimeMillis()))
+        }
+        ensureRegistered(credentials)
+    }
+
+    /**
+     * The user withdrew the relay address: forget the endpoint, then unregister the instance.
+     *
+     * ⛔ It talks to no server, which is only true of an account that never held a
+     * PushSubscription — so an account that DOES hold one is refused here rather than served
+     * quietly. This is [teardown]'s twin minus the destroy call: run on a JMAP account it would
+     * erase the subscription id locally and leave the subscription alive on the server, posting to
+     * an endpoint that no longer exists, with a second one created at the next registration. The
+     * screen only offers it on IMAP; this is a public function, and that is not a guard.
+     *
+     * Under the same monitor as [ensureRegistered], and the connector call outside it: holding the
+     * lock across an IPC would block every registration for its duration.
+     */
+    fun dropRelayAddress(credentials: AccountCredentials) {
+        synchronized(this) {
+            val state = store.load(credentials.id) ?: return
+            if (state.subscriptionId != null) {
+                Log.w(TAG, "dropRelayAddress on an account holding a subscription — ignored: ${credentials.id}")
+                return
+            }
+            store.save(
+                credentials.id,
+                state.copy(
+                    endpoint = null,
+                    subscriptionId = null,
+                    status = UpStatus.NONE,
+                    statusSinceMillis = System.currentTimeMillis(),
+                    relayRequested = false,
+                    lastDeliveryMillis = 0,
+                ),
+            )
+        }
+        UnifiedPush.unregister(context, credentials.id)
+        onTransportStateChanged?.invoke()
+    }
+
+    /** Has the user asked for a relay address on this account? */
+    fun relayRequested(accountId: String): Boolean = store.load(accountId)?.relayRequested == true
+
+    /**
+     * The published relay address, or null unless there is a live one to show —
+     * [RelayPush.publishedAddress] holds the rule and is executed by RelayPushTest.
+     */
+    fun relayEndpoint(accountId: String): String? = RelayPush.publishedAddress(store.load(accountId))
+
+    /** When a payload last arrived through the relay endpoint (0 = never). */
+    fun relayLastDeliveryMillis(accountId: String): Long = store.load(accountId)?.lastDeliveryMillis ?: 0
+
+    /**
+     * Is this account served by an ARMED relay — one the user asked for, that holds no
+     * PushSubscription of its own, and through which a wake has really arrived?
+     *
+     * ⛔ One question over ONE record, and it lives here rather than in the caller precisely so it
+     * cannot be reassembled from three reads that answer about three different moments. All three
+     * facts carry: [UpAccountState.relayRequested] because the subsystem enrols a distributor
+     * silently and an address may exist that nobody asked for; a null [UpAccountState.subscriptionId]
+     * because a JMAP account's ACTIVE is the server's PushVerification, not a delivery; and ACTIVE
+     * itself because PUBLISHED means an address published and never posted to — that account is
+     * still served by its IMAP connection, and the screen must go on saying so.
+     */
+    fun relayArmed(accountId: String): Boolean {
+        val state = store.load(accountId) ?: return false
+        return state.relayRequested && state.subscriptionId == null && state.status == UpStatus.ACTIVE
     }
 
     /** The distributor delivered (or rotated) this instance's endpoint. */
     fun onNewEndpoint(accountId: String, endpoint: PushEndpoint) {
         val credentials = credentialsFor(accountId) ?: return unregisterOrphan(accountId)
         scope.launch {
-            val prev = store.getOrCreate(accountId)
-            // The connector redelivers the endpoint on every register — if it hasn't
-            // changed and a subscription is live or FRESHLY awaiting verification,
-            // nothing to do. A stale VERIFYING must fall through and recreate: its
-            // server-side verification window has lapsed.
-            val pendingFresh = prev.status == UpStatus.VERIFYING &&
-                System.currentTimeMillis() - prev.statusSinceMillis < PENDING_GRACE_MS
-            if (prev.endpoint == endpoint.url && prev.subscriptionId != null &&
-                (pendingFresh || prev.status == UpStatus.ACTIVE)
-            ) {
-                return@launch
+            // The connector redelivers the endpoint on every register, so the no-change case
+            // has to be recognised; and a relay account stops at its own state, since there is
+            // no subscription to create against an IMAP host. Both are [RelayPush.endpointOutcome].
+            //
+            // ⛔ Read, decide and write in ONE block, under the same monitor as ensureRegistered.
+            // This runs on Dispatchers.IO while the settings screen can be writing: read the state
+            // outside the lock and a withdrawal landing in between is overwritten by a state built
+            // on a 'prev' from before it — the address the user just removed comes back, published.
+            // The lock covers state only; the network calls below are deliberately outside it.
+            val (prev, outcome) = synchronized(this@UnifiedPushManager) {
+                val current = store.getOrCreate(accountId)
+                val decided = RelayPush.endpointOutcome(
+                    credentials.protocol, current, endpoint.url, System.currentTimeMillis(),
+                )
+                if (decided is EndpointOutcome.Relay) store.save(accountId, decided.state)
+                current to decided
+            }
+            when (outcome) {
+                EndpointOutcome.Ignore -> return@launch
+                is EndpointOutcome.Relay -> {
+                    Log.i(TAG, "Relay address published for $accountId")
+                    onTransportStateChanged?.invoke()
+                    return@launch
+                }
+                EndpointOutcome.Subscribe -> Unit
             }
             if (prev.subscriptionId != null) {
                 // Rotation or a lapsed verification: the old subscription is dead — drop it.
@@ -227,7 +346,25 @@ class UnifiedPushManager(
     fun onMessage(accountId: String, message: PushMessage) {
         when (val payload = decodePayload(accountId, message)) {
             is PushMessagePayload.Verification -> {
+                // ⛔ A relay address is a topic ANYONE may post to. Without this guard, a stranger
+                // who knows the address posts {"@type":"PushVerification"} and the payload is
+                // carried straight into verifyPushSubscription → jmapAuth with the account's
+                // credentials, against a host that speaks IMAP: the failure calls markFailed, so
+                // that stranger switches the relay off for fifteen minutes, silently, as often as
+                // they like — and on an OAuth account a real token refresh is burnt first.
+                //
+                // ⛔ The question is the PROTOCOL, not the stored subscriptionId. That id is
+                // written only once createPushSubscription has RETURNED, so a first verification
+                // arriving before that return would have been dropped in silence and the account
+                // left VERIFYING until it went stale — a guard that depends on which of two
+                // messages wins a race. The protocol does not race: JMAP is the only thing that
+                // can hold a subscription to verify, and a relay account, which is all this guard
+                // was ever for, is still refused. No payload logged.
                 val credentials = credentialsFor(accountId) ?: return unregisterOrphan(accountId)
+                if (credentials.protocol != MailProtocol.JMAP) {
+                    Log.w(TAG, "Push verification on a relay account — ignored: $accountId")
+                    return
+                }
                 scope.launch {
                     // Promptly: servers time the round-trip out (Stalwart: ~1 min).
                     runCatching {
@@ -250,14 +387,46 @@ class UnifiedPushManager(
             // accounts (never ACL-shared sub-accounts — verified on Stalwart), so for linked
             // sub-accounts this fan-out is a catch-up ride on the login's wakes; their own
             // guaranteed delivery is [MailFetchWorker]'s periodic poll.
-            is PushMessagePayload.Change -> enqueueForLogin(accountId)
+            is PushMessagePayload.Change -> {
+                recordDelivery(accountId)
+                enqueueForLogin(accountId)
+            }
             // Unknown/undecryptable payload: treat as a bare wake signal — still fetch.
             null -> {
                 // Log.i, not d: release builds strip d/v, and when push misbehaves on a distributor
                 // I cannot test, this line (size + decrypted flag only, no payload) is the evidence.
                 Log.i(TAG, "Unparsed push payload (${message.content.size}B, decrypted=${message.decrypted})")
+                recordDelivery(accountId)
                 enqueueForLogin(accountId)
             }
+        }
+    }
+
+    /**
+     * Mail really came through this account's endpoint — the only thing that arms a relay
+     * ([RelayPush.onDelivery] holds the rule, including "not for JMAP": the Verification arm above
+     * owns that path and must not be short-circuited by a message). Called from the two arms that
+     * carry mail, never from Verification.
+     */
+    private fun recordDelivery(accountId: String) {
+        // ⛔ Read, decide and write under the SAME monitor as ensureRegistered and onNewEndpoint.
+        // This is the ONLY write that arms the transport, and it runs on the connector's thread
+        // while an endpoint rotation writes from Dispatchers.IO. Outside the lock: the rotation
+        // persists {new address, PUBLISHED, never woken}, a payload that arrived on the OLD address
+        // and read its record before that persists {old address, ACTIVE, woken just now} on top —
+        // IMAP IDLE dropped for an address that is already dead, with "last wake: just now"
+        // underneath it on screen. The callback below stays outside: it re-enters the manager.
+        val update = synchronized(this) {
+            val prev = store.load(accountId) ?: return
+            val decided = RelayPush.onDelivery(prev, System.currentTimeMillis()) ?: return
+            store.save(accountId, decided.state)
+            decided
+        }
+        // Only the PUBLISHED → ACTIVE crossing: this callback rebuilds every connection, so
+        // invoking it per message would be a storm.
+        if (update.armed) {
+            Log.i(TAG, "UnifiedPush relay armed by a delivery for $accountId")
+            onTransportStateChanged?.invoke()
         }
     }
 
@@ -300,8 +469,11 @@ class UnifiedPushManager(
         // FAILED, not NONE: NONE re-registers instantly through the transport callback,
         // which ping-pongs against a distributor that keeps answering with unregister
         // (e.g. the user revoked Sterna inside it). FAILED rides the retry cooldown.
-        store.load(accountId)?.let {
-            store.save(accountId, it.copy(status = UpStatus.FAILED, statusSinceMillis = System.currentTimeMillis()))
+        // Under the monitor: this arrives on the connector's thread, against the settings screen.
+        synchronized(this) {
+            store.load(accountId)?.let {
+                store.save(accountId, it.copy(status = UpStatus.FAILED, statusSinceMillis = System.currentTimeMillis()))
+            }
         }
         onTransportStateChanged?.invoke()
     }
@@ -339,8 +511,12 @@ class UnifiedPushManager(
     }
 
     private fun markFailed(accountId: String) {
-        store.load(accountId)?.let {
-            store.save(accountId, it.copy(status = UpStatus.FAILED, statusSinceMillis = System.currentTimeMillis()))
+        // Under the monitor like every other state write that is not inside a coroutine's own
+        // read-decide-write: this one is called from failed coroutines and from the connector.
+        synchronized(this) {
+            store.load(accountId)?.let {
+                store.save(accountId, it.copy(status = UpStatus.FAILED, statusSinceMillis = System.currentTimeMillis()))
+            }
         }
         onTransportStateChanged?.invoke()
     }
@@ -387,10 +563,5 @@ class UnifiedPushManager(
         /** Renew when expiring within two periodic-worker cycles. */
         private const val RENEW_MARGIN_MS = 2 * 30 * 60 * 1000L
 
-        /** How long REGISTERING/VERIFYING counts as in-flight before the watchdog retries. */
-        private const val PENDING_GRACE_MS = 2 * 60 * 1000L
-
-        /** Cooldown before a FAILED account may re-register (worker cycles retry for us). */
-        private const val FAILED_RETRY_MS = 15 * 60 * 1000L
     }
 }

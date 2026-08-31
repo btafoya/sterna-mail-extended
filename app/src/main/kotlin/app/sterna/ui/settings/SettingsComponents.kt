@@ -1,5 +1,6 @@
 package app.sterna.ui.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,10 +21,12 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -47,6 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -334,6 +340,55 @@ fun AccountRow(
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
+    }
+}
+
+/**
+ * A read-only value the user has to carry OUT of the app — today the relay push address (#177):
+ * label above, the value itself below, and a copy icon; tapping anywhere on the row copies it and
+ * confirms with [copiedMessage].
+ *
+ * Shaped on [AccountRow] above, and deliberately not on [SettingTextField]: a value nobody edits
+ * does not belong in an edit box, where a stray keystroke silently changes what will be pasted
+ * elsewhere. ⛔ And it is NOT a secret — a relay address is meant to be read and given away, so
+ * there is no mask and no reveal eye here to borrow.
+ *
+ * The value wraps rather than being cut with an ellipsis: an endpoint URL is long, and half a URL
+ * on screen is a URL that cannot be checked against the one that was pasted into the relay. The
+ * whole of it is selectable too, so the copy tap is a convenience and not the only way out.
+ */
+@Composable
+fun SettingCopyableRow(
+    label: String,
+    value: String,
+    copiedMessage: String,
+) {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                clipboard.setText(AnnotatedString(value))
+                Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+            }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.titleMedium)
+            SelectionContainer {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(16.dp))
+        // Decorative: the whole row is the one click target, and a screen reader already reads the
+        // label and the value it would otherwise describe a second time.
+        Icon(Icons.Filled.ContentCopy, contentDescription = null)
     }
 }
 

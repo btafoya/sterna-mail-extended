@@ -106,6 +106,14 @@
     <string name="settings_push_status_connecting">Push: connecting…</string>
     <string name="settings_push_status_periodic">Checked every 30 minutes</string>
     <string name="settings_push_status_not_watched">Checked when you open the app</string>
+    <string name="settings_push_status_relay">Push: last wake %1$s</string>
+    <string name="settings_push_relay_title">Relay push address</string>
+    <string name="settings_push_relay_explain">A relay that has this address can make Sterna check for mail. It cannot read your mail.</string>
+    <string name="settings_push_relay_get">Get an address</string>
+    <string name="settings_push_relay_waiting">Waiting for an address…</string>
+    <string name="settings_push_relay_remove">Remove address</string>
+    <string name="settings_push_relay_copied">Address copied</string>
+    <string name="settings_push_relay_no_distributor">Install a UnifiedPush app (such as ntfy) to get an address.</string>
     <string name="settings_account_notifications_unwatched_note">This account is not being watched. Turn on “Push for all accounts” to fetch its new mail in the background and be notified about it.</string>
     <string name="up_picker_title">Deliver notifications through</string>
     <string name="inbox_delete_folder_recursive_title">Also delete subfolders?</string>
