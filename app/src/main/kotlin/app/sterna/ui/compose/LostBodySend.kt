@@ -49,10 +49,16 @@ package app.sterna.ui.compose
  * hands this one the RAW body of each: `sendInternal` its `args.body`, `scheduleSend` its own
  * `body` parameter, and both do so BEFORE anything is committed.
  *
- * ⚠ It says nothing about SAVING. A save that carries a lost body is already handled, one layer
- * down and in the other direction: `localDraftBodyToWrite` refuses to write the empty body OVER the
- * stored one, so the row keeps the last text that reached the disk. This function is what stops the
- * same tap from DESTROYING that row.
+ * ⚠ **It says nothing about SAVING, and what it used to say about it was half true.** Of the
+ * phone's own draft row, yes: `localDraftBodyToWrite` refuses to write the empty body OVER the
+ * stored one, so a save leaves the last text that reached the disk where it is. Of the SERVER draft,
+ * yes, but NOT by the guard the send routes use: `saveDraft` never calls `unlessBodyIsLossy` (that
+ * one has a single caller, `scheduleSend`). It hands the same loss down as `bodyIsLossy =
+ * editingDraftLossy`, and `draftReplacementIsFaithful` (`DraftSave.kt:135-146`) is `!bodyIsLossy &&
+ * …`, so the save answers ORIGINAL_KEPT and the copy in Drafts is never destroyed. Of the QUEUED
+ * OUTBOX ROW, no — and that sentence is what
+ * made the save route look covered while it destroyed the row and its staged files. That question is
+ * [lostBodySaveDestroysQueuedRow], and it is a different one.
  */
 internal fun composerMaySendBody(bodyWasLost: Boolean, body: String): Boolean =
     !(bodyWasLost && body.isBlank())
@@ -129,3 +135,57 @@ internal fun lostBodySendWording(
     holdsStoredDraft -> LostBodyWording.REOPEN_DRAFT
     else -> LostBodyWording.RETYPE
 }
+
+/**
+ * Would THIS save destroy the queued row — the only store a save can take away?
+ *
+ * Not the send question restated: [composerMaySendBody] weighs whether a message may LEAVE, this
+ * one weighs whether a "Save as draft" is about to consume a row in the outbox. They meet on the
+ * two body terms and nowhere else, so the reading of a lost body stays stated once, in
+ * [composerMaySendBody]; the third term is what makes this a save decision.
+ *
+ * The defect it ends: a queued message reopened by Outbox → Edit, redrawn EMPTY over a resume slot
+ * that could not give the body back (`To` and the subject come back from their own saveables, so the
+ * screen looks whole), and the CAUTIOUS gesture taken — Save as draft rather than Send. `saveDraft`
+ * asked nothing, wrote the empty draft, and `consumeEditingOutbox()` then deleted the queued row and
+ * its durable attachment directory. The text existed nowhere else. The screen was at that moment
+ * telling her, from the send route, to close and reopen the message; the button beside it destroyed
+ * what she would have reopened.
+ *
+ * Three terms, all needed:
+ *
+ *  - [bodyWasLost] — the composer lost the text it was holding. ALONE it would refuse every save
+ *    for ever: the flag is raised once and never lowered, so a user who retyped her message could
+ *    no longer save it either.
+ *  - [body] being blank — nothing has been typed since. ALONE it would refuse the ordinary save of
+ *    a queued message whose text was deliberately emptied, which loses nothing.
+ *  - [holdsQueuedRow] — a queued row is being edited (`editingOutboxId != null` at the call site).
+ *    ALONE it would refuse every save made from Outbox → Edit.
+ *
+ * ⛔ **Why the third term, and why it is not written wider.** The queued row is the only store
+ * this save DESTROYS. The phone's own draft row is protected one layer down by
+ * `localDraftBodyToWrite`, which will not write an empty body over the stored one; the server draft
+ * by `draftReplacementIsFaithful`, which is `!bodyIsLossy && …` and is handed `editingDraftLossy` —
+ * true the moment the body is lost — so the save keeps the original instead of replacing it
+ * (ORIGINAL_KEPT). ⛔ NOT by `unlessBodyIsLossy`: that guard belongs to `scheduleSend`, its only
+ * caller, and naming it here would be a mechanism this route never runs. On those
+ * routes nothing is lost by saving, and refusing there would take away the last chance to keep a
+ * subject or a recipient just typed — which is the whole point of the gesture.
+ *
+ * ⛔ **[body] is the RAW body of the composer**, the `body` parameter `saveDraft` was handed —
+ * never a body that has been through `bodiesForSend`. That one appends the identity's signature and
+ * is therefore never blank: handed it, this function answers "no" on every save ever made and the
+ * guard is dead code that reads exactly like a working one.
+ *
+ * ⛔ **What it does NOT cover: the row lost to PROCESS DEATH.** `editingOutboxId` is not
+ * persisted, so after the process is killed and the activity rebuilt it is null: this answers false,
+ * the save goes through — and there is nothing to destroy, because `consumeEditingOutbox()` reads
+ * the same null and returns at once. The guard is blind there, without consequence. The row left
+ * `EDITING` with nobody to release it is a different defect, on its own finding, and adding a term
+ * for it here would refuse saves that destroy nothing.
+ */
+internal fun lostBodySaveDestroysQueuedRow(
+    bodyWasLost: Boolean,
+    body: String,
+    holdsQueuedRow: Boolean,
+): Boolean = holdsQueuedRow && !composerMaySendBody(bodyWasLost, body)

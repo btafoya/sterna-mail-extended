@@ -2498,6 +2498,24 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     ): Boolean = draftHasContent(to, cc, bcc, subject, body, _attachments.value.isNotEmpty())
 
     fun saveDraft(to: String, cc: String, bcc: String, subject: String, body: String, requestReceipt: Boolean) {
+        // ⛔ A save is the CAUTIOUS gesture, and on one route it was the destructive one: a queued
+        // message reopened by Outbox → Edit and redrawn empty over a resume slot that lost the body
+        // is saved as an empty draft, and consumeEditingOutbox() at the foot of this function then
+        // deletes the queued row and its durable attachment directory (#95 × #70 × the resume parcel).
+        // That row is the only copy of the text; the send route already refuses this and tells her to
+        // close and reopen the message, on this same screen, while this button destroyed what she
+        // would have reopened. Same sentence, because it is the same true advice.
+        // ⛔ HERE and not lower: everything below writes — the empty-draft branch destroys, the
+        // submit() block replaces — so a refusal written after any of it refuses nothing.
+        // ⛔ The RAW `body` this function was handed, never a body through bodiesForSend: that one
+        // carries the signature, is never blank, and would make this line dead code reading as a guard.
+        // ⛔ And it is NOT lostBodySendWording: that answers what a SEND owes, is asked exactly
+        // twice, and a third call would be a second answer to a question this route never asks. The
+        // decision is executed in LostBodySendTest; the guard only has to hand it the three terms.
+        if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body, holdsQueuedRow = editingOutboxId != null)) {
+            _notices.tryEmit(R.string.compose_body_lost_reopen_draft)
+            return
+        }
         // The plaintext guarantee, enforced where the upload actually happens (#35): an encrypted
         // message never leaves a readable copy on the server, draft included. The toolbar hides
         // Save/Schedule and the leave dialog only offers Discard while encrypting, so this is

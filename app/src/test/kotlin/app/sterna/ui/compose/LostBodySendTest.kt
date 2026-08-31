@@ -202,4 +202,132 @@ class LostBodySendTest {
             },
         )
     }
+    // -- and what a SAVE would destroy, executed too ----------------------------------------------
+
+    /**
+     * ⭐ THE DEFECT THIS TIME, and it was reached by the CAUTIOUS gesture: a queued message
+     * reopened by Outbox → Edit, redrawn empty over a resume slot that lost the body, and saved as
+     * a draft rather than sent. `saveDraft` asked nothing, wrote the empty draft, and
+     * `consumeEditingOutbox()` then deleted the queued row and its durable attachment directory —
+     * the only copy of the text.
+     */
+    @Test fun `saving an empty composer over a queued row destroys it`() {
+        assertEquals(
+            "the queued row is the only copy of the text: the save writes an empty draft and " +
+                "consumeEditingOutbox() then deletes the row AND its staged attachment directory",
+            true,
+            lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = "", holdsQueuedRow = true),
+        )
+    }
+
+    /** ⛔ …and whitespace is not text here either, for the same reason it is not on the send. */
+    @Test fun `a blank body over a queued row destroys it too`() {
+        assertEquals(true, lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = " ", holdsQueuedRow = true))
+        assertEquals(
+            "a composer redrawn empty over a signature separator holds newlines, and counted as a " +
+                "body they let the destroying save straight through",
+            true,
+            lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = "\n\n", holdsQueuedRow = true),
+        )
+    }
+
+    /**
+     * ⛔ FIRST TERM ALONE WOULD BE A TRAP: the lost-body flag is raised once and never lowered, so
+     * a rule that ignored the body would refuse to save the message the user has just retyped —
+     * over a queued row, i.e. exactly where losing it costs the most.
+     */
+    @Test fun `a body typed back after the loss saves`() {
+        assertEquals(
+            "text was typed after the loss: the save carries a real body, and refusing it would " +
+                "make the loss permanent on the one route with nowhere else to put the text",
+            false,
+            lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = "typed again", holdsQueuedRow = true),
+        )
+        assertEquals(false, lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = " x ", holdsQueuedRow = true))
+    }
+
+    /**
+     * ⛔ …and the body is read WHOLE, never a first line of it. A message retyped starting with a
+     * newline — Enter, then the text — is a body, and any reading that stops at the first line
+     * calls it blank. The flag is never lowered, so on this route that user could never save her
+     * reprise again: the trap the second term exists to prevent, reintroduced one line lower.
+     * ⛔ This is a SURVIVING mutation made to fail (`body.substringBefore('\n')` left every other
+     * case in this file green): it is a real reading of a real body, not a test written to close a
+     * mutant.
+     */
+    @Test fun `a body typed back below a blank first line saves`() {
+        assertEquals(
+            "the whole body is weighed, not its first line: pressing Enter before typing is how " +
+                "a great many messages begin, and reading only the first line calls that blank",
+            false,
+            lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = "\nBonjour", holdsQueuedRow = true),
+        )
+        assertEquals(false, lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = "\n\n  \ntyped again", holdsQueuedRow = true))
+    }
+
+    /**
+     * ⛔ SECOND TERM ALONE would refuse a deliberate emptying: a queued message whose text the user
+     * removed on purpose is still saveable as a draft, and nothing about it was lost.
+     */
+    @Test fun `an empty body nobody lost saves, queued row or not`() {
+        assertEquals(
+            "no loss behind this empty body: the user emptied the message herself, and the save " +
+                "is the ordinary one",
+            false,
+            lostBodySaveDestroysQueuedRow(bodyWasLost = false, body = "", holdsQueuedRow = true),
+        )
+        assertEquals(false, lostBodySaveDestroysQueuedRow(bodyWasLost = false, body = "   ", holdsQueuedRow = true))
+    }
+
+    /**
+     * ⛔ THIRD TERM, and the reason it is not written wider: with no queued row behind the screen
+     * this save destroys NOTHING. The phone's own draft row is held by `localDraftBodyToWrite`,
+     * which will not write an empty body over the stored one; the server draft by
+     * `unlessBodyIsLossy`, since `editingDraftLossy` is true the moment the body is lost. Refusing
+     * here would take away the last chance to keep a subject or a recipient just typed.
+     */
+    @Test fun `a save that has no queued row behind it destroys nothing`() {
+        assertEquals(
+            "no outbox row is being edited, so this save takes nothing away: the local row is " +
+                "protected by localDraftBodyToWrite and the server copy by unlessBodyIsLossy. " +
+                "Refusing here would only cost the user a subject or a recipient she just typed.",
+            false,
+            lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = "", holdsQueuedRow = false),
+        )
+        assertEquals(false, lostBodySaveDestroysQueuedRow(bodyWasLost = true, body = "  \n ", holdsQueuedRow = false))
+    }
+
+    /**
+     * The whole table, literals again — the eight corners of three booleans with the blank readings
+     * beside them. TRUE in one corner only, and any term dropped from the condition has to move a
+     * VALUE in this list.
+     */
+    @Test fun `the save table, whole`() {
+        val cases = listOf(
+            Triple(true, "", true) to true,
+            Triple(true, "  \t ", true) to true,
+            Triple(true, "text", true) to false,
+            Triple(false, "", true) to false,
+            Triple(false, "  \t ", true) to false,
+            Triple(false, "text", true) to false,
+            Triple(true, "", false) to false,
+            Triple(true, "  \t ", false) to false,
+            Triple(true, "text", false) to false,
+            Triple(false, "", false) to false,
+            Triple(false, "text", false) to false,
+        )
+        assertEquals(
+            "destroyed in ONE corner only: the body was lost, nothing was typed back, and a " +
+                "queued row is being edited. Everywhere else the save goes on.",
+            cases.map { (input, destroys) ->
+                val (lost, body, queued) = input
+                "lost=$lost body=${body.trim().ifEmpty { "<blank>" }} queued=$queued -> $destroys"
+            },
+            cases.map { (input, _) ->
+                val (lost, body, queued) = input
+                "lost=$lost body=${body.trim().ifEmpty { "<blank>" }} queued=$queued -> " +
+                    "${lostBodySaveDestroysQueuedRow(lost, body, queued)}"
+            },
+        )
+    }
 }

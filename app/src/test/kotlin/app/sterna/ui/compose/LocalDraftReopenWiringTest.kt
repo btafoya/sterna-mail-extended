@@ -600,6 +600,45 @@ class LocalDraftReopenWiringTest {
         )
     }
 
+    /**
+     * ⛔ **The SAVE has a decision of its own, and it is asked ONCE.**
+     *
+     * The gesture it stops is the CAUTIOUS one: a queued message reopened by Outbox → Edit, redrawn
+     * empty over a resume slot that could not give the body back, and saved as a draft rather than
+     * sent. `saveDraft` wrote the empty draft and `consumeEditingOutbox()` then deleted the queued
+     * row and its durable attachment directory — the only copy of the text — while the screen was
+     * telling her, from the send route, to close and reopen the message.
+     *
+     * ⛔ It is NOT a third `lostBodySendWording(`: that one answers what a refused SEND owes the
+     * reader, it is asked exactly twice (the rule above), and a third call would be a second answer
+     * to the send question. This is another question — "would this save destroy the queued row?" —
+     * so it has its own name, and its own count of ONE: a second call in this file would be a
+     * second answer to THAT question, i.e. two places deciding what a save may take away, and the
+     * rule above would stay green through it.
+     *
+     * ⛔ **The WHOLE line, arguments included**, because the arguments are the proof and every
+     * mutation that matters LENGTHENS the line: `body` is the RAW body `saveDraft` was handed (a
+     * body through `bodiesForSend` carries the signature, is never blank, and the guard never arms),
+     * and `holdsQueuedRow` is `editingOutboxId != null` and nothing else — widened to the local or
+     * server draft it refuses saves that destroy nothing and costs the user the subject or the
+     * recipient she just typed.
+     *
+     * SOURCE LINT, the last resort — the decision is EXECUTED in `LostBodySendTest`, and its
+     * position inside `saveDraft` (first statement, above the consume) is pinned line by line by
+     * `ComposeViewModelWiringTest`.
+     */
+    @Test fun `the save asks what it would destroy exactly once, on the raw body and the queued row`() {
+        val code = codeLines(codeOf(COMPOSE_VIEW_MODEL.readText()))
+        assertEquals(
+            "⛔ `lostBodySaveDestroysQueuedRow(` belongs in exactly ONE place, the head of " +
+                "saveDraft, and with these arguments. A second call is a second answer to the " +
+                "question of what a save destroys; a changed argument is the guard gone dead while " +
+                "reading like a working one. Lines calling it were:",
+            listOf(SAVE_LOST_BODY_GUARD),
+            code.filter { "lostBodySaveDestroysQueuedRow(" in it },
+        )
+    }
+
     @Test fun `emptying a reopened local draft really deletes it, and does not requeue it`() {
         val save = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "saveDraft"))
         val from = save.indexOf("val original = editingDraftId")
@@ -1281,6 +1320,16 @@ class LocalDraftReopenWiringTest {
             "},",
             ")",
         )
+
+        /**
+         * …and the SAVE route's guard, whole, for the same reason: the arguments ARE the proof.
+         * `body` is the raw body `saveDraft` was handed; `holdsQueuedRow` is the outbox row alone,
+         * the only store a save DESTROYS (the phone's own row is held by `localDraftBodyToWrite`,
+         * the server copy by `unlessBodyIsLossy`).
+         */
+        const val SAVE_LOST_BODY_GUARD =
+            "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body, " +
+                "holdsQueuedRow = editingOutboxId != null)) {"
 
         /** The refusal of one route, whole: decide, say which sentence, leave. */
         fun lostBodyGuard(bodyArgument: String, exit: String): List<String> =

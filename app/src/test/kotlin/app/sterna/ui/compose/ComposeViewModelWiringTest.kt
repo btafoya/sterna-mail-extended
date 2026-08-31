@@ -190,10 +190,26 @@ class ComposeViewModelWiringTest {
     @Test fun `the whole of saveDraft, statement by statement`() {
         val body = bodyOf("saveDraft")
         assertEquals(
-            "ComposeViewModel.saveDraft is pinned whole. If you meant to change it, read the two " +
-                "⛔ comments in it first: the park must be a statement of the submit block itself " +
-                "(not nested in a condition) and must come before the consume. Body was:\n$body",
+            "ComposeViewModel.saveDraft is pinned whole. If you meant to change it, read the ⛔ " +
+                "comments in it first: the lost-body guard is the FIRST statement of the function " +
+                "and above the consume at the foot of it; the park must be a statement of the " +
+                "submit block itself (not nested in a condition) and must come before the consume. " +
+                "Body was:\n$body",
             listOf(
+                // ⛔ FIRST, and above everything that writes: a queued row reopened by Outbox →
+                // Edit and redrawn empty over a resume slot that lost the body is saved as an empty
+                // draft, and `consumeEditingOutbox()` at the foot of this list then deletes the row
+                // and its staged attachment directory — the only copy of the text. The decision is
+                // executed in LostBodySendTest; that this list holds it ABOVE the consume is what
+                // makes this pin the test that watches the QUEUED ROW and not the sentence.
+                // ⛔ Whole line, arguments included: `body` is the RAW body handed to saveDraft,
+                // and `holdsQueuedRow` is the outbox row alone — the local and server routes lose
+                // nothing on a save (localDraftBodyToWrite, unlessBodyIsLossy) and refusing there
+                // would cost a subject or a recipient just typed.
+                "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body, holdsQueuedRow = editingOutboxId != null)) {",
+                "_notices.tryEmit(R.string.compose_body_lost_reopen_draft)",
+                "return",
+                "}",
                 "if (!draftSaveAllowed(_pgpMode.value)) {",
                 "_notices.tryEmit(R.string.compose_pgp_no_draft)",
                 "return",
