@@ -951,7 +951,7 @@ fun ConnectScreen(
             // while one of them is up. Coming back out of a panel with an error already in state,
             // the node is composed in the same frame the effect fires in. Left alone on purpose —
             // the bench decides whether it needs anything.
-            val status = statusLine(state, walkStep)
+            val status = statusLine(state, walkStep, ask, handedOver)
             Column(modifier = Modifier.bringIntoViewRequester(statusReveal)) {
                 when (status) {
                     StatusLine.Working -> LoadingRing()

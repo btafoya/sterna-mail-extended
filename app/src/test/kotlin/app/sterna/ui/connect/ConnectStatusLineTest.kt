@@ -23,8 +23,17 @@ class ConnectStatusTest {
     /** The sentence the address step's offline answer carries, as `reportOffline` writes it. */
     private val offline = "You're offline. Adding an account needs a connection, so try again once you're back."
 
+    /** The server's answer on the reported path: this account signs in away from here (#55). */
+    private val handover = CredentialsAsk.SignInAway(OAuthGrant.DEVICE_CODE)
+
     @Test fun `a failure speaks at every step, and carries its own message`() {
-        val said = ConnectStep.entries.map { it to statusLine(ConnectState.Error(offline), it) }
+        // ⛔ handoverStarted = FALSE, and it is the whole point of the pair of arguments here:
+        // credentialsPane answers SIGN_IN_OFFER for an Error once a hand-over is recorded, and
+        // WAITING before one is. Fed `true`, this test would sit on the branch the one-wheel rule
+        // cannot reach and would stay green under the very mutation the message below names.
+        val said = ConnectStep.entries.map {
+            it to statusLine(ConnectState.Error(offline), it, handover, handoverStarted = false)
+        }
         assertEquals(
             "⛔ THE DEFECT, IN ITS EXECUTABLE HALF. `reportOffline` writes a ConnectState.Error " +
                 "while the walk stands on the ADDRESS step, and that sentence is the whole of the " +
@@ -32,36 +41,136 @@ class ConnectStatusTest {
                 "the neighbouring NeedsServer branch is conditioned, so it is the idiomatic " +
                 "one-line mutation — and the walk computes the message, writes it to the state, " +
                 "and renders nothing at all. It must speak on EVERY step, and say what the walk " +
-                "wrote, word for word.",
+                "wrote, word for word.\n" +
+                "⛔ AND THE ONE-WHEEL RULE MAY NOT REACH IT (#55): fed here with the ask and the " +
+                "hand-over state that make credentialsPane answer WAITING, so that hoisting that " +
+                "rule out of the `Working` branch to the whole `when` is RED here. Let it through " +
+                "and it swallows the failed sign-in's own message — drawn under the invitation at " +
+                "the credentials step, and the only thing that says WHY the button failed.",
             ConnectStep.entries.map { it to StatusLine.Failed(offline) },
             said,
         )
     }
 
-    @Test fun `a running attempt is a wheel at every step`() {
+    @Test fun `a running attempt is a wheel at every step, except where the step draws its own`() {
+        // ⛔ EVERY step, still — the expected answers are written out one by one below, so this is
+        // the assertion that a step added later cannot slip through unanswered. The list this test
+        // walks used to BE `ConnectStep.entries`; spelling it out is what let the credentials step
+        // be given a different answer, and this line is what keeps the two in step.
+        val steps = listOf(ConnectStep.ADDRESS, ConnectStep.MANUAL, ConnectStep.CREDENTIALS)
         assertEquals(
-            "Connecting and Discovering are attempts still in flight; the block draws a wheel for " +
-                "them and no sentence, wherever the walk stands.",
-            ConnectStep.entries.flatMap { listOf(StatusLine.Working, StatusLine.Working) },
-            ConnectStep.entries.flatMap {
-                listOf(statusLine(ConnectState.Connecting, it), statusLine(ConnectState.Discovering, it))
+            "a step added to ConnectStep must be given its answer here, not inherit one by omission.",
+            ConnectStep.entries.toSet(), steps.toSet(),
+        )
+        assertEquals(
+            "Connecting and Discovering are attempts still in flight, and the foot of the column " +
+                "draws a wheel for them and no sentence — wherever the walk stands EXCEPT at the " +
+                "credentials step of a hand-over, where the step above already draws one and the " +
+                "two stack up (#55). The pane-owned case is pinned, with its pair, in the test " +
+                "below; here the two steps that own no wheel of their own must still keep theirs.",
+            listOf(
+                ConnectStep.ADDRESS to listOf(StatusLine.Working, StatusLine.Working),
+                ConnectStep.MANUAL to listOf(StatusLine.Working, StatusLine.Working),
+                ConnectStep.CREDENTIALS to listOf(null, null),
+            ),
+            steps.map { step ->
+                step to listOf(
+                    statusLine(ConnectState.Connecting, step, handover, handoverStarted = true),
+                    statusLine(ConnectState.Discovering, step, handover, handoverStarted = true),
+                )
             },
+        )
+    }
+
+    @Test fun `coming back from the approval leaves ONE wheel, not two`() {
+        assertEquals(
+            "⛔ #55 AS REPORTED, and the promise posted on that thread: coming back from the " +
+                "approval must not leave the address step showing two spinners. The pair is what " +
+                "is pinned — what step 2 draws AND what the foot of the column draws — because " +
+                "either one alone is satisfied by the wrong fix: silence the STEP instead and the " +
+                "pane stops being WAITING, which is what credentialsExit reads to open the way " +
+                "out of the dead end this same issue is about. So: the pane keeps its wheel, the " +
+                "foot of the column says nothing.\n" +
+                "⛔ Discovering as much as Connecting: the search for the OAuth server is the " +
+                "state the screen is in for the first seconds of the very same wait, and a rule " +
+                "written on Connecting alone leaves two wheels on screen for those seconds.",
+            listOf(
+                CredentialsPane.WAITING to null,
+                CredentialsPane.WAITING to null,
+                CredentialsPane.WAITING to null,
+            ),
+            listOf(
+                // The token exchange, once the browser/device approval came back — the capture.
+                ConnectState.Connecting to true,
+                // The OAuth server still being looked for, under the same wheel.
+                ConnectState.Discovering to true,
+                // And the frame between arriving at step 2 and the trigger firing: the pane draws
+                // its wheel before any hand-over is recorded, so the foot must be quiet there too.
+                ConnectState.Discovering to false,
+            ).map { (state, started) ->
+                credentialsPane(handover, state, handoverStarted = started) to
+                    statusLine(state, ConnectStep.CREDENTIALS, handover, handoverStarted = started)
+            },
+        )
+    }
+
+    @Test fun `back to the address step keeps the only wheel there is`() {
+        assertEquals(
+            "⛔ THE OTHER HALF, and the way to break this fix without breaking the test above: " +
+                "the system Back during the wait returns to the ADDRESS step and does NOT cancel " +
+                "the sign-in (stepBackKeeping, backCancelsHandover false). The step above draws no " +
+                "wheel there — its `when (credentialsPane(…))` is inside the CREDENTIALS branch — " +
+                "so the foot of the column is the only thing left saying that something is still " +
+                "running. Extinguish it on the state instead of on the step and the reader is " +
+                "back on an address field with nothing moving at all.",
+            listOf(StatusLine.Working, StatusLine.Working),
+            listOf(
+                statusLine(ConnectState.Connecting, ConnectStep.ADDRESS, handover, handoverStarted = true),
+                statusLine(ConnectState.Discovering, ConnectStep.ADDRESS, handover, handoverStarted = true),
+            ),
+        )
+    }
+
+    @Test fun `the password route and the manual form keep both of theirs, untouched`() {
+        assertEquals(
+            "the majority path: the server wants a password, step 2 draws the FIELD and no wheel " +
+                "of its own, and the foot of the column is where 'something is running' is said. " +
+                "Write the rule on the step alone — `step == CREDENTIALS` without asking " +
+                "credentialsPane — and every password sign-in loses the only progress on screen.",
+            listOf(CredentialsPane.PASSWORD to StatusLine.Working),
+            listOf(
+                credentialsPane(CredentialsAsk.Password, ConnectState.Connecting, handoverStarted = false) to
+                    statusLine(
+                        ConnectState.Connecting, ConnectStep.CREDENTIALS,
+                        CredentialsAsk.Password, handoverStarted = false,
+                    ),
+            ),
+        )
+        assertEquals(
+            "and the manual form, which goes through these very same two functions: it draws no " +
+                "pane of its own, so its wheel is this one.",
+            listOf(StatusLine.Working, StatusLine.Working),
+            listOf(
+                statusLine(ConnectState.Connecting, ConnectStep.MANUAL, CredentialsAsk.Password, handoverStarted = false),
+                statusLine(ConnectState.Connecting, ConnectStep.MANUAL, handover, handoverStarted = true),
+            ),
         )
     }
 
     @Test fun `only the manual form is told to fill a server in`() {
         assertEquals(
             "on the manual form this names the field she must now fill.",
-            StatusLine.ServerNotFound, statusLine(ConnectState.NeedsServer, ConnectStep.MANUAL),
+            StatusLine.ServerNotFound,
+            statusLine(ConnectState.NeedsServer, ConnectStep.MANUAL, handover, handoverStarted = true),
         )
         assertNull(
             "at the credentials step NeedsServer is a transient — the walk is already dialling " +
                 "the endpoints the domain published — and 'enter it below' would point at nothing.",
-            statusLine(ConnectState.NeedsServer, ConnectStep.CREDENTIALS),
+            statusLine(ConnectState.NeedsServer, ConnectStep.CREDENTIALS, handover, handoverStarted = true),
         )
         assertNull(
             "and the address step shows no server field at all.",
-            statusLine(ConnectState.NeedsServer, ConnectStep.ADDRESS),
+            statusLine(ConnectState.NeedsServer, ConnectStep.ADDRESS, handover, handoverStarted = true),
         )
     }
 
@@ -72,8 +181,9 @@ class ConnectStatusTest {
             ConnectState.AwaitingApproval("ABCD-1234", "https://example.org/device", null),
             ConnectState.AwaitingBrowser("https://example.org/authorize"),
         )
-        val spoke = silent.flatMap { state -> ConnectStep.entries.map { state to statusLine(state, it) } }
-            .filter { it.second != null }
+        val spoke = silent.flatMap { state ->
+            ConnectStep.entries.map { state to statusLine(state, it, handover, handoverStarted = true) }
+        }.filter { it.second != null }
         assertEquals(
             "⛔ Idle and Connected are not verdicts, and the two awaiting-approval states own the " +
                 "whole screen through their own panels — a line drawn under them would be a " +
@@ -88,12 +198,16 @@ class ConnectStatusTest {
         assertTrue(
             "⛔ THE BENCH CASE, end to end: the offline answer at the address step is a sentence, " +
                 "and a sentence under the keyboard is a screen that ignored her.",
-            statusMustBeRead(statusLine(ConnectState.Error(offline), ConnectStep.ADDRESS)),
+            statusMustBeRead(
+                statusLine(ConnectState.Error(offline), ConnectStep.ADDRESS, handover, handoverStarted = true),
+            ),
         )
         assertTrue(
             "the manual form's 'couldn't find your server' is a sentence too, and that form is " +
                 "the longest on this screen — it is the surest one to be off the bottom.",
-            statusMustBeRead(statusLine(ConnectState.NeedsServer, ConnectStep.MANUAL)),
+            statusMustBeRead(
+                statusLine(ConnectState.NeedsServer, ConnectStep.MANUAL, handover, handoverStarted = true),
+            ),
         )
         assertFalse(
             "⛔ NOT the wheel. It is drawn on every connection attempt, from a form she may be in " +
@@ -103,7 +217,9 @@ class ConnectStatusTest {
         )
         assertFalse(
             "and nothing to say is nothing to scroll to — asking anyway moves the column on the " +
-                "way OUT of every error, i.e. on the next keystroke.",
+                "way OUT of every error, i.e. on the next keystroke. It is also what the " +
+                "credentials step of a hand-over now gets (#55): the wheel it does not draw must " +
+                "not scroll the column either.",
             statusMustBeRead(null),
         )
     }
@@ -133,17 +249,26 @@ class ConnectStatusWiringTest {
     @Test fun `the foot of the column is one value, drawn inside one stable container`() {
         assertRun(
             listOf(
-                "val status = statusLine(state, walkStep)",
+                "val status = statusLine(state, walkStep, ask, handedOver)",
                 "Column(modifier = Modifier.bringIntoViewRequester(statusReveal)) {",
                 "when (status) {",
             ),
             "⛔ THE THREE LINES, CONSECUTIVE, AND IN THIS ORDER — each of them load-bearing.\n" +
-                "  · `statusLine(state, walkStep)`: ONE source of truth. Draw the block from a " +
-                "`when (state)` and decide separately whether it deserves a scroll, and the two " +
+                "  · `statusLine(state, walkStep, ask, handedOver)`: ONE source of truth. Draw the " +
+                "block from a `when (state)` and decide separately whether it deserves a scroll, " +
+                "and the two " +
                 "spellings of the same rule drift apart in silence — the sentence is drawn under " +
                 "one and scrolled under the other. Both arguments pinned: drop `walkStep` and the " +
                 "credentials step tells the reader to 'enter it below' under a field that is not " +
-                "there.\n" +
+                "there. And `ask`, which is what [statusLine] asks [credentialsPane] with (#55): " +
+                "hard-code it here — `CredentialsAsk.Password` — and the second wheel is back on " +
+                "the screen the reporter photographed, with every EXECUTED test still green, " +
+                "because they all call the decision directly and none of them composes a screen. " +
+                "⚠ `handedOver` is pinned beside it for honesty, not for leverage: under " +
+                "Connecting and Discovering credentialsPane answers WAITING either way, so it " +
+                "decides nothing HERE — it is passed because [credentialsPane] is ASKED rather " +
+                "than restated, and it would start deciding the day that answer widens. Both are " +
+                "in scope at this very line (declared beside `verdict` and `handoverFor` above).\n" +
                 "  · the Column carrying the requester comes BETWEEN the value and the `when`, so " +
                 "the container is composed whether or not there is anything to say. Put the " +
                 "requester on the Text instead (or wrap the Column in `if (status != null)`) and " +
@@ -161,7 +286,7 @@ class ConnectStatusWiringTest {
         )
         assertOnce("statusLine(", "the one seam between the screen and the executed decision")
         assertOnce("bringIntoViewRequester(statusReveal)", "the one container that is brought into view")
-        val block = lines.indexOf("val status = statusLine(state, walkStep)")
+        val block = lines.indexOf("val status = statusLine(state, walkStep, ask, handedOver)")
         val steps = lines.indexOf("when (walkStep) {")
         assertTrue(
             "⛔ AND IT STAYS AT THE FOOT of the column: in $SCREEN the status block (line index " +
@@ -185,7 +310,7 @@ class ConnectStatusWiringTest {
         // line has been moved inside a block. Same instrument as OFFLINE_GUARD, which pins its
         // four lines at eight spaces for this very family of mutations.
         listOf(
-            "val status = statusLine(state, walkStep)" to
+            "val status = statusLine(state, walkStep, ask, handedOver)" to
                 "the value the foot of the column draws",
             "LaunchedEffect(status) {" to
                 "the effect that scrolls it — wrapped alone, the sentence is drawn and never seen",

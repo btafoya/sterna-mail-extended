@@ -575,9 +575,40 @@ internal sealed interface StatusLine {
  * than in the screen for the same reason as everything else in this file: on the manual form it
  * names the field the user must now fill; at the credentials step the walk is already dialling the
  * endpoints the domain published, so "enter it below" would point at nothing.
+ *
+ * ⛔ AND THE WHEEL IS DRAWN ONCE (#55). Coming back from the approval, the screen showed the address
+ * in a read-only field and TWO bare spinners stacked under it, and nothing else. They are two
+ * siblings of the same column: the credentials step draws one under [CredentialsPane.WAITING], this
+ * block draws another under [StatusLine.Working], and [ConnectState.Connecting] (or
+ * [ConnectState.Discovering]) at [ConnectStep.CREDENTIALS] makes both true in the same frame.
+ *
+ * ⛔ IT IS THIS ONE THAT GOES QUIET, never the step's, and the direction is not a matter of taste:
+ * [credentialsPane] being [CredentialsPane.WAITING] is also what [credentialsExit] reads to decide
+ * that no way out to the manual form may be offered while a sign-in is in flight. Bend that answer
+ * to remove a spinner and the dead end of the very same issue — an account addable by no gesture at
+ * all — is back, in a shipped fix.
+ *
+ * ⛔ AND IT ASKS [credentialsPane], it does not restate its condition. A second spelling of "the
+ * step is already drawing a wheel" is a copy that drifts in silence, which is the mistake this whole
+ * file exists to avoid — and it would drift the wrong way twice: on [CredentialsAsk.Password] the
+ * step draws a FIELD and no wheel (this block is that path's only progress), and at any step but
+ * [ConnectStep.CREDENTIALS] the step's `when` is not composed at all — the address step reached by
+ * Back while the sign-in keeps running is exactly that case, and there this wheel is the only one.
  */
-internal fun statusLine(state: ConnectState, step: ConnectStep): StatusLine? = when (state) {
-    is ConnectState.Connecting, is ConnectState.Discovering -> StatusLine.Working
+internal fun statusLine(
+    state: ConnectState,
+    step: ConnectStep,
+    ask: CredentialsAsk,
+    handoverStarted: Boolean,
+): StatusLine? = when (state) {
+    is ConnectState.Connecting, is ConnectState.Discovering ->
+        if (step == ConnectStep.CREDENTIALS &&
+            credentialsPane(ask, state, handoverStarted) == CredentialsPane.WAITING
+        ) {
+            null
+        } else {
+            StatusLine.Working
+        }
     is ConnectState.NeedsServer -> if (step == ConnectStep.MANUAL) StatusLine.ServerNotFound else null
     is ConnectState.Error -> StatusLine.Failed(state.message)
     else -> null
