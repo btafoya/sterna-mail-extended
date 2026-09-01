@@ -230,12 +230,14 @@ internal fun restoredFolderMeta(
  * the caller writes as `setStoredView(null)`, and `putString(key, null)` REMOVES the key, so the
  * value leaves the preferences file rather than sitting there empty.
  *
- * `PRIVACY.md` promises that everything is removed when you remove the account, "with one
- * exception" — the list of addresses written to, which is filed under no account. This value was a
- * second, undeclared exception: its first field is an account id, and on IMAP its third is a folder
- * PATH the reader chose and named herself, left in cleartext on the disk after the account was
- * gone. Nothing leaves the device (`allowBackup="false"`, both keys excluded from the extraction
- * rules): what is corrected here is a false promise about the local disk.
+ * `PRIVACY.md` promises that everything is removed when you remove the account, and names what
+ * stays behind: the addresses written to and the senders allowed to load their images, filed under
+ * no account, plus the messages still waiting to be sent, which a removal does not take. This
+ * value is none of those, and it stayed behind undeclared: its first field is an account id, and
+ * on IMAP its third is a folder PATH the reader chose and named herself, left in cleartext on the
+ * disk after the account was gone. Nothing leaves the device (`allowBackup="false"`, both keys
+ * excluded from the extraction rules): what is corrected here is a false promise about the local
+ * disk.
  *
  * ⛔ The key is GLOBAL — ONE entry for the whole app, the last view shown, whichever account it
  * belonged to. So it is dropped only when it names a removed account: removing it unconditionally

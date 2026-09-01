@@ -7,7 +7,7 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-08-30.
+explains exactly what that means, in plain terms. Last updated: 2026-09-01.
 
 ## What Sterna does NOT do
 
@@ -61,16 +61,44 @@ comes from. The rest stays here:
   in the app's cache as you attached them, and that staged copy is cleared when
   you use **Clear cache** or sign the account out, not when the message goes.
   Signing out removes all of it.
-- **Settings**: your preferences (e.g. notification scope).
+- **Messages waiting to go out.** Every message you send is written to the device
+  before it leaves: the subject, everyone it is addressed to, copies and blind
+  copies included, and the text you wrote, or, when the message is encrypted, only
+  its encrypted form. Most are gone in seconds. Some wait, and can wait a long
+  time: one you scheduled for later, since nothing caps how far ahead you may
+  schedule it; one whose send has failed for good; one you reopened and saved on
+  the phone; one parked because the app was interrupted mid-send. A message in the
+  Outbox can have a file beside it, though a scheduled one never can: the bytes of
+  what you attached on an IMAP account, or the finished message itself when it was
+  built ahead of the send, as a signed or encrypted one is. Removing the account
+  does not delete any of this. Some of it goes later, on its own, when the app next
+  tries to send and finds the account gone; the rest stays until you remove it,
+  because it is text you wrote that your server has never received, and taking it
+  away with the account would destroy the only copy there is. As long as one
+  account is left on the phone you can see it and remove it: a message that is
+  waiting or that failed is on the **Outbox** screen, where you can delete it, and
+  a scheduled one is on the **Scheduled** screen, where you can cancel it.
+- **Settings**: your preferences (e.g. notification scope). They belong to the app
+  rather than to any one account, so removing an account leaves them as they are;
+  uninstalling clears them.
+- **Senders you allow to load their images.** Choosing **Always show images from
+  this sender** keeps that address on the device, so later messages from it load
+  their remote content without asking. The list holds other people's addresses, and
+  it is filed under no account, so removing an account leaves it in place. You can
+  edit it or empty it at any time in Settings, under Privacy & security, as **Remote
+  images**; see **Remote content is blocked by default** below.
 - **Addresses you have written to.** When you send a message, its recipients are
-  kept in a local list so the To field can complete them as you type. The list
-  holds addresses only, never message content, and it is the one item here that
-  is not filed under an account.
+  kept in a local list so the To field can complete them as you type. The list holds
+  an address, the display name that came with it when the message carried one, and
+  when you last wrote to it; never message content. It is filed under no account.
 
 Everything above is removed when you remove the account or uninstall the app,
-subject to normal Android storage behaviour, with one exception: because the list
-of addresses you have written to is not filed under an account, removing one
-account leaves it in place. Uninstalling the app removes it.
+subject to normal Android storage behaviour, except for what stays behind: your
+settings, the list of addresses you have written to and the list of senders you
+allow to load their images are filed under no account, so removing one account
+leaves them in place; and a message still waiting to go out is not taken with the
+account, since your server never received it. Uninstalling the app removes all of
+it.
 
 ## Network connections
 

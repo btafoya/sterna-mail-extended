@@ -147,7 +147,7 @@ class AttachmentCacheWiringTest {
 
     /**
      * ⛔ THE GLOBAL BUTTON, whole body — the garde this branch must not defeat while fixing its
-     * neighbour. `PRIVACY.md:39-46` promises, by name, that "Clear cache" (Settings → Storage)
+     * neighbour. `PRIVACY.md:41-49` promises, by name, that "Clear cache" (Settings → Storage)
      * removes downloaded attachments; that promise rested on one unpinned line, so this branch
      * would have left the small button guarded and the documented one bare.
      */

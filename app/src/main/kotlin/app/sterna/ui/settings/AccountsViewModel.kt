@@ -767,10 +767,11 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         // The two preferences that are filed under an account but live OUTSIDE the account blob,
         // and which removeCascading therefore does not touch: the last view shown (whose payload is
         // an IMAP folder path the reader named herself, in cleartext) and the refresh register.
-        // PRIVACY.md promises everything filed under an account goes with it, with ONE stated
-        // exception (the addresses written to), and these two were a second and a third.
-        // ⛔ It does NOT make that sentence true on its own: the image allowlist
-        // (`SettingsRepository.image_allowlist`) is a fourth, and it holds addresses too.
+        // PRIVACY.md promises everything filed under an account goes with it, and these two were
+        // filed under one yet stayed behind. ⛔ Pruning them does NOT make that promise whole on its
+        // own: the image allowlist (`SettingsRepository.image_allowlist`) is filed under no account
+        // and holds addresses too, and a message still waiting in `outbox` / `scheduled_sends` is
+        // not taken with the account either. PRIVACY.md names those instead of claiming they go.
         // ⛔ Pruned, never cleared: the view is a single GLOBAL entry that may belong to a survivor,
         // and a survivor's freshness entries must stay or it pays a refresh it does not need (#178).
         // ⛔ `removed`, not `id`: a login's sub-accounts leave with it (#31).
