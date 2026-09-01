@@ -53,6 +53,22 @@ data class StoredAccount(
      * The Inbox is always watched and never stored here; empty = inbox only.
      */
     val watchedFolders: Set<String> = emptySet(),
+    /**
+     * The EXPLICIT collapse choice the user made per folder of the drawer tree, by mailbox id
+     * (JMAP id / IMAP path): true = they folded it, false = they unfolded it. A key that is ABSENT
+     * means nobody has decided anything for that folder, and the drawer takes its own default.
+     *
+     * ⛔ A `Map`, and NOT the set of the collapsed ones, on purpose. A set can only record "folded":
+     * unfolding a folder would have to REMOVE its key, which is indistinguishable from never having
+     * touched it, so any default other than "everything unfolded" re-applies on the next launch and
+     * folds back a folder the user opened by hand. Writing false must WRITE false.
+     *
+     * Defaults to `emptyMap()`, i.e. "nobody chose anything": every record already on a phone was
+     * written before this field existed and decodes to exactly today's behaviour — the whole tree
+     * unfolded ([AccountStore] decodes with `ignoreUnknownKeys = true`). There is no migration and
+     * there must not be one.
+     */
+    val collapsedFolders: Map<String, Boolean> = emptyMap(),
     /** User-chosen accent colour (ARGB); null = auto (derived from the address). */
     val color: Int? = null,
     /** Legacy account-level signature; seeds the default identity when none are set. */

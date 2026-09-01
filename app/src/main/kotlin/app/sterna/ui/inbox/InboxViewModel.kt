@@ -1371,6 +1371,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         folderSnapshot.value = null to emptyList()
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refreshWatchedFolders()
+        // The arriving account's own fold choices. IMAP ids are paths, so keeping the departing
+        // account's registry folds its namesake folders here (#92/#121).
+        refreshCollapsedFolders()
         refreshUnlessFresh()
     }
 
@@ -2872,7 +2875,13 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         val newId = repo.renameFolder(c, mailboxId, newName)
         // IMAP ids are paths: the repo re-keyed the watch flags; follow with the baseline.
         if (newId != mailboxId) NewMailNotifier.rename(getApplication(), c.id, mailboxId, newId)
+        // ⭐ The fold registry IS re-read here, because the repo now re-keys it exactly like the
+        // watch flags (`AccountStore.replaceCollapsedFolder`, IMAP ids are paths). Without the
+        // re-read the flow still holds the OLD key, the renamed folder reads as "nobody decided"
+        // and the DEFAULT folds it on the spot — the folder the user just unfolded closes itself
+        // under its new name (issue #185).
         refreshWatchedFolders()
+        refreshCollapsedFolders()
     }
 
     /**
@@ -2956,6 +2965,71 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun refreshWatchedFolders() {
         _watchedFolders.value = store.currentId()?.let { store.watchedFolders(it) } ?: emptySet()
+    }
+
+    // ---- drawer folder tree: the fold/unfold choice, kept per account ----
+
+    // Initialised inline for the same reason as [_watchedFolders] above: init runs before this
+    // declaration's initialiser.
+    private val _collapsedFolders =
+        MutableStateFlow(store.currentId()?.let { store.collapsedFolders(it) } ?: emptyMap())
+
+    /**
+     * The current account's EXPLICIT fold/unfold choice per drawer folder; a folder with no key is
+     * one nobody decided anything about. Per account, and re-read on every account switch: on IMAP
+     * the ids are paths, so a namesake folder on the neighbouring account would otherwise be drawn
+     * folded with nobody having asked (#92/#121).
+     */
+    val collapsedFolders: StateFlow<Map<String, Boolean>> = _collapsedFolders
+
+    // Initialised inline for the same reason as [_collapsedFolders] above: init runs before this
+    // declaration's initialiser.
+    //
+    // ⛔ `false` with no current account, and that is the SAFE side, not the familiar one. `false`
+    // means "fold nothing by itself"; `true` means "fold, hiding mail behind a row that may have no
+    // badge". `AccountStore.accounts()` answers an EMPTY list both when there is no account AND
+    // when the stored blob failed to decode (see `AccountStillConfigured`), so this fallback is
+    // reachable with folders on screen. Nothing is ever hidden by taking it.
+    private val _folderRowsBadgeUnread =
+        MutableStateFlow(store.currentId()?.let { repo.folderRowsBadgeUnread(it) } ?: false)
+
+    /**
+     * Whether the current account's drawer folder rows can carry an unread count at all
+     * ([MailRepository.folderRowsBadgeUnread]) — false on IMAP, whose rows hold a hard 0.
+     *
+     * The drawer needs it because the DEFAULT fold rests on that badge: a folder folded on the
+     * first run is honest only while the folded row says how much mail it is hiding. Per account
+     * and re-read on every account switch, exactly like the registry beside it: a JMAP and an IMAP
+     * account in the same app do not answer the same thing (#185).
+     */
+    val folderRowsBadgeUnread: StateFlow<Boolean> = _folderRowsBadgeUnread
+
+    /**
+     * Re-read everything the fold decision needs FOR THE CURRENT ACCOUNT: the explicit registry
+     * and whether this account's rows can badge unread at all. One function, because both are
+     * per-account entries into the same decision and both must move together on a switch — a
+     * second refresher called from the same three places is a way for one of them to be forgotten.
+     *
+     * ⛔ The account id is read ONCE. Every `store.` call here decodes the whole account blob
+     * afresh (`AccountBlobGate` memoises nothing) and this runs on the main thread at every tap of
+     * a chevron, so asking twice for the same id is work paid on every account, IMAP or not.
+     */
+    private fun refreshCollapsedFolders() {
+        val accountId = store.currentId()
+        _collapsedFolders.value = accountId?.let { store.collapsedFolders(it) } ?: emptyMap()
+        _folderRowsBadgeUnread.value = accountId?.let { repo.folderRowsBadgeUnread(it) } ?: false
+    }
+
+    /**
+     * Store the drawer's fold/unfold choice for one folder, then re-read it.
+     *
+     * ⛔ Nothing else is armed: this is a display state and no push, notifier or sync depends on
+     * it. [collapsed] is written both ways — writing false is a CHOICE, not the absence of one.
+     */
+    fun setFolderCollapsed(mailboxId: String, collapsed: Boolean) {
+        val accountId = store.currentId() ?: return
+        store.setFolderCollapsed(accountId, mailboxId, collapsed)
+        refreshCollapsedFolders()
     }
 
     /** Toggle new-mail notifications for one folder, then re-arm push to pick it up. */

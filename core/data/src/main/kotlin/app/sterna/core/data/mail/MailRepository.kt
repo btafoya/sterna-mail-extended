@@ -4458,6 +4458,24 @@ class MailRepository(
     private fun isImapAccount(accountId: String): Boolean =
         accountStore.account(accountId)?.protocol == MailProtocol.IMAP
 
+    /**
+     * Can a DRAWER FOLDER ROW of [accountId] carry an unread count at all?
+     *
+     * Deliberately named after the property and not after the protocol, because that is what the
+     * caller needs to know: the drawer only folds a folder by default on the strength of the badge
+     * a folded row shows for what it hides (#185). Today the answer is "IMAP cannot", for the
+     * reason written on [isImapAccount] just above — the folder rows carry a hard 0 and filling
+     * them would cost a STATUS round trip per folder on every listing. The day that decision is
+     * revisited, THIS line changes and the fold rule does not.
+     *
+     * ⛔ One definition of "is the account with THIS ID an IMAP one", and it is [isImapAccount] —
+     * the only place in this class that asks the account store for a protocol by id. (The many
+     * `credentials.protocol == MailProtocol.IMAP` tests elsewhere are a different question: they
+     * branch on credentials already in hand, they read no store, and they carry no decision about
+     * folder counters.) A second store lookup written here drifts from it silently.
+     */
+    fun folderRowsBadgeUnread(accountId: String): Boolean = !isImapAccount(accountId)
+
     suspend fun setFlagged(credentials: AccountCredentials, emailId: String, flagged: Boolean) {
         markRecentlyMutated(credentials.id, emailId)
         if (credentials.protocol == MailProtocol.IMAP) {
@@ -5513,8 +5531,10 @@ class MailRepository(
 
     /**
      * Rename a folder (keeping its place in the hierarchy for IMAP), then refresh.
-     * Returns the folder's id after the rename — IMAP ids are paths, so the id changes
-     * there and watch flags are re-keyed to follow it (issue #16); JMAP ids are stable.
+     * Returns the folder's id after the rename — IMAP ids are paths, so the id changes there and
+     * BOTH per-folder registries are re-keyed to follow it, with the same delimiter: the watch
+     * flags (issue #16) and the drawer's fold choices (#185, or the folder the user had opened by
+     * hand folds itself as soon as it is renamed). JMAP ids are stable, so both are no-ops there.
      */
     suspend fun renameFolder(credentials: AccountCredentials, mailboxId: String, newName: String): String {
         if (credentials.protocol == MailProtocol.IMAP) {
@@ -5524,6 +5544,7 @@ class MailRepository(
             val newPath = if (parent.isEmpty()) newName.trim() else "$parent$delim${newName.trim()}"
             imap.renameFolder(credentials, mailboxId, newPath)
             accountStore.replaceWatchedFolder(credentials.id, mailboxId, newPath, delim)
+            accountStore.replaceCollapsedFolder(credentials.id, mailboxId, newPath, delim)
             refreshMailboxes(credentials)
             return newPath
         }

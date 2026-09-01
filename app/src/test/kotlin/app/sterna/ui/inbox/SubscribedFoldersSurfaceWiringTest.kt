@@ -31,9 +31,34 @@ class SubscribedFoldersSurfaceWiringTest {
         assertEquals(
             "the drawer tree is built from something other than MailUi.visibleMailboxes — from the " +
                 "whole list, the setting hides nothing at all; from a list built here, the rule " +
-                "lives in a Composable no test can run.",
-            listOf("mailboxTree(ui.visibleMailboxes, collapsedFolders).forEach { node ->"),
+                "lives in a Composable no test can run. The second argument is the set derived " +
+                "from the fold registry and the default (collapsedIds); what that may fold " +
+                "is CollapsedFoldersSurfaceWiringTest's business, the first argument is this " +
+                "test's and it must stay ui.visibleMailboxes.",
+            listOf("mailboxTree(ui.visibleMailboxes, collapsedIds).forEach { node ->"),
             block(INBOX_SCREEN, "mailboxTree(", 1),
+        )
+        assertEquals(
+            "the set of folded ids is derived against something other than MailUi.visibleMailboxes. " +
+                "Since #185 that derivation folds a user folder that has children, so it must be " +
+                "asked about the list the drawer DRAWS: from the whole list, a parent whose only " +
+                "child this setting hides is folded and carries a chevron while hiding nothing on " +
+                "screen. WHAT it folds is CollapsedFoldersSurfaceWiringTest's business — including " +
+                "the third argument, the account's badge-availability flag; that both arguments " +
+                "below name the filtered list is this test's.",
+            listOf("val collapsedIds = collapsedFolderIds(ui.visibleMailboxes, collapsedFolders, folderRowsBadgeUnread)"),
+            block(INBOX_SCREEN, "val collapsedIds =", 1),
+        )
+        assertEquals(
+            "the row's unread badge is summed over something other than MailUi.visibleMailboxes. " +
+                "Since #185 a folded folder badges what it HIDES, so the sum must be taken over " +
+                "the list the drawer DRAWS: over the whole list it adds up mail sitting in a " +
+                "descendant this setting hides (#174) — a number that is on no row, inside no " +
+                "chevron, and that no gesture in this drawer can reach. WHAT it sums is " +
+                "CollapsedFoldersSurfaceWiringTest's business; that this argument is the filtered " +
+                "list is this test's.",
+            listOf("val unread = drawerUnreadCount(mailbox, ui.visibleMailboxes, collapsedIds)"),
+            block(INBOX_SCREEN, "val unread = ", 1),
         )
     }
 

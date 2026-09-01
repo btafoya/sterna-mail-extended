@@ -20,8 +20,10 @@ import org.junit.Test
  *    picked another one, and every role→mailbox lookup in `:core:data` compares roles by exact
  *    equality (`MailboxDao`). Anything resolving a destination, an icon, a snooze rule or a delete
  *    target through this boolean makes a folder that lost its claim the answer to "where is the
- *    junk", and mail would be MOVED there. `visibleFolders` is the only legitimate reader, and the
- *    question it asks is visibility;
+ *    junk", and mail would be MOVED there. There are exactly TWO legitimate readers and both ask a
+ *    VISIBILITY question: `visibleFolders` (does this folder stay in the list?) and
+ *    [defaultCollapsedFolderIds] (does it fold itself on the first run? — folding a folder the
+ *    server named `\Junk` on puts the spam false positives behind a chevron nobody asked for);
  *  2. **it stops being written.** The mapper filling it from something other than the stored role
  *    (a literal `false`, `isSubscribed`, the unmarked role) silently reopens the defect: the losing
  *    folder is dropped from the drawer, both move pickers and the unread view, while it is already
@@ -36,14 +38,19 @@ import org.junit.Test
  */
 class LostRoleClaimBordersTest {
 
-    @Test fun `the field is named in four places and no others`() {
+    @Test fun `the field is named in five places and no others`() {
         assertEquals(
             "a source line naming Mailbox.lostRoleClaim appeared, moved or changed shape. This " +
                 "field is the surviving trace of a role a folder CLAIMED AND LOST: it is declared " +
-                "once, filled once from the stored role, and read once — by visibleFolders, which " +
-                "asks a visibility question. A reader anywhere else is either a routing decision " +
-                "taken on a folder that is the junk of nothing, or a second copy of the reading.",
+                "once, filled once from the stored role, and read TWICE — by visibleFolders (does " +
+                "it stay in the list?) and by defaultCollapsedFolderIds (does it fold itself on " +
+                "the first run?). Both are visibility questions on the folder itself. A reader " +
+                "anywhere else is either a routing decision taken on a folder that is the junk of " +
+                "nothing, or a second copy of the reading.",
             listOf(
+                "app/src/main/kotlin/app/sterna/ui/inbox/CollapsedFolders.kt: " +
+                    ".filter { it.role == null && !isRoutingTargetByName(it) && " +
+                    "!it.lostRoleClaim && it.id in parents }",
                 "app/src/main/kotlin/app/sterna/ui/inbox/SubscribedFolders.kt: " +
                     "isRoutingTargetByName(mailbox) || mailbox.lostRoleClaim",
                 "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt: " +
@@ -105,7 +112,7 @@ class LostRoleClaimBordersTest {
      * needs a DAO). Erase the mark on the ENTITY one line earlier — `it.copy(role =
      * unmarkedRole(it.role)).toMailbox()`, a plausible tidy-up — and `isLostRoleClaim` is handed a
      * null on EVERY IMAP account, `lostRoleClaim` is false everywhere, the defect is back whole,
-     * and every other test in this repo stays green because all four shipped lines are untouched.
+     * and every other test in this repo stays green because all five shipped lines are untouched.
      *
      * So the crossing is pinned where it is called, by whole lines: the entity reaches
      * `toMailbox()` as the cache stores it, mark and all.

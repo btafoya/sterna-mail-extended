@@ -273,10 +273,15 @@ fun InboxScreen(
     var folderToDelete by remember { mutableStateOf<Mailbox?>(null) }
     var folderToDeleteRecursive by remember { mutableStateOf<Mailbox?>(null) }
     var folderToAddChild by remember { mutableStateOf<Mailbox?>(null) }
-    // Folder ids whose children are hidden; empty = everything expanded.
-    var collapsedFolders by remember { mutableStateOf(emptySet<String>()) }
     val undo by viewModel.undo.collectAsStateWithLifecycle()
     val watchedFolders by viewModel.watchedFolders.collectAsStateWithLifecycle()
+    // The current account's explicit fold/unfold choice per folder — persisted, so a chevron
+    // survives a rotation, a trip into a message and a cold start. A folder with no key in here is
+    // one nobody decided anything about.
+    val collapsedFolders by viewModel.collapsedFolders.collectAsStateWithLifecycle()
+    // Can a folder row of THIS account badge unread at all? False on IMAP, whose rows carry a hard
+    // 0 — and the default fold rests on that badge, so where there is none nothing folds itself.
+    val folderRowsBadgeUnread by viewModel.folderRowsBadgeUnread.collectAsStateWithLifecycle()
     val pendingPurge by viewModel.pendingPurge.collectAsStateWithLifecycle()
     val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
     val pendingFolderDelete by viewModel.pendingFolderDelete.collectAsStateWithLifecycle()
@@ -522,7 +527,7 @@ fun InboxScreen(
         fun submit() {
             if (name.isNotBlank()) {
                 viewModel.createFolder(name, parentId = parent.id)
-                collapsedFolders = collapsedFolders - parent.id // reveal the new child
+                viewModel.setFolderCollapsed(parent.id, false) // reveal the new child
                 folderToAddChild = null
             }
         }
@@ -974,15 +979,22 @@ fun InboxScreen(
                     },
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
-                mailboxTree(ui.visibleMailboxes, collapsedFolders).forEach { node ->
+                // The one place the registry AND the default become "what is folded"; see
+                // [collapsedFolderIds]. The list it resolves against is the one drawn just below.
+                val collapsedIds = collapsedFolderIds(ui.visibleMailboxes, collapsedFolders, folderRowsBadgeUnread)
+                mailboxTree(ui.visibleMailboxes, collapsedIds).forEach { node ->
                     val mailbox = node.mailbox
                     val displayName = mailboxDisplayName(mailbox.role, mailbox.name)
-                    val label = if (mailbox.unreadForList > 0) {
-                        stringResource(R.string.inbox_folder_unread, displayName, mailbox.unreadForList)
+                    // A FOLDED row badges the unread it hides — its own plus its descendants' — or
+                    // the mail under a folder folded by default is on no row at all; see
+                    // [drawerUnreadCount]. Same list and same folded set as the tree above.
+                    val unread = drawerUnreadCount(mailbox, ui.visibleMailboxes, collapsedIds)
+                    val label = if (unread > 0) {
+                        stringResource(R.string.inbox_folder_unread, displayName, unread)
                     } else {
                         displayName
                     }
-                    val collapsed = mailbox.id in collapsedFolders
+                    val collapsed = mailbox.id in collapsedIds
                     NavigationDrawerItem(
                         icon = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -995,11 +1007,7 @@ fun InboxScreen(
                                             if (collapsed) R.string.inbox_folder_expand else R.string.inbox_folder_collapse,
                                         ),
                                         modifier = Modifier.clickable {
-                                            collapsedFolders = if (collapsed) {
-                                                collapsedFolders - mailbox.id
-                                            } else {
-                                                collapsedFolders + mailbox.id
-                                            }
+                                            viewModel.setFolderCollapsed(mailbox.id, !collapsed)
                                         },
                                     )
                                 } else {

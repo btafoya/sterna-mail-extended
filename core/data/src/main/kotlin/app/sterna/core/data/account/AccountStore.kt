@@ -651,6 +651,30 @@ class AccountStore(context: Context) {
     }
 
     /**
+     * The folders of this account's drawer tree the user explicitly folded or unfolded; a folder
+     * absent from the map is one nobody decided anything about. Empty for an unknown id.
+     */
+    fun collapsedFolders(id: String): Map<String, Boolean> = account(id)?.collapsedFolders ?: emptyMap()
+
+    /** Store the user's fold/unfold choice for one folder. No-op if the id is unknown. */
+    @Synchronized
+    fun setFolderCollapsed(id: String, folderId: String, collapsed: Boolean) {
+        saveAccounts(withCollapsedFolder(accounts(), id, folderId, collapsed))
+    }
+
+    /**
+     * Re-key a FOLDED folder after an IMAP rename (ids are folder paths there), the twin of
+     * [replaceWatchedFolder] and called beside it: the entry for [oldId] and everything under
+     * `oldId + delimiter` move onto [newId], values carried across. Without it the user's explicit
+     * "unfolded" stays behind under the old path and the drawer's default folds the renamed folder
+     * on the spot. No-op for JMAP ids, which are stable across renames.
+     */
+    @Synchronized
+    fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String = "/") {
+        saveAccounts(withRenamedCollapsedFolder(accounts(), id, oldId, newId, delimiter))
+    }
+
+    /**
      * Re-key a watched folder after an IMAP rename (ids are folder paths there).
      * Also rewrites watched children of [oldId] (path prefix). No-op for JMAP ids,
      * which are stable across renames.
