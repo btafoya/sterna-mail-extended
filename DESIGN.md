@@ -74,12 +74,12 @@ bounce) so it stays alive yet sober.
 
 | Interaction | Compose implementation | Duration / curve |
 |---|---|---|
-| List → message | `SharedTransitionLayout` / shared element | ~220ms, `FastOutSlowIn` |
+| List → message | `fadeIn` / `fadeOut` cross-fade; falls back to instant under reduced motion or when the fade-crash sentinel has latched | 200ms fade, `FastOutSlowIn` |
 | Row appearance | `animateItem()` on `LazyColumn` | default, subtle |
-| Swipe actions | `SwipeToDismissBox`, action icon fades in | tracks the finger |
-| Top bar / FAB collapse | `enterAlwaysScrollBehavior`, FAB `expanded` | native |
+| Swipe actions | `SwipeableEmailRow`, action icon fades in | tracks the finger |
+| Top bar / FAB collapse | `exitUntilCollapsedScrollBehavior`, FAB `expanded` | native |
 | Delete | row collapses (height → 0) | ~200ms ease-out |
-| Pull-to-refresh | `PullToRefreshBox`, settle with no bounce | native, short |
+| Pull-to-refresh | `PullToRefreshBox`, `TernRefreshIndicator` settles with no bounce | native, short |
 
 ## Settings & secondary screens
 
@@ -107,7 +107,7 @@ Settings (hub)
 │   ├─ Notifications            → delivery, new mail, notification content, quiet hours
 │   ├─ Privacy & security       → app lock, links, read receipts, quoted dates,
 │   │                             remote images, recipient suggestions
-│   ├─ Storage                  → on-device usage, cached messages, mailbox quota
+│   ├─ Storage                  → on-device usage, cached messages, mailbox quota, maintenance
 │   └─ Backup & restore         → export / import the app's settings
 ├─ This account · <name>        → server-side, and only for the account in use
 │   ├─ Vacation responder       → auto-reply while you're away
@@ -124,7 +124,7 @@ changes which server its two screens write to.
 
 | Per-account (Accounts → detail) | Global (top-level categories) |
 |---|---|
-| Display name, account colour, signature override, per-account notifications, server info (read-only), **Sign out** | Theme, density, dynamic colour, default signature, undo-send, swipe actions, remote-image policy, read receipts, link safety, app lock, cache/sync, about |
+| Display name, account colour, signature override, per-account notifications, server info, **Sign out** | Theme, density, dynamic colour, signature behaviour, swipe actions, remote-image policy, read receipts, link safety, app lock, cache/sync, about |
 
 Sign out lives in the per-account detail (not the inbox top bar), consistent with
 the hub model.
@@ -139,12 +139,13 @@ Reuse the existing `SettingSwitch`; add a small, consistent kit:
 | `SettingsSection` | Accent-tinted header grouping rows in a detail screen. |
 | `SettingSwitch` *(existing)* | Boolean toggle. |
 | `SettingChoiceRow` + `SettingChoiceDialog` | Single choice (theme, undo window, image policy, app lock). |
-| `SettingNavigationRow` | Navigates to a subscreen or external link. |
 | `AccountRow` | Monogram + label + email (reuses the monogram avatar). |
+
+The full kit lives in `SettingsComponents.kt`; this table lists only the main pieces.
 
 ### Visual & motion rules
 
-- **Hub:** a `LazyColumn` of category rows, **no cards**, 16dp margins, icon tint
+- **Hub:** a `Column` of category rows in a `verticalScroll`, **no cards**, 16dp margins, icon tint
   `onSurfaceVariant`, summary line in `bodyMedium` / `onSurfaceVariant`.
 - **Detail screens:** sectioned lists; section headers in the single accent
   (`labelLarge`); separation by whitespace, not boxes; `LargeTopAppBar` that
