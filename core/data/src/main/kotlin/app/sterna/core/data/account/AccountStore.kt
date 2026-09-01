@@ -740,6 +740,12 @@ class AccountStore(context: Context) {
         if (list.none { it.id == id }) return
         prefs.edit().remove(passwordKey(id)).apply()
         val remaining = list.filterNot { it.id == id }
+        // The THIRD removal path, and it forgets what it removes exactly like [removeCascading]:
+        // a linked share can reach here (an imported record keeps its loginId, so dismissing it
+        // from "accounts to sign in" lands on this method), and PRIVACY.md promises that removing
+        // an account removes what it left behind. A path that skipped this would let a share the
+        // user dismissed come back wearing its old settings on the server's next offer.
+        saveLinkedMemory(forgetRemovedLinked(linkedMemory(), list.filter { it.id == id }))
         saveAccounts(remaining)
         if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
             prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()
@@ -842,29 +848,18 @@ class AccountStore(context: Context) {
         val diff = diffLinkedAccounts(login, existingLinked, discovered, probes)
         if (diff.isEmpty()) return emptyList()
 
-        val updated = list.toMutableList()
-        // Pin the login's own JMAP account id on first discovery, so later reconciles can tell the
-        // login apart from its sub-accounts and matching stays stable.
-        diff.pinPrimaryId?.let { pin ->
-            updated[updated.indexOfFirst { it.id == loginId }] = login.copy(jmapAccountId = pin)
+        // The list transformation itself lives in [reconciledAccounts], where it can be executed
+        // by a unit test — this module builds no store. It also carries the pruned/re-granted
+        // memory, so a share the server drops for a moment comes back with the settings the user
+        // gave it instead of the constructor's defaults.
+        val reconciled = reconciledAccounts(list, login, loginId, diff, linkedMemory()) {
+            UUID.randomUUID().toString()
         }
-        diff.toAdd.forEach { sub ->
-            updated += StoredAccount(
-                id = UUID.randomUUID().toString(),
-                server = login.server,
-                username = login.username,
-                accountName = sub.name,
-                loginId = loginId,
-                jmapAccountId = sub.jmapAccountId,
-                protocol = login.protocol,
-                authType = login.authType,
-            )
+        if (diff.prunedIds.isNotEmpty() && currentId() in diff.prunedIds) {
+            prefs.edit().putString(KEY_CURRENT, loginId).apply()
         }
-        if (diff.prunedIds.isNotEmpty()) {
-            updated.removeAll { it.id in diff.prunedIds }
-            if (currentId() in diff.prunedIds) prefs.edit().putString(KEY_CURRENT, loginId).apply()
-        }
-        saveAccounts(updated)
+        saveLinkedMemory(reconciled.memory)
+        saveAccounts(reconciled.accounts)
         return diff.prunedIds
     }
 
@@ -879,7 +874,12 @@ class AccountStore(context: Context) {
         val target = account(id) ?: return emptyList()
         val ids = (listOf(id) + if (target.isLinked) emptyList() else linkedAccounts(id).map { it.id }).distinct()
         prefs.edit().apply { ids.forEach { remove(passwordKey(it)) } }.apply()
-        val remaining = accounts().filterNot { it.id in ids }
+        // Read the removed records from the list BEFORE it is filtered: `remaining` holds what
+        // SURVIVES, so it can never name what is going away. Deleting an account IS the user's
+        // decision, and the memory must not resurrect its settings on a later re-grant.
+        val before = accounts()
+        val remaining = before.filterNot { it.id in ids }
+        saveLinkedMemory(forgetRemovedLinked(linkedMemory(), before.filter { it.id in ids }))
         saveAccounts(remaining)
         if (currentId() in ids || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
             prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()
@@ -1154,6 +1154,40 @@ class AccountStore(context: Context) {
         if (written) live.publish(list) else Log.e(TAG, REFUSED_WRITE)
     }
 
+    /**
+     * The pruned shared mailboxes' settings, keyed by login (see [rememberPrunedLinked]). Read
+     * DEFENSIVELY: any failure — a blob written by a build the user later downgraded from, a
+     * truncated write, anything — answers an EMPTY map.
+     *
+     * This is decoded inside [reconcileLinkedAccounts], on every connect, which is the code path
+     * that MAINTAINS the account list. A throw here would take that path down with it. An empty
+     * answer costs exactly today's behaviour instead: a re-granted share minted from the
+     * constructor, which is what shipped before this memory existed.
+     */
+    private fun linkedMemory(): Map<String, List<StoredAccount>> = runCatching {
+        prefs.getString(KEY_LINKED_MEMORY, null)
+            ?.let { json.decodeFromString<Map<String, List<StoredAccount>>>(it) }
+            .orEmpty()
+    }.getOrDefault(emptyMap())
+
+    /**
+     * Store the memory, under its OWN key and deliberately NOT through [AccountBlobGate].
+     *
+     * The gate exists to protect the ACCOUNT LIST: it refuses to write a list computed from a read
+     * that silently failed to decode. Routing this comfort blob through it would let an unreadable
+     * memory refuse the write of KEY_ACCOUNTS — a convenience feature taking the user's accounts
+     * down with it. The [runCatching] is the other half of the same rule: a failed encode must not
+     * throw out of [removeCascading], between the password wipe and [saveAccounts].
+     *
+     * ⛔ Losing this blob entirely costs today's behaviour and never an account. That asymmetry is
+     * why it is allowed to fail quietly, and why nothing here is worth a crash path.
+     */
+    private fun saveLinkedMemory(memory: Map<String, List<StoredAccount>>) {
+        runCatching {
+            prefs.edit().putString(KEY_LINKED_MEMORY, json.encodeToString(memory)).apply()
+        }
+    }
+
     private fun writePassword(id: String, password: String) {
         val encrypted = Base64.encodeToString(
             KeystoreCrypto.encrypt(password.toByteArray(Charsets.UTF_8), aadFor(id)),
@@ -1233,6 +1267,11 @@ class AccountStore(context: Context) {
         // Deliberately opaque, exactly like KEY_VIEW: written and parsed by
         // app.sterna.ui.inbox.RefreshFreshness, in the :app module this one does not see.
         const val KEY_FRESHNESS = "refresh_freshness"
+
+        // The settings of shared mailboxes the server has pruned, keyed by login, so a re-granted
+        // share is not minted factory-fresh (LinkedAccountMemory). Comfort state, on its OWN key:
+        // it is written outside the account blob's gate and may be lost without costing an account.
+        const val KEY_LINKED_MEMORY = "linked_account_memory"
         const val KEY_PUSH_ALL = "push_all_accounts"
         const val KEY_APP_LOCK = "app_lock_enabled"
 
