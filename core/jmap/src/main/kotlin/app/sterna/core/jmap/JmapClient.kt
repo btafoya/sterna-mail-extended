@@ -1457,6 +1457,73 @@ class JmapClient internal constructor(
         throw JmapException("Couldn't create the '$name' folder" + (type?.let { " ($it)" } ?: ""))
     }
 
+    /**
+     * Create a sending identity on the server and return its new id (`Identity/set`, RFC 8621
+     * §6.4).
+     *
+     * Sterna only ever read identities, so an alias added in Settings existed on the phone alone
+     * and every send from it was refused (#172). Two details are load-bearing:
+     *  - the SUBMISSION capability, not the mail one: identities live there (same `using` as
+     *    [getIdentities]);
+     *  - both `email` AND `name`, always: a create that omits the name posts an alias the server
+     *    then hands back with no display name, and the composer's From loses it.
+     *
+     * Nothing else is sent. The signature stays local — `StoredAccount.resolvedIdentities` already
+     * lets the manual entry win over the server's — so this writes the least the server needs.
+     *
+     * A refusal is raised as a [JmapException] carrying the SetError `type` in
+     * [JmapException.errorType] (Stalwart answers `invalidProperties` for an address the account
+     * may not send as) and the server's own `description` in the message, since that sentence is
+     * the only thing that says WHY.
+     */
+    suspend fun createIdentity(
+        session: JmapSession,
+        accountId: String,
+        name: String,
+        email: String,
+        auth: JmapAuth,
+    ): String = withContext(Dispatchers.IO) {
+        val payload = buildJsonObject {
+            putJsonArray("using") {
+                add(Jmap.CORE_CAPABILITY)
+                add(Jmap.SUBMISSION_CAPABILITY)
+            }
+            putJsonArray("methodCalls") {
+                addJsonArray {
+                    add("Identity/set")
+                    addJsonObject {
+                        put("accountId", accountId)
+                        putJsonObject("create") {
+                            putJsonObject("new") {
+                                put("email", email)
+                                put("name", name)
+                            }
+                        }
+                    }
+                    add("i0")
+                }
+            }
+        }
+        val args = methodResponseArgs(postJmap(session, auth, payload), "Identity/set")
+        val created = args["created"]?.jsonObject?.get("new")?.jsonObject
+        if (created != null) {
+            return@withContext created["id"]?.jsonPrimitive?.content
+                ?: throw JmapException("Identity create returned no id")
+        }
+        val refusal = args["notCreated"]?.jsonObject?.get("new")?.jsonObject
+        val type = refusal?.get("type")?.jsonPrimitive?.content
+        val description = refusal?.get("description")?.jsonPrimitive?.content
+        // ⛔ NO address in this message. The screen puts the refused address into its own
+        // translated sentence (`settings_identity_not_created`) and shows this text next to it;
+        // carrying it here too printed it twice, the second time inside an English fragment sitting
+        // in eight translations. What only the server knows is the type and the description.
+        val detail = listOfNotNull(type, description).joinToString(": ")
+        throw JmapException(
+            detail.ifEmpty { "The server refused the identity" },
+            errorType = type,
+        )
+    }
+
     /** Rename a mailbox (Mailbox/set update of `name`). */
     suspend fun renameMailbox(
         session: JmapSession,

@@ -14,6 +14,8 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.SyncWindow
+import app.sterna.core.data.account.identitiesToCreate
+import app.sterna.core.data.account.mayCreateIdentities
 import app.sterna.core.data.account.subscriptionSyncOnToggle
 import app.sterna.core.data.account.syncWindowChanged
 import app.sterna.core.data.mail.OAuthDeniedException
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -360,6 +363,23 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
+     * One identity this Save asked the server to create, and the server refused (#172).
+     *
+     * It carries the ADDRESS because one Save can add several identities: a batch the server only
+     * partly accepted has to say which line it turned down. [detail] is the server's own sentence
+     * (Stalwart answers "E-mail address not configured for this account."), kept verbatim rather
+     * than mapped to a house wording we would then have to guess right for every server.
+     *
+     * ⛔ And it carries [accountId]. ONE AccountsViewModel serves every account detail screen
+     * (`SettingsScreen.kt` obtains it once, above the NavHost), so without the key a refusal on
+     * account A is drawn on account B's screen: an address that appears nowhere on it.
+     */
+    data class IdentityNotCreated(val accountId: String, val email: String, val detail: String)
+
+    private val _identitiesNotCreated = MutableStateFlow<List<IdentityNotCreated>>(emptyList())
+    val identitiesNotCreated: StateFlow<List<IdentityNotCreated>> = _identitiesNotCreated.asStateFlow()
+
+    /**
      * Persist edits. A blank [password] keeps the existing one.
      *
      * THIS PARAMETER LIST IS PUBLISHED TO THE USER. The account screen states, just above its Save
@@ -406,6 +426,12 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         smtpPort: Int? = null,
         smtpSecurity: ConnectionSecurity? = null,
     ) {
+        // Read BEFORE anything is written: what the account already held is what says which
+        // identities this gesture is adding (see [identitiesToCreate]).
+        val before = store.account(id)
+        // A new Save starts from a blank page: last time's refusals are not this gesture's answer.
+        // Written after the read above, which must stay the first thing save() does (see below).
+        _identitiesNotCreated.value = emptyList()
         store.updateAccount(
             id, server = server, username = username, accountName = accountName, signature = signature,
             imapHost = imapHost, imapPort = imapPort, imapSecurity = imapSecurity,
@@ -419,6 +445,93 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
             store.setImportPending(id, false)
         }
         refresh()
+        createIdentitiesOnServer(id, before, identities)
+    }
+
+    /**
+     * Tell the server about the identities this Save has just added (`Identity/set`, #172). Until
+     * this existed, an alias added here lived on the phone alone and the server refused every send
+     * from it.
+     *
+     * ⛔ It runs AFTER, and never instead of, the local writes above: offline, server down or
+     * refused, what the user typed is stored all the same. This only adds.
+     *
+     * ⛔ [appScope], never `viewModelScope`: Settings is a `NavHost` destination, so the back
+     * gesture that follows Save pops its `NavBackStackEntry` and would cancel the request mid
+     * round trip — the same trap as the subscribed-folders sync (#174).
+     *
+     * ⛔ No queue, no worker, no automatic retry (KISS). And no retry AT ALL, which is the part
+     * worth stating plainly: [store] has already written the row by the time this runs, so at the
+     * next Save `before` holds that address, [identitiesToCreate] counts it as known, and it is
+     * filtered out. A create that failed leaves the identity LOCAL ONLY, for good. ⚠ Retyping the
+     * SAME address changes nothing — it is already in `before.identities`, so it is filtered out
+     * exactly as before. The only gesture that asks again is: delete the row, Save, type it back,
+     * Save. Nothing on the screen says so. That is the price of not keeping a retry queue, and the
+     * message shown on failure carries it alone.
+     *
+     * ⛔ The server's identity list is READ on every Save that COULD create something
+     * ([mayCreateIdentities], which decides that offline, with no request at all), and it is that
+     * freshly read list the decision is made on. `StoredAccount.serverIdentities` cannot serve:
+     * only `MailRepository.connect` writes it, and neither adding an account, nor "Test
+     * connection", nor a sync opens one — so on a freshly added account it stayed empty, the guard
+     * against posting against an unread list fired every time, and nothing ever reached the server
+     * (measured on the S7, 2026-08-31). ⚠ On a COLD session the read costs TWO `Identity/get`,
+     * not one: `connect` runs `refreshServerIdentities` itself before handing back its context
+     * (`MailRepository.connect`), and `serverIdentities` then asks again. The extra one is bounded
+     * — one per Save that could create something, and `mayCreateIdentities` has already dropped
+     * every Save that could not — and the create that follows adds no round trip of its own beyond
+     * the ones it already made, because `connect` hands it the cached context.
+     *
+     * A read that FAILS creates nothing — offline, we do not know what the server already holds and
+     * posting blind fabricates duplicates — and every address this Save was adding is reported, for
+     * the same reason a refusal is: there is no retry behind it.
+     *
+     * One try/catch PER identity, so a refusal on one address still lets the next one through.
+     */
+    private fun createIdentitiesOnServer(
+        id: String,
+        before: StoredAccount?,
+        identities: List<StoredIdentity>?,
+    ) {
+        if (identities == null || before == null) return
+        if (!mayCreateIdentities(before, identities)) return
+        val credentials = store.credentials(id) ?: return
+        appScope.launch {
+            val server = try {
+                mail.serverIdentities(credentials)
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "SternaAccounts",
+                    "could not read the identities the server already holds; nothing was created",
+                    e,
+                )
+                // Nothing is posted, so say which addresses stayed on the phone: the offline
+                // candidates are the ones a server holding nothing would have taken.
+                for (identity in identitiesToCreate(before, identities, emptyList())) {
+                    _identitiesNotCreated.update {
+                        it + IdentityNotCreated(id, identity.email.trim(), failureDetail(e.message).ifEmpty { e.javaClass.simpleName })
+                    }
+                }
+                return@launch
+            }
+            for (identity in identitiesToCreate(before, identities, server)) {
+                try {
+                    mail.createIdentity(credentials, name = identity.name, email = identity.email.trim())
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "SternaAccounts",
+                        "the server did not create the identity; it stays local and is not retried",
+                        e,
+                    )
+                    // ...and say so on the screen where she pressed Save. There is no retry (see
+                    // the KDoc above), so a refusal nobody reads is an address that will never
+                    // reach the server, with nothing to show for it.
+                    _identitiesNotCreated.update {
+                        it + IdentityNotCreated(id, identity.email.trim(), failureDetail(e.message).ifEmpty { e.javaClass.simpleName })
+                    }
+                }
+            }
+        }
     }
 
     // --- Sign in an inert (imported) account via Microsoft OAuth device flow ---
@@ -684,3 +797,29 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         PushController.apply(app, userInitiated = true)
     }
 }
+
+/**
+ * What an exception's own sentence looks like once the account screen is about to write it into
+ * `R.string.settings_identity_not_created` — "Couldn't add %1$s on the server: %2$s. The address is
+ * saved on this phone only."
+ *
+ * ONE job: the final sentence punctuation comes off, because the template above supplies it. The
+ * server's answer already ends with a full stop ("E-mail address not configured for this account.")
+ * and so does Android's DNS failure, so the S7 read "…for this account.. The address is saved…" on
+ * 2026-08-31 — two stops, in all nine languages, since the period is inside every translation.
+ * ⛔ The fix belongs here and not in the strings: the trailing stop is the SENTENCE's, and the part
+ * that varies is what the server said.
+ *
+ * ⛔ And nothing else is touched. The server's sentence is quoted verbatim rather than reworded (we
+ * would have to guess right for every server), so the case, the length, the quotes and every inner
+ * mark survive: only the run of `.`/`!`/`?` and blanks at the very end goes.
+ * ⛔ `:` is NOT sentence punctuation here — a message ending on one was cut off before its cause,
+ * and dropping it would turn a truncated sentence into a whole-looking one. ⛔ Nor is `…`, which is
+ * the mark of a message the server itself truncated.
+ *
+ * Returns "" for a message that was blank or nothing but punctuation: the caller then falls back to
+ * the exception class name, as it already does for a null message. ⛔ Not an empty detail on the
+ * screen — that reads "on the server: ." and names nothing at all.
+ */
+internal fun failureDetail(raw: String?): String =
+    raw.orEmpty().trim().trimEnd { it == '.' || it == '!' || it == '?' || it.isWhitespace() }

@@ -656,6 +656,7 @@
     <string name="settings_email_supporting">Required. Blank identities are discarded when you save.</string>
     <string name="settings_email_invalid">Enter a valid email address.</string>
     <string name="settings_email_not_server">Your server may reject sending from this address.</string>
+    <string name="settings_identity_not_created">Couldn\'t add %1$s on the server: %2$s. The address is saved on this phone only.</string>
     <string name="settings_signature_label">Signature (plain text or HTML)</string>
     <string name="settings_signature_supporting">Plain text, added to the message body when you write — edit or remove it there like any other text.</string>
     <string name="settings_signature_supporting_html">An HTML version is saved; it is sent as is if you don\'t change the signature in the message.</string>

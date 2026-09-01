@@ -1466,6 +1466,10 @@ private fun AccountDetailScreen(
     // sign-in card disappears once a credential is stored (OAuth success / password save).
     val isInert = !viewModel.isSignedIn(accountId)
     val accountSignIn by viewModel.accountSignIn.collectAsStateWithLifecycle()
+    // Identities the last Save could not create on the server (#172). Drawn at the BOTTOM of this
+    // screen, right above the Save button that asked for them — not in the Identities section,
+    // which is three sections higher and off screen when the answer lands.
+    val identitiesNotCreated by viewModel.identitiesNotCreated.collectAsStateWithLifecycle()
     LaunchedEffect(accountId) {
         viewModel.loadCacheCount(accountId)
         viewModel.clearConnTest()
@@ -2261,6 +2265,21 @@ private fun AccountDetailScreen(
                 // is untouched promises an effect it cannot have (#34). [dirty] is set by every
                 // field this button persists, so the button lights up on the first keystroke and
                 // goes back out the moment the edits are written.
+                // What the server answered to the LAST Save, immediately above the button that
+                // asked it — the same place the "Test connection" failure is drawn. Under "Add an
+                // identity" it sat three sections higher, off screen, while the button the user was
+                // looking at had already flipped to "Saved". Filtered on this screen's account: one
+                // view model serves them all, and a refusal on another account names an address
+                // that appears nowhere here. Nothing retries: the sentence says the address is kept
+                // on the phone, and that is all that is true.
+                identitiesNotCreated.filter { it.accountId == accountId }.forEach { failure ->
+                    Text(
+                        stringResource(R.string.settings_identity_not_created, failure.email, failure.detail),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
                 Button(
                     onClick = { saveAccountEdits() },
                     enabled = canSave && dirty,

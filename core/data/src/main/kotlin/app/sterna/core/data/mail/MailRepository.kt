@@ -8420,6 +8420,76 @@ class MailRepository(
     }
 
     /**
+     * The sending identities the server holds for this account, READ NOW (`Identity/get`), stored
+     * into [app.sterna.core.data.account.StoredAccount.serverIdentities], and returned.
+     *
+     * #172, third half. [app.sterna.core.data.account.identitiesToCreate] must know what the server
+     * already has before it posts anything, and the stored list could not answer: it is written by
+     * [refreshServerIdentities], which only [connect] calls — and neither adding an account, nor
+     * "Test connection", nor a sync opens a `connect`. On a freshly added account the stored list
+     * was therefore empty because nobody had read it, the guard against posting blind fired every
+     * time, and not one `Identity/set` ever left the phone (measured on the S7, 2026-08-31). So the
+     * caller reads, and the ambiguity is gone: an empty answer here means the server holds nothing.
+     *
+     * ⛔ It THROWS on failure, and that is the whole contract. A `runCatching` answering an empty
+     * list would tell the caller "the server holds no identity" — the opposite instruction — and
+     * every offline Save would post its addresses against a server whose list nobody read.
+     * [refreshServerIdentities] keeps its own `runCatching` for [connect]'s sake, deliberately:
+     * signing in must survive an unreadable list; deciding what to create must not.
+     *
+     * IMAP throws rather than answering quietly, same belt as [createIdentity]: there is no
+     * `Identity/get` behind an IMAP account, and a caller reaching here with IMAP credentials has
+     * bypassed [app.sterna.core.data.account.mayCreateIdentities], which drops every non-JMAP
+     * account with no request at all.
+     */
+    suspend fun serverIdentities(credentials: AccountCredentials): List<StoredIdentity> {
+        if (credentials.protocol == MailProtocol.IMAP) {
+            throw IllegalStateException("Identity/get is JMAP-only; an IMAP alias is local")
+        }
+        val ctx = connect(credentials)
+        val identities = storedServerIdentities(client.getIdentities(ctx.session, ctx.accountId, ctx.auth))
+        // Stored as well as returned: this IS the server's list, and it is what the settings screen
+        // and the composer's From picker read — the same write refreshServerIdentities does.
+        accountStore.setServerIdentities(credentials.id, identities)
+        return identities
+    }
+
+    /**
+     * Create one sending identity on the server (`Identity/set`, RFC 8621 §6.4) and return its
+     * new id. Until this existed, an alias added in Settings was written locally only and the
+     * server refused every send from it (#172).
+     *
+     * IMAP throws rather than returning quietly: the decision of WHAT to create is
+     * [app.sterna.core.data.account.identitiesToCreate], which already drops every non-JMAP
+     * account, so reaching here with IMAP credentials means a caller bypassed that rule. A silent
+     * no-op would make such a caller look like it worked; this is a belt, and a belt that says so.
+     *
+     * ⛔ It does NOT write [app.sterna.core.data.account.StoredAccount.serverIdentities] itself: it
+     * RE-READS the list from the server ([refreshServerIdentities]). The server stays the source
+     * for that list; building it here would pin an address locally that the server may not have
+     * kept, and the server assigns the identity's id itself — the id the settings row is then keyed
+     * on. (Its `name`, on the other hand, does NOT reach the screen while the manual row the Save
+     * just wrote still carries the same address: `StoredAccount.resolvedIdentities` is manual-first.
+     * Do not justify this re-read by the name.)
+     */
+    suspend fun createIdentity(credentials: AccountCredentials, name: String, email: String): String {
+        if (credentials.protocol == MailProtocol.IMAP) {
+            throw IllegalStateException("Identity/set is JMAP-only; an IMAP alias is local")
+        }
+        val ctx = connect(credentials)
+        // Named, not positional: `name` and `email` are both String, so a swap compiles silently
+        // and posts every alias with the display name in the address field.
+        val created = client.createIdentity(ctx.session, ctx.accountId, name = name, email = email, auth = ctx.auth)
+        // #172: `connect` hands back a CACHED context, so nothing re-reads Identity/get until the
+        // next cold start — the app restart the reporter had to do before his new address showed
+        // up. Re-read here, and only once the server has confirmed the creation (the call above
+        // throws on a notCreated refusal), so a refusal costs no round trip and leaves the stored
+        // list exactly as it was.
+        refreshServerIdentities(ctx.session, ctx.accountId, credentials.id, ctx.auth)
+        return created
+    }
+
+    /**
      * Server-side resource quotas for the account (RFC 9425). Empty for IMAP
      * accounts and JMAP servers without the quota capability, or on any error
      * (the quota display is informational and must never break the screen).
@@ -8548,25 +8618,35 @@ class MailRepository(
         val session = client.fetchSession(Jmap.sessionUrlFor(credentials.server), auth)
         val accountId = jmapAccountIdFor(credentials, session)
         reconcileLinkedAccounts(credentials, session, auth)
-        // Codeberg #32: the server is authoritative for the addresses the user may send
-        // as. Refresh them into the account so the composer's From picker reflects the
-        // server, on every client. Best-effort — a fetch failure must not break connect.
-        runCatching {
-            val serverIdentities = client.getIdentities(session, accountId, auth)
-                .filter { it.email.isNotBlank() }
-                .map {
-                    StoredIdentity(
-                        id = it.id,
-                        name = it.name.orEmpty(),
-                        email = it.email,
-                        signature = it.textSignature.orEmpty(),
-                        signatureHtml = it.htmlSignature.orEmpty(),
-                    ).withSplitSignature()
-                }
-            accountStore.setServerIdentities(credentials.id, serverIdentities)
-        }
+        refreshServerIdentities(session, accountId, credentials.id, auth)
         val mailboxes = client.getMailboxes(session, accountId, auth)
         val roles = mailboxes.mapNotNull { mb -> mb.role?.let { it to mb.id } }.toMap()
         return Context(credentials, session, accountId, auth, roles, mailboxes).also { context = it }
+    }
+
+    /**
+     * Read the account's sending identities from the server and store them as
+     * [app.sterna.core.data.account.StoredAccount.serverIdentities].
+     *
+     * Codeberg #32: the server is authoritative for the addresses the user may send as. Refresh
+     * them into the account so the composer's From picker reflects the server, on every client.
+     * Best-effort — a fetch failure must not break the caller, [connect] first of all: a signed-in
+     * account with an unreadable identity list is still a usable account.
+     *
+     * ⚠ [accountId] is the JMAP account the identities belong to; [localAccountId] is the id of the
+     * record they are stored under in [accountStore]. Both are String and they are NOT the same
+     * value — swapped, the read asks the server about an id it does not know and the write lands on
+     * nobody's account, in silence, inside the runCatching.
+     */
+    private suspend fun refreshServerIdentities(
+        session: JmapSession,
+        accountId: String,
+        localAccountId: String,
+        auth: JmapAuth,
+    ) {
+        runCatching {
+            val serverIdentities = storedServerIdentities(client.getIdentities(session, accountId, auth))
+            accountStore.setServerIdentities(localAccountId, serverIdentities)
+        }
     }
 }
