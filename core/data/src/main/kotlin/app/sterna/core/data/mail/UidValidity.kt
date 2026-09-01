@@ -44,6 +44,24 @@ object UidValidity {
     }
 
     /**
+     * The numbering a server actually STATED, or null when it stated none — the one normalisation
+     * of `ImapMailboxStatus.uidValidity`, which is a `Long` in which 0 means "nothing was said".
+     *
+     * 0 is not a numbering, and neither is a negative: both mean the folder's UIDs cannot be said
+     * to belong to anything, which is `null` everywhere else in this app (`EmailEntity.uidValidity`,
+     * `MailboxUidValidityStore.record`, which refuses to write it, and [mayDestroy], which destroys
+     * nothing without one).
+     *
+     * ⭐ It has a NAME so that the row's column and the reads bounded by that column go through the
+     * same rule rather than through two copies of it. It is one rule with two callers: the row
+     * builder (`ImapMessage.toEntity`), and every cache read that must not answer with rows of
+     * another numbering (`EmailDao.cachedPreviews`, #99 inside #187). Two spellings of it would
+     * drift, and the drift is invisible: a row stored under `null` and looked up under `0L` simply
+     * never matches, so the page is re-downloaded on every walk and nothing looks wrong.
+     */
+    fun stated(uidValidity: Long?): Long? = uidValidity?.takeIf { it > 0L }
+
+    /**
      * Whether a snapshot recorded with [snapshotUidValidity] may be destroyed at all.
      *
      * `false` for a snapshot that carries no numbering: it was written by a version that did not
@@ -354,6 +372,16 @@ interface UidValidityStore {
  * What it deliberately does NOT do: re-read the folder to catch up. That is bug #99 itself. Flags
  * and moves are left alone too — the list cache is replaced from the server on the next refresh,
  * so those heal on their own.
+ *
+ * ⛔ "Replaced from the server on the next refresh" is a claim about COLUMNS THE WALK RE-READS, and
+ * it stopped covering the whole row when the opening line was cached (#187): `preview` is written
+ * back from the CACHE for every row the walk deliberately did not re-fetch, so a row surviving a
+ * renumbering under a recycled id would hand the new message the old one's first line — and keep
+ * it, because a filled row is a row nothing ever reads a body for again. What holds the claim up
+ * is that the read behind that write-back is bounded by the numbering the page was just read under
+ * ([UidValidity.stated], `EmailDao.cachedPreviews`), so a row of the old numbering is simply not in
+ * the answer. ⚠ Any FUTURE column filled the same way owes the same bound; leaving the rows here is
+ * only safe for columns the walk overwrites unconditionally.
  *
  * The notification baseline lives in `:app` and this layer does not reach into it: it is told,
  * through [onRenumbered], and does its own clearing.

@@ -28,6 +28,8 @@ import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.imap.buildImapSearch
 import app.sterna.core.imap.searchFolders
+import app.sterna.core.data.settings.NotificationContent
+import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.SearchQuery
 import kotlinx.coroutines.CancellationException
@@ -195,6 +197,24 @@ data class ImapWatchedLoad(
      * notifications are odd", weeks later.
      */
     val folderStatedEmpty: Boolean,
+    /**
+     * The numbering the SELECT that enumerated [messages] stated, normalised by
+     * [UidValidity.stated] — null when the server stated none.
+     *
+     * Carried because the caller reads the cache back for this page before writing it
+     * (`MailRepository.refreshAccountFolders`, which copies the opening lines this pass does not
+     * read onto the rows it is about to upsert), and that read has to be bounded by the numbering
+     * or it answers with rows of the PREVIOUS one, whose UIDs collide with these after a
+     * renumbering: the new message would take the old one's first line and keep it (#99 in #187).
+     *
+     * ⛔ It comes from the SELECT and NOT from [messages]. Reading it back off the rows would make
+     * the guard answerable to the very rows it guards, and an empty page would carry no answer at
+     * all. ⛔ No default, for the reason written on [previewSources] and [folderStatedEmpty]: it is
+     * an answer the server gave, and a default is a way of not asking — a defaulted null would
+     * quietly mean "unknown numbering" everywhere and match only the rows of servers that state
+     * none.
+     */
+    val uidValidity: Long?,
 )
 
 /**
@@ -227,6 +247,96 @@ internal fun previewSourcesOf(
         ImapMailService.emailId(accountId, mailboxId, message.uid) to PreviewSource(message.uid, part)
     }
 }.toMap()
+
+/**
+ * ⭐ Whether the MESSAGE LIST wants an opening line at all — the one decision that says whether a
+ * folder walk reads bodies, and the reason [ImapMailService] needs no settings of its own.
+ *
+ * True when the list itself shows a preview ([PreviewLines] other than `NONE`), and ALSO when it
+ * shows none but notifications are set to [NotificationContent.BODY_PREVIEW]. The second term is
+ * not generosity: the extract a notification carries is gathered on ARRIVAL
+ * (`NotificationPreviews.gather`), while a snoozed message is re-announced later from the bare
+ * cache row — so a row with no `preview` column loses the opening line the first notification had.
+ *
+ * Written on the precedent of `NotificationPreviews.gather`'s own first line, which asks the same
+ * question of the same setting. ⛔ Pure, and separate, so a test can EXECUTE it over the product of
+ * both enumerations instead of restating the rule — a test that recomputes the condition passes
+ * just as happily with the condition inverted.
+ */
+internal fun previewWantedInList(lines: PreviewLines, content: NotificationContent): Boolean =
+    lines != PreviewLines.NONE || content == NotificationContent.BODY_PREVIEW
+
+/**
+ * The opening line of each message of [page] that has readable text and does not have one cached
+ * yet, keyed by the SAME cache id as the rows ([ImapMailService.emailId]) — Codeberg #187.
+ *
+ * The conveyance, and the whole of it. Pure: it is handed the page and a [fetch], so what goes on
+ * the wire is a value a test can pin rather than a call it can only observe happening.
+ *
+ * Four properties, each of which is a defect if it goes:
+ *
+ *  - it starts from [previewSourcesOf], which is already "the totality of the conveyance": the
+ *    section and its encoding come from the BODYSTRUCTURE the envelope fetch ALREADY carried, and a
+ *    message with no `text/…` part is simply absent — no round trip to learn it has nothing to say;
+ *  - ⭐ only the ids in [missing] are asked for. That is what makes the cost be paid ONCE per
+ *    message: without it every pull-to-refresh and every step of the pager would re-download up to
+ *    two hundred openings the cache is already holding;
+ *  - ⭐ the UIDs are grouped BY SECTION and [fetch] is called once per group — two to four calls for
+ *    a page in practice ([app.sterna.core.imap.firstTextPart] answers "1", "1.1", "2"…). One call
+ *    per message would be up to two hundred sequential round trips under the account's single mutex
+ *    ([ImapMailService.withSession]), with opening a message, marking one read and emptying the
+ *    trash queued behind them;
+ *  - each body is filed under the cache id of ITS OWN uid. The grouped answer is keyed by UID for
+ *    that reason ([app.sterna.core.imap.ImapSession.fetchSectionPartials]); pairing it by position
+ *    would put one correspondent's words under another correspondent's name in the list.
+ *
+ * ⛔ The decoding is [BodyPreview.fromPart] and nothing else — pure, tested, and the half no socket
+ * test can reach. A body that decodes to nothing is an ORDINARY answer and simply does not become
+ * a key, exactly as it is not a preview on the notification path.
+ */
+internal fun previewsForPage(
+    accountId: String,
+    mailboxId: String,
+    page: List<ImapMessage>,
+    missing: Set<String>,
+    fetch: (section: String, uids: List<Long>) -> Map<Long, String>,
+): Map<String, String> {
+    val wanted = previewSourcesOf(accountId, mailboxId, page).filterKeys { it in missing }
+    val out = LinkedHashMap<String, String>()
+    for ((section, sources) in wanted.values.groupBy { it.part.section }) {
+        val bodies = fetch(section, sources.map { it.uid })
+        for (source in sources) {
+            val raw = bodies[source.uid] ?: continue
+            BodyPreview.fromPart(raw, source.part)?.let {
+                out[ImapMailService.emailId(accountId, mailboxId, source.uid)] = it
+            }
+        }
+    }
+    return out
+}
+
+/**
+ * What one page of a folder walk WRITES into the preview column: the openings just [read], plus the
+ * ones the cache was already holding for the rows that were deliberately not re-read.
+ *
+ * ⛔ The second half is the whole point, and its absence was Codeberg #187. The read is asked only
+ * for the ids the cache lacks — that is what makes an opening line cost ONE fetch ever, instead of
+ * one per pull-to-refresh over a page of two hundred — but Room's `@Upsert` REPLACES THE WHOLE ROW.
+ * So a page written with the fetched openings alone sets `preview = null` on exactly the rows it
+ * refused to re-read, and the next walk reads them back: measured in the database as 1 filled row
+ * out of 20, then 17, then 1 again, one flip per refresh, with the list's rows growing to 160 px
+ * and falling back to 136 px in front of the user. What we write for a row we did not re-read is
+ * what the cache already holds.
+ *
+ * The same refusal [keepingCachedPreviews] makes at the OTHER writer — the push/worker pass, which
+ * reads no body at all and would otherwise blank the newest rows of every watched folder. One rule,
+ * two writers; both take their values from the single `EmailDao.cachedPreviews` read.
+ *
+ * ⛔ [read] wins a collision. It cannot happen on the shipped path (the fetch is asked only for what
+ * the cache has not got), but the two are maps of the same type and the operand order is invisible
+ * to the compiler: the freshly read body is the fresher of the two.
+ */
+internal fun pageOpenings(cached: Map<String, String>, read: Map<String, String>): Map<String, String> = cached + read
 
 /**
  * The deadline arithmetic behind a time-bounded IMAP call. Pure and separate because every
@@ -662,6 +772,17 @@ class ImapMailService(
      * ⚠ And the walk is retried ONCE as a whole on a transport failure (`runWithRetry`), so a
      * DATABASE failure in the middle of it re-runs the entire network read as well. Both are known
      * and out of this change's scope; neither can delete anything.
+     *
+     * ⛔ [cachedPreviewsFor] has NO DEFAULT, for [onPage]'s reason: "does this walk read opening
+     * lines, and for which rows" is a question every caller answers out loud. Null means READ NONE.
+     * It is a lambda and not a setting because this class has neither the settings nor the database
+     * and must not grow either — the caller is given the page's cache ids AND the numbering they
+     * were just read under, and answers with the openings it ALREADY holds for them under that
+     * numbering (#187): the missing ones are what gets fetched, the held ones are re-written as
+     * they were, because the upsert replaces the whole row. ⛔ The numbering is the second argument
+     * and not an afterthought: without it the answer can come from the numbering BEFORE a
+     * renumbering, and the row then keeps another message's first line for good (#99). See
+     * [pagePreviews] for where in the walk it is used, and why there.
      */
     suspend fun loadFolder(
         credentials: AccountCredentials,
@@ -669,6 +790,7 @@ class ImapMailService(
         limit: Int,
         onlySubscribed: Boolean = false,
         onPage: suspend (List<EmailEntity>) -> Unit,
+        cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
     ): ImapFolderLoad {
         return withSession(credentials) { session ->
             val folders = session.listFolders(onlySubscribed)
@@ -686,7 +808,13 @@ class ImapMailService(
                 settle = { reconcileNumbering(credentials.id, target.path, status.uidValidity) },
                 walk = {
                     session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->
-                        onPage(page.map { it.toEntity(credentials.id, target.path, status.uidValidity) })
+                        val previews = pagePreviews(session, accountId = credentials.id, mailboxId = target.path, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)
+                        onPage(
+                            page.map {
+                                val preview = previews[emailId(credentials.id, target.path, it.uid)]
+                                it.toEntity(credentials.id, target.path, status.uidValidity, preview)
+                            },
+                        )
                     }
                 },
             )
@@ -745,12 +873,25 @@ class ImapMailService(
                     folder.path,
                     folder.name,
                     folder.role,
-                    page.map { it.toEntity(credentials.id, folder.path, status.uidValidity) },
+                    // ⛔ NO preview READ for the row, deliberately: this is the NOTIFICATION path,
+                    // it has `previewSources` below and its own budget (six reads and four seconds
+                    // for the whole account pass, `NotificationPreviews`), and caching the six it
+                    // reads out of a page of fifty is precisely the half-true list `BodyPreview`
+                    // refuses. That reason stands and is the only one this line carries.
+                    // ⛔ It DESTROYS none either — and that is not this line's doing, because it
+                    // cannot be: `@Upsert` replaces the whole row, so a null written here wipes the
+                    // opening line the folder walk cached for these very rows. The caller copies
+                    // them back on before writing (`MailRepository.keepingCachedPreviews`, #187).
+                    page.map { it.toEntity(credentials.id, folder.path, status.uidValidity, null) },
                     previewSourcesOf(credentials.id, folder.path, page),
                     // The SELECT's answer, not a verdict written here: `status` is already in hand,
                     // so the provenance costs no request of its own — and the rule that reads it is
                     // the one a test can execute.
                     folderStatedEmpty = pageVouchesForEmpty(status),
+                    // Same SELECT, same page, one normalisation: what the caller's cache read is
+                    // bounded by, so the openings it copies back cannot come from a numbering
+                    // these UIDs no longer belong to (#99 in #187).
+                    uidValidity = UidValidity.stated(status.uidValidity),
                 )
             }
             loads to missing
@@ -759,15 +900,30 @@ class ImapMailService(
         return result
     }
 
-    /** Fetch the page of messages just older than the [offset] newest, for paging. */
+    /**
+     * Fetch the page of messages just older than the [offset] newest, for paging.
+     *
+     * ⛔ [cachedPreviewsFor] has no default, exactly as on [loadFolder], and null means read no
+     * opening lines. What it answers for the page is both the bound on the fetch and what the rows
+     * it did not fetch are written back with ([pageOpenings]), and it is asked UNDER the numbering
+     * this SELECT stated. The read happens inside the [onMailbox] block — the numbering chokepoint
+     * — so the bodies are asked for under the SELECT that enumerated the very UIDs being asked for,
+     * and the cache is asked under that same statement rather than under whatever the folder was
+     * numbered as when those rows were written.
+     */
     suspend fun fetchOlderPage(
         credentials: AccountCredentials,
         mailboxId: String,
         offset: Int,
         limit: Int,
+        cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
     ): Pair<List<EmailEntity>, Int> = onMailbox(credentials, mailboxId) { session, status ->
-        val messages = session.fetchPage(status.exists, offset, limit)
-            .map { it.toEntity(credentials.id, mailboxId, status.uidValidity) }
+        val page = session.fetchPage(status.exists, offset, limit)
+        val previews = pagePreviews(session, accountId = credentials.id, mailboxId = mailboxId, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)
+        val messages = page.map {
+            val preview = previews[emailId(credentials.id, mailboxId, it.uid)]
+            it.toEntity(credentials.id, mailboxId, status.uidValidity, preview)
+        }
         messages to status.exists
     }
 
@@ -923,7 +1079,10 @@ class ImapMailService(
     suspend fun fetchByUids(credentials: AccountCredentials, mailboxId: String, uids: List<Long>): List<EmailEntity> =
         if (uids.isEmpty()) emptyList()
         else onMailbox(credentials, mailboxId) { session, status ->
-            session.fetchUids(uids).map { it.toEntity(credentials.id, mailboxId, status.uidValidity) }
+            // ⛔ No preview: the ids these rows carry hold BRAND-NEW UIDs — this is the re-cache
+            // after a `UID MOVE` back (`MailRepository`'s undo), so they collide with nothing and
+            // the `@Upsert` overwrites nobody's opening line. Nothing to preserve, nothing to read.
+            session.fetchUids(uids).map { it.toEntity(credentials.id, mailboxId, status.uidValidity, null) }
         }
 
     /** Create a folder if it doesn't exist (e.g. an Archive on first archive). */
@@ -996,7 +1155,10 @@ class ImapMailService(
             folders.forEach { hits -> numbering += hits.mailbox to hits.uidValidity }
             ImapSearchHits(
                 messages = folders
-                    .flatMap { hits -> hits.messages.map { it.toEntity(credentials.id, hits.mailbox, hits.uidValidity) } }
+                    // ⛔ No preview: a search hit is NEVER written to `emails` — the comment on this
+                    // function says so and `MailRepository.search` maps its hits straight to
+                    // `toEmail()`. A body read here would be paid for on the wire and dropped.
+                    .flatMap { hits -> hits.messages.map { it.toEntity(credentials.id, hits.mailbox, hits.uidValidity, null) } }
                     .sortedByDescending { it.sortKey }
                     .take(limit),
                 complete = folders.none { it.incomplete },
@@ -1029,7 +1191,10 @@ class ImapMailService(
      */
     suspend fun fetchByUid(credentials: AccountCredentials, mailboxId: String, uid: Long): EmailEntity? =
         onMailbox(credentials, mailboxId) { session, status ->
-            session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId, status.uidValidity)
+            // ⛔ No preview: this row is not cached either (`MailRepository.fetchById` renders it
+            // and stops), and the message is about to be OPENED — its whole body is one request
+            // away, so reading an opening line for it would be the same bytes twice.
+            session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId, status.uidValidity, null)
         }
 
     /**
@@ -1103,6 +1268,101 @@ class ImapMailService(
         onMailbox(credentials, mailboxId) { session, _ -> session.fetchSource(uid) }
 
     /**
+     * The opening line of every message of [page] that has one and does not have one CACHED yet —
+     * read here, INSIDE the folder read, on the session that has just SELECTed the folder (#187).
+     *
+     * ⭐ Inside the read on purpose, and it is [fetchPreview]'s reason for going through
+     * [onMailbox]: a UID means nothing outside the numbering it was enumerated under. Asking for
+     * these bodies anywhere else would name UIDs under a SELECT that is not the one that listed
+     * them, a renumbered folder would answer with OTHER MESSAGES' text, and the list would show the
+     * opening of somebody else's mail under this sender's name (Codeberg #99). Both callers put it
+     * behind that check: the walk's own `select`, and `fetchOlderPage`'s [onMailbox].
+     *
+     * ⛔ NOTHING ESCAPES. An exception raised here would fail the whole folder read — the read that
+     * fills the cache and that a notification pass advances its baseline behind. A failed pass
+     * RE-ANNOUNCES the folder on the next round, and a re-announce MOVES MAIL on the server
+     * (`unarchiveThreadsOnReply`); see `NotificationPreviews.postGatheredFirst`, which is written
+     * at length about exactly that. So: a cancellation goes through, because it means the caller is
+     * gone, and every other failure costs the openings of one page and strictly nothing else. Same
+     * shape as [fetchPreview], for the same reason.
+     *
+     * ⚠ "Costs the openings NOT YET READ" is true of the failing NETWORK read and only of it. The
+     * cache read is inside the same `try`, so a [cachedPreviewsFor] that throws leaves `cached`
+     * empty and the page goes out bare — the upsert then blanks the column for the whole page.
+     * That is bounded rather than repaired, deliberately: the same database serves the upsert this
+     * walk feeds, so one that cannot answer a SELECT cannot take the write either and there is no
+     * page left to blank; and the one failure this read can have with a working database is
+     * SQLite's host-variable cap on `IN (:ids)`, which the "ONE PAGE, never several" rule written
+     * on that query already holds off.
+     *
+     * ⛔ [cachedPreviewsFor] null means READ NOTHING — the caller has not asked, or has no settings
+     * to ask with. The decision is the caller's because this class has neither the settings nor the
+     * database ([MailRepository.listPreviewCache]), and that has to stay true. When it is not null
+     * it answers what the cache ALREADY holds for the page UNDER [uidValidity], keyed by row id:
+     * the keys bound the fetch, the values are carried through by [pageOpenings].
+     *
+     * ⛔ [uidValidity] is the numbering the SELECT that enumerated this page stated, through the one
+     * shipped normalisation ([UidValidity.stated]) — and it is what makes the cache read SAFE
+     * rather than merely cheap. A row id carries no UIDVALIDITY, and a renumbered folder hands back
+     * UIDs that collide with the ids still cached: unbounded, the read answers the PREVIOUS
+     * message's opening line, [pageOpenings] writes it onto the new row, and nothing asks again
+     * (#99 in #187). Passed IN rather than read off the rows, for the reason on
+     * [ImapWatchedLoad.uidValidity].
+     *
+     * ⛔ BOTH CALL SITES PASS [accountId] AND [mailboxId] BY NAME, and they must keep doing so:
+     * they are two adjacent `String`s, so swapping the two names in this declaration compiles,
+     * type-checks, and mints `imap:INBOX:acct-1:7` for a row cached as `imap:acct-1:INBOX:7` — no
+     * lookup ever hits, no row ever shows an opening line, and the whole page is re-downloaded on
+     * every walk. Named arguments bind by name, so the swap moves nothing. The source lints of
+     * `PreviewFetchWiringTest` read function BODIES and can see neither this signature nor a
+     * positional call's meaning; this is what covers it.
+     *
+     * ⭐ WHAT BOUNDS THIS READ, since it deliberately does NOT use `NotificationPreviews`' budget
+     * (six reads and four seconds): the bound is STRUCTURAL, and it has to be. That budget is per
+     * ACCOUNT and sized for a group summary of six children; spent over a page of two hundred rows
+     * it would fill six of them and leave the rest blank — the half-true list `BodyPreview` refuses,
+     * which is the very thing this change exists to avoid. What bounds it instead is the shape of
+     * the work: one page at a time (`IMAP_FOLDER_PAGE`, or the pager's own page), one `UID FETCH`
+     * per MIME section rather than one per message ([ImapSession.fetchSectionPartials]), each body
+     * cut to [IMAP_PREVIEW_FETCH_BYTES] — and [cachedPreviewsFor], which takes out everything
+     * already cached, so a folder's openings are paid for ONCE and a pull-to-refresh over the same
+     * page puts nothing on the wire.
+     *
+     * ⛔ AND WHAT IS NOT RE-READ IS CARRIED OVER, NOT LOST ([pageOpenings]). The cost filter decides
+     * what goes on the WIRE; it must never decide what goes in the ROW, because `@Upsert` replaces
+     * the whole row and would blank the column for every id the filter took out — the flicker of
+     * Codeberg #187. Hence the cached values come back out of this function alongside the fetched
+     * ones, and a FAILED read answers [cached] rather than nothing: a socket dropped mid-walk costs
+     * the openings it had not read yet, never the ones already paid for.
+     */
+    private suspend fun pagePreviews(
+        session: ImapSession,
+        accountId: String,
+        mailboxId: String,
+        page: List<ImapMessage>,
+        uidValidity: Long?,
+        cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
+    ): Map<String, String> {
+        if (cachedPreviewsFor == null || page.isEmpty()) return emptyMap()
+        val ids = page.map { emailId(accountId, mailboxId, it.uid) }
+        var cached = emptyMap<String, String>()
+        return try {
+            cached = cachedPreviewsFor(ids, uidValidity)
+            pageOpenings(
+                cached,
+                previewsForPage(accountId, mailboxId, page, ids.toSet() - cached.keys) { section, uids ->
+                    session.fetchSectionPartials(uids, section, IMAP_PREVIEW_FETCH_BYTES)
+                },
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: Throwable) {
+            android.util.Log.w("ImapPreview", "no list previews for $mailboxId: ${failed.message}")
+            cached
+        }
+    }
+
+    /**
      * The opening of one message's text, for a notification that is allowed to show it — or null
      * when there is none to be had. IMAP has no preview of its own: unlike JMAP, which returns one
      * with every envelope, this is a read of the message itself, and the only one the notification
@@ -1135,7 +1395,10 @@ class ImapMailService(
      * the notification would show the opening of somebody else's mail (Codeberg #99). No preview is
      * the right answer there, and it is the one the refusal produces.
      *
-     * ⛔ The result is returned, never stored: [toEntity] keeps writing `preview = null` for IMAP.
+     * ⛔ The result is returned, NEVER STORED, and that is unchanged by #187: the row this pass caches
+ * is written with `preview = null` ([loadWatchedFolders]). The list's opening lines are filled a
+ * whole page at a time by [pagePreviews]; caching the six messages THIS path happens to read,
+ * out of a page of fifty, is the half-true list `BodyPreview` refuses.
      */
     suspend fun fetchPreview(
         credentials: AccountCredentials,
@@ -1335,8 +1598,24 @@ private fun rolePriority(role: String?): Int = when (role) {
  * call sites below could each forget it silently; with it the compiler holds every one of them, and
  * a seventh read path cannot be added without stating what its rows were read under (#99). Same
  * reason `previewSources` and `folderStatedEmpty` say "No default" where they are built.
+ *
+ * ⛔ [preview] HAS NO DEFAULT EITHER, and for that same rule (#187). It is the opening line ALREADY
+ * READ for this message by the caller — `null` where the caller read none — and a default would let
+ * a read path fill every other column and quietly leave this one blank, which is the defect this
+ * parameter closes. With no default the compiler holds all six call sites, so each of them has to
+ * say out loud whether the rows it is about to cache carry an opening line or not; the four that
+ * pass `null` write down why on the line above.
+ *
+ * ⛔ And nothing is DECIDED here: this line copies the value it was handed. A rule written on it
+ * would be a second rule, in the one place no JVM test can execute
+ * (`PreviewFetchWiringTest.the cached preview covers the whole page…`).
  */
-internal fun ImapMessage.toEntity(accountId: String, mailboxId: String, uidValidity: Long?): EmailEntity {
+internal fun ImapMessage.toEntity(
+    accountId: String,
+    mailboxId: String,
+    uidValidity: Long?,
+    preview: String?,
+): EmailEntity {
     val id = ImapMailService.emailId(accountId, mailboxId, uid)
     return EmailEntity(
         id = id,
@@ -1344,7 +1623,7 @@ internal fun ImapMessage.toEntity(accountId: String, mailboxId: String, uidValid
         mailboxId = mailboxId,
         threadId = null,
         subject = subject,
-        preview = null,
+        preview = preview,
         receivedAt = if (dateMillis > 0) Instant.ofEpochMilli(dateMillis).toString() else null,
         fromName = fromName,
         fromEmail = fromEmail,
@@ -1386,11 +1665,17 @@ internal fun ImapMessage.toEntity(accountId: String, mailboxId: String, uidValid
         // pair wrongly — the folder-wide record can be realigned by a background pass while these
         // ids still belong to the old numbering, and that is the accident this closes.
         //
-        // ⭐ NORMALISED HERE, once, and never at the six call sites: `ImapMailboxStatus.uidValidity`
-        // is a `Long` in which 0 means "the server stated nothing", and 0 is not a numbering. It
-        // becomes null — "nothing to oppose", which destroys nothing — exactly as
+        // ⭐ NORMALISED HERE for the row, and never at the six call sites: `ImapMailboxStatus
+        // .uidValidity` is a `Long` in which 0 means "the server stated nothing", and 0 is not a
+        // numbering. It becomes null — "nothing to oppose", which destroys nothing — exactly as
         // `UidValidityStore.record` refuses to write it and `MessageDestroyWorker` reads it back.
-        uidValidity = uidValidity?.takeIf { it > 0L },
+        //
+        // ⭐ The rule now has a NAME and is CALLED, not spelled out again ([UidValidity.stated]).
+        // Still ONE rule: what changed is that a second kind of caller needs it — the reads that
+        // must not answer with rows of another numbering (`EmailDao.cachedPreviews`, #99 in #187) —
+        // and a row written under one spelling and looked up under another simply never matches,
+        // silently. One rule, two kinds of caller, one function.
+        uidValidity = UidValidity.stated(uidValidity),
     )
 }
 

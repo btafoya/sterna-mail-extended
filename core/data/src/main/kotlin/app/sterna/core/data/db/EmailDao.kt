@@ -275,6 +275,57 @@ interface EmailDao {
     @Query("SELECT mailboxId FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
     suspend fun mailboxOf(accountId: String, id: String): String?
 
+    /**
+     * The opening lines this account ALREADY holds for [ids] UNDER THE NUMBERING [uidValidity] — id
+     * and value both, because the two halves of the IMAP list preview need one each and one read
+     * answers both (Codeberg #187):
+     *
+     *  - the folder read subtracts these IDS from its page, so it fetches bodies only for the rows
+     *    that are still blank (`MailRepository.listPreviewCache`);
+     *  - BOTH writers copy these VALUES back onto the rows they are about to write — the push/worker
+     *    pass, which reads no body at all (`MailRepository.keepingCachedPreviews`), and the folder
+     *    walk itself, for the very rows the point above kept off the wire
+     *    (`ImapMailService.pageOpenings`). `@Upsert` replaces the WHOLE row, so writing either page
+     *    as it came off the wire blanks the column for the newest rows of every folder, on every
+     *    pass and on every refresh.
+     *
+     * Two near-twin queries would drift, and the second one is the dangerous direction: a gap that
+     * says "filled" for a row the write then blanks is a row nothing ever asks about again.
+     *
+     * ⛔ Bound to [accountId] like every id-keyed read in this block, and here the bound is what
+     * makes the answer repairable: with the composite (accountId, id) key an id is not unique
+     * across accounts, so an unbound `IN` would find a same-server sibling's filled row, report
+     * THIS account's row as already filled, and leave it blank for ever — the gap is the only thing
+     * that ever asks for that body again.
+     *
+     * ⛔ AND BOUND TO THE NUMBERING, which is the second half of the same key and the dangerous one
+     * (#99 inside #187). An IMAP row id is `imap:$accountId:$mailboxId:$uid` and carries no
+     * UIDVALIDITY; `MailboxUidValidityStore.invalidate` deliberately leaves the `emails` rows in
+     * place when a folder is renumbered. So after a renumbering — a folder recreated, a server
+     * migrated, a restore — the UIDs start low again and COLLIDE with ids the cache still holds,
+     * and an answer keyed by id alone hands the new message the previous one's opening line: the
+     * right sender, the right subject, and the first line of somebody else's mail. It never heals,
+     * because a row that counts as filled is a row nothing reads a body for again. [uidValidity] is
+     * the numbering the page was just read under, normalised once by `UidValidity.stated`, and it
+     * is the caller's answer from the SELECT that enumerated the page — never deduced from the rows.
+     *
+     * ⛔ `IS` and not `=`: SQLite's `=` is never true against NULL, and a row read from a server
+     * that states no UIDVALIDITY carries NULL here. With `=` those accounts would match none of
+     * their own rows, every page would be re-fetched on every walk, and the cost this read exists
+     * to avoid would come back in silence.
+     *
+     * ⛔ [ids] is ONE PAGE and must stay one: the callers pass a folder-read page
+     * ([app.sterna.core.imap.IMAP_FOLDER_PAGE], 200), a pager page (50), or ONE watched folder's
+     * page — never several folders' pages joined into a single call. Room expands `IN (:ids)`
+     * into one host variable each and SQLite caps them (999 on the Androids this app still runs
+     * on), so an unbounded list throws — and on the folder-read path a throw costs the whole load.
+     */
+    @Query(
+        "SELECT id, preview FROM emails WHERE accountId = :accountId AND id IN (:ids) " +
+            "AND uidValidity IS :uidValidity AND preview IS NOT NULL",
+    )
+    suspend fun cachedPreviews(accountId: String, ids: List<String>, uidValidity: Long?): List<CachedPreview>
+
     @Query("SELECT seen FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
     suspend fun seenOf(accountId: String, id: String): Boolean?
 
@@ -761,6 +812,18 @@ data class EmailRetentionRow(
 data class RowNumbering(
     val id: String,
     val uidValidity: Long?,
+)
+
+/**
+ * Projection for [EmailDao.cachedPreviews]: one cached row's opening line.
+ *
+ * [preview] is NON-NULL because the query selects only rows whose column is not null: "no opening
+ * line" is an ABSENT entry here, never a blank one — the same rule `BodyPreview.fromPart` states,
+ * and the one that keeps "this message has no readable text" apart from "nobody has read it yet".
+ */
+data class CachedPreview(
+    val id: String,
+    val preview: String,
 )
 
 /** Projection for [EmailDao.keysForSelection]: the account-qualified key of one selectable row. */

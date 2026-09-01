@@ -35,7 +35,8 @@ class SubscribedFoldersWiringTest {
                 "A literal false leaves the switch inert on IMAP. Lines found:",
             listOf(
                 "walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, " +
-                    "onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage) },",
+                    "onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, " +
+                    "cachedPreviewsFor = listPreviewCache(credentials.id)) },",
                 // ⛔ Bare, and the only bare one in this list: these rows are never cached, so a
                 // subscription fetched for them is an LSUB paid on every archive and every delete.
                 "val folders = imap.listMailboxes(credentials)",
@@ -43,7 +44,7 @@ class SubscribedFoldersWiringTest {
                 // path hands it down (`refreshFolderList`), so no ordering between the store write
                 // and this listing can turn the feature off.
                 "val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, " +
-                    "onlySubscribed = onlySubscribed, onPage = {})",
+                    "onlySubscribed = onlySubscribed, onPage = {}, cachedPreviewsFor = null)",
             ),
             codeLines("core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt")
                 .filter { it.contains("imap.loadFolder(") || it.contains("imap.listMailboxes(") },

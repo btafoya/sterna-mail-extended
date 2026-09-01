@@ -77,7 +77,7 @@ class ImapWindowWiringTest {
             val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
             return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
             folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
-            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage) },
+            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },
             writePage = { page ->
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
             emailDao.upsertAll(page)
@@ -158,10 +158,14 @@ class ImapWindowWiringTest {
         // of THE SELECT THAT ENUMERATED THEM (#99). Dropped here, a cached row says nothing about
         // what its UID means, and a later permanent delete has only the folder's current record to
         // oppose — which a background pass has already realigned to the renumbering.
+        // ⛔ And the fourth argument is the opening line READ FOR THAT ROW, looked up under the
+        // row's own cache id (#187). A literal here — or a lookup under another message's id —
+        // shows one correspondent's words under another correspondent's name.
+        assertLine("ImapMailService", "loadFolder", "val preview = previews[emailId(credentials.id, target.path, it.uid)]")
         assertLine(
             "ImapMailService",
             "loadFolder",
-            "onPage(page.map { it.toEntity(credentials.id, target.path, status.uidValidity) })",
+            "it.toEntity(credentials.id, target.path, status.uidValidity, preview)",
         )
     }
 

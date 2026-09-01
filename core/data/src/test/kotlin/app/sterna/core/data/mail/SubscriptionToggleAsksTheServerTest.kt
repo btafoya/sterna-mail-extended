@@ -56,6 +56,9 @@ class SubscriptionToggleAsksTheServerTest {
                     limit = 1,
                     onlySubscribed = sync.onlySubscribed,
                     onPage = {},
+                    // ⛔ No opening lines: this test counts what ONE TICK of the switch costs the
+                    // server, and a preview read would add a `UID FETCH` per section to that list.
+                    cachedPreviewsFor = null,
                 )
             }
 
@@ -100,6 +103,9 @@ class SubscriptionToggleAsksTheServerTest {
                     limit = 1,
                     onlySubscribed = sync.onlySubscribed,
                     onPage = {},
+                    // ⛔ No opening lines: this test counts what ONE TICK of the switch costs the
+                    // server, and a preview read would add a `UID FETCH` per section to that list.
+                    cachedPreviewsFor = null,
                 )
             }
 
@@ -147,6 +153,9 @@ class SubscriptionToggleAsksTheServerTest {
                     limit = 1,
                     onlySubscribed = sync.onlySubscribed,
                     onPage = {},
+                    // ⛔ No opening lines: this test counts what ONE TICK of the switch costs the
+                    // server, and a preview read would add a `UID FETCH` per section to that list.
+                    cachedPreviewsFor = null,
                 )
             }
 

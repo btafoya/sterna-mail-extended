@@ -1156,6 +1156,47 @@ class ImapSession(private var socket: Socket) : Closeable {
     fun fetchSectionPartial(uid: Long, section: String, maxBytes: Int): String =
         command("UID FETCH $uid (BODY.PEEK[$section]<0.$maxBytes>)").bodyItem().take(maxBytes)
 
+    /**
+     * The first [maxBytes] octets of one MIME section of MANY messages, still transfer-encoded,
+     * asked for a page at a time — [fetchSectionPartial] for a caller holding a list rather than a
+     * message. The answer is keyed BY UID; a message the server said nothing about is simply
+     * absent from it.
+     *
+     * ⛔ Why it exists at all: [fetchSectionPartial] is one round trip per message, and its reader
+     * [bodyItem] keeps the FIRST body of the answer and throws the rest away — so a caller wanting
+     * the opening of two hundred messages had no choice but two hundred sequential round trips,
+     * over the account's single connection, each one a full latency. This asks for a page in one
+     * `UID FETCH` over a compressed sequence set ([compressUidSet]) and reads every `FETCH` line of
+     * the answer, by [bodyItemsByUid].
+     *
+     * ⛔ `BODY.PEEK`, never a bare `BODY[…]`, and here more than anywhere: a bare fetch sets `\Seen`
+     * on the server (RFC 3501 §6.4.5) for EVERY UID in the set, on every device the account is open
+     * on, irreversibly. The caller of this path reads whole pages of a folder as it syncs, so the
+     * mistake would not mark a message read — it would mark the mailbox read.
+     *
+     * ⭐ `<0.[maxBytes]>` AND the `take`, exactly as [fetchSectionPartial] states at length: the
+     * partial is a REQUEST, a literal is read up to 32 MiB, and the item is matched by prefix — so
+     * the `take` is what makes "[maxBytes] at most" true, per body and not just for the first one.
+     *
+     * ⚠ [uids] is de-duplicated and SORTED before it is cut into pages: a chunk of a descending
+     * list (the order a folder walk hands its messages over in) compresses to the same set, but
+     * spread over ranges that no longer line up with the pages, and the first page of a newest-first
+     * list would name the OLDEST message in the batch. Sorting keeps a page contiguous.
+     */
+    fun fetchSectionPartials(uids: List<Long>, section: String, maxBytes: Int): Map<Long, String> {
+        // ⛔ Not "the loop below does nothing anyway": an empty list must put NO command on the
+        // wire at all, and `compressUidSet(emptyList())` would otherwise send `UID FETCH  (…)`.
+        if (uids.isEmpty()) return emptyMap()
+        val out = LinkedHashMap<Long, String>()
+        for (page in uids.distinct().sorted().chunked(IMAP_PREVIEW_FETCH_CHUNK)) {
+            val set = compressUidSet(page)
+            if (set.isEmpty()) continue
+            val result = command("UID FETCH $set (BODY.PEEK[$section]<0.$maxBytes>)")
+            out += result.bodyItemsByUid(maxBytes)
+        }
+        return out
+    }
+
     /** Raw RFC822 source of a message, for parsing the body/attachments. */
     fun fetchSource(uid: Long): String =
         command("UID FETCH $uid (BODY.PEEK[])").bodyItem()
@@ -1181,6 +1222,43 @@ class ImapSession(private var socket: Socket) : Closeable {
         val idx = items.indexOfFirst { it is String && it.startsWith("BODY", true) }
         if (idx < 0) return ""
         return (items.getOrNull(idx + 1) as? String).orEmpty()
+    }
+
+    /**
+     * EVERY body item of a FETCH answer, each cut to [maxBytes] and filed under the UID of the line
+     * that carried it — the reader of [fetchSectionPartials], beside [bodyItem] and not in place of
+     * it: the three single-message fetches have their own callers and their own reading, which this
+     * does not touch.
+     *
+     * ⛔ Keyed by the `UID` item of EACH line, never by position. A grouped `UID FETCH` is answered
+     * with one untagged line per message, in whatever order the server likes, numbered by SEQUENCE
+     * — which is not the UID and is not the order asked for. Zipping the answer against the
+     * requested set would hand one message's opening to another message's row.
+     *
+     * ⛔ No entry rather than an empty one, for the same reason [bodyItem] returns "": the item list
+     * opens with `UID <n>`, so a reader that took index 0 when it found no body item would file the
+     * atom "UID" as somebody's mail. A line with no body item, or an empty one, contributes nothing
+     * and its UID is simply not a key — which is what a caller must handle anyway, since a server
+     * may answer about fewer messages than were named.
+     *
+     * The body item is matched BY PREFIX (`BODY[1]<0>`, RFC 3501 §7.4.2), as [bodyItem] explains.
+     */
+    private fun ImapResult.bodyItemsByUid(maxBytes: Int): Map<Long, String> {
+        val out = LinkedHashMap<Long, String>()
+        for (line in untagged) {
+            if (line.getOrNull(2) != "FETCH") continue
+            @Suppress("UNCHECKED_CAST")
+            val items = line.getOrNull(3) as? List<Any?> ?: continue
+            val uidIdx = items.indexOfFirst { it is String && it.equals("UID", true) }
+            if (uidIdx < 0) continue
+            val uid = (items.getOrNull(uidIdx + 1) as? String)?.toLongOrNull() ?: continue
+            val bodyIdx = items.indexOfFirst { it is String && it.startsWith("BODY", true) }
+            if (bodyIdx < 0) continue
+            val body = (items.getOrNull(bodyIdx + 1) as? String).orEmpty()
+            if (body.isEmpty()) continue
+            out[uid] = body.take(maxBytes)
+        }
+        return out
     }
 
     fun setFlag(uid: Long, flag: String, set: Boolean) {
@@ -1568,6 +1646,21 @@ internal val purgeWithoutUidPlus = PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS
  * compress to well under any server's command-length limit.
  */
 private const val UID_SET_CHUNK = 200
+
+/**
+ * How many messages one grouped preview fetch ([ImapSession.fetchSectionPartials]) asks about at a
+ * time.
+ *
+ * ⛔ Deliberately NOT [UID_SET_CHUNK], which sizes a `UID STORE`/`UID MOVE` and is bounded only by
+ * the length of a command LINE. This one is bounded by the ANSWER: the reply to a preview fetch
+ * carries up to [IMAP_PREVIEW_FETCH_BYTES] octets per message, all of it parsed and held before a
+ * single body is read out of it, inside a foreground service. At 200 that is ~1.6 MB on one heap —
+ * exactly the shape [ImapSession.walkFolder] paginates to avoid, rebuilt on the body side.
+ *
+ * The rule for changing it: `chunk × IMAP_PREVIEW_FETCH_BYTES` stays in the hundreds of kilobytes.
+ * 20 × 8 KiB = 160 KB, against a round trip per page instead of one per message.
+ */
+internal const val IMAP_PREVIEW_FETCH_CHUNK = 20
 
 /**
  * How long [ImapSession.close] may wait for the answer to its `LOGOUT`.

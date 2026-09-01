@@ -94,6 +94,9 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
         messages = messages,
         previewSources = emptyMap(),
         folderStatedEmpty = folderStatedEmpty,
+        // Nothing here is about the numbering: these cases are all about what an empty page may
+        // say about a folder. Stated explicitly because the field has no default, on purpose.
+        uidValidity = null,
     )
 
     // -- the decision itself ---------------------------------------------------------------------------

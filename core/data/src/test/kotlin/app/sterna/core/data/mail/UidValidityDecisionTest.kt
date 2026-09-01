@@ -3,6 +3,7 @@ package app.sterna.core.data.mail
 import app.sterna.core.data.mail.UidValidity.Verdict
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,6 +34,44 @@ class UidValidityDecisionTest {
         assertEquals(Verdict.UNVERIFIABLE, UidValidity.verdict(recorded = 42L, observed = 0L))
         assertEquals(Verdict.UNVERIFIABLE, UidValidity.verdict(recorded = null, observed = 0L))
         assertEquals(Verdict.UNVERIFIABLE, UidValidity.verdict(recorded = 0L, observed = 42L))
+    }
+
+    // ---- what the server STATED --------------------------------------------------------------
+    //
+    // ⛔ One rule, two kinds of caller, and that is why it has a name. `ImapMailboxStatus
+    // .uidValidity` is a `Long` where 0 means "the server said nothing"; every row is WRITTEN with
+    // this normalisation (`ImapMessage.toEntity`) and every cache read that must not answer with
+    // rows of another numbering is BOUNDED by it (`EmailDao.cachedPreviews`, #99 inside #187). A
+    // row written under one spelling of the rule and looked up under another never matches, in
+    // silence — so there is one spelling, executed here over the four inputs it can get.
+
+    /** ⛔ Nothing stated is not a numbering: `null` in, `null` out, and the column stays NULL. */
+    @Test fun `a server that stated nothing states no numbering`() {
+        assertNull(UidValidity.stated(null))
+    }
+
+    /**
+     * ⛔ AND NEITHER IS ZERO — the case the whole function exists for. `ImapMailboxStatus` carries
+     * 0 for "no UIDVALIDITY in the SELECT response", and 0 read as a numbering would be a numbering
+     * no server ever announced: rows stored under 0 and rows stored under NULL would then be two
+     * populations of the same folder, and a read bounded by one would silently miss the other.
+     */
+    @Test fun `zero is what the server did not say, not a numbering`() {
+        assertNull(UidValidity.stated(0L))
+    }
+
+    /** ⛔ A negative cannot be a UIDVALIDITY either (RFC 3501 makes it a 32-bit unsigned), and the
+     *  answer is the same refusal rather than a value nothing can match. */
+    @Test fun `a negative numbering is refused like a missing one`() {
+        assertNull(UidValidity.stated(-1L))
+    }
+
+    /** A numbering the server did state comes back untouched — the ordinary case, and the one that
+     *  fails the moment someone "simplifies" the rule into a constant. */
+    @Test fun `a stated numbering comes back as it was stated`() {
+        assertEquals(1L, UidValidity.stated(1L))
+        assertEquals(42L, UidValidity.stated(42L))
+        assertEquals(Long.MAX_VALUE, UidValidity.stated(Long.MAX_VALUE))
     }
 
     // ---- the destroy decision ---------------------------------------------------------------

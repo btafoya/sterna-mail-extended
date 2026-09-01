@@ -206,9 +206,16 @@ class SignedOutAccountWiringTest {
             listOf(
                 "missing.forEach(onMissing)",
                 "$guard(credentials.id, accountStore.accounts().map { it.id })",
-                "loads.forEach { emailDao.upsertAll(it.messages) }",
+                // ⭐ The loop reads the cache before it writes (#187: the upsert replaces the whole
+                // row, so the page's blank `preview` column has to take back what the folder walk
+                // cached). Both statements are INSIDE the loop, hence both after this one guard —
+                // which is what it was already written to cover, one answer for every write the
+                // forEach makes.
+                "loads.forEach { load ->",
+                "val cached = emailDao.cachedPreviews(credentials.id, load.messages.map { it.id }, load.uidValidity)",
+                "emailDao.upsertAll(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview }))",
             ),
-            block("refreshAccountFolders", "missing.forEach(onMissing)", 3),
+            block("refreshAccountFolders", "missing.forEach(onMissing)", 5),
         )
     }
 

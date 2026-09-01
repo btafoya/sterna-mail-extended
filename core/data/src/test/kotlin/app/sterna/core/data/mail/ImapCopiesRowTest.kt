@@ -50,7 +50,7 @@ class ImapCopiesRowTest {
 
     @Test
     fun `the cc addresses are written to the row`() {
-        val entity = message().toEntity("accA", "INBOX", 42L)
+        val entity = message().toEntity("accA", "INBOX", 42L, preview = null)
 
         assertNotNull("the IMAP row must carry the Cc, not only the To", entity.ccJson)
         assertEquals(
@@ -61,7 +61,7 @@ class ImapCopiesRowTest {
 
     @Test
     fun `the bcc addresses are written to the row`() {
-        val entity = message().toEntity("accA", "INBOX", 42L)
+        val entity = message().toEntity("accA", "INBOX", 42L, preview = null)
 
         assertNotNull("the IMAP row must carry the Bcc in its own column", entity.bccJson)
         assertEquals(
@@ -76,7 +76,7 @@ class ImapCopiesRowTest {
      */
     @Test
     fun `each list goes to its own column, and the bcc never lands in the cc`() {
-        val entity = message().toEntity("accA", "INBOX", 42L)
+        val entity = message().toEntity("accA", "INBOX", 42L, preview = null)
 
         assertEquals(
             listOf(EmailAddress(name = "Team", email = "team@masto.top")),
@@ -101,7 +101,7 @@ class ImapCopiesRowTest {
     /** What the reader actually holds: the row rendered back into an `Email`. */
     @Test
     fun `a row read back offline still has the people in copy`() {
-        val email = message().toEntity("accA", "INBOX", 42L).toEmail()
+        val email = message().toEntity("accA", "INBOX", 42L, preview = null).toEmail()
 
         assertEquals(listOf("copy@masto.top"), email.cc.map { it.email })
         assertEquals(listOf("hidden@masto.top"), email.bcc.map { it.email })
@@ -111,7 +111,7 @@ class ImapCopiesRowTest {
 
     @Test
     fun `several cc addresses keep their order in the row`() {
-        val email = message(cc = listOf(copy, billing)).toEntity("accA", "INBOX", 42L).toEmail()
+        val email = message(cc = listOf(copy, billing)).toEntity("accA", "INBOX", 42L, preview = null).toEmail()
 
         assertEquals(listOf("copy@masto.top", "billing@masto.top"), email.cc.map { it.email })
         assertEquals(listOf("Copy Cat", "Billing"), email.cc.map { it.name })
@@ -120,7 +120,7 @@ class ImapCopiesRowTest {
     /** No copies: nothing stored in those columns, and the recipients beside them are untouched. */
     @Test
     fun `a message without copies stores nothing in those columns`() {
-        val entity = message(cc = emptyList(), bcc = emptyList()).toEntity("accA", "INBOX", 42L)
+        val entity = message(cc = emptyList(), bcc = emptyList()).toEntity("accA", "INBOX", 42L, preview = null)
 
         assertNull(entity.ccJson)
         assertNull(entity.bccJson)
@@ -134,7 +134,7 @@ class ImapCopiesRowTest {
      */
     @Test
     fun `a cc without a bcc is stored on its own`() {
-        val entity = message(bcc = emptyList()).toEntity("accA", "INBOX", 42L)
+        val entity = message(bcc = emptyList()).toEntity("accA", "INBOX", 42L, preview = null)
 
         assertEquals(listOf("copy@masto.top"), EmailRecipients.decode(entity.ccJson).map { it.email })
         assertNull(entity.bccJson)
@@ -150,7 +150,7 @@ class ImapCopiesRowTest {
      */
     @Test
     fun `a bcc without a cc stays out of the visible column`() {
-        val entity = message(cc = emptyList()).toEntity("accA", "INBOX", 42L)
+        val entity = message(cc = emptyList()).toEntity("accA", "INBOX", 42L, preview = null)
 
         assertNull("nobody was in visible copy; the Cc column must stay NULL", entity.ccJson)
         assertEquals(

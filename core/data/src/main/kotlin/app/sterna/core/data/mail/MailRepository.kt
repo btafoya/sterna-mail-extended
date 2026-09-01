@@ -452,6 +452,38 @@ internal fun noOpEvictionFor(mailboxId: String, role: String?): NoOpEviction =
 internal fun idsAlreadyIn(rows: List<EmailEntity>, ids: Set<String>, mailboxId: String): List<String> =
     rows.filter { it.id in ids && it.mailboxId == mailboxId }.map { it.id }
 
+/**
+ * The push pass's rows with the opening lines the cache ALREADY holds copied back onto them — what
+ * stands between Room's `@Upsert` and a message list that blanks itself every half hour (#187).
+ *
+ * [rows] come from `ImapMailService.loadWatchedFolders`, which reads no body and therefore builds
+ * every row with `preview = null`; [cached] is what [app.sterna.core.data.db.EmailDao.cachedPreviews]
+ * answers for that same page, keyed by row id. `@Upsert` REPLACES THE WHOLE ROW — the invariant two
+ * JMAP property sets are built on (`JmapClient`, and it must not be broken) — so writing these rows
+ * as they came off the wire blanks the column for the newest `limit` rows of the inbox and of every
+ * watched folder, on every push pass and every `MailFetchWorker` round. The opening lines come back
+ * on the next folder walk and go again on the next pass: a flicker, not a list. And they are exactly
+ * the rows the top of the list is made of.
+ *
+ * ⛔ It READS nothing and must not: this is the notification path, it has its own budget (six reads
+ * and four seconds for the whole account pass, `NotificationPreviews`) and it runs in the background
+ * on battery. Filling a page of fifty here is the half-true list `BodyPreview` refuses, from the
+ * other end. This only refuses to DESTROY.
+ *
+ * A row that already carries an opening line keeps ITS OWN: the row is the fresher of the two, and
+ * the cached value is what it was about to overwrite. A row [cached] knows nothing about stays
+ * blank, which is what the folder walk will read a body for.
+ *
+ * ⛔ It knows nothing about UIDVALIDITY, and it deliberately stays that way. A UID means something
+ * only inside one numbering (#99), so a value from a renumbered folder must never land on a row —
+ * but the refusal belongs to the READ, not here: `EmailDao.cachedPreviews` is asked under the
+ * numbering the page was read under, so a row of another numbering is simply not in [cached] and
+ * this function has nothing to refuse. Repeating the check here would be a second copy of the same
+ * rule, and the copy that drifts is the one nobody executes.
+ */
+internal fun keepingCachedPreviews(rows: List<EmailEntity>, cached: Map<String, String>): List<EmailEntity> =
+    rows.map { row -> if (row.preview != null) row else cached[row.id]?.let { row.copy(preview = it) } ?: row }
+
 /** How a confirmed batch `UID MOVE` splits — see [imapMoveOutcome]. */
 internal data class ImapMoveOutcome(
     /** The ids the session can PROVE left the source folder: credit them, drop their rows. */
@@ -2601,7 +2633,7 @@ class MailRepository(
                 return try {
                     val (added, total) = if (credentials.protocol == MailProtocol.IMAP) {
                         val offset = emailDao.countForMailbox(credentials.id, mailboxId)
-                        val (entities, exists) = imap.fetchOlderPage(credentials, mailboxId, offset, PAGE_SIZE)
+                        val (entities, exists) = imap.fetchOlderPage(credentials, mailboxId, offset, PAGE_SIZE, listPreviewCache(credentials.id))
                         if (entities.isNotEmpty()) emailDao.upsertAll(entities)
                         entities.size to exists
                     } else {
@@ -3498,6 +3530,59 @@ class MailRepository(
     }
 
     /**
+     * Whether the message list wants opening lines for this account, and if so what the cache
+     * ALREADY holds for a page of it — the lambda `ImapMailService` bounds its body reads with, or
+     * null for "read none at all" (Codeberg #187).
+     *
+     * ⭐ Built HERE because the decision needs the two things the IMAP layer has not and must not
+     * grow: the settings, and the cache. [previewWantedInList] is the rule and it is CALLED, not
+     * restated — the same function a JVM test executes over both enumerations. `cachedPreviews`
+     * answers the page's already-filled rows, id AND value: the IMAP side fetches the ids that are
+     * missing from it, which is what makes a folder's openings cost one read each ever rather than
+     * one per refresh, and writes the values back onto the rows it therefore did not fetch
+     * (`ImapMailService.pageOpenings`) — `@Upsert` replaces the whole row, so dropping them here
+     * blanks the column on every walk. It is the SAME read the push path takes its values from
+     * ([keepingCachedPreviews]), so "already filled" and "kept on the row" can never mean two
+     * different things.
+     *
+     * ⛔ AND IT TAKES THE NUMBERING FROM ITS CALLER, both halves of the key in one question. The
+     * IMAP side hands in the page's ids and the UIDVALIDITY the SELECT that enumerated them stated;
+     * this lambda invents neither. Putting the bound INSIDE the query is what keeps the two halves
+     * moving together: a row of another numbering is absent from the answer, so the fetch asks for
+     * it AND the write-back does not claim it. A bound applied to only one of the two would be the
+     * dangerous direction the paragraph above names — a row counted as filled that the write then
+     * blanks is a row nothing ever asks about again.
+     *
+     * ⛔ No settings — the shape this repository is built in by tests — answers NULL, and so does
+     * an account whose user wants no opening line anywhere (preview set to *None* AND notifications
+     * without an extract). Null means no network read whatsoever, and it is the cheaper side of
+     * being wrong on the WIRE — never a page of body fetches nobody asked for.
+     *
+     * ⚠ It is not free, and the KDoc used to say it was. `@Upsert` replaces the whole row, so a
+     * walk that reads no cache writes `preview = null` over the rows it just refreshed: the next
+     * refresh does not merely fail to fill the column, it ERASES it for that page. Written down as
+     * a debt rather than fixed, because nobody displays that column in this state — the setting
+     * that answers null is exactly the setting that hides the line — and because it repairs itself:
+     * the walk that follows a return of the setting fills the page again. The price is one window's
+     * worth of body reads on the day the user turns it back on, and that is the whole of it.
+     *
+     * ⛔ And an UNREADABLE PREFERENCE answers the same NULL rather than throwing. Until #187 the
+     * folder walk read no DataStore at all (`AccountStore` is backed by SharedPreferences); this
+     * function put one on its path, DataStore raises the `IOException` of a failed read inside the
+     * flow, and `SettingsRepository` catches none — so a corrupt preferences file would take down
+     * the walk, i.e. the message list itself, over one line of decoration. A cancellation still
+     * propagates ([getOrElseUnlessCancelled]): it means the caller is gone.
+     */
+    private suspend fun listPreviewCache(accountId: String): (suspend (List<String>, Long?) -> Map<String, String>)? {
+        val prefs = settings ?: return null
+        val wanted = runCatching {
+            previewWantedInList(prefs.previewLines.first(), prefs.notificationContent.first())
+        }.getOrElseUnlessCancelled { false }
+        if (!wanted) return null
+        return { ids, numbering -> emailDao.cachedPreviews(accountId, ids, numbering).associate { it.id to it.preview } }
+    }
+
+    /**
      * The IMAP full re-query of one folder: ⛔ MANY writes, and at most ONE delete — none at all
      * when the walk cannot vouch for what it read.
      *
@@ -3561,7 +3646,7 @@ class MailRepository(
         val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
         return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
             folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
-            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage) },
+            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },
             writePage = { page ->
                 checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
                 emailDao.upsertAll(page)
@@ -5531,7 +5616,9 @@ class MailRepository(
             // walk's page is dropped on the floor. ⚠ It is not free and not silent on the wire
             // either — the listing still SELECTs the inbox, counts its unseen, fetches one
             // envelope it discards, and reconciles that folder's numbering.
-            val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onlySubscribed = onlySubscribed, onPage = {})
+            // ⛔ `cachedPreviewsFor = null`: this caller caches no message at all (`onPage = {}`),
+            // so an opening line read here would be paid for on the radio and dropped with the page.
+            val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onlySubscribed = onlySubscribed, onPage = {}, cachedPreviewsFor = null)
             mailboxDao.replaceAll(credentials.id, load.mailboxes)
             return
         }
@@ -6520,7 +6607,16 @@ class MailRepository(
             // covers every write the `forEach` would make. Inside the lambda it would only repeat
             // the same answer once per folder.
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-            loads.forEach { emailDao.upsertAll(it.messages) }
+            // ⛔ The rows are rebuilt before they are written, and folder by folder. `@Upsert`
+            // replaces the WHOLE row and these rows carry no opening line (this pass reads none,
+            // deliberately), so written as they came off the wire they BLANK the `preview` column
+            // of the newest `limit` rows of every folder they touch — on every push pass and every
+            // worker round, i.e. the top of the list the reporter of #187 is looking at. One read
+            // per folder page, never the folders joined: `IN (:ids)` is bounded by a page.
+            loads.forEach { load ->
+                val cached = emailDao.cachedPreviews(credentials.id, load.messages.map { it.id }, load.uidValidity)
+                emailDao.upsertAll(keepingCachedPreviews(load.messages, cached.associate { it.id to it.preview }))
+            }
             // No departures on IMAP, and none can be invented here: re-reading a folder says what
             // it holds, never what left it (see [FolderRefresh.departedIds], #134).
             return loads.map { load ->
@@ -6533,10 +6629,14 @@ class MailRepository(
                 FolderRefresh(
                     load.mailboxId, load.name, load.role, page, watchedBaselineIds(load),
                     departedIds = emptyList(),
-                    // The one branch that has anything to convey: an IMAP row carries no preview
-                    // (`preview = null` in `toEntity`, and nothing caches a body before the message
-                    // is opened), so the opening line has to be READ — and the section to read it
-                    // from is what this page already learned. Carried, never asked for again.
+                    // The one branch that has anything to convey: the row this pass BUILDS carries
+                    // no preview (`preview = null` in `toEntity` — it reads no body), so the
+                    // opening line has to be READ, and the section to read it from is what this
+                    // page already learned. Carried, never asked for again.
+                    // ⚠ "Builds", not "holds": what was just WRITTEN above keeps whatever opening
+                    // line the cache already had ([keepingCachedPreviews]), because the upsert
+                    // replaces the whole row. This map is still the notifier's only source — a
+                    // cached line belongs to the list, and this pass does not read the column back.
                     previewSources = load.previewSources,
                 )
             }
