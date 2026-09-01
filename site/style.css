@@ -214,6 +214,22 @@ code { font-family: var(--mono); }
   gap: 0.5rem;
 }
 
+/* A plain bar entry, cut like the language picker's summary rather than like
+   the install button: the bar carries one call to action, not two. */
+.nav-link {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  text-decoration: none;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+.nav-link:hover { background: var(--bg-deep); color: var(--ink); }
+/* The bar has no wrap: below the footer's own breakpoint it drops the
+   help entry rather than push the install button off the edge. The
+   section stays one scroll away. */
+@media (max-width: 640px) { .nav-link { display: none; } }
+
 /* Language picker: a <details>, because the page carries no JavaScript. */
 .langpick { position: relative; }
 .langpick summary {
@@ -736,6 +752,30 @@ code { font-family: var(--mono); }
   text-align: center;
   text-wrap: balance;
 }
+
+/* ------------------------------------------------------------------- help */
+
+.helps {
+  margin-top: 2.2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.help {
+  background: var(--bg-deep);
+  padding: 1.6rem 1.5rem;
+}
+.help h3 { font-size: 1.15rem; }
+.help p {
+  margin-top: 0.5rem;
+  color: var(--ink-2);
+  font-size: 0.96rem;
+}
+.help p:has(.link-arrow) { margin-top: 1.2rem; color: var(--ink); }
 
 /* --------------------------------------------------------------- install */
 

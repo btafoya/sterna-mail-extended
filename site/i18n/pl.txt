@@ -53,6 +53,23 @@ install_apk_title = APK bezpośrednio
 install_apk_body = Pobierz najnowsze wydanie, otwórz plik na telefonie i zezwól na instalację z przeglądarki.
 install_fingerprint_label = Certyfikat podpisu, SHA-256
 
+nav_help = Pomoc
+
+help_kicker = Pomoc
+help_title = Od czego zacząć i co sprawdzić
+
+help_1_title = Dodawanie konta
+help_1_body = Zacznij od samego adresu e-mail. Jeśli twoja domena ogłasza to, co potrzebne, reszta wypełni się sama; jeśli nie ogłasza nic, formularz zapyta o protokół i dane twojego serwera. Obie drogi kończą się w tym samym miejscu.
+
+help_2_title = Gdy hasło zostaje odrzucone
+help_2_body = Niektórzy dostawcy nie przyjmują zwykłego hasła w aplikacji pocztowej i żądają osobnego, utworzonego właśnie do tego. Powstaje ono w ustawieniach twojego konta u nich, a potem wkleja się je zamiast hasła.
+
+help_3_title = Gdy poczta przychodzi dopiero, gdy zaglądasz
+help_3_body = Nowe wiadomości trafiają z twojego własnego serwera, bez usług Google. Dopóki nie włączysz pobierania w tle dla wszystkich kont, pilnowane jest tylko to, którego używasz. Jeśli jedno konto zamilkło, a pozostałe nie, to pierwsze ustawienie, które warto otworzyć.
+
+help_4_title = Gdy coś jest nie tak
+help_4_body = Jeśli aplikacja nie robi tego, co głosi ta strona, napisz do mnie. Wersja, dostawca, z którym się łączysz, oraz opis tego, co zostało zrobione i co stało się zamiast tego, wystarczą na początek.
+
 footer_source = Kod źródłowy
 footer_issues = Zgłoś błąd
 footer_licence = Licencja (GPLv3)

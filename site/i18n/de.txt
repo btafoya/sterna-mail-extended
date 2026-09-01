@@ -53,6 +53,23 @@ install_apk_title = APK direkt
 install_apk_body = Die neueste Version herunterladen, die Datei auf dem Telefon öffnen und die Installation aus Ihrem Browser erlauben.
 install_fingerprint_label = Signaturzertifikat, SHA-256
 
+nav_help = Hilfe
+
+help_kicker = Hilfe
+help_title = Wo Sie anfangen, und was zu prüfen ist
+
+help_1_title = Ihr Konto hinzufügen
+help_1_body = Beginnen Sie allein mit Ihrer E-Mail-Adresse. Veröffentlicht Ihre Domain das Nötige, wird der Rest für Sie ausgefüllt; veröffentlicht sie nichts, fragt stattdessen ein Formular nach dem Protokoll und den Daten Ihres Servers. Beide Wege enden am selben Ort.
+
+help_2_title = Wenn Ihr Passwort abgelehnt wird
+help_2_body = Manche Anbieter nehmen Ihr gewöhnliches Passwort in einer Mail-App nicht an und verlangen stattdessen eines, das eigens dafür erzeugt wurde. Es entsteht in den Kontoeinstellungen bei Ihrem Anbieter und wird dann anstelle des Passworts eingefügt.
+
+help_3_title = Wenn Post erst beim Nachsehen ankommt
+help_3_body = Neue Nachrichten kommen von Ihrem eigenen Server, ohne Google-Dienste. Solange Sie das Abrufen im Hintergrund nicht für alle Konten eingeschaltet haben, wird nur das gerade benutzte Konto überwacht. Ist ein Konto still geworden und die anderen nicht, ist das die erste Einstellung, die Sie öffnen sollten.
+
+help_4_title = Wenn etwas nicht stimmt
+help_4_body = Tut die App nicht, was auf dieser Seite steht, sagen Sie mir Bescheid. Die Version, der Anbieter, mit dem Sie sich verbinden, und was Sie getan haben und was stattdessen geschah, genügen für den Anfang.
+
 footer_source = Quelltext
 footer_issues = Fehler melden
 footer_licence = Lizenz (GPLv3)
