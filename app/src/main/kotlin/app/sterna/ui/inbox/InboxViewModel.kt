@@ -167,6 +167,25 @@ private const val SERVER_SEARCH_DEBOUNCE_MS = 350L
 private const val SERVER_SEARCH_LIMIT = 200
 
 /**
+ * The Undo window of a local removal: how long the message can be put back, and therefore how long
+ * its notification banner outlives the gesture.
+ *
+ * ⭐ THE only clock. The snackbar is `SnackbarDuration.Indefinite` (`InboxScreen.kt`) and is taken
+ * down by this deadline clearing `_undo`, so what the bar shows IS this window. It used to be the
+ * other way round — a `Short` bar beside a `delay` here — and the two drifted apart on three
+ * reachable paths (a rotation restarts the bar's four seconds, the "Time to take action"
+ * accessibility setting stretches a `Short` through `getRecommendedTimeoutMillis`, and the single
+ * `SnackbarHostState` queues this bar behind four `Indefinite` ones). Each of them ends with Undo
+ * pressed after the banner was cancelled: the message is back in the folder, announced nowhere, and
+ * on JMAP its id is already in `NewMailNotifier`'s baseline so it is never announced again.
+ *
+ * Four seconds of bar plus the margin the old `Short` window used to get for free (its clock only
+ * started when Compose showed the bar, this one starts at the server acknowledgement).
+ * ⛔ Not a setting: a knob here is the decision handed to the reader.
+ */
+private const val UNDO_BANNER_DISMISS_MS = 6_000L
+
+/**
  * How many recent messages the "unread" view's pull-to-refresh looks at PER FOLDER
  * ([InboxViewModel.refreshUnreadScope]). The default of
  * `MailRepository.refreshAccountFolders`, spelled out because this caller passes it deliberately.
@@ -292,6 +311,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     /** A just-performed swipe action that can be undone (move the message back). */
     private val _undo = MutableStateFlow<UndoAction?>(null)
     val undo: StateFlow<UndoAction?> = _undo.asStateFlow()
+
+    /** The deadline that takes the CURRENT Undo action's banners down, cancelled by [undo]. */
+    private var undoDepartureJob: Job? = null
 
     /** Non-null label while an "empty trash" purge is held back and can still be undone. */
     private val _pendingPurge = MutableStateFlow<String?>(null)
@@ -2017,6 +2039,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             }
             if (offerUndo && entries.isNotEmpty()) {
                 _undo.value = UndoAction(entries, getApplication<Application>().getString(labelRes))
+                scheduleUndoneDeparture()
             }
             if (failed) {
                 _message.value = getApplication<Application>().getString(R.string.status_action_failed)
@@ -2048,6 +2071,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 .onSuccess { dest ->
                     if (source != null) {
                         _undo.value = UndoAction(listOf(UndoEntry(email.id, email.accountId, source, dest)), label)
+                        scheduleUndoneDeparture()
                     }
                 }
                 .onFailure {
@@ -2074,6 +2098,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun undo() {
         val action = _undo.value ?: return
         _undo.value = null
+        // The gesture is being reversed, so its banners must stay: kill the deadline before the
+        // restore, not after — the restore suspends, and the window is measured in seconds.
+        undoDepartureJob?.cancel()
         restoreSearchResults(action.entries.map { EmailKey(it.accountId, it.emailId) })
         viewModelScope.launch {
             // Group by account and restore each account's whole set in one batch (one UID MOVE /
@@ -2119,6 +2146,48 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearUndo() {
         _undo.value = null
+    }
+
+    /**
+     * Take the banners of the Undo action just offered down once its window closes unused.
+     *
+     * The gesture is the ONLY thing that knows a message departed on the user's own instruction: a
+     * local removal reaches no sync signal that is authoritative about it (`FolderRefresh
+     * .departedIds` is empty by construction on IMAP, late and spare-shadowed on JMAP), and
+     * ⛔ `departedIds` may not be fed from here — see `Notifications.departuresToCancel`'s KDoc. So
+     * the banner is cancelled BESIDE the sync, from the gesture, on the keys captured at the
+     * gesture ([undoBannerKeys]).
+     *
+     * ⛔ In `viewModelScope`, not in an effect of the screen. `clearUndo()` has one caller — the
+     * snackbar's "no Undo" branch — and when the list leaves the composition that `LaunchedEffect`
+     * is cancelled and NEITHER branch runs; hung there, a message deleted just before leaving the
+     * list keeps its banner for good.
+     *
+     * ⛔ And the PREVIOUS gesture's deadline is deliberately not cancelled here. A new gesture
+     * replaces the [UndoAction] on screen, but it does not undo the old one: that message did
+     * depart, so its banner must still come down. Only [undo] cancels, and only the deadline of the
+     * action it is reversing.
+     *
+     * ⚠ That [undoDepartureJob] is that same action's deadline holds because EVERY writer of
+     * `_undo` that can put a bar on screen calls this function on the line right after: the two
+     * swipes and [bulkBatched]. The one that does not is [bulk], and it is only reachable through
+     * `snoozeSelected`, which passes no `undoLabelRes` — so `_undo` is never written there. ⛔ Give
+     * [bulk] a labelled caller and this stops being true twice over: its bar would be `Indefinite`
+     * with nothing to close it, and this field would name someone else's deadline.
+     */
+    private fun scheduleUndoneDeparture() {
+        val action = _undo.value ?: return
+        val keys = undoBannerKeys(action.entries)
+        undoDepartureJob = viewModelScope.launch {
+            delay(UNDO_BANNER_DISMISS_MS)
+            // The window closes HERE, not on screen: the bar is Indefinite and LaunchedEffect is
+            // keyed on `undo`, so clearing it takes the bar down with the banners — one clock.
+            // Identity, and on the very action this deadline was posted for: a second gesture
+            // performed inside the window owns `_undo` now, and its own window is not this one's
+            // to close. `dismissBanners` no-ops on an empty list, so it needs no guard of its own.
+            if (_undo.value === action) _undo.value = null
+            dismissBanners(keys)
+        }
     }
 
     /**
@@ -2249,7 +2318,14 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * Keys and not messages: "mark all read" reaches this with a folder's worth of them, and the
      * account and the id are all that is dismissed on.
      */
-    private fun dismissReadNotifications(keys: List<EmailKey>) {
+    private fun dismissReadNotifications(keys: List<EmailKey>) = dismissBanners(keys)
+
+    /**
+     * The same thing without "read" in its name: the account-qualified dismissal of [keys]'
+     * banners. Nothing in it ever depended on the messages having been read — the departure path
+     * uses it exactly as the mark-read path does.
+     */
+    private fun dismissBanners(keys: List<EmailKey>) {
         if (keys.isEmpty()) return
         val app = getApplication<Application>()
         keys.mapNotNull { e -> credentialsFor(e)?.let { it.id to it.username to e.emailId } }
@@ -2584,6 +2660,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 // Twice on purpose: the first picks the CLDR plural category, the second fills %1$d.
                 val label = resources.getQuantityString(banner.labelRes, banner.count, banner.count)
                 _undo.value = UndoAction(undoEntries, label)
+                scheduleUndoneDeparture()
             }
             // Partial and total are not the same news: a select-all past the server's
             // maxObjectsInSet used to archive most of the selection and still say "Couldn't
@@ -3080,6 +3157,24 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         const val MAX_THREAD_COMPLETIONS = 10
     }
 }
+
+/**
+ * The banners a just-performed local removal must take down: one key per Undo entry.
+ *
+ * Two things it must not get wrong, both silent:
+ *
+ *  - the id is [UndoEntry.emailId], i.e. the id the message wore AT THE GESTURE. An IMAP id IS
+ *    `imap:account:folder:uid`, so the move that deletes or archives the message rewrites it, and an
+ *    Undo writes a third one; the banner on the shade only ever answers to the one that was live
+ *    when it was posted.
+ *  - the key carries the entry's OWN [UndoEntry.accountId], and a null one stays null. Two accounts
+ *    on one server are routinely handed the same message id, so an unqualified id cancels the
+ *    neighbour account's banner (#92); and null is resolved to the current account downstream, by
+ *    the same `credentialsFor` every other key path goes through — inventing an account here would
+ *    aim the cancel at a shade the gesture never touched.
+ */
+internal fun undoBannerKeys(entries: List<UndoEntry>): List<EmailKey> =
+    entries.map { EmailKey(it.accountId, it.emailId) }
 
 /**
  * The single account a multi-select belongs to, or null when it is empty or spans accounts. Pure,

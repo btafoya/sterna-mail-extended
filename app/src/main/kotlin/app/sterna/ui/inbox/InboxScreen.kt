@@ -631,9 +631,14 @@ fun InboxScreen(
             message = action.label,
             actionLabel = undoLabel,
             withDismissAction = true,
-            // Without an explicit duration a snackbar WITH an action defaults to Indefinite —
-            // so the Undo bar never went away. Auto-dismiss after a short window.
-            duration = SnackbarDuration.Short,
+            // Indefinite ON PURPOSE, and it is not the "never went away" bug: the ViewModel's
+            // deadline closes this window by clearing `undo`, and this effect is keyed on it, so
+            // the bar goes down with the banners. A duration here would be a SECOND clock — a
+            // rotation restarts it, the "Time to take action" accessibility setting stretches it,
+            // and the queue behind the other Indefinite bars delays it — and every drift ends the
+            // same way: Undo pressed after the banner was already cancelled, i.e. mail back in the
+            // folder and announced nowhere.
+            duration = SnackbarDuration.Indefinite,
         )
         if (result == SnackbarResult.ActionPerformed) {
             viewModel.undo()
