@@ -831,6 +831,35 @@ internal fun receiptRequestedInProperty(header: String?, serverRefusesProperty: 
     if (serverRefusesProperty) null else ReadReceiptHeader.recipients(header).isNotEmpty()
 
 /**
+ * Whether the message source [raw] is an UNKNOWN rather than a message — the guard
+ * `MailRepository.openEmailImap` puts between a source that never arrived and the composer, as a
+ * pure function so that the one case that costs data is EXECUTED by a test instead of being read as
+ * source text (no JVM test can build a `MailRepository`: Room, a `Context` and a socket).
+ *
+ * ⛔ A blank source is NOT "an empty draft", it is "the message did not come back", and the whole
+ * point of the name is that the two must never be confused. Four live producers hand one back,
+ * all four through `ImapClient.bodyItem`, which answers "" on purpose (ImapClient.kt:1163-1184):
+ * a FETCH answer carrying no body item at all (an unsolicited `* n FETCH (FLAGS …)` wins the
+ * first-one-wins read), a `BODY[] NIL` (ImapParser tokenises NIL as a Kotlin null), a literal
+ * over 32 MiB that `ImapParser.readLiteral` drains and reports as "" (ImapParser.kt:143-151),
+ * and an item list that puts `BODYSTRUCTURE` before `BODY[]` — the item is matched by PREFIX, so
+ * the value taken is the structure's parenthesised list, which is not a String and comes back as
+ * "" too. Parsed, that string yields no header, no address and no text — a blank composer that
+ * looks usable, whose send destroys the server original behind an empty message.
+ *
+ * ⭐ `isBlank()` and not `isEmpty()`: every producer known today hands back exactly "", so
+ * `isEmpty()` would do — and that is the reason NOT to write it. This guard must be at LEAST as
+ * strong as the two that already treat present-but-unreadable as an unknown,
+ * [receiptRequestedInSource] (whose KDoc carries the doctrine) and `copiedAddressesOrNull`; and a
+ * source made of nothing but whitespace carries no header and no address, so it is not a message
+ * either, whoever produced it.
+ *
+ * ⛔ It judges the SOURCE, never a parsed body: a message with headers and an empty text body is
+ * perfectly legitimate and must keep opening — every stored message carries a header block.
+ */
+internal fun sourceCouldNotBeRead(raw: String): Boolean = raw.isBlank()
+
+/**
  * Run [stage] — persisting an outbox item's payload/attachments after its row is already inserted —
  * and, if it throws, [rollback] the just-inserted row before the error propagates. A staging
  * failure must leave NO row behind: an orphan (inserted with attachmentsJson "[]") would be
@@ -3719,6 +3748,17 @@ class MailRepository(
             ?: throw MessageUnavailableException("Message $emailId is not in the cache and the server did not return it.")
         val mailboxId = envelope.mailboxId ?: error("Unknown mailbox for message.")
         val raw = imap.fetchSource(credentials, mailboxId, uid)
+        // ⛔ Before the parse, because parsing "" succeeds: it yields a body with no header, no
+        // address and no text, which the composer paints as a blank but perfectly usable draft —
+        // subject and recipients repainted from the cache, send button armed. A source that did
+        // not come back is an UNKNOWN, never an empty message ([sourceCouldNotBeRead] names the
+        // producers). Raising here is what stops the loss downstream: the catch in
+        // `ComposeViewModel.prepare` sets editingDraftLossyOnOpen, so `replaceableDraftIdOrNull`
+        // answers null, the outbox row carries no id to replace, and `performSend` destroys
+        // nothing. Reused exception, so no new string and no translation moves.
+        if (sourceCouldNotBeRead(raw)) {
+            throw MessageUnavailableException("Source of $emailId came back empty; the server did not give us the message.")
+        }
         val body = MimeParser.parseBody(raw)
         // Refused before parsing: say so rather than render a blank message (the reader turns
         // this into a translated sentence).

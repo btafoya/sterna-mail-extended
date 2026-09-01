@@ -141,6 +141,23 @@ class BodyPeekOnTheWireTest {
         assertEquals("", fetched)
     }
 
+    /**
+     * ⛔ `BODY[] NIL` — the item is THERE and names nothing. `ImapParser` tokenises NIL as a Kotlin
+     * `null` (ImapParser.kt:176), so `bodyItem`'s `as? String` yields null and the read answers "",
+     * exactly as for an answer with no body item at all. Written down because that "" is what the
+     * guard above `MimeParser.parseBody` judges: a source of "" is an UNKNOWN, never an empty
+     * message. ⭐ This asserts the VALUE the wire produces; it does not prove the guard, which is
+     * executed in `core:data` (SourceCouldNotBeReadTest).
+     */
+    @Test fun `a source answered as BODY NIL yields nothing`() {
+        var fetched: String? = null
+        conversation({ tag -> "* 1 FETCH (UID 7 BODY[] NIL)\r\n$tag OK fetched\r\n" }) { session ->
+            fetched = session.fetchSource(7L)
+        }
+
+        assertEquals("", fetched)
+    }
+
     /** Same refusal for the two older fetches, which share the one reader. */
     @Test fun `an attachment answer with no body item yields nothing either`() {
         var section: String? = null
