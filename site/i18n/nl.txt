@@ -53,23 +53,6 @@ install_apk_title = APK rechtstreeks
 install_apk_body = Download de nieuwste versie, open het bestand op je telefoon en sta installatie vanuit je browser toe.
 install_fingerprint_label = Ondertekeningscertificaat, SHA-256
 
-nav_help = Hulp
-
-help_kicker = Hulp
-help_title = Waar te beginnen, en wat te controleren
-
-help_1_title = Je account toevoegen
-help_1_body = Begin met alleen je e-mailadres. Publiceert je domein wat nodig is, dan wordt de rest voor je ingevuld; publiceert het niets, dan vraagt een formulier om het protocol en de gegevens van je server. Beide wegen komen op dezelfde plek uit.
-
-help_2_title = Als je wachtwoord geweigerd wordt
-help_2_body = Sommige aanbieders accepteren je gewone wachtwoord niet in een mailapp en willen er een dat daarvoor is aangemaakt. Dat maak je in de accountinstellingen bij je aanbieder en plak je vervolgens in plaats van je wachtwoord.
-
-help_3_title = Als post pas binnenkomt als je kijkt
-help_3_body = Nieuwe post komt van je eigen server, zonder Google-diensten. Zolang je het ophalen op de achtergrond niet voor alle accounts hebt aangezet, wordt alleen het account bewaakt dat je gebruikt. Is één account stil geworden en de andere niet, dan is dat de eerste instelling om te openen.
-
-help_4_title = Als er iets niet klopt
-help_4_body = Doet de app niet wat op deze pagina staat, laat het me weten. De versie, de aanbieder waarmee je verbindt, en wat je deed en wat er in plaats daarvan gebeurde zijn genoeg om te beginnen.
-
 footer_source = Broncode
 footer_issues = Een fout melden
 footer_licence = Licentie (GPLv3)

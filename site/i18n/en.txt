@@ -62,23 +62,6 @@ install_apk_title = Direct APK
 install_apk_body = Download the latest release, open the file on your phone, and allow installation from your browser.
 install_fingerprint_label = Signing certificate, SHA-256
 
-nav_help = Help
-
-help_kicker = Help
-help_title = Where to start, and what to check
-
-help_1_title = Adding your account
-help_1_body = Start with your email address alone. If your domain publishes what is needed, the rest is filled in for you; if it publishes nothing, a form asks for the protocol and your server details instead. Both routes end in the same place.
-
-help_2_title = When your password is refused
-help_2_body = Some providers do not accept your normal password in a mail app, and want one generated for that purpose instead. It is created in your provider's own account settings, then pasted in place of your password.
-
-help_3_title = When mail only arrives when you look
-help_3_body = New mail is pushed from your own server, without Google services. Unless you have turned on background fetching for every account, only the one you are using is watched. If an account has gone quiet while the others have not, that is the first setting to open.
-
-help_4_title = When something is wrong
-help_4_body = If the app does not do what this page says, tell me. The version, the provider you connect to, and what you did and what happened instead are enough to start.
-
 footer_source = Source code
 footer_issues = Report a bug
 footer_licence = Licence (GPLv3)

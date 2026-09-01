@@ -53,23 +53,6 @@ install_apk_title = APK direto
 install_apk_body = Descarregue a versão mais recente, abra o ficheiro no telemóvel e autorize a instalação a partir do navegador.
 install_fingerprint_label = Certificado de assinatura, SHA-256
 
-nav_help = Ajuda
-
-help_kicker = Ajuda
-help_title = Por onde começar, e o que verificar
-
-help_1_title = Adicionar a sua conta
-help_1_body = Comece apenas pelo seu endereço de correio. Se o seu domínio publicar o que é preciso, o resto é preenchido automaticamente; se não publicar nada, um formulário pede-lhe antes o protocolo e os dados do seu servidor. Os dois caminhos acabam no mesmo sítio.
-
-help_2_title = Quando a sua palavra-passe é recusada
-help_2_body = Alguns fornecedores não aceitam a sua palavra-passe habitual numa aplicação de correio e pedem antes uma gerada para esse fim. É criada nas definições da sua conta junto deles e depois colada em vez da palavra-passe.
-
-help_3_title = Quando o correio só chega quando olha
-help_3_body = O correio novo chega do seu próprio servidor, sem serviços Google. Enquanto não ativar a recolha em segundo plano para todas as contas, só é vigiada aquela que está a usar. Se uma conta se calou e as outras não, essa é a primeira definição a abrir.
-
-help_4_title = Quando algo está errado
-help_4_body = Se a aplicação não fizer o que esta página diz, diga-me. A versão, o fornecedor a que se liga, e o que fez e o que aconteceu em vez disso chegam para começar.
-
 footer_source = Código-fonte
 footer_issues = Comunicar um erro
 footer_licence = Licença (GPLv3)

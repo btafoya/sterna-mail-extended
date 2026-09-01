@@ -53,23 +53,6 @@ install_apk_title = APK directo
 install_apk_body = Descarga la última versión, abre el archivo en tu teléfono y permite la instalación desde tu navegador.
 install_fingerprint_label = Certificado de firma, SHA-256
 
-nav_help = Ayuda
-
-help_kicker = Ayuda
-help_title = Por dónde empezar, y qué comprobar
-
-help_1_title = Añadir tu cuenta
-help_1_body = Empieza solo con tu dirección de correo. Si tu dominio publica lo necesario, el resto se rellena solo; si no publica nada, un formulario te pide en su lugar el protocolo y los datos de tu servidor. Los dos caminos llegan al mismo sitio.
-
-help_2_title = Cuando rechazan tu contraseña
-help_2_body = Algunos proveedores no aceptan tu contraseña habitual en una aplicación de correo y piden una generada para ese fin. Se crea en los ajustes de tu cuenta con ellos y luego se pega en lugar de la contraseña.
-
-help_3_title = Cuando el correo solo llega al mirar
-help_3_body = El correo nuevo llega desde tu propio servidor, sin servicios de Google. Mientras no actives la consulta en segundo plano para todas las cuentas, solo se vigila la que estás usando. Si una cuenta se ha quedado callada y las demás no, ese es el primer ajuste que conviene abrir.
-
-help_4_title = Cuando algo va mal
-help_4_body = Si la aplicación no hace lo que dice esta página, dímelo. La versión, el proveedor al que te conectas, y qué hiciste y qué ocurrió en su lugar bastan para empezar.
-
 footer_source = Código fuente
 footer_issues = Informar de un fallo
 footer_licence = Licencia (GPLv3)
