@@ -259,6 +259,106 @@ class DiscoveryIsBoundedTest {
         assertEquals(0L, currentTime)
     }
 
+    // ── A guessed rank's rejection is not the reader's password ──────────────────────────────
+
+    @Test
+    fun `a rejection from a guessed rank alone is not a wrong password`() = runTest {
+        val bench = Bench(
+            mapOf(
+                "masto.top" to (100L to HostProbe.NoAnswer),
+                "mail.masto.top" to (200L to HostProbe.NoAnswer),
+                "jmap.masto.top" to (300L to HostProbe.NoAnswer),
+                // yandex.ru answers 403 here, and it is not the reader's mail server (#188).
+                "api.masto.top" to (400L to HostProbe.BadCredentials),
+            ),
+        )
+
+        val result = discoverJmapAmong(hosts, budget) { bench.probe(it) }
+
+        assertEquals(MailRepository.DiscoveryResult.NotFound, result)
+        assertEquals(hosts, bench.asked)
+        assertEquals(500L, currentTime)
+    }
+
+    @Test
+    fun `a rejection from the domain she typed alone is a wrong password`() = runTest {
+        val bench = Bench(
+            mapOf(
+                "masto.top" to (400L to HostProbe.BadCredentials),
+                "mail.masto.top" to (300L to HostProbe.NoAnswer),
+                "jmap.masto.top" to (200L to HostProbe.NoAnswer),
+                "api.masto.top" to (100L to HostProbe.NoAnswer),
+            ),
+        )
+
+        val result = discoverJmapAmong(hosts, budget) { bench.probe(it) }
+
+        assertEquals(MailRepository.DiscoveryResult.BadCredentials, result)
+        assertEquals(hosts, bench.asked)
+        assertEquals(700L, currentTime)
+    }
+
+    @Test
+    fun `a guessed rank's rejection adds nothing to the one from the typed domain`() = runTest {
+        val bench = Bench(
+            mapOf(
+                "masto.top" to (100L to HostProbe.BadCredentials),
+                "mail.masto.top" to (200L to HostProbe.NoAnswer),
+                "jmap.masto.top" to (300L to HostProbe.NoAnswer),
+                "api.masto.top" to (400L to HostProbe.BadCredentials),
+            ),
+        )
+
+        val result = discoverJmapAmong(hosts, budget) { bench.probe(it) }
+
+        assertEquals(MailRepository.DiscoveryResult.BadCredentials, result)
+        assertEquals(hosts, bench.asked)
+        assertEquals(500L, currentTime)
+    }
+
+    /**
+     * ⛔ Every guessed rank at once, so the rule cannot be satisfied by a boundary that merely
+     * happens to exclude rank 3 — the rank the reporter's domain refused on. `rank != 3` and
+     * `rank <= 1` both restore #188 on a `mail.<domain>` sitting behind a WAF or an HTTP auth,
+     * which answers 401 exactly like `api.yandex.ru` answered 403, and both leave every other
+     * test in this file green.
+     */
+    @Test
+    fun `no guessed rank is her password, whichever one refuses`() = runTest {
+        val bench = Bench(
+            mapOf(
+                "masto.top" to (100L to HostProbe.NoAnswer),
+                "mail.masto.top" to (200L to HostProbe.BadCredentials),
+                "jmap.masto.top" to (300L to HostProbe.BadCredentials),
+                "api.masto.top" to (400L to HostProbe.BadCredentials),
+            ),
+        )
+
+        val result = discoverJmapAmong(hosts, budget) { bench.probe(it) }
+
+        assertEquals(MailRepository.DiscoveryResult.NotFound, result)
+        assertEquals(hosts, bench.asked)
+        assertEquals(500L, currentTime)
+    }
+
+    @Test
+    fun `a session outranks a guessed rank that rejected the credentials, whatever the latency`() = runTest {
+        val bench = Bench(
+            mapOf(
+                "masto.top" to (100L to HostProbe.NoAnswer),
+                "mail.masto.top" to (300L to HostProbe.Usable),
+                "jmap.masto.top" to (hangs to HostProbe.NoAnswer),
+                // First to answer by far, and the highest rank of all — the rank still decides.
+                "api.masto.top" to (50L to HostProbe.BadCredentials),
+            ),
+        )
+
+        val result = discoverJmapAmong(hosts, budget) { bench.probe(it) }
+
+        assertEquals(MailRepository.DiscoveryResult.Found("mail.masto.top"), result)
+        assertEquals(400L, currentTime)
+    }
+
     // ── What an answer MEANS, run rather than read ───────────────────────────────────────────
 
     @Test

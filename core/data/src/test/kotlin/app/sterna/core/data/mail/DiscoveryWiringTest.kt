@@ -71,6 +71,29 @@ class DiscoveryWiringTest {
         )
     }
 
+    /**
+     * ⛔ Whole line, never a fragment — and the reason it is pinned at all is #188.
+     *
+     * Since a guessed rank's 401/403 stopped counting as a credential verdict, the WHOLE of that
+     * correction rests on one unwritten fact: rank 0 is the domain she typed.
+     * [verdictOnceSettled] cannot check it — it takes a `List<String>` and has only indices — so
+     * the fact lives here, in the one line that builds the list, and nothing else holds it.
+     * `Jmap.autodiscoverHosts(email).reversed()` leaves the entire suite green and puts
+     * `api.<domain>` at rank 0: its 403 is a credential verdict again, and #188 is back in full
+     * with nothing to see anywhere.
+     */
+    @Test fun `autodiscovery keeps the candidate order, so rank 0 is the domain she typed`() {
+        val body = discoverJmapServerBody()
+        assertTrue(
+            "MailRepository.discoverJmapServer must build its candidates as:\n  $HOSTS_LINE\n" +
+                "Rank 0 must stay the domain the reader typed: it is the only rank whose 401/403 " +
+                "is her password being refused, every other rank being a guess (#188). Reordered " +
+                "or reversed here, that property is silently false and no test in the tree can " +
+                "see it. Body was:\n$body",
+            body.lines().map { it.trim() }.contains(HOSTS_LINE),
+        )
+    }
+
     private fun discoverJmapServerBody(): String {
         val text = MAIL_REPOSITORY.readText()
         val start = text.indexOf(DECLARATION)
@@ -93,6 +116,12 @@ class DiscoveryWiringTest {
          */
         const val AUTH_LINE =
             """val auth = if (token != null) BearerAuth(token) else BasicAuth(email.trim(), password)"""
+
+        /**
+         * The candidate list, whole. Its ORDER is load-bearing since #188: rank 0 is the typed
+         * domain, and only rank 0 can make the verdict BadCredentials.
+         */
+        const val HOSTS_LINE = """val hosts = Jmap.autodiscoverHosts(email)"""
 
         /** The probe, as a whole call: `probeHost { … fetchSession … }`. */
         val PROBE_WIRING = Regex("""probeHost \{[^}]*client\.fetchSession\(""")

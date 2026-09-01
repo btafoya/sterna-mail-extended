@@ -155,21 +155,33 @@ suspend fun discoverJmapAmong(
 /**
  * The verdict implied by what is known so far, or null while a host that could still outrank the
  * best answer has not spoken: a pending rank blocks everything below it.
+ *
+ * ⛔ **Only RANK 0 can make the verdict [MailRepository.DiscoveryResult.BadCredentials]** — rank 0
+ * being the domain the reader typed, the one host in the list she named. The others are guesses
+ * ([discoverJmapAmong]: a wildcard DNS record, a CDN, another team's box), and a guess that answers
+ * 401 or 403 has said "this host is not yours to read", not "your password is wrong". Counting it
+ * lost the whole sign-in: `yandex.ru` answers 404, 404, 404 and then 403 on `api.yandex.ru`, so an
+ * address that IMAP would have added fine died on "Incorrect email address or password" — a screen
+ * that lies AND that skips the IMAP/SMTP fallback, which is the path that works (#188). Fastmail
+ * fails the same way through a 401. The discriminant is the rank, not the HTTP code: at rank 0 a
+ * 401 IS a refusal, which is why [probeOfFailure] classifies both codes the same and the rank is
+ * weighed here. Anything else here is [MailRepository.DiscoveryResult.NotFound], which is what
+ * reaches the fallback.
  */
 private fun verdictOnceSettled(
     hosts: List<String>,
     settled: AtomicReferenceArray<HostProbe>,
 ): MailRepository.DiscoveryResult? {
-    var sawAuthFailure = false
+    var typedDomainRejected = false
     for (rank in hosts.indices) {
         when (settled.get(rank)) {
             null -> return null
             HostProbe.Usable -> return MailRepository.DiscoveryResult.Found(hosts[rank])
-            HostProbe.BadCredentials -> sawAuthFailure = true
+            HostProbe.BadCredentials -> if (rank == 0) typedDomainRejected = true
             HostProbe.NoAnswer -> {}
         }
     }
-    return if (sawAuthFailure) {
+    return if (typedDomainRejected) {
         MailRepository.DiscoveryResult.BadCredentials
     } else {
         MailRepository.DiscoveryResult.NotFound
