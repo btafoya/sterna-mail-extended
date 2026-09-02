@@ -83,7 +83,8 @@ fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
  *  - [OutboxLogic.isReadyToSend] false — the worker never sends it on its own;
  *  - [OutboxLogic.isWaitingInOutbox] true — the Outbox screen lists it;
  *  - it counts on the badge with NO grace ([OutboxLogic.activeCount]) — it shows at once;
- *  - [OutboxLogic.canEdit] true — it reopens, and Retry still sends it by hand;
+ *  - [OutboxLogic.canEdit] FALSE — reopening would send it (see there); the draft opens from
+ *    Drafts, and Retry sends the row by hand;
  *  - [OutboxLogic.needsFailureBanner] FALSE — nothing failed, so nothing shouts.
  *
  * ⭐ Parking at SAVE time is also what keeps this out of the way of the startup recovery: a row

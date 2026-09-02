@@ -153,8 +153,9 @@ object OutboxLogic {
      * [attemptCount] is the faithful proxy for "was FAILED": the cap is reached only on the
      * FAILED-parking path (see [shouldRetry]). Everything else goes back to [OutboxState.QUEUED].
      *
-     * [OutboxState.INTERRUPTED] is deliberately not a case here and needs none: [canEdit] refuses
-     * it, so such a row never enters [OutboxState.EDITING] and never comes back out of one.
+     * [OutboxState.INTERRUPTED] and [OutboxState.KEPT_AS_DRAFT] are deliberately not cases here and
+     * need none: [canEdit] refuses both, so such a row never enters [OutboxState.EDITING] and never
+     * comes back out of one.
      */
     fun stateAfterEdit(attemptCount: Int): OutboxState =
         if (attemptCount >= MAX_ATTEMPTS) OutboxState.FAILED else OutboxState.QUEUED
@@ -195,15 +196,22 @@ object OutboxLogic {
      * interrupted message would put it back on the wire on its own, i.e. the duplicate this state
      * exists to prevent, through the #70 door. Retry and Delete stay, and Retry is the one deliberate
      * gesture that sends it again.
+     *
+     * ⛔ And NOT a [OutboxState.KEPT_AS_DRAFT] row either — the same door, and a worse fall. Reopening
+     * parks the row in EDITING, and closing the composer untouched runs [stateAfterEdit] on an
+     * attemptCount of 0, which answers QUEUED: merely LOOKING at a message kept as a draft would
+     * send it on its own, i.e. precisely the send the user refused (#95 × #70), the data loss this
+     * state exists to prevent. This is NOT a line the user cannot act on: the kept draft opens from
+     * Drafts (`LocalDraftRows`, tapping it opens the local draft in the composer — #95, commit
+     * 758dcd3c — as long as the account has a Drafts folder and the unread-only filter is off, see
+     * `showsLocalDrafts`); the outbox row is only its copy, and reopening the copy put it back on
+     * the wire. Retry and Delete stay, and Retry is the one gesture that sends it.
      */
     fun canEdit(pgpMode: String?, state: OutboxState, carriesUnreplayablePrebuiltEntity: Boolean): Boolean =
         !carriesUnreplayablePrebuiltEntity && !pgpMode.equals("ENCRYPT", ignoreCase = true) &&
             when (state) {
-                // KEPT_AS_DRAFT reopens like the rest (#95): the row is the copy of that message
-                // the Outbox screen is showing, and refusing Edit on it would leave the user
-                // looking at a line they cannot act on.
-                OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT -> true
-                OutboxState.SENDING, OutboxState.EDITING, OutboxState.INTERRUPTED -> false
+                OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED -> true
+                OutboxState.SENDING, OutboxState.EDITING, OutboxState.INTERRUPTED, OutboxState.KEPT_AS_DRAFT -> false
             }
 
     /**

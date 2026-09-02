@@ -1513,8 +1513,9 @@ class LocalDraftSaveTest {
     @Test fun `the state a kept-on-device save parks in is one that shows and does not send itself`() {
         // The five properties the parked state has to have, EXECUTED against the shipped outbox
         // rules rather than restated in prose: a state that fails any one of them is either
-        // invisible (the reported defect), sent on its own (the worse half of it), or shouting
-        // about a failure that never happened (what parking it in FAILED did).
+        // invisible (the reported defect), sent on its own (the worse half of it — by the worker,
+        // or by a reopen closed untouched), or shouting about a failure that never happened (what
+        // parking it in FAILED did).
         val parked = draftSaveParksTheQueuedRowAs(DraftSaveOutcome.KEPT_ON_DEVICE)
             ?: error("nothing is parked at all — see the pinned pairs above")
         assertFalse(
@@ -1530,8 +1531,12 @@ class LocalDraftSaveTest {
             1,
             OutboxLogic.activeCount(listOf(OutboxBadgeItem(parked, notBeforeMillis = NOW)), NOW),
         )
-        assertTrue(
-            "it must still reopen, or 'Retry'/'Edit' cannot send it by hand",
+        assertFalse(
+            "⛔ and it must NOT reopen: reopening the row parks it in EDITING, and closing the " +
+                "composer untouched runs stateAfterEdit on an attemptCount of 0, which answers " +
+                "QUEUED — merely looking at the message would send what the user chose to keep. " +
+                "Retry is the one gesture that sends the row by hand; the draft itself opens from " +
+                "Drafts (LocalDraftRows), the outbox row is only its copy",
             OutboxLogic.canEdit(pgpMode = null, state = parked, carriesUnreplayablePrebuiltEntity = false),
         )
         assertFalse(

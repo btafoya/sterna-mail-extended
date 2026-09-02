@@ -89,6 +89,44 @@ class OutboxLogicTest {
     }
 
     /**
+     * The same door, on the row a draft save parks (#95 × #70): the message the user chose to KEEP
+     * must not be reopenable either, or looking at it sends it.
+     */
+    @Test fun aRowKeptAsADraftCannotBeReopenedInTheComposer() {
+        assertFalse(
+            "⛔ reopening parks the row in EDITING, and closing the composer untouched runs " +
+                "stateAfterEdit(attemptCount = 0), which answers QUEUED and re-arms delivery. So " +
+                "Edit on a KEPT_AS_DRAFT row means merely LOOKING at the message the user chose " +
+                "NOT to send puts it on the wire by itself — the very send that state exists to " +
+                "refuse. The draft opens from Drafts (LocalDraftRows); Retry stays the one gesture " +
+                "that sends the row, and Delete still works on it",
+            OutboxLogic.canEdit(pgpMode = null, state = OutboxState.KEPT_AS_DRAFT, carriesUnreplayablePrebuiltEntity = false),
+        )
+    }
+
+    /**
+     * The whole state axis of [OutboxLogic.canEdit], executed against a map written out by hand —
+     * never recomputed from the shipped rule, so inverting the rule turns this red.
+     */
+    @Test fun onlyAGenuinelyWaitingRowCanBeReopened() {
+        assertEquals(
+            "the only reopenable states are the ones genuinely WAITING (QUEUED, HELD, FAILED): " +
+                "every other row is either in flight, already open, or parked on purpose — and " +
+                "any new value of the enumeration must be classified here by hand",
+            mapOf(
+                OutboxState.QUEUED to true,
+                OutboxState.HELD to true,
+                OutboxState.FAILED to true,
+                OutboxState.SENDING to false,
+                OutboxState.EDITING to false,
+                OutboxState.INTERRUPTED to false,
+                OutboxState.KEPT_AS_DRAFT to false,
+            ),
+            OutboxState.entries.associateWith { OutboxLogic.canEdit(null, it, false) },
+        )
+    }
+
+    /**
      * The three screen consequences of parking, executed: the row is listed, it counts on the badge
      * at once, and it raises no failure banner.
      */
