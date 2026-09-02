@@ -133,6 +133,117 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
         }
     }
 
+    /**
+     * THE SECOND DEFECT OF THE SAME KEY, end to end: the row is not stale, it is REPLACED.
+     *
+     * The user ticks three rows while the folder is numbered 42. A background pass then meets the
+     * renumbering to 77 and `@Upsert`s the rows carrying THE SAME IDS with other messages'
+     * envelopes — nothing prunes rows on IMAP, and the id is `imap:<account>:<folder>:<uid>`, the
+     * bare UID with no numbering in it. The ticks never moved: they follow the key, so the new
+     * envelopes are on screen already ticked and nobody touched anything.
+     *
+     * That is why the downstream guard cannot see it. The route built on the REWRITTEN rows carries
+     * 77, the server has just stated 77, and `mayDestroyUnderStatedNumbering` says yes — correctly:
+     * it destroys what the line represents NOW. What must refuse is the stamp the line carried WHEN
+     * IT WAS TICKED, and after that refusal not one command naming a UID may leave.
+     */
+    @Test fun `rows ticked under 42 destroy nothing once the same ids are rewritten under 77`() {
+        val store = RememberedNumbering()
+        ScriptedImapServer(scripted { select -> if (select == 1) 42L else 77L }).use { server ->
+            val service = service(store)
+            val credentials = credentials(server)
+            runBlocking {
+                // The rows AS THEY WERE AT THE TICK: this is where the selection's stamps come from.
+                val ticked = watchedPass(service, credentials).associate { it.id to it.uidValidity }
+                assertEquals(mapOf(ID7 to 42L, ID8 to 42L, ID9 to 42L), ticked)
+
+                // The background pass that renumbers. Same ids, other messages behind them.
+                val rewritten = watchedPass(service, credentials)
+                assertEquals(
+                    "the pass must rewrite the very rows that are ticked — same ids, new " +
+                        "numbering (newest UID first, as the walk returns them)",
+                    listOf(ID9, ID8, ID7),
+                    rewritten.map { it.id },
+                )
+                val now = rewritten.associate { it.id to it.uidValidity }
+                assertEquals(mapOf(ID7 to 77L, ID8 to 77L, ID9 to 77L), now)
+
+                // ⛔ WHY THE DOWNSTREAM GUARD LETS THIS THROUGH — the state before this fix. The
+                // route built on the rewritten rows opposes 77, and 77 is exactly what the server
+                // now states, so the expunge is licit and would go out on three live messages.
+                val licit = routeFor(rewritten)
+                assertEquals(77L, licit.uidValidity)
+                assertEquals(77L, service.recordedUidValidity(ACCOUNT, INBOX))
+                assertTrue(
+                    "the destroy the user confirmed WOULD be authorised on the rewritten rows — " +
+                        "that is the whole reason the refusal has to happen upstream, at the tick",
+                    UidValidity.mayDestroyUnderStatedNumbering(licit.uidValidity, 77L),
+                )
+
+                // The tick is what refuses.
+                val split = UidValidity.destroyableUnderTheNumberingItWasTickedUnder(
+                    rows = rewritten,
+                    tickedUnder = { ticked[it.id] },
+                    readUnderNow = { now[it.id] },
+                )
+                assertEquals(
+                    "not one of the three rows is the row that was ticked",
+                    emptyList<String>(),
+                    split.kept.map { it.id },
+                )
+                assertEquals(listOf(ID9, ID8, ID7), split.drifted.map { it.id })
+
+                // And the destroy is then driven exactly as InboxViewModel drives it: routes off
+                // what survived the split, one deleteBatch per route. Zero routes, zero commands.
+                val routes = UidValidity.imapDestroyRoutes(split.kept.map { it.id to INBOX }) { now[it] }
+                assertEquals(emptyList<UidValidity.ImapDestroyRoute>(), routes)
+                routes.forEach { service.deleteBatch(credentials, INBOX, uidsOf(it), it.uidValidity) }
+            }
+
+            assertEquals(
+                "not one message may be flagged \\Deleted: these lines were replaced under the " +
+                    "ticks, so each UID now names another, live message",
+                emptyList<String>(),
+                server.issued("UID STORE"),
+            )
+            assertEquals("and nothing may be erased", emptyList<String>(), server.issued("UID EXPUNGE"))
+        }
+    }
+
+    /**
+     * ⭐ THE INVERSE WITNESS of the split, and it is not negotiable: without it "refuse everything
+     * that was ticked" satisfies the test above and kills every IMAP permanent delete in the app —
+     * the message leaves the list, comes back at the next refresh, and never dies.
+     */
+    @Test fun `rows ticked under 42 on a folder still numbered 42 are destroyed exactly as before`() {
+        val store = RememberedNumbering()
+        ScriptedImapServer(scripted { 42L }).use { server ->
+            val service = service(store)
+            val credentials = credentials(server)
+            runBlocking {
+                val ticked = watchedPass(service, credentials).associate { it.id to it.uidValidity }
+                val rows = watchedPass(service, credentials)
+                val now = rows.associate { it.id to it.uidValidity }
+                assertEquals(mapOf(ID7 to 42L, ID8 to 42L, ID9 to 42L), ticked)
+                assertEquals(mapOf(ID7 to 42L, ID8 to 42L, ID9 to 42L), now)
+
+                val split = UidValidity.destroyableUnderTheNumberingItWasTickedUnder(
+                    rows = rows,
+                    tickedUnder = { ticked[it.id] },
+                    readUnderNow = { now[it.id] },
+                )
+                assertEquals(listOf(ID9, ID8, ID7), split.kept.map { it.id })
+                assertEquals(emptyList<String>(), split.drifted.map { it.id })
+
+                UidValidity.imapDestroyRoutes(split.kept.map { it.id to INBOX }) { now[it] }
+                    .forEach { service.deleteBatch(credentials, INBOX, uidsOf(it), it.uidValidity) }
+            }
+
+            assertEquals(listOf("UID STORE 7:9 +FLAGS (\\Deleted)"), server.issued("UID STORE"))
+            assertEquals(listOf("UID EXPUNGE 7:9"), server.issued("UID EXPUNGE"))
+        }
+    }
+
     // ---- fixtures -----------------------------------------------------------------------------
 
     /** One background push pass over the inbox — the pass that MEETS the renumbering, records it
@@ -215,6 +326,9 @@ class DestroyUnderTheNumberingTheRowWasReadUnderTest {
         const val ACCOUNT = "acc1"
         const val INBOX = "INBOX"
         val UIDS = listOf(7L, 8L, 9L)
+        val ID7 = ImapMailService.emailId(ACCOUNT, INBOX, 7L)
+        val ID8 = ImapMailService.emailId(ACCOUNT, INBOX, 8L)
+        val ID9 = ImapMailService.emailId(ACCOUNT, INBOX, 9L)
 
         /**
          * An [OAuthTokenRefresher] that is never used and cannot be built — see

@@ -213,6 +213,61 @@ object UidValidity {
         return byRoute.map { (route, ids) -> ImapDestroyRoute(route.first, ids.toList(), route.second) }
     }
 
+    /** How a confirmed destroy splits once the ROWS it names are checked against the tick that
+     *  named them. [kept] is what a destruction may still touch; [drifted] is what the LINE has
+     *  been replaced under since it was ticked — same key, another message. Both keep the input
+     *  order, because [drifted] is what goes back into the selection and back on the screen. */
+    data class TickedNumberingSplit<T>(val kept: List<T>, val drifted: List<T>)
+
+    /**
+     * The UPSTREAM half of [mayDestroyUnderStatedNumbering], and the only one that can see a row
+     * SWAPPED UNDER A TICK (Codeberg #99).
+     *
+     * A selection is a set of keys, and an IMAP key is `imap:<account>:<folder>:<uid>` — the bare
+     * UID, with no numbering in it. So when a server renumbers a folder the shifting way, the next
+     * background walk `@Upsert`s the row carrying that exact text with ANOTHER message's envelope:
+     * the tick does not move, the screen shows the new envelope already ticked, and nobody touched
+     * anything. Confirm the delete on a row that reads "in the Trash" and `UID EXPUNGE` goes out on
+     * a live message no one ever ticked.
+     *
+     * [mayDestroyUnderStatedNumbering] cannot see it and is not wrong: it destroys exactly what the
+     * line represents NOW, and now the line represents the new message, under a numbering the
+     * server confirms. The missing fact is upstream — the numbering the line carried WHEN IT WAS
+     * TICKED — and it is a fact only the selection can hold.
+     *
+     * ⛔ AN ABSENT STAMP PASSES, and that is the expensive half of the rule. `uidValidity` is null
+     * on EVERY JMAP row (an id there survives anything a mailbox can go through), so a guard that
+     * refused on null would refuse 100 % of JMAP destroys — a total regression on a whole protocol,
+     * green everywhere a test only feeds it IMAP rows. A row evicted from the cache between the
+     * tick and the confirmation has nothing to offer either, and neither has a row ticked in the
+     * 50 ms before the (suspending) read of its stamp came back. None of those three is evidence of
+     * a swap; refusing on them would be inventing one. What still holds the destroy up in those
+     * cases is the downstream half: [mayDestroyUnderStatedNumbering] destroys nothing when it has
+     * no number to oppose.
+     *
+     * So a row leaves in [drifted] if and ONLY if both stamps are real and they disagree — the one
+     * shape that means "this line is not the line that was ticked". Everything else stays in
+     * [kept], in arrival order.
+     *
+     * Pure, and here rather than in `InboxViewModel`, for [imapDestroyPlan]'s reason: the ViewModel
+     * needs an `Application` and Room, so a decision left inside it is a decision no test can RUN —
+     * and a decision nothing runs is a decision a mutation walks through.
+     */
+    fun <T> destroyableUnderTheNumberingItWasTickedUnder(
+        rows: List<T>,
+        tickedUnder: (T) -> Long?,
+        readUnderNow: (T) -> Long?,
+    ): TickedNumberingSplit<T> {
+        val kept = mutableListOf<T>()
+        val drifted = mutableListOf<T>()
+        rows.forEach { row ->
+            val ticked = tickedUnder(row)
+            val now = readUnderNow(row)
+            if (ticked != null && now != null && ticked != now) drifted += row else kept += row
+        }
+        return TickedNumberingSplit(kept, drifted)
+    }
+
     /**
      * One leg of an Undo: everything ONE move-back needs, and nothing that has to be looked up.
      *

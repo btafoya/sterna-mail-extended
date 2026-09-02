@@ -1094,6 +1094,37 @@ class InboxViewModel(
     private val _selectionActive = MutableStateFlow(false)
     val selectionActive: StateFlow<Boolean> = _selectionActive.asStateFlow()
 
+    /**
+     * The IMAP numbering the row of each selected key carried AT THE MOMENT OF THE TICK (#99).
+     *
+     * A selection is a set of KEYS, and an IMAP key is `imap:<account>:<folder>:<uid>` — the bare
+     * UID, with nothing in it that says which numbering it belongs to. So a server that renumbers
+     * the shifting way makes the next background walk `@Upsert` the row bearing that exact text
+     * with ANOTHER message's envelope: the tick does not move, and the new envelope is on screen
+     * already ticked without a gesture. Nothing downstream can see that — `recordedNumbering` and
+     * the SELECT both describe the line as it is NOW, and now it is the new message, consistently.
+     * This is the only place the earlier fact can live, because the selection is the only thing
+     * that spans the two moments.
+     *
+     * ⛔ Written from ONE place, the collector on `_selectedKeys` in `init`. A collector IS "every
+     * write of the selection", so it covers the five sites that add to it, the ones that will be
+     * added later, and it forgets a key the moment it is unticked — none of which five explicit
+     * calls would do.
+     *
+     * ⚠ A null value, and an absent key, both mean "nothing to oppose", and both PASS: every JMAP
+     * row has no numbering at all, a row evicted from the cache has none either, and the read below
+     * is suspending, so a key confirmed before that read comes back legitimately has no entry. None
+     * of the three is evidence of a swap. The refusal on absence lives downstream, in
+     * `UidValidity.mayDestroyUnderStatedNumbering`, where it costs a re-query instead of a protocol.
+     *
+     * ⛔ That last window is not a fixed few milliseconds and must not be described as one: a
+     * "Select all" over a large folder writes the whole selection at once and the read behind it is
+     * chunked, so the gesture with the most to lose is the one whose stamps land last. What holds
+     * the destroy up meanwhile is the downstream half alone — which is the state of affairs this
+     * whole field improves on, not a promise it keeps.
+     */
+    private var tickedUnder: Map<EmailKey, Long?> = emptyMap()
+
     /** True when every selected message is already read — drives the read/unread toggle's icon. */
     private val _selectionAllRead = MutableStateFlow(false)
     val selectionAllRead: StateFlow<Boolean> = _selectionAllRead.asStateFlow()
@@ -1435,6 +1466,11 @@ class InboxViewModel(
         // Recompute the read/unread toggle state whenever the selection set changes.
         viewModelScope.launch {
             _selectedKeys.collect { refreshSelectionReadState(it) }
+        }
+        // Remember, for every key AS IT IS TICKED, the numbering its row carries — the fact a
+        // destruction opposes later to what the row carries then (#99). Here and nowhere else.
+        viewModelScope.launch {
+            _selectedKeys.collect { rememberTickedNumbering(it) }
         }
         // Tell the push side which inbox is on screen. A user-initiated arm may silently reseed
         // the baseline of the inbox the user is looking at, and only that one — in the unified
@@ -2772,6 +2808,32 @@ class InboxViewModel(
     }
 
     /**
+     * Keep [tickedUnder] in step with [keys]: drop what is no longer ticked, and read the numbering
+     * of the rows that have just been (#99).
+     *
+     * Only the NEW keys are read — a re-read of an old one would answer what the row carries now,
+     * which is exactly the value this field exists not to be. One read per ACCOUNT, never one per
+     * message: a select-all of a large folder would otherwise be thousands of database reads on
+     * every tick.
+     *
+     * ⚠ The read suspends, so the selection can have moved on by the time it returns; only keys
+     * STILL ticked are written back. A key ticked and confirmed inside that window keeps no stamp
+     * at all, and that is correct — an absent stamp opposes nothing and passes.
+     */
+    private suspend fun rememberTickedNumbering(keys: Set<EmailKey>) {
+        val known = tickedUnder.filterKeys { it in keys }
+        val fresh = keys.filterNot { it in known }
+        val read = mutableMapOf<EmailKey, Long?>()
+        fresh.groupBy { credentialsFor(it) }.forEach { (credentials, group) ->
+            if (credentials == null) return@forEach
+            val numbering = repo.numberingRowsWereReadUnder(credentials, group.map { it.emailId })
+            group.forEach { key -> read[key] = numbering[key.emailId] }
+        }
+        val still = _selectedKeys.value
+        tickedUnder = (known + read).filterKeys { it in still }
+    }
+
+    /**
      * Apply a bulk action to the selected messages; exits selection mode unless [clearAfter] is
      * false.
      *
@@ -3004,6 +3066,10 @@ class InboxViewModel(
      */
     fun deleteSelected() {
         val keys = _selectedKeys.value
+        // The numbering each ticked row carried WHEN IT WAS TICKED, captured beside the keys and
+        // OUTSIDE the launch: everything below suspends, and a background pass landing in one of
+        // those suspensions is exactly the event this opposes (#99).
+        val ticked = tickedUnder
         viewModelScope.launch {
             // Frozen AT THE GESTURE, and carried into the batch: an IMAP UID means something only
             // inside one numbering, and a bulk delete is a bulk MOVE to the Trash that runs after
@@ -3020,19 +3086,39 @@ class InboxViewModel(
                 hasTrash = { email -> credentialsFor(email)?.let { c -> runCatching { repo.accountHasTrash(c) }.getOrDefault(false) } ?: false },
                 wouldDestroy = { email -> credentialsFor(email)?.let { c -> runCatching { repo.deleteWouldDestroy(c, email) }.getOrDefault(false) } ?: false },
             )
+            // ⛔ THE UPSTREAM HALF OF #99, and the only half that can see a row SWAPPED UNDER A
+            // TICK. `recordedNumbering` answers what each row to be destroyed carries NOW — per
+            // row, grouped per account, the same read the hold-back freezes with. Opposed to the
+            // stamp the tick was taken under, a disagreement means the line was replaced since the
+            // user pointed at it, and the destroy may not have it: same UID text, another message.
+            val destroyTargets = plan.destroy.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
+            val now = recordedNumbering(destroyTargets)
+            val split = UidValidity.destroyableUnderTheNumberingItWasTickedUnder(
+                rows = plan.destroy,
+                tickedUnder = { ticked[it.emailKey()] },
+                readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },
+            )
             clearSelection()
-            val lost = resolved.unresolved.size + plan.untreated.size
-            if (plan.destroy.isNotEmpty()) {
-                heldBackDestroy(plan.destroy, getApplication<Application>().getString(R.string.status_message_deleted_forever))
+            val lostBefore = resolved.unresolved.size + plan.untreated.size
+            // The rows the split refused were ATTEMPTED — they are inside plan.destroy.size — and
+            // they failed. Counting them in both places would make the message say twice as much
+            // was tried as was, which is why only the failures side grows.
+            val lost = lostBefore + split.drifted.size
+            if (split.kept.isNotEmpty()) {
+                heldBackDestroy(split.kept, getApplication<Application>().getString(R.string.status_message_deleted_forever))
             }
             if (plan.move.isNotEmpty()) {
                 // Mixed destroy+move: only the held-back destroy offers Undo (see deleteThread).
                 // The whole selection travels with the delegation — the destroyed messages were
                 // attempts too — so the single message it prints is about the whole delete.
+                // ⚠ The question is whether a destroy is actually PENDING, i.e. `split.kept`, and
+                // not whether one was planned: a destroy leg the split refused whole shows no bar
+                // at all, and reading `plan.destroy` there would withhold the move's Undo in
+                // favour of a snackbar nobody is going to see.
                 bulkBatched(
-                    undoLabelRes = R.plurals.status_selection_deleted.takeIf { plan.destroy.isEmpty() },
+                    undoLabelRes = R.plurals.status_selection_deleted.takeIf { split.kept.isEmpty() },
                     keys = plan.move.mapTo(mutableSetOf()) { it.emailKey() },
-                    attemptedBefore = plan.destroy.size + lost,
+                    attemptedBefore = plan.destroy.size + lostBefore,
                     failedBefore = lost,
                 ) { c, batch -> repo.deleteAll(c, batch, numbering[c.id].orEmpty()) }
             } else {
@@ -3044,6 +3130,23 @@ class InboxViewModel(
                     BulkOutcome.TOTAL -> _message.value = getApplication<Application>().getString(R.string.status_action_failed)
                     BulkOutcome.PARTIAL -> _message.value = getApplication<Application>().getString(R.string.status_action_partly_failed)
                 }
+            }
+            // ⛔ LAST, after the branch above and never before it: `bulkBatched` calls
+            // clearSelection() synchronously at the call, so a re-selection written earlier would
+            // be wiped by the very delegation that follows it. What was refused goes back under the
+            // user's eyes, still ticked — a destruction that quietly dropped part of a confirmed
+            // selection would be a lie the screen agrees with.
+            if (split.drifted.isNotEmpty()) {
+                // ⛔ THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector
+                // above only reads keys it does not already know, so stamps written AFTER the keys
+                // — or not written at all — leave it looking at rows it has never seen: it reads
+                // their numbering AS IT IS NOW, the second tap compares the new number with
+                // itself, agrees, and destroys the very messages this refusal just saved. A
+                // refusal has to survive being told about. Nothing suspends between these two
+                // lines, which is what makes the order enough.
+                tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }
+                _selectionActive.value = true
+                _selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
             }
         }
     }

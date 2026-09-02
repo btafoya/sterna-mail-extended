@@ -343,9 +343,17 @@ class BulkSelectionWiringTest {
     /** And each leg of the plan goes where it belongs, untouched. */
     @Test fun `only the plan's destroy leg is destroyed, and only its move leg is batched`() {
         val body = body(INBOX_VIEW_MODEL, "deleteSelected")
+        // ⛔ NO LONGER "whole and unfiltered", and the change is the point. The destroy leg is now
+        // cut in two before it is destroyed: the rows still on the line that was TICKED, and the
+        // rows whose line a renumbering replaced under the tick since (#99, upstream half). What is
+        // whole and unfiltered is the KEPT half — nothing else may be dropped between the plan and
+        // the destruction, and the refused half is counted and given back, never silently lost.
+        // Which rows fall on which side is pinned, with its arguments, in
+        // HeldBackDestroyCarriesItsFolderTest, and EXECUTED in DestroyOnlyWhatWasTickedTest.
         assertEquals(
-            "the held-back destroy takes the plan's destroy leg, whole and unfiltered. Body was:\n$body",
-            listOf("heldBackDestroy(plan.destroy, getApplication<Application>().getString(R.string.status_message_deleted_forever))"),
+            "the held-back destroy takes the kept half of the tick split, whole and unfiltered — " +
+                "one cut, made by the pure function, and no other. Body was:\n$body",
+            listOf("heldBackDestroy(split.kept, getApplication<Application>().getString(R.string.status_message_deleted_forever))"),
             codeLinesNaming(body, "heldBackDestroy("),
         )
         assertEquals(
@@ -357,10 +365,15 @@ class BulkSelectionWiringTest {
         // destroy+move delete showing a counted "3 messages deleted" on top of "Deleting
         // permanently…" on the one snackbar host, under an Undo that covers only the moved leg.
         // Whole line, never `in`: a substring rule would accept the takeIf being dropped.
+        //
+        // ⛔ And the condition is the KEPT half of the split, never `plan.destroy`: a destroy leg
+        // the split refused entirely schedules nothing and puts no bar up, so reading the planned
+        // leg there withholds the move's Undo in favour of a snackbar that never appears — the
+        // moved messages lose their one-tap way back for a destruction that did not happen.
         assertEquals(
-            "the batched delete's label must be withheld while a destruction is pending — the " +
-                "held-back destroy owns the bar in that case. Body was:\n$body",
-            listOf("undoLabelRes = R.plurals.status_selection_deleted.takeIf { plan.destroy.isEmpty() },"),
+            "the batched delete's label must be withheld while a destruction is actually pending " +
+                "— and pending means the split KEPT one. Body was:\n$body",
+            listOf("undoLabelRes = R.plurals.status_selection_deleted.takeIf { split.kept.isEmpty() },"),
             codeLinesNaming(body, "undoLabelRes"),
         )
     }
@@ -468,20 +481,33 @@ class BulkSelectionWiringTest {
      */
     @Test fun `the delete hands what it handled and what it lost to the delegate`() {
         val body = body(INBOX_VIEW_MODEL, "deleteSelected")
+        // ⭐ Two numbers now, not one. `lostBefore` is what the delete lost BEFORE the destroy leg
+        // was cut — unresolved keys and untrusted rows on a Trash-less account — and `lost` adds the
+        // rows the tick split refused. They are separate because the refused rows are ALREADY
+        // inside plan.destroy.size: counting them in `attemptedBefore` too would make the message
+        // claim twice as many attempts as there were.
         assertEquals(
-            "what the delete lost on its own must be counted. Body was:\n$body",
-            listOf("val lost = resolved.unresolved.size + plan.untreated.size"),
-            codeLinesNaming(body, "val lost ="),
+            "what the delete lost on its own must be counted, and separately from what the tick " +
+                "split refused. Body was:\n$body",
+            listOf(
+                "val lostBefore = resolved.unresolved.size + plan.untreated.size",
+                "val lost = lostBefore + split.drifted.size",
+            ),
+            codeLinesNaming(body, "val lost"),
         )
         assertEquals(
             "the destroyed messages are attempts too, and the losses are attempts that failed: " +
-                "both sides travel, and they are NOT the same number. Body was:\n$body",
+                "both sides travel, and they are NOT the same number. The refused rows join the " +
+                "FAILURES only. Body was:\n$body",
             listOf(
-                "attemptedBefore = plan.destroy.size + lost,",
+                "attemptedBefore = plan.destroy.size + lostBefore,",
                 "failedBefore = lost,",
                 "when (bulkOutcome(attempted = keys.size, failed = lost)) {",
             ),
-            codeLinesNaming(body, "lost") - listOf("val lost = resolved.unresolved.size + plan.untreated.size"),
+            codeLinesNaming(body, "lost") - listOf(
+                "val lostBefore = resolved.unresolved.size + plan.untreated.size",
+                "val lost = lostBefore + split.drifted.size",
+            ),
         )
     }
 
