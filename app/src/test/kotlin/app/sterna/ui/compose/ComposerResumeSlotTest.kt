@@ -2,6 +2,8 @@ package app.sterna.ui.compose
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Span
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -563,11 +565,15 @@ class ComposerResumeSlotTest {
         assertTrue("…and the flag rode along with it", back.bodyWasLost)
     }
 
-    /** Exactly at the bound, body plus baseline: accepted, so the bound is a bound and not a guess. */
+    /**
+     * Exactly at the bound — body, baseline AND the 15-character styling line of an unstyled
+     * composer (`b;i;u;s|b;i;u;s`) — accepted, so the bound is a bound and not a guess.
+     * ⚠ Adapted for #131: the baseline used to be 384 characters; the styling line now counts.
+     */
     @Test
     fun `a body exactly at the inline bound still travels`() {
         val body = "y".repeat(16_000)
-        val baseline = "z".repeat(384)
+        val baseline = "z".repeat(369)
         val state = ComposerResumeState(TextFieldValue(body, TextRange(5)), baseline)
 
         val saved = saveComposerResume(state, unwritableSlot())!!
@@ -577,11 +583,131 @@ class ComposerResumeSlotTest {
         assertEquals(baseline, back.baselineState.value)
     }
 
+    /**
+     * The styling line is IN the parcel, so it is in the bound: a text that fits on its own but
+     * not with its spans is a loss, marked as one — never a `v:` parcel over the bound.
+     */
+    @Test
+    fun `the styling line counts against the inline bound`() {
+        val body = "y".repeat(16_360)   // 16 360 + the 15-character unstyled line = 16 375: fits
+        val plain = ComposerResumeState(TextFieldValue(body, TextRange(0)), "")
+        assertEquals("unstyled, this body must still travel inline", "v:",
+            saveComposerResume(plain, unwritableSlot())?.take(2))
+
+        val styled = ComposerResumeState(
+            TextFieldValue(body, TextRange(0)), "",
+            ranges = mapOf(Inline.BOLD to listOf(Span(0, 1), Span(2, 3), Span(4, 5), Span(6, 7))),   // +16 characters
+        )
+        val saved = saveComposerResume(styled, unwritableSlot())
+        assertEquals(
+            "with its styling line the parcel would be 16 391 characters, over the bound: the text " +
+                "must be dropped and the loss marked, not forced into the parcel",
+            "l:", saved,
+        )
+        assertFalse("not one character of the body may reach the parcel: `$saved`", saved!!.contains("y"))
+    }
+
     /** Anything the saver does not recognise is nothing, and never an exception out of a restore. */
     @Test
     fun `an unrecognised parcel value restores nothing`() {
         for (junk in listOf("", "x:whatever", "v:", "v:12", "v:1:2", "v:1:2:3", "t:", "v:a:b:c:body")) {
             assertNull("`$junk` must restore to nothing, not to a mangled draft", restoreComposerResume(junk, slot))
+        }
+    }
+
+    // -- the styling travels with the text (#131) ------------------------------------------------
+
+    /** A body with every family, a baseline with one: the maps come back EQUAL, through the file. */
+    @Test
+    fun `the body's and the baseline's styling round trip through the file`() {
+        val body = "Bonjour Amélie,\n\nvoici la pièce jointe.\r\n" + "x".repeat(2_000)
+        val state = ComposerResumeState(
+            TextFieldValue(body, TextRange(3, 9)), "> quoted",
+            ranges = STYLED, baselineRanges = mapOf(Inline.BOLD to listOf(Span(2, 6))),
+        )
+
+        val saved = saveComposerResume(state, slot)!!
+        assertEquals("the record had to be PARKED for this test to mean anything", "t:", saved.take(2))
+        val back = restoreComposerResume(saved, slot)!!
+
+        assertEquals("the body's styling did not come back as it went in", STYLED, back.rangesState.value)
+        assertEquals("the baseline's styling did not come back as it went in",
+            mapOf(Inline.BOLD to listOf(Span(2, 6))), back.baselineRangesState.value)
+        assertEquals("the text must still come back whole beside the styling", body, back.bodyState.value.text)
+        assertEquals("> quoted", back.baselineState.value)
+        assertEquals(TextRange(3, 9), back.bodyState.value.selection)
+    }
+
+    /** A file written by the build before #131: the old magic, no styling line, still readable. */
+    @Test
+    fun `a version 1 file still reads, with no styling`() {
+        file.parentFile!!.mkdirs()
+        file.writeText("sterna-composer-resume/1 tok-1 1 2 5 4\nhellobase", Charsets.UTF_8)
+
+        val resume = slot.read("tok-1")
+        assertTrue("a `/1` file written by the previous build must still open", resume != null)
+        assertEquals("hello", resume!!.body)
+        assertEquals("base", resume.baseline)
+        assertEquals(1, resume.selectionStart)
+        assertEquals(2, resume.selectionEnd)
+        assertEquals("a `/1` file carries no styling", emptyMap<Inline, List<Span>>(), resume.ranges)
+        assertEquals(emptyMap<Inline, List<Span>>(), resume.baselineRanges)
+    }
+
+    /** The styling line is parsed strictly: anything unreadable refuses the WHOLE record. */
+    @Test
+    fun `a corrupt styling line reads null, never a draft with guessed styling`() {
+        val token = park(slot, "hello", 1, 2, "base", ranges = mapOf(Inline.BOLD to listOf(Span(0, 4))))
+        val lines = file.readText(Charsets.UTF_8).split('\n', limit = 3)
+        assertEquals("a `/2` file is a header line, a styling line, then the texts", 3, lines.size)
+        for (corrupt in listOf(
+            "garbage", "", "b0-4;i;u", "b0-4;i;u;s", "b0-4;i;u;s|b;i;u", "x0-4;i;u;s|b;i;u;s",
+            "b4-0;i;u;s|b;i;u;s", "b0-x;i;u;s|b;i;u;s", "b0-99;i;u;s|b;i;u;s", "b0-4,;i;u;s|b;i;u;s",
+            "b;i;u;s|b0-9;i;u;s",
+        )) {
+            file.writeText(lines[0] + "\n" + corrupt + "\n" + lines[2], Charsets.UTF_8)
+            assertNull("`$corrupt` must refuse the record whole", slot.read(token))
+            assertTrue("a refused read must leave the file", file.isFile)
+        }
+        file.writeText(lines.joinToString("\n"), Charsets.UTF_8)
+        assertEquals("the intact line must still read", mapOf(Inline.BOLD to listOf(Span(0, 4))), slot.read(token)!!.ranges)
+    }
+
+    /** The inline fallback carries the styling too, both maps, and the four separators stay four. */
+    @Test
+    fun `the inline fallback carries the styling`() {
+        val state = ComposerResumeState(
+            TextFieldValue("short body, styled", TextRange(7, 11)), "> base",
+            ranges = STYLED, baselineRanges = mapOf(Inline.ITALIC to listOf(Span(0, 2))),
+        )
+
+        val saved = saveComposerResume(state, unwritableSlot())!!
+        assertTrue("the fallback must be the inline form: `$saved`", saved.startsWith("v:7:11:18:"))
+        val back = restoreComposerResume(saved, unwritableSlot())!!
+
+        assertEquals(STYLED, back.rangesState.value)
+        assertEquals(mapOf(Inline.ITALIC to listOf(Span(0, 2))), back.baselineRangesState.value)
+        assertEquals("short body, styled", back.bodyState.value.text)
+        assertEquals("> base", back.baselineState.value)
+        assertEquals(TextRange(7, 11), back.bodyState.value.selection)
+    }
+
+    /** Colons and newlines in the text may not be read as separators, on disk or in the parcel. */
+    @Test
+    fun `styling survives a body full of colons and newlines, on disk and inline`() {
+        val body = "v:1:2:3: not a header\nb0-4;i;u;s|b;i;u;s\nnor is this: 😀\r\nfin"
+        val baseline = "base: with a colon\nand a newline 😀"
+        val ranges = mapOf(Inline.BOLD to listOf(Span(0, 7)), Inline.STRIKE to listOf(Span(22, 30)))
+        val baselineRanges = mapOf(Inline.UNDERLINE to listOf(Span(5, 18)))
+        val state = ComposerResumeState(TextFieldValue(body, TextRange(3, 9)), baseline, ranges, baselineRanges)
+
+        for ((name, s) in listOf("disk" to slot, "inline" to unwritableSlot())) {
+            val back = restoreComposerResume(saveComposerResume(state, s)!!, s)!!
+            assertEquals("$name: body", body, back.bodyState.value.text)
+            assertEquals("$name: baseline", baseline, back.baselineState.value)
+            assertEquals("$name: caret", TextRange(3, 9), back.bodyState.value.selection)
+            assertEquals("$name: body styling", ranges, back.rangesState.value)
+            assertEquals("$name: baseline styling", baselineRanges, back.baselineRangesState.value)
         }
     }
 
@@ -645,9 +771,10 @@ class ComposerResumeSlotTest {
         selectionEnd: Int,
         baseline: String,
         token: String = newComposerToken(),
+        ranges: Map<Inline, List<Span>> = emptyMap(),
     ): String {
         assertTrue("the record had to be written for this test to mean anything",
-            slot.write(token, body, selectionStart, selectionEnd, baseline))
+            slot.write(token, body, selectionStart, selectionEnd, baseline, ranges))
         return token
     }
 
@@ -657,6 +784,14 @@ class ComposerResumeSlotTest {
         if (!blocker.isFile) blocker.writeText("I am a file, not a directory", Charsets.UTF_8)
         return ComposerResumeSlot(File(blocker, "composer-resume-nope"))
     }
+
+    /** Every family, two of them with two spans, so a family or a span dropped on the way is seen. */
+    private val STYLED: Map<Inline, List<Span>> = mapOf(
+        Inline.BOLD to listOf(Span(0, 4), Span(9, 12)),
+        Inline.ITALIC to listOf(Span(2, 6)),
+        Inline.UNDERLINE to listOf(Span(1, 3), Span(5, 8)),
+        Inline.STRIKE to listOf(Span(10, 14)),
+    )
 
     private fun longBody(chars: Int): String {
         val line = "Le corps de ce message est long, et c'est tout le problème. "

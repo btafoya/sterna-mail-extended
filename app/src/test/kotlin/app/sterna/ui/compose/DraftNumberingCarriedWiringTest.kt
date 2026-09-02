@@ -45,6 +45,9 @@ class DraftNumberingCarriedWiringTest {
         bcc = "",
         subject = "Six o'clock",
         body = "see you there",
+        // Not this test's subject (the styling carried is SendOutboxTest's), but the field has no
+        // default on purpose: a row's html is the only place its styling lives while it waits.
+        htmlBody = null,
         fromAccountId = "accA",
         fromEmail = "alex@masto.top",
         attachments = emptyList(),

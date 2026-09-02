@@ -3,6 +3,8 @@ package app.sterna.ui.scheduled
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.DraftSaveOutcome
+import app.sterna.core.data.text.draftHtmlToSave
+import app.sterna.core.data.text.richBodyFrom
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
@@ -35,6 +37,12 @@ data class ScheduledSendDraft(
     val bcc: List<String>,
     val subject: String,
     val body: String,
+    /**
+     * The `text/html` part the returned draft is stored with (#131), or null when the message
+     * carried no styling this editor can give back. ⛔ NOT the row's own `htmlBody`: that one is
+     * the SEND's html, and only the part of it that reads back as styling survives.
+     */
+    val html: String?,
     val inReplyTo: List<String>,
     val references: List<String>,
     val fromName: String?,
@@ -48,10 +56,15 @@ data class ScheduledSendDraft(
  * ("comma-separated", "space-separated message-ids"), and a cancel that parsed it differently from
  * the send would file a draft addressed differently from the message that was queued.
  *
- * ⛔ `htmlBody` has NO destination and is not carried: `saveDraft` takes no HTML parameter (stated
- * debt at `LocalDraftReopen.kt:119`), and the HTML body is DERIVED from the typed text — so the
- * text survives whole, exactly as it does through "Save draft". Inventing a carrier here would
- * claim a fidelity nothing downstream can honour.
+ * ⭐ `htmlBody` IS carried since #131, and through the same two functions every other reopen goes
+ * through: `richBodyFrom` reads the row's html when it is ours — the styling the user applied —
+ * and falls back to the stored text for anything else, and `draftHtmlToSave` writes back only what
+ * a reopen can read. So a styled message cancelled from the Scheduled screen is filed in Drafts
+ * WITH its bold, while a forward's html (its carried original appended) and an imported HTML
+ * signature are flattened to text exactly as they were before. ⛔ The row's html is NOT stored as
+ * it stands: it is what the SEND built, and a draft carrying it would reopen as unparseable HTML,
+ * i.e. as text, one save later. (This KDoc used to say the column had no destination because
+ * `saveDraft` took no HTML parameter. It takes one now; the reason is gone, not merely outvoted.)
  *
  * ⛔ `draftEmailId` / `draftUidValidity` are NOT carried either, and that is the decision of § 3:
  * naming the server draft this message was edited from would let the save DESTROY it, while the
@@ -61,18 +74,25 @@ data class ScheduledSendDraft(
  * ⭐ [fromName]/[fromEmail] are carried: without them the returned draft goes back under the login
  * account's address rather than the identity the user chose (#31).
  */
-fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft = ScheduledSendDraft(
-    to = row.recipients.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-    cc = row.cc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
-    bcc = row.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
-    subject = row.subject,
-    body = row.textBody,
-    inReplyTo = row.inReplyTo?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
-    references = row.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
-    fromName = row.fromName,
-    fromEmail = row.fromEmail,
-    requestReceipt = row.requestReceipt,
-)
+fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
+    // The html first, the stored text as the fallback — and the draft's own html derived from
+    // what came back, never copied from the row: both halves out of ONE answer, so the text filed
+    // and the styling filed cannot describe different messages.
+    val rich = richBodyFrom(row.htmlBody) { row.textBody }
+    return ScheduledSendDraft(
+        to = row.recipients.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+        cc = row.cc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
+        bcc = row.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
+        subject = row.subject,
+        body = rich.text,
+        html = draftHtmlToSave(rich),
+        inReplyTo = row.inReplyTo?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
+        references = row.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
+        fromName = row.fromName,
+        fromEmail = row.fromEmail,
+        requestReceipt = row.requestReceipt,
+    )
+}
 
 /**
  * What to say for a save's [outcome], `null` meaning the account was gone before a save was tried.

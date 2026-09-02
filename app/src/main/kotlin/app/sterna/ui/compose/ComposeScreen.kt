@@ -53,6 +53,11 @@ import app.sterna.core.jmap.model.Email
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatClear
+import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.filled.FormatStrikethrough
+import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
@@ -108,7 +113,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -138,6 +146,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.RichBody
+import app.sterna.core.data.text.clear as clearFormatting
+import app.sterna.core.data.text.remapAfterEdit
+import app.sterna.core.data.text.stylesAt
+import app.sterna.core.data.text.toggle as toggleFormatting
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -499,6 +513,14 @@ fun ComposeScreen(
     // The body carries its caret with it (a TextFieldValue, not a bare String), so a prefilled
     // compose can open with the cursor where writing continues (#63).
     var body by resume.bodyState
+    // The body's inline styling (#131) lives BESIDE the TextFieldValue, not inside it: `body`
+    // holds plain text, and the spans are laid over it at render time, so the ~70 sites that read
+    // `body.text` / `body.selection` see exactly what they saw before.
+    var ranges by resume.rangesState
+    // What the next keystroke at the caret should carry, once a button was tapped with nothing
+    // selected; `null` = no instruction, the sticky rule of `remapAfterEdit` decides. Transient
+    // on purpose: it is a gesture in flight, not a value worth parking across a rotation.
+    var pending by remember { mutableStateOf<Set<Inline>?>(null) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var applied by rememberSaveable { mutableStateOf(false) }
     // "Ask for a read receipt" (RFC 8098), per message, from the overflow menu.
@@ -516,10 +538,13 @@ fun ComposeScreen(
     var initialBcc by rememberSaveable { mutableStateOf("") }
     var initialSubject by rememberSaveable { mutableStateOf("") }
     var initialBody by resume.baselineState
+    var baselineRanges by resume.baselineRangesState
     // …the box included: a reopened outbox message can OPEN ticked, so "ticked" is not an edit while
     // ticking or clearing it is. Without this baseline the leave guard could not see either, and
     // clearing the box then leaving sent the message still asking (see [ComposeDirty]).
     var initialRequestReceipt by rememberSaveable { mutableStateOf(false) }
+    // The body and its styling as one value: derived on every recomposition, never stored twice.
+    val rich = RichBody(body.text, ranges)
 
     // Which compose this is, for the signature rules: a forward carries its original at send time
     // (so its body holds no quote), while both a reply and a forward obey the "signature in
@@ -536,6 +561,8 @@ fun ComposeScreen(
     val toFocus = remember { FocusRequester() }
     val subjectFocus = remember { FocusRequester() }
     val bodyFocus = remember { FocusRequester() }
+    // Whether the body holds the focus: the formatting bar is shown for it alone (#131).
+    var bodyFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(prefill) {
         prefill?.let {
@@ -561,11 +588,19 @@ fun ComposeScreen(
                     linkBodyLength = linkBodyLength,
                 )
                 body = TextFieldValue(it.body, TextRange(caret ?: 0))
+                // …with the styling the prefill carried (#131): a reopened draft brings its own
+                // spans, every other opening brings none. ⛔ `emptyMap()` here, as it was, opens a
+                // styled draft with its bold gone from the screen — and the next save stores that.
+                ranges = it.bodyRanges
                 initialTo = prefilledTo
                 initialCc = cc
                 initialBcc = bcc
                 initialSubject = it.subject
                 initialBody = it.body
+                // The baseline is what the prefill LANDED with, styling included: `emptyMap()`
+                // here makes a reopened styled draft look edited the moment it opens, and the
+                // leave guard then asks about changes nobody made.
+                baselineRanges = it.bodyRanges
                 // This prefill CARRIED the quote — the original was not cached, so `prepare` built
                 // the whole body with the quoted original inside it and there is no out-of-band
                 // hand-over to raise the flag below. Without this post the flag stays false while
@@ -605,6 +640,9 @@ fun ComposeScreen(
         val quote = replyQuote ?: return@LaunchedEffect
         if (canApplyReplyQuote(applied, body.text, initialBody)) {
             body = TextFieldValue(quote, TextRange(0))
+            // A quote replaces a plain prefill: neither the body nor its baseline carries styling.
+            ranges = emptyMap()
+            baselineRanges = emptyMap()
             initialBody = quote
             // Dropped in exactly once, AFTER the write: the activity is recreated by a rotation, a
             // theme flip, a language change or a multi-window resize while the ViewModel survives,
@@ -675,7 +713,7 @@ fun ComposeScreen(
         cc = cc, initialCc = initialCc,
         bcc = bcc, initialBcc = initialBcc,
         subject = subject.text, initialSubject = initialSubject,
-        body = body.text, initialBody = initialBody,
+        body = RichBody(body.text, ranges), initialBody = RichBody(initialBody, baselineRanges),
         requestReceipt = requestReceipt, initialRequestReceipt = initialRequestReceipt,
         attachmentsTouched = attachmentsTouched,
     )
@@ -690,7 +728,7 @@ fun ComposeScreen(
     // absent = not yet checked, allowed — the send resolves keys and reports precisely).
     val keysReady = !pgpMode.encrypts || allRecipients.none { recipientKeys[it] == false }
     val canSend = recipientTokens(to).isNotEmpty() && allRecipients.all(::isValidEmail) && keysReady
-    val sendNow = { viewModel.send(to, cc, bcc, subject.text, body.text, requestReceipt) }
+    val sendNow = { viewModel.send(to, cc, bcc, subject.text, rich, requestReceipt) }
     val proceedAfterAttachment = {
         if (recipientCount >= MANY_RECIPIENTS) viewModel.askManyRecipients() else sendNow()
     }
@@ -946,7 +984,7 @@ fun ComposeScreen(
                             // buttons do not cover once the guard is real). Announced regardless,
                             // "Scheduled — …" is a sentence about a message that was not scheduled,
                             // immediately contradicted by the notice saying why.
-                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, millis, requestReceipt)) {
+                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)) {
                                 // ⛔ The INSTANT, formatted exactly as the Scheduled list formats
                                 // it — never a preset label, a sentence about another time.
                                 val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
@@ -1159,7 +1197,7 @@ fun ComposeScreen(
                             }, enabled = enabled) { Text(discardLabel, color = MaterialTheme.colorScheme.error) }
                             DiscardChoice.SAVE_DRAFT -> TextButton(onClick = {
                                 viewModel.clearDiscard()
-                                viewModel.saveDraft(to, cc, bcc, subject.text, body.text, requestReceipt)
+                                viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt)
                             }, enabled = enabled) { Text(stringResource(R.string.compose_discard_save)) }
                         }
                     }
@@ -1330,7 +1368,7 @@ fun ComposeScreen(
                             if (draftSaveAllowed(pgpMode)) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.compose_save_draft)) },
-                                    onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, body.text, requestReceipt) },
+                                    onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) },
                                     enabled = !sending && canSaveDraft,
                                 )
                                 // A scheduled send is fired by a headless worker that can't sign,
@@ -1406,7 +1444,7 @@ fun ComposeScreen(
                                             // attachments, and a body this composer LOST), and the
                                             // banner below is a sentence about a message that would
                                             // not have been scheduled at all.
-                                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, body.text, sendAt, requestReceipt)) {
+                                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)) {
                                                 // The LABEL, true of what was just scheduled: "In 1
                                                 // hour" is an hour from this tap, and "6 PM" is the
                                                 // 6 PM the entry was drawn for, or nothing left.
@@ -1535,12 +1573,19 @@ fun ComposeScreen(
                                                     )
                                                 }
                                             }
-                                        rewrite(body.text)?.let { rewritten ->
+                                        // The rewrite works on the TEXT; the user's styling is
+                                        // carried across it by diffing (#131), so a bold word
+                                        // above the signature stays bold and stays put.
+                                        rewriteRichBody(RichBody(body.text, ranges), body.selection.start, rewrite)?.let { rewritten ->
                                             body = TextFieldValue(
-                                                rewritten,
-                                                TextRange(body.selection.start.coerceAtMost(rewritten.length)),
+                                                rewritten.text,
+                                                TextRange(body.selection.start.coerceAtMost(rewritten.text.length)),
                                             )
-                                            rewrite(initialBody)?.let { initialBody = it }
+                                            ranges = rewritten.ranges
+                                            rewriteRichBody(RichBody(initialBody, baselineRanges), 0, rewrite)?.let {
+                                                initialBody = it.text
+                                                baselineRanges = it.ranges
+                                            }
                                         }
                                     }
                                     fromMenu = false
@@ -1677,9 +1722,24 @@ fun ComposeScreen(
           }
 
             // Body — no frame, fills the rest of the width and grows with content.
+            // ⚠ `body` holds PLAIN text; the styling is laid over it here at render time and the
+            // value handed back by the field is stored without its spans (#131). Selection and
+            // composition are `body`'s own, or the IME loses its composing region on every frame.
             BasicTextField(
-                value = body,
-                onValueChange = { body = it },
+                value = body.copy(annotatedString = toAnnotatedString(rich)),
+                onValueChange = { next ->
+                    // ⛔ Read HERE, not `rich`: that one is captured at composition, and two
+                    // callbacks before a recomposition would remap from a stale body.
+                    val current = RichBody(body.text, ranges)
+                    if (next.text != body.text) {
+                        // One edit, whatever produced it: the styling follows the text by diffing.
+                        ranges = remapAfterEdit(current, next.text, span(body.selection), span(next.selection), pending).ranges
+                    } else if (next.selection != body.selection) {
+                        // The caret moved: a style armed for the next keystroke no longer applies.
+                        pending = null
+                    }
+                    body = TextFieldValue(next.text, next.selection, next.composition)
+                },
                 textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 // Capitalisation ONLY: no imeAction here on purpose, because the body is the only
@@ -1691,7 +1751,8 @@ fun ComposeScreen(
                     // tap target) with a bounded height, so the field scrolls its own content and
                     // keeps the cursor in view as you write (#26).
                     .weight(1f)
-                    .focusRequester(bodyFocus),
+                    .focusRequester(bodyFocus)
+                    .onFocusChanged { bodyFocused = it.isFocused },
                 decorationBox = { inner ->
                     // The margins live INSIDE the field, not around it (#26). The header rows got
                     // the caret rule in 1.3.13: a tap before the first character of a line means
@@ -1721,6 +1782,28 @@ fun ComposeScreen(
                     }
                 },
             )
+            // The formatting bar, only while the body has the focus (#131). ⛔ No `imePadding()`
+            // and no inset of its own: the Column above already pads for the keyboard or the nav
+            // bar, whichever is taller, and a second inset here would double it (#26).
+            if (bodyFocused) {
+                FormattingBar(
+                    active = pending ?: stylesAt(rich, span(body.selection)),
+                    onToggle = { kind ->
+                        val current = RichBody(body.text, ranges)
+                        val sel = span(body.selection)
+                        if (!sel.isEmpty) {
+                            ranges = toggleFormatting(current, sel, kind).ranges
+                        } else {
+                            pending = (pending ?: stylesAt(current, sel)).let { if (kind in it) it - kind else it + kind }
+                        }
+                    },
+                    onClear = {
+                        val current = RichBody(body.text, ranges)
+                        val sel = span(body.selection)
+                        if (!sel.isEmpty) ranges = clearFormatting(current, sel).ranges else pending = emptySet()
+                    },
+                )
+            }
         }
         }
         // The tern that carries the message off-screen, top-right.
@@ -2332,6 +2415,48 @@ private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
     PgpMode.SIGN -> R.string.compose_pgp_sign
     PgpMode.ENCRYPT -> R.string.compose_pgp_encrypt
     PgpMode.ENCRYPT_UNSIGNED -> R.string.compose_pgp_encrypt_unsigned
+}
+
+/**
+ * The five formatting buttons under the body (#131): the four families, then "clear". Placed DOWN
+ * HERE on purpose: `DraftReopenWiringTest` reads the FIRST `actions = {` line of this file as the
+ * top bar (nothing here declares one), and `ScheduleMenuWiringTest` reads `schedulePresets` below
+ * to the END of the file, so nothing may follow it. ⚠ Nothing focusable beyond the buttons
+ * themselves: a bar that takes the focus hides itself.
+ */
+@Composable
+private fun FormattingBar(active: Set<Inline>, onToggle: (Inline) -> Unit, onClear: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        FormattingButton(Inline.BOLD, Icons.Filled.FormatBold, R.string.compose_format_bold, active, onToggle)
+        FormattingButton(Inline.ITALIC, Icons.Filled.FormatItalic, R.string.compose_format_italic, active, onToggle)
+        FormattingButton(Inline.UNDERLINE, Icons.Filled.FormatUnderlined, R.string.compose_format_underline, active, onToggle)
+        FormattingButton(Inline.STRIKE, Icons.Filled.FormatStrikethrough, R.string.compose_format_strikethrough, active, onToggle)
+        IconButton(onClick = onClear, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Filled.FormatClear, contentDescription = stringResource(R.string.compose_format_clear))
+        }
+    }
+}
+
+/** One family's button: `selected` in the semantics and a primary tint while the family is active. */
+@Composable
+private fun FormattingButton(
+    kind: Inline,
+    icon: ImageVector,
+    label: Int,
+    active: Set<Inline>,
+    onToggle: (Inline) -> Unit,
+) {
+    val isActive = kind in active
+    IconButton(
+        onClick = { onToggle(kind) },
+        modifier = Modifier.size(48.dp).semantics { selected = isActive },
+    ) {
+        Icon(
+            icon,
+            contentDescription = stringResource(label),
+            tint = if (isActive) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+        )
+    }
 }
 
 /**

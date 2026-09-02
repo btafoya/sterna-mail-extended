@@ -199,6 +199,9 @@ class LocalDraftSaveWiringTest {
                 "bcc = bcc,",
                 "subject = subject,",
                 "body = body,",
+                // …and the styling that belongs to that body (#131). Dropped here, a styled draft
+                // is stored as text on both protocols, and the bold is gone at the next reopen.
+                "html = html,",
                 "fromName = fromName,",
                 "fromEmail = fromEmail,",
                 "inReplyTo = inReplyTo,",
@@ -218,7 +221,7 @@ class LocalDraftSaveWiringTest {
                 "nowMillis = System.currentTimeMillis(),",
                 ")",
             ),
-            body.drop(at).take(23),
+            body.drop(at).take(24),
         )
     }
 

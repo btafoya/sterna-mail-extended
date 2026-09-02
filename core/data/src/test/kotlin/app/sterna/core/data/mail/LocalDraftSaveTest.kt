@@ -842,6 +842,123 @@ class LocalDraftSaveTest {
         assertTrue("and the row still says this save cannot answer for the original", resaved.bodyIsLossy)
     }
 
+    // ---- 3 ter. ⛔ the html part FOLLOWS the text through that same guard (#131) ----------------
+
+    @Test fun `the answers of the rule that decides which html is written`() {
+        // The decision, EXECUTED, case by case — and it is the SAME condition the body rule uses,
+        // which is the whole point: two conditions could drift, and the drift is a row whose text
+        // is one save and whose styling is another.
+        assertEquals(
+            "the stored text stands, so the stored html stands with it — a row holding last " +
+                "week's text beside this save's empty html reopens BLANK, because the reopen " +
+                "reads the html first",
+            "<b>what</b> was typed",
+            localDraftHtmlToWrite(
+                html = null, existingHtml = "<b>what</b> was typed",
+                body = "", existingBody = "what was typed", composerBodyWasLost = true,
+            ),
+        )
+        assertEquals(
+            "the composer HAS a body (it was retyped): its html is written, stale one dropped",
+            "<i>the new text</i>",
+            localDraftHtmlToWrite(
+                html = "<i>the new text</i>", existingHtml = "<b>what</b> was typed",
+                body = "the new text", existingBody = "what was typed", composerBodyWasLost = true,
+            ),
+        )
+        assertNull(
+            "⛔ styling removed on purpose must be written as REMOVED: keeping the stored html " +
+                "here puts the bold back at the very next reopen",
+            localDraftHtmlToWrite(
+                html = null, existingHtml = "<b>what</b> was typed",
+                body = "what was typed", existingBody = "what was typed", composerBodyWasLost = false,
+            ),
+        )
+        assertNull(
+            "⛔ not armed: a draft emptied on purpose loses its html too, or Drafts keeps a " +
+                "message whose text is empty and whose html is last week's",
+            localDraftHtmlToWrite(
+                html = null, existingHtml = "<b>what</b> was typed",
+                body = "", existingBody = "what was typed", composerBodyWasLost = false,
+            ),
+        )
+        assertNull(
+            "a first save has no row under it and writes what it has",
+            localDraftHtmlToWrite(
+                html = null, existingHtml = null,
+                body = "", existingBody = null, composerBodyWasLost = true,
+            ),
+        )
+    }
+
+    @Test fun `the html written and the text written are the same save, always`() {
+        // ⛔ The pairing, on hand-written triples: for each one, WHICH text is written and WHICH
+        // html is written, both stated here and neither recomputed. A condition inverted in either
+        // function breaks a row of this table — and a row of this table is a real draft.
+        //  (lost, handed-over body, stored body) -> (text written, html written)
+        val cases = listOf(
+            Triple(true, "", "what was typed") to ("what was typed" to "<b>old</b>"),
+            Triple(true, "   ", "what was typed") to ("what was typed" to "<b>old</b>"),
+            Triple(true, "typed again", "what was typed") to ("typed again" to "<i>new</i>"),
+            Triple(false, "", "what was typed") to ("" to "<i>new</i>"),
+            Triple(false, "typed again", "what was typed") to ("typed again" to "<i>new</i>"),
+            Triple(true, "", null) to ("" to "<i>new</i>"),
+            Triple(true, "", "") to ("" to "<i>new</i>"),
+        )
+        for ((input, expected) in cases) {
+            val (lost, body, existingBody) = input
+            val (expectedText, expectedHtml) = expected
+            val where = "lost=$lost body='$body' stored='$existingBody'"
+            assertEquals(
+                "$where: the text written",
+                expectedText,
+                localDraftBodyToWrite(body, existingBody, lost),
+            )
+            assertEquals(
+                "$where: the html must follow that same text, never decide on its own",
+                expectedHtml,
+                localDraftHtmlToWrite(
+                    html = "<i>new</i>", existingHtml = "<b>old</b>",
+                    body = body, existingBody = existingBody, composerBodyWasLost = lost,
+                ),
+            )
+        }
+    }
+
+    @Test fun `a re-save whose body was lost keeps the html the row already holds`() {
+        // The same defect as the test above it, one column across: the composer came back empty,
+        // the row's text is protected — and its `text/html` part must be protected with it, since
+        // `localDraftPrefill` reads the html FIRST. Written as the composer's own (null), the next
+        // reopen shows the protected text stripped of the styling it was written with.
+        val existing = row().copy(textBody = LONG, htmlBody = "<b>$LONG</b>")
+        val resaved = localDraftRow(
+            accountId = ACCOUNT, id = existing.id, messageId = "v2@example.org",
+            to = listOf("carol@example.org"), cc = emptyList(), bcc = emptyList(),
+            subject = "Now with a subject", body = "", html = null,
+            bodyIsLossy = true, composerBodyWasLost = true,
+            existing = existing, nowMillis = NOW + 5_000L,
+        )
+
+        assertEquals("the stored text stands", LONG, resaved.textBody)
+        assertEquals("…and its styling stands with it", "<b>$LONG</b>", resaved.htmlBody)
+    }
+
+    @Test fun `an ordinary save writes the html it was handed, and a plain one writes none`() {
+        val existing = row().copy(htmlBody = "<b>Half</b> written")
+        fun saved(html: String?) = localDraftRow(
+            accountId = ACCOUNT, id = existing.id, messageId = "v2@example.org",
+            to = listOf("bob@example.org"), cc = emptyList(), bcc = emptyList(),
+            subject = "Half written", body = "now in italics", html = html,
+            composerBodyWasLost = false, existing = existing, nowMillis = NOW + 5_000L,
+        )
+        assertEquals("<i>now in italics</i>", saved("<i>now in italics</i>").htmlBody)
+        assertNull(
+            "⛔ a body whose styling was all taken off must lose its html part — the row is what " +
+                "the reopen reads, and a stale part puts the styling back",
+            saved(null).htmlBody,
+        )
+    }
+
     @Test fun `a marked draft the user emptied on purpose is written empty`() {
         // The bench measurement of 2026-08-26. A draft reopened from the server with an HTML body
         // arms the ROW's `bodyIsLossy` for every destroy guard downstream (#63) — while the

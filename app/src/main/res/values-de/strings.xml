@@ -22,6 +22,11 @@
     <string name="compose_remove">Entfernen</string>
     <string name="compose_attachment_fallback">Anhang</string>
     <string name="compose_body_placeholder">E-Mail verfassen</string>
+    <string name="compose_format_bold">Fett</string>
+    <string name="compose_format_italic">Kursiv</string>
+    <string name="compose_format_underline">Unterstrichen</string>
+    <string name="compose_format_strikethrough">Durchgestrichen</string>
+    <string name="compose_format_clear">Formatierung entfernen</string>
     <string name="compose_quote_attribution">Am %1$s schrieb %2$s:</string>
     <string name="compose_quote_someone">jemand</string>
     <string name="compose_quote_not_added">Zitierte Nachricht nicht eingefügt: Sie hatten bereits zu schreiben begonnen.</string>

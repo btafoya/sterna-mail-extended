@@ -1,5 +1,8 @@
 package app.sterna.ui.compose
 
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.RichBody
+import app.sterna.core.data.text.Span
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,7 +19,7 @@ class ComposeDirtyTest {
         cc: String = "", initialCc: String = "",
         bcc: String = "", initialBcc: String = "",
         subject: String = "", initialSubject: String = "",
-        body: String = "", initialBody: String = "",
+        body: RichBody = RichBody.plain(""), initialBody: RichBody = RichBody.plain(""),
         requestReceipt: Boolean = false, initialRequestReceipt: Boolean = false,
         attachmentsTouched: Boolean = false,
     ) = ComposeDirty.isDirty(
@@ -33,7 +36,7 @@ class ComposeDirtyTest {
                 cc = "cc@example.org, ", initialCc = "cc@example.org, ",
                 bcc = "bcc@example.org, ", initialBcc = "bcc@example.org, ",
                 subject = "Report", initialSubject = "Report",
-                body = "Body", initialBody = "Body",
+                body = RichBody.plain("Body"), initialBody = RichBody.plain("Body"),
             ),
         )
     }
@@ -57,7 +60,28 @@ class ComposeDirtyTest {
 
     @Test fun editingSubjectOrBodyIsDirty() {
         assertTrue(dirty(subject = "New", initialSubject = "Old"))
-        assertTrue(dirty(body = "New", initialBody = "Old"))
+        assertTrue(dirty(body = RichBody.plain("New"), initialBody = RichBody.plain("Old")))
+    }
+
+    // --- the styling is part of the body (#131) -----------------------------------------------
+
+    @Test fun boldingAWordWithoutChangingTheTextIsDirty() {
+        assertTrue(
+            "the same text with one span more is an edit: a draft closed here would lose the bold " +
+                "the user just applied, without a word",
+            dirty(
+                body = RichBody("Body text", mapOf(Inline.BOLD to listOf(Span(0, 4)))),
+                initialBody = RichBody.plain("Body text"),
+            ),
+        )
+    }
+
+    @Test fun aReopenedStyledDraftIsNotDirtyUntouched() {
+        val styled = mapOf(Inline.BOLD to listOf(Span(0, 4)), Inline.ITALIC to listOf(Span(5, 9)))
+        assertFalse(
+            "same text, same spans: reopening a styled draft and closing it changed nothing",
+            dirty(body = RichBody("Body text", styled), initialBody = RichBody("Body text", styled)),
+        )
     }
 
     @Test fun touchingAttachmentsIsDirtyButMerelyHavingThemIsNot() {

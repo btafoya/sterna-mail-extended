@@ -1,6 +1,9 @@
 package app.sterna.send
 
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Span
+import app.sterna.core.data.text.richBodyFrom
 import app.sterna.core.jmap.model.EmailBodyPart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -27,6 +30,13 @@ class SendOutbox(private val scope: CoroutineScope) {
         val bcc: String,
         val subject: String,
         val body: String,
+        /**
+         * The inline styling [body] carries (#131), laid over it by the composer that reopens
+         * with this record. Empty is the honest answer for a message with none — which is every
+         * message queued before #131 and every plain one since — so it defaults, unlike the
+         * fields below whose default would be a per-message CHOICE silently cancelled.
+         */
+        val bodyRanges: Map<Inline, List<Span>> = emptyMap(),
         val fromAccountId: String?,
         val fromIdentityEmail: String?,
         val attachments: List<EmailBodyPart>,
@@ -138,13 +148,19 @@ class SendOutbox(private val scope: CoroutineScope) {
  * composer's state, so any per-message choice this mapping drops is not merely absent from the
  * screen — it is cancelled. That is the PGP mode, the draft being replaced, and the read receipt.
  */
-internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.ComposeDraft =
-    SendOutbox.ComposeDraft(
+internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.ComposeDraft {
+    // The row's html FIRST, its text as the fallback (#131). A queued message this app styled
+    // parses back into spans and reopens exactly as it was written; a forward's html (the carried
+    // original appended) and an imported HTML signature do not parse, and the row's plain text is
+    // what comes back — which is what happened to every message before #131.
+    val rich = richBodyFrom(draft.htmlBody) { draft.body }
+    return SendOutbox.ComposeDraft(
         to = draft.to,
         cc = draft.cc,
         bcc = draft.bcc,
         subject = draft.subject,
-        body = draft.body,
+        body = rich.text,
+        bodyRanges = rich.ranges,
         fromAccountId = draft.fromAccountId,
         fromIdentityEmail = draft.fromEmail,
         attachments = draft.attachments,
@@ -161,3 +177,4 @@ internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.Compo
         editingOutboxId = draft.outboxId,
         requestReceipt = draft.requestReceipt,
     )
+}

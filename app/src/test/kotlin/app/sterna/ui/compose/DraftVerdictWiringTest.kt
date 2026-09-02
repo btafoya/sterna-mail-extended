@@ -79,13 +79,17 @@ class DraftVerdictWiringTest {
         assertEquals(
             "the verdict must be the pure function's — `reopenedDraftIsLossy` in core:data, the " +
                 "one a JVM test can EXECUTE — fed the four legs of what this editor cannot give " +
-                "back, whole lines: an HTML body (flattened to text on open), inline images and " +
+                "back, whole lines: an HTML body this editor cannot read back (`draftHtmlIsLossy`, " +
+                "since #131: an html of OUR OWN reopens with its styling and costs nothing, any " +
+                "other is still flattened to text on open — ⛔ `draft.htmlContent() != null` here " +
+                "keeps a duplicate in Drafts on every re-save of a styled draft, and a bare " +
+                "`false` destroys the original of one written elsewhere), inline images and " +
                 "calendar parts (never carried), and the read-receipt request the draft's header " +
                 "holds (the checkbox comes back clear — D1). Any leg dropped is that content, or " +
                 "that request, silently destroyed on the next send.",
             listOf(
                 "val lossy = reopenedDraftIsLossy(",
-                "hasHtmlBody = draft.htmlContent() != null,",
+                "hasHtmlBody = draftHtmlIsLossy(draft.htmlContent()),",
                 "inlineImageCount = draft.inlineImageParts().size,",
                 "calendarPartCount = draft.calendarParts().size,",
                 "receiptHeader = draft.dispositionNotificationTo,",
@@ -99,7 +103,7 @@ class DraftVerdictWiringTest {
                 "clear on a reopen, so feeding it here would make the receipt leg answer " +
                 "\"nothing asked\" every single time and stop nothing at all",
             mapOf(
-                "hasHtmlBody" to "draft.htmlContent() != null",
+                "hasHtmlBody" to "draftHtmlIsLossy(draft.htmlContent())",
                 "inlineImageCount" to "draft.inlineImageParts().size",
                 "calendarPartCount" to "draft.calendarParts().size",
                 "receiptHeader" to "draft.dispositionNotificationTo",

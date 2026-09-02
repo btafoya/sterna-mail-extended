@@ -9,9 +9,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import app.sterna.R
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
+import app.sterna.core.data.text.RichBody
+import app.sterna.core.data.text.Span
+import app.sterna.core.data.text.richBodyFrom
 import app.sterna.core.data.text.htmlEscape
 import app.sterna.core.data.text.htmlEscapeMultiline
 import app.sterna.core.data.text.htmlToText
+import app.sterna.core.data.text.toHtml
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
@@ -621,12 +625,19 @@ internal fun draftFieldsOf(o: Email, cached: Email?): DraftFields {
     val to = draftRecipientField(o.to, cached?.to)
     val cc = draftRecipientField(o.cc, cached?.cc)
     val bcc = draftRecipientField(o.bcc, cached?.bcc)
+    // ⛔ The genuine `text/html` part FIRST, and NOT through [bodySource] (#131): that one takes
+    // `textBody[0]` whenever it is non-blank, and a draft this app saved has BOTH parts — the text
+    // one holding the same letters with the styling stripped. Read that way, a styled draft
+    // reopened from the server comes back plain, every time, in silence. An HTML that is not ours
+    // does not parse and [originalPlainText] answers exactly as it always has.
+    val rich = richBodyFrom(o.htmlContent()) { originalPlainText(o) }
     return DraftFields(
         to = to,
         cc = cc,
         bcc = bcc,
         subject = o.subject.orEmpty(),
-        body = originalPlainText(o),
+        body = rich.text,
+        bodyRanges = rich.ranges,
         expand = cc.isNotBlank() || bcc.isNotBlank(),
     )
 }
@@ -1253,10 +1264,15 @@ private fun lastBlockIndex(body: String, block: String): Int {
 }
 
 /**
- * The outgoing text/html alternative for [body]. When the identity has an imported HTML signature
- * ([signatureHtml]) AND the plain [signature]'s block is still in the body untouched, that block —
- * and only it — is replaced by the HTML version, so the recipient gets the formatted signature.
- * Once the user edits the block, their text wins in both alternatives (WYSIWYG beats fidelity).
+ * The outgoing text/html alternative for [body]: its text escaped, its styling (#131) as `<b> <i>
+ * <u> <s>`, and — when the identity has an imported HTML signature ([signatureHtml]) AND the plain
+ * [signature]'s block is still in the body untouched — that block, and only it, replaced by the
+ * HTML version, so the recipient gets the formatted signature. Once the user edits the block, their
+ * text wins in both alternatives (WYSIWYG beats fidelity). A style range laid over the block, even
+ * one character of it, IS such an edit: the user styled what she saw, so what she saw leaves,
+ * escaped and styled, and the stored HTML stays out. A range that merely ends where the block
+ * starts (or starts where it ends) touches nothing of it and leaves it intact. Without any range
+ * the output is byte for byte what the plain-text composer always wrote.
  *
  * The delimiter line is emitted only when the block found in the body actually carries one — which,
  * for a body the composer just built, is exactly what [delimiter] says. Mirroring the body rather
@@ -1264,18 +1280,25 @@ private fun lastBlockIndex(body: String, block: String): Int {
  * a body written before the setting was flipped still holds the other shape (#90).
  */
 internal fun htmlBodyWithSignature(
-    body: String,
+    body: RichBody,
     signature: String,
     signatureHtml: String,
     delimiter: Boolean,
 ): String {
-    if (signatureHtml.isBlank()) return htmlEscapeMultiline(body)
-    val found = signatureBlockAt(body, signature, delimiter) ?: return htmlEscapeMultiline(body)
+    if (signatureHtml.isBlank()) return toHtml(body)
+    val found = signatureBlockAt(body.text, signature, delimiter) ?: return toHtml(body)
+    if (!signatureBlockIsIntact(body, found.start, found.end)) return toHtml(body)
     val head = if (found.withDelimiter) "<br><br>$SIGNATURE_DELIMITER<br>" else "<br><br>"
-    return htmlEscapeMultiline(body.substring(0, found.start)) +
-        head + signatureHtml.trim() +
-        htmlEscapeMultiline(body.substring(found.end))
+    return toHtml(body, verbatim = Span(found.start, found.end) to head + signatureHtml.trim())
 }
+
+/**
+ * Whether no style range of any family reaches into `[start, end)` of [body] — half-open on both
+ * sides, so a range ending exactly at [start] or starting exactly at [end] does not count. Pure, so
+ * the decision is executed by `ComposeSignatureTest` and not re-derived there.
+ */
+internal fun signatureBlockIsIntact(body: RichBody, start: Int, end: Int): Boolean =
+    body.ranges.values.none { spans -> spans.any { it.start < end && it.end > start } }
 
 // --- Reply / reply-all / forward header derivation (pure, so it works from a cached list row) ---
 // These need only the original's headers (sender, recipients, subject) — never its body — so a

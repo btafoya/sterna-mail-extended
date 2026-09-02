@@ -79,6 +79,9 @@ class ScheduledCancelScopeWiringTest {
                 "subject" to "d.subject",
                 // The one the review's mutation swapped for `d.subject`: the whole message.
                 "body" to "d.body",
+                // …and its styling (#131), out of the SAME mapping and never re-derived here:
+                // dropped, a cancelled scheduled send is filed with the user's bold removed.
+                "html" to "d.html",
                 "cc" to "d.cc",
                 "bcc" to "d.bcc",
                 "inReplyTo" to "d.inReplyTo",

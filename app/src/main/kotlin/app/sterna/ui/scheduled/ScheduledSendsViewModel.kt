@@ -79,6 +79,11 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             to = d.to,
                             subject = d.subject,
                             body = d.body,
+                            // The styling the message carried, as the draft's html part (#131) —
+                            // decided in `draftFromScheduledSend`, which reads the row's html and
+                            // keeps only what a reopen can read back. Dropped here, a cancelled
+                            // scheduled send is filed with its bold removed.
+                            html = d.html,
                             cc = d.cc,
                             bcc = d.bcc,
                             inReplyTo = d.inReplyTo,

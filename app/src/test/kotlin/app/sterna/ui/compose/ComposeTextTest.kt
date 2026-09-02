@@ -1,6 +1,8 @@
 package app.sterna.ui.compose
 
 import app.sterna.core.data.account.StoredIdentity
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Span
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
@@ -191,7 +193,9 @@ class ComposeTextTest {
 
     @Test fun draftFieldsFlattenHtmlOnlyBodyToText() {
         // A draft saved by another client may be HTML-only; the plain-text editor gets it
-        // flattened with paragraphs preserved, not raw markup on one line.
+        // flattened with paragraphs preserved, not raw markup on one line. ⭐ Still true after
+        // #131: `<p>` is not a tag this app's parser reads, so the html is refused and the
+        // flattening is what the editor gets — the styled case is two tests below.
         val draft = Email(
             id = "d2",
             subject = "Html draft",
@@ -202,6 +206,70 @@ class ComposeTextTest {
         val fields = draftFieldsOf(draft, cached = null)
         assertEquals("one\ntwo & three", fields.body)
         assertFalse("no cc/bcc row", fields.expand)
+    }
+
+    @Test fun draftFieldsReadTheStylingOfATwoPartDraftOfOurs() {
+        // #131, and the trap it walks past: a draft this app saved has BOTH parts, and
+        // `bodySource` takes `textBody[0]` whenever it is non-blank — so read that way the styling
+        // is dropped every single time, in silence, with the letters all still on screen.
+        val draft = Email(
+            id = "d5",
+            subject = "Styled draft",
+            to = listOf(EmailAddress(email = "a@example.com")),
+            textBody = listOf(EmailBodyPart(partId = "t", type = "text/plain")),
+            htmlBody = listOf(EmailBodyPart(partId = "h", type = "text/html")),
+            bodyValues = mapOf(
+                "t" to EmailBodyValue("hello world"),
+                "h" to EmailBodyValue("<b>hello</b> world"),
+            ),
+        )
+        val fields = draftFieldsOf(draft, cached = null)
+        assertEquals("hello world", fields.body)
+        assertEquals(
+            "the html part is read FIRST, so the bold comes back",
+            mapOf(Inline.BOLD to listOf(Span(0, 5))),
+            fields.bodyRanges,
+        )
+    }
+
+    @Test fun draftFieldsTakeTheBodyAndTheSpansOutOfTheSamePart() {
+        // ⛔ The witness the test above cannot be: there both parts say the same words, so
+        // `body = originalPlainText(o)` — the text part — passes it. Here they DIFFER, which two
+        // parts of one draft are free to do (another client rewrote one, a save was interrupted).
+        // The spans are measured on the HTML; laid over the text part they would cover other
+        // letters, and the re-save would then destroy the original in favour of that.
+        val draft = Email(
+            id = "d7",
+            subject = "Two parts that disagree",
+            to = listOf(EmailAddress(email = "a@example.com")),
+            textBody = listOf(EmailBodyPart(partId = "t", type = "text/plain")),
+            htmlBody = listOf(EmailBodyPart(partId = "h", type = "text/html")),
+            bodyValues = mapOf(
+                "t" to EmailBodyValue("ok"),
+                "h" to EmailBodyValue("<b>hello</b> world"),
+            ),
+        )
+        val fields = draftFieldsOf(draft, cached = null)
+        assertEquals(
+            "the html is what was READ, so its text is what the composer shows — the body and the " +
+                "spans must come out of ONE answer",
+            "hello world",
+            fields.body,
+        )
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 5))), fields.bodyRanges)
+    }
+
+    @Test fun draftFieldsOfAPlainDraftCarryNoStyling() {
+        val draft = Email(
+            id = "d6",
+            subject = "Plain draft",
+            to = listOf(EmailAddress(email = "a@example.com")),
+            textBody = listOf(EmailBodyPart(partId = "t", type = "text/plain")),
+            bodyValues = mapOf("t" to EmailBodyValue("hello world")),
+        )
+        val fields = draftFieldsOf(draft, cached = null)
+        assertEquals("hello world", fields.body)
+        assertEquals(emptyMap<Inline, List<Span>>(), fields.bodyRanges)
     }
 
     @Test fun draftFieldsTolerateEmptyDraft() {

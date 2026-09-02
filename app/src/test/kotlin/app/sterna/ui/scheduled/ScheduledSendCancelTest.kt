@@ -38,6 +38,7 @@ class ScheduledSendCancelTest {
         fromEmail: String? = null,
         requestReceipt: Boolean = false,
         htmlBody: String? = null,
+        textBody: String = "see you there",
     ) = ScheduledSendEntity(
         id = id,
         accountId = accountId,
@@ -45,7 +46,7 @@ class ScheduledSendCancelTest {
         cc = cc,
         bcc = bcc,
         subject = "Six o'clock",
-        textBody = "see you there",
+        textBody = textBody,
         htmlBody = htmlBody,
         fromName = fromName,
         fromEmail = fromEmail,
@@ -239,6 +240,59 @@ class ScheduledSendCancelTest {
         assertTrue("a message that asked for a receipt must still ask for one", draft.requestReceipt)
     }
 
+    // --- 8 bis. the styling a cancelled message was written with (#131) -------------------------
+
+    @Test fun `a styled message cancelled from the schedule is filed with its styling`() {
+        // ⛔ The row is the only copy: the deposit is what the user gets back. Filed on the text
+        // alone — which is what happened until #131 — the bold she applied is gone for good, with
+        // nothing on screen having said so.
+        val draft = draftFromScheduledSend(row(htmlBody = "<b>see</b> you there"))
+
+        assertEquals("see you there", draft.body)
+        assertEquals(
+            "…and it is stored in the form a REOPEN can read back, not the row's html copied over",
+            "<b>see</b> you there",
+            draft.html,
+        )
+    }
+
+    @Test fun `the deposit takes its text and its styling out of the same part`() {
+        // ⛔ The witness the test above cannot be: there the row's two columns say the same words,
+        // so `body = row.textBody` passes it. Here they DIFFER — which a row is free to do — and
+        // the deposit must file ONE message: the html is what was read, so its text is the text
+        // filed, and the styling filed is measured on those very letters. Filed the other way, the
+        // draft that comes back is the text column with somebody else's bold laid over it.
+        val draft = draftFromScheduledSend(
+            row(htmlBody = "<b>see</b> you there", textBody = "ok"),
+        )
+
+        assertEquals("see you there", draft.body)
+        assertEquals("<b>see</b> you there", draft.html)
+    }
+
+    @Test fun `a message with no html is filed exactly as it always was`() {
+        val draft = draftFromScheduledSend(row(htmlBody = null))
+
+        assertEquals("see you there", draft.body)
+        assertNull("a plain deposit stores no html part at all", draft.html)
+    }
+
+    @Test fun `a message whose html this editor cannot read is filed as text`() {
+        // A forward (its carried original appended), or an imported HTML signature: the deposit
+        // flattens it, exactly as "Save draft" does — and says so by storing no html.
+        val draft = draftFromScheduledSend(
+            row(htmlBody = "see you there<br><br><div>-------- Forwarded --------</div>"),
+        )
+
+        assertEquals("see you there", draft.body)
+        assertNull(
+            "⛔ storing the row's html as it stands would file a draft that reopens as " +
+                "unparseable markup, i.e. as text, one save later — and claim a fidelity nothing " +
+                "downstream can honour",
+            draft.html,
+        )
+    }
+
     // --- 5 bis. no credentials is NOT proof the account is gone --------------------------------
 
     @Test fun `no credentials while the account is still there destroys nothing`() = runTest {
@@ -353,6 +407,9 @@ class ScheduledSendCancelTest {
                 bcc = listOf("eve@example.org"),
                 subject = "Six o'clock",
                 body = "see you there",
+                // The row's html is a `<p>`, which this editor cannot read back: the draft is
+                // filed on its text and stores no html at all (#131).
+                html = null,
                 inReplyTo = listOf("<a@x>"),
                 references = listOf("<a@x>", "<b@x>"),
                 fromName = "Alex",

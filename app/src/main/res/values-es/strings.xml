@@ -22,6 +22,11 @@
     <string name="compose_remove">Quitar</string>
     <string name="compose_attachment_fallback">adjunto</string>
     <string name="compose_body_placeholder">Redacta el mensaje</string>
+    <string name="compose_format_bold">Negrita</string>
+    <string name="compose_format_italic">Cursiva</string>
+    <string name="compose_format_underline">Subrayado</string>
+    <string name="compose_format_strikethrough">Tachado</string>
+    <string name="compose_format_clear">Borrar formato</string>
     <string name="compose_quote_attribution">El %1$s, %2$s escribió:</string>
     <string name="compose_quote_someone">alguien</string>
     <string name="compose_quote_not_added">Mensaje citado no añadido: ya habías empezado a escribir.</string>

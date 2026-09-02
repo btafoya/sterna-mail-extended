@@ -1,5 +1,8 @@
 package app.sterna.ui.compose
 
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.RichBody
+import app.sterna.core.data.text.Span
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -169,7 +172,7 @@ class ComposeSignatureTest {
         // (Stalwart). The explicit <br> survives that, so the html alternative is never skipped.
         assertEquals(
             "line one<br>line two",
-            htmlBodyWithSignature("line one\nline two", "", "", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain("line one\nline two"), "", "", delimiter = true),
         )
     }
 
@@ -177,7 +180,7 @@ class ComposeSignatureTest {
         val body = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
         assertEquals(
             "Hi Bob,<br><br>-- <br><b>Alex Rivera</b><br>Acme",
-            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(body), sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
         )
     }
 
@@ -185,12 +188,12 @@ class ComposeSignatureTest {
         val edited = "Hi Bob,\n\n-- \nAlex Rivera\nAcme — mobile only"
         assertEquals(
             "Hi Bob,<br><br>-- <br>Alex Rivera<br>Acme — mobile only",
-            htmlBodyWithSignature(edited, sig, "<b>Alex Rivera</b>", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(edited), sig, "<b>Alex Rivera</b>", delimiter = true),
         )
     }
 
     @Test fun aDeletedSignatureIsNotResurrectedInHtml() {
-        assertEquals("Hi Bob,", htmlBodyWithSignature("Hi Bob,", sig, "<b>Alex</b>", delimiter = true))
+        assertEquals("Hi Bob,", htmlBodyWithSignature(RichBody.plain("Hi Bob,"), sig, "<b>Alex</b>", delimiter = true))
     }
 
     @Test fun theQuoteBelowTheSignatureSurvivesTheSubstitution() {
@@ -198,7 +201,7 @@ class ComposeSignatureTest {
         val body = bodyWithSignature("\n\nOn …, Alice wrote:\n> hi", sig, delimiter = true)
         assertEquals(
             "<br><br>-- <br><b>Alex</b><br><br>On …, Alice wrote:<br>&gt; hi",
-            htmlBodyWithSignature(body, sig, "<b>Alex</b>", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(body), sig, "<b>Alex</b>", delimiter = true),
         )
     }
 
@@ -208,7 +211,7 @@ class ComposeSignatureTest {
         val edited = "Hi" + bodyWithSignature("", sig, delimiter = true) + " (mobile)"
         assertEquals(
             "Hi<br><br>-- <br>Alex Rivera<br>Acme (mobile)",
-            htmlBodyWithSignature(edited, sig, "<b>Alex</b>", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(edited), sig, "<b>Alex</b>", delimiter = true),
         )
     }
 
@@ -216,7 +219,7 @@ class ComposeSignatureTest {
         val body = "1 < 2 & 3 > 2" + bodyWithSignature("", sig, delimiter = true)
         assertEquals(
             "1 &lt; 2 &amp; 3 &gt; 2<br><br>-- <br><b>Alex</b>",
-            htmlBodyWithSignature(body, sig, "<b>Alex</b>", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(body), sig, "<b>Alex</b>", delimiter = true),
         )
     }
 
@@ -224,7 +227,62 @@ class ComposeSignatureTest {
         val body = "Hi" + bodyWithSignature("", "Alex & co", delimiter = true)
         assertEquals(
             "Hi<br><br>-- <br>Alex &amp; co",
-            htmlBodyWithSignature(body, "Alex & co", "", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(body), "Alex & co", "", delimiter = true),
+        )
+    }
+
+    // --- Send time: the styling (#131) meets the HTML signature ---------------------------------
+    // The text alternative is the body's text; the html alternative carries the styling. The
+    // imported HTML signature is still substituted for its block, but a range the user laid over
+    // that block — even one character of it — IS an edit: their text wins, escaped and styled.
+
+    @Test fun theStylingReachesTheHtmlAlternativeAndTheTextAroundItIsStillEscaped() {
+        val body = RichBody("1 < 2 & bold", mapOf(Inline.BOLD to listOf(Span(8, 12))))
+        assertEquals(
+            "1 &lt; 2 &amp; <b>bold</b>",
+            htmlBodyWithSignature(body, sig, "", delimiter = true),
+        )
+    }
+
+    @Test fun boldAboveAnIntactBlockKeepsTheHtmlSignatureSubstitution() {
+        val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
+        val body = RichBody(text, mapOf(Inline.BOLD to listOf(Span(3, 6))))
+        assertEquals(
+            "Hi <b>Bob</b>,<br><br>-- <br><b>Alex Rivera</b><br>Acme",
+            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
+        )
+    }
+
+    @Test fun aRangeReachingOneCharacterIntoTheBlockIsAnEdit_noSubstitution() {
+        // "Hi Bob," is 7 characters; the block starts at 7 with its blank line. A range ending at
+        // 8 covers the comma AND the first character of the block: the block is no longer intact,
+        // so the user's text leaves escaped and styled, and the stored HTML stays out.
+        val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
+        val body = RichBody(text, mapOf(Inline.BOLD to listOf(Span(6, 8))))
+        assertEquals(
+            "Hi Bob<b>,<br></b><br>-- <br>Alex Rivera<br>Acme",
+            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
+        )
+    }
+
+    @Test fun aRangeInsideTheBlockIsAnEditToo_whateverTheFamily() {
+        // "Hi Bob,\n\n-- \n" is 13 characters: "Alex" sits at [13, 17). Italic, not bold — every
+        // family counts.
+        val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
+        val body = RichBody(text, mapOf(Inline.ITALIC to listOf(Span(13, 17))))
+        assertEquals(
+            "Hi Bob,<br><br>-- <br><i>Alex</i> Rivera<br>Acme",
+            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
+        )
+    }
+
+    @Test fun aRangeEndingExactlyWhereTheBlockStartsLeavesItIntact() {
+        // Half-open spans: [0, 7) touches the block without covering any of it.
+        val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
+        val body = RichBody(text, mapOf(Inline.BOLD to listOf(Span(0, 7))))
+        assertEquals(
+            "<b>Hi Bob,</b><br><br>-- <br><b>Alex Rivera</b><br>Acme",
+            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
         )
     }
 
@@ -236,7 +294,7 @@ class ComposeSignatureTest {
         val saved = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
         assertEquals(
             "Hi Bob,<br><br>-- <br>Alex Rivera<br>Acme",
-            htmlBodyWithSignature(saved, sig, "", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(saved), sig, "", delimiter = true),
         )
         assertEquals(1, Regex("-- ").findAll(saved).count())
     }
@@ -314,7 +372,7 @@ class ComposeSignatureTest {
         val body = "Hi Bob," + bodyWithSignature("", sig, delimiter = false)
         assertEquals(
             "Hi Bob,<br><br><b>Alex Rivera</b><br>Acme",
-            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = false),
+            htmlBodyWithSignature(RichBody.plain(body), sig, "<b>Alex Rivera</b><br>Acme", delimiter = false),
         )
     }
 
@@ -322,7 +380,7 @@ class ComposeSignatureTest {
         val body = bodyWithSignature("\n\nOn …, Alice wrote:\n> hi", sig, delimiter = false)
         assertEquals(
             "<br><br><b>Alex</b><br><br>On …, Alice wrote:<br>&gt; hi",
-            htmlBodyWithSignature(body, sig, "<b>Alex</b>", delimiter = false),
+            htmlBodyWithSignature(RichBody.plain(body), sig, "<b>Alex</b>", delimiter = false),
         )
     }
 
@@ -343,7 +401,7 @@ class ComposeSignatureTest {
         // message have to say the same thing, and this body still carries its "-- " line.
         assertEquals(
             "Hi Bob,<br><br>-- <br><b>Alex</b>",
-            htmlBodyWithSignature(written, sig, "<b>Alex</b>", delimiter = false),
+            htmlBodyWithSignature(RichBody.plain(written), sig, "<b>Alex</b>", delimiter = false),
         )
     }
 
@@ -355,7 +413,7 @@ class ComposeSignatureTest {
         )
         assertEquals(
             "Hi Bob,<br><br><b>Alex</b>",
-            htmlBodyWithSignature(written, sig, "<b>Alex</b>", delimiter = true),
+            htmlBodyWithSignature(RichBody.plain(written), sig, "<b>Alex</b>", delimiter = true),
         )
     }
 

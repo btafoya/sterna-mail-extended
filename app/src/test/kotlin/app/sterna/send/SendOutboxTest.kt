@@ -1,6 +1,8 @@
 package app.sterna.send
 
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Span
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,6 +94,62 @@ class SendOutboxTest {
         }
     }
 
+    // --- the styling a queued message was written with (#131) -----------------------------------
+
+    private fun queued(htmlBody: String?, body: String = "see you there") =
+        MailRepository.OutboxDraft(
+            to = "bob@example.org", cc = "", bcc = "",
+            subject = "Six o'clock", body = body, htmlBody = htmlBody,
+            fromAccountId = "accA", fromEmail = "alex@masto.top",
+            attachments = emptyList(), inReplyTo = emptyList(), references = emptyList(),
+            pgpMode = null, draftEmailId = null, draftUidValidity = null,
+            outboxId = 42, requestReceipt = false,
+        )
+
+    @Test fun `a queued message this app styled reopens with its styling`() {
+        // ⛔ Re-editing a queued message enqueues a NEW row from the composer's state: styling
+        // dropped in this hand-over is not merely absent from the screen, it is REMOVED from the
+        // message that finally goes out.
+        val reopened = composeDraftOf(queued(htmlBody = "<b>see</b> you there"))
+
+        assertEquals("see you there", reopened.body)
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 3))), reopened.bodyRanges)
+    }
+
+    @Test fun `a queued message hands over the body and the spans of ONE part`() {
+        // ⛔ The witness the test above cannot be: there the row's two columns say the same words,
+        // so `body = draft.body` — the text column — passes it. Here they DIFFER, which a row is
+        // free to do (an older build wrote the text, a save was interrupted). The spans are
+        // measured on the html; laid over the text column they cover other letters, and re-editing
+        // enqueues a new row from exactly that.
+        val reopened = composeDraftOf(queued(htmlBody = "<b>see</b> you there", body = "ok"))
+
+        assertEquals(
+            "the html is what was READ, so its text is what the composer opens on",
+            "see you there",
+            reopened.body,
+        )
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 3))), reopened.bodyRanges)
+    }
+
+    @Test fun `a queued message with no html reopens plain, exactly as before`() {
+        val reopened = composeDraftOf(queued(htmlBody = null))
+
+        assertEquals("see you there", reopened.body)
+        assertEquals(emptyMap<Inline, List<Span>>(), reopened.bodyRanges)
+    }
+
+    @Test fun `a queued forward reopens on its text, not on markup`() {
+        // The html of a forward carries the original appended below, so it does not read back:
+        // the row's plain text is what comes back — which is what happened before #131.
+        val reopened = composeDraftOf(
+            queued(htmlBody = "see you there<br><br><div>-------- Forwarded --------</div>"),
+        )
+
+        assertEquals("see you there", reopened.body)
+        assertEquals(emptyMap<Inline, List<Span>>(), reopened.bodyRanges)
+    }
+
     /**
      * ⭐ A message reopened from a PERSISTED outbox row reopens as lossy: the row has no column
      * for the verdict, so the verdict did not survive — and an unknown must forbid the destroy,
@@ -105,6 +163,7 @@ class SendOutboxTest {
                 subject = "Six o'clock", body = "see you there",
                 fromAccountId = "accA", fromEmail = "alex@masto.top",
                 attachments = emptyList(), inReplyTo = emptyList(), references = emptyList(),
+                htmlBody = null,
                 pgpMode = null, draftEmailId = "d1", draftUidValidity = null,
                 outboxId = 42, requestReceipt = false,
             ),

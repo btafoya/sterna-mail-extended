@@ -22,6 +22,11 @@
     <string name="compose_remove">Rimuovi</string>
     <string name="compose_attachment_fallback">allegato</string>
     <string name="compose_body_placeholder">Scrivi l\'email</string>
+    <string name="compose_format_bold">Grassetto</string>
+    <string name="compose_format_italic">Corsivo</string>
+    <string name="compose_format_underline">Sottolineato</string>
+    <string name="compose_format_strikethrough">Barrato</string>
+    <string name="compose_format_clear">Cancella formattazione</string>
     <string name="compose_quote_attribution">Il %1$s, %2$s ha scritto:</string>
     <string name="compose_quote_someone">qualcuno</string>
     <string name="compose_quote_not_added">Messaggio citato non aggiunto: avevi già iniziato a scrivere.</string>

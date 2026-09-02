@@ -1,5 +1,7 @@
 package app.sterna.ui.compose
 
+import app.sterna.core.data.text.RichBody
+
 /**
  * The unsaved-changes verdict, pulled out of the composable so it can be unit-tested (#70/#94).
  *
@@ -11,8 +13,9 @@ package app.sterna.ui.compose
  *    string compare saw a change where the set of addresses was identical, again firing the dialog
  *    on an untouched reply (#94).
  *
- * So recipients are compared as order-independent sets, subject/body as text, and attachments via an
- * explicit "the user touched them" flag rather than their mere presence.
+ * So recipients are compared as order-independent sets, the subject as text, the body as text AND
+ * styling (#131: a word made bold with nothing typed is an edit), and attachments via an explicit
+ * "the user touched them" flag rather than their mere presence.
  *
  * The read-receipt box is a field like the others, and it is compared against the value the message
  * OPENED with for exactly the same reason: on a message reopened from the outbox the box opens
@@ -35,8 +38,8 @@ internal object ComposeDirty {
         initialBcc: String,
         subject: String,
         initialSubject: String,
-        body: String,
-        initialBody: String,
+        body: RichBody,
+        initialBody: RichBody,
         requestReceipt: Boolean,
         initialRequestReceipt: Boolean,
         attachmentsTouched: Boolean,

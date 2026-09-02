@@ -179,7 +179,38 @@ internal suspend fun localDraftUidValidity(
  * carries `bodyIsLossy` so every destroy guard downstream keeps refusing.
  */
 internal fun localDraftBodyToWrite(body: String, existingBody: String?, composerBodyWasLost: Boolean): String =
-    if (composerBodyWasLost && body.isBlank() && !existingBody.isNullOrBlank()) existingBody else body
+    if (localDraftKeepsTheStoredBody(body, existingBody, composerBodyWasLost)) existingBody.orEmpty() else body
+
+/**
+ * The three terms above, as ONE decision — so the HTML part cannot answer differently from the
+ * text it belongs to (see [localDraftHtmlToWrite]). `orEmpty()` in [localDraftBodyToWrite] is
+ * exact and not a default: this predicate is only true when [existingBody] is non-blank.
+ */
+internal fun localDraftKeepsTheStoredBody(
+    body: String,
+    existingBody: String?,
+    composerBodyWasLost: Boolean,
+): Boolean = composerBodyWasLost && body.isBlank() && !existingBody.isNullOrBlank()
+
+/**
+ * The HTML part a save writes on the row (#131) — ⛔ **it FOLLOWS the text, always.**
+ *
+ * Where [localDraftBodyToWrite] keeps the stored text (the composer lost its body and handed over
+ * a blank one), this keeps the stored HTML: the two columns describe the SAME message, and a row
+ * whose text is last week's while its HTML is the empty body of a composer that lost everything is
+ * a draft that reopens blank — the guard above defeated by the part that is read first
+ * (`richBodyFrom` takes the HTML before the text). Whenever the text written is the one handed
+ * over, so is the HTML, [html] `null` included: a body whose styling was all removed must lose its
+ * `text/html` part, and keeping the old one would put the bold back at the next reopen.
+ */
+internal fun localDraftHtmlToWrite(
+    html: String?,
+    existingHtml: String?,
+    body: String,
+    existingBody: String?,
+    composerBodyWasLost: Boolean,
+): String? =
+    if (localDraftKeepsTheStoredBody(body, existingBody, composerBodyWasLost)) existingHtml else html
 
 /**
  * The row to write, built from what the composer handed over plus [existing] (the row a re-save
@@ -207,6 +238,12 @@ internal fun localDraftRow(
     bcc: List<String>,
     subject: String,
     body: String,
+    /**
+     * The `text/html` part to store beside [body] (#131), or null for a draft with no styling —
+     * which is every draft this app wrote before #131 and every plain one it writes now
+     * (`draftHtmlToSave`). ⛔ A default of `null` here is the honest one: a caller with no HTML to
+     * store is saying so, and the column it lands in is nullable for exactly that reason.
+     */
     html: String? = null,
     fromName: String? = null,
     fromEmail: String? = null,
@@ -234,7 +271,11 @@ internal fun localDraftRow(
     bcc = joinAddresses(bcc),
     subject = subject,
     textBody = localDraftBodyToWrite(body, existing?.textBody, composerBodyWasLost),
-    htmlBody = html,
+    // ⛔ The HTML FOLLOWS the text through the lost-body guard, never past it: see
+    // [localDraftHtmlToWrite]. Written as a bare `html` here, a composer that lost its body kept
+    // last week's text beside the empty HTML of this save, and the reopen — which reads the HTML
+    // first — showed the draft blank with the guard green.
+    htmlBody = localDraftHtmlToWrite(html, existing?.htmlBody, body, existing?.textBody, composerBodyWasLost),
     fromName = fromName,
     fromEmail = fromEmail,
     inReplyTo = inReplyTo.joinToString(" ").ifBlank { null },

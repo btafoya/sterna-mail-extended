@@ -22,6 +22,11 @@
     <string name="compose_remove">Verwijderen</string>
     <string name="compose_attachment_fallback">bijlage</string>
     <string name="compose_body_placeholder">E-mail opstellen</string>
+    <string name="compose_format_bold">Vet</string>
+    <string name="compose_format_italic">Cursief</string>
+    <string name="compose_format_underline">Onderstreept</string>
+    <string name="compose_format_strikethrough">Doorgehaald</string>
+    <string name="compose_format_clear">Opmaak wissen</string>
     <string name="compose_quote_attribution">Op %1$s schreef %2$s:</string>
     <string name="compose_quote_someone">iemand</string>
     <string name="compose_quote_not_added">Geciteerd bericht niet toegevoegd: je was al begonnen met schrijven.</string>

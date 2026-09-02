@@ -3,6 +3,10 @@ package app.sterna.core.data.mail
 import app.sterna.core.data.db.LOCAL_DRAFT_ID_PREFIX
 import app.sterna.core.data.db.LocalDraftEntity
 import app.sterna.core.data.db.LocalDraftState
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.RichBody
+import app.sterna.core.data.text.Span
+import app.sterna.core.data.text.richBodyFrom
 import app.sterna.core.jmap.model.EmailBodyPart
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -68,6 +72,13 @@ data class LocalDraftPrefill(
     val bcc: String,
     val subject: String,
     val body: String,
+    /**
+     * The inline styling [body] carries (#131), read back out of the row's `htmlBody`, and EMPTY
+     * for a draft that has none — which is every draft written before #131 and every plain one
+     * since. ⛔ Beside [body] and not inside it: the composer holds the text in a `TextFieldValue`
+     * and lays the spans over it, so both halves travel as they are stored.
+     */
+    val bodyRanges: Map<Inline, List<Span>> = emptyMap(),
     /** Reveal the Cc/Bcc row, so a draft that carried them does not hide them on reopen. */
     val expand: Boolean,
     /** The address the draft was written as — the identity to pre-select (#31). */
@@ -115,22 +126,34 @@ data class LocalDraftPrefill(
  * server has ever heard of, so `fetchEmail`/`cachedEmail` can only fail, and offline they fail
  * slowly. The row is the whole truth about this draft.
  *
- * ⚠ Two columns are deliberately NOT projected:
- *  - `htmlBody`, which is structurally always null (`saveDraft` has no `html` parameter);
- *  - `requestReceipt`, stated debt: the composer owns that box in a `rememberSaveable` and the
- *    reopen of a SERVER draft does not re-arm it either (D1). Reopening therefore clears a request
- *    the draft carries — the same debt, now reachable from one more screen.
+ * ⭐ `htmlBody` IS projected since #131, and it is read FIRST: a draft this app styled stores
+ * its bold as an HTML part, the text column holds the same letters stripped of it, so a reopen
+ * that read the text would show the letters and silently drop every span. `richBodyFrom` parses
+ * the HTML when it is ours and falls back to the stored text otherwise — an HTML written
+ * elsewhere, or one carrying a signature imported as is, reopens as text exactly as it did before.
+ * (The KDoc here used to say the column was structurally always null. It was, until `saveDraft`
+ * gained its `html` parameter.)
+ *
+ * ⚠ One column is deliberately NOT projected: `requestReceipt`, stated debt — the composer owns
+ * that box in a `rememberSaveable` and the reopen of a SERVER draft does not re-arm it either
+ * (D1). Reopening therefore clears a request the draft carries — the same debt, now reachable
+ * from one more screen.
  */
 fun localDraftPrefill(row: LocalDraftEntity): LocalDraftPrefill {
     val cc = localDraftAddresses(row.cc)
     val bcc = localDraftAddresses(row.bcc)
+    // ⛔ The HTML first, the stored text as the fallback — and BOTH halves out of the one answer:
+    // taking the text from `row.textBody` here and the spans from the parse would let a row whose
+    // two columns disagree open with spans laid over the wrong letters.
+    val rich: RichBody = richBodyFrom(row.htmlBody) { row.textBody }
     return LocalDraftPrefill(
         editingDraftId = row.id,
         to = localDraftAddresses(row.toAddresses).joinToString(", "),
         cc = cc.joinToString(", "),
         bcc = bcc.joinToString(", "),
         subject = row.subject,
-        body = row.textBody,
+        body = rich.text,
+        bodyRanges = rich.ranges,
         expand = cc.isNotEmpty() || bcc.isNotEmpty(),
         fromEmail = row.fromEmail,
         inReplyTo = localDraftMessageIds(row.inReplyTo),

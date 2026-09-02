@@ -22,6 +22,11 @@
     <string name="compose_remove">Usuń</string>
     <string name="compose_attachment_fallback">załącznik</string>
     <string name="compose_body_placeholder">Napisz wiadomość</string>
+    <string name="compose_format_bold">Pogrubienie</string>
+    <string name="compose_format_italic">Kursywa</string>
+    <string name="compose_format_underline">Podkreślenie</string>
+    <string name="compose_format_strikethrough">Przekreślenie</string>
+    <string name="compose_format_clear">Wyczyść formatowanie</string>
     <string name="compose_quote_attribution">Dnia %1$s, %2$s napisał(a):</string>
     <string name="compose_quote_someone">ktoś</string>
     <string name="compose_quote_not_added">Nie dodano cytowanej wiadomości: pisanie było już rozpoczęte.</string>

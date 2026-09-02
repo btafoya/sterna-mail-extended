@@ -32,8 +32,7 @@ The categories further down list the full feature set; this is the order of work
 
 **Tier 2, modern compose & send** *(done)*
 - ✅ Compose overhaul: cross-account From picker, frameless full-width line fields,
-  icon actions, auto-focused To, expandable Cc/Bcc (rich-text editor dropped,
-  low value on mobile)
+  icon actions, auto-focused To, expandable Cc/Bcc
 - ✅ Recipient autocomplete: recent/cached contacts + opt-in device contacts; recipients show as chips (removable), with email-format validation, invalid addresses are flagged and block sending
 - ✅ Undo send (hold-back window); ✅ full Outbox + retry (persistent queue, survives app death, auto-retries on network return)
 - ✅ Schedule send (quick presets; persisted + fired by WorkManager, survives app close)
@@ -125,7 +124,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Attachments: pick & send, view/download/open incoming (JMAP blobs / IMAP multipart MIME + BODY-section fetch)
 - ✅ Attached messages (message/rfc822): a tap opens a sheet with the attached message's From/To/Cc/Date/Subject, its text body and the names of its own attachments (JMAP and IMAP, nothing written to disk)
 - ✅ Inline images (`cid:`) rendered in the body (downloaded as data URIs)
-- 💡 Rich-text editor plus plain-text mode
+- ✅ Rich-text editor: bold, italic, underline, strikethrough, clear formatting, in a bar above the keyboard; drafts keep it
 - ✅ Undo send (hold-back window), held in an app-scoped outbox; ✅ full Outbox, a
   Room-backed send queue that survives app death and auto-retries with exponential
   backoff when the network returns; every send path (compose, reply/forward, RSVP,

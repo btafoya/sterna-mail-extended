@@ -41,6 +41,11 @@ import app.sterna.core.data.mail.unlessDraftBelongsElsewhere
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.pgp.PgpResult
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.RichBody
+import app.sterna.core.data.text.Span
+import app.sterna.core.data.text.draftHtmlIsLossy
+import app.sterna.core.data.text.draftHtmlToSave
 import app.sterna.core.data.text.safeFileName
 import app.sterna.core.imap.OutgoingAttachment
 import app.sterna.core.imap.OutgoingMessage
@@ -94,6 +99,16 @@ data class DraftFields(
     val bcc: String = "",
     val subject: String,
     val body: String,
+    /**
+     * The inline styling [body] carries (#131) — empty for every opening that has none, which is
+     * a reply, a forward, a mailto: link and any draft written before #131 or written plain.
+     *
+     * Beside [body] and not inside it, exactly as the composer holds it: the screen keeps the text
+     * in a `TextFieldValue` and lays the spans over it, so the ~70 sites reading `body.text` see
+     * what they always saw. ⛔ A route that reopens a styled body and drops this is not showing
+     * "no styling yet": it is showing the styling REMOVED, and the next save writes that removal.
+     */
+    val bodyRanges: Map<Inline, List<Span>> = emptyMap(),
     /** Reveal the Cc/Bcc row (used when restoring a draft that had them). */
     val expand: Boolean = false,
     /**
@@ -1325,6 +1340,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             handed?.let { d ->
                 _prefill.value = DraftFields(
                     to = d.to, cc = d.cc, bcc = d.bcc, subject = d.subject, body = d.body,
+                    // The styling comes back with the text (#131): held in memory for an undone
+                    // send, parsed out of the queued row's html for an Outbox → Edit
+                    // (`composeDraftOf`). Dropped here, undoing a send hands back a message with
+                    // its bold removed, and the re-send delivers the removal.
+                    bodyRanges = d.bodyRanges,
                     expand = d.cc.isNotBlank() || d.bcc.isNotBlank(),
                     // The box comes back ticked for a message that asked for a receipt (#70): this
                     // composer will enqueue a NEW row, so a clear box here cancels the request.
@@ -1490,11 +1510,14 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // `unlessDraftBelongsElsewhere` waves through. `credentials()` there and
                         // `credentials` here are the same account: `_selectedFrom` is still empty
                         // at the entry of prepare().
-                        // What this editor cannot give back on a re-save: rich formatting (the HTML
-                        // body is flattened to text), inline images and calendar parts (not carried),
-                        // and the read receipt the draft asked for — its header is on the server copy
-                        // and the checkbox below comes back CLEAR (D1), so the message would go out
-                        // asking for nothing and the destroy would take the only copy that asked.
+                        // What this editor cannot give back on a re-save: an HTML body it cannot
+                        // READ BACK (since #131 an html of our own reopens with its spans and costs
+                        // nothing — `draftHtmlIsLossy` decides, and an html that is present but
+                        // says nothing counts as unreadable), inline images and calendar parts (not
+                        // carried), and the read receipt the draft asked for — its header is on the
+                        // server copy and the checkbox below comes back CLEAR (D1), so the message
+                        // would go out asking for nothing and the destroy would take the only copy
+                        // that asked.
                         // Every leg is read off the DRAFT that was just fetched, never off this
                         // screen's state, and the decision itself lives in core:data so a JVM test
                         // can execute it — nothing here can (see DraftVerdictWiringTest).
@@ -1509,7 +1532,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                         // 0 parts compared with 0 — and the original holding the only copy of the
                         // files is expunged on delivery. That is #63, word for word.
                         val lossy = reopenedDraftIsLossy(
-                            hasHtmlBody = draft.htmlContent() != null,
+                            hasHtmlBody = draftHtmlIsLossy(draft.htmlContent()),
                             inlineImageCount = draft.inlineImageParts().size,
                             calendarPartCount = draft.calendarParts().size,
                             receiptHeader = draft.dispositionNotificationTo,
@@ -1814,6 +1837,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             bcc = fields.bcc,
             subject = fields.subject,
             body = fields.body,
+            // …and the styling the row stored, out of the SAME projection as the text
+            // (`localDraftPrefill` reads the html part first and falls back to the text column).
+            bodyRanges = fields.bodyRanges,
             expand = fields.expand,
         )
         _attachments.value = fields.attachments
@@ -2236,7 +2262,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * capture now, close the screen, and let the outbox worker deliver it a few seconds later
      * (with auto-retry) unless the user undoes it. The row survives the app being killed.
      */
-    fun send(to: String, cc: String, bcc: String, subject: String, body: String, requestReceipt: Boolean) =
+    fun send(to: String, cc: String, bcc: String, subject: String, body: RichBody, requestReceipt: Boolean) =
         sendInternal(SendArgs(to, cc, bcc, subject, body, requestReceipt), interactionResult = null)
 
     /**
@@ -2251,7 +2277,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         val cc: String,
         val bcc: String,
         val subject: String,
-        val body: String,
+        val body: RichBody,
         val requestReceipt: Boolean,
     )
 
@@ -2281,15 +2307,16 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // message goes out reduced to the signature and the draft is gone, in silence, with the undo
         // record built after the consume carrying the same empty body. The decision is executed in
         // `LostBodySendTest`; the guard only has to hand it the RAW body.
-        // ⛔ `args.body`, NEVER the `textBody` of `bodiesForSend` below — that one carries the
-        // signature, is never blank, and would make this line dead code that reads as a guard.
+        // ⛔ `args.body.text` — the composer's own text, styling aside — NEVER the `textBody` of
+        // `bodiesForSend` below: that one carries the signature, is never blank, and would make
+        // this line dead code that reads as a guard.
         // ⛔ And ABOVE the re-entry guard: nothing is flagged `Sending` for a send that is refused.
         // ⛔ `holdsStoredDraft` takes ALL THREE stores — the reopened outbox row included: what the
         // refusal says is the whole point of it, and "type it again" is the one instruction that
         // DESTROYS the text on every route this protects.
         val lostBody = lostBodySendWording(
             bodyWasLost = composerBodyWasLost,
-            body = args.body,
+            body = args.body.text,
             holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || editingOutboxId != null,
         )
         if (lostBody != null) {
@@ -2400,7 +2427,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 consumeEditingOutbox()
                 // Keep the raw draft so undoing the send can reopen compose with it intact.
                 val draft = SendOutbox.ComposeDraft(
-                    to = to, cc = cc, bcc = bcc, subject = subject, body = body,
+                    to = to, cc = cc, bcc = bcc, subject = subject, body = body.text,
+                    // The styling as the composer held it — NOT re-parsed from the html that went
+                    // out, which carries the signature substituted verbatim and the forwarded
+                    // original appended and would not parse back (#131).
+                    bodyRanges = body.ranges,
                     fromAccountId = _selectedFrom.value?.accountId,
                     fromIdentityEmail = identity?.email,
                     attachments = attachments, inReplyTo = replyTo, references = refs,
@@ -2464,7 +2495,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         cc: String,
         bcc: String,
         subject: String,
-        body: String,
+        body: RichBody,
         sendAtMillis: Long,
         requestReceipt: Boolean,
     ): Boolean {
@@ -2479,11 +2510,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         }
         // …and the same refusal as the immediate send, for the same reason: a scheduled send commits
         // just as truly — the row is inserted, its worker booked — and consumes the phone's own
-        // draft row on the way out. ⛔ `body` is this function's own parameter, the raw one; the
-        // `textBody` computed below carries the signature and can never be blank.
+        // draft row on the way out. ⛔ `body.text` is this function's own parameter, the raw one,
+        // styling aside; the `textBody` computed below carries the signature and can never be blank.
         val lostBody = lostBodySendWording(
             bodyWasLost = composerBodyWasLost,
-            body = body,
+            body = body.text,
             holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || editingOutboxId != null,
         )
         if (lostBody != null) {
@@ -2586,16 +2617,18 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      *    to format=flowed reflow by some servers (e.g. Stalwart), which joins single newlines on
      *    retrieval and flattens the message to one line. The explicit `<br>` survives that;
      *  - an imported HTML signature is substituted for its plain block in the html alternative, but
-     *    only while that block is untouched (see [htmlBodyWithSignature]).
+     *    only while that block is untouched (see [htmlBodyWithSignature]);
+     *  - the styling the user applied (#131) is written into the html alternative and only there:
+     *    the text alternative is the body's plain text.
      * For a forward, the carried original is then appended below, identically, to both.
      */
-    private suspend fun bodiesForSend(userBody: String, identity: StoredIdentity?): Pair<String, String?> {
+    private suspend fun bodiesForSend(userBody: RichBody, identity: StoredIdentity?): Pair<String, String?> {
         val html = htmlBodyWithSignature(
             userBody, signatureTextOf(identity), signatureHtmlOf(identity),
             settings.signatureDelimiter.first(),
         )
-        val fwd = forwarded ?: return userBody to html
-        return "$userBody\n\n${fwd.text}" to "$html<br><br>${fwd.html}"
+        val fwd = forwarded ?: return userBody.text to html
+        return "${userBody.text}\n\n${fwd.text}" to "$html<br><br>${fwd.html}"
     }
 
     /**
@@ -2633,7 +2666,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         body: String,
     ): Boolean = draftHasContent(to, cc, bcc, subject, body, _attachments.value.isNotEmpty())
 
-    fun saveDraft(to: String, cc: String, bcc: String, subject: String, body: String, requestReceipt: Boolean) {
+    fun saveDraft(to: String, cc: String, bcc: String, subject: String, body: RichBody, requestReceipt: Boolean) {
         // ⛔ A save is the CAUTIOUS gesture, and on one route it was the destructive one: a queued
         // message reopened by Outbox → Edit and redrawn empty over a resume slot that lost the body
         // is saved as an empty draft, and consumeEditingOutbox() at the foot of this function then
@@ -2648,7 +2681,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // ⛔ And it is NOT lostBodySendWording: that answers what a SEND owes, is asked exactly
         // twice, and a third call would be a second answer to a question this route never asks. The
         // decision is executed in LostBodySendTest; the guard only has to hand it the three terms.
-        if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body, holdsQueuedRow = editingOutboxId != null)) {
+        if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body.text, holdsQueuedRow = editingOutboxId != null)) {
             _notices.tryEmit(R.string.compose_body_lost_reopen_draft)
             return
         }
@@ -2666,7 +2699,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // server create, no local row, no outbox entry); an opened draft the user has emptied has
         // its original deleted so no empty shell lingers in Drafts (or reappears on sync). Either
         // way the screen then closes exactly as a normal save would.
-        if (!hasDraftContent(to, cc, bcc, subject, body)) {
+        if (!hasDraftContent(to, cc, bcc, subject, body.text)) {
             val original = editingDraftId
             // The numbering frozen when that id was read — carried, never re-read (#99).
             val originalUidValidity = editingDraftUidValidity
@@ -2688,7 +2721,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // anywhere: it goes back to the queue rather than evaporating on an empty save (#70).
             // The raw body goes with it: lost and empty, the row is parked, not queued — though the
             // guard at the top of this function has already refused that save over a queued row.
-            abandon(emptying = true, body = body)
+            // ⛔ Its TEXT and not the RichBody: abandon() asks this body one question only — is it
+            // lost, i.e. does closingParksQueuedRow() park the queued row — and that answer is read
+            // off the characters. No style can change it, so none is being dropped here (#131).
+            abandon(emptying = true, body = body.text)
             if (original == null) {
                 _state.value = ComposeState.Done
             } else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {
@@ -2780,7 +2816,15 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)
                 .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
             val outcome = repo.saveDraft(
-                credentials, recipients, subject, body, parseAddrs(cc), parseAddrs(bcc),
+                credentials, recipients, subject, body.text,
+                // ⛔ The styling as a SECOND part, decided by the one pure function every route
+                // uses (`draftHtmlToSave`): null for a body with no styling, so a plain draft is
+                // stored, uploaded and appended exactly as it was before #131. ⛔ NOT
+                // `htmlBodyWithSignature`, which is the SEND's html — it substitutes an imported
+                // signature verbatim and would not parse back on reopen, so the styling would
+                // survive one save and vanish on the next.
+                html = draftHtmlToSave(body),
+                cc = parseAddrs(cc), bcc = parseAddrs(bcc),
                 inReplyTo = inReplyTo, references = references,
                 replacesEmailId = replaces.emailId,
                 replacesUidValidity = replaces.uidValidity,

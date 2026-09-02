@@ -46,6 +46,8 @@ class ReadReceiptWiringTest {
         bcc = "",
         subject = "Six o'clock",
         body = "see you there",
+        // Not this test's subject either; no default, for the same reason as draftUidValidity.
+        htmlBody = null,
         fromAccountId = "accA",
         fromEmail = "alex@masto.top",
         attachments = listOf(EmailBodyPart(blobId = "b1", type = "image/png", name = "map.png")),
@@ -214,7 +216,7 @@ class ReadReceiptWiringTest {
         assertEquals(
             "every saveDraft call must hand `requestReceipt` over whole, so the copy on the server " +
                 "asks for what the screen says it asks for",
-            listOf(SEND_ARGUMENTS, SEND_ARGUMENTS),
+            listOf(SAVE_ARGUMENTS, SAVE_ARGUMENTS),
             calls,
         )
     }
@@ -453,9 +455,21 @@ class ReadReceiptWiringTest {
         private const val COMPOSE_SCREEN_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt"
 
-        /** What the composer hands to send/saveDraft, positionally — the receipt is the last one. */
+        /**
+         * What the composer hands to send/scheduleSend, positionally — the receipt is the last one.
+         * The body is `rich` (#131): the text AND its styling, so the html alternative carries the
+         * styling and the text alternative the same text.
+         */
         private val SEND_ARGUMENTS =
-            listOf("to", "cc", "bcc", "subject.text", "body.text", "requestReceipt")
+            listOf("to", "cc", "bcc", "subject.text", "rich", "requestReceipt")
+
+        /**
+         * …and to saveDraft, which takes the SAME `rich` since #131: the draft is stored with its
+         * styling as a `text/html` part beside its text. `body.text` here saves the draft with the
+         * styling stripped — and the next reopen shows the stripping, not the loss.
+         */
+        private val SAVE_ARGUMENTS =
+            listOf("to", "cc", "bcc", "subject.text", "rich", "requestReceipt")
 
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }

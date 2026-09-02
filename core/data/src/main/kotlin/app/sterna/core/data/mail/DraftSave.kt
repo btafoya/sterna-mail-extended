@@ -161,7 +161,15 @@ internal fun draftReplacementIsFaithful(
  * that is left to a source lint (`DraftVerdictWiringTest`).
  *
  * The legs, each one a thing the composer shows the user nothing about:
- *  - [hasHtmlBody]: a draft authored elsewhere in HTML is flattened to plain text on open;
+ *  - [hasHtmlBody]: the draft has an HTML body this editor cannot READ BACK, and so flattens to
+ *    plain text on open. ⭐ Since #131 that is no longer "it has one at all": the composer stores
+ *    its own styling as a closed subset of HTML and parses it back, so a draft this app styled is
+ *    reproducible and its original may be replaced. The caller answers this leg with
+ *    `app.sterna.core.data.text.draftHtmlIsLossy` — a draft authored elsewhere still flattens, and
+ *    so does an HTML part that is present but says nothing (empty, whitespace, a lone `<br>`),
+ *    which is an UNKNOWN and keeps the original, exactly as the receipt leg below does. ⛔ The
+ *    parameter stays a `Boolean` and this function stays ignorant of HTML: what "cannot be read
+ *    back" means belongs to the parser, not to the verdict;
  *  - [inlineImageCount]: inline images are not carried into the editor;
  *  - [calendarPartCount]: calendar parts are not carried either;
  *  - [receiptHeader]: RFC 8098's `Disposition-Notification-To` of the draft as the SERVER holds

@@ -2272,6 +2272,13 @@ class JmapClient internal constructor(
         bcc: List<EmailAddress> = emptyList(),
         subject: String,
         textBody: String,
+        /**
+         * The `text/html` alternative to store beside [textBody] (#131), or null for a draft with
+         * no styling — and then the create is byte for byte what it was: one `textBody` part, one
+         * `bodyValues` entry. ⛔ Both halves go out together when it is there: an `htmlBody` part
+         * whose `bodyValues` entry is missing is a create a strict server rejects outright.
+         */
+        htmlBody: String? = null,
         draftMailboxId: String,
         inReplyTo: List<String> = emptyList(),
         references: List<String> = emptyList(),
@@ -2308,8 +2315,18 @@ class JmapClient internal constructor(
                     putJsonArray("textBody") {
                         addJsonObject { put("partId", "body"); put("type", "text/plain") }
                     }
+                    // The styling the composer stored, as the SECOND alternative and never in
+                    // place of the first: the same shape `sendEmail` writes, so a draft and the
+                    // message it becomes are the same two parts. Absent, nothing is emitted at
+                    // all — a plain draft's create is unchanged (#131).
+                    if (htmlBody != null) {
+                        putJsonArray("htmlBody") {
+                            addJsonObject { put("partId", "html"); put("type", "text/html") }
+                        }
+                    }
                     putJsonObject("bodyValues") {
                         putJsonObject("body") { put("value", textBody) }
+                        if (htmlBody != null) putJsonObject("html") { put("value", htmlBody) }
                     }
                 }
             }

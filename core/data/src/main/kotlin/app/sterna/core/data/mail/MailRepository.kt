@@ -663,6 +663,7 @@ internal fun outboxDraftOf(
     bcc = item.bcc?.split(",")?.joinToString(", ") { it.trim() }.orEmpty(),
     subject = item.subject,
     body = item.textBody,
+    htmlBody = item.htmlBody,
     fromAccountId = item.accountId,
     fromEmail = item.fromEmail,
     attachments = attachments,
@@ -6960,6 +6961,14 @@ class MailRepository(
         to: List<String>,
         subject: String,
         body: String,
+        /**
+         * The `text/html` alternative to store with [body] (#131) — the composer's styling, and
+         * null when the body carries none (`draftHtmlToSave`). ⛔ Not derived here and not derived
+         * anywhere below: only the screen knows which characters are bold, and a draft with no
+         * styling must be written EXACTLY as it was before #131 — no local column, no `htmlBody`
+         * part in the `Email/set`, no `text/html` in the APPEND.
+         */
+        html: String? = null,
         cc: List<String> = emptyList(),
         bcc: List<String> = emptyList(),
         inReplyTo: List<String> = emptyList(),
@@ -7038,6 +7047,7 @@ class MailRepository(
             bcc = bcc,
             subject = subject,
             body = body,
+            html = html,
             fromName = fromName,
             fromEmail = fromEmail,
             inReplyTo = inReplyTo,
@@ -7404,6 +7414,10 @@ class MailRepository(
             bcc = bccTrimmed.map { EmailAddress(email = it) },
             subject = row.subject,
             textBody = row.textBody,
+            // ⭐ Read off the ROW like everything else here: the styling the save stored (#131),
+            // null for a plain draft — which keeps that draft's `Email/set` byte for byte what it
+            // was. Dropped, a styled draft goes up as text and comes back from the server plain.
+            htmlBody = row.htmlBody,
             draftMailboxId = draftsId,
             inReplyTo = inReplyTo,
             references = references,
@@ -8097,6 +8111,15 @@ class MailRepository(
         val bcc: String,
         val subject: String,
         val body: String,
+        /**
+         * The queued row's `text/html` part (#131), so a message taken back out of the Outbox
+         * reopens with the styling it was queued with instead of the flattened text. ⛔ No
+         * default: the row is the only place it lives while the message waits, and a construction
+         * site that skips it drops the styling silently — the same rule as [requestReceipt].
+         * ⚠ It is the SEND's html (signature substituted, forward appended), so it parses back to
+         * spans only when it is ours; `richBodyFrom` decides, and falls back to [body].
+         */
+        val htmlBody: String?,
         val fromAccountId: String?,
         val fromEmail: String?,
         val attachments: List<EmailBodyPart>,

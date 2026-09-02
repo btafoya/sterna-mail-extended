@@ -206,7 +206,7 @@ class ComposeViewModelWiringTest {
                 // and `holdsQueuedRow` is the outbox row alone — the local and server routes lose
                 // nothing on a save (localDraftBodyToWrite, unlessBodyIsLossy) and refusing there
                 // would cost a subject or a recipient just typed.
-                "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body, holdsQueuedRow = editingOutboxId != null)) {",
+                "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body.text, holdsQueuedRow = editingOutboxId != null)) {",
                 "_notices.tryEmit(R.string.compose_body_lost_reopen_draft)",
                 "return",
                 "}",
@@ -214,7 +214,7 @@ class ComposeViewModelWiringTest {
                 "_notices.tryEmit(R.string.compose_pgp_no_draft)",
                 "return",
                 "}",
-                "if (!hasDraftContent(to, cc, bcc, subject, body)) {",
+                "if (!hasDraftContent(to, cc, bcc, subject, body.text)) {",
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
                 // ⛔ …and the ACCOUNT both were read from, captured with them: the expunge below is
@@ -227,7 +227,7 @@ class ComposeViewModelWiringTest {
                 // said AS AN ARGUMENT. Said by blanking `editingLocalDraftId` first, as it was, a
                 // submit() that FAILED left the row EDITING with nobody left to release it: no
                 // upload worker will touch it again before the next cold start.
-                "abandon(emptying = true, body = body)",
+                "abandon(emptying = true, body = body.text)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
                 // ⛔ A `local-draft:` id names nothing repo.discardDraft can destroy: under IMAP
@@ -289,7 +289,14 @@ class ComposeViewModelWiringTest {
                 "val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)",
                 ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
                 "val outcome = repo.saveDraft(",
-                "credentials, recipients, subject, body, parseAddrs(cc), parseAddrs(bcc),",
+                "credentials, recipients, subject, body.text,",
+                // ⛔ The styling as a SECOND part, from the one pure function every route uses:
+                // null for a body with no styling, so a plain draft is written EXACTLY as it was
+                // before #131. ⛔ NOT `htmlBodyWithSignature(...)` — that is the SEND's html, it
+                // substitutes an imported signature verbatim, and a draft stored with it reopens
+                // as unparseable markup, i.e. as text, one save later.
+                "html = draftHtmlToSave(body),",
+                "cc = parseAddrs(cc), bcc = parseAddrs(bcc),",
                 "inReplyTo = inReplyTo, references = references,",
                 "replacesEmailId = replaces.emailId,",
                 "replacesUidValidity = replaces.uidValidity,",

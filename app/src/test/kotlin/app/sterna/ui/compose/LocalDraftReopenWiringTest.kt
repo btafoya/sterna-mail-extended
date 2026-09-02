@@ -247,6 +247,10 @@ class LocalDraftReopenWiringTest {
                 "bcc = fields.bcc,",
                 "subject = fields.subject,",
                 "body = fields.body,",
+                // …and the styling the row stored (#131), out of the same projection as the text.
+                // Left out, a draft this app styled reopens with its bold gone from the screen,
+                // and the next save stores that removal.
+                "bodyRanges = fields.bodyRanges,",
                 "expand = fields.expand,",
                 ")",
                 "_attachments.value = fields.attachments",
@@ -668,7 +672,7 @@ class LocalDraftReopenWiringTest {
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
                 "val originalAccountId = editingDraftAccountId",
-                "abandon(emptying = true, body = body)",
+                "abandon(emptying = true, body = body.text)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
@@ -1167,7 +1171,7 @@ class LocalDraftReopenWiringTest {
                 "abandon(, in order. Lines were:",
             listOf(
                 "fun abandon(body: String, emptying: Boolean = false) {",
-                "abandon(emptying = true, body = body)",
+                "abandon(emptying = true, body = body.text)",
             ),
             codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "abandon(" in it },
         )
@@ -1306,7 +1310,8 @@ class LocalDraftReopenWiringTest {
          * LENGTHENS the line a `contains` would still accept:
          *
          *  - `textBody` slipped in place of the raw body is a body the signature has already made
-         *    non-blank, i.e. a guard that can never arm;
+         *    non-blank, i.e. a guard that can never arm — and since #131 the raw body is a
+         *    `RichBody`, so the guard reads its `.text`: the user's own characters, styling aside;
          *  - `holdsStoredDraft` short of ANY of its three terms answers "type it again" over a
          *    store that still holds the text — a SERVER draft sitting intact in Drafts, or the
          *    QUEUED OUTBOX ROW parked `EDITING` behind Outbox → Edit — which is the instruction
@@ -1315,8 +1320,8 @@ class LocalDraftReopenWiringTest {
          */
         const val LOST_BODY_HEAD = "val lostBody = lostBodySendWording("
         const val LOST_BODY_LOST = "bodyWasLost = composerBodyWasLost,"
-        const val SEND_LOST_BODY_BODY = "body = args.body,"
-        const val SCHEDULE_LOST_BODY_BODY = "body = body,"
+        const val SEND_LOST_BODY_BODY = "body = args.body.text,"
+        const val SCHEDULE_LOST_BODY_BODY = "body = body.text,"
         const val LOST_BODY_HELD =
             "holdsStoredDraft = _editingLocalDraftId.value != null || editingDraftId != null || " +
                 "editingOutboxId != null,"
@@ -1343,7 +1348,7 @@ class LocalDraftReopenWiringTest {
          * the server copy by `unlessBodyIsLossy`).
          */
         const val SAVE_LOST_BODY_GUARD =
-            "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body, " +
+            "if (lostBodySaveDestroysQueuedRow(bodyWasLost = composerBodyWasLost, body = body.text, " +
                 "holdsQueuedRow = editingOutboxId != null)) {"
 
         /** The refusal of one route, whole: decide, say which sentence, leave. */
