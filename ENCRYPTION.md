@@ -39,7 +39,9 @@ Two limits worth knowing up front:
   you read it: not written to disk, not cached, not search-indexed. Close and
   reopen the message and it is decrypted again. **Attachments are the
   exception**: opening one writes the decrypted file into the app's own storage,
-  where it stays until the cache is cleared (Settings → Storage).
+  where it stays until the cache is cleared (Settings → Storage). Printing or
+  saving a decrypted message as PDF hands its plain text to the system print
+  service, on your request.
 
 ## What you need: two apps
 

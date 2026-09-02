@@ -14,13 +14,22 @@ import app.sterna.core.imap.CryptoKind
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.os.Build
+import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.ParcelFileDescriptor
+import android.print.PageRange
+import android.print.PrintAttributes
+import android.print.PrintDocumentAdapter
+import android.print.PrintManager
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.util.Log
@@ -80,6 +89,7 @@ import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -698,6 +708,11 @@ private fun MessageActions(
     // and how far it has got — the menu entry stands down once the gesture has been made.
     val unsubscribe by viewModel.unsubscribe.collectAsStateWithLifecycle()
     val unsubscribeState by viewModel.unsubscribeState.collectAsStateWithLifecycle()
+    // Only to know whether the open message has its BODY: a message never opened while online
+    // holds its cached header and nothing else, and a "Print" entry offered on it would print a
+    // blank page — the entry stands down instead.
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val printable = messages.firstOrNull()?.body != null
     val loaded = state as? MessageState.Loaded ?: return
     val senderEmail = loaded.email.from.firstOrNull()?.email
     val senderAllowed = senderEmail?.lowercase()?.let { it in imageAllowlist } == true
@@ -1013,6 +1028,16 @@ private fun MessageActions(
                 leadingIcon = { Icon(Icons.Filled.SaveAlt, contentDescription = null) },
                 onClick = { menuOpen = false; exportFor = active.emailId; exportLauncher.launch(exportName) },
             )
+            // Print, last. The gesture itself is the page's (see MessageContent's effect on
+            // `printRequested`): it has the body, the reading mode and the remote-image decision,
+            // this menu has none of them. Absent until the body is here — see `printable`.
+            if (printable) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.message_print)) },
+                    leadingIcon = { Icon(Icons.Filled.Print, contentDescription = null) },
+                    onClick = { menuOpen = false; viewModel.print() },
+                )
+            }
         }
     }
     // The move-to-folder picker (#73): the same dialog the list's selection bar opens, fed the
@@ -1482,6 +1507,45 @@ private fun MessageContent(
         val status = actionStatus ?: return@LaunchedEffect
         Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
         viewModel.clearActionStatus()
+    }
+    // Print (the overflow menu's last entry). The document is built HERE and not in the menu
+    // because this is where the three decisions the reader took live — the body it renders
+    // (`readerBody`, the same call the page makes), the reading mode, and whether remote images
+    // are shown — so what comes out of the printer is what was on the screen. Every string is
+    // resolved in the composable's body and captured: the effect runs outside composition.
+    val printRequested by viewModel.printRequested.collectAsStateWithLifecycle()
+    val printLabels = PrintLabels(
+        from = stringResource(R.string.participants_from),
+        to = stringResource(R.string.participants_to),
+        cc = stringResource(R.string.participants_cc),
+        date = stringResource(R.string.compose_forward_date),
+    )
+    val printNoSubject = stringResource(R.string.message_no_subject)
+    val printDerivedNotice = stringResource(R.string.message_plain_text_derived)
+    val printNoContent = stringResource(R.string.message_no_content)
+    val appName = stringResource(R.string.app_name)
+    LaunchedEffect(printRequested) {
+        if (!printRequested) return@LaunchedEffect
+        // Consumed first, whatever happens next: a request that stayed raised would fire again
+        // on the next recomposition, and on the next message.
+        viewModel.printConsumed()
+        val msg = messages.firstOrNull() ?: return@LaunchedEffect
+        val full = msg.body ?: return@LaunchedEffect
+        val activity = context.findActivity() ?: return@LaunchedEffect
+        // The date the header on screen shows — the cached header's, read through a local so the
+        // neighbouring lint on the header's own date line (DeliveredToInHeaderCallSiteTest) is
+        // not tripped by a line that is not the one it pins.
+        val receivedAt = msg.header.receivedAt
+        val header = PrintHeader(
+            subject = (full.subject ?: msg.header.subject)?.takeIf { it.isNotBlank() } ?: printNoSubject,
+            from = printAddresses(full.from),
+            to = printAddresses(full.to),
+            cc = printAddresses(full.cc),
+            date = formatFull(receivedAt),
+        )
+        val body = readerBody(full, plainText, printDerivedNotice, printNoContent)
+        val doc = buildPrintDocument(header, printLabels, body, msg.inlineImages)
+        printDocument(activity, doc, printJobName(header.subject, appName), blockRemote = !showRemote)
     }
     val senderRule = SenderRuleOffer(
         entryFor = { isSender, address ->
@@ -4452,6 +4516,11 @@ private class BlockingWebViewClient : WebViewClient() {
      *  Null on the poll's fallback outcomes: nothing was measured, so nothing is claimed. */
     var onContentHeight: (px: Int, resting: BodyMetrics?) -> Unit = { _, _ -> }
 
+    /** Called once the page has finished loading, after the height poll above has been armed.
+     *  The print path hangs its "now hand the page to the print service" on it; the reader
+     *  leaves it empty. Not named after the callback it rides on, so a call reads as what it is. */
+    var onPageLoaded: (WebView) -> Unit = {}
+
     override fun onPageFinished(view: WebView?, url: String?) {
         val wv = view ?: return
         // No JS to measure with, so poll the native content height until it stabilises (two
@@ -4486,6 +4555,7 @@ private class BlockingWebViewClient : WebViewClient() {
             }
         }
         wv.post { last = -1; maxSeen = 0; poll(30) }
+        onPageLoaded(wv)
     }
 
     override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
@@ -4525,13 +4595,104 @@ private class BlockingWebViewClient : WebViewClient() {
 }
 
 /**
+ * Hand [html] — the document [buildPrintDocument] made — to Android's print service, rendered by
+ * a WebView of its OWN, never attached to any view hierarchy. ⛔ Not the reader's WebView: that one
+ * sits inside the guards that keep the fade from crashing (#10) and its page carries the
+ * screen's spacer bands. This one is created for the job, loaded, printed once it has finished
+ * loading, and held by [HoldingAdapter] until the print service says it is done — so a rotation
+ * during the preview costs nothing: the spooler holds its document, the activity may recreate.
+ *
+ * [blockRemote] is the SAME decision the screen took — the remote images she chose to see are
+ * printed, the ones she did not are not — enforced by the same [BlockingWebViewClient].
+ */
+private fun printDocument(activity: Activity, html: String, jobName: String, blockRemote: Boolean) {
+    val webView = WebView(activity)
+    webView.settings.javaScriptEnabled = false
+    // Held HERE from creation, not only from the moment the print service gets its adapter: between
+    // `loadDataWithBaseURL` and `onPageFinished` nothing else in app code references this detached
+    // view, and a page with remote images on a slow network keeps that window open for seconds.
+    printingWebViews += webView
+    // One print job per tap, however many times the client reports the page finished.
+    var handed = false
+    webView.webViewClient = BlockingWebViewClient().apply {
+        this.blockRemote = blockRemote
+        onPageLoaded = { wv ->
+            if (!handed) {
+                handed = true
+                // A device without a print framework has no PrintManager; the entry is offered
+                // everywhere, so the gesture just does nothing there rather than crash the reader.
+                val pm = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                if (pm == null) {
+                    releasePrintingWebView(wv)
+                } else {
+                    val adapter = wv.createPrintDocumentAdapter(jobName)
+                    pm.print(jobName, HoldingAdapter(adapter, wv), PrintAttributes.Builder().build())
+                }
+            }
+        }
+    }
+    webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+}
+
+/** The detached WebViews currently rendering a print job, so they outlive the composable that
+ *  started them and survive a GC between load and print. Emptied by [releasePrintingWebView]. */
+private val printingWebViews = mutableSetOf<WebView>()
+
+private fun releasePrintingWebView(webView: WebView) {
+    printingWebViews -= webView
+    webView.destroy()
+}
+
+/**
+ * A [PrintDocumentAdapter] that forwards everything to the WebView's own [delegate] and does one
+ * thing more: it KEEPS the WebView alive for as long as the print service is using it. Nothing
+ * else references that WebView — it is attached nowhere — so without this the job could lose its
+ * page mid-preview. ⛔ `destroy()` happens through [releasePrintingWebView], once the service has
+ * finished — never before.
+ */
+private class HoldingAdapter(
+    private val delegate: PrintDocumentAdapter,
+    private val webView: WebView,
+) : PrintDocumentAdapter() {
+    override fun onStart() = delegate.onStart()
+
+    override fun onLayout(
+        oldAttributes: PrintAttributes?,
+        newAttributes: PrintAttributes,
+        cancellationSignal: CancellationSignal?,
+        callback: LayoutResultCallback,
+        extras: Bundle?,
+    ) = delegate.onLayout(oldAttributes, newAttributes, cancellationSignal, callback, extras)
+
+    override fun onWrite(
+        pages: Array<out PageRange>?,
+        destination: ParcelFileDescriptor,
+        cancellationSignal: CancellationSignal?,
+        callback: WriteResultCallback,
+    ) = delegate.onWrite(pages, destination, cancellationSignal, callback)
+
+    override fun onFinish() {
+        delegate.onFinish()
+        releasePrintingWebView(webView)
+    }
+}
+
+/** The [Activity] behind a composable's context, unwrapped through the theme/locale wrappers
+ *  Compose and the app put in between; null when there is none (a preview, a service). */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/**
  * Content-Security-Policy for rendered email. JavaScript is already disabled on the WebView;
  * this is defense-in-depth that also kills scripts, plugins, iframes, and form submissions
  * (phishing posts) outright, while still allowing inline styles and images. Remote images are
  * permitted by the policy but gated at load time by [BlockingWebViewClient] so the "show images"
  * toggle keeps working; the policy stops every other remote vector (connect/frame/object/script).
  */
-private const val CSP_META =
+internal const val CSP_META =
     "<meta http-equiv=\"Content-Security-Policy\" content=\"" +
         "default-src 'none'; img-src data: cid: http: https:; style-src 'unsafe-inline'; " +
         "font-src data:; media-src data: cid: http: https:; " +
@@ -4570,20 +4731,16 @@ internal fun buildHtmlDocument(
     // the text as it is. This is why the guard is here and not inside the dark-theme branch below:
     // the question is what the document CARRIES, not what colours it gets.
     if (body.richHtml) {
-        // Embed inline images: replace cid: references with their data URIs.
-        inlineImages.forEach { (cid, dataUri) ->
-            inner = inner.replace("cid:$cid", dataUri).replace("cid:<$cid>", dataUri)
-        }
+        // Embed inline images: replace cid: references with their data URIs. Shared with the
+        // print document ([buildPrintDocument]), which must embed them the same way.
+        inner = embedInlineImages(inner, inlineImages)
         // Neutralise the email's own dark-mode styles. On a dark-mode device the WebView matches
         // `prefers-color-scheme: dark`, so a marketing email renders its dark variant — which our
         // invert then turns light (the "white band in dark theme" bug); declaring color-scheme is
         // ignored by Android WebView, so we defang the media queries directly by appending an
         // always-false condition. The email then always renders its light design, which we show
-        // as-is (light theme) or invert (dark theme).
-        inner = inner.replace(
-            Regex("""prefers-color-scheme\s*:\s*dark""", RegexOption.IGNORE_CASE),
-            "prefers-color-scheme:dark) and (max-width:0px",
-        )
+        // as-is (light theme) or invert (dark theme). Shared with the print document.
+        inner = neutraliseDarkModeStyles(inner)
     }
     // Bracket the content with two real DOCUMENT elements (scrollable, unlike body padding which Blink
     // drops, or WebView view padding which clips the last lines): a transparent TOP spacer of the

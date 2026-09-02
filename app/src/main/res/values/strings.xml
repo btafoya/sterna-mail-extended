@@ -331,6 +331,7 @@
     <string name="message_read_receipt_failed">Nothing was put in the outbox, so nothing will be sent.</string>
     <!-- Reader overflow: view the message's raw headers (issue #60) -->
     <string name="message_view_headers">View headers</string>
+    <string name="message_print">Print</string>
     <string name="message_headers_title">Message headers</string>
     <string name="message_headers_empty">No headers to show</string>
     <string name="message_headers_error">Could not load headers:\n%1$s</string>

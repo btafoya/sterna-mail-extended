@@ -201,6 +201,7 @@
     <string name="message_view_headers">Ver cabeçalhos</string>
     <string name="message_export_eml">Guardar como .eml</string>
     <string name="message_export_saved">Guardado como %1$s</string>
+    <string name="message_print">Imprimir</string>
     <string name="message_headers_title">Cabeçalhos da mensagem</string>
     <string name="message_headers_empty">Nenhum cabeçalho para mostrar</string>
     <string name="message_headers_error">Não foi possível carregar os cabeçalhos:\n%1$s</string>

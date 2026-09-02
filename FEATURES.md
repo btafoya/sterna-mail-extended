@@ -76,6 +76,7 @@ The categories further down list the full feature set; this is the order of work
   dark mode: theme colours for plain text, CSS invert for rich HTML); plain-text
   bodies preserve paragraphs and unwrap `format=flowed` soft line breaks (RFC 3676)
   so they read as written instead of one run-on block or mid-sentence wraps
+- ✅ Print a message, or save it as PDF, from the message menu (system print preview; remote images stay blocked on paper)
 - ✅ Offline reading (Room cache)
 - ✅ Mark read/unread, star, archive, delete *(M3; JMAP + IMAP)*
 - ✅ Optional "mark as read when deleting" (Settings → Reading and writing), so deleted mail doesn't sit unread in Trash

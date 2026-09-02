@@ -747,6 +747,22 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _manualShowImages.value = true
     }
 
+    /** One-shot "print this message" signal, same shape as the image override above and for the
+     *  same reason: the overflow menu that raises it is fixed chrome at the pager level, the page
+     *  that builds the document and hands it to the print service is one level down. The page
+     *  consumes it on the spot ([printConsumed]); reset on load so a request never crosses over
+     *  to the next message. */
+    private val _printRequested = MutableStateFlow(false)
+    val printRequested = _printRequested.asStateFlow()
+
+    fun print() {
+        _printRequested.value = true
+    }
+
+    fun printConsumed() {
+        _printRequested.value = false
+    }
+
     /** This message's DEVIATION from the reading-mode setting (#149), set from the overflow menu:
      *  null = nobody chose, follow the setting; true/false = read THIS message as text, or as its
      *  HTML, whatever the setting says. Not an `or` — with the setting on, the menu offers "Show
@@ -1203,6 +1219,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         autoDecryptTried = false
         _replyBarVisible.value = false
         _manualShowImages.value = false
+        _printRequested.value = false
         _plainText.value = null
         _headers.value = null
         // The same three lines as [dismissAttachedMessage], written out: ReaderStateResetOnLoadTest

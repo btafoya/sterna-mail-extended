@@ -201,6 +201,7 @@
     <string name="message_view_headers">Mostra intestazioni</string>
     <string name="message_export_eml">Salva come .eml</string>
     <string name="message_export_saved">Salvato come %1$s</string>
+    <string name="message_print">Stampa</string>
     <string name="message_headers_title">Intestazioni del messaggio</string>
     <string name="message_headers_empty">Nessuna intestazione da mostrare</string>
     <string name="message_headers_error">Impossibile caricare le intestazioni:\n%1$s</string>
