@@ -140,6 +140,16 @@ data class ImapMessage(
     val messageId: String?,
     val inReplyTo: String?,
     /**
+     * The raw value of the `References` header, unfolded onto one line (RFC 5322 §2.2.3), or
+     * null when the message carries none. The ENVELOPE has `In-Reply-To` and `Message-ID` but
+     * not this one, so every list fetch asks for it as an extra item,
+     * `BODY.PEEK[HEADER.FIELDS (REFERENCES)]` — see [ImapSession.fetchUids] and its three twins.
+     *
+     * ⭐ Raw and whole: the ids are not split here, and nothing in this module reads it. It is
+     * carried so that a thread rebuilt on the client can be rooted at its FIRST id.
+     */
+    val references: String? = null,
+    /**
      * Where this message's readable text is, per the BODYSTRUCTURE that came with the envelope, or
      * null when it has no `text/…` part (and when the server sent no structure at all).
      *

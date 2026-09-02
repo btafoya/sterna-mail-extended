@@ -740,7 +740,7 @@ class ImapSession(private var socket: Socket) : Closeable {
 
     /** Fetch a single message by UID (envelope + flags), or null if not found — or hidden. */
     fun fetchByUid(uid: Long): ImapMessage? {
-        val result = command("UID FETCH $uid (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)")
+        val result = command("UID FETCH $uid (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
         return result.messages().firstOrNull()
     }
 
@@ -920,7 +920,7 @@ class ImapSession(private var socket: Socket) : Closeable {
         val highest = exists - offset
         if (highest < 1) return emptyList()
         val lowest = (highest - limit + 1).coerceAtLeast(1)
-        val result = command("FETCH $lowest:$highest (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)")
+        val result = command("FETCH $lowest:$highest (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
         return result.messages().sortedByDescending { it.uid }
     }
 
@@ -986,7 +986,7 @@ class ImapSession(private var socket: Socket) : Closeable {
             // BEFORE the numbering of the range below is used. `folderMoved(...) || moved` and not
             // the other way round, so the NOOP goes out whatever the verdict so far.
             if (previous != null) moved = folderMoved(command("NOOP").untagged, exists) || moved
-            val result = command("FETCH ${page.first}:${page.last} (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)")
+            val result = command("FETCH ${page.first}:${page.last} (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
             // Not a second opinion: on a one-page walk no NOOP is ever sent, so this line is the
             // only thing that can notice the folder moving.
             moved = folderMoved(result.untagged, exists) || moved
@@ -1122,7 +1122,7 @@ class ImapSession(private var socket: Socket) : Closeable {
     /** Fetch several messages by UID (envelope + flags); `\Deleted` ones are not returned. */
     fun fetchUids(uids: List<Long>): List<ImapMessage> {
         if (uids.isEmpty()) return emptyList()
-        val result = command("UID FETCH ${uids.joinToString(",")} (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)")
+        val result = command("UID FETCH ${uids.joinToString(",")} (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
         return result.messages()
     }
 
@@ -1214,12 +1214,16 @@ class ImapSession(private var socket: Socket) : Closeable {
      * The item is matched by prefix because a partial fetch is answered with the origin octet
      * attached (`BODY[1]<0>`, RFC 3501 §7.4.2) — one atom, not two, since the IMAP parser breaks
      * atoms on parentheses and spaces and this form has neither.
+     *
+     * ⛔ Never the `BODY[HEADER.FIELDS (REFERENCES)]` item. No body fetch asks for it, but the
+     * prefix `BODY` would take it if a server volunteered it first, and a header block would then
+     * be handed over as a message's text.
      */
     private fun ImapResult.bodyItem(): String {
         val fetch = untagged.firstOrNull { it.getOrNull(2) == "FETCH" } ?: return ""
         @Suppress("UNCHECKED_CAST")
         val items = fetch.getOrNull(3) as? List<Any?> ?: return ""
-        val idx = items.indexOfFirst { it is String && it.startsWith("BODY", true) }
+        val idx = items.indexOfFirst { it is String && it.startsWith("BODY", true) && !isReferencesItem(it) }
         if (idx < 0) return ""
         return (items.getOrNull(idx + 1) as? String).orEmpty()
     }
@@ -1252,7 +1256,7 @@ class ImapSession(private var socket: Socket) : Closeable {
             val uidIdx = items.indexOfFirst { it is String && it.equals("UID", true) }
             if (uidIdx < 0) continue
             val uid = (items.getOrNull(uidIdx + 1) as? String)?.toLongOrNull() ?: continue
-            val bodyIdx = items.indexOfFirst { it is String && it.startsWith("BODY", true) }
+            val bodyIdx = items.indexOfFirst { it is String && it.startsWith("BODY", true) && !isReferencesItem(it) }
             if (bodyIdx < 0) continue
             val body = (items.getOrNull(bodyIdx + 1) as? String).orEmpty()
             if (body.isEmpty()) continue
@@ -1445,6 +1449,12 @@ class ImapSession(private var socket: Socket) : Closeable {
         val bccAddrs = envelopeAddresses(envelope?.getOrNull(7) as? List<Any?>)
         val messageId = envelope?.getOrNull(9) as? String
         val inReplyTo = envelope?.getOrNull(8) as? String
+        // The one item the ENVELOPE does not carry, asked for by every list fetch as
+        // `BODY.PEEK[HEADER.FIELDS (REFERENCES)]` and answered as a header block under a key the
+        // server spells as it likes — case, quotes around the field name (RFC 3501 §7.4.2 lets
+        // it echo the request back in either form). Hence a match by shape and not by string.
+        val references = map.entries.firstOrNull { isReferencesItem(it.key) }
+            ?.let { referencesHeader(it.value as? String) }
 
         return ImapMessage(
             uid = uid,
@@ -1463,6 +1473,7 @@ class ImapSession(private var socket: Socket) : Closeable {
             hasAttachment = hasAttachment(map["BODYSTRUCTURE"]),
             messageId = messageId,
             inReplyTo = inReplyTo,
+            references = references,
             // The same structure the line above reduces to a boolean, read a second way and kept:
             // which section holds the text, and how to decode it. Costs no command — it is here
             // because every fetch in this class already asks for BODYSTRUCTURE.
@@ -1516,6 +1527,37 @@ class ImapSession(private var socket: Socket) : Closeable {
  * File-level (not a method) so the SEARCH-command builder in ImapSearch.kt quotes its
  * user-supplied values through the exact same guard.
  */
+/** The FETCH item every list fetch asks for beside the envelope: the `References` header alone. */
+internal const val REFERENCES_ITEM = "BODY[HEADER.FIELDS (REFERENCES)]"
+
+/**
+ * Whether a FETCH item key is the `References` header item, however the server spells it:
+ * `body[header.fields (references)]`, `BODY[HEADER.FIELDS ("REFERENCES")]` — case, quotes around
+ * the field name and the width of the blank all vary from one server to the next, and none of
+ * them changes what the item is.
+ */
+internal fun isReferencesItem(key: String): Boolean =
+    key.replace("\"", "").replace(Regex("\\s+"), " ").uppercase() == REFERENCES_ITEM
+
+/**
+ * The value of the `References` header out of a `HEADER.FIELDS` block (`References: <a>\r\n
+ * <b>\r\n\r\n`), unfolded onto one line — RFC 5322 §2.2.3: a line that starts with a space or a
+ * tab continues the one before it. Null when the block is NIL, empty, names no `References`, or
+ * names one with nothing after the colon. The ids are kept raw and whole; nothing is split here.
+ */
+internal fun referencesHeader(block: String?): String? {
+    if (block.isNullOrEmpty()) return null
+    val unfolded = block.replace(Regex("\r?\n[ \t]+"), " ")
+    for (line in unfolded.split("\r\n", "\n")) {
+        val colon = line.indexOf(':')
+        if (colon < 0) continue
+        if (!line.substring(0, colon).trim().equals("References", ignoreCase = true)) continue
+        val value = line.substring(colon + 1).trim().replace(Regex("\\s+"), " ")
+        return value.ifEmpty { null }
+    }
+    return null
+}
+
 internal fun quote(s: String): String {
     if (s.any { it == '\r' || it == '\n' }) throw ImapException("Illegal newline in IMAP argument")
     return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""

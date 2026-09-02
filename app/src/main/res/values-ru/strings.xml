@@ -853,7 +853,7 @@
     <string name="sync_error_timed_out">ничего не вернулось вовремя</string>
     <string name="settings_conversation_section">Беседы</string>
     <string name="settings_conversation_title">Просмотр беседы</string>
-    <string name="settings_conversation_subtitle">Объединять сообщения одной цепочки в одну строку с указанием количества. Цепочки приходят с сервера: в учётных записях JMAP письма объединяются, в учётной записи IMAP каждое письмо остаётся в отдельной строке.</string>
+    <string name="settings_conversation_subtitle">Объединять сообщения одной цепочки в одну строку с указанием количества. В учётной записи JMAP цепочки приходят с сервера; в учётной записи IMAP они восстанавливаются из заголовков писем.</string>
     <string name="settings_unarchive_on_reply_title">Извлекать из архива при новом ответе</string>
     <string name="settings_unarchive_on_reply_subtitle">Когда приходит новый ответ, возвращать архивированные письма переписки во Входящие.</string>
 

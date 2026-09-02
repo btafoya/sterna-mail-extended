@@ -12,12 +12,13 @@ import java.io.File
  * testable in this module (no Robolectric, no instrumented tests), so reading the source is what
  * is left to hold a rule about what the screen says.
  *
- * The rule: IMAP carries no threads at all (`ImapMailService` writes `threadId = null` for every
- * message, and grouping keys on `COALESCE(threadId, id)`, so each IMAP message is its own thread).
- * The Conversations switches used to hide that behind a condition — a note and two greyed switches
- * shown only when EVERY account was IMAP. Adding one JMAP account re-enabled the switches and
- * removed the note, while the IMAP mail sitting on the very same unified list still stood one
- * message per row and nothing said so. The mixed case, the common one, was the silent one.
+ * The rule: the subtitle says WHERE THE THREAD COMES FROM on each protocol — from the server on
+ * JMAP (`threadId`), rebuilt from the message headers on IMAP (`imapThreadKey`, the root of
+ * `References`, else `In-Reply-To`, else `Message-ID`). The Conversations switches used to hide a
+ * protocol fact behind a condition — a note and two greyed switches shown only when EVERY account
+ * was IMAP. Adding one JMAP account re-enabled the switches and removed the note, while the IMAP
+ * mail sitting on the very same unified list behaved as before and nothing said so. The mixed
+ * case, the common one, was the silent one.
  *
  * So: the fact belongs in the permanent subtitle, in every language, and the switches must not
  * change state with the account set. Putting `enabled = !imapOnly` back has to fail here.
@@ -29,8 +30,8 @@ import java.io.File
  * The wording rule is stricter than it looks and is meant to be: requiring the literals "JMAP" and
  * "IMAP" constrains the SHAPE of every translated sentence, not just its content. A translator who
  * says the same thing without naming the two protocols fails here. That is the trade accepted —
- * the whole statement is which protocol groups and which does not, and there is no way to read a
- * paraphrase for that meaning from a test.
+ * the whole statement is where the thread comes from on each protocol, and there is no way to
+ * read a paraphrase for that meaning from a test.
  */
 class SettingsScreenHonestyTest {
 
@@ -82,21 +83,22 @@ class SettingsScreenHonestyTest {
         val section = conversationSection()
         assertTrue(
             "the Conversations switch must keep showing R.string.settings_conversation_subtitle — " +
-                "it is the only place the app now states that IMAP groups nothing. Section was:\n$section",
+                "it is the only place the app states where the thread comes from on each protocol. " +
+                "Section was:\n$section",
             "R.string.settings_conversation_subtitle" in section,
         )
     }
 
     // -- the wording, in all nine languages ---------------------------------------------------
 
-    @Test fun `every language says which protocol groups and which does not`() {
+    @Test fun `every language says where the thread comes from on each protocol`() {
         val files = stringFiles()
         // A FLOOR, not a count: the rule is "every locale shipped", and pinning the exact number
         // made a tenth translation fail a test that talks about conversations.
         assertTrue(
             "only ${files.size} locale string files found; the app ships at least nine, so this " +
-                "rule is no longer reading all of them and a locale can keep the old subtitle " +
-                "that promises grouping IMAP never does",
+                "rule is no longer reading all of them and a locale can keep an old subtitle " +
+                "that says something else about where the thread comes from on each protocol",
             files.size >= 9,
         )
         val silent = files.mapNotNull { file ->

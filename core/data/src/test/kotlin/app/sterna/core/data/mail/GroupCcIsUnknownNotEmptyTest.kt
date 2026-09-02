@@ -61,7 +61,7 @@ class GroupCcIsUnknownNotEmptyTest {
                     // command (#173); this fixture answers without it, so nothing is named.
                     "CAPABILITY",
                     "SELECT \"$DRAFTS\"",
-                    "UID FETCH $UID (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
+                    "UID FETCH $UID (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])",
                 ),
                 server.issued(),
             )

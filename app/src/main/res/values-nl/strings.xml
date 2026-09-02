@@ -835,7 +835,7 @@
     <!-- Conversations -->
     <string name="settings_conversation_section">Gesprekken</string>
     <string name="settings_conversation_title">Gespreksweergave</string>
-    <string name="settings_conversation_subtitle">Groepeer berichten van dezelfde thread in één rij, met een telling. Threads komen van de server: in JMAP-accounts worden berichten gegroepeerd, in een IMAP-account blijft elk bericht op zijn eigen rij.</string>
+    <string name="settings_conversation_subtitle">Groepeer berichten van dezelfde thread in één rij, met een telling. In een JMAP-account komen de threads van de server; in een IMAP-account worden ze opnieuw opgebouwd uit de berichtkoppen.</string>
     <string name="settings_unarchive_on_reply_title">Uit archief halen bij een nieuw antwoord</string>
     <string name="settings_unarchive_on_reply_subtitle">Wanneer er een nieuw antwoord binnenkomt, de gearchiveerde berichten van het gesprek terug naar Postvak IN halen.</string>
 

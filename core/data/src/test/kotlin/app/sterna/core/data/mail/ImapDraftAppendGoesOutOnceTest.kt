@@ -136,7 +136,7 @@ class ImapDraftAppendGoesOutOnceTest {
                     "CAPABILITY",
                     "SELECT \"$DRAFTS\"",
                     "UID SEARCH ALL",
-                    "UID FETCH 4,9,11 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
+                    "UID FETCH 4,9,11 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])",
                 ),
                 server.issued(),
             )

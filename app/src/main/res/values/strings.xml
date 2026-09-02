@@ -488,7 +488,7 @@
     <string name="settings_text_size_huge">Huge</string>
     <string name="settings_conversation_section">Conversations</string>
     <string name="settings_conversation_title">Conversation view</string>
-    <string name="settings_conversation_subtitle">Group messages of the same thread into one row, with a count. Threads come from the server, so this groups messages in JMAP accounts; in an IMAP account each message stays on its own row.</string>
+    <string name="settings_conversation_subtitle">Group messages of the same thread into one row, with a count. On a JMAP account the threads come from the server; on an IMAP account they are rebuilt from the message headers.</string>
     <string name="settings_unarchive_on_reply_title">Unarchive on new reply</string>
     <string name="settings_unarchive_on_reply_subtitle">When a new reply arrives, bring the conversation’s archived messages back to the inbox.</string>
     <string name="settings_swipe_actions_section">Swipe actions</string>

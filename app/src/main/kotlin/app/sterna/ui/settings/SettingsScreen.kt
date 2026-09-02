@@ -618,12 +618,15 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
         ) {
-            // Both switches act on server-side threads, which IMAP does not have: an IMAP account
-            // groups nothing, whatever these switches say. That fact used to live in a note shown
-            // only when EVERY account was IMAP, with both switches greyed — so adding a single JMAP
-            // account re-enabled them and hid the note while the IMAP mail on the very same list kept
-            // standing one message per row. The truth is now in the permanent subtitle, unconditional:
-            // no switch whose state depends on which accounts happen to exist (SettingsScreenHonestyTest).
+            // The first switch applies to both protocols — on JMAP the thread is the server's, on
+            // IMAP a key rebuilt from the message headers (`imapThreadKey`). The second (unarchive on
+            // reply) acts on JMAP only: unarchiving is a server write on the thread's members, and
+            // that write is not made on IMAP. Neither fact is a condition on the accounts. It used to
+            // live in a note shown only when EVERY account was IMAP, with both switches greyed — so
+            // adding a single JMAP account re-enabled them and hid the note while the IMAP mail on
+            // the very same list behaved as before. The truth is in the permanent subtitle,
+            // unconditional: no switch whose state depends on which accounts happen to exist
+            // (SettingsScreenHonestyTest).
             SettingsSection(stringResource(R.string.settings_conversation_section)) {
                 SettingSwitch(
                     title = stringResource(R.string.settings_conversation_title),

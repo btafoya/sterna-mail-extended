@@ -187,11 +187,14 @@ class ConversationInvariantsSqlTest {
     //
     // The one fact that reframes everything else here.
 
-    @Test fun anAccountWhoseMessagesCarryNoThreadIdGroupsNothingAtAll() {
-        // IMAP stores threadId = null for EVERY message (ImapMailService.kt:607 — no THREAD
-        // extension, no References parsing on receive), so COALESCE(threadId, id) falls back to
-        // the message id and each message is its own conversation. Same account, same folder,
-        // same subject, an obvious reply chain to a human eye: three rows, chip 1 each.
+    @Test fun messagesWithoutAThreadKeyGroupNothingAtAll() {
+        // The SQL is protocol-agnostic: a row with no thread key is its own conversation, a row
+        // with one groups with its siblings, and nothing else decides. A row without a key is an
+        // IMAP message carrying neither Message-ID nor References, a row cached before IMAP
+        // threading existed (`ImapMessage.toEntity` wrote null for every row until then), or a
+        // message whose References root is lost — COALESCE(threadId, id) then falls back to the
+        // message id. Same account, same folder, same subject, an obvious reply chain to a human
+        // eye: three rows, chip 1 each.
         insert("m1", threadId = null, sortKey = 100, subject = "Re: budget")
         insert("m2", threadId = null, sortKey = 200, subject = "Re: budget")
         insert("m3", threadId = null, sortKey = 300, subject = "Re: budget")
@@ -202,9 +205,9 @@ class ConversationInvariantsSqlTest {
         // Stated the way the reader experiences it: turning conversation view on changes nothing.
         assertEquals(flat("inbox", accountId = "acc"), rows.map { it.id })
 
-        // The witness: the SAME three messages, given the thread id a JMAP server would have
-        // supplied, collapse to a single row of three. Nothing but the null threadId separates
-        // the two outcomes.
+        // The witness: the SAME three messages, given a thread key — the one a JMAP server
+        // supplies, or the one `imapThreadKey` rebuilds from the headers — collapse to a single
+        // row of three. Nothing but the null threadId separates the two outcomes.
         exec("UPDATE emails SET threadId = 'T1'")
         val grouped = conversation("inbox", accountId = "acc")
         assertEquals(listOf("m3"), grouped.map { it.id })
@@ -214,10 +217,11 @@ class ConversationInvariantsSqlTest {
 
     // -- C2 -------------------------------------------------------------------------------
 
-    @Test fun theUnifiedListCollapsesTheJmapAccountAndLeavesTheImapOneFlat() {
-        // Same folder id, same view, one query — and two behaviours, decided by whether the
-        // account's protocol supplies a thread id. Account A (JMAP) has a three-message thread;
-        // account B (IMAP) has three messages whose threadId is null.
+    @Test fun theUnifiedListCollapsesTheKeyedAccountAndLeavesTheKeylessOneFlat() {
+        // Same folder id, same view, one query — and two behaviours, decided row by row by
+        // whether a thread key is present, never by the account's protocol. Account A has a
+        // three-message thread under one key; account B's three rows carry no key at all (a cache
+        // from before IMAP threading, or messages with no threading header).
         insert("a1", threadId = "T1", sortKey = 610, accountId = "accA")
         insert("a2", threadId = "T1", sortKey = 620, accountId = "accA")
         insert("a3", threadId = "T1", sortKey = 630, accountId = "accA")
@@ -234,7 +238,7 @@ class ConversationInvariantsSqlTest {
         assertEquals(listOf("accB", "accB", "accB"), rows.filter { it.threadCount == 1 }.map { it.accountId })
 
         // The witness: flat mode lists all six, and account B's three rows are IDENTICAL in both
-        // modes — the collapse is not a property of the list, it is a property of the account.
+        // modes — the collapse is not a property of the list, it is a property of the rows' keys.
         val flatIds = flat("inbox", accounts = listOf("accA", "accB"))
         assertEquals(listOf("a3", "a2", "a1", "b1", "b2", "b3"), flatIds)
         assertEquals(

@@ -839,7 +839,7 @@
     <string name="sync_error_timed_out">no llegó nada a tiempo</string>
     <string name="settings_conversation_section">Conversaciones</string>
     <string name="settings_conversation_title">Vista de conversación</string>
-    <string name="settings_conversation_subtitle">Agrupa los mensajes de un mismo hilo en una sola fila, con un contador. Los hilos vienen del servidor: en las cuentas JMAP los mensajes se agrupan, en una cuenta IMAP cada mensaje se queda en su propia fila.</string>
+    <string name="settings_conversation_subtitle">Agrupa los mensajes de un mismo hilo en una sola fila, con un contador. En una cuenta JMAP los hilos vienen del servidor; en una cuenta IMAP se reconstruyen a partir de las cabeceras de los mensajes.</string>
     <string name="settings_unarchive_on_reply_title">Desarchivar al llegar una respuesta</string>
     <string name="settings_unarchive_on_reply_subtitle">Cuando llega una respuesta nueva, devolver a la bandeja de entrada los mensajes archivados de la conversación.</string>
     <string name="compose_many_recipients_title">¿Enviar a muchas personas?</string>

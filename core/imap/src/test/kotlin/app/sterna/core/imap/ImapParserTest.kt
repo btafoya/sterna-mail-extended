@@ -244,4 +244,68 @@ class ImapParserTest {
         assertEquals(hostile, firstFrom[2])
         assertEquals("example.com", firstFrom[3])
     }
+
+    /**
+     * A section item name is ONE atom, brackets and everything inside them included. Cut on the
+     * space or the parenthesis, `BODY[HEADER.FIELDS (REFERENCES)] {5}` used to tokenise as the
+     * atom `BODY[HEADER.FIELDS`, the list `(REFERENCES)`, the atom `]` and then the literal — and
+     * a reader pairing keys with the item that follows them would take the LIST as the value of
+     * the header item, and the literal as the value of `]`, without one error.
+     */
+    @Test
+    fun aHeaderFieldsSectionIsOneAtom() {
+        val r = parse("* 1 FETCH (UID 1 BODY[HEADER.FIELDS (REFERENCES)] {5}\r\nhello)\r\n")
+        @Suppress("UNCHECKED_CAST")
+        val args = r[3] as List<Any?>
+        assertEquals(listOf("UID", "1", "BODY[HEADER.FIELDS (REFERENCES)]", "hello"), args)
+    }
+
+    /** The field name may come back quoted; the quotes are part of the atom, the atom is whole. */
+    @Test
+    fun aQuotedHeaderFieldsSectionIsOneAtom() {
+        val r = parse("* 1 FETCH (UID 1 BODY[HEADER.FIELDS (\"REFERENCES\")] NIL)\r\n")
+        @Suppress("UNCHECKED_CAST")
+        val args = r[3] as List<Any?>
+        assertEquals(listOf("UID", "1", "BODY[HEADER.FIELDS (\"REFERENCES\")]", null), args)
+    }
+
+    /** The partial-fetch form, one atom as it always was — the suffix rides with the brackets. */
+    @Test
+    fun aPartialBodySectionIsOneAtom() {
+        val r = parse("* 1 FETCH (UID 1 BODY[1]<0> {5}\r\nhello FLAGS (\\Seen))\r\n")
+        @Suppress("UNCHECKED_CAST")
+        val args = r[3] as List<Any?>
+        assertEquals(listOf("UID", "1", "BODY[1]<0>", "hello", "FLAGS", listOf("\\Seen")), args)
+    }
+
+    /**
+     * A `[` never closed does not run past the line: the atom stops at the CRLF, and the next
+     * line is read as its own response. Placed OUTSIDE a list on purpose — an unclosed list at the
+     * end of a line is `readList`'s affair, not the atom's.
+     */
+    @Test
+    fun anUnclosedBracketStopsAtTheEndOfTheLine() {
+        val parser = ImapParser(ByteArrayInputStream(
+            "* 1 BODY[HEADER.FIELDS (REFERENCES\r\n* 2 EXISTS\r\n".toByteArray(Charsets.UTF_8),
+        ))
+        assertEquals(listOf("*", "1", "BODY[HEADER.FIELDS (REFERENCES"), parser.readResponse())
+        assertEquals(listOf("*", "2", "EXISTS"), parser.readResponse())
+    }
+
+    /**
+     * A `[` never closed inside a list leaves the list its `)`: the parenthesis that answers no
+     * `(` opened inside the brackets ends the atom, and the list closes as it should. Without
+     * this the atom would swallow the `)`, and the list would run to the end of the line.
+     */
+    @Test
+    fun anUnclosedBracketLeavesTheListItsClosingParenthesis() {
+        val r = parse("* 1 FETCH (UID 1 BODY[HEADER.FIELDS (REFERENCES))\r\n")
+        assertEquals(listOf("*", "1", "FETCH", listOf("UID", "1", "BODY[HEADER.FIELDS (REFERENCES)")), r)
+    }
+
+    /** A response code is not a section: a leading `[` keeps the shape it always had. */
+    @Test
+    fun aResponseCodeIsNotASectionAtom() {
+        assertEquals(listOf("*", "OK", "[UIDVALIDITY", "7]", "ok"), parse("* OK [UIDVALIDITY 7] ok\r\n"))
+    }
 }

@@ -1621,7 +1621,13 @@ internal fun ImapMessage.toEntity(
         id = id,
         accountId = accountId,
         mailboxId = mailboxId,
-        threadId = null,
+        // The conversation key, rebuilt from the threading headers of THIS message alone: the root
+        // of `References`, else `In-Reply-To`, else the `Message-ID` ([imapThreadKey]). No server
+        // THREAD extension and no second pass: every list FETCH carries the three headers, so each
+        // pass that writes a row recomputes its key, and `@Upsert` replacing the whole row is what
+        // makes that enough. A row cached before this line stays its own conversation until its
+        // folder is next refreshed — accepted, nothing is lost by it.
+        threadId = imapThreadKey(references, inReplyTo, messageId),
         subject = subject,
         preview = preview,
         receivedAt = if (dateMillis > 0) Instant.ofEpochMilli(dateMillis).toString() else null,

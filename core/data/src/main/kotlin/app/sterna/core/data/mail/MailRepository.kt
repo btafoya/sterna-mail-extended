@@ -3874,13 +3874,11 @@ class MailRepository(
         if (markRead && !envelope.isSeen) {
             runCatching { setRead(credentials, emailId, seen = true) }
         }
-        // The cache holds no threading headers; lift them from the source so a reply
-        // built from this email carries In-Reply-To/References.
+        // The cache holds the thread KEY but not the threading headers themselves; lift them
+        // from the source so a reply built from this email carries In-Reply-To/References.
         //
         // The unsubscribe headers ride along for FREE: the whole source is already in hand, so
-        // this costs no extra round trip and no change to any FETCH command — which matters,
-        // because a `BODY.PEEK[HEADER.FIELDS (…)]` would break ImapParser's tokenisation (it
-        // stops on parentheses) and return an empty string with no error at all.
+        // this costs no extra round trip and no change to any FETCH command.
         //
         // ⚠ `headerOf` is a Map, so a message carrying `List-Unsubscribe` TWICE keeps the last
         // one. Accepted for this lot: both are the sender's own, and picking one of two is not
@@ -7452,9 +7450,8 @@ class MailRepository(
      *
      * ⚠ It costs a full `FETCH` of the draft. Accepted: it happens only on an explicit save that
      * REPLACES a server draft, the message it downloads is the one just uploaded by the APPEND
-     * above, and there is no cheaper honest read — `BODY.PEEK[HEADER.FIELDS (…)]` breaks
-     * `ImapParser`'s tokenisation and comes back an empty string with no error at all, which is
-     * the shape of answer this function exists to never give.
+     * above, and the only `HEADER.FIELDS` reader `core/imap` has is keyed on `References` alone
+     * (`REFERENCES_ITEM`); a second one, for this single path, is not worth the parser it costs.
      */
     private suspend fun imapDraftReceiptRequested(credentials: AccountCredentials, emailId: String): Boolean? {
         val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull() ?: return null

@@ -86,11 +86,19 @@ account-wide total only gates the expand affordance (the row can unfold when
 the other members live elsewhere). All joins pin the row's `accountId`, since
 same-server accounts can collide on server-assigned mailbox/thread ids.
 
+The thread key is the server's `threadId` on JMAP. On IMAP it is rebuilt by
+`imapThreadKey` (the root of `References`, i.e. its first id; failing that
+`In-Reply-To`; failing that `Message-ID`; angle brackets kept), recomputed on
+every write pass from the list FETCH, which carries
+`BODY.PEEK[HEADER.FIELDS (REFERENCES)]` for that purpose. A message with none
+of the three keeps its own row.
+
 Drawer badges are WYSIWYG: for JMAP folders the badge is a live Room aggregate,
 unread *threads* in conversation view, unread *messages* in flat view, so it
 always equals the bold rows in the list and moves instantly on read/move/
 delete/snooze. IMAP folders keep the stored server counter instead (their
-windowed cache would under-count), and the "All inboxes" header sums the same
+windowed cache would under-count), so there the badge counts messages where the
+list shows threads; and the "All inboxes" header sums the same
 per-account sources.
 
 ## Actions & safety

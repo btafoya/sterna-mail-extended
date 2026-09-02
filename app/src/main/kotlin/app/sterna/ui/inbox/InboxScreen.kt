@@ -2744,8 +2744,10 @@ internal fun rowFolderRole(
  *    of the list. Conversation view is the default, and there a thread unread in the Inbox and in
  *    the Archive is drawn ONCE, off its newest message: naming that one message's folder would
  *    assert a single origin for a row that has several, and hide the reader's Inbox message behind
- *    the word "Archive". ⭐ It costs #169 nothing — on IMAP `threadId` is null, every message is its
- *    own group, and the rows the reporter sees stacked each count 1.
+ *    the word "Archive". ⭐ It costs #169 nothing: the rows the reporter sees stacked each count 1,
+ *    and a row that counts 1 still names its folder. IMAP folds into conversations too
+ *    (`imapThreadKey`), so a collapsed IMAP row loses its folder label exactly as a JMAP one does,
+ *    for the same reason — a row with several origins names none.
  *  - no account on screen, or a folder [MailUi.mailboxes] has no entry for: unknown folder, which
  *    is not the same thing as a folder without a role. We are quiet, we do not guess.
  *

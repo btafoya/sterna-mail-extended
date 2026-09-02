@@ -386,9 +386,10 @@ class ConversationSqlTest {
         val rows = run(SortOrder.FLAGGED_FIRST)
         assertEquals(listOf("u2", "plain", "t2"), ids(rows))
         assertEquals(2, rows[0]["threadCount"])
-        // Worth stating plainly: on IMAP this distinction cannot arise at all — threadId is
-        // always null there (ImapMailService), so every message is its own thread and the
-        // representative's flag IS the thread's. It is a JMAP-only shade of meaning.
+        // Worth stating plainly: this distinction arises on both protocols now that IMAP rows
+        // carry a header-rebuilt threadId (imapThreadKey). Only a message with a null threadId —
+        // one with no threading header at all — is its own thread, and there the representative's
+        // flag IS the thread's.
     }
 
     @Test fun favouritesFirstCoexistsWithTheUnreadOnlyFilter() {

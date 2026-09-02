@@ -228,7 +228,7 @@ class FirstTextPartTest {
             listOf(
                 "CAPABILITY",
                 "SELECT \"INBOX\"",
-                "UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
+                "UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])",
                 "LOGOUT",
             ),
             server.issued(),

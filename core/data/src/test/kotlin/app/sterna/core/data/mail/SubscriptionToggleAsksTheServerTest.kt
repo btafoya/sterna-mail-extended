@@ -172,7 +172,7 @@ class SubscriptionToggleAsksTheServerTest {
                     """LSUB "" "*"""",
                     """SELECT "INBOX"""",
                     "SEARCH UNSEEN UNDELETED",
-                    "FETCH 12:12 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)",
+                    "FETCH 12:12 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])",
                 ),
                 server.issued(),
             )

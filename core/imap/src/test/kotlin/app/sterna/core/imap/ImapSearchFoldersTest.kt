@@ -46,11 +46,11 @@ class ImapSearchFoldersTest {
                     """SELECT "INBOX"""",
                     """UID SEARCH FROM "alex.rivera@masto.top" OR TO "team@masto.top" CC "team@masto.top" """ +
                         """SUBJECT "facture" SINCE 1-Jun-2026 BEFORE 16-Jun-2026 TEXT "invoice"""",
-                    """UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)""",
+                    """UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])""",
                     """SELECT "Archive"""",
                     """UID SEARCH FROM "alex.rivera@masto.top" OR TO "team@masto.top" CC "team@masto.top" """ +
                         """SUBJECT "facture" SINCE 1-Jun-2026 BEFORE 16-Jun-2026 TEXT "invoice"""",
-                    """UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)""",
+                    """UID FETCH 7 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])""",
                     "LOGOUT",
                 ),
                 server.issued(),

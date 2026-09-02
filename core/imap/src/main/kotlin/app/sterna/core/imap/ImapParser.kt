@@ -83,12 +83,7 @@ internal class ImapParser(private val input: InputStream) {
     private fun skipToken() {
         when (peek()) {
             '('.code, '"'.code, '{'.code -> readToken() // rare here; read and drop
-            else -> while (true) {
-                when (peek()) {
-                    -1, ' '.code, '('.code, ')'.code, '\r'.code, '\n'.code -> return
-                    else -> read()
-                }
-            }
+            else -> consumeAtom(null)
         }
     }
 
@@ -166,14 +161,49 @@ internal class ImapParser(private val input: InputStream) {
 
     private fun readAtom(): Any? {
         val sb = StringBuilder()
-        loop@ while (true) {
-            when (peek()) {
-                -1, ' '.code, '('.code, ')'.code, '\r'.code, '\n'.code -> break@loop
-                else -> sb.append(read().toChar())
-            }
-        }
+        consumeAtom(sb)
         val s = sb.toString()
         return if (s.equals("NIL", ignoreCase = true)) null else s
+    }
+
+    /**
+     * Consume one atom off the stream, appending it to [into] when a caller wants it built.
+     *
+     * An atom ends on a space, a parenthesis or the end of the line — EXCEPT inside a section
+     * name. A FETCH item such as `BODY[HEADER.FIELDS (REFERENCES)]` is ONE item, with a space and
+     * a parenthesised list inside its brackets (RFC 3501 §6.4.5): cut on the space, it used to
+     * come out as the atom `BODY[HEADER.FIELDS`, the list `(REFERENCES)` and the atom `]`, and a
+     * reader pairing each key with the token after it paired the header item with a LIST and the
+     * literal that followed with `]` — silently. So from a `[` that follows something (`BODY[`,
+     * never a bare `[UIDVALIDITY 1]` response code, which keeps its old shape) to the matching
+     * `]`, everything is the atom. `BODY[1]<0>` and `BODY[]` never had a space or a parenthesis
+     * and read exactly as before.
+     *
+     * ⛔ Still bounded by the line: a `]` that never comes ends the atom at the CRLF, as a plain
+     * atom always did — and the `)` that closes the list the item sits in is left to that list,
+     * unless the brackets themselves opened a `(` it is answering.
+     */
+    private fun consumeAtom(into: StringBuilder?) {
+        var seen = 0 // chars consumed so far — a `[` is a section only after at least one
+        var inSection = false
+        var depth = 0 // parentheses opened inside the brackets and not yet closed
+        while (true) {
+            val c = peek()
+            if (c == -1 || c == '\r'.code || c == '\n'.code) return
+            if (inSection) {
+                when (c) {
+                    '('.code -> depth++
+                    ')'.code -> if (depth == 0) return else depth--
+                    ']'.code -> { inSection = false; depth = 0 }
+                }
+            } else {
+                if (c == ' '.code || c == '('.code || c == ')'.code) return
+                if (c == '['.code && seen > 0) inSection = true
+            }
+            read()
+            into?.append(c.toChar())
+            seen++
+        }
     }
 
     private companion object {

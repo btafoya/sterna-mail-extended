@@ -126,8 +126,9 @@ class UnreadRowFolderTest {
      * the Archive is drawn ONCE, off its newest message. `email` is then the representative alone,
      * and stamping its folder on the row asserts a single origin for something that has several —
      * hiding the reader's unread Inbox message behind the word "Archive". ⭐ #169 loses nothing:
-     * on IMAP `threadId` is null, so every message is its own group and the stacked rows the
-     * reporter sees each stand for exactly one message.
+     * the stacked rows the reporter sees each stand for exactly one message, and a row that counts
+     * 1 keeps its folder. IMAP folds into conversations too (`imapThreadKey`), so a collapsed IMAP
+     * row is silent exactly as a JMAP one is — this test's representative is an IMAP row.
      */
     @Test
     fun `a row standing for several messages names no folder at all`() {

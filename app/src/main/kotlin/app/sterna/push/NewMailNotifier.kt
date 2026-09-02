@@ -206,8 +206,9 @@ object NewMailNotifier {
     ) {
         // One notification per conversation: the uncollapsed folder sync hands us every new
         // member of a thread, so a reply burst would otherwise fire one notification per
-        // message. Collapse the new-mail set by thread (COALESCE(threadId, id) — an IMAP or
-        // thread-less message is its own thread), keeping the newest member as the
+        // message. Collapse the new-mail set by thread (COALESCE(threadId, id) — a thread-less
+        // message, one with a null threadId, which on IMAP means no threading header at all, is
+        // its own thread), keeping the newest member as the
         // representative; the whole burst still enters the baseline via [seed] below, so a
         // skipped member can never resurface as "new" on a later pass.
         val newMail = newSince(context, credentials.id, mailboxId, emails)
