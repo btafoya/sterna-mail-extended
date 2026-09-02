@@ -77,15 +77,24 @@ class OutboxRearmWiringTest {
                 "interrupted, at every cold start — and the exponential backoff of an offline send " +
                 "restarts from zero each time the app is opened:",
             listOf(
-                "appScope.launch {",
-                "mailRepository.revertEditingOutbox()",
+                // ⛔ ASSIGNED, not anonymous: `AppContainer.outboxRecovery` is the Job a composer
+                // rebuilt after a process death joins before taking its row back by the id its
+                // route carries (`resumeOutboxRow`). An anonymous launch here leaves nothing to
+                // join, and the composer's take races the park below — the row it just took
+                // EDITING is parked FAILED under the open composer.
+                "outboxRecovery = appScope.launch {",
+                // ⛔ PARKED, not reverted: a row left EDITING by a process death is parked FAILED
+                // with the interrupted-edit reason, and unfinished() below does not return FAILED,
+                // so the re-arm never books it. Requeued instead, it leaves on its own at 0 and the
+                // composer restored afterwards can send the same message twice.
+                "mailRepository.parkInterruptedOutboxEdits()",
                 "mailRepository.unfinishedOutbox().forEach { item ->",
                 "val delay = (item.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0)",
                 "Outbox.enqueue(appContext, item.id, delay, keepExisting = true)",
                 "}",
                 "}",
             ),
-            blockAt(lines, "mailRepository.revertEditingOutbox()", before = 1, size = 7),
+            blockAt(lines, "mailRepository.parkInterruptedOutboxEdits()", before = 1, size = 7),
         )
     }
 

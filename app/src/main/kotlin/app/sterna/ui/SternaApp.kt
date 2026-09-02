@@ -591,11 +591,16 @@ private fun MainNavHost(
         }
         composable(
             route = "compose?replyTo={replyTo}&mode={mode}&accountId={accountId}&restore={restore}" +
-                "&to={to}&cc={cc}&bcc={bcc}&subject={subject}&body={body}&draftId={draftId}",
+                "&to={to}&cc={cc}&bcc={bcc}&subject={subject}&body={body}&draftId={draftId}&outboxId={outboxId}",
             arguments = listOf(
                 navArgument("replyTo") { type = NavType.StringType; nullable = true; defaultValue = null },
                 // A saved draft reopened for editing (#63).
                 navArgument("draftId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                // A queued row reopened by Outbox → Edit (#70), the twin of draftId: the row's id
+                // rides in the route because the route is what Android restores after a process
+                // death, while the draft handed over in memory dies with the process. The composer
+                // rebuilt afterwards takes the row back by it (ComposeViewModel.resumeOutboxEdit).
+                navArgument("outboxId") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("mode") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("restore") { type = NavType.StringType; nullable = true; defaultValue = null },
@@ -652,6 +657,7 @@ private fun MainNavHost(
                     subject = entry.arguments?.getString("subject")?.let { Uri.decode(it) }?.ifBlank { null },
                     body = entry.arguments?.getString("body")?.let { Uri.decode(it) }?.ifBlank { null },
                     draftId = entry.arguments?.getString("draftId")?.let { Uri.decode(it) }?.ifBlank { null },
+                    outboxId = entry.arguments?.getString("outboxId")?.toLongOrNull(),
                 )
             }
         }
@@ -708,7 +714,7 @@ private fun MainNavHost(
         composable("outbox") { entry ->
             OutboxScreen(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
-                onEditDraft = { entry.navigateOnce { nav.navigate("compose?restore=true") } },
+                onEditDraft = { id -> entry.navigateOnce { nav.navigate("compose?restore=true&outboxId=$id") } },
             )
         }
         composable("bysender") { entry ->

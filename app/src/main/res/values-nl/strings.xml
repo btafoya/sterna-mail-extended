@@ -785,6 +785,7 @@
     <string name="outbox_state_sending">Verzenden…</string>
     <string name="outbox_state_failed">Mislukt: %1$s</string>
     <string name="outbox_state_failed_unknown">verzenden mislukt</string>
+    <string name="outbox_error_edit_interrupted">bewerken onderbroken, niet verzonden</string>
     <string name="outbox_state_kept_as_draft">Als concept op dit apparaat opgeslagen, niet verzonden</string>
     <string name="outbox_state_interrupted">Onderbroken, mogelijk al verzonden</string>
     <string name="outbox_retry">Opnieuw</string>

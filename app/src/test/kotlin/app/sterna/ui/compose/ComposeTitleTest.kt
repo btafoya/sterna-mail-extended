@@ -3,6 +3,7 @@ package app.sterna.ui.compose
 import app.sterna.send.SendOutbox
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -137,6 +138,30 @@ class ComposeTitleTest {
         // A draft left unconsumed in the handle must not leak into an ordinary compose — this is
         // what stops the leave dialog describing an outbox row that is not behind this screen.
         assertFalse(holdsQueuedOutboxRow(restore = false, restored = draft(editingOutboxId = 7L)))
+    }
+
+    // --- which row a composer rebuilt after a process death takes back -----------------------------
+    //
+    // The in-memory hand-over dies with the process; the route survives it and now carries the row
+    // id. [outboxRowToResume] says which of the two the composer listens to, and it is executed
+    // here rather than read: invert its condition and a live reopen would take the row a SECOND
+    // time on top of the one `OutboxViewModel.edit` already holds EDITING.
+
+    @Test fun aLiveReopenResumesNothingTheHandOverWinsAndTheRowIsAlreadyHeld() {
+        assertNull(outboxRowToResume(restored = draft(editingOutboxId = 7L), outboxId = 7L))
+    }
+
+    @Test fun aComposerRebuiltAfterTheAppWasKilledResumesTheRowTheRouteNames() {
+        assertEquals(7L, outboxRowToResume(restored = null, outboxId = 7L))
+    }
+
+    @Test fun anUndoRouteRebuiltAfterTheAppWasKilledResumesNothing() {
+        // `compose?restore=true` with no id: the undone send lived only in memory, there is no row.
+        assertNull(outboxRowToResume(restored = null, outboxId = null))
+    }
+
+    @Test fun anUndoneSendHandedOverResumesNothingEither() {
+        assertNull(outboxRowToResume(restored = draft(editingOutboxId = null), outboxId = null))
     }
 
     @Test fun theTitleAgreesWithWhatTheComposerActuallyHolds() {

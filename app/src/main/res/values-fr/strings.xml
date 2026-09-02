@@ -790,6 +790,7 @@
     <string name="outbox_state_sending">Envoi…</string>
     <string name="outbox_state_failed">Échec : %1$s</string>
     <string name="outbox_state_failed_unknown">envoi impossible</string>
+    <string name="outbox_error_edit_interrupted">édition interrompue, non envoyé</string>
     <string name="outbox_state_kept_as_draft">Enregistré comme brouillon sur cet appareil, non envoyé</string>
     <string name="outbox_state_interrupted">Interrompu, peut-être déjà envoyé</string>
     <string name="outbox_retry">Réessayer</string>

@@ -33,6 +33,7 @@ import app.sterna.widget.UnreadWidgetPresence
 import app.sterna.widget.UnreadWidgetPush
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
@@ -81,6 +82,18 @@ class AppContainer(context: Context) {
      */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val sendOutbox: SendOutbox = SendOutbox(appScope)
+
+    /**
+     * The startup recovery of the outbox — the sweep that parks every row left EDITING by a process
+     * death, then re-arms the unfinished sends — as a Job, assigned in `init` below. A composer
+     * rebuilt after such a death `join()`s it before taking its row back by the id its route
+     * carries (`resumeOutboxRow`): taken before the sweep, the row it just marked EDITING would be
+     * parked FAILED under the open composer.
+     *
+     * ⛔ A Job to join, never a `runBlocking` in `onCreate`: this touches Room, and on the first
+     * launch of a version that migrates the database, blocking the main thread on it is an ANR.
+     */
+    val outboxRecovery: Job
 
     /** Drives the Outlook OAuth device flow app-scoped, so it survives the browser round-trip. */
     val outlookSignIn: OutlookSignIn = OutlookSignIn(mailRepository, appScope, context.applicationContext)
@@ -152,11 +165,13 @@ class AppContainer(context: Context) {
         // the worker parks a row it finds in SENDING, the user would read "interrupted, may
         // already have been sent" at every cold start on a send nothing interrupted. It would
         // also reset the backoff of an offline send at every launch.
-        appScope.launch {
-            // First rescue any row stranded in EDITING by a process death mid-edit (#70): its
-            // composer is gone, so it becomes a normal QUEUED send again rather than sitting
-            // off-worker forever. The re-arm below then schedules it like any other queued item.
-            mailRepository.revertEditingOutbox()
+        outboxRecovery = appScope.launch {
+            // First park any row stranded in EDITING by a process death mid-edit (#70): FAILED with
+            // the interrupted-edit reason, visible in the Outbox and reopenable. The re-arm below
+            // does not see it (unfinished() never returns FAILED), so only a gesture — Retry, or
+            // reopen and send — makes it leave. Requeued here instead, it would leave on its own
+            // at 0 while the restored composer still holds the same text, and go out twice.
+            mailRepository.parkInterruptedOutboxEdits()
             mailRepository.unfinishedOutbox().forEach { item ->
                 val delay = (item.notBeforeMillis - System.currentTimeMillis()).coerceAtLeast(0)
                 Outbox.enqueue(appContext, item.id, delay, keepExisting = true)

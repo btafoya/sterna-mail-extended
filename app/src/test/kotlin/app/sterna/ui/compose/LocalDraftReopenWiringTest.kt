@@ -668,7 +668,7 @@ class LocalDraftReopenWiringTest {
                 "val original = editingDraftId",
                 "val originalUidValidity = editingDraftUidValidity",
                 "val originalAccountId = editingDraftAccountId",
-                "abandon(emptying = true)",
+                "abandon(emptying = true, body = body)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
                 "} else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {",
@@ -1098,16 +1098,29 @@ class LocalDraftReopenWiringTest {
                 "val plan = abandonPlan(",
                 "sending = _state.value is ComposeState.Sending,",
                 "emptying = emptying,",
+                // ⛔ The queued row's door is decided on the RAW body handed in, through the one
+                // reading of a lost body the send and the save already use — never on a flag
+                // saying a refusal was shown, and never inside the ViewModel.
+                "parkOutbox = closingParksQueuedRow(composerBodyWasLost, body),",
                 "localDraftId = _editingLocalDraftId.value,",
                 "outboxId = editingOutboxId,",
                 ")",
                 "plan.localDraftToRelease?.let { releaseLocalDraftEdit(it) }",
-                "val id = plan.outboxToRelease ?: return",
+                "plan.outboxToRelease?.let { id ->",
                 "editingOutboxId = null",
                 "_editingOutbox.value = false",
                 "appScope.launch {",
                 "runCatching { repo.releaseOutboxEdit(id) }",
                 ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't release the edited outbox item\", it) }",
+                "}",
+                "}",
+                "plan.outboxToPark?.let { id ->",
+                "editingOutboxId = null",
+                "_editingOutbox.value = false",
+                "appScope.launch {",
+                "runCatching { repo.parkInterruptedOutboxEdit(id) }",
+                ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't park the interrupted outbox item\", it) }",
+                "}",
                 "}",
             ),
             codeLines(bodyOf(COMPOSE_VIEW_MODEL, "abandon")),
@@ -1153,17 +1166,19 @@ class LocalDraftReopenWiringTest {
                 "worker until the next cold start — and every line of this file that names " +
                 "abandon(, in order. Lines were:",
             listOf(
-                "fun abandon(emptying: Boolean = false) {",
-                "abandon(emptying = true)",
+                "fun abandon(body: String, emptying: Boolean = false) {",
+                "abandon(emptying = true, body = body)",
             ),
             codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "abandon(" in it },
         )
         assertEquals(
-            "…and the ordinary close, on the screen, must go on calling it WITHOUT an argument: it " +
-                "is the one caller that must hand the row back to the upload worker. A " +
-                "`viewModel.abandon(emptying = true)` slipped in here is the same defect from the " +
-                "other end, and the declaration rule above cannot see it. Calls were:",
-            listOf("viewModel.abandon()"),
+            "…and the ordinary close, on the screen, must go on calling it WITHOUT `emptying`, and " +
+                "WITH the editor's raw body: it is the one caller that must hand the local row back " +
+                "to the upload worker, and the body is what decides whether the queued row is " +
+                "parked or given back. A `viewModel.abandon(body.text, emptying = true)` slipped " +
+                "in here is the same defect from the other end, and the declaration rule above " +
+                "cannot see it. Calls were:",
+            listOf("viewModel.abandon(body.text)"),
             codeLines(codeOf(COMPOSE_SCREEN.readText())).filter { "abandon(" in it },
         )
     }

@@ -85,6 +85,10 @@ class KeptAsDraftRowTest {
      * The other startup path: the mid-edit recovery. Both statements only ever name `EDITING`, and
      * that is exactly why parking at SAVE time (rather than leaving the row EDITING and hoping)
      * is what closes the hole — a parked row is no longer EDITING, so neither statement can see it.
+     *
+     * ⭐ The EDITING row itself now comes out of the sweep as FAILED — parked with the
+     * interrupted-edit reason (`EditInterruptedRowTest`), no longer requeued — and that is what
+     * the third state below says. What this test holds is the two $parked rows, whatever their count.
      */
     @Test fun `the mid-edit recovery leaves a row saved as a draft exactly where it is`() {
         insert(parked, attemptCount = 0)
@@ -99,14 +103,23 @@ class KeptAsDraftRowTest {
             it.setInt(1, OutboxLogic.MAX_ATTEMPTS)
             it.executeUpdate()
         }
-        db.createStatement().use { it.executeUpdate(DaoQuerySource.daoQuery("OutboxDao", "revertEditingToQueued")) }
+        val (park, parkOrder) = DaoQuerySource.bindOrder(
+            DaoQuerySource.daoQuery("OutboxDao", "parkAllEditingAsInterrupted"),
+        )
+        assertEquals(listOf("maxAttempts", "lastError"), parkOrder)
+        db.prepareStatement(park).use {
+            it.setInt(1, OutboxLogic.MAX_ATTEMPTS)
+            it.setString(2, OutboxLogic.EDIT_INTERRUPTED)
+            it.executeUpdate()
+        }
 
         assertEquals(
             "⛔ startup recovery must touch nothing but the rows a process death stranded in " +
-                "EDITING. A $parked row swept into QUEUED — or into FAILED, whatever its attempt " +
-                "count — is the pre-edit message sent behind the user's back, or a permanent " +
-                "failure banner over a save that worked",
-            listOf(parked, parked, OutboxState.QUEUED),
+                "EDITING — and that one it PARKS as FAILED, it no longer requeues it. A $parked " +
+                "row swept into FAILED, whatever its attempt count, is a permanent failure banner " +
+                "over a save that worked; swept into QUEUED it is the pre-edit message sent " +
+                "behind the user's back",
+            listOf(parked, parked, OutboxState.FAILED),
             statesInOrder(),
         )
     }

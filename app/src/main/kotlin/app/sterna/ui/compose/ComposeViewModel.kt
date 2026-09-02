@@ -50,6 +50,7 @@ import app.sterna.mail.MessageDestroyWorker
 import app.sterna.send.Outbox
 import app.sterna.send.ScheduledSends
 import app.sterna.send.SendOutbox
+import app.sterna.send.composeDraftOf
 import app.sterna.core.jmap.ContentTooLargeException
 import app.sterna.core.jmap.DownloadLimits
 import app.sterna.core.jmap.model.Email
@@ -178,7 +179,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * before navigating, so the title is right from the start instead of flipping a frame later.
      * Nothing handed over (the app was killed and the in-memory draft died with it) reads false,
      * which is the truth — there is no row in front of the user and nothing to edit. [prepare] then
-     * settles it for every way of opening the composer, so the seed is never the last word.
+     * settles it for every way of opening the composer, so the seed is never the last word — and
+     * neither is [prepare]'s: a composer rebuilt after a process death with a row id in its route
+     * takes the row back once the startup sweep is over ([resumeOutboxEdit]), and [bindQueuedRow]
+     * flips this to true at that moment, title and leave dialog with it.
      *
      * The seed asks [holdsQueuedOutboxRow] with `restore = true` because that argument has not
      * reached the ViewModel yet: it answers "IF this is a restore, is a row behind it?". Safe on its
@@ -1144,6 +1148,110 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
+     * Bind everything about a queued or undone message that is NOT the text of its fields — the
+     * two callers differ exactly there. The restored lambda of [prepare] fills the fields from the
+     * hand-over and then calls this; [resumeOutboxEdit], after a process death, calls this ALONE:
+     * To/Cc/Bcc/subject come back from the screen's `rememberSaveable`s and the body from the
+     * resume slot, or it is lost — and then "Close this screen and reopen the message" is true,
+     * because closing parks the row. ⛔ So no `_prefill` here, ever (OutboxResumeWiringTest).
+     *
+     * [options] are the identities [prepare] just listed. ⭐ The send identity is a flow of this
+     * ViewModel, dead with the process: without this the resumed message would leave under the
+     * default identity, not the one it was queued under.
+     */
+    private fun bindQueuedRow(d: SendOutbox.ComposeDraft, options: List<FromOption>) {
+        _attachments.value = d.attachments
+        inReplyTo = d.inReplyTo
+        references = d.references
+        // Reopening an undone forward: restore the carried original so it is still sent.
+        if (d.forwardedText != null && d.forwardedHtml != null) {
+            forwarded = ForwardedBlocks(d.forwardedText, d.forwardedHtml)
+        }
+        val match = options.firstOrNull {
+            it.accountId == d.fromAccountId && it.identity.email == d.fromIdentityEmail
+        } ?: options.firstOrNull { it.accountId == d.fromAccountId }
+        if (match != null) _selectedFrom.value = match
+        editingDraftId = d.draftEmailId
+        // …with the numbering that id was frozen under, carried by the outbox row through
+        // the queue and back (#99). Restored rather than re-read: the read that matters
+        // happened when the composer first opened the draft, and looking it up again here
+        // would answer the number a sync recorded after any renumbering — the value that
+        // lets the expunge through on another message. Null on a row queued before v23 — on
+        // IMAP that destroys nothing; on JMAP it is always null and destroys all the same.
+        editingDraftUidValidity = d.draftUidValidity
+        // …and the ACCOUNT that pair belongs to. The outbox row has no column of its own
+        // for it and is not getting one: `fromAccountId` is the account the message goes
+        // out under, and it answers for the draft too because a queued row may only carry
+        // a draft id belonging to the SAME account as itself — the guarantee lives where
+        // the row is written, one gesture away, and this line rests on it. Restored, never
+        // re-read: the identity on show can have been switched since, and it covers every
+        // account.
+        editingDraftAccountId = d.fromAccountId
+        // The fidelity verdict travels WITH the id: before it did, undoing a send
+        // restored the id while this flag fell back to false, and re-sending destroyed
+        // an original the first send had deliberately spared.
+        editingDraftLossyOnOpen = d.draftBodyIsLossy
+        // The saved draft behind this screen (#35) follows the binding: settled at the head of
+        // prepare() from the hand-over, which a composer rebuilt after a process death did not
+        // have — so it is settled again here, from the record the resume brought back.
+        _savedDraftBehind.value = savedDraftBehindScreen(null, d.draftEmailId)
+        // Restore the PGP mode the message carried (#35/#70): a signed item reopens signed,
+        // an undone encrypted send reopens with the padlock on — never silently downgraded.
+        d.pgpMode?.let { mode ->
+            runCatching { PgpMode.valueOf(mode) }.getOrNull()?.let {
+                _pgpMode.value = it
+                pgpModeUserSet = true
+                // Re-check OpenPGP now that the mode is back, instead of relying on the
+                // check started above landing after this line. It may not: whether that
+                // one has already run depends on how far it got before it had to wait for
+                // the provider, so a mode restored into an app that can no longer sign or
+                // encrypt survived or not by accident of timing. Asking again once the
+                // mode is in place makes the answer the same either way — and the drop, if
+                // there is one, is announced exactly once (the second check finds the mode
+                // already OFF and says nothing more).
+                refreshPgp()
+            }
+        }
+        // Reopened from the outbox: its row waits in the queue marked EDITING until this
+        // composer either commits the message somewhere or hands it back (#70). An undone
+        // send carries no id — it is the one case where the message only lives on this screen.
+        _editingOutbox.value = d.editingOutboxId != null
+        editingOutboxId = d.editingOutboxId
+        _onlyCopy.value = d.editingOutboxId == null
+    }
+
+    /**
+     * Take back, by [id], the queued row a composer rebuilt after a process death was opened on
+     * (#70). Before this, that composer was DETACHED: `editingOutboxId` is only ever set from the
+     * in-memory hand-over, which died with the process, so Send enqueued a SECOND copy beside the
+     * original the startup sweep had parked FAILED, and the title, the leave dialog, the send
+     * identity, the attachments, the PGP mode and the draft being replaced were all those of a new
+     * mail.
+     *
+     * The order is the whole of it and it is [resumeOutboxRow], executed in `OutboxResumeTest`:
+     * AFTER `AppContainer.outboxRecovery`, so the row is FAILED when [MailRepository.takeOutboxForEdit]
+     * reads it (which `canEdit` accepts) and comes back EDITING with nobody left to park it. A row
+     * that is gone or not reopenable (SENDING, encrypted, an unreadable attachment) leaves the
+     * composer detached as it was — not worse, and nothing leaves on its own: the sweep parked it.
+     *
+     * ⛔ Fields are NOT touched (A8): see [bindQueuedRow].
+     *
+     * ⚠ Residue, accepted: a Send tapped before this has returned goes out without an id — a new
+     * row, the original still parked FAILED beside it, to Retry or delete by hand (two explicit
+     * gestures, like a Retry after the fact). And a row taken back under a composer that is then
+     * popped stays EDITING until the next launch, whose sweep parks it again.
+     */
+    private suspend fun resumeOutboxEdit(id: Long) {
+        val app = getApplication<Application>()
+        val draft = resumeOutboxRow(id, app.container.outboxRecovery) { rowId ->
+            runCatching { repo.takeOutboxForEdit(rowId, File(app.cacheDir, "outgoing")) }
+                .onFailure { android.util.Log.w("SternaCompose", "couldn't resume the outbox item $rowId", it) }
+                .getOrNull()
+        } ?: return
+        bindQueuedRow(composeDraftOf(draft), _fromOptions.value)
+    }
+
+    /**
      * Build initial fields when opening as a reply/reply-all/forward of [replyToId], or, when [to]
      * is given (from the participant panel's "write to"), as a fresh mail pre-addressed to it.
      *
@@ -1156,6 +1264,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * baseline (the B6 toast then says the quote was not added, over the quote) and re-announces
      * `compose_prefill_failed` offline (the banner then covers the restored quote). Both would be
      * messages contradicting what the reader is looking at.
+     * @param outboxId the queued row this composer was opened on by Outbox → Edit (#70), from the
+     * route. Read only when [restore] is true and nothing was handed over in memory — i.e. after a
+     * process death — to take the row back ([outboxRowToResume], [resumeOutboxEdit]).
      */
     fun prepare(
         replyToId: String?,
@@ -1169,6 +1280,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         body: String? = null,
         draftId: String? = null,
         quoteAlreadyOnScreen: Boolean = false,
+        outboxId: Long? = null,
     ) {
         if (prepared) return
         prepared = true
@@ -1203,10 +1315,14 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // Reopening an undone send: restore every field the user had, including the
         // "From" identity, Cc/Bcc, and attachments, so nothing is lost.
         if (restore) {
-            // Nothing handed over means the app was killed while this composer was open: the fields
-            // stay empty, [editingOutbox] was already settled to false above, and [_onlyCopy] stays
-            // false too — an empty screen has nothing to lose, so nothing to guard (#96).
-            outbox.restored.value?.let { d ->
+            // Nothing handed over means the app was killed while this composer was open. With no
+            // id in the route either — the Undo route after such a death — the fields stay empty,
+            // [editingOutbox] was already settled to false above, and [_onlyCopy] stays false too:
+            // an empty screen has nothing to lose, so nothing to guard (#96). With an id — Outbox →
+            // Edit — the resume below reattaches the row once the startup sweep is over; it does
+            // not touch the fields, which come back from the screen's own saveables.
+            val handed = outbox.restored.value
+            handed?.let { d ->
                 _prefill.value = DraftFields(
                     to = d.to, cc = d.cc, bcc = d.bcc, subject = d.subject, body = d.body,
                     expand = d.cc.isNotBlank() || d.bcc.isNotBlank(),
@@ -1214,61 +1330,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // composer will enqueue a NEW row, so a clear box here cancels the request.
                     requestReceipt = d.requestReceipt,
                 )
-                _attachments.value = d.attachments
-                inReplyTo = d.inReplyTo
-                references = d.references
-                // Reopening an undone forward: restore the carried original so it is still sent.
-                if (d.forwardedText != null && d.forwardedHtml != null) {
-                    forwarded = ForwardedBlocks(d.forwardedText, d.forwardedHtml)
-                }
-                val match = options.firstOrNull {
-                    it.accountId == d.fromAccountId && it.identity.email == d.fromIdentityEmail
-                } ?: options.firstOrNull { it.accountId == d.fromAccountId }
-                if (match != null) _selectedFrom.value = match
-                editingDraftId = d.draftEmailId
-                // …with the numbering that id was frozen under, carried by the outbox row through
-                // the queue and back (#99). Restored rather than re-read: the read that matters
-                // happened when the composer first opened the draft, and looking it up again here
-                // would answer the number a sync recorded after any renumbering — the value that
-                // lets the expunge through on another message. Null on a row queued before v23 — on
-                // IMAP that destroys nothing; on JMAP it is always null and destroys all the same.
-                editingDraftUidValidity = d.draftUidValidity
-                // …and the ACCOUNT that pair belongs to. The outbox row has no column of its own
-                // for it and is not getting one: `fromAccountId` is the account the message goes
-                // out under, and it answers for the draft too because a queued row may only carry
-                // a draft id belonging to the SAME account as itself — the guarantee lives where
-                // the row is written, one gesture away, and this line rests on it. Restored, never
-                // re-read: the identity on show can have been switched since, and it covers every
-                // account.
-                editingDraftAccountId = d.fromAccountId
-                // The fidelity verdict travels WITH the id: before it did, undoing a send
-                // restored the id while this flag fell back to false, and re-sending destroyed
-                // an original the first send had deliberately spared.
-                editingDraftLossyOnOpen = d.draftBodyIsLossy
-                // Restore the PGP mode the message carried (#35/#70): a signed item reopens signed,
-                // an undone encrypted send reopens with the padlock on — never silently downgraded.
-                d.pgpMode?.let { mode ->
-                    runCatching { PgpMode.valueOf(mode) }.getOrNull()?.let {
-                        _pgpMode.value = it
-                        pgpModeUserSet = true
-                        // Re-check OpenPGP now that the mode is back, instead of relying on the
-                        // check started above landing after this line. It may not: whether that
-                        // one has already run depends on how far it got before it had to wait for
-                        // the provider, so a mode restored into an app that can no longer sign or
-                        // encrypt survived or not by accident of timing. Asking again once the
-                        // mode is in place makes the answer the same either way — and the drop, if
-                        // there is one, is announced exactly once (the second check finds the mode
-                        // already OFF and says nothing more).
-                        refreshPgp()
-                    }
-                }
-                // Reopened from the outbox: its row waits in the queue marked EDITING until this
-                // composer either commits the message somewhere or hands it back (#70). An undone
-                // send carries no id — it is the one case where the message only lives on this screen.
-                editingOutboxId = d.editingOutboxId
-                _onlyCopy.value = d.editingOutboxId == null
+                bindQueuedRow(d, options)
             }
             outbox.consumeRestored()
+            // After the consume, on purpose (OnlyCopyWiringTest pins the lambda against it), and on
+            // viewModelScope: a composer popped before the sweep is over must not take a row that
+            // nobody will release.
+            outboxRowToResume(handed, outboxId)?.let { id -> viewModelScope.launch { resumeOutboxEdit(id) } }
             return
         }
 
@@ -2046,36 +2114,58 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Leaving the composer without committing the message anywhere — the close button, the back
-     * gesture, "Discard" in the unsaved-changes dialog. A message reopened from the outbox goes
-     * straight back in the queue, exactly as it was (#70): closing an editor is not deleting a
-     * mail, and the queue is the only place that copy lives. Deleting it needs the Outbox screen's
-     * delete, which asks first. Anything else (a new compose, a reply, an undone send) has no
-     * queued original and this does nothing.
+     * gesture, "Discard" in the unsaved-changes dialog. A message reopened from the outbox has two
+     * ways out, and [body] — the RAW text of the editor at the close, never through `bodiesForSend`
+     * — decides which:
+     *
+     *  - the ordinary close gives it straight back to the queue, exactly as it was (#70): closing
+     *    an editor is not deleting a mail, and the queue is the only place that copy lives. Deleting
+     *    it needs the Outbox screen's delete, which asks first;
+     *  - a close over a body this composer LOST and never got back ([closingParksQueuedRow])
+     *    PARKS it instead — FAILED at the cap, "editing was interrupted" — because giving it back
+     *    re-arms it at 0 and the message leaves in under a second, when the screen has just told her
+     *    to close and reopen it. Parked, the row is still there to reopen.
+     *
+     * Anything else (a new compose, a reply, an undone send) has no queued original and this does
+     * nothing to the queue.
      *
      * App-scoped on purpose: the caller pops this screen right after, which kills [viewModelScope].
      */
-    fun abandon(emptying: Boolean = false) {
-        // Both releases are decided in one place, in values, and executed here (#95 × #70). A send
-        // in flight gives back NEITHER — it owns the message and consumes both itself — and outside
-        // one the two are independent: a composer with no queued row still hands its own draft row
-        // back to the upload worker. `abandonPlan` is executed in SendDraftTargetTest; both damages
-        // it prevents are written there — as is [emptying], the close that accompanies a deletion
-        // and must hand the phone's own row to nobody.
+    fun abandon(body: String, emptying: Boolean = false) {
+        // All three answers are decided in one place, in values, and executed here (#95 × #70). A
+        // send in flight gives back NOTHING — it owns the message and consumes both rows itself —
+        // and outside one the local row is independent: a composer with no queued row still hands
+        // its own draft row back to the upload worker. `abandonPlan` is executed in
+        // SendDraftTargetTest; every damage it prevents is written there — [emptying], the close
+        // that accompanies a deletion and must hand the phone's own row to nobody, and the park,
+        // the close over a lost body that must not hand the queued row back to the worker.
         val plan = abandonPlan(
             sending = _state.value is ComposeState.Sending,
             emptying = emptying,
+            parkOutbox = closingParksQueuedRow(composerBodyWasLost, body),
             localDraftId = _editingLocalDraftId.value,
             outboxId = editingOutboxId,
         )
         plan.localDraftToRelease?.let { releaseLocalDraftEdit(it) }
-        val id = plan.outboxToRelease ?: return
-        editingOutboxId = null
-        _editingOutbox.value = false
         // The row never left the queue — it only sat in EDITING — so giving it back is just flipping
         // its state to QUEUED and re-arming delivery. Nothing is rebuilt, nothing can be lost (#70).
-        appScope.launch {
-            runCatching { repo.releaseOutboxEdit(id) }
-                .onFailure { android.util.Log.w("SternaCompose", "couldn't release the edited outbox item", it) }
+        plan.outboxToRelease?.let { id ->
+            editingOutboxId = null
+            _editingOutbox.value = false
+            appScope.launch {
+                runCatching { repo.releaseOutboxEdit(id) }
+                    .onFailure { android.util.Log.w("SternaCompose", "couldn't release the edited outbox item", it) }
+            }
+        }
+        // ⛔ The other door, and NEVER releaseOutboxEdit: parked FAILED with its reason, off the
+        // worker, reopenable. The lease is dropped synchronously either way.
+        plan.outboxToPark?.let { id ->
+            editingOutboxId = null
+            _editingOutbox.value = false
+            appScope.launch {
+                runCatching { repo.parkInterruptedOutboxEdit(id) }
+                    .onFailure { android.util.Log.w("SternaCompose", "couldn't park the interrupted outbox item", it) }
+            }
         }
     }
 
@@ -2596,7 +2686,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // next close gives it back for real.
             // Nothing is being saved, so a message reopened from the outbox is not being moved
             // anywhere: it goes back to the queue rather than evaporating on an empty save (#70).
-            abandon(emptying = true)
+            // The raw body goes with it: lost and empty, the row is parked, not queued — though the
+            // guard at the top of this function has already refused that save over a queued row.
+            abandon(emptying = true, body = body)
             if (original == null) {
                 _state.value = ComposeState.Done
             } else if (draftOpenRoute(original) == DraftOpenRoute.LOCAL) {

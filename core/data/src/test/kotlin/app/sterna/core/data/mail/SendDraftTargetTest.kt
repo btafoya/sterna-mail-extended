@@ -330,10 +330,11 @@ class SendDraftTargetTest {
         // copy of the message that has just gone out is filed in the server's Drafts — which the
         // startup re-arm then keeps putting back.
         assertEquals(
-            AbandonPlan(null, null),
+            AbandonPlan(null, null, null),
             abandonPlan(
                 sending = true,
                 emptying = false,
+                parkOutbox = false,
                 localDraftId = LOCAL_DRAFT_ID_PREFIX + "d1",
                 outboxId = 42L,
             ),
@@ -346,10 +347,11 @@ class SendDraftTargetTest {
         // return` would never run — the row would stay EDITING for ever, invisible to the upload
         // worker and to the startup re-arm alike.
         assertEquals(
-            AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d5", null),
+            AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d5", null, null),
             abandonPlan(
                 sending = false,
                 emptying = false,
+                parkOutbox = false,
                 localDraftId = LOCAL_DRAFT_ID_PREFIX + "d5",
                 outboxId = null,
             ),
@@ -358,10 +360,11 @@ class SendDraftTargetTest {
 
     @Test fun `both are given back when both are held and nothing is in flight`() {
         assertEquals(
-            AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d6", 42L),
+            AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d6", 42L, null),
             abandonPlan(
                 sending = false,
                 emptying = false,
+                parkOutbox = false,
                 localDraftId = LOCAL_DRAFT_ID_PREFIX + "d6",
                 outboxId = 42L,
             ),
@@ -370,15 +373,15 @@ class SendDraftTargetTest {
 
     @Test fun `a queued row with no local draft behind it is given back on its own`() {
         assertEquals(
-            AbandonPlan(null, 7L),
-            abandonPlan(sending = false, emptying = false, localDraftId = null, outboxId = 7L),
+            AbandonPlan(null, 7L, null),
+            abandonPlan(sending = false, emptying = false, parkOutbox = false, localDraftId = null, outboxId = 7L),
         )
     }
 
     @Test fun `a send in flight keeps the local row even when there is no queued row`() {
         assertEquals(
-            AbandonPlan(null, null),
-            abandonPlan(sending = true, emptying = false, localDraftId = LOCAL_DRAFT_ID_PREFIX + "d7", outboxId = null),
+            AbandonPlan(null, null, null),
+            abandonPlan(sending = true, emptying = false, parkOutbox = false, localDraftId = LOCAL_DRAFT_ID_PREFIX + "d7", outboxId = null),
         )
     }
 
@@ -393,10 +396,11 @@ class SendDraftTargetTest {
         // back this once". Blanked, a submit() that FAILED left the row EDITING with nobody left to
         // release it — never uploaded again, and not a word on screen.
         assertEquals(
-            AbandonPlan(null, 42L),
+            AbandonPlan(null, 42L, null),
             abandonPlan(
                 sending = false,
                 emptying = true,
+                parkOutbox = false,
                 localDraftId = LOCAL_DRAFT_ID_PREFIX + "d9",
                 outboxId = 42L,
             ),
@@ -409,10 +413,11 @@ class SendDraftTargetTest {
         // instead, the queued outbox row goes back to the QUEUE — the very row the send in flight is
         // consuming — and the same message is delivered twice (#70).
         assertEquals(
-            AbandonPlan(null, null),
+            AbandonPlan(null, null, null),
             abandonPlan(
                 sending = true,
                 emptying = true,
+                parkOutbox = false,
                 localDraftId = LOCAL_DRAFT_ID_PREFIX + "d8",
                 outboxId = 42L,
             ),
@@ -424,8 +429,73 @@ class SendDraftTargetTest {
         // message reopened from the outbox is not being moved anywhere and goes back to the queue
         // rather than evaporating on an empty save (#70).
         assertEquals(
-            AbandonPlan(null, 7L),
-            abandonPlan(sending = false, emptying = true, localDraftId = null, outboxId = 7L),
+            AbandonPlan(null, 7L, null),
+            abandonPlan(sending = false, emptying = true, parkOutbox = false, localDraftId = null, outboxId = 7L),
+        )
+    }
+
+    // -- what closing over a LOST body does to the queued row ------------------------------------
+
+    @Test fun `closing over a lost body parks the queued row instead of giving it back`() {
+        // ⛔ The defect this closes. The send route refuses a lost body over a queued row with
+        // "Close this screen and reopen the message" — and closing gave the row back to the queue,
+        // re-armed at 0: the message left in under a second (2/2 on the bench), the very message
+        // she was told to reopen. Parked, the row stays in the Outbox as FAILED and says why; the
+        // local row goes back to the upload worker as on any other close, the two being independent.
+        assertEquals(
+            AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d10", null, 42L),
+            abandonPlan(
+                sending = false,
+                emptying = false,
+                parkOutbox = true,
+                localDraftId = LOCAL_DRAFT_ID_PREFIX + "d10",
+                outboxId = 42L,
+            ),
+        )
+    }
+
+    @Test fun `a queued row parked on close is parked, and not ALSO given back`() {
+        // ⛔ One row, one door: a plan that named it in both slots would park it and then re-queue
+        // it, or the other way round, depending on which coroutine lands first.
+        val plan = abandonPlan(sending = false, emptying = false, parkOutbox = true, localDraftId = null, outboxId = 7L)
+        assertEquals(AbandonPlan(null, null, 7L), plan)
+        assertNull("the row must not be handed to releaseOutboxEdit as well", plan.outboxToRelease)
+    }
+
+    @Test fun `a send in flight beats the park, and gives back nothing at all`() {
+        // The send owns the row and consumes it when it lands (consumeEditingOutbox); parking it
+        // from under the send would leave a FAILED row beside a message that went out.
+        assertEquals(
+            AbandonPlan(null, null, null),
+            abandonPlan(
+                sending = true,
+                emptying = false,
+                parkOutbox = true,
+                localDraftId = LOCAL_DRAFT_ID_PREFIX + "d11",
+                outboxId = 42L,
+            ),
+        )
+    }
+
+    @Test fun `emptying withholds the local row and still parks the queued one`() {
+        // `emptying` only ever decides the phone's own row; the queued row keeps the answer the
+        // lost body gave it.
+        assertEquals(
+            AbandonPlan(null, null, 42L),
+            abandonPlan(
+                sending = false,
+                emptying = true,
+                parkOutbox = true,
+                localDraftId = LOCAL_DRAFT_ID_PREFIX + "d12",
+                outboxId = 42L,
+            ),
+        )
+    }
+
+    @Test fun `there is nothing to park when no queued row is held`() {
+        assertEquals(
+            AbandonPlan(LOCAL_DRAFT_ID_PREFIX + "d13", null, null),
+            abandonPlan(sending = false, emptying = false, parkOutbox = true, localDraftId = LOCAL_DRAFT_ID_PREFIX + "d13", outboxId = null),
         )
     }
 

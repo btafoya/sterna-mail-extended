@@ -2,6 +2,7 @@ package app.sterna.ui.outbox
 
 import androidx.annotation.StringRes
 import app.sterna.R
+import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.db.OutboxState
 
 /**
@@ -53,6 +54,37 @@ fun outboxStateShowsReason(state: OutboxState): Boolean = when (state) {
     OutboxState.SENDING, OutboxState.KEPT_AS_DRAFT, OutboxState.INTERRUPTED,
     OutboxState.HELD, OutboxState.QUEUED, OutboxState.EDITING,
     -> false
+}
+
+/**
+ * The reason a FAILED row substitutes into "Failed: %1$s" — words of ours to translate, or text to
+ * print as it is.
+ */
+sealed class OutboxFailureReason {
+    /** A sentence of the app's own, resolved in the user's language at display time. */
+    data class Words(@StringRes val id: Int) : OutboxFailureReason()
+
+    /** Text stored on the row and printed verbatim — the server's own words (#183). */
+    data class Text(val text: String) : OutboxFailureReason()
+}
+
+/**
+ * What a FAILED row's `lastError` means on screen.
+ *
+ * A row parked because its EDIT WAS INTERRUPTED — closed over a lost body, see
+ * `MailRepository.parkInterruptedOutboxEdit` — carries the SENTINEL [OutboxLogic.EDIT_INTERRUPTED],
+ * not a sentence: a localized sentence written into the row would stay in the language of the day
+ * it was written, on a row that may sit in the Outbox for weeks. So the sentinel is stored and the
+ * words are chosen here, at display time, in the current locale.
+ *
+ * ⛔ The server's words (#183) are of ANOTHER nature and unchanged: they are what the server said,
+ * they were never ours to translate, and they are printed as they came. A null reason keeps the
+ * fallback it always had.
+ */
+fun outboxFailureReason(lastError: String?): OutboxFailureReason = when (lastError) {
+    null -> OutboxFailureReason.Words(R.string.outbox_state_failed_unknown)
+    OutboxLogic.EDIT_INTERRUPTED -> OutboxFailureReason.Words(R.string.outbox_error_edit_interrupted)
+    else -> OutboxFailureReason.Text(lastError)
 }
 
 /**

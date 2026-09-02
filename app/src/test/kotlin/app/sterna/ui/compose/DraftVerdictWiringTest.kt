@@ -55,14 +55,16 @@ class DraftVerdictWiringTest {
 
     @Test fun `reopening an undone send restores the verdict beside the id`() {
         assertEquals(
-            "prepare()'s restore branch must read the verdict back from the restored draft — the " +
-                "whole line; before it existed, editingDraftLossy silently reset to false here " +
-                "while editingDraftId came back, and that pair is exactly the destroy. ⛔ The name " +
-                "is `editingDraftLossyOnOpen`: what the reopened draft HELD. `editingDraftLossy` " +
-                "is now the read-only OR of that and what the composer lost since, and a write " +
-                "landing on it would not compile — which is the point.",
+            "bindQueuedRow — the binding the restore branch of prepare() and the resume of a " +
+                "composer rebuilt after a process death both run — must read the verdict back " +
+                "from the restored draft — the whole line; before it existed, editingDraftLossy " +
+                "silently reset to false here while editingDraftId came back, and that pair is " +
+                "exactly the destroy. ⛔ The name is `editingDraftLossyOnOpen`: what the reopened " +
+                "draft HELD. `editingDraftLossy` is now the read-only OR of that and what the " +
+                "composer lost since, and a write landing on it would not compile — which is the " +
+                "point.",
             listOf("editingDraftLossyOnOpen = d.draftBodyIsLossy"),
-            codeLinesNaming(bodyOf(COMPOSE_VIEW_MODEL, "prepare"), "d.draftBodyIsLossy"),
+            codeLinesNaming(bodyOf(COMPOSE_VIEW_MODEL, "bindQueuedRow"), "d.draftBodyIsLossy"),
         )
     }
 
@@ -105,12 +107,13 @@ class DraftVerdictWiringTest {
             callsOf(body, "reopenedDraftIsLossy(").single(),
         )
         assertEquals(
-            "every assignment of the verdict in prepare(), whole lines and in order: the restore " +
-                "branch reads it back from the undone send; the reopen branch ARMS IT PESSIMISTIC " +
+            "every assignment of the verdict in prepare(), whole lines and in order (the restore " +
+                "side reads it back from the undone send in bindQueuedRow, pinned by the rule " +
+                "above): the reopen branch ARMS IT PESSIMISTIC " +
                 "on entry, before the coroutine, beside the id it makes harmless; then — ONCE, and " +
                 "as the last thing it does — it lowers it from what the draft said AND what the " +
                 "attachment carry answered; the catch answers `true` — unknown — for a draft that " +
-                "could not be read at all. ⛔ FOUR assignments, not five: the body verdict and the " +
+                "could not be read at all. ⛔ THREE assignments, not four: the body verdict and the " +
                 "carry verdict must reach the field on ONE line. Two assignments — computing the " +
                 "body verdict into the field and hardening it back afterwards — leave a window, " +
                 "between them, in which the id is armed and the verdict is a clean `false` while " +
@@ -128,12 +131,18 @@ class DraftVerdictWiringTest {
                 "body on every reopen. ⚠ The filter below is a substring, so a write that came " +
                 "back to `editingDraftLossy` itself lands right here.",
             listOf(
-                "editingDraftLossyOnOpen = d.draftBodyIsLossy",
                 "editingDraftLossyOnOpen = true",
                 "editingDraftLossyOnOpen = lossy || !carried",
                 "editingDraftLossyOnOpen = true",
             ),
             lines.filter { "editingDraftLossy" in it },
+        )
+        assertEquals(
+            "⛔ and the restore side — bindQueuedRow — names the verdict exactly once, from the " +
+                "restored record: a `= false` or a `= true` added there is the same defect on the " +
+                "other door, whole.",
+            listOf("editingDraftLossyOnOpen = d.draftBodyIsLossy"),
+            bodyOf(COMPOSE_VIEW_MODEL, "bindQueuedRow").lines().map { it.trim() }.filter { "editingDraftLossy" in it },
         )
     }
 
@@ -170,13 +179,21 @@ class DraftVerdictWiringTest {
         val assignments = lines.withIndex()
             .filter { Regex("""\beditingDraftId\s*=""").containsMatchIn(it.value) }
         assertEquals(
-            "every assignment of editingDraftId in prepare(), whole lines: exactly the restore " +
-                "branch's and the reopen branch's, nothing else. An extra one — an alias like " +
-                "`this.editingDraftId = draftId` slipped in further down — arms a SECOND id whose " +
-                "verdict nothing on that line makes pessimistic, and the equality-only filter this " +
-                "test used to run was blind to it.",
-            listOf("editingDraftId = d.draftEmailId", "editingDraftId = draftId"),
+            "every assignment of editingDraftId in prepare(), whole lines: exactly the reopen " +
+                "branch's, nothing else (the restore side's lives in bindQueuedRow, below). An " +
+                "extra one — an alias like `this.editingDraftId = draftId` slipped in further " +
+                "down — arms a SECOND id whose verdict nothing on that line makes pessimistic, " +
+                "and the equality-only filter this test used to run was blind to it.",
+            listOf("editingDraftId = draftId"),
             assignments.map { it.value },
+        )
+        assertEquals(
+            "every assignment of editingDraftId in bindQueuedRow — the restore side, run by the " +
+                "restored lambda of prepare() and by the resume after a process death: exactly " +
+                "the one read back from the record, beside its verdict.",
+            listOf("editingDraftId = d.draftEmailId"),
+            bodyOf(COMPOSE_VIEW_MODEL, "bindQueuedRow").lines().map { it.trim() }
+                .filter { Regex("""\beditingDraftId\s*=""").containsMatchIn(it) },
         )
         val code = lines.filter { it.isNotEmpty() }
         val armed = code.indexOf("editingDraftId = draftId")

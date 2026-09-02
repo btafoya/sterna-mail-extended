@@ -785,6 +785,7 @@
     <string name="outbox_state_sending">Wird gesendet…</string>
     <string name="outbox_state_failed">Fehlgeschlagen: %1$s</string>
     <string name="outbox_state_failed_unknown">Senden nicht möglich</string>
+    <string name="outbox_error_edit_interrupted">Bearbeitung unterbrochen, nicht gesendet</string>
     <string name="outbox_state_kept_as_draft">Als Entwurf auf diesem Gerät gespeichert, nicht gesendet</string>
     <string name="outbox_state_interrupted">Unterbrochen, möglicherweise bereits gesendet</string>
     <string name="outbox_retry">Wiederholen</string>

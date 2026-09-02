@@ -83,8 +83,9 @@ class DraftNumberingFreezeWiringTest {
         )
         assertEquals(
             "every line of prepare() that names the reopened draft's id, the account it was read " +
-                "under, or the numbering it belongs to — whole lines, IN ORDER. The restore " +
-                "branch reads all three back from the undone send. The reopen branch then arms " +
+                "under, or the numbering it belongs to — whole lines, IN ORDER (the restore side " +
+                "reads all three back from the undone send in bindQueuedRow, pinned right " +
+                "below). The reopen branch arms " +
                 "THE ID AND ITS ACCOUNT TOGETHER, before the coroutine, in the same breath as the " +
                 "pessimistic `editingDraftLossy = true` that makes an early id harmless, and only " +
                 "afterwards freezes the numbering at the first line that can answer it. ⛔ The " +
@@ -103,14 +104,29 @@ class DraftNumberingFreezeWiringTest {
                 "Body was:\n" +
                 prepare.joinToString("\n"),
             listOf(
-                "editingDraftId = d.draftEmailId",
-                "editingDraftUidValidity = d.draftUidValidity",
-                "editingDraftAccountId = d.fromAccountId",
                 REMEMBER_ID,
                 FREEZE_ACCOUNT,
                 FREEZE,
             ),
             prepare.filter {
+                it.startsWith("editingDraftId =") ||
+                    it.startsWith("editingDraftUidValidity =") ||
+                    it.startsWith("editingDraftAccountId =")
+            },
+        )
+        val bind = codeLines(bodyOf("bindQueuedRow"))
+        assertEquals(
+            "every line of bindQueuedRow() — the restore side, run by the restored lambda of " +
+                "prepare() on the hand-over and by the resume of a composer rebuilt after a " +
+                "process death on the row it took back — that names the id, its account or its " +
+                "numbering: all three read back from the record, whole lines, IN ORDER, and " +
+                "nothing re-read. Body was:\n" + bind.joinToString("\n"),
+            listOf(
+                "editingDraftId = d.draftEmailId",
+                "editingDraftUidValidity = d.draftUidValidity",
+                "editingDraftAccountId = d.fromAccountId",
+            ),
+            bind.filter {
                 it.startsWith("editingDraftId =") ||
                     it.startsWith("editingDraftUidValidity =") ||
                     it.startsWith("editingDraftAccountId =")

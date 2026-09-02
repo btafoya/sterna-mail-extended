@@ -26,9 +26,13 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
         initialValue = emptyList<OutboxEntity>(),
     )
 
-    /** Flips true once an item has been staged for editing, so the screen can open compose. */
-    private val _readyToEdit = MutableStateFlow(false)
-    val readyToEdit: StateFlow<Boolean> = _readyToEdit.asStateFlow()
+    /**
+     * The id of the item just staged for editing, so the screen can open compose on it — `null`
+     * when there is none. The id, and not a flag: the screen puts it in the composer's route, which
+     * is the one place that survives a process death (see [edit]).
+     */
+    private val _readyToEdit = MutableStateFlow<Long?>(null)
+    val readyToEdit: StateFlow<Long?> = _readyToEdit.asStateFlow()
 
     /** Re-queue an item for an immediate retry. */
     fun retry(id: Long) {
@@ -47,6 +51,13 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
      * the composer holds it. Sending from compose consumes the row and enqueues the edited message;
      * closing the composer instead flips the same row back to QUEUED. The row never leaves the
      * database, so nothing rides in RAM and a process death costs the edit, not the message.
+     *
+     * And the composer FINDS the row again after such a death: the draft handed over through
+     * [sendOutbox] dies with the process, but the id published in [readyToEdit] goes into the
+     * composer's route (`compose?restore=true&outboxId=…`), which Android restores. Once the
+     * startup sweep has parked the row FAILED, the rebuilt composer takes it back by that id
+     * (`ComposeViewModel.resumeOutboxEdit`), and Send consumes the original instead of queueing a
+     * second copy beside it.
      */
     fun edit(id: Long) {
         viewModelScope.launch {
@@ -61,11 +72,11 @@ class OutboxViewModel(application: Application) : AndroidViewModel(application) 
             // it drops is not missing from the screen, it is CANCELLED — re-editing enqueues a new
             // row from the composer's state.
             sendOutbox.reopen(composeDraftOf(draft))
-            _readyToEdit.value = true
+            _readyToEdit.value = id
         }
     }
 
     fun consumeEdit() {
-        _readyToEdit.value = false
+        _readyToEdit.value = null
     }
 }

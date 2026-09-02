@@ -330,4 +330,88 @@ class LostBodySendTest {
             },
         )
     }
+
+    // -- and what CLOSING does to the queued row, executed too ------------------------------------
+
+    /**
+     * ⭐ THE DEFECT THIS TIME, and it was reached by following the app's own advice. The send route
+     * refuses a lost body over a queued row with "Close this screen and reopen the message" — and
+     * closing ran `abandon()` → `releaseOutboxEdit`, which put the row back to QUEUED and re-armed
+     * it at 0: the message left in under a second (2/2 on the bench), the very message the sentence
+     * had just told her to reopen. Closing over a lost, empty body must PARK the row, never queue it.
+     */
+    @Test fun `closing a composer that lost its body and holds nothing parks the queued row`() {
+        assertEquals(
+            "the body was lost and nothing was typed back: the close that follows the refusal must " +
+                "park the queued row as FAILED, not hand it back to the queue where it leaves on " +
+                "its own — the sentence on screen told her to close and reopen, and closing sent it",
+            true,
+            closingParksQueuedRow(bodyWasLost = true, body = ""),
+        )
+    }
+
+    /** ⛔ …and whitespace is not text here either — the same reading as the send and the save. */
+    @Test fun `a blank body over a lost one parks the queued row too`() {
+        assertEquals(true, closingParksQueuedRow(bodyWasLost = true, body = " "))
+        assertEquals(
+            "a composer redrawn empty over a signature separator holds newlines, and counted as a " +
+                "body they let the close hand the row back to the queue",
+            true,
+            closingParksQueuedRow(bodyWasLost = true, body = "\n\n"),
+        )
+    }
+
+    /**
+     * ⛔ The flag alone would be a trap: it is never lowered, so a rule on it alone would park the
+     * row on EVERY close after a loss — including "Discard changes" over a message she has retyped,
+     * which today gives the row back whole (#70) and must go on doing so.
+     */
+    @Test fun `a body typed back after the loss goes back to the queue on close, as before`() {
+        assertEquals(
+            "text was typed after the loss: the ordinary close hands the row back to the queue, " +
+                "exactly as #70 has it — nothing here may change that",
+            false,
+            closingParksQueuedRow(bodyWasLost = true, body = "typed again"),
+        )
+        assertEquals(false, closingParksQueuedRow(bodyWasLost = true, body = "\nBonjour"))
+    }
+
+    /** ⛔ And an empty body nobody lost is a deliberate emptying; closing over it is the #70 close. */
+    @Test fun `an empty body nobody lost goes back to the queue on close`() {
+        assertEquals(
+            "no loss behind this empty body: the close is the ordinary one and the row goes back " +
+                "to the queue",
+            false,
+            closingParksQueuedRow(bodyWasLost = false, body = ""),
+        )
+        assertEquals(false, closingParksQueuedRow(bodyWasLost = false, body = "   "))
+    }
+
+    @Test fun `the ordinary close is untouched`() {
+        assertEquals(false, closingParksQueuedRow(bodyWasLost = false, body = "hello"))
+    }
+
+    /**
+     * The whole table, literals again — the four corners with the blank readings beside them. TRUE
+     * in one corner only, and it is the SAME corner the send refuses and the save refuses: the three
+     * gestures read one loss, stated once in [composerMaySendBody].
+     */
+    @Test fun `the close table, whole`() {
+        val cases = listOf(
+            Triple(true, "", true),
+            Triple(true, "  \t \n", true),
+            Triple(true, "text", false),
+            Triple(false, "", false),
+            Triple(false, "  \t \n", false),
+            Triple(false, "text", false),
+        )
+        assertEquals(
+            "parked in ONE corner only: the body was lost AND nothing was typed back. Everywhere " +
+                "else the close gives the row back to the queue (#70).",
+            cases.map { (lost, body, parks) -> "lost=$lost body=${body.trim().ifEmpty { "<blank>" }} -> $parks" },
+            cases.map { (lost, body, _) ->
+                "lost=$lost body=${body.trim().ifEmpty { "<blank>" }} -> ${closingParksQueuedRow(lost, body)}"
+            },
+        )
+    }
 }

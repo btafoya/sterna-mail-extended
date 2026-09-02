@@ -227,7 +227,7 @@ class ComposeViewModelWiringTest {
                 // said AS AN ARGUMENT. Said by blanking `editingLocalDraftId` first, as it was, a
                 // submit() that FAILED left the row EDITING with nobody left to release it: no
                 // upload worker will touch it again before the next cold start.
-                "abandon(emptying = true)",
+                "abandon(emptying = true, body = body)",
                 "if (original == null) {",
                 "_state.value = ComposeState.Done",
                 // ⛔ A `local-draft:` id names nothing repo.discardDraft can destroy: under IMAP
@@ -340,6 +340,35 @@ class ComposeViewModelWiringTest {
                 "}",
             ),
             codeOf(body),
+        )
+    }
+
+    /**
+     * ⛔ And the park of an INTERRUPTED EDIT has to survive the screen going away too — `abandon`
+     * runs from the back gesture and the X, which pop the screen and cancel `viewModelScope` on the
+     * spot. Whole lines, in order: a `viewModelScope.launch` here is one word, and a
+     * `repo.releaseOutboxEdit(id)` written in the park's slot is the shipped defect itself (the row
+     * back in the queue, re-armed at 0, the message out in under a second).
+     */
+    @Test fun `the interrupted edit is parked through appScope, like the release`() {
+        val body = codeOf(bodyOf("abandon"))
+        val at = body.indexOf("plan.outboxToPark?.let { id ->")
+        check(at >= 0) { "abandon() no longer parks 'plan.outboxToPark' — did the plan lose its field? Body was:\n$body" }
+        assertEquals(
+            "abandon() must take the parked row's id off the plan, clear the lease synchronously, " +
+                "and write through appScope with repo.parkInterruptedOutboxEdit — never " +
+                "viewModelScope, and never releaseOutboxEdit. Body was:\n$body",
+            listOf(
+                "plan.outboxToPark?.let { id ->",
+                "editingOutboxId = null",
+                "_editingOutbox.value = false",
+                "appScope.launch {",
+                "runCatching { repo.parkInterruptedOutboxEdit(id) }",
+                ".onFailure { android.util.Log.w(\"SternaCompose\", \"couldn't park the interrupted outbox item\", it) }",
+                "}",
+                "}",
+            ),
+            body.drop(at),
         )
     }
 

@@ -51,9 +51,10 @@ class OutboxPermanentFailureWiringTest {
                 // ⛔ THE COUNT IS A GUARD, not bookkeeping. Written as `item.attemptCount + 1` a
                 // refused row is parked FAILED with 1 attempt, and OutboxLogic.stateAfterEdit then
                 // answers QUEUED for it: reopening the line to fix the address and coming back out
-                // re-arms the send (#70's door), and a row stranded in EDITING by a process death
-                // is requeued at the next start (revertEditingExhaustedToFailed only claims rows at
-                // the cap). Both doors close on this one line.
+                // re-arms the send (#70's door); and at the next start the sweep, which claims
+                // the rows at the cap first (revertEditingExhaustedToFailed) and parks the rest
+                // under the interrupted-edit reason, would relabel a refused row as "editing was
+                // interrupted" instead of keeping the server's reply. Both doors close on this one line.
                 "val attempts = OutboxLogic.attemptsAfterFailure(item.attemptCount, t)",
                 // The message, and only the message. It is persisted in lastError and printed on
                 // screen; the exception's own text is the address plus the server's SMTP reply.

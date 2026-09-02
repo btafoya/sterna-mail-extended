@@ -66,19 +66,30 @@ class OnlyCopyWiringTest {
      * same defect written differently.
      */
     @Test fun `the undone send is marked as the only copy, from the id and nothing else`() {
-        val body = prepareBody()
+        val body = bodyOf("bindQueuedRow")
         assertEquals(
             "After \"Undo\" on the send banner the queued row and its staged directory are gone: " +
-                "the message lives on this screen alone, in memory. These two lines are what tells " +
-                "the composer so. Invert or weaken the second one and the back gesture closes the " +
+                "the message lives on this screen alone, in memory. These lines are what tells " +
+                "the composer so. Invert or weaken the last one and the back gesture closes the " +
                 "composer in silence and the message is lost, with no dialog and no draft — and " +
                 "ComposeDirtyTest stays green throughout, because the rule it runs is still right, " +
-                "it is simply never handed the truth. Body of prepare() was:\n$body",
+                "it is simply never handed the truth. The observable face of the id " +
+                "(_editingOutbox — the title, the leave dialog) is settled beside it, from the " +
+                "same field: a composer rebuilt after a process death gets it from here too. " +
+                "Body of bindQueuedRow() was:\n$body",
             listOf(
+                "_editingOutbox.value = d.editingOutboxId != null",
                 "editingOutboxId = d.editingOutboxId",
                 "_onlyCopy.value = d.editingOutboxId == null",
             ),
             codeLinesNaming(body, "editingOutboxId"),
+        )
+        assertEquals(
+            "⛔ prepare() names editingOutboxId again. The id and the flag are written ONCE, in " +
+                "bindQueuedRow, which the restored lambda of prepare() and the resume after a " +
+                "process death both call — a second write here wins by running later",
+            emptyList<String>(),
+            codeLinesNaming(prepareBody(), "editingOutboxId"),
         )
     }
 
@@ -107,8 +118,9 @@ class OnlyCopyWiringTest {
                 "elsewhere in the file wins by running later: clearing it on the way out of the " +
                 "restore path closes the screen silently on an undone send and loses it. Cutting " +
                 "the field from the flow the screen collects loses it just as quietly. One " +
-                "declaration, one exposure, and one write in prepare(), taken from the restored " +
-                "row's id",
+                "declaration, one exposure, and one write in bindQueuedRow(), taken from the " +
+                "restored row's id — called by the restored lambda of prepare() and by the " +
+                "resume of a composer rebuilt after a process death",
             listOf(
                 "private val _onlyCopy = MutableStateFlow(false)",
                 "val onlyCopy: StateFlow<Boolean> = _onlyCopy.asStateFlow()",
@@ -180,7 +192,7 @@ class OnlyCopyWiringTest {
      * ⛔ WHERE the write stands, which the rule above cannot see. That rule compares the TEXT of
      * `_onlyCopy.value = d.editingOutboxId == null`; the file census compares the same text again.
      * Both are satisfied by a line that has not changed by one character and has moved out of the
-     * `outbox.restored.value?.let { d -> … }` it belongs in — the third hole of `CONTRIBUTING.md`:
+     * `handed?.let { d -> … }` it belongs in — the third hole of `CONTRIBUTING.md`:
      * textual order is not execution order, and a pinned line says nothing about its position in a
      * control structure.
      *
@@ -213,22 +225,30 @@ class OnlyCopyWiringTest {
         val body = prepareBody()
         val (inside, after) = restoredLambda(body)
         assertEquals(
-            "⛔ the write of _onlyCopy is no longer the last statement of the " +
-                "`outbox.restored.value?.let { d -> … }` block of prepare(). WHERE it stands is " +
-                "the whole of its meaning: outside that lambda the same line runs when nothing at " +
-                "all was handed over — a composer reopened after the app was killed, empty, with " +
-                "nothing to lose — and marks THAT screen as holding the only copy, so an empty " +
-                "composer starts asking \"Discard message?\" while the invariant of the restore " +
-                "branch (#96) is gone. Buried in a branch INSIDE the lambda it keeps its text and " +
-                "its order — the two text rules here stay green — and stops running on the very " +
-                "path it guards, so an undone send closes in silence. These two lines are the " +
-                "last thing the restore branch does before the restored row is consumed. Restore " +
-                "branch of prepare() was:\n$body",
+            "⛔ bindQueuedRow(d, options) is no longer the last statement of the " +
+                "`handed?.let { d -> … }` block of prepare(). WHERE it stands is the whole of its " +
+                "meaning: outside that lambda the bind runs when nothing at all was handed over — " +
+                "a composer reopened after the app was killed, empty, with nothing to lose — and " +
+                "marks THAT screen as holding the only copy, so an empty composer starts asking " +
+                "\"Discard message?\" while the invariant of the restore branch (#96) is gone. " +
+                "Buried in a branch INSIDE the lambda it keeps its text and stops running on the " +
+                "very path it guards, so an undone send closes in silence. It is the last thing " +
+                "the restore branch does before the restored row is consumed, with `options` — " +
+                "the identities just listed — so the From is the one the message was queued " +
+                "under. Restore branch of prepare() was:\n$body",
+            listOf("bindQueuedRow(d, options)"),
+            codeOf(inside).takeLast(1),
+        )
+        assertEquals(
+            "⛔ the write of _onlyCopy is no longer the last statement of bindQueuedRow(), beside " +
+                "the id it is read from. Buried in a branch inside it, it keeps its text and its " +
+                "order — the two text rules here stay green — and stops running on the path it " +
+                "guards. Body of bindQueuedRow() was:\n" + bodyOf("bindQueuedRow"),
             listOf(
                 "editingOutboxId = d.editingOutboxId",
                 "_onlyCopy.value = d.editingOutboxId == null",
             ),
-            codeOf(inside).takeLast(2),
+            codeOf(bodyOf("bindQueuedRow")).takeLast(2),
         )
         assertEquals(
             "⛔ something now stands between the restored lambda and outbox.consumeRestored(). " +
@@ -236,7 +256,8 @@ class OnlyCopyWiringTest {
                 "the consume follows immediately: consumeRestored() clears what the write reads, " +
                 "so a write that drifts past it reads null and calls an undone send an empty " +
                 "screen, and a statement wedged in between gets to run on the restore path having " +
-                "been argued for nowhere.",
+                "been argued for nowhere. (The resume of a composer rebuilt after a process death " +
+                "stands AFTER the consume, on purpose — OutboxResumeWiringTest pins it there.)",
             "outbox.consumeRestored()",
             codeOf(after).firstOrNull(),
         )
@@ -327,7 +348,7 @@ class OnlyCopyWiringTest {
         codeOf(body).filter { needle in it }
 
     /**
-     * [body] split at the `outbox.restored.value?.let { d -> … }` block: what is INSIDE it, and
+     * [body] split at the `handed?.let { d -> … }` block: what is INSIDE it, and
      * what follows its closing brace. Braces are walked, not searched for, so a line that keeps its
      * text and changes block shows up on the other side of the pair.
      */
@@ -499,7 +520,7 @@ class OnlyCopyWiringTest {
 
     companion object {
         /** The block of `prepare` that only runs when a draft was really handed back. */
-        private const val RESTORED_LAMBDA = "outbox.restored.value?.let { d ->"
+        private const val RESTORED_LAMBDA = "handed?.let { d ->"
 
         private const val COMPOSE_VIEW_MODEL_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"

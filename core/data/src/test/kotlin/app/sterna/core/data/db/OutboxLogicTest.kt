@@ -227,12 +227,15 @@ class OutboxLogicTest {
                 OutboxLogic.stateAfterEdit(attempts),
             )
             // The second door, in the terms the SQL uses: OutboxDao.revertEditingExhaustedToFailed
-            // claims EDITING rows at `attemptCount >= MAX_ATTEMPTS` at startup and lets the rest
-            // fall through to QUEUED. Asserted as the comparison, not as the query text.
+            // claims EDITING rows at `attemptCount >= MAX_ATTEMPTS` at startup, and the rest are
+            // parked under the interrupted-edit reason (parkAllEditingAsInterrupted). Nothing is
+            // requeued any more; what the cap decides is WHICH reason the row keeps. Asserted as
+            // the comparison, not as the query text.
             assertTrue(
                 "⛔ a refused row stranded in EDITING by a process death must be claimed by the " +
-                    "startup revert (attemptCount >= ${OutboxLogic.MAX_ATTEMPTS}), or it is " +
-                    "requeued and leaves on its own at the next cold start: got $attempts",
+                    "exhausted statement first (attemptCount >= ${OutboxLogic.MAX_ATTEMPTS}), or " +
+                    "the startup sweep parks it as 'editing was interrupted' and the server's own " +
+                    "reply is lost: got $attempts",
                 attempts >= OutboxLogic.MAX_ATTEMPTS,
             )
         }
@@ -293,8 +296,9 @@ class OutboxLogicTest {
 
     /**
      * #70 regression: a reopened item closed untouched returns to QUEUED only while it still has
-     * retries left. Both exit paths (composer close [MailRepository.releaseOutboxEdit] and startup
-     * recovery [MailRepository.revertEditingOutbox]) decide on this same threshold.
+     * retries left. The composer close ([MailRepository.releaseOutboxEdit]) decides on this
+     * threshold; the startup recovery ([MailRepository.parkInterruptedOutboxEdits]) parks every
+     * row it finds and uses the same threshold only to let an exhausted row keep its own reason.
      */
     @Test fun aReopenedItemUnderTheRetryCapGoesBackToTheQueue() {
         assertEquals(OutboxState.QUEUED, OutboxLogic.stateAfterEdit(0))

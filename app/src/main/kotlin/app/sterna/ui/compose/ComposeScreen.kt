@@ -184,6 +184,12 @@ fun ComposeScreen(
     subject: String? = null,
     body: String? = null,
     draftId: String? = null,
+    /**
+     * The queued row this composer was opened on by Outbox → Edit (#70), from the route — the twin
+     * of [draftId]. Read only by a composer rebuilt after a process death, whose in-memory hand-over
+     * is gone: it takes the row back by this id once the startup sweep has parked it.
+     */
+    outboxId: Long? = null,
     viewModel: ComposeViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -304,6 +310,7 @@ fun ComposeScreen(
         viewModel.prepare(
             replyTo, mode, accountId, restore, to, cc, bcc, subject, body, draftId,
             quoteAlreadyOnScreen = quoteLanded,
+            outboxId = outboxId,
         )
         // Attach any files shared into the app (ACTION_SEND) — a one-shot handoff we read and
         // clear, so it only lands on this compose screen (Codeberg #45).
@@ -643,10 +650,13 @@ fun ComposeScreen(
     val canSaveDraft = draftHasContent(to, cc, bcc, subject.text, body.text, attachments.isNotEmpty())
 
     // Leaving without sending or saving. A message reopened from the Outbox goes back to the queue
-    // (#70) — closing its editor is not deleting it, and the queue holds the only copy. For anything
-    // else this is a no-op and the screen just closes.
+    // (#70) — closing its editor is not deleting it, and the queue holds the only copy — unless
+    // this composer LOST its body and holds nothing: then the row is parked in the Outbox instead
+    // of queued, because queued it leaves in under a second, when the screen has just said to
+    // close and reopen it. The editor's raw text is what decides, hence `body.text` here. For
+    // anything else this is a no-op and the screen just closes.
     val cancel = {
-        viewModel.abandon()
+        viewModel.abandon(body.text)
         resume.close(resumeSlot)
         onCancel()
     }

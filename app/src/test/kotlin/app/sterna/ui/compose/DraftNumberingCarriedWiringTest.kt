@@ -156,12 +156,14 @@ class DraftNumberingCarriedWiringTest {
     }
 
     @Test fun `a message coming back from the queue restores the freeze instead of re-reading it`() {
-        val prepare = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "prepare"))
+        // bindQueuedRow: the binding the restore branch of prepare() runs on the hand-over, and
+        // the resume of a composer rebuilt after a process death runs on the row it took back.
+        val prepare = codeLines(bodyOf(COMPOSE_VIEW_MODEL, "bindQueuedRow"))
         val id = prepare.indexOf(REOPENED_ID)
         assertTrue(
-            "prepare() must still take the reopened message's draft id as '$REOPENED_ID' — this " +
-                "rule pins the restore NEXT TO it and must fail loudly rather than pin it beside " +
-                "something it never located. Body was:\n${prepare.joinToString("\n")}",
+            "bindQueuedRow() must still take the reopened message's draft id as '$REOPENED_ID' — " +
+                "this rule pins the restore NEXT TO it and must fail loudly rather than pin it " +
+                "beside something it never located. Body was:\n${prepare.joinToString("\n")}",
             id >= 0,
         )
         assertEquals(

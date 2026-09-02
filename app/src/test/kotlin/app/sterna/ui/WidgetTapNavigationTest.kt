@@ -191,7 +191,7 @@ class WidgetTapNavigationTest {
         const val INBOX = "inbox"
         const val MESSAGE = "message/{emailId}?accountId={accountId}&index={index}&src={src}&thread={thread}"
         const val COMPOSE = "compose?replyTo={replyTo}&mode={mode}&accountId={accountId}&restore={restore}" +
-            "&to={to}&cc={cc}&bcc={bcc}&subject={subject}&body={body}&draftId={draftId}"
+            "&to={to}&cc={cc}&bcc={bcc}&subject={subject}&body={body}&draftId={draftId}&outboxId={outboxId}"
         const val SEARCH = "search?q={q}&from={from}"
         const val SETTINGS = "settings?accountId={accountId}"
     }

@@ -30,8 +30,9 @@ enum class OutboxState {
      *
      * ⛔ Not [EDITING] either, which was the defect: an [EDITING] row is on no screen at all
      * ([OutboxLogic.isWaitingInOutbox] hides it and [OutboxLogic.activeCount] does not count it),
-     * and the next launch hands it back to the queue ([OutboxDao.revertEditingToQueued]) and
-     * delivers the PRE-EDIT text with no undo window.
+     * and the next launch used to hand it back to the queue and deliver the PRE-EDIT text with
+     * no undo window (it now parks it, [OutboxDao.parkAllEditingAsInterrupted] — still the wrong
+     * answer for a save that worked, see [FAILED] above).
      *
      * ⭐ It costs no migration: the `state` column is `TEXT NOT NULL` and Room stores the constant's
      * NAME, so an older build simply never wrote this word. ⚠ A row in this state read back by an

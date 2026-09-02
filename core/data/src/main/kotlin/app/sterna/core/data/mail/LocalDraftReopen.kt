@@ -517,6 +517,11 @@ data class AbandonPlan(
     val localDraftToRelease: String?,
     /** The outbox row to put back from EDITING to QUEUED, and re-arm delivery of. */
     val outboxToRelease: Long?,
+    /**
+     * The outbox row to PARK instead — FAILED at the cap, "editing was interrupted" — because the
+     * composer closed over a body it lost. Never the same row as [outboxToRelease]: one row, one door.
+     */
+    val outboxToPark: Long?,
 )
 
 /**
@@ -543,7 +548,7 @@ data class AbandonPlan(
  * the pre-edit text the user has just erased would race the delete to the server and be filed in
  * Drafts. The queued outbox row is a different question and keeps its answer: nothing is being
  * saved, so a message reopened from the outbox is not being moved anywhere and goes back to the
- * queue rather than evaporating on an empty save (#70).
+ * queue — or is parked, see [parkOutbox] — rather than evaporating on an empty save (#70).
  *
  * ⭐ **Why it is an argument here and not a null slipped into [localDraftId] by the caller**, which
  * is how it was written: one field cannot carry two decisions. `editingLocalDraftId` is "which row
@@ -555,16 +560,29 @@ data class AbandonPlan(
  * ⛔ And "give it back on the failure" is NOT the fix: the composer is still open, she still holds
  * the row, and `EDITING` is the true state. Nothing is lost by keeping it — the text is on the
  * phone — while releasing it sends the server the text she has just erased.
+ *
+ * ⛔ **[parkOutbox] sends the queued row through the OTHER door** — parked, not released. The
+ * composer closed over a body it had lost and never got back (`closingParksQueuedRow`, on the raw
+ * body of the editor): released, the row goes back to QUEUED and is re-armed at 0, and the message
+ * the screen had just told her to close and reopen is delivered in under a second. Parked
+ * (`MailRepository.parkInterruptedOutboxEdit`), it stays in the Outbox as FAILED, says why, and
+ * reopens. The two doors are exclusive — [AbandonPlan.outboxToRelease] and [AbandonPlan.outboxToPark]
+ * never both name the row — and [sending] still beats both: a send in flight owns the row and
+ * consumes it, so it is neither parked nor given back. [emptying] is not consulted for it: that flag
+ * only ever decides the phone's own row.
  */
 fun abandonPlan(
     sending: Boolean,
     emptying: Boolean,
+    parkOutbox: Boolean,
     localDraftId: String?,
     outboxId: Long?,
 ): AbandonPlan {
-    if (sending) return AbandonPlan(null, null)
-    if (emptying) return AbandonPlan(null, outboxId)
-    return AbandonPlan(localDraftId, outboxId)
+    if (sending) return AbandonPlan(null, null, null)
+    val release = if (parkOutbox) null else outboxId
+    val park = if (parkOutbox) outboxId else null
+    if (emptying) return AbandonPlan(null, release, park)
+    return AbandonPlan(localDraftId, release, park)
 }
 
 /**

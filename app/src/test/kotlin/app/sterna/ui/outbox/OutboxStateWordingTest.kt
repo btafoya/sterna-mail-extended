@@ -159,6 +159,35 @@ class OutboxStateWordingTest {
         )
     }
 
+    // -- executed: the reason a FAILED row prints -------------------------------------------------
+
+    /**
+     * ⭐ THE SENTENCE OF THE INTERRUPTED-EDIT FIX. A queued row closed over a lost body is parked
+     * FAILED with `OutboxLogic.EDIT_INTERRUPTED` in `lastError` — a SENTINEL, because a sentence
+     * stored in the row would stay in the language of the day it was written. The screen must
+     * translate it, and must go on printing the server's own words (#183) and the fallback for a
+     * row with no reason at all.
+     */
+    @Test fun `the reason a failed row prints is translated from its sentinel, never stored`() {
+        assertEquals(
+            "⛔ the sentinel must come out as R.string.outbox_error_edit_interrupted — printed raw " +
+                "it reads 'Failed: edit-interrupted' in nine languages",
+            OutboxFailureReason.Words(R.string.outbox_error_edit_interrupted),
+            outboxFailureReason(OutboxLogic.EDIT_INTERRUPTED),
+        )
+        assertEquals(
+            "a row with no reason keeps the fallback it always had",
+            OutboxFailureReason.Words(R.string.outbox_state_failed_unknown),
+            outboxFailureReason(null),
+        )
+        assertEquals(
+            "the server's own words (#183) are printed as they are — another nature of reason, " +
+                "and untouched",
+            OutboxFailureReason.Text("550 5.1.1 No such user"),
+            outboxFailureReason("550 5.1.1 No such user"),
+        )
+    }
+
     // -- source lint: that the screen and the banner still ask ------------------------------------
 
     /**
@@ -186,10 +215,17 @@ class OutboxStateWordingTest {
             lines.map { it.trim() }.filter { "item.state" in it },
         )
         assertEquals(
-            "and it must name no state string of its own beyond the fallback reason: the wording " +
-                "is decided in OutboxRowText, where a test can execute it",
-            listOf("item.lastError ?: stringResource(R.string.outbox_state_failed_unknown),"),
-            lines.map { it.trim() }.filter { "R.string.outbox_state_" in it },
+            "and the reason it substitutes must be asked of outboxFailureReason(item.lastError) — " +
+                "the row's lastError printed raw, as it used to be, puts 'Failed: edit-interrupted' " +
+                "on screen in nine languages over a row this fix parks",
+            listOf("when (val reason = outboxFailureReason(item.lastError)) {"),
+            lines.map { it.trim() }.filter { "item.lastError" in it },
+        )
+        assertEquals(
+            "and it must name no state string of its own: the wording is decided in " +
+                "OutboxRowText, where a test can execute it",
+            emptyList<String>(),
+            lines.map { it.trim() }.filter { "R.string.outbox_state_" in it || "R.string.outbox_error_" in it },
         )
     }
 

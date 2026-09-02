@@ -18,6 +18,17 @@ object OutboxLogic {
     const val MAX_ATTEMPTS = 5
 
     /**
+     * The `lastError` a row carries when its edit was INTERRUPTED: the composer closed over a lost,
+     * empty body and parked the row rather than queue it (`MailRepository.parkInterruptedOutboxEdit`).
+     *
+     * A SENTINEL, translated by the Outbox screen at display time (`outboxFailureReason`) — never a
+     * localized sentence stored in the row, which would stay in the language of the day it was
+     * written. It is stored in every user's database from the first version that ships it, so it
+     * never changes: `EditInterruptedRowTest` pins the literal.
+     */
+    const val EDIT_INTERRUPTED = "edit-interrupted"
+
+    /**
      * A HELD item is due once its undo window has passed; QUEUED is always due. A scheduled send is
      * NOT held here — it waits in its own table and only enters the outbox when ScheduledSendWorker
      * fires, which queues it like any other send (holdMs = 0). So the only hold this deadline ever
@@ -122,10 +133,13 @@ object OutboxLogic {
      *     goes back to [OutboxState.QUEUED] and is re-armed on the spot. Every "open it, look at
      *     it, come back out" is one more delivery: another copy in Sent, and on a partial refusal
      *     another copy to the recipient whose address was right all along.
-     *  2. **The startup door.** A row left in EDITING by a process death is reverted by
-     *     `OutboxDao.revertEditingExhaustedToFailed`, which claims rows at `attemptCount >=`
-     *     [MAX_ATTEMPTS] and lets the rest fall through to QUEUED — so a refused row would leave on
-     *     its own at the next cold start, with no gesture at all.
+     *  2. **The startup door.** A row left in EDITING by a process death is swept by
+     *     `MailRepository.parkInterruptedOutboxEdits`: `OutboxDao.revertEditingExhaustedToFailed`
+     *     claims rows at `attemptCount >=` [MAX_ATTEMPTS] first, and the rest are parked under the
+     *     interrupted-edit reason. (They used to fall through to QUEUED, so a refused row left on
+     *     its own at the next cold start.) The count no longer decides whether it leaves — nothing
+     *     does without a gesture — but it still decides which reason the row keeps: below the cap,
+     *     a refused row would be relabelled "editing was interrupted" and the server's reply lost.
      *
      * [stateAfterEdit] states the invariant those two rely on: the count is "the faithful proxy for
      * was-FAILED, because the cap is reached only on the FAILED-parking path". [stateAfterFailure]

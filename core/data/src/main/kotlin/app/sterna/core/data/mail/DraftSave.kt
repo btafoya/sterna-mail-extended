@@ -67,9 +67,11 @@ fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
  * ⛔ Leaving the row where the composer found it — [OutboxState.EDITING] — is a SEND the user never
  * asked for, and it is the defect this answers. EDITING is filtered out of the Outbox screen and
  * off the badge alike ([OutboxLogic.isWaitingInOutbox], [OutboxLogic.activeCount]), so the message
- * is on no screen at all; and the next launch reverts EDITING rows to QUEUED
- * (`MailRepository.revertEditingOutbox`) and re-arms them — the PRE-EDIT text goes out, with no
- * undo window, after the user tapped "save as draft". The KDoc above used to call that deliberate.
+ * is on no screen at all; and the next launch used to revert EDITING rows to QUEUED and re-arm
+ * them — the PRE-EDIT text went out, with no undo window, after the user tapped "save as draft".
+ * The KDoc above used to call that deliberate. (The launch now parks them instead,
+ * `MailRepository.parkInterruptedOutboxEdits`, which for a save that worked is the FAILED answer
+ * refused next.)
  *
  * ⛔ [OutboxState.FAILED] is the OTHER wrong answer, and it was the first attempt at this fix. It
  * has four of the five properties wanted, and the fifth is not a wording detail: FAILED is what
@@ -88,7 +90,7 @@ fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
  *  - [OutboxLogic.needsFailureBanner] FALSE — nothing failed, so nothing shouts.
  *
  * ⭐ Parking at SAVE time is also what keeps this out of the way of the startup recovery: a row
- * already parked is no longer EDITING, so `revertEditingOutbox` and [OutboxLogic.stateAfterEdit] —
+ * already parked is no longer EDITING, so `parkInterruptedOutboxEdits` and [OutboxLogic.stateAfterEdit] —
  * whose job is a process death DURING an edit, and which stay as they are — never see it. That is
  * why `MailRepository.parkOutboxEdit` writes the state and nothing else: the `attemptCount` ruse
  * that kept a FAILED-parked row parked has no reader left.

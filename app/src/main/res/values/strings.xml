@@ -166,6 +166,7 @@
     <string name="outbox_state_sending">Sending…</string>
     <string name="outbox_state_failed">Failed: %1$s</string>
     <string name="outbox_state_failed_unknown">couldn\'t send</string>
+    <string name="outbox_error_edit_interrupted">editing was interrupted, not sent</string>
     <string name="outbox_state_kept_as_draft">Saved as a draft on this device, not sent</string>
     <string name="outbox_state_interrupted">Interrupted, it may already have been sent</string>
     <string name="outbox_retry">Retry</string>

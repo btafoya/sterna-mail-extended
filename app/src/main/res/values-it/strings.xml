@@ -787,6 +787,7 @@
     <string name="outbox_state_sending">Invio in corso…</string>
     <string name="outbox_state_failed">Non riuscito: %1$s</string>
     <string name="outbox_state_failed_unknown">invio non riuscito</string>
+    <string name="outbox_error_edit_interrupted">modifica interrotta, non inviato</string>
     <string name="outbox_state_kept_as_draft">Salvato come bozza su questo dispositivo, non inviato</string>
     <string name="outbox_state_interrupted">Interrotto, forse già inviato</string>
     <string name="outbox_retry">Riprova</string>

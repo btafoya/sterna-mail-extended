@@ -80,12 +80,15 @@ internal enum class LostBodyWording {
      * which returns the body whole. Server draft: the copy on the server was never touched — the
      * send that would have replaced it is the one being refused — and `unlessBodyIsLossy` is what
      * keeps this composer from overwriting it. Outbox row: a queued message reopened by Outbox →
-     * Edit waits in the queue marked `EDITING` with the text it was queued with, leaving runs
-     * `cancel()` → `abandon()` → `releaseOutboxEdit`, which only takes the row OUT of `EDITING` —
-     * back to `QUEUED`, or to `FAILED` where the attempts were already spent
-     * (`OutboxLogic.stateAfterEdit`) — without rebuilding a line of it, and reopening reads it
-     * again through `composeDraftOf`. Either way the text is there and the row is reopenable,
-     * which is all the sentence promises.
+     * Edit waits in the queue marked `EDITING` with the text it was queued with, and the sentence
+     * is true BECAUSE closing PARKS it: leaving runs `cancel()` → `abandon(body)`, whose
+     * [closingParksQueuedRow] reads the same lost, empty body this refusal did and sends the row to
+     * `parkInterruptedOutboxEdit` — FAILED, at the cap, "editing was interrupted" — without
+     * rebuilding a line of it, and reopening reads it again through `composeDraftOf`.
+     * ⛔ NOT because `releaseOutboxEdit` gives it back to the queue: it did, re-armed at 0, and the
+     * message she had just been told to reopen was delivered in under a second (2/2 on the bench).
+     * The sentence prescribed the gesture that sent it. Either way the text is there and the row is
+     * reopenable, which is all the sentence promises.
      */
     REOPEN_DRAFT,
 
@@ -110,9 +113,9 @@ internal enum class LostBodyWording {
  * ⛔ **All THREE stores count, not just the phone's own.** A SERVER draft reopened online whose
  * body this composer lost is intact on the server, and reopens whole. So is the QUEUED OUTBOX ROW
  * behind Outbox → Edit (#70): it is parked in the queue marked `EDITING` with the text it was
- * queued with, nothing has been rebuilt from this screen, and `abandon()` → `releaseOutboxEdit`
- * hands it back whole the moment the composer closes — to `QUEUED`, or to `FAILED` where the
- * attempts were already spent. "Type it again." is the wrong advice on all three, because on all
+ * queued with, nothing has been rebuilt from this screen, and `abandon(body)` →
+ * `parkInterruptedOutboxEdit` parks it whole the moment the composer closes ([closingParksQueuedRow]:
+ * FAILED, reopenable, and NOT back on its way). "Type it again." is the wrong advice on all three, because on all
  * three the text is still somewhere and the sentence sends her to retype what she already has.
  * ⚠ It is not equally DESTRUCTIVE on all three: three characters open [composerMaySendBody], and
  * the send then consumes the phone's own draft row and the outbox row, while the SERVER draft is
@@ -177,15 +180,49 @@ internal fun lostBodySendWording(
  * is therefore never blank: handed it, this function answers "no" on every save ever made and the
  * guard is dead code that reads exactly like a working one.
  *
- * ⛔ **What it does NOT cover: the row lost to PROCESS DEATH.** `editingOutboxId` is not
- * persisted, so after the process is killed and the activity rebuilt it is null: this answers false,
- * the save goes through — and there is nothing to destroy, because `consumeEditingOutbox()` reads
- * the same null and returns at once. The guard is blind there, without consequence. The row left
- * `EDITING` with nobody to release it is a different defect, on its own finding, and adding a term
- * for it here would refuse saves that destroy nothing.
+ * ⚠ **The row after a PROCESS DEATH.** `editingOutboxId` is not persisted: the composer Android
+ * rebuilds gets it back from the id its route carries, once the startup sweep has parked the row
+ * (`ComposeViewModel.resumeOutboxEdit`). Between the rebuild and that resume it is still null: this
+ * answers false, the save goes through — and there is nothing to destroy, because
+ * `consumeEditingOutbox()` reads the same null and returns at once. Once the row is reattached the
+ * term is true again and this guard is whole; no term for the gap is needed, it would refuse saves
+ * that destroy nothing.
  */
 internal fun lostBodySaveDestroysQueuedRow(
     bodyWasLost: Boolean,
     body: String,
     holdsQueuedRow: Boolean,
 ): Boolean = holdsQueuedRow && !composerMaySendBody(bodyWasLost, body)
+
+/**
+ * Does CLOSING this composer park the queued row rather than give it back to the queue?
+ *
+ * The defect it ends: the send route refuses a lost body over a queued row with "Text lost. Close
+ * this screen and reopen the message." — and closing (the X, the back gesture, "Discard changes")
+ * ran `abandon()` → `releaseOutboxEdit` → `stateAfterEdit(attemptCount)` = QUEUED + `schedule(id, 0)`.
+ * The row left in under a second (2/2 on the bench): the sentence prescribed the gesture that sent
+ * what it said to reopen. When this answers true, `abandon` sends the row through
+ * `parkInterruptedOutboxEdit` instead — FAILED at the cap, "editing was interrupted, not sent" —
+ * and the row is still there to reopen.
+ *
+ * It is the SAME reading of a lost body as the refusal to send and the refusal to save, stated once
+ * in [composerMaySendBody] and asked here a third time: the text was lost AND nothing was typed
+ * back. A body retyped and then abandoned answers false, and the row goes back to the queue exactly
+ * as #70 has it; an empty body nobody lost is a deliberate emptying and answers false too.
+ *
+ * ⛔ NOT a flag saying "a refusal was shown". The decision does not depend on what the user saw:
+ * closing an empty screen after a loss is the same gesture with or without a refusal before it,
+ * and a flag raised by the notice would let a close made BEFORE tapping Send queue the row anyway.
+ *
+ * ⛔ **[body] is the RAW body of the composer** — `body.text` of the editor at the moment of the
+ * close, the value `cancel` hands `abandon` — never a body that has been through `bodiesForSend`.
+ * That one appends the identity's signature and is never blank: handed it, this answers false on
+ * every close and the row is queued again, the defect back with a guard that reads like a working one.
+ *
+ * Whether the composer HOLDS a queued row is not a term here: `abandonPlan` carries the id, and a
+ * null id parks nothing. After a PROCESS DEATH the id comes back from the route once the startup
+ * sweep is over (`ComposeViewModel.resumeOutboxEdit`); a close made before that holds nothing to
+ * park, and the row is already parked FAILED by the sweep itself.
+ */
+internal fun closingParksQueuedRow(bodyWasLost: Boolean, body: String): Boolean =
+    !composerMaySendBody(bodyWasLost, body)

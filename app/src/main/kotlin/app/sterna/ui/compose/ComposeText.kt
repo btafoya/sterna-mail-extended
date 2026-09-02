@@ -283,6 +283,24 @@ internal fun holdsQueuedOutboxRow(restore: Boolean, restored: SendOutbox.Compose
     restore && restored?.editingOutboxId != null
 
 /**
+ * Which queued row a composer opened with `restore=true` has to TAKE BACK itself — `null` for none.
+ *
+ * Two facts, and they never both hold. [restored] is the draft handed over in memory: when it is
+ * there the app is alive, `OutboxViewModel.edit` has already taken the row EDITING and the composer
+ * is bound to it through [holdsQueuedOutboxRow]; taking it again here would be refused
+ * (`OutboxLogic.canEdit` on EDITING) at best, and at worst race the hand-over. So the hand-over
+ * WINS. [outboxId] is the same id carried by the route, which is the one thing that survives a
+ * process death: it is read only when the hand-over is missing, i.e. exactly after such a death.
+ * Without it (the Undo route, `compose?restore=true` alone) there is no row to resume: an undone
+ * send lived only in memory, and it is gone with the process.
+ *
+ * Pure, and executed by `ComposeTitleTest`, for the reason [holdsQueuedOutboxRow] is: invert the
+ * condition and a live reopen takes its row a second time, and nothing on screen says so.
+ */
+internal fun outboxRowToResume(restored: SendOutbox.ComposeDraft?, outboxId: Long?): Long? =
+    if (restored == null) outboxId else null
+
+/**
  * Whether a draft saved on the SERVER survives leaving this composer — the input [discardWording]
  * calls `editingDraft`, and the thing the dialog may not announce as destroyed (#35).
  *

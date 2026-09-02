@@ -43,7 +43,8 @@ import app.sterna.ui.components.EmptyState
 @Composable
 fun OutboxScreen(
     onBack: () -> Unit,
-    onEditDraft: () -> Unit,
+    /** Open the composer on the row just taken — with its id, which the route keeps across a process death. */
+    onEditDraft: (Long) -> Unit,
     viewModel: OutboxViewModel = viewModel(),
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
@@ -87,11 +88,12 @@ fun OutboxScreen(
         )
     }
 
-    // Once an item is staged for editing, open compose with the restored draft.
+    // Once an item is staged for editing, open compose with the restored draft — and with the
+    // row's id in the route, so a composer rebuilt after a process death can take it back.
     LaunchedEffect(readyToEdit) {
-        if (readyToEdit) {
+        readyToEdit?.let { id ->
             viewModel.consumeEdit()
-            onEditDraft()
+            onEditDraft(id)
         }
     }
 
@@ -143,7 +145,12 @@ fun OutboxScreen(
                         if (outboxStateShowsReason(item.state)) {
                             stringResource(
                                 outboxStateLabel(item.state),
-                                item.lastError ?: stringResource(R.string.outbox_state_failed_unknown),
+                                // The reason is decided there too: a sentinel stored on the row is
+                                // translated here, the server's words are printed as they came.
+                                when (val reason = outboxFailureReason(item.lastError)) {
+                                    is OutboxFailureReason.Words -> stringResource(reason.id)
+                                    is OutboxFailureReason.Text -> reason.text
+                                },
                             )
                         } else {
                             stringResource(outboxStateLabel(item.state))

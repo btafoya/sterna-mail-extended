@@ -8079,8 +8079,11 @@ class MailRepository(
      * Take an item out of the outbox for editing (#70): build its draft and mark the row
      * [OutboxState.EDITING] so the send worker leaves it alone while the composer holds it. The row
      * and its durable attachment dir are left in place — the message never lives only in RAM, so a
-     * process death costs the edit, not the mail. Closing the composer calls [releaseOutboxEdit];
-     * sending/saving/deleting calls [deleteOutbox].
+     * process death costs the edit, not the mail: the startup sweep ([parkInterruptedOutboxEdits])
+     * parks the row FAILED, and the composer Android rebuilds afterwards takes it back through this
+     * same door, by the id its route carries (`ComposeViewModel.resumeOutboxEdit`) — FAILED passes
+     * [OutboxLogic.canEdit] and the row comes back EDITING. Closing the composer calls
+     * [releaseOutboxEdit]; sending/saving/deleting calls [deleteOutbox].
      */
     suspend fun takeOutboxForEdit(id: Long, stagingDir: java.io.File): OutboxDraft? {
         val item = outboxDao.byId(id) ?: return null
@@ -8140,13 +8143,57 @@ class MailRepository(
     }
 
     /**
-     * Startup recovery (#70): revert rows stranded in EDITING by a process death. An exhausted row
-     * (its auto-retry was spent before it was reopened) goes back to FAILED so it is NOT re-armed by
-     * [unfinishedOutbox]; the rest become QUEUED again. Order matters — park the exhausted first.
+     * Park a row taken out with [takeOutboxForEdit] whose edit was INTERRUPTED: the composer closed
+     * over a body it had lost and never got back (`closingParksQueuedRow`). The row is the only copy
+     * of the message, and the close was made on the app's own advice — "Close this screen and reopen
+     * the message" — so it must stay in the Outbox, visible and reopenable, and it must NOT leave.
+     *
+     * ⛔ NOT [releaseOutboxEdit], and that is the whole fix: released, the row goes back to QUEUED
+     * and is re-armed at 0, and the message she was told to reopen is delivered in under a second.
+     * ⛔ No `schedule` here, for the same reason.
+     *
+     * Why [OutboxState.FAILED] at [OutboxLogic.MAX_ATTEMPTS] and not a state of its own: the cap is
+     * the proxy [OutboxLogic.stateAfterEdit] already trusts (#70, #183) — "the count is at the cap
+     * only on the FAILED-parking path" — so the row is listed and reopenable like any FAILED row,
+     * Retry re-arms it deliberately (`retryOutbox` resets the count), and the NEXT reopen-and-close
+     * parks it again instead of queueing it. A seventh state would cost every exhaustive `when` on
+     * [OutboxState] a branch and a migration for nothing this one does not already say. The reason
+     * is the sentinel [OutboxLogic.EDIT_INTERRUPTED], translated by the Outbox screen; a row that
+     * was ALREADY at the cap before the edit — a genuine send failure, reopened and lost — keeps its
+     * own reason and takes the same write [releaseOutboxEdit] would give it, since its cause happened
+     * and is still true.
+     *
+     * Only an EDITING row is parked, exactly as in [releaseOutboxEdit] and [parkOutboxEdit]: any
+     * other state means this composer no longer owns the row, and writing over it would fight
+     * whoever does. The statement carries the same guard, so the two reads cannot disagree.
      */
-    suspend fun revertEditingOutbox() {
+    suspend fun parkInterruptedOutboxEdit(id: Long) {
+        val row = outboxDao.byId(id) ?: return
+        if (row.state != OutboxState.EDITING) return
+        if (row.attemptCount >= OutboxLogic.MAX_ATTEMPTS) outboxDao.setState(id, OutboxState.FAILED)
+        else outboxDao.parkEditingAsInterrupted(id, OutboxLogic.MAX_ATTEMPTS, OutboxLogic.EDIT_INTERRUPTED)
+    }
+
+    /**
+     * Startup recovery (#70): PARK every row stranded in EDITING by a process death — FAILED at the
+     * cap, with [OutboxLogic.EDIT_INTERRUPTED] as its reason — so that [unfinishedOutbox], which
+     * runs right after and does not return FAILED, re-arms none of them.
+     *
+     * ⛔ Not back to QUEUED, which is what this did: a row requeued here is booked at 0 by the
+     * re-arm and leaves on its own, and the composer Android restores afterwards holds the same
+     * text and can send it again — two copies at the recipient's, which nothing takes back. Parked,
+     * the row is listed in the Outbox in red with its reason, reopens, and Retry sends it; only a
+     * gesture makes it leave. FAILED at [OutboxLogic.MAX_ATTEMPTS] rather than a state of its own
+     * for the reasons given on [parkInterruptedOutboxEdit], the same parking through the other door.
+     *
+     * Order matters: the exhausted rows first, so a genuine send failure that was reopened keeps
+     * the reason of that failure and is not relabelled "editing was interrupted" — both statements
+     * name EDITING, and whichever runs first claims them. Pinned line by line by
+     * `EditInterruptedRowTest`, which also replays both statements on a real SQLite.
+     */
+    suspend fun parkInterruptedOutboxEdits() {
         outboxDao.revertEditingExhaustedToFailed(OutboxLogic.MAX_ATTEMPTS)
-        outboxDao.revertEditingToQueued()
+        outboxDao.parkAllEditingAsInterrupted(OutboxLogic.MAX_ATTEMPTS, OutboxLogic.EDIT_INTERRUPTED)
     }
 
     /** Actually deliver one outbox item (no queue indirection); exceptions propagate to the worker. */
