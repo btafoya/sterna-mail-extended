@@ -193,11 +193,11 @@ internal fun readReceiptEntity(
  * MIME base64: 76-column lines separated by CRLF, which is what `Base64.getMimeEncoder()` already
  * produces on its own (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`).
  *
- * ⚠ NOT written as `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`, which is how
- * `OutgoingMime` spells it. That replace runs over separators that are ALREADY `\r\n` and turns
- * every one of them into `\r\r\n` — a bare CR inside a base64 body. Parsers shrug at it, so it has
- * been going out for a long time and it is not this branch's to fix (a finding, not a fix here);
- * copying the line into a new file would have made it two places to correct instead of one.
+ * ⛔ NOT written as `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`. That replace runs
+ * over separators that are ALREADY `\r\n` and turns every one of them into `\r\r\n` — a bare CR
+ * inside a base64 body, which a DATA payload may not contain (RFC 5321 § 2.3.8). Parsers shrug at
+ * it, so nothing looks wrong on a plain message; on a SIGNED one the bare CR sits in the signed
+ * bytes, and a relay that straightens the line makes the recipient read "invalid signature".
  */
 private fun base64(text: String): String =
     Base64.getMimeEncoder().encodeToString(text.toByteArray(Charsets.UTF_8))

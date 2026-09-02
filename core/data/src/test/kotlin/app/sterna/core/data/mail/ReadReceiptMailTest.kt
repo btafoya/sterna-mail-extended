@@ -213,10 +213,10 @@ class ReadReceiptMailTest {
     /**
      * A body long enough to be folded is folded with CRLF and nothing else.
      *
-     * ⚠ `OutgoingMime` spells the same encoding
-     * `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`, and that replace runs over
-     * separators that are ALREADY CRLF: every one of them becomes `\r\r\n`, a bare CR inside a
-     * base64 body. Copying the line here would have made it two places to correct instead of one.
+     * ⚠ The trap is a `.replace("\n", "\r\n")` laid over the encoder: it runs on separators
+     * that are ALREADY CRLF and turns every one of them into `\r\r\n`, a bare CR inside a
+     * base64 body. `OutgoingMime` carried exactly that until it was fixed; the two spellings are
+     * deliberately identical so there is one way to write this in the repo, not two.
      */
     @Test fun `a folded body carries no bare carriage return`() {
         val entity = readReceiptEntity("B", "x".repeat(400), "ann@example.org", null)

@@ -561,8 +561,21 @@ object OutgoingMime {
         append("--$related--\r\n")
     }
 
+    /**
+     * MIME base64: 76-column lines separated by CRLF, which is what `Base64.getMimeEncoder()`
+     * already produces on its own (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`).
+     *
+     * ⛔ NOT `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`. That replace runs over
+     * separators that are ALREADY `\r\n` and turns every one of them into `\r\r\n` — a bare CR
+     * inside the body, which a DATA payload may not contain (RFC 5321 § 2.3.8). Parsers shrug at
+     * it, so it goes unnoticed on a plain message; on a SIGNED one the bare CR is part of the
+     * signed bytes, and a conforming relay that straightens the line changes the message, so the
+     * recipient reads "invalid signature". At 57 bytes of input or less the encoder emits a single
+     * 76-column line with no separator at all, so nothing breaks — which is why it hid for so long,
+     * and why a witness has to feed it 58 bytes or more to see anything.
+     */
     private fun base64(bytes: ByteArray): String =
-        Base64.getMimeEncoder().encodeToString(bytes).replace("\n", "\r\n")
+        Base64.getMimeEncoder().encodeToString(bytes)
 
     /**
      * Strip CR/LF (and other control chars) from a structured header value so an

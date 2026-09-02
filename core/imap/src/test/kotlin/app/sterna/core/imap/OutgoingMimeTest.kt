@@ -1,5 +1,6 @@
 package app.sterna.core.imap
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -433,5 +434,122 @@ class OutgoingMimeTest {
         )
         val fromLine = mime.lineSequence().first { it.startsWith("From:") }
         assertEquals("From: \"alice@example.com\" <alice@example.com>", fromLine)
+    }
+
+    // --- base64 line separators: CRLF, never a bare CR (RFC 5321 § 2.3.8) ---
+    //
+    // `Base64.getMimeEncoder()` already separates its 76-column lines with CRLF
+    // (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`). A `.replace("\n", "\r\n")` laid over
+    // that turns every separator into `\r\r\n`: a bare CR inside the body. On a SIGNED message
+    // those bytes are the signed bytes, so a conforming relay straightening the line makes the
+    // recipient read "invalid signature".
+    //
+    // The witness reads what `buildBodyEntity` PRODUCES. ⛔ Never `FakeSmtpServer.delivered`: that
+    // server re-reads DATA with `readLine()` and rejoins on "\r\n"
+    // (FakeSmtpServer.kt:138-151), which silently heals the defect — an assertion there is green
+    // on the broken code.
+
+    /** 193 bytes of plain ASCII: well past the 57-byte input that fills one 76-column line. */
+    private val longBody =
+        "The quick brown fox jumps over the lazy dog, and keeps on jumping until this " +
+            "sentence is comfortably longer than fifty-seven bytes of plaintext, which is " +
+            "where the MIME encoder starts wrapping."
+
+    /**
+     * The base64 payload of a part, cut out of the entity and split on CRLF. Splitting on CRLF
+     * alone is deliberate: a `\r\r\n` separator leaves a stray CR at the END of a line, and a
+     * LF-only separator leaves a stray LF INSIDE one, so both survive the split and are caught by
+     * the per-line assertions rather than by the split itself.
+     */
+    private fun payloadLines(entity: String, after: String): List<String> =
+        entity.substringAfter(after).substringBefore("\r\n--").split("\r\n")
+
+    /**
+     * What every MIME base64 payload must look like, whatever part it came from.
+     *
+     * ⚠ The column is pinned EXACTLY, the way `ReadReceiptMailTest` pins it for the other encoder:
+     * `<= 76` would let `getMimeEncoder(60, …)` through, and the two encoders of this repo are
+     * meant to be the same encoder written twice.
+     */
+    private fun assertWellFormedMimeBase64(lines: List<String>, original: ByteArray) {
+        assertTrue("the payload is wrapped onto several lines, so there IS a separator to get wrong", lines.size > 1)
+        for ((i, line) in lines.withIndex()) {
+            assertFalse("line $i carries a stray CR or LF: <$line>", line.contains("\r") || line.contains("\n"))
+            assertTrue("line $i is empty", line.isNotEmpty())
+            val expected = if (i == lines.lastIndex) "1..76" else "exactly 76"
+            assertTrue(
+                "line $i must be $expected columns, it is ${line.length}",
+                if (i == lines.lastIndex) line.length in 1..76 else line.length == 76,
+            )
+        }
+        // Round-trip: the lines really are this content, not something that merely looks tidy.
+        assertArrayEquals(original, java.util.Base64.getMimeDecoder().decode(lines.joinToString("")))
+    }
+
+    @Test
+    fun aWrappedTextBodyUsesCrlfWithNoBareCr() {
+        // Guard the premise: this body really is past the 57-byte wrap threshold, so the
+        // assertions below are looking at separators that exist.
+        assertEquals("body is over the 57-byte wrap threshold", 193, longBody.toByteArray(Charsets.UTF_8).size)
+        val entity = OutgoingMime.buildBodyEntity(msg().copy(body = longBody))
+        assertFalse("no bare CR anywhere in the entity", entity.contains("\r\r"))
+        assertWellFormedMimeBase64(
+            payloadLines(entity, "Content-Transfer-Encoding: base64\r\n\r\n"),
+            longBody.toByteArray(Charsets.UTF_8),
+        )
+    }
+
+    @Test
+    fun aWrappedAttachmentUsesCrlfWithNoBareCr() {
+        // A few kB of fabricated bytes — many wrapped lines, and it exercises the attachment path
+        // (appendAttachmentPart) rather than the body one.
+        val blob = ByteArray(4096) { (it % 251).toByte() }
+        val entity = OutgoingMime.buildBodyEntity(
+            htmlMsg(listOf(OutgoingAttachment(name = "blob.bin", type = "application/octet-stream", bytes = blob))),
+        )
+        assertFalse("no bare CR anywhere in the entity", entity.contains("\r\r"))
+        assertWellFormedMimeBase64(
+            payloadLines(entity, "Content-Disposition: attachment; filename=\"blob.bin\"\r\n\r\n"),
+            blob,
+        )
+    }
+
+    @Test
+    fun aWrappedInlineImageUsesCrlfWithNoBareCr() {
+        // The fourth call site, appendRelatedParts: an inline image inside a multipart/related.
+        // ⚠ The `image` fixture above is 3 bytes — `AQID`, never wrapped — so it cannot see this
+        // defect at all. Any message with a logo in it carries kilobytes here.
+        val pixels = ByteArray(3000) { (it % 251).toByte() }
+        val entity = OutgoingMime.buildBodyEntity(
+            htmlMsg(
+                listOf(
+                    OutgoingAttachment(
+                        name = "logo.png", type = "image/png", bytes = pixels,
+                        cid = "logo@x", inline = true,
+                    ),
+                ),
+            ),
+        )
+        assertFalse("no bare CR anywhere in the entity", entity.contains("\r\r"))
+        assertWellFormedMimeBase64(
+            payloadLines(entity, "Content-Disposition: inline; filename=\"logo.png\"\r\n\r\n"),
+            pixels,
+        )
+    }
+
+    @Test
+    fun aBodyBelowTheWrapThresholdIsUnchanged() {
+        // 31 bytes: under the 57-byte threshold, so the encoder emits a single unwrapped line and
+        // there is no separator to mangle. Green on both sides of the fix — this is the boundary,
+        // it proves nothing about the fix and everything about not regressing short messages.
+        val shortBody = "short enough to fit on one line"
+        assertEquals(31, shortBody.toByteArray(Charsets.UTF_8).size)
+        val entity = OutgoingMime.buildBodyEntity(msg().copy(body = shortBody))
+        assertFalse("no bare CR", entity.contains("\r\r"))
+        assertEquals(
+            "a body under the threshold is one unwrapped base64 line",
+            java.util.Base64.getEncoder().encodeToString(shortBody.toByteArray(Charsets.UTF_8)),
+            entity.substringAfter("Content-Transfer-Encoding: base64\r\n\r\n"),
+        )
     }
 }
