@@ -577,6 +577,9 @@ class ConversationScopeWiringTest {
             // The whole selection the batch is about to act on.
             "bulk" to Regex("""^keys$"""),
             "bulkBatched" to Regex("""^targetKeys$"""),
+            // The one message leaving for another account (#189), and each of a selection in turn.
+            "moveToAccount" to Regex("""^setOf\(\s*key\s*,?\s*\)$"""),
+            "moveSelectedToAccount" to Regex("""^setOf\(\s*key\s*,?\s*\)$"""),
         )
 
         /** The store that keeps the swipe context — out of the ViewModel so it can be run. */

@@ -73,6 +73,7 @@ class SelectionBannerPluralsTest {
             "status_selection_deleted",
             "status_selection_archived",
             "status_selection_moved",
+            "status_selection_copied_not_removed",
         )
 
         val ITEM = Regex("<item\\s+quantity=\"([^\"]+)\"\\s*>(.*?)</item>", RegexOption.DOT_MATCHES_ALL)

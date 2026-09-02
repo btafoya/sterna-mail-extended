@@ -89,6 +89,7 @@
     <string name="inbox_undo">Undo</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Switch account</string>
+    <string name="inbox_move_account">Account</string>
     <string name="inbox_all_inboxes">All inboxes</string>
     <string name="inbox_all_inboxes_unread">All inboxes  (%1$d)</string>
     <string name="inbox_unread_view">Unread</string>
@@ -918,6 +919,10 @@
         <item quantity="one">%1$d message moved</item>
         <item quantity="other">%1$d messages moved</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d message copied to %2$s; the original stayed in %3$s</item>
+        <item quantity="other">%1$d messages copied to %2$s; the originals stayed in %3$s</item>
+    </plurals>
     <string name="status_message_unarchived">Message unarchived</string>
     <string name="status_conversation_deleted">Conversation deleted</string>
     <string name="status_conversation_archived">Conversation archived</string>
@@ -953,6 +958,8 @@
     <string name="status_moved_to_folder">Moved to %1$s</string>
     <string name="status_action_partly_failed">Some messages couldn\'t be processed.</string>
     <string name="status_move_other_account">Some messages were not moved (other account).</string>
+    <string name="status_moved_to_account">Moved to %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Copied to %1$s › %2$s. The original stayed in %3$s</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">New mail</string>

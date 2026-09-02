@@ -679,6 +679,44 @@ class ImapMailService(
         }
 
     /**
+     * APPEND [message] — the octets of a message read from ANOTHER account, as they are — into
+     * [mailbox] of this one, under [flags] and [internalDate] (#189). Answers the uid the server
+     * named for the copy (`[APPENDUID]`), or null on a server without UIDPLUS: not a failed
+     * append, and the caller decides what an unnamed copy is worth.
+     *
+     * ⛔ **`retryOnFailure = false`, for [appendDraft]'s reason.** A failure the client sees says
+     * nothing about what the server did with bytes it had already received; a replay inside the
+     * session would put TWO copies in the folder, and the caller then trashes the original on the
+     * strength of one of them. A failed append is reported, never replayed. Block body, not an
+     * expression one, so `MoveToAccountWiringTest` can read exactly this.
+     */
+    suspend fun appendBytes(
+        credentials: AccountCredentials,
+        mailbox: String,
+        message: ByteArray,
+        flags: String,
+        internalDate: Long?,
+    ): Long? {
+        return withSession(credentials, retryOnFailure = false) { it.append(mailbox, message, flags, internalDate) }
+    }
+
+    /**
+     * The uid of the ONE message of [mailbox] whose `Message-ID` is [messageId] (bracketless), or
+     * null when none or more than one answers — the name a copy gets when an APPEND without
+     * UIDPLUS gave it none (#189). `HEADER "Message-ID"` because it is the one key that names a
+     * message and nothing else; the folder's newest envelopes ([draftIsAlreadyThere]) are not read
+     * here, they would name the wrong message on a folder that receives mail meanwhile.
+     *
+     * ⚠ Stalwart answers this search EMPTY (see [draftIsAlreadyThere]'s KDoc) — known and
+     * accepted: null makes the move stop at "copied, not removed", a duplicate the user can see,
+     * never a loss. ⛔ Not to be worked around by taking "the newest" instead: a wrong name here
+     * trashes the original on the strength of somebody else's message.
+     */
+    suspend fun findByMessageId(credentials: AccountCredentials, mailbox: String, messageId: String): Long? {
+        return onMailbox(credentials, mailbox) { session, _ -> session.uidSearchHeader("Message-ID", "<$messageId>").singleOrNull() }
+    }
+
+    /**
      * Whether the Drafts folder already holds the draft named [messageId] — the question a deferred
      * upload asks before appending a second copy of text the server has (#95). `APPEND` returns no
      * id to keep, so this header is the only name that draft has on both sides of the network.

@@ -569,9 +569,9 @@ private fun MainNavHost(
                     // the reader's move is the list's move, Undo snackbar included, and the
                     // screen returns to the list because the message just left the folder
                     // being read — exactly what archiving it does.
-                    onMove = { email, targetMailboxId ->
+                    onMove = { email, targetMailboxId, targetAccountId ->
                         entry.navigateOnce {
-                            inboxViewModel.moveTo(email, targetMailboxId)
+                            inboxViewModel.moveTo(email, targetMailboxId, targetAccountId)
                             nav.popBackStack()
                         }
                     },

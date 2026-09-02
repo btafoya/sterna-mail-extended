@@ -76,6 +76,7 @@
     <string name="inbox_undo">Отменить</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Сменить аккаунт</string>
+    <string name="inbox_move_account">Аккаунт</string>
     <string name="inbox_all_inboxes">Все входящие</string>
     <string name="inbox_all_inboxes_unread">Все входящие  (%1$d)</string>
     <string name="inbox_unread_view">Непрочитанные</string>
@@ -730,6 +731,12 @@
         <item quantity="many">%1$d писем перемещено</item>
         <item quantity="other">%1$d писем перемещено</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d письмо скопировано в %2$s; оригинал остался в %3$s</item>
+        <item quantity="few">%1$d письма скопировано в %2$s; оригиналы остались в %3$s</item>
+        <item quantity="many">%1$d писем скопировано в %2$s; оригиналы остались в %3$s</item>
+        <item quantity="other">%1$d писем скопировано в %2$s; оригиналы остались в %3$s</item>
+    </plurals>
     <string name="status_message_unarchived">Письмо извлечено из архива</string>
     <string name="status_conversation_deleted">Переписка удалена</string>
     <string name="status_conversation_archived">Переписка архивирована</string>
@@ -756,6 +763,8 @@
     <string name="status_moved_to_folder">Перемещено в %1$s</string>
     <string name="status_action_partly_failed">Некоторые письма не удалось обработать.</string>
     <string name="status_move_other_account">Некоторые письма не были перемещены (другой аккаунт).</string>
+    <string name="status_moved_to_account">Перемещено в %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Скопировано в %1$s › %2$s. Оригинал остался в %3$s</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Новые письма</string>

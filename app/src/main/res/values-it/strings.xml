@@ -76,6 +76,7 @@
     <string name="inbox_undo">Annulla</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Cambia account</string>
+    <string name="inbox_move_account">Account</string>
     <string name="inbox_all_inboxes">Tutte le caselle di posta</string>
     <string name="inbox_all_inboxes_unread">Tutte le caselle di posta  (%1$d)</string>
     <string name="inbox_unread_view">Non letti</string>
@@ -722,6 +723,10 @@
         <item quantity="one">%1$d messaggio spostato</item>
         <item quantity="other">%1$d messaggi spostati</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d messaggio copiato in %2$s; l\'originale è rimasto in %3$s</item>
+        <item quantity="other">%1$d messaggi copiati in %2$s; gli originali sono rimasti in %3$s</item>
+    </plurals>
     <string name="status_message_unarchived">Archiviazione annullata</string>
     <string name="status_conversation_deleted">Conversazione eliminata</string>
     <string name="status_conversation_archived">Conversazione archiviata</string>
@@ -748,6 +753,8 @@
     <string name="status_moved_to_folder">Spostato in %1$s</string>
     <string name="status_action_partly_failed">Non è stato possibile elaborare alcuni messaggi.</string>
     <string name="status_move_other_account">Alcuni messaggi non sono stati spostati (altro account).</string>
+    <string name="status_moved_to_account">Spostato in %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Copiato in %1$s › %2$s. L\'originale è rimasto in %3$s</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Nuova posta</string>

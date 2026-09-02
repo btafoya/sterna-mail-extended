@@ -260,6 +260,10 @@ fun InboxScreen(
     // not folded into it: moveTargets needs the whole list for the parent paths it shows (#109)
     // and the flag only for the targets it offers.
     val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()
+    // The picker's account row (#189): the account the selection belongs to, and the one chosen
+    // on the row, if any — both live in the ViewModel so the choice survives a rotation.
+    val moveOwnerAccountId by viewModel.moveOwnerAccountId.collectAsStateWithLifecycle()
+    val moveAccountId by viewModel.moveAccountId.collectAsStateWithLifecycle()
     // Inline conversation expansion: which threads are unfolded, and their lazily-loaded members.
     val expandedThreads by viewModel.expandedThreads.collectAsStateWithLifecycle()
     val threadMembers by viewModel.threadMembers.collectAsStateWithLifecycle()
@@ -361,8 +365,11 @@ fun InboxScreen(
         // The filter field's text (#182). Held INSIDE the `if`, so leaving the dialog drops the
         // composition group and the field comes back empty next time it is opened.
         var moveQuery by remember { mutableStateOf("") }
-        val targets = remember(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed) {
-            moveTargets(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed)
+        // The folder on screen is left out of the list ONLY while the list is the selection's own
+        // account's: listing another account's, its id names nothing there, or a homonym (#92).
+        val moveExcludedMailbox = pickerExcludedMailbox(moveAccountId, moveOwnerAccountId, ui.selectedMailboxId)
+        val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed) {
+            moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed)
         }
         // Nested folders sharing a leaf ("ProjectA.Done", "ProjectB.Done") are one and the same
         // row without their parent path underneath (#109). Resolved against the WHOLE folder
@@ -387,10 +394,15 @@ fun InboxScreen(
         }
         val shownMoveRows = filterFolderRows(moveRows, moveQuery)
         AlertDialog(
-            onDismissRequest = { showMoveSheet = false },
+            onDismissRequest = { showMoveSheet = false; viewModel.chooseMoveAccount(null) },
             title = { Text(stringResource(R.string.inbox_move_to_folder)) },
             text = {
                 Column {
+                    // The account whose folders are listed, and the way to list another's (#189).
+                    // Drawn only when there is more than one account to choose from — and NOT at
+                    // all when the selection spans accounts, where the move keeps main's behaviour
+                    // and only takes the owner's messages (selectionPickerAccounts).
+                    MoveAccountRow(selectionPickerAccounts(accounts, selectedKeys), moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)
                     // The filter field (#182), OUTSIDE the scroller so it stays put while the list
                     // moves under it. Same shape as the list's search bar: transparent container and
                     // indicators, hint drawn behind in a Box, a cross that empties it. Deliberately
@@ -455,8 +467,9 @@ fun InboxScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         // The row's OWN folder, never a rank in the filtered list.
-                                        viewModel.moveSelectedTo(row.folder.id)
+                                        viewModel.moveSelectedTo(row.folder.id, moveAccountId)
                                         showMoveSheet = false
+                                        viewModel.chooseMoveAccount(null)
                                     }
                                     .semantics(mergeDescendants = true) { role = Role.Button }
                                     .padding(vertical = 12.dp),
@@ -485,7 +498,9 @@ fun InboxScreen(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showMoveSheet = false }) { Text(stringResource(R.string.inbox_cancel)) } },
+            dismissButton = {
+                TextButton(onClick = { showMoveSheet = false; viewModel.chooseMoveAccount(null) }) { Text(stringResource(R.string.inbox_cancel)) }
+            },
         )
     }
 
@@ -3054,18 +3069,8 @@ private fun folderIcon(role: String?): ImageVector = when (role) {
  * server (role == null, or an unrecognised role) keep their raw [name] untouched.
  */
 @Composable
-fun mailboxDisplayName(role: String?, name: String): String = when (role) {
-    "inbox" -> stringResource(R.string.folder_inbox)
-    "archive" -> stringResource(R.string.folder_archive)
-    "drafts" -> stringResource(R.string.folder_drafts)
-    "sent" -> stringResource(R.string.folder_sent)
-    "junk" -> stringResource(R.string.folder_junk)
-    "trash" -> stringResource(R.string.folder_trash)
-    "all" -> stringResource(R.string.folder_all)
-    "flagged" -> stringResource(R.string.folder_flagged)
-    "important" -> stringResource(R.string.folder_important)
-    else -> name
-}
+fun mailboxDisplayName(role: String?, name: String): String =
+    mailboxRoleNameRes(role)?.let { stringResource(it) } ?: name
 
 /** A discreet, non-tappable banner shown above the list while there's no usable network (#65).
  *  Same visual weight as [OutboxFailureBanner] but a calmer surface tone: offline is a state, not

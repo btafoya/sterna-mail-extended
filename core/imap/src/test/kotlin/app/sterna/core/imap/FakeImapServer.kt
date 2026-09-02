@@ -1,8 +1,9 @@
 package app.sterna.core.imap
 
-import java.io.BufferedReader
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
-import java.io.InputStreamReader
+import java.io.EOFException
 import java.io.OutputStreamWriter
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -25,8 +26,9 @@ internal class FakeImapServer(
      * responder always answers the line it was given and goes back to waiting for the next one.
      *
      * Called with the line as [commands] records it (tag stripped), or [GREETING] for the server
-     * banner, which no command of the client precedes. An empty list cuts before a single byte is
-     * written.
+     * banner, which no command of the client precedes, or [LITERAL] once a literal's octets have
+     * been taken in — the server that took an APPEND's message and went away before saying
+     * whether it kept it. An empty list cuts before a single byte is written.
      *
      * The cut is a half-close (`shutdownOutput`): the client gets its EOF, and whatever it writes
      * afterwards is still received and recorded in [commands], tag stripped exactly as the serve
@@ -45,6 +47,14 @@ internal class FakeImapServer(
      */
     private val cutDelayMs: Long = 0,
     /**
+     * What the server says once it has taken in a LITERAL (`APPEND … {N}`): called with the tag
+     * and the command line that announced the literal, and the N bytes as they arrived on the
+     * wire — recorded in [literals] as well. [responder] is still asked about the command line
+     * first, and only a `+` answer from it makes the server read the literal; anything else is
+     * written as-is and the literal is never expected. Defaults to a bare OK.
+     */
+    private val afterLiteral: (tag: String, line: String, literal: ByteArray) -> String = { tag, _, _ -> ok(tag) },
+    /**
      * ⛔ LAST on purpose, and it must stay last: every existing call site writes
      * `FakeImapServer { tag, line -> … }`, and a trailing lambda binds to the LAST parameter.
      * Moving it up compiles nowhere.
@@ -56,6 +66,13 @@ internal class FakeImapServer(
 
     /** Every command line received, tag stripped, in order. */
     val commands: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
+
+    /**
+     * Every literal received, in order, BYTE FOR BYTE: what the client put on the wire after the
+     * server's `+`, exactly [literalSize] octets of it, before any decoding. The one place a
+     * test can see whether an 8-bit byte left the client as itself or as something re-encoded.
+     */
+    val literals: MutableList<ByteArray> = Collections.synchronizedList(mutableListOf<ByteArray>())
 
     val config = MailServerConfig(
         host = server.inetAddress.hostAddress,
@@ -86,8 +103,39 @@ internal class FakeImapServer(
                 // — the writer would helpfully UTF-8-encode it and the case under test would
                 // never reach the socket. Safe for every existing test: none of them puts a
                 // non-ASCII character in a response (the Cyrillic ones travel in modified UTF-7).
-                val reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
+                //
+                // The reading side is a byte stream with a line reader of its own rather than a
+                // BufferedReader: a literal (`APPEND … {N}` followed by N octets) has to be taken
+                // off the SAME stream as raw bytes, and a Reader would have decoded them — and
+                // read ahead past them — before a test could look at them.
+                val input = BufferedInputStream(socket.inputStream)
                 val writer = OutputStreamWriter(socket.outputStream, Charsets.ISO_8859_1)
+
+                /** One line, CRLF (or LF) stripped, decoded as UTF-8; null at end of stream. */
+                fun readLine(): String? {
+                    val buf = ByteArrayOutputStream()
+                    while (true) {
+                        val b = input.read()
+                        if (b < 0) return if (buf.size() == 0) null else buf.toString(Charsets.UTF_8.name())
+                        if (b == '\n'.code) break
+                        buf.write(b)
+                    }
+                    val bytes = buf.toByteArray()
+                    val end = if (bytes.isNotEmpty() && bytes.last() == '\r'.code.toByte()) bytes.size - 1 else bytes.size
+                    return String(bytes, 0, end, Charsets.UTF_8)
+                }
+
+                /** Exactly [n] octets, as they are. */
+                fun readLiteral(n: Int): ByteArray {
+                    val out = ByteArray(n)
+                    var off = 0
+                    while (off < n) {
+                        val r = input.read(out, off, n - off)
+                        if (r < 0) throw EOFException("stream ended $off bytes into a $n-byte literal")
+                        off += r
+                    }
+                    return out
+                }
 
                 /**
                  * Honour [cutAfter] for [trigger]: write the partial response, go quiet for
@@ -103,7 +151,7 @@ internal class FakeImapServer(
                     runCatching { socket.shutdownOutput() }
                     runCatching { socket.soTimeout = QUIET_MS }
                     while (true) {
-                        val after = runCatching { reader.readLine() }.getOrNull() ?: break
+                        val after = runCatching { readLine() }.getOrNull() ?: break
                         commands.add(after.substringAfter(' ')) // tag stripped, as above: see [cutAfter]
                     }
                     return true
@@ -113,13 +161,25 @@ internal class FakeImapServer(
                 writer.write("* OK fake IMAP ready\r\n")
                 writer.flush()
                 while (true) {
-                    val raw = reader.readLine() ?: break
+                    val raw = readLine() ?: break
                     val tag = raw.substringBefore(' ')
                     val line = raw.substringAfter(' ')
                     commands.add(line)
                     if (cut(line)) break
-                    writer.write(responder(tag, line))
+                    val answer = responder(tag, line)
+                    writer.write(answer)
                     writer.flush()
+                    val size = literalSize(line)
+                    if (size != null && answer.startsWith("+")) {
+                        // The client sends the literal's octets and then the CRLF that ends the
+                        // command line the literal was part of; that empty tail is not a command.
+                        val literal = readLiteral(size)
+                        literals.add(literal)
+                        readLine()
+                        if (cut(LITERAL)) break
+                        writer.write(afterLiteral(tag, line, literal))
+                        writer.flush()
+                    }
                     if (line.startsWith("LOGOUT")) break
                 }
             }
@@ -159,8 +219,15 @@ internal class FakeImapServer(
         /** [cutAfter] trigger for the server banner, which no command of the client precedes. */
         const val GREETING = "<greeting>"
 
+        /** [cutAfter] trigger for the moment a literal's octets have all been taken in. */
+        const val LITERAL = "<literal>"
+
         /** How long a cut connection keeps listening for a client that has not noticed yet. */
         private const val QUIET_MS = 1_500
+
+        /** The `{N}` a command line ends with when a literal follows it, or null. */
+        fun literalSize(line: String): Int? =
+            Regex("""\{(\d+)\}$""").find(line)?.groupValues?.get(1)?.toIntOrNull()
     }
 }
 

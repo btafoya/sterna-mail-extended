@@ -1954,10 +1954,75 @@ class JmapClient internal constructor(
         emailId
     }
 
-    /** The Email id minted for the "draft" creation in an Email/set or Email/import response. */
-    private fun createdEmailId(args: JsonObject): String? =
-        (args["created"] as? JsonObject)?.get("draft")?.jsonObject
+    /** The Email id minted for the [creationId] creation ("draft" by default) in an Email/set or
+     *  Email/import response. */
+    private fun createdEmailId(args: JsonObject, creationId: String = "draft"): String? =
+        (args["created"] as? JsonObject)?.get(creationId)?.jsonObject
             ?.get("id")?.jsonPrimitive?.contentOrNull
+
+    /**
+     * Turn a blob already uploaded to this account into a message (RFC 8621 §4.8 `Email/import`):
+     * one message in [mailboxIds], carrying [keywords], received at [receivedAt] (an RFC 3339 UTC
+     * date, or null to let the server stamp now). The JMAP half of a move between accounts (#189):
+     * the bytes read from the other account become a message here, under their own date.
+     *
+     * ⛔ Not [importAndSendEmail], which is the PGP send: Drafts and `$draft`+`$seen` hard-coded,
+     * fused with the submission. This one carries exactly what it is given, and nothing else.
+     *
+     * Answers the id of the created message. Throws [JmapException] when the server refuses
+     * (`notCreated`, the server's reason quoted) or answers without an id.
+     */
+    suspend fun importEmail(
+        session: JmapSession,
+        accountId: String,
+        auth: JmapAuth,
+        blobId: String,
+        mailboxIds: Set<String>,
+        keywords: Set<String>,
+        receivedAt: String?,
+    ): String = withContext(Dispatchers.IO) {
+        val payload = buildJsonObject {
+            putJsonArray("using") {
+                add(Jmap.CORE_CAPABILITY)
+                add(Jmap.MAIL_CAPABILITY)
+            }
+            putJsonArray("methodCalls") {
+                addJsonArray {
+                    add("Email/import")
+                    addJsonObject {
+                        put("accountId", accountId)
+                        putJsonObject("emails") {
+                            putJsonObject("m0") {
+                                put("blobId", blobId)
+                                putJsonObject("mailboxIds") { mailboxIds.forEach { put(it, true) } }
+                                putJsonObject("keywords") { keywords.forEach { put(it, true) } }
+                                if (receivedAt != null) put("receivedAt", receivedAt)
+                            }
+                        }
+                    }
+                    add("i0")
+                }
+            }
+        }
+        val request = Request.Builder()
+            .url(session.apiUrl)
+            .header("Authorization", auth.authorizationHeader())
+            .header("Accept", "application/json")
+            .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        httpClient.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw JmapException("Import failed: HTTP ${response.code} ${response.message}")
+            }
+            val args = methodResponseArgs(body, "Email/import")
+            (args["notCreated"] as? JsonObject)?.get("m0")?.let {
+                throw JmapException("Could not import the message: $it")
+            }
+            createdEmailId(args, "m0")
+                ?: throw JmapException("Email/import answered without the id of the created message")
+        }
+    }
 
     /**
      * Ask the server what it did with the submission it has just created, and FAIL the send if it

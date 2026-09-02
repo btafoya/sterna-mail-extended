@@ -76,6 +76,7 @@
     <string name="inbox_undo">Annuler</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Changer de compte</string>
+    <string name="inbox_move_account">Compte</string>
     <string name="inbox_all_inboxes">Toutes les boîtes de réception</string>
     <string name="inbox_all_inboxes_unread">Toutes les boîtes de réception  (%1$d)</string>
     <string name="inbox_unread_view">Non lus</string>
@@ -725,6 +726,11 @@
         <item quantity="many">%1$d de messages déplacés</item>
         <item quantity="other">%1$d messages déplacés</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d message copié dans %2$s ; l\'original est resté dans %3$s</item>
+        <item quantity="many">%1$d de messages copiés dans %2$s ; les originaux sont restés dans %3$s</item>
+        <item quantity="other">%1$d messages copiés dans %2$s ; les originaux sont restés dans %3$s</item>
+    </plurals>
     <string name="status_message_unarchived">Message désarchivé</string>
     <string name="status_conversation_deleted">Conversation supprimée</string>
     <string name="status_conversation_archived">Conversation archivée</string>
@@ -751,6 +757,8 @@
     <string name="status_moved_to_folder">Déplacé vers %1$s</string>
     <string name="status_action_partly_failed">Certains messages n\'ont pas pu être traités.</string>
     <string name="status_move_other_account">Certains messages n\'ont pas été déplacés (autre compte).</string>
+    <string name="status_moved_to_account">Déplacé vers %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Copié dans %1$s › %2$s. L\'original est resté dans %3$s</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Nouveaux messages</string>

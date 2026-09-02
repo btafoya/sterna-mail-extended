@@ -76,6 +76,7 @@
     <string name="inbox_undo">Rückgängig</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Konto wechseln</string>
+    <string name="inbox_move_account">Konto</string>
     <string name="inbox_all_inboxes">Alle Posteingänge</string>
     <string name="inbox_all_inboxes_unread">Alle Posteingänge  (%1$d)</string>
     <string name="inbox_unread_view">Ungelesen</string>
@@ -720,6 +721,10 @@
         <item quantity="one">%1$d Nachricht verschoben</item>
         <item quantity="other">%1$d Nachrichten verschoben</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d Nachricht nach %2$s kopiert; das Original ist in %3$s geblieben</item>
+        <item quantity="other">%1$d Nachrichten nach %2$s kopiert; die Originale sind in %3$s geblieben</item>
+    </plurals>
     <string name="status_message_unarchived">Nachricht aus Archiv geholt</string>
     <string name="status_conversation_deleted">Unterhaltung gelöscht</string>
     <string name="status_conversation_archived">Unterhaltung archiviert</string>
@@ -746,6 +751,8 @@
     <string name="status_moved_to_folder">Verschoben nach %1$s</string>
     <string name="status_action_partly_failed">Einige Nachrichten konnten nicht verarbeitet werden.</string>
     <string name="status_move_other_account">Einige Nachrichten wurden nicht verschoben (anderes Konto).</string>
+    <string name="status_moved_to_account">Verschoben nach %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Kopiert nach %1$s › %2$s. Das Original ist in %3$s geblieben</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Neue E-Mails</string>

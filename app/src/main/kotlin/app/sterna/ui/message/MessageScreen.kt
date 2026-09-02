@@ -166,6 +166,7 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import android.text.format.DateUtils
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.inbox.FolderPickerRow
+import app.sterna.ui.inbox.MoveAccountRow
 import app.sterna.ui.inbox.filterFolderRows
 import app.sterna.ui.inbox.mailboxDisplayName
 import app.sterna.ui.inbox.mailboxPathLabel
@@ -254,7 +255,7 @@ fun MessageScreen(
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
-    onMove: (Email, String) -> Unit,
+    onMove: (Email, String, String?) -> Unit,
     onComposeTo: (address: String) -> Unit,
 ) {
     when {
@@ -405,7 +406,7 @@ private fun MessagePager(
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
-    onMove: (Email, String) -> Unit,
+    onMove: (Email, String, String?) -> Unit,
     onComposeTo: (address: String) -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))) { pageCount }
@@ -641,7 +642,7 @@ private fun MessageTopBar(
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
-    onMove: (Email, String) -> Unit,
+    onMove: (Email, String, String?) -> Unit,
 ) {
     TopAppBar(
         // The subject is shown in full inside the message (Codeberg #44), so the bar has
@@ -675,7 +676,7 @@ private fun MessageActions(
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
-    onMove: (Email, String) -> Unit,
+    onMove: (Email, String, String?) -> Unit,
 ) {
     val viewModel = active.viewModel
     val accountId = active.accountId
@@ -702,8 +703,15 @@ private fun MessageActions(
     // one (#73). Empty (single-folder account, folders not cached yet) hides the entry rather
     // than opening a picker with nothing to pick.
     val folders by viewModel.moveTargets.collectAsStateWithLifecycle()
-    // The account's whole folder list, only to spell out a target's parent path (#109).
-    val accountFolders by viewModel.accountMailboxes.collectAsStateWithLifecycle()
+    // The LISTED account's whole folder list, only to spell out a target's parent path (#109) —
+    // the picker's own flow, which follows the account row (#189). ⛔ Never `accountMailboxes`:
+    // that one is the message's OWN account's, and the sender rule is computed on it.
+    val accountFolders by viewModel.pickerMailboxes.collectAsStateWithLifecycle()
+    // The picker's account row (#189): the open message's account, the one chosen on the row, and
+    // the accounts to list — all from the ViewModel, so the choice survives a rotation.
+    val moveOwnerAccountId by viewModel.moveOwnerAccountId.collectAsStateWithLifecycle()
+    val moveAccountId by viewModel.moveAccountId.collectAsStateWithLifecycle()
+    val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     // The open message's way out of its mailing list, if it offers one (RFC 2369 / RFC 8058),
     // and how far it has got — the menu entry stands down once the gesture has been made.
     val unsubscribe by viewModel.unsubscribe.collectAsStateWithLifecycle()
@@ -1065,10 +1073,12 @@ private fun MessageActions(
         }
         val shownFolderRows = filterFolderRows(folderRows, folderQuery)
         AlertDialog(
-            onDismissRequest = { movePicker = false },
+            onDismissRequest = { movePicker = false; viewModel.chooseMoveAccount(null) },
             title = { Text(stringResource(R.string.inbox_move_to_folder)) },
             text = {
                 Column {
+                    // The account whose folders are listed, and the way to list another's (#189).
+                    MoveAccountRow(accounts, moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)
                     // The filter field (#182), OUTSIDE the scroller so it stays put while the list
                     // moves under it. Same shape as the list's search bar: transparent container and
                     // indicators, hint drawn behind in a Box, a cross that empties it. Deliberately
@@ -1137,7 +1147,10 @@ private fun MessageActions(
                                             ),
                                             // The row's OWN folder, never a rank in the list.
                                             row.folder.id,
+                                            // The account chosen on the row, null for the message's own (#189).
+                                            moveAccountId,
                                         )
+                                        viewModel.chooseMoveAccount(null)
                                     }
                                     .semantics(mergeDescendants = true) { role = Role.Button }
                                     .padding(vertical = 12.dp),
@@ -1165,7 +1178,7 @@ private fun MessageActions(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { movePicker = false }) { Text(stringResource(R.string.inbox_cancel)) }
+                TextButton(onClick = { movePicker = false; viewModel.chooseMoveAccount(null) }) { Text(stringResource(R.string.inbox_cancel)) }
             },
         )
     }

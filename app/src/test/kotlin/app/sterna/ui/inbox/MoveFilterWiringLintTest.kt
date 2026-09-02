@@ -51,8 +51,8 @@ class MoveFilterWiringLintTest {
         assertEquals(
             "the tapped row must move the selection into ITS OWN folder. Anything indexed — a " +
                 "rank in either list — files mail into a folder nobody pointed at.",
-            listOf("viewModel.moveSelectedTo(row.folder.id)"),
-            block(INBOX_SCREEN, "viewModel.moveSelectedTo(row.folder.id)", 1),
+            listOf("viewModel.moveSelectedTo(row.folder.id, moveAccountId)"),
+            block(INBOX_SCREEN, "viewModel.moveSelectedTo(row.folder.id", 1),
         )
     }
 
@@ -77,9 +77,10 @@ class MoveFilterWiringLintTest {
                 "accountId = accountId ?: loaded.email.accountId,",
                 "),",
                 "row.folder.id,",
+                "moveAccountId,",
                 ")",
             ),
-            block(MESSAGE_SCREEN, "onMove(", 7),
+            block(MESSAGE_SCREEN, "onMove(", 8),
         )
     }
 

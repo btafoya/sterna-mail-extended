@@ -76,6 +76,7 @@
     <string name="inbox_undo">Ongedaan maken</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Account wisselen</string>
+    <string name="inbox_move_account">Account</string>
     <string name="inbox_all_inboxes">Alle postvakken IN</string>
     <string name="inbox_all_inboxes_unread">Alle postvakken IN  (%1$d)</string>
     <string name="inbox_unread_view">Ongelezen</string>
@@ -720,6 +721,10 @@
         <item quantity="one">%1$d bericht verplaatst</item>
         <item quantity="other">%1$d berichten verplaatst</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d bericht gekopieerd naar %2$s; het origineel is in %3$s gebleven</item>
+        <item quantity="other">%1$d berichten gekopieerd naar %2$s; de originelen zijn in %3$s gebleven</item>
+    </plurals>
     <string name="status_message_unarchived">Bericht uit archief gehaald</string>
     <string name="status_conversation_deleted">Gesprek verwijderd</string>
     <string name="status_conversation_archived">Gesprek gearchiveerd</string>
@@ -746,6 +751,8 @@
     <string name="status_moved_to_folder">Verplaatst naar %1$s</string>
     <string name="status_action_partly_failed">Sommige berichten konden niet worden verwerkt.</string>
     <string name="status_move_other_account">Sommige berichten zijn niet verplaatst (ander account).</string>
+    <string name="status_moved_to_account">Verplaatst naar %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Gekopieerd naar %1$s › %2$s. Het origineel is in %3$s gebleven</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Nieuwe e-mail</string>

@@ -71,8 +71,8 @@ class SubscribedFoldersSurfaceWiringTest {
                 "field (#182) does not re-sort the whole account on every keystroke, and a key " +
                 "dropped from that list freezes the picker on a stale folder list.",
             listOf(
-                "val targets = remember(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed) {",
-                "moveTargets(moveTargetMailboxes, ui.selectedMailboxId, moveTargetsOnlySubscribed)",
+                "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed) {",
+                "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed)",
                 "}",
             ),
             block(INBOX_SCREEN, "val targets = remember(", 3),
@@ -105,11 +105,11 @@ class SubscribedFoldersSurfaceWiringTest {
                 "open message (#92), and hand moveTargets the whole folder list plus the flag.",
             listOf(
                 "val moveTargets: StateFlow<List<Mailbox>> = combine(",
-                "_ownerAccountId.flatMapLatest { id ->",
+                "movePickerAccountId.flatMapLatest { id ->",
                 "if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)",
                 "},",
-                "_mailboxId,",
-                "combine(store.accountsFlow, _ownerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },",
+                "combine(_moveAccountId, _ownerAccountId, _mailboxId) { chosen, owner, current -> pickerExcludedMailbox(chosen, owner, current) },",
+                "combine(store.accountsFlow, movePickerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },",
                 ") { folders, current, onlySubscribed -> moveTargets(folders, current, onlySubscribed) }",
             ),
             block(MESSAGE_VIEW_MODEL, "val moveTargets: StateFlow<List<Mailbox>> = combine(", 7),
@@ -157,16 +157,16 @@ class SubscribedFoldersSurfaceWiringTest {
             block(INBOX_VIEW_MODEL, "private val showOnlySubscribed:", 3),
         )
         assertEquals(
-            "the list picker's flag must come from the SELECTION's account, falling back to the " +
-                "current one — never straight from the current one (#92): mailbox ids collide " +
-                "between two accounts of one server, and the two accounts' answers differ.",
+            "the list picker's flag must come from the account the picker LISTS — the selection's, " +
+                "falling back to the current one, or the one chosen on the picker's account row " +
+                "(#189) — never straight from the current one (#92): mailbox ids collide between " +
+                "two accounts of one server, and the two accounts' answers differ.",
             listOf(
                 "val selectionOnlySubscribed: StateFlow<Boolean> =",
-                "combine(selectionAccountId, currentAccountId, store.accountsFlow) { selId, curId, accounts ->",
-                "showOnlySubscribedFor(selId ?: curId, accounts)",
-                "}.stateIn(viewModelScope, SharingStarted.Eagerly, false)",
+                "combine(movePickerAccountId, store.accountsFlow) { accountId, accounts -> showOnlySubscribedFor(accountId, accounts) }",
+                ".stateIn(viewModelScope, SharingStarted.Eagerly, false)",
             ),
-            block(INBOX_VIEW_MODEL, "val selectionOnlySubscribed:", 4),
+            block(INBOX_VIEW_MODEL, "val selectionOnlySubscribed:", 3),
         )
     }
 

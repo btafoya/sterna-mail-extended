@@ -19,6 +19,7 @@ import app.sterna.push.Notifications
 import app.sterna.snooze.Snoozes
 import app.sterna.ui.compose.receivingAddress
 import app.sterna.core.data.account.AccountCredentials
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.accountAddresses
 import app.sterna.core.data.calendar.ICalendar
 import app.sterna.core.data.calendar.ParsedEvent
@@ -49,6 +50,8 @@ import app.sterna.net.hasUsableNetwork
 import app.sterna.ui.readerActionFailureText
 import app.sterna.ui.inbox.isSelfAuthored
 import app.sterna.ui.inbox.moveTargets
+import app.sterna.ui.inbox.pickerAccount
+import app.sterna.ui.inbox.pickerExcludedMailbox
 import app.sterna.ui.inbox.showOnlySubscribedFor
 import app.sterna.ui.sender.trashFilePath
 import app.sterna.ui.showsRecipients
@@ -56,6 +59,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -559,6 +563,28 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      *  account in the unified inbox, else the current one). Scopes [moveTargets]. */
     private val _ownerAccountId = MutableStateFlow<String?>(null)
 
+    /** The owner, for the picker's account row (#189). */
+    val moveOwnerAccountId: StateFlow<String?> = _ownerAccountId.asStateFlow()
+
+    /**
+     * The account chosen on the picker's account row (#189), null for the owner's. Survives a
+     * rotation here; put back to null when the picker closes ([chooseMoveAccount]) and when
+     * another message is loaded ([load]).
+     */
+    private val _moveAccountId = MutableStateFlow<String?>(null)
+    val moveAccountId: StateFlow<String?> = _moveAccountId.asStateFlow()
+
+    fun chooseMoveAccount(id: String?) {
+        _moveAccountId.value = id
+    }
+
+    /** The configured accounts, for the picker's account row. */
+    val accounts: StateFlow<List<StoredAccount>> get() = store.accountsFlow
+
+    /** The account whose folders the picker LISTS ([pickerAccount]): the chosen one, else the owner. */
+    private val movePickerAccountId: Flow<String?> =
+        combine(_moveAccountId, _ownerAccountId) { chosen, owner -> pickerAccount(chosen, owner) }
+
     /**
      * Folders offered by the reader's move-to-folder picker (#73): the folders of THE OPEN
      * MESSAGE'S account, minus the one it is filed under, ordered like the list's own picker.
@@ -571,23 +597,49 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      * The same account decides whether unsubscribed folders are offered (#174): the flag is read
      * off THAT record, and handed to [moveTargets] as a parameter rather than applied here, so
      * only the targets are filtered while the parent path under each row is still resolved
-     * against the whole list ([accountMailboxes], #109).
+     * against the whole list ([pickerMailboxes], #109).
+     *
+     * With another account chosen on the picker's row (#189), THAT account's folders are listed
+     * instead, its own flag applies, and the message's folder is no longer left out
+     * ([pickerExcludedMailbox]): its id names nothing there, or a homonym (#92).
      */
     val moveTargets: StateFlow<List<Mailbox>> = combine(
-        _ownerAccountId.flatMapLatest { id ->
+        movePickerAccountId.flatMapLatest { id ->
             if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
         },
-        _mailboxId,
-        combine(store.accountsFlow, _ownerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },
+        combine(_moveAccountId, _ownerAccountId, _mailboxId) { chosen, owner, current -> pickerExcludedMailbox(chosen, owner, current) },
+        combine(store.accountsFlow, movePickerAccountId) { accounts, id -> showOnlySubscribedFor(id, accounts) },
     ) { folders, current, onlySubscribed -> moveTargets(folders, current, onlySubscribed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * The open message's account's folders, WHOLE — the context the picker resolves a folder's
-     * parent path against (#109). [moveTargets] cannot serve: it drops the folder the message
-     * is filed under, which is often the very parent that names its siblings.
+     * The OPEN MESSAGE's account's folders, WHOLE — scoped by [_ownerAccountId] and by nothing
+     * else. What the SENDER RULE is computed against: [blockSender] names the account's Trash in a
+     * server-side `fileinto` ([app.sterna.ui.sender.trashFilePath]), and the participants panel
+     * decides its entry on the same list (`senderRuleEntry`).
+     *
+     * ⛔ It must NEVER follow [movePickerAccountId] again (#189, and it did for one commit): the
+     * rule [blockSender] writes belongs to A, and a Trash path computed on B's folder list would
+     * file A's future mail into a path A does not have — or, worse, into a homonym (#92). Which is
+     * exactly what [app.sterna.ui.inbox.mailboxFilePath] exists to prevent.
+     *
+     * ⛔ Not the picker's list either: that one is [pickerMailboxes] and it follows the account
+     * row. Two consumers, two accounts, two flows.
      */
     val accountMailboxes: StateFlow<List<Mailbox>> = _ownerAccountId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * The LISTED account's folders, WHOLE — the context the picker resolves a folder's parent
+     * path against (#109): the open message's account, or the one chosen on the picker's account
+     * row ([movePickerAccountId], #189). [moveTargets] cannot serve: it drops the folder the
+     * message is filed under, which is often the very parent that names its siblings.
+     *
+     * ⛔ The picker's, and only the picker's — see [accountMailboxes] for why the sender rule
+     * cannot read this one.
+     */
+    val pickerMailboxes: StateFlow<List<Mailbox>> = movePickerAccountId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -1203,6 +1255,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         // Re-point the move picker at the account this page's message belongs to, before any
         // of its state is read (the folders come from the cache, so no network is involved).
         _ownerAccountId.value = credentials()?.id
+        _moveAccountId.value = null
         anchorMarked = false
         settleMarking = null
         _state.value = MessageState.Loading

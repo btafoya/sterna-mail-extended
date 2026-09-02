@@ -1,5 +1,11 @@
 package app.sterna.ui.inbox
 
+import android.content.Context
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
+import app.sterna.R
+import app.sterna.core.data.account.StoredAccount
+import app.sterna.core.data.mail.CrossAccountMove
 import app.sterna.core.jmap.model.Mailbox
 import java.text.Collator
 
@@ -404,3 +410,134 @@ internal fun filterFolderRows(rows: List<FolderPickerRow>, query: String): List<
             row.path?.contains(query, ignoreCase = true) == true
     }
 }
+
+// ── a move into ANOTHER account's folder (#189) ───────────────────────────────────────────────
+
+/**
+ * The account whose folders the move-to-folder picker lists: the one the user chose on the
+ * picker's account row, else the OWNER — the account of the message (reader) or of the selection
+ * (list). The list handed to [moveTargets] is then that ONE account's, which is the invariant the
+ * picker lives by (#92: mailbox ids collide between accounts of the same server).
+ */
+internal fun pickerAccount(chosen: String?, owner: String?): String? = chosen ?: owner
+
+/**
+ * The folder the picker leaves out — the one the message is filed under — but ONLY while the
+ * picker lists the owner's own folders. Listing another account's, the id names nothing there, or
+ * worse a homonym (#92): a message in A's "Archive" must still be offered B's "Archive".
+ */
+internal fun pickerExcludedMailbox(chosen: String?, owner: String?, current: String?): String? =
+    if (chosen == null || chosen == owner) current else null
+
+/**
+ * What the account row records when [picked] is tapped: null for the owner, so that picking the
+ * message's own account back is exactly the state the picker opened in (and never a move "between"
+ * A and A), the id of any other.
+ */
+internal fun pickerChoice(picked: String, owner: String?): String? = picked.takeIf { it != owner }
+
+/** The account row's order: the owner first, then the others as the store lists them. */
+internal fun pickerAccounts(accounts: List<StoredAccount>, owner: String?): List<StoredAccount> {
+    val lead = accounts.firstOrNull { it.id == owner } ?: return accounts
+    return listOf(lead) + accounts.filter { it.id != owner }
+}
+
+/**
+ * Whether the move leaves the message's account at all. False when no account was chosen, or the
+ * chosen one is the owner's: the gesture then takes the path it always took (same-account move,
+ * Undo included). True otherwise — including an unknown owner with a chosen target, because the
+ * user did ask for that account and the repository checks both are still configured.
+ */
+internal fun isCrossAccountMove(targetAccountId: String?, ownerAccountId: String?): Boolean =
+    targetAccountId != null && targetAccountId != ownerAccountId
+
+/** The one banner a multi-message move between accounts ends on. */
+internal enum class CrossAccountOutcome { ALL_MOVED, SOME_COPIED_NOT_REMOVED, PARTLY_FAILED }
+
+/**
+ * Which banner: a copy whose original STAYED is the most important truth to tell (the user now has
+ * a duplicate, and would otherwise believe the message moved), so it wins over a failure; a
+ * failure, or a message set aside because it belongs to another account ([skipped]), comes next;
+ * "all moved" only when nothing else is true.
+ */
+internal fun crossAccountBanner(results: List<CrossAccountMove>, skipped: Int): CrossAccountOutcome = when {
+    results.any { it is CrossAccountMove.CopiedNotRemoved } -> CrossAccountOutcome.SOME_COPIED_NOT_REMOVED
+    skipped > 0 || results.any { it is CrossAccountMove.Failed } -> CrossAccountOutcome.PARTLY_FAILED
+    else -> CrossAccountOutcome.ALL_MOVED
+}
+
+/** "Account › Folder", the way the banners name where a message went. */
+internal fun crossAccountTargetLabel(account: String, folder: String): String = "$account › $folder"
+
+/**
+ * The line ONE message's move between accounts leaves behind (#189) — chosen by the verdict, and
+ * by nothing else.
+ *
+ * Pure and EXECUTED by a test, because which verdict says "moved" and which says "copied, the
+ * original stayed" is the whole difference between a move and a duplicate the user still has to
+ * deal with, and there is no Undo behind either: a banner reading "Moved to B › Archive" over a
+ * [CrossAccountMove.CopiedNotRemoved] sends her away from a message that never left A. It is also
+ * the most frequent verdict on IMAP, where a copy the server did not name may not be findable
+ * back.
+ *
+ * A failure carries no throwable to read "offline" off — [CrossAccountMove.Failed] is a verdict,
+ * not an exception — so the phone's link is judged by the caller and handed in as [online], the
+ * same shape as [actionFailureMessage].
+ *
+ * The formatting arguments are the caller's: "moved" takes account and folder, "copied" takes
+ * account, folder and the account the original stayed on, and a failure takes none.
+ */
+@StringRes
+internal fun crossAccountMessageRes(move: CrossAccountMove, online: Boolean): Int = when (move) {
+    CrossAccountMove.Moved -> R.string.status_moved_to_account
+    is CrossAccountMove.CopiedNotRemoved -> R.string.status_copied_not_removed
+    is CrossAccountMove.Failed -> if (online) R.string.status_action_failed else R.string.status_action_offline
+}
+
+/**
+ * The plural a SELECTION's banner counts with, for the two outcomes that count something (#189):
+ * how many were moved, or how many were copied with their originals left behind.
+ *
+ * Null for [CrossAccountOutcome.PARTLY_FAILED], which counts nothing and is a plain string —
+ * [crossAccountSelectionFailedRes]. Two functions and not one: a plural id and a string id are
+ * both an `Int` and neither `getQuantityString` nor `getString` accepts the other's, so the split
+ * is the resources API's, not a taste. Same reason as [mailboxRoleNameRes] for the nullability.
+ */
+@PluralsRes
+internal fun crossAccountSelectionPlural(outcome: CrossAccountOutcome): Int? = when (outcome) {
+    CrossAccountOutcome.ALL_MOVED -> R.plurals.status_selection_moved
+    CrossAccountOutcome.SOME_COPIED_NOT_REMOVED -> R.plurals.status_selection_copied_not_removed
+    CrossAccountOutcome.PARTLY_FAILED -> null
+}
+
+/**
+ * The plain line a SELECTION's banner ends on when the batch did not go through whole — null for
+ * the two outcomes that COUNT ([crossAccountSelectionPlural]).
+ */
+@StringRes
+internal fun crossAccountSelectionFailedRes(outcome: CrossAccountOutcome): Int? = when (outcome) {
+    CrossAccountOutcome.PARTLY_FAILED -> R.string.status_action_partly_failed
+    CrossAccountOutcome.ALL_MOVED, CrossAccountOutcome.SOME_COPIED_NOT_REMOVED -> null
+}
+
+/**
+ * The translated name of a folder with a role, or null for a folder called by its own name — the
+ * one rule behind `mailboxDisplayName` (composition) and the banners' `mailboxLabel` (ViewModel).
+ */
+@StringRes
+internal fun mailboxRoleNameRes(role: String?): Int? = when (role) {
+    "inbox" -> R.string.folder_inbox
+    "archive" -> R.string.folder_archive
+    "drafts" -> R.string.folder_drafts
+    "sent" -> R.string.folder_sent
+    "junk" -> R.string.folder_junk
+    "trash" -> R.string.folder_trash
+    "all" -> R.string.folder_all
+    "flagged" -> R.string.folder_flagged
+    "important" -> R.string.folder_important
+    else -> null
+}
+
+/** [mailboxDisplayName] outside composition — how the ViewModel's banners name a folder. */
+internal fun mailboxLabel(context: Context, role: String?, name: String): String =
+    mailboxRoleNameRes(role)?.let(context::getString) ?: name

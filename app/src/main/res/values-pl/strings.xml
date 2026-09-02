@@ -76,6 +76,7 @@
     <string name="inbox_undo">Cofnij</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Zmień konto</string>
+    <string name="inbox_move_account">Konto</string>
     <string name="inbox_all_inboxes">Wszystkie skrzynki odbiorcze</string>
     <string name="inbox_all_inboxes_unread">Wszystkie skrzynki odbiorcze  (%1$d)</string>
     <string name="inbox_unread_view">Nieprzeczytane</string>
@@ -730,6 +731,12 @@
         <item quantity="many">%1$d wiadomości przeniesionych</item>
         <item quantity="other">%1$d wiadomości przeniesionych</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d wiadomość skopiowana do %2$s; oryginał pozostał w %3$s</item>
+        <item quantity="few">%1$d wiadomości skopiowane do %2$s; oryginały pozostały w %3$s</item>
+        <item quantity="many">%1$d wiadomości skopiowanych do %2$s; oryginały pozostały w %3$s</item>
+        <item quantity="other">%1$d wiadomości skopiowanych do %2$s; oryginały pozostały w %3$s</item>
+    </plurals>
     <string name="status_message_unarchived">Cofnięto archiwizację wiadomości</string>
     <string name="status_conversation_deleted">Rozmowa usunięta</string>
     <string name="status_conversation_archived">Rozmowa zarchiwizowana</string>
@@ -756,6 +763,8 @@
     <string name="status_moved_to_folder">Przeniesiono do %1$s</string>
     <string name="status_action_partly_failed">Nie udało się przetworzyć niektórych wiadomości.</string>
     <string name="status_move_other_account">Niektóre wiadomości nie zostały przeniesione (inne konto).</string>
+    <string name="status_moved_to_account">Przeniesiono do %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Skopiowano do %1$s › %2$s. Oryginał pozostał w %3$s</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Nowe wiadomości</string>

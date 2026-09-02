@@ -1109,6 +1109,20 @@ class ImapSession(private var socket: Socket) : Closeable {
      * untagged `SEARCH` line, not just the first: a dropped tail would shorten a list that is
      * about to decide what gets destroyed. Keys used here are pure ASCII, so no `CHARSET`.
      */
+    /**
+     * At most [cap] UIDs of the SELECTed mailbox whose header [name] contains [value] (`UID SEARCH
+     * HEADER`, RFC 3501 §6.4.4), name and value quoted through [quote] like every user-supplied
+     * argument. The cap is [uidSearchCapped]'s, enforced during the parse. Two by default: the one
+     * caller ([app.sterna.core.data.mail.ImapMailService.findByMessageId]) asks "exactly one?", and
+     * two is all it needs to hear.
+     *
+     * ⚠ Not a search the user runs — `ImapSearch.kt` keeps its `HEADER` ban, because Stalwart
+     * answers this key empty. Here that empty answer is READ AS "not found" on purpose, by a
+     * caller whose safe reading of it is a duplicate rather than a loss (#189).
+     */
+    fun uidSearchHeader(name: String, value: String, cap: Int = 2): List<Long> =
+        uidSearchCapped("HEADER ${quote(name)} ${quote(value)}", cap)
+
     private fun uidSearchCapped(key: String, cap: Int): List<Long> {
         if (cap <= 0) return emptyList()
         // +2 leaves room for the "*" and "SEARCH" that open the first line.
@@ -1343,24 +1357,50 @@ class ImapSession(private var socket: Socket) : Closeable {
         return onServer.isNotEmpty() && onServer.size <= flagged.size && flagged.containsAll(onServer)
     }
 
-    /** APPEND a raw message into [mailbox] (e.g. a sent copy into Sent), with [flags]. */
+    /**
+     * APPEND a message the app COMPOSED into [mailbox] (a sent copy into Sent, a draft into
+     * Drafts), with [flags]. Text, so it is UTF-8 on the wire — [OutgoingMime] builds it that way.
+     * ⛔ Not for a message FETCHED from a server: a raw source is one char per octet in this app
+     * (ISO-8859-1) and UTF-8-encoding it would double every 8-bit byte; that path takes the
+     * [ByteArray] overload.
+     */
     fun append(mailbox: String, message: String, flags: String) {
-        val bytes = message.toByteArray(Charsets.UTF_8)
+        append(mailbox, message.toByteArray(Charsets.UTF_8), flags)
+    }
+
+    /**
+     * APPEND [message] into [mailbox] as it is — the literal is exactly these octets, sized by
+     * them — with [flags], and under [internalDate] (epoch millis, sent as the RFC 3501 `date-time`)
+     * when the caller has one: a message moved from another account keeps the date it was received
+     * under rather than taking the moment of the copy (#189). Without a date the command line is
+     * byte for byte what it was before this overload existed.
+     *
+     * Answers the UID the server gave the copy, read from the `[APPENDUID uidvalidity uid]` code of
+     * RFC 4315, or null on a server that names nothing (no UIDPLUS): that is not a failed append, and
+     * the caller decides what a nameless copy is worth. A NO/BAD completion throws, with the
+     * server's response code on the exception like every other command.
+     */
+    fun append(mailbox: String, message: ByteArray, flags: String, internalDate: Long? = null): Long? {
         val tag = "a${++tagN}"
         val flagPart = if (flags.isNotBlank()) "($flags) " else ""
-        output.write("$tag APPEND ${mailboxArg(mailbox)} $flagPart{${bytes.size}}\r\n".toByteArray(Charsets.UTF_8))
+        val datePart = if (internalDate != null) "${imapDateTime(internalDate)} " else ""
+        output.write(
+            "$tag APPEND ${mailboxArg(mailbox)} $flagPart$datePart{${message.size}}\r\n".toByteArray(Charsets.UTF_8),
+        )
         output.flush()
         val cont = input.readResponse()
-        if (cont.getOrNull(0) != "+") throw ImapException("APPEND not accepted: $cont")
-        output.write(bytes)
+        if (cont.getOrNull(0) != "+") throw ImapException("APPEND not accepted: $cont", responseCodeIn(cont))
+        output.write(message)
         output.write("\r\n".toByteArray(Charsets.UTF_8))
         output.flush()
         while (true) {
             val resp = input.readResponse()
             if (resp.getOrNull(0) == tag) {
                 val status = resp.getOrNull(1) as? String ?: "BAD"
-                if (status != "OK") throw ImapException("APPEND failed: ${resp.drop(1).joinToString(" ")}")
-                return
+                if (status != "OK") {
+                    throw ImapException("APPEND failed: ${resp.drop(1).joinToString(" ")}", responseCodeIn(resp))
+                }
+                return appendUidIn(resp)
             }
         }
     }
@@ -1616,6 +1656,34 @@ internal fun capabilitiesInResponseCode(line: List<Any?>): Set<String>? {
     val code = Regex("\\[CAPABILITY([^\\]]*)\\]", RegexOption.IGNORE_CASE).find(flat) ?: return null
     return code.groupValues[1].split(' ').filter { it.isNotBlank() }.map { it.uppercase() }.toSet()
 }
+
+/**
+ * The uid named by an `[APPENDUID uidvalidity uid]` response code (RFC 4315 §3) on [line], or
+ * null when the line carries none. Matched over the flattened line for the same reason as
+ * [responseCodeIn]: the parser hands `[APPENDUID`, `38505` and `3955]` back as three atoms. Only
+ * the single-uid shape of one APPEND: a `uid-set` (MULTIAPPEND) does not match and answers null.
+ */
+internal fun appendUidIn(line: List<Any?>): Long? {
+    val flat = line.joinToString(" ") { flatten(it) }
+    return Regex("\\[APPENDUID\\s+\\d+\\s+(\\d+)\\]", RegexOption.IGNORE_CASE)
+        .find(flat)?.groupValues?.get(1)?.toLongOrNull()
+}
+
+/**
+ * [epochMs] as the RFC 3501 §9 `date-time` an APPEND takes for INTERNALDATE, in UTC:
+ * `DQUOTE date-day-fixed "-" date-month "-" date-year SP time SP zone DQUOTE`, where
+ * `date-day-fixed` is `(SP DIGIT) / 2DIGIT` — the space-padded form, the one servers themselves
+ * write in a FETCH. Month names are the RFC's own three-letter English ones, not the locale's:
+ * a device set to a language whose CLDR short months differ ("sept.") must not change the wire.
+ */
+internal fun imapDateTime(epochMs: Long): String {
+    val t = java.time.Instant.ofEpochMilli(epochMs).atOffset(java.time.ZoneOffset.UTC)
+    val day = t.dayOfMonth.toString().padStart(2, ' ')
+    val time = "%02d:%02d:%02d".format(java.util.Locale.ROOT, t.hour, t.minute, t.second)
+    return "\"$day-${IMAP_MONTHS[t.monthValue - 1]}-${t.year} $time +0000\""
+}
+
+private val IMAP_MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 /**
  * The response code of [line] (RFC 5530): the first bracketed WORD, upper-cased —

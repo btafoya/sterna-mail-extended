@@ -189,12 +189,12 @@ class ImapCutConnectionTest {
                 when {
                     line.startsWith("LOGIN") -> ok(tag)
                     line.startsWith("APPEND") -> "+ go ahead\r\n"
-                    else -> "" // the literal's own lines: a server answers nothing to those
+                    else -> ok(tag)
                 }
             },
-            // The last line of the message body, chosen without a space so the serve loop hands it
-            // over whole. The cut therefore lands after the data and before the tagged completion.
-            cutAfter = { line -> if (line == "ENDOFBODY") emptyList() else null },
+            // The message's octets are taken in whole after the `+`; the cut therefore lands
+            // after the data and before the tagged completion.
+            cutAfter = { line -> if (line == FakeImapServer.LITERAL) emptyList() else null },
         ).use { server ->
             val socket = Socket(server.config.host, server.config.port)
             closeAfter(socket)

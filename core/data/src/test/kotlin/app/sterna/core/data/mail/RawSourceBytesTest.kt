@@ -44,7 +44,9 @@ class RawSourceBytesTest {
      * [MailRepository.rawSource] still exists with the promised signature and still hands the
      * fetched source to [rawSourceBytes] — every code line of the file that names either, whole.
      * Delete the call and the export silently writes nothing; re-encode in UTF-8 and the bytes
-     * above never reach the file.
+     * above never reach the file. The fourth line is the one CALLER of `rawSource` inside the
+     * file, the move between accounts (#189), pinned whole so a second maker of bytes cannot
+     * hide behind a caller's name.
      */
     @Test fun `rawSource is wired to rawSourceBytes, and to nothing else`() {
         assertEquals(
@@ -54,6 +56,7 @@ class RawSourceBytesTest {
                 "internal fun rawSourceBytes(emailId: String, raw: String): ByteArray {",
                 "suspend fun rawSource(credentials: AccountCredentials, emailId: String): ByteArray {",
                 "return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId))",
+                "override suspend fun readSource(): ByteArray = rawSource(source, email.id).also { messageId = messageIdOf(from, it) }",
             ),
             SourceText.codeLines(SourceText.read(REPOSITORY)).filter { "rawSource(" in it || "rawSourceBytes(" in it },
         )

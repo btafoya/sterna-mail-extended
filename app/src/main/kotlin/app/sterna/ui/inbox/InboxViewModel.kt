@@ -25,6 +25,7 @@ import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.getOrElseUnlessCancelled
+import app.sterna.core.data.mail.CrossAccountMove
 import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.InboxRow
@@ -53,6 +54,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
@@ -980,30 +982,67 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
-     * Folders the move-to-folder picker offers: the selection's account's, falling back to the
-     * active account's when nothing account-specific is selected (a plain single-folder view move).
+     * The account the selection's move-to-folder picker BELONGS to — the selection's, falling back
+     * to the active account's when nothing account-specific is selected (a plain single-folder
+     * view move). Its folders are the ones listed unless another account is chosen on the picker's
+     * account row (#189), and it is the account the messages actually leave.
+     */
+    val moveOwnerAccountId: StateFlow<String?> =
+        combine(selectionAccountId, currentAccountId) { selId, curId -> selId ?: curId }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * The account chosen on the picker's account row (#189), null for the owner's. Held here so it
+     * survives a rotation — and it DOES outlive the sheet it was made in: the screen puts it back
+     * on the picker's three exits, but a rotation destroys the sheet (`showMoveSheet` is a plain
+     * `remember`) while this ViewModel lives on. So nothing reads this field directly; everything
+     * reads [moveAccountId], which ignores the choice as soon as the selection no longer resolves
+     * a single account ([selectionMoveAccount]).
+     */
+    private val _moveAccountId = MutableStateFlow<String?>(null)
+
+    /**
+     * The choice as the picker and the gesture must see it: neutralised on a selection that spans
+     * accounts, where the move only ever takes the retained account's messages (spec.md § 1). This
+     * is the ONE place it is neutralised, so what the picker lists ([movePickerAccountId]) and
+     * where the tap goes (`InboxScreen`'s `moveSelectedTo`) cannot answer differently from the
+     * account row ([selectionPickerAccounts]).
+     */
+    val moveAccountId: StateFlow<String?> =
+        combine(_moveAccountId, _selectedKeys) { chosen, keys -> selectionMoveAccount(chosen, keys) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun chooseMoveAccount(id: String?) {
+        _moveAccountId.value = id
+    }
+
+    /** The account whose folders the picker LISTS ([pickerAccount]): the chosen one, else the owner. */
+    private val movePickerAccountId: StateFlow<String?> =
+        combine(moveAccountId, moveOwnerAccountId) { chosen, owner -> pickerAccount(chosen, owner) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * Folders the move-to-folder picker offers: ONE account's — [movePickerAccountId]'s — never a
+     * mix, because mailbox ids collide between accounts of the same server (#92).
      */
     val selectionMailboxes: StateFlow<List<Mailbox>> =
-        combine(selectionAccountId, currentAccountId) { selId, curId -> selId ?: curId }
-            .flatMapLatest { accountId ->
-                if (accountId == null) flowOf(emptyList()) else repo.observeMailboxes(accountId)
-            }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        movePickerAccountId.flatMapLatest { accountId ->
+            if (accountId == null) flowOf(emptyList()) else repo.observeMailboxes(accountId)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
      * Whether the picker above must hide unsubscribed folders — the setting of the SAME account
      * [selectionMailboxes] is scoped to, never [showOnlySubscribed] (the current account's): from
      * the unified inbox the selected message can belong to a sibling account whose answer differs
-     * (#92, #174).
+     * (#92, #174), and the account chosen on the row has its own answer too (#189).
      *
      * Beside the list rather than folded into it, because [moveTargets] takes the folder list and
      * the flag apart: only the targets are filtered, the parent paths shown under them are
      * resolved against the whole list (#109).
      */
     val selectionOnlySubscribed: StateFlow<Boolean> =
-        combine(selectionAccountId, currentAccountId, store.accountsFlow) { selId, curId, accounts ->
-            showOnlySubscribedFor(selId ?: curId, accounts)
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        combine(movePickerAccountId, store.accountsFlow) { accountId, accounts -> showOnlySubscribedFor(accountId, accounts) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
      * The browse list, paged from Room. A single folder uses the RemoteMediator-backed
@@ -1905,10 +1944,82 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * read from the unified inbox moves inside ITS account — and the picker that produced
      * [targetMailboxId] listed that same account's folders (#92).
      */
-    fun moveTo(email: Email, targetMailboxId: String) =
+    fun moveTo(email: Email, targetMailboxId: String, targetAccountId: String? = null) {
+        // Into another account's folder (#189): a different path entirely, with no Undo.
+        if (isCrossAccountMove(targetAccountId, email.accountId)) {
+            moveToAccount(email, requireNotNull(targetAccountId), targetMailboxId)
+            return
+        }
         swipeRemove(email, getApplication<Application>().getString(R.string.status_message_moved)) { c, id ->
             repo.moveToMailbox(c, id, targetMailboxId)
         }
+    }
+
+    /**
+     * Move ONE message into a folder of ANOTHER account (#189): the copy is confirmed on B, then
+     * the original goes to A's bin ([MailRepository.moveToAccount]); nothing is ever destroyed.
+     *
+     * ⛔ No Undo, and none to come (A3): taking it back would be a second two-sided operation,
+     * with the original in A's bin and the copy on B, both of them on screen. So `_undo` is never
+     * written here — ONE banner says what happened, in the words of the verdict:
+     *  - [CrossAccountMove.Moved]: "Moved to B › folder";
+     *  - [CrossAccountMove.CopiedNotRemoved]: the copy exists and A's original stayed — a duplicate
+     *    the user can see, never a loss, and the banner says exactly that;
+     *  - [CrossAccountMove.Failed]: nothing was written; the row comes back like a failed swipe.
+     *
+     * The verdict's reason goes to logcat, where diagnosis needs it; the banner does not carry it.
+     * The repository turns every exception into a verdict, so a failure here carries no throwable
+     * to read "offline" off: the banner says offline when the phone has no usable network, failed
+     * otherwise.
+     */
+    private fun moveToAccount(email: Email, targetAccountId: String, targetMailboxId: String) {
+        val source = credentialsFor(email) ?: return
+        val app = getApplication<Application>()
+        val target = store.credentials(targetAccountId)
+        if (target == null) {
+            _message.value = app.getString(R.string.status_action_failed)
+            return
+        }
+        viewModelScope.launch {
+            val key = email.emailKey()
+            dropSearchResults(setOf(key))
+            val result = hidingThreadMembers(setOf(key)) {
+                runCatching { repo.moveToAccount(source, email, target, targetMailboxId) }
+                    .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
+            }
+            val folder = folderLabel(target.id, targetMailboxId)
+            // Which sentence belongs to which verdict is crossAccountMessageRes's, executed by a
+            // test: "moved" over a copy whose original stayed is a duplicate announced as a move.
+            val words = crossAccountMessageRes(result, online = hasUsableNetwork(app))
+            when (result) {
+                CrossAccountMove.Moved ->
+                    _message.value = app.getString(words, accountLabel(target.id), folder)
+                is CrossAccountMove.CopiedNotRemoved -> {
+                    android.util.Log.w("SternaInbox", "move to account: copied, original not removed: ${result.reason}")
+                    restoreSearchResults(listOf(key))
+                    _message.value = app.getString(words, accountLabel(target.id), folder, accountLabel(source.id))
+                }
+                is CrossAccountMove.Failed -> {
+                    android.util.Log.w("SternaInbox", "move to account failed: ${result.reason}")
+                    _message.value = app.getString(words)
+                    restoreSearchResults(listOf(key))
+                    // As swipeRemove's failure leg, minus the rewind: this move starts in the
+                    // reader, no row flew off. The row was never dropped locally — reconcile.
+                    refresh()
+                }
+            }
+        }
+    }
+
+    /** How the banners name an account: the drawer's own label, or the id when it is gone. */
+    private fun accountLabel(accountId: String?): String =
+        store.accountsFlow.value.firstOrNull { it.id == accountId }?.label() ?: accountId.orEmpty()
+
+    /** How the banners name a folder: as the picker showed it ([mailboxLabel]), from the cache. */
+    private suspend fun folderLabel(accountId: String, mailboxId: String): String {
+        val mailbox = repo.observeMailboxes(accountId).first().firstOrNull { it.id == mailboxId }
+        return mailbox?.let { mailboxLabel(getApplication<Application>(), it.role, it.name) } ?: mailboxId
+    }
 
     // ---- whole-thread swipe (collapsed conversation rows act on the whole conversation) ----
 
@@ -2798,7 +2909,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * The messages another account's folder cannot take are set aside, counted, and announced
      * once — by the delegate when there is something left to move, here when there is not.
      */
-    fun moveSelectedTo(targetMailboxId: String) {
+    fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
         val keys = _selectedKeys.value
         viewModelScope.launch {
             // The picker offered the SELECTION's account folders (see [selectionMailboxes]), so the
@@ -2808,6 +2919,11 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             // active account) are left untouched and reported — the same target id in a sibling
             // account is a different or nonexistent folder, since same-server mailbox ids collide.
             val moveAccountId = selectionAccount(keys) ?: store.currentId()
+            // Into another account's folder (#189): its own path, one message after the other.
+            if (isCrossAccountMove(targetAccountId, moveAccountId)) {
+                moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId)
+                return@launch
+            }
             val (movable, skipped) = keys.partition { it.accountId == moveAccountId }
             clearSelection()
             if (movable.isNotEmpty()) {
@@ -2833,6 +2949,69 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 _message.value = getApplication<Application>().getString(R.string.status_move_other_account)
             }
         }
+    }
+
+    /**
+     * The selection into a folder of ANOTHER account (#189), one message after the other through
+     * [MailRepository.moveToAccount] — each a copy confirmed on B, then the original to A's bin.
+     * The partition is [moveSelectedTo]'s: only the messages of the selection's account go, the
+     * others are set aside and counted. ⛔ No Undo (see [moveToAccount]). ONE banner at the end,
+     * chosen by [crossAccountBanner]: a copy whose original stayed is the truth said first.
+     */
+    private suspend fun moveSelectedToAccount(
+        keys: Set<EmailKey>,
+        ownerAccountId: String?,
+        targetAccountId: String,
+        targetMailboxId: String,
+    ) {
+        val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }
+        clearSelection()
+        val app = getApplication<Application>()
+        val target = store.credentials(targetAccountId)
+        if (target == null) {
+            _message.value = app.getString(R.string.status_action_failed)
+            return
+        }
+        val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }
+        val results = ArrayList<CrossAccountMove>(movable.size)
+        for (key in movable) {
+            val source = credentialsFor(key)
+            val email = emails[key]
+            if (source == null || email == null) {
+                results += CrossAccountMove.Failed("no cached row for ${key.emailId}")
+                continue
+            }
+            dropSearchResults(setOf(key))
+            val result = hidingThreadMembers(setOf(key)) {
+                runCatching { repo.moveToAccount(source, email, target, targetMailboxId) }
+                    .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
+            }
+            if (result !is CrossAccountMove.Moved) {
+                android.util.Log.w("SternaInbox", "move to account, ${key.emailId}: $result")
+                restoreSearchResults(listOf(key))
+            }
+            results += result
+        }
+        // Which line goes with which outcome is crossAccountSelectionPlural's and
+        // crossAccountSelectionFailedRes's, both executed by a test; only the counts and the
+        // labels are built here.
+        val outcome = crossAccountBanner(results, skipped.size)
+        when (outcome) {
+            CrossAccountOutcome.ALL_MOVED ->
+                _message.value = app.resources.getQuantityString(
+                    checkNotNull(crossAccountSelectionPlural(outcome)), results.size, results.size,
+                )
+            CrossAccountOutcome.SOME_COPIED_NOT_REMOVED -> {
+                val copied = results.count { it is CrossAccountMove.CopiedNotRemoved }
+                val where = crossAccountTargetLabel(accountLabel(target.id), folderLabel(target.id, targetMailboxId))
+                _message.value = app.resources.getQuantityString(
+                    checkNotNull(crossAccountSelectionPlural(outcome)), copied, copied, where, accountLabel(ownerAccountId),
+                )
+            }
+            CrossAccountOutcome.PARTLY_FAILED ->
+                _message.value = app.getString(checkNotNull(crossAccountSelectionFailedRes(outcome)))
+        }
+        if (results.any { it is CrossAccountMove.Failed }) refresh()
     }
 
     /**
@@ -3257,6 +3436,46 @@ internal fun undoBannerKeys(entries: List<UndoEntry>): List<EmailKey> =
  */
 internal fun selectionAccount(keys: Set<EmailKey>): String? =
     keys.map { it.accountId }.distinct().singleOrNull()
+
+/**
+ * Whether the LIST's move picker may name an account other than the one the gesture will act on —
+ * true only while the selection resolves to ONE account ([selectionAccount]).
+ *
+ * The guard exists because the two ends disagree on a selection spanning accounts. The move keeps
+ * main's behaviour there — it takes the retained account's messages and counts the others as
+ * skipped, under "Some messages couldn't be processed." (spec.md § 1, mixed selection out of
+ * scope) — while [moveOwnerAccountId] has no selection account to work from and falls back to the
+ * ACTIVE one (`InboxViewModel.kt:990-992`). Handed that fallback as its owner, the picker would
+ * offer every account, and "B › Archive" would announce a move half the selection never makes.
+ */
+internal fun selectionAllowsAnotherAccount(keys: Set<EmailKey>): Boolean = selectionAccount(keys) != null
+
+/**
+ * The accounts the LIST's move picker may offer, given what is selected: all of them while the
+ * selection allows another account, none at all otherwise.
+ *
+ * Returning an empty list is enough to draw nothing: [MoveAccountRow] returns straight away when
+ * `pickerAccounts(...)` holds fewer than two entries (`MoveAccountRow.kt:48-49`), so a mixed
+ * selection gets back exactly the picker it had before #189.
+ */
+internal fun selectionPickerAccounts(
+    accounts: List<StoredAccount>,
+    keys: Set<EmailKey>,
+): List<StoredAccount> = if (selectionAllowsAnotherAccount(keys)) accounts else emptyList()
+
+/**
+ * The account choice the LIST's picker is allowed to ACT on: the chosen one while the selection
+ * allows another account, null otherwise — back to the owner's own folders.
+ *
+ * Hiding the account row is not enough on its own. The choice is held by the ViewModel so it
+ * survives a rotation, and the picker's three exits are the only things that put it back; make the
+ * sheet disappear another way (rotation closes it, the ViewModel lives on) and the next opening,
+ * on a DIFFERENT selection, still lists the chosen account's folders and still sends the gesture
+ * there — with no row on screen to say so. Neutralising the choice at the reading end, once, keeps
+ * what the picker lists and where the tap goes on the same answer as the row (#189).
+ */
+internal fun selectionMoveAccount(chosen: String?, keys: Set<EmailKey>): String? =
+    chosen.takeIf { selectionAllowsAnotherAccount(keys) }
 
 /**
  * What "Select all" is allowed to take: the list that is ON SCREEN.

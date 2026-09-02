@@ -76,6 +76,7 @@
     <string name="inbox_undo">Desfazer</string>
     <string name="inbox_app_name">Sterna Mail</string>
     <string name="inbox_switch_account">Mudar de conta</string>
+    <string name="inbox_move_account">Conta</string>
     <string name="inbox_all_inboxes">Todas as caixas de entrada</string>
     <string name="inbox_all_inboxes_unread">Todas as caixas de entrada  (%1$d)</string>
     <string name="inbox_unread_view">Não lidas</string>
@@ -722,6 +723,10 @@
         <item quantity="one">%1$d mensagem movida</item>
         <item quantity="other">%1$d mensagens movidas</item>
     </plurals>
+    <plurals name="status_selection_copied_not_removed">
+        <item quantity="one">%1$d mensagem copiada para %2$s; o original ficou em %3$s</item>
+        <item quantity="other">%1$d mensagens copiadas para %2$s; os originais ficaram em %3$s</item>
+    </plurals>
     <string name="status_message_unarchived">Mensagem desarquivada</string>
     <string name="status_conversation_deleted">Conversa excluída</string>
     <string name="status_conversation_archived">Conversa arquivada</string>
@@ -748,6 +753,8 @@
     <string name="status_moved_to_folder">Movido para %1$s</string>
     <string name="status_action_partly_failed">Não foi possível processar algumas mensagens.</string>
     <string name="status_move_other_account">Algumas mensagens não foram movidas (outra conta).</string>
+    <string name="status_moved_to_account">Movido para %1$s › %2$s</string>
+    <string name="status_copied_not_removed">Copiado para %1$s › %2$s. O original ficou em %3$s</string>
 
     <!-- Notifications -->
     <string name="notif_channel_mail">Novos e-mails</string>

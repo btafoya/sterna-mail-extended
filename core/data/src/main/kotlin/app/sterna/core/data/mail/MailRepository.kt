@@ -5966,6 +5966,58 @@ class MailRepository(
         return trash
     }
 
+    /**
+     * Move [email] from [source] into [targetMailboxId] of [target], another account (#189): a copy
+     * confirmed on B, then the original trashed on A. The ORDER is [crossAccountMove], pure and
+     * executed by a test; this only builds its seven real gestures, and is pinned line by line
+     * by `MoveToAccountWiringTest`.
+     *
+     * The copy is written under A's flags and date: the `Email` handed in, completed from its
+     * cache row when it carries none ([withCachedFallback]). IMAP: one APPEND, never replayed
+     * ([ImapMailService.appendBytes]), named by `[APPENDUID]` — or found back by its `Message-ID`
+     * when the server names nothing ([ImapMailService.findByMessageId]; Stalwart answers that
+     * search empty, known and accepted: the verdict is then "copied, not removed", a duplicate
+     * rather than a loss). JMAP: an upload then an `Email/import`, which always names the copy.
+     * The original leaves A through [delete] — the bin, with its own Undo — and B's folder is
+     * reloaded as after an appended draft, so the copy shows without a pull-to-refresh.
+     *
+     * ⚠ [connect] keeps ONE context: connecting B for the import and then trashing on a JMAP A
+     * fetches A's session again. Accepted — one extra session fetch per move between two JMAP
+     * accounts, and nothing else depends on which account the context last held.
+     */
+    suspend fun moveToAccount(
+        source: AccountCredentials,
+        email: Email,
+        target: AccountCredentials,
+        targetMailboxId: String,
+    ): CrossAccountMove {
+        val from = withCachedFallback(email, cachedEmail(source.id, email.id))
+        val steps = object : CrossAccountMoveSteps {
+            var messageId: String? = null
+            override fun checkSourceConfigured() = checkAccountStillConfigured(source.id, accountStore.accounts().map { it.id })
+            override fun checkTargetConfigured() = checkAccountStillConfigured(target.id, accountStore.accounts().map { it.id })
+            override suspend fun readSource(): ByteArray = rawSource(source, email.id).also { messageId = messageIdOf(from, it) }
+            override suspend fun writeTarget(bytes: ByteArray): String? {
+                if (target.protocol == MailProtocol.IMAP) {
+                    val uid = imap.appendBytes(target, targetMailboxId, bytes, imapFlagsOf(from.keywords), internalDateOf(from.receivedAt))
+                    return uid?.let { ImapMailService.emailId(target.id, targetMailboxId, it) }
+                }
+                val ctx = connect(target)
+                val blobId = client.uploadBlob(ctx.session, ctx.accountId, bytes, "message/rfc822", ctx.auth).blobId
+                return client.importEmail(ctx.session, ctx.accountId, ctx.auth, blobId, setOf(targetMailboxId), jmapKeywordsOf(from.keywords), from.receivedAt)
+            }
+            override suspend fun findTarget(): String? {
+                if (target.protocol != MailProtocol.IMAP) return null
+                val uid = imap.findByMessageId(target, targetMailboxId, messageId ?: return null)
+                return uid?.let { ImapMailService.emailId(target.id, targetMailboxId, it) }
+            }
+            override fun markTargetLocalMove(targetId: String) = recentLocalMoves.mark(target.id, targetId)
+            override suspend fun trashSource() { delete(source, email.id) }
+            override suspend fun refreshTargetFolder() { refresh(target, targetMailboxId) }
+        }
+        return crossAccountMove(steps)
+    }
+
     /** A confirmed "Empty trash": the identifier of its frozen destroy list and its size. */
     data class TrashPurgeSnapshot(val purgeId: String, val messageCount: Int)
 
