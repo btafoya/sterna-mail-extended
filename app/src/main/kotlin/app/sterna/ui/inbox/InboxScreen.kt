@@ -1580,21 +1580,21 @@ fun InboxScreen(
                         else performSwipe(action, email, viewModel, ui, rowRole)
                     },
                     onClick = {
-                        when {
-                            // ⭐ A draft only this phone holds opens in the composer like any other
-                            // (#95) — `ComposeViewModel.prepare` routes a local id to the store that
-                            // holds it and never asks a server about it. It stays the FIRST branch:
-                            // `selectionActive` below would toggle a selection `InboxViewModel`
-                            // refuses for this row (so the tap would do nothing at all), and the
-                            // Drafts branch under it is gated on !fromSearch && !expandable &&
-                            // isDraftsContext.
-                            isLocalDraftRow(email.id) -> onEditDraft(email.id, email.accountId)
+                        // The decision lives in [rowTapAction], executed by RowTapActionTest; this
+                        // `when` only acts on it. ⭐ A draft only this phone holds opens in the
+                        // composer like any other (#95) — `ComposeViewModel.prepare` routes a local
+                        // id to the store that holds it and never asks a server about it. It is the
+                        // FIRST argument and wins first: the selection branch would toggle a
+                        // selection `InboxViewModel` refuses for this row (so the tap would do
+                        // nothing at all). In the Drafts folder a tap EDITS the draft (#63): open
+                        // it in compose, prefilled — not in the read-only reader — whether or not
+                        // its conversation can unfold.
+                        when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {
+                            RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)
                             // A collapsed conversation selects/deselects all its members at once.
-                            selectionActive -> if (expandable) viewModel.toggleSelectThread(email) else viewModel.toggleSelect(email)
-                            // In the Drafts folder a tap EDITS the draft (#63): open it in
-                            // compose, prefilled — not in the read-only reader.
-                            !fromSearch && !expandable && isDraftsContext(rowRole) -> onEditDraft(email.id, email.accountId)
-                            else -> {
+                            RowTap.SELECT_THREAD -> viewModel.toggleSelectThread(email)
+                            RowTap.SELECT_ROW -> viewModel.toggleSelect(email)
+                            RowTap.OPEN -> {
                                 viewModel.onEmailOpened(email.id)
                                 onOpenEmail(email.id, email.accountId, entryIndex, fromSearch)
                             }
@@ -1709,15 +1709,26 @@ fun InboxScreen(
                         selectionActive = selectionActive,
                         selectedKeys = selectedKeys,
                         onOpenChild = { child ->
-                            viewModel.onEmailOpened(child.id)
-                            // The reading view pages over exactly what this row was showing when
-                            // the reader tapped: the representative it draws, then the members
-                            // beneath it, recorded from here rather than rebuilt from a
-                            // representative remembered since the unfold. The index is only a
-                            // fallback — the reader resolves the opening page by id first.
-                            val order = viewModel.recordThreadOrder(threadKey, email, members)
-                            val childIndex = order.indexOfFirst { it.first == child.id }
-                            onOpenThreadMessage(child.id, child.accountId, threadKey, childIndex.coerceAtLeast(0))
+                            // Judged by ITS OWN folder, like its swipe below: in the Drafts folder
+                            // a child that IS a draft edits in compose, while the reply already
+                            // sent in the same conversation keeps the reader.
+                            when (childTapAction(rowFolderRole(child, ui, folderRoles, folderTrusted = true))) {
+                                RowTap.EDIT_DRAFT -> onEditDraft(child.id, child.accountId)
+                                // Only OPEN can land here: a child's selection is settled before
+                                // onOpenChild is called, so no SELECT_* comes out of childTapAction.
+                                else -> {
+                                    viewModel.onEmailOpened(child.id)
+                                    // The reading view pages over exactly what this row was showing
+                                    // when the reader tapped: the representative it draws, then the
+                                    // members beneath it, recorded from here rather than rebuilt
+                                    // from a representative remembered since the unfold. The index
+                                    // is only a fallback — the reader resolves the opening page by
+                                    // id first.
+                                    val order = viewModel.recordThreadOrder(threadKey, email, members)
+                                    val childIndex = order.indexOfFirst { it.first == child.id }
+                                    onOpenThreadMessage(child.id, child.accountId, threadKey, childIndex.coerceAtLeast(0))
+                                }
+                            }
                         },
                         onSwipeChild = { action, child ->
                             performSwipe(action, child, viewModel, ui, rowFolderRole(child, ui, folderRoles, folderTrusted = true))
@@ -2785,6 +2796,37 @@ private fun sendAsIdentities(email: Email, accounts: List<StoredAccount>): List<
 
 /** True when [role] is Drafts, where tapping a row edits it in compose (#63). */
 private fun isDraftsContext(role: String?): Boolean = role == "drafts"
+
+/** What a tap on a list row does — the decision, apart from the composable that acts on it. */
+internal enum class RowTap { EDIT_DRAFT, SELECT_THREAD, SELECT_ROW, OPEN }
+
+/**
+ * What a tap on the browse/search row does. Order is load-bearing: a draft only this phone holds
+ * ([localDraft], #95) edits before anything else, because the selection would refuse it and the
+ * tap would do nothing; then a live selection toggles (the whole conversation when [expandable]);
+ * then a row filed in Drafts edits (#63) — whether or not its conversation can unfold, a draft is
+ * a draft; everything else, search hits included, opens the reader.
+ */
+internal fun rowTapAction(
+    localDraft: Boolean,
+    selectionActive: Boolean,
+    expandable: Boolean,
+    fromSearch: Boolean,
+    rowRole: String?,
+): RowTap = when {
+    localDraft -> RowTap.EDIT_DRAFT
+    selectionActive -> if (expandable) RowTap.SELECT_THREAD else RowTap.SELECT_ROW
+    !fromSearch && isDraftsContext(rowRole) -> RowTap.EDIT_DRAFT
+    else -> RowTap.OPEN
+}
+
+/**
+ * What a tap on a child of an unfolded conversation does, from the role of ITS OWN folder — the one
+ * rule of [rowTapAction], with what a child never is: a draft only this phone holds, a search hit,
+ * or a foldable row; and its selection is settled upstream (`if (selectionActive)
+ * onToggleSelectChild(child) else onOpenChild(child)`), so only EDIT_DRAFT and OPEN come out.
+ */
+internal fun childTapAction(childRole: String?): RowTap = rowTapAction(localDraft = false, selectionActive = false, expandable = false, fromSearch = false, rowRole = childRole)
 
 /** The string resource shown on the swipe background for [action] on [email] (0 = none). */
 private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext: Boolean, trashContext: Boolean): Int = when (action) {

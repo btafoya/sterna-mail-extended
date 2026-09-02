@@ -109,7 +109,8 @@ class RowFolderRoleWiringLintTest {
             "rowFolderRole(",
             "isUnarchiveContext(",
             "isTrashContext(",
-            "isDraftsContext(",
+            "rowTapAction(",
+            "childTapAction(",
             "performSwipe(",
             "performThreadSwipe(",
             "visibleFolderRole(",
@@ -142,12 +143,15 @@ class RowFolderRoleWiringLintTest {
             "trashContext = isTrashContext(rowRole),",
             "if (expandable) performThreadSwipe(action, email, viewModel, ui, rowRole)",
             "else performSwipe(action, email, viewModel, ui, rowRole)",
-            "!fromSearch && !expandable && isDraftsContext(rowRole) -> onEditDraft(email.id, email.accountId)",
+            // The tap hands rowTapAction the row's role, LAST; rowRole's fallback is the search guard.
+            "when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {",
             // The unfolded children: each one judged by ITS OWN folder, never the representative's.
             // Trusted because a child comes from the cache — search results never unfold.
             "unarchiveContextFor = { child -> isUnarchiveContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },",
             "trashContextFor = { child -> isTrashContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },",
             "performSwipe(action, child, viewModel, ui, rowFolderRole(child, ui, folderRoles, folderTrusted = true))",
+            // The child tap asks the child's OWN folder, like its swipe; `rowRole` here is the defect.
+            "when (childTapAction(rowFolderRole(child, ui, folderRoles, folderTrusted = true))) {",
             // The two dispatchers read the role they were handed; the branch itself is behaviour.
             "if (isUnarchiveContext(rowRole)) {",
             "if (isUnarchiveContext(rowRole)) {",

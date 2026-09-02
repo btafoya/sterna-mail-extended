@@ -142,19 +142,26 @@ class LocalDraftListWiringLintTest {
             functionBody(INBOX_SCREEN, "private fun performSwipe(").first(),
         )
         assertEquals(
-            "The tap must OPEN a local draft in the composer, and from the FIRST branch: the " +
-                "`selectionActive` branch below would toggle a selection InboxViewModel refuses " +
-                "for this row (so the tap would do nothing at all), and the Drafts branch under it " +
-                "is gated on !fromSearch && !expandable && isDraftsContext. `-> Unit` here is the " +
-                "row the user cannot reach at all — the state the reopen volet ends. " +
-                "Branches of the row's onClick were:",
+            "The tap must OPEN a local draft in the composer, and the row's onClick must hand " +
+                "isLocalDraftRow(email.id) to rowTapAction as its FIRST argument, on its FIRST " +
+                "line: the priority of the local draft over the selection (which InboxViewModel " +
+                "refuses for this row, so the tap would do nothing at all) now lives in " +
+                "rowTapAction and is EXECUTED by RowTapActionTest — what only this can see is " +
+                "that the screen asks that function, with that argument, and acts on all four of " +
+                "its answers. Compared whole and in order. Body of the row's onClick was:\n" +
+                functionBody(INBOX_SCREEN, "onClick = {", after = "val emailRow:").joinToString("\n"),
             listOf(
-                "isLocalDraftRow(email.id) -> onEditDraft(email.id, email.accountId)",
-                "selectionActive -> if (expandable) viewModel.toggleSelectThread(email) else viewModel.toggleSelect(email)",
-                "!fromSearch && !expandable && isDraftsContext(rowRole) -> onEditDraft(email.id, email.accountId)",
-                "else -> {",
+                "when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {",
+                "RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)",
+                "RowTap.SELECT_THREAD -> viewModel.toggleSelectThread(email)",
+                "RowTap.SELECT_ROW -> viewModel.toggleSelect(email)",
+                "RowTap.OPEN -> {",
+                "viewModel.onEmailOpened(email.id)",
+                "onOpenEmail(email.id, email.accountId, entryIndex, fromSearch)",
+                "}",
+                "}",
             ),
-            functionBody(INBOX_SCREEN, "onClick = {", after = "val emailRow:").filter { "->" in it },
+            functionBody(INBOX_SCREEN, "onClick = {", after = "val emailRow:"),
         )
         for (name in listOf("fun enterSelection(", "fun toggleSelect(")) {
             assertEquals(
