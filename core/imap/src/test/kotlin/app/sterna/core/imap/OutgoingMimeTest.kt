@@ -382,7 +382,13 @@ class OutgoingMimeTest {
             mime.lineSequence().first { it.startsWith("Disposition-Notification-To:") },
         )
         // The signed bytes themselves are untouched, byte for byte.
-        assertTrue("the entity must reach the wire verbatim", mime.endsWith(entity))
+        assertTrue(
+            // Verbatim apart from line endings: OutgoingMime.build normalises those to CRLF
+            // and preserves the bare CR. This entity is already pure CRLF, so that is a no-op on
+            // it and the check stays the strict one.
+            "the entity must reach the wire verbatim, apart from its line endings",
+            mime.endsWith(entity),
+        )
     }
 
     /**
@@ -413,7 +419,13 @@ class OutgoingMimeTest {
 
         val mime = OutgoingMime.build(msg().copy(prebuiltEntity = entity, requestReceipt = false))
 
-        assertTrue("the entity must reach the wire verbatim", mime.endsWith(entity))
+        assertTrue(
+            // Verbatim apart from line endings: OutgoingMime.build normalises those to CRLF
+            // and preserves the bare CR. This entity is already pure CRLF, so that is a no-op on
+            // it and the check stays the strict one.
+            "the entity must reach the wire verbatim, apart from its line endings",
+            mime.endsWith(entity),
+        )
         assertEquals(
             "the message headers must stop at MIME-Version and the entity follow immediately: it " +
                 "brings its own Content-Type, and a header written after it would land inside the " +
@@ -446,7 +458,7 @@ class OutgoingMimeTest {
     //
     // The witness reads what `buildBodyEntity` PRODUCES. ⛔ Never `FakeSmtpServer.delivered`: that
     // server re-reads DATA with `readLine()` and rejoins on "\r\n"
-    // (FakeSmtpServer.kt:138-151), which silently heals the defect — an assertion there is green
+    // (FakeSmtpServer.kt:164-179), which silently heals the defect — an assertion there is green
     // on the broken code.
 
     /** 193 bytes of plain ASCII: well past the 57-byte input that fills one 76-column line. */

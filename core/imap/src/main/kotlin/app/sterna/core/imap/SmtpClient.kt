@@ -127,15 +127,20 @@ data class OutgoingMessage(
      * REPLACES the normal body/attachments. [body]/[html]/[attachments] are ignored when set.
      *
      * ⭐ NOT a PGP field, despite where it came from. It is the seam through which any payload
-     * this builder cannot express reaches the wire byte for byte: PGP/MIME (multipart/signed,
-     * multipart/encrypted — attachments already inside, signature computed over these very
-     * bytes) and RFC 8098's `multipart/report` read receipt ([app.sterna.core.data.mail]'s
+     * this builder cannot express reaches the wire verbatim, apart from its line endings — those
+     * are normalised to CRLF, the bare CR preserved (see [OutgoingMime.build]): PGP/MIME
+     * (multipart/signed, multipart/encrypted — attachments already inside, signature computed over
+     * these very bytes) and RFC 8098's `multipart/report` read receipt ([app.sterna.core.data.mail]'s
      * `readReceiptEntity`), which [buildBodyEntity] cannot build either — it knows `text/plain`,
      * `text/html`, `multipart/mixed` and `multipart/related`, and nothing else.
      *
      * It used to be called `pgpEntity`, and the outbox refused to store one unless a PGP mode
      * came with it — so a caller handing an entity and no mode had it dropped in silence and the
      * message left as an empty shell. The name is the only thing that made that look sane.
+     *
+     * ⚠ These octets come from OUTSIDE this builder — an OpenPGP provider's armor, or a file
+     * written by an older version — so their line endings are not this module's to assume.
+     * [OutgoingMime.build] canonicalises them; see the comment at that seam.
      */
     val prebuiltEntity: String? = null,
     /**
@@ -362,6 +367,12 @@ class SmtpClient {
             write("DATA")
             expect("354", "DATA")
             val mime = buildMime(message)
+            // ⚠ INVARIANT: `mime` is CRLF-only, so splitting on "\r\n" yields the actual lines.
+            // True by construction for everything OutgoingMime assembles, and it is `build`'s seam
+            // for `prebuiltEntity` — octets from elsewhere — that has to keep it true: an armor
+            // with bare LF endings collapses into ONE element here and goes out as a single
+            // oversized line (RFC 5321 § 4.5.3.1 allows 1000 octets) with bare LFs inside it and
+            // dot-stuffing tested on its first character only.
             mime.split("\r\n").forEach { line ->
                 // Dot-stuffing: a line starting with '.' must be doubled.
                 out.write(((if (line.startsWith(".")) ".$line" else line) + "\r\n").toByteArray(Charsets.UTF_8))
@@ -451,8 +462,22 @@ object OutgoingMime {
             append("MIME-Version: 1.0\r\n")
             // A pre-built entity (PGP/MIME, or a multipart/report receipt) replaces the whole
             // body construction — see [OutgoingMessage.prebuiltEntity].
+            //
+            // ⭐ THE SEAM WHERE OCTETS FROM ELSEWHERE ENTER THE MESSAGE, and the only place that
+            // also repairs the entities ALREADY sitting in files/outbox/<id>/prebuilt-entity.mime,
+            // which nothing will ever rebuild. A PGP armor comes out of the provider with bare LF
+            // line endings; everything downstream — the DATA loop below, the JMAP `raw` blob, the
+            // APPEND of the Sent copy — assumes CRLF, and a hardened relay
+            // (`smtpd_forbid_bare_newline`, post-CVE-2023-51764) refuses the DATA outright, so a
+            // signed or encrypted message never leaves the outbox while the same message unsigned
+            // goes out.
+            //
+            // ⛔ [PgpMime.canonicalize] and nothing stricter: it maps "\r\r\n" back to "\r\r\n",
+            // leaving the bare CR alone. An entity signed before dee4a346 has such octets INSIDE
+            // the bytes the signature covers; straightening them here would deliver a message
+            // whose signature no longer verifies. Refused beats wrong.
             if (m.prebuiltEntity != null) {
-                append(m.prebuiltEntity)
+                append(PgpMime.canonicalize(m.prebuiltEntity))
             } else {
                 append(buildBodyEntity(m))
             }

@@ -8408,12 +8408,13 @@ class MailRepository(
         val sentId = submissionRoles["sent"] ?: draftsId
 
         val sentEmailId = if (prebuiltEntity != null) {
-            // A pre-built entity must reach the wire byte-exact — PGP/MIME's protocol=/micalg=
-            // params and the bytes the signature was computed over, a receipt's
+            // A pre-built entity must reach the wire byte-exact apart from its line endings,
+            // which OutgoingMime.build normalises to CRLF (the bare CR preserved) — PGP/MIME's
+            // protocol=/micalg= params and the bytes the signature was computed over, a receipt's
             // report-type=disposition-notification and its message/disposition-notification part,
             // none of which survives being re-encoded by the server from Email/set fields. So the
             // FULL raw message is built client-side with the same builder the SMTP path uses, then
-            // imported + submitted verbatim. ⭐ The condition is the ENTITY, not the PGP mode: a
+            // imported + submitted as it stands. ⭐ The condition is the ENTITY, not the PGP mode: a
             // receipt carries no mode, and routing on the mode would send it through Email/set,
             // where it would arrive as a two-part mail nobody's client reads as a receipt.
             val raw = OutgoingMime.build(

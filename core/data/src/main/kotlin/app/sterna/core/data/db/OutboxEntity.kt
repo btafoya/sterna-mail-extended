@@ -110,7 +110,10 @@ data class OutboxEntity(
     val pgpMode: String? = null,
     /**
      * File holding this row's PRE-BUILT MIME ENTITY — the complete entity that replaces the body on
-     * the wire, byte for byte (`OutgoingMessage.prebuiltEntity`).
+     * the wire, verbatim apart from its line endings (`OutgoingMessage.prebuiltEntity`):
+     * [app.sterna.core.imap.OutgoingMime.build] normalises those to CRLF and preserves the bare CR,
+     * so an entity queued by an older version is repaired on its way out without disturbing the
+     * octets a signature covers.
      *
      * ⚠ **The column name is narrower than what it holds, and that is on purpose.** It was born
      * for PGP/MIME and is still spelled `pgpEntityPath` in SQLite; it now also carries RFC 8098's

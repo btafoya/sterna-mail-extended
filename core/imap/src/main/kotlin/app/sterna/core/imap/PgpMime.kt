@@ -10,6 +10,13 @@ object PgpMime {
      * RFC 3156 §5: the signature is computed over the signed entity in canonical
      * form — CRLF line endings. (Sterna's own entities are base64/7-bit clean, so
      * no trailing-space concerns.)
+     *
+     * ⛔ **The bare CR is left EXACTLY as it is, and that is deliberate.** `"\r\r\n"` maps to
+     * `"\r\n"` and back to `"\r\r\n"`: an entity signed before `dee4a346` carries such octets
+     * INSIDE the bytes the signature was computed over, and straightening them would deliver a
+     * message whose signature no longer verifies — "invalid signature" at the recipient. A bare LF
+     * is the opposite kind of error: it is refused by the relay, so nothing wrong is delivered.
+     * (And a bare CR is not what `smtpd_forbid_bare_newline` rejects.)
      */
     fun canonicalize(entity: String): String =
         entity.replace("\r\n", "\n").replace("\n", "\r\n")
@@ -28,6 +35,11 @@ object PgpMime {
      * (protocol="application/pgp-signature"). [innerEntity] must be EXACTLY the
      * string that was signed (see [signablePayload]) — the wrapper adds the CRLF
      * that separates it from the boundary.
+     *
+     * ⚠ [armoredSignature] comes from the OpenPGP provider (OpenKeychain / BouncyCastle's
+     * `ArmoredOutputStream`), which separates its lines with **bare LF**. This used to be spliced
+     * in verbatim, on the unwritten assumption that a provider armor is CRLF — guaranteed by
+     * nobody. It is canonicalised here so the assumption is now enforced instead of hoped for.
      */
     fun wrapSigned(
         innerEntity: String,
@@ -45,7 +57,7 @@ object PgpMime {
         append("Content-Type: application/pgp-signature; name=\"signature.asc\"\r\n")
         append("Content-Description: OpenPGP digital signature\r\n")
         append("\r\n")
-        append(armoredSignature.toString(Charsets.US_ASCII).trimEnd())
+        append(canonicalize(armoredSignature.toString(Charsets.US_ASCII)).trimEnd())
         append("\r\n")
         append("--$boundary--\r\n")
     }
@@ -53,6 +65,9 @@ object PgpMime {
     /**
      * Wrap armored ciphertext as multipart/encrypted
      * (protocol="application/pgp-encrypted"): a version part + the payload.
+     *
+     * ⚠ [armoredCiphertext] is provider output with bare-LF line endings, canonicalised here for
+     * the same reason as in [wrapSigned].
      */
     fun wrapEncrypted(armoredCiphertext: ByteArray, boundary: String): String = buildString {
         append("Content-Type: multipart/encrypted;\r\n")
@@ -68,7 +83,7 @@ object PgpMime {
         append("Content-Description: OpenPGP encrypted message\r\n")
         append("Content-Disposition: inline; filename=\"encrypted.asc\"\r\n")
         append("\r\n")
-        append(armoredCiphertext.toString(Charsets.US_ASCII).trimEnd())
+        append(canonicalize(armoredCiphertext.toString(Charsets.US_ASCII)).trimEnd())
         append("\r\n")
         append("--$boundary--\r\n")
     }

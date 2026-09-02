@@ -1,7 +1,10 @@
 package app.sterna.core.imap
 
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
+import java.io.FilterInputStream
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.InetAddress
@@ -63,10 +66,32 @@ internal class FakeSmtpServer(
     /** Every command line received, in order, exactly as written by the client. */
     val commands: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
 
-    /** The DATA payload of the accepted message, or null when nothing was accepted. */
+    /**
+     * The DATA payload of the accepted message, or null when nothing was accepted.
+     *
+     * ⚠ **Line endings here prove NOTHING about the ones the client wrote.** This is rebuilt
+     * from `BufferedReader.readLine()`, which ends a line on a bare LF, on a bare CR and on CRLF
+     * alike, and the loop below glues `\r\n` back on. A client writing an entity full of bare LFs
+     * therefore lands in [delivered] perfectly conforming, and a witness for the CRLF defect built
+     * on it is green on both sides of the fix. Assert on [wire] for that, and on this for content.
+     */
     @Volatile
     var delivered: String? = null
         private set
+
+    /** Every byte the client wrote, in order, before any line-ending interpretation — see [wire]. */
+    private val wireBytes = ByteArrayOutputStream()
+
+    /**
+     * ⭐ The raw octets the client put on the socket, greeting to `QUIT`, exactly as written.
+     *
+     * The one view of the session in which a bare LF is still a bare LF: [commands] and [delivered]
+     * both come out of a [BufferedReader], which normalises the very bytes an SMTP conformance
+     * test is about (RFC 5321 § 2.3.8: lines end with CRLF, and CR and LF appear nowhere else;
+     * § 4.5.3.1: 1000 octets a line, CRLF included). Read it after [awaitDone] — it is filled by
+     * the serving thread.
+     */
+    val wire: ByteArray get() = synchronized(wireBytes) { wireBytes.toByteArray() }
 
     val config = MailServerConfig(
         host = server.inetAddress.hostAddress,
@@ -92,7 +117,9 @@ internal class FakeSmtpServer(
         runCatching {
             server.accept().use { socket ->
                 accepted = socket
-                val reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
+                // The tee sits UNDER the reader, so what is recorded is what the client wrote and
+                // not what the reader made of it. Nothing else in the dialogue changes.
+                val reader = BufferedReader(InputStreamReader(TeeInputStream(socket.inputStream), Charsets.UTF_8))
                 // ISO-8859-1 so a scripted reply goes out byte for byte, as in FakeImapServer.
                 val writer = OutputStreamWriter(socket.outputStream, Charsets.ISO_8859_1)
                 fun reply(lines: List<String>) {
@@ -189,6 +216,21 @@ internal class FakeSmtpServer(
                     if (line.equals("QUIT", ignoreCase = true)) break
                 }
             }
+        }
+    }
+
+    /** Copies every byte read through it into [wireBytes], and changes nothing else. */
+    private inner class TeeInputStream(source: InputStream) : FilterInputStream(source) {
+        override fun read(): Int {
+            val b = super.read()
+            if (b >= 0) synchronized(wireBytes) { wireBytes.write(b) }
+            return b
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            val n = super.read(b, off, len)
+            if (n > 0) synchronized(wireBytes) { wireBytes.write(b, off, n) }
+            return n
         }
     }
 
