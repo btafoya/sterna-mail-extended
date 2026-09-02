@@ -203,6 +203,10 @@
     <string name="message_headers_title">Intestazioni del messaggio</string>
     <string name="message_headers_empty">Nessuna intestazione da mostrare</string>
     <string name="message_headers_error">Impossibile caricare le intestazioni:\n%1$s</string>
+    <string name="message_attached_title">Messaggio allegato</string>
+    <string name="message_attached_files">Allegati: %1$s</string>
+    <string name="message_attached_empty">Questo messaggio non ha testo</string>
+    <string name="message_attached_error">Impossibile aprire il messaggio allegato:\n%1$s</string>
     <string name="message_load_error">Impossibile caricare il messaggio:\n%1$s</string>
     <string name="message_retry">Riprova</string>
     <string name="message_unknown_sender">(mittente sconosciuto)</string>

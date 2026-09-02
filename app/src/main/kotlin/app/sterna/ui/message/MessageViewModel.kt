@@ -55,6 +55,7 @@ import app.sterna.ui.showsRecipients
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -354,6 +355,17 @@ sealed interface HeadersState {
     data object Loading : HeadersState
     data class Loaded(val headers: List<EmailHeader>) : HeadersState
     data class Error(val message: String) : HeadersState
+}
+
+/**
+ * The attached-message sheet's state: what a tap on a `message/rfc822` part opens. Null (see
+ * [MessageViewModel.attachedMessage]) means the sheet is closed; the states below drive it while
+ * open. Same shape as [HeadersState].
+ */
+sealed interface AttachedMessageState {
+    data object Loading : AttachedMessageState
+    data class Loaded(val message: AttachedMessage) : AttachedMessageState
+    data class Error(val message: String) : AttachedMessageState
 }
 
 /** A copy with the $seen keyword set, so a just-opened/expanded message renders as read. */
@@ -855,6 +867,23 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         }.getOrNull()?.takeIf { it.isNotBlank() } ?: fallback
     }
 
+    /** The attached-message sheet: null while closed, else its load/loaded/error state. Opened by
+     *  [openAttachment] when the part is a `message/rfc822`; nothing on that path touches the disk. */
+    private val _attachedMessage = MutableStateFlow<AttachedMessageState?>(null)
+    val attachedMessage = _attachedMessage.asStateFlow()
+
+    /** The download behind the sheet, so that closing it can stop it: a `Loaded` landing after a
+     *  dismiss — or after the page moved on to another message — would reopen the sheet on its own,
+     *  with the previous message's attachment on top of the new one. */
+    private var attachedMessageJob: Job? = null
+
+    /** Close the attached-message sheet, and stop the download behind it. */
+    fun dismissAttachedMessage() {
+        attachedMessageJob?.cancel()
+        attachedMessageJob = null
+        _attachedMessage.value = null
+    }
+
     // ---- unsubscribe (RFC 2369 / RFC 8058) ----
 
     /** What the open message offers as a way out of its mailing list; null = no banner, no menu
@@ -1176,6 +1205,11 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _manualShowImages.value = false
         _plainText.value = null
         _headers.value = null
+        // The same three lines as [dismissAttachedMessage], written out: ReaderStateResetOnLoadTest
+        // reads this prologue for `_attachedMessage.value`, and a helper would hide it.
+        attachedMessageJob?.cancel()
+        attachedMessageJob = null
+        _attachedMessage.value = null
         _attachmentStatus.value = null
         // The per-sender rule, all three halves. The status is the answer to a gesture made on
         // the message we are leaving ("Rule added"), and it would be read as this message's. The
@@ -1490,6 +1524,10 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun openAttachment(part: EmailBodyPart, ownerId: String) {
         if (openingAttachment) return
         openingAttachment = true
+        // A message/rfc822 part has no viewer app to go to (the chooser came up empty, silently):
+        // it is read here, in a sheet, and never written to the cache. [openingAttachment] is held
+        // and released by that path, so a second tap waits for the first download all the same.
+        if (isAttachedMessage(part.type)) { openAttachedMessage(part, ownerId); return }
         val emailId = ownerId
         val app = getApplication<Application>()
         _attachmentStatus.value = "Opening ${part.name ?: "attachment"}…"
@@ -1518,6 +1556,36 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             } finally {
                 // Released as soon as the chooser is up (or the attempt failed), not when the user
                 // comes back: the file is theirs to open again as often as they like.
+                openingAttachment = false
+            }
+        }
+    }
+
+    /**
+     * Download a `message/rfc822` part and show it in the attached-message sheet: headers, text
+     * body and the names of its own attachments, parsed in memory. Same download path as any
+     * attachment (50 MiB ceiling, `pgp:` guard, BODY.PEEK), but nothing is cached, no URI is
+     * exposed and no app is started. Releases [openingAttachment], which [openAttachment] holds.
+     */
+    private fun openAttachedMessage(part: EmailBodyPart, ownerId: String) {
+        val app = getApplication<Application>()
+        _attachedMessage.value = AttachedMessageState.Loading
+        attachedMessageJob = viewModelScope.launch {
+            try {
+                val credentials = credentials() ?: error(app.getString(R.string.status_no_saved_account))
+                val bytes = repo.downloadAttachment(credentials, part, ownerId)
+                // Parsing a stranger's message is untrusted work on a large input: off the main
+                // thread, like the invitation.
+                val message = withContext(Dispatchers.Default) { attachedMessageOf(bytes) }
+                _attachedMessage.value = AttachedMessageState.Loaded(message)
+            } catch (cancelled: CancellationException) {
+                // The sheet was closed under us: not an error to show, and nothing to reopen.
+                throw cancelled
+            } catch (t: ContentTooLargeException) {
+                _attachedMessage.value = AttachedMessageState.Error(app.getString(R.string.status_attachment_too_large))
+            } catch (t: Throwable) {
+                _attachedMessage.value = AttachedMessageState.Error(t.message ?: t.javaClass.simpleName)
+            } finally {
                 openingAttachment = false
             }
         }

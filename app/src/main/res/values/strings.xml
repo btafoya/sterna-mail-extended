@@ -335,6 +335,10 @@
     <!-- Reader overflow: save the message as it sits on the server (.eml) -->
     <string name="message_export_eml">Save as .eml</string>
     <string name="message_export_saved">Saved as %1$s</string>
+    <string name="message_attached_title">Attached message</string>
+    <string name="message_attached_files">Attachments: %1$s</string>
+    <string name="message_attached_empty">No text in this message</string>
+    <string name="message_attached_error">Could not open the attached message:\n%1$s</string>
     <string name="message_load_error">Could not load message:\n%1$s</string>
     <string name="message_retry">Retry</string>
     <string name="message_unknown_sender">(unknown sender)</string>

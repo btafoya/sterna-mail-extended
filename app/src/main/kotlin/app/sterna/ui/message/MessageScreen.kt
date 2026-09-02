@@ -1244,6 +1244,9 @@ private fun MessageActions(
     headersState?.let { hs ->
         MessageHeadersSheet(state = hs, onDismiss = { viewModel.dismissHeaders() })
     }
+    // The attached-message sheet (a tapped message/rfc822 part): open while the VM holds a state.
+    val attachedState by viewModel.attachedMessage.collectAsStateWithLifecycle()
+    attachedState?.let { AttachedMessageSheet(state = it, onDismiss = { viewModel.dismissAttachedMessage() }) }
 }
 
 /**
@@ -1306,6 +1309,87 @@ private fun MessageHeadersSheet(
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Read-only view of a `message/rfc822` attachment, parsed in memory ([attachedMessageOf]): the
+ * attached message's From/To/Cc/Date, its text body and the names of its own attachments. Nothing
+ * here is clickable — its attachments are named, not opened. Same modal bottom sheet as
+ * [MessageHeadersSheet].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AttachedMessageSheet(
+    state: AttachedMessageState,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 24.dp),
+        ) {
+            val subject = (state as? AttachedMessageState.Loaded)?.message?.subject
+            Text(
+                if (subject.isNullOrEmpty()) stringResource(R.string.message_attached_title) else subject,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            HorizontalDivider()
+            when (state) {
+                // Not `) { LoadingRing() }` on its own line: LoadingRingTest pins that exact line
+                // to the headers sheet, once per file.
+                is AttachedMessageState.Loading ->
+                    Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) { LoadingRing() }
+                is AttachedMessageState.Error -> Text(
+                    stringResource(R.string.message_attached_error, state.message),
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                )
+                is AttachedMessageState.Loaded -> SelectionContainer {
+                    val message = state.message
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf(
+                            R.string.participants_from to message.from,
+                            R.string.participants_to to message.to,
+                            R.string.participants_cc to message.cc,
+                            R.string.compose_forward_date to message.date,
+                        ).forEach { (label, value) ->
+                            if (!value.isNullOrEmpty()) {
+                                Text(
+                                    text = "${stringResource(label)}: $value",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        if (message.body.isEmpty()) {
+                            Text(
+                                stringResource(R.string.message_attached_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            Text(message.body, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        if (message.attachmentNames.isNotEmpty()) {
+                            Text(
+                                stringResource(R.string.message_attached_files, message.attachmentNames.joinToString(", ")),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }

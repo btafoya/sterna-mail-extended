@@ -119,6 +119,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Reply / reply-all / forward with quoting (threaded via `inReplyTo`/`references`)
 - ✅ Save drafts (JMAP, or IMAP APPEND to Drafts); closing compose with unsaved edits prompts to save the draft, discard the changes, or cancel and keep editing (intercepts the Close button and system back). The prompt says it drops the *changes*, not the message, when a saved draft stays on the server; Save draft is greyed out on an empty composer (saving nothing would delete the draft); and the draft itself can be deleted from the composer, on confirmation, to the Trash
 - ✅ Attachments: pick & send, view/download/open incoming (JMAP blobs / IMAP multipart MIME + BODY-section fetch)
+- ✅ Attached messages (message/rfc822): a tap opens a sheet with the attached message's From/To/Cc/Date/Subject, its text body and the names of its own attachments (JMAP and IMAP, nothing written to disk)
 - ✅ Inline images (`cid:`) rendered in the body (downloaded as data URIs)
 - 💡 Rich-text editor plus plain-text mode
 - ✅ Undo send (hold-back window), held in an app-scoped outbox; ✅ full Outbox, a
