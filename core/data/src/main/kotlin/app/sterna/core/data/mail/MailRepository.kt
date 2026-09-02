@@ -892,6 +892,23 @@ internal fun receiptRequestedInProperty(header: String?, serverRefusesProperty: 
 internal fun sourceCouldNotBeRead(raw: String): Boolean = raw.isBlank()
 
 /**
+ * The octets to write when a message is saved as `.eml`: [raw] as `fetchRawSource` hands it, one
+ * byte per char. ISO-8859-1 and never UTF-8: that String is a byte CONTAINER (see
+ * `fetchRawSource`'s KDoc), and a UTF-8 encoding would double every octet above 0x7F — the file
+ * would no longer be the server's message, and a signature over it would not verify.
+ *
+ * ⛔ A source that [sourceCouldNotBeRead] refuses is an UNKNOWN, so this throws instead of
+ * returning zero bytes: an empty `.eml` looks like a saved message, and may be the only copy the
+ * user thinks she has. Pure, so a test can execute it.
+ */
+internal fun rawSourceBytes(emailId: String, raw: String): ByteArray {
+    if (sourceCouldNotBeRead(raw)) {
+        throw MessageUnavailableException("Source of $emailId came back empty; the server did not give us the message.")
+    }
+    return raw.toByteArray(Charsets.ISO_8859_1)
+}
+
+/**
  * Run [stage] — persisting an outbox item's payload/attachments after its row is already inserted —
  * and, if it throws, [rollback] the just-inserted row before the error propagates. A staging
  * failure must leave NO row behind: an orphan (inserted with attachmentsJson "[]") would be
@@ -3998,6 +4015,29 @@ class MailRepository(
         }
         val ctx = connect(credentials)
         return client.getEmailHeaders(ctx.session, ctx.accountId, emailId, ctx.auth)
+    }
+
+    /**
+     * The message exactly as the server holds it, for "Save as .eml": the raw RFC 5322 source
+     * over IMAP or JMAP (fetched/cached like any other read), as bytes. ⛔ Never the clear text of
+     * an OpenPGP message: an encrypted message is saved as received, still encrypted (README:
+     * "Decrypted content is never written to disk"). Throws [MessageUnavailableException] when the
+     * server gives nothing back, so the caller can discard the document instead of keeping an
+     * empty file that looks like a saved message.
+     *
+     * The [Email] is resolved per protocol, as [rawHeaders] and [decryptMessage] do: IMAP only
+     * needs the mailbox, which the cached row carries; JMAP needs the `blobId`, and the cache has
+     * NO such column (`EmailEntity.toEmail` never sets it) — a cached row would send
+     * [fetchRawSource] into "Message has no blob id." on every synced message, so JMAP goes
+     * through [openEmail], which returns the server's object.
+     */
+    suspend fun rawSource(credentials: AccountCredentials, emailId: String): ByteArray {
+        val email = if (credentials.protocol == MailProtocol.IMAP) {
+            cachedEmail(credentials.id, emailId) ?: openEmail(credentials, emailId, markRead = false)
+        } else {
+            openEmail(credentials, emailId, markRead = false)
+        }
+        return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId))
     }
 
     // ---- OpenPGP read path -------------------------------------------------------------------

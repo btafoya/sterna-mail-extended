@@ -97,6 +97,7 @@ The categories further down list the full feature set; this is the order of work
   to the top when you ask for it and sorts normally the rest of the time; "Starred only" is a
   criterion of the advanced search, which gathers them across the whole account
 - ✅ Report spam / not-spam, message overflow, context-aware (Report spam ↔ Not spam)
+- ✅ Save a message as `.eml` (reader overflow menu): the file is the message exactly as the server holds it, over JMAP and IMAP, written where you choose through the system file picker; an OpenPGP message is saved as received, still encrypted
 - ✅ One-gesture unsubscribe (RFC 2369 / RFC 8058), a reader banner appears when the sender publishes an unsubscribe address; Sterna shows the exact request or email it would send before sending it, does not send it twice while the message stays open, refuses a redirect that would turn the request into a page load, and blames the sender's host rather than the network when it fails. A list that offers only a web page is opened in a browser, after a warning that this can expose the reader's IP address
 
 ## Organisation & search

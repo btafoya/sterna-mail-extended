@@ -198,6 +198,8 @@
     <string name="message_read_receipt_queued">В исходящих: %1$s</string>
     <string name="message_read_receipt_failed">В исходящие ничего не помещено, ничего отправлено не будет.</string>
     <string name="message_view_headers">Показать заголовки</string>
+    <string name="message_export_eml">Сохранить как .eml</string>
+    <string name="message_export_saved">Сохранено как %1$s</string>
     <string name="message_headers_title">Заголовки письма</string>
     <string name="message_headers_empty">Нет заголовков для отображения</string>
     <string name="message_headers_error">Не удалось загрузить заголовки:\n%1$s</string>

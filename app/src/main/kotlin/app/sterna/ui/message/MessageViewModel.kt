@@ -3,6 +3,9 @@ package app.sterna.ui.message
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.MessageUnavailableException
@@ -787,6 +790,69 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     /** Close the raw-headers viewer. */
     fun dismissHeaders() {
         _headers.value = null
+    }
+
+    /**
+     * "Save as .eml": write the message exactly as the server holds it — [MailRepository.rawSource]'s
+     * bytes, one per octet — into the document the user picked at [uri]. ⛔ The server's octets,
+     * never the clear text of an encrypted message: an OpenPGP message is saved as received, still
+     * encrypted, because decrypted content is never written to disk (README). The toast names the
+     * document's REAL name (she may have renamed it in the picker), else [proposedName]. A failure
+     * lands on [actionStatus] like every other gesture on the open message, never on
+     * [MessageState.Error]: the message stays readable.
+     *
+     * [ownerId] is the message the picker was launched FOR. The result comes back to whatever page
+     * is settled by then — an activity recreated behind the picker can restore onto another one —
+     * and message B's bytes under A's file name would be a lie in her Downloads, so a mismatch is
+     * refused like [unsubscribe]'s and the snooze's owner guards.
+     *
+     * ⛔ `CreateDocument` has the provider CREATE the document before this runs: on any failure,
+     * and on the refusal above, the empty (or half-written) file is deleted again, or she would
+     * later find `Subject.eml` in Downloads and believe the message saved. The toast alone would not
+     * undo that.
+     */
+    fun exportSource(uri: Uri, proposedName: String, ownerId: String) {
+        viewModelScope.launch {
+            try {
+                val id = loadedId
+                if (id == null || id != ownerId) {
+                    discardDocument(uri)
+                    _actionStatus.value = getApplication<Application>().getString(R.string.status_action_failed)
+                    return@launch
+                }
+                val credentials = credentials()
+                    ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
+                val bytes = repo.rawSource(credentials, id)
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+                        ?: error("no output stream")
+                }
+                val name = displayNameOf(uri, proposedName)
+                _actionStatus.value = getApplication<Application>().getString(R.string.message_export_saved, name)
+            } catch (t: Throwable) {
+                discardDocument(uri)
+                // The unavailable message gets the sentence the reader already shows for that case;
+                // everything else keeps its own text, like "View headers".
+                _actionStatus.value = readFailureStringRes(t)?.let { getApplication<Application>().getString(it) }
+                    ?: readerActionFailureText(t) { res -> getApplication<Application>().getString(res) }
+            }
+        }
+    }
+
+    /** Delete the document the picker created at [uri] — nothing was, or could be, written into it.
+     *  A provider that cannot delete costs nothing more: the failure toast is already on its way. */
+    private suspend fun discardDocument(uri: Uri) = withContext(Dispatchers.IO) {
+        runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }
+    }
+
+    /** The document's name as its provider reports it (she may have renamed it in the picker),
+     *  else [fallback]. A provider that answers nothing, or throws, costs the name and nothing more. */
+    private suspend fun displayNameOf(uri: Uri, fallback: String): String = withContext(Dispatchers.IO) {
+        runCatching {
+            getApplication<Application>().contentResolver
+                .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: fallback
     }
 
     // ---- unsubscribe (RFC 2369 / RFC 8058) ----

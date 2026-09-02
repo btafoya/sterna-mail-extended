@@ -198,6 +198,8 @@
     <string name="message_read_receipt_queued">En la bandeja de salida: %1$s</string>
     <string name="message_read_receipt_failed">No se ha puesto nada en la bandeja de salida, no se enviará nada.</string>
     <string name="message_view_headers">Ver encabezados</string>
+    <string name="message_export_eml">Guardar como .eml</string>
+    <string name="message_export_saved">Guardado como %1$s</string>
     <string name="message_headers_title">Encabezados del mensaje</string>
     <string name="message_headers_empty">No hay encabezados que mostrar</string>
     <string name="message_headers_error">No se pudieron cargar los encabezados:\n%1$s</string>

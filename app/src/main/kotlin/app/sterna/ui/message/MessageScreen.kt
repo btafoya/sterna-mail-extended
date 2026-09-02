@@ -7,10 +7,13 @@ import androidx.compose.material.icons.filled.VerifiedUser
 import app.sterna.core.data.mail.UnsubscribeAction
 import app.sterna.core.data.mail.UnsubscribeOptions
 import app.sterna.core.data.mail.preferredAction
+import app.sterna.core.data.text.safeFileName
 import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
 import app.sterna.core.imap.CryptoKind
 import app.sterna.pgp.rememberPgpInteractionLauncher
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -83,6 +86,7 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Unsubscribe
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -109,6 +113,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -775,6 +780,21 @@ private fun MessageActions(
     var menuOpen by remember(active.emailId) { mutableStateOf(false) }
     var snoozeSubmenu by remember(active.emailId) { mutableStateOf(false) }
     var movePicker by remember(active.emailId) { mutableStateOf(false) }
+    // "Save as .eml": the system picker, then the message's exact server bytes into the document
+    // it returns (MessageViewModel.exportSource). ⛔ Declared HERE, outside the DropdownMenu, for
+    // the reason the toast effect below gives: registered inside the menu, the launcher is disposed
+    // when the menu closes on the very tap that opened the picker, and the result has nowhere to
+    // land. `exportFor` remembers WHICH message the picker was launched for (saved across a
+    // recreation behind the picker); the ViewModel refuses a result for another page. An empty
+    // value after a lost state is refused too, which is the safe side.
+    val exportName = remember(loaded.email.subject) { safeFileName(loaded.email.subject, "message") + ".eml" }
+    var exportFor by rememberSaveable { mutableStateOf("") }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("message/rfc822"),
+    ) { uri ->
+        // A cancelled picker (null) does nothing — no toast.
+        if (uri != null) viewModel.exportSource(uri, exportName, exportFor)
+    }
     IconButton(onClick = { menuOpen = true }) {
         Icon(
             Icons.Filled.MoreVert,
@@ -979,6 +999,12 @@ private fun MessageActions(
                 text = { Text(stringResource(R.string.message_view_headers)) },
                 leadingIcon = { Icon(Icons.Filled.Code, contentDescription = null) },
                 onClick = { menuOpen = false; viewModel.viewHeaders() },
+            )
+            // Save the message as the server holds it (.eml); an encrypted message stays encrypted.
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.message_export_eml)) },
+                leadingIcon = { Icon(Icons.Filled.SaveAlt, contentDescription = null) },
+                onClick = { menuOpen = false; exportFor = active.emailId; exportLauncher.launch(exportName) },
             )
         }
     }

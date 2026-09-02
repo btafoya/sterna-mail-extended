@@ -198,6 +198,8 @@
     <string name="message_read_receipt_queued">Dans la boîte d\'envoi : %1$s</string>
     <string name="message_read_receipt_failed">Rien n\'a été mis dans la boîte d\'envoi, rien ne partira.</string>
     <string name="message_view_headers">Afficher les en-têtes</string>
+    <string name="message_export_eml">Enregistrer en .eml</string>
+    <string name="message_export_saved">Enregistré sous %1$s</string>
     <string name="message_headers_title">En-têtes du message</string>
     <string name="message_headers_empty">Aucun en-tête à afficher</string>
     <string name="message_headers_error">Impossible de charger les en-têtes :\n%1$s</string>
