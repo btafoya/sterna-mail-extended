@@ -474,7 +474,7 @@ class LocalDraftListWiringLintTest {
          *  would find the account-chip drag in the drawer first, which [functionBody] would then
          *  read instead — it takes the first match. */
         const val ROW_POINTER_INPUT =
-            ".pointerInput(gesturesEnabled, rightAction, leftAction, drawerBandPx) {"
+            ".pointerInput(gesturesEnabled, rightAction, leftAction, drawerBandPx, drawerCanOpen) {"
 
         val INBOX_VIEW_MODEL: File by lazy { repoFile("app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt") }
         val INBOX_SCREEN: File by lazy { repoFile("app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt") }

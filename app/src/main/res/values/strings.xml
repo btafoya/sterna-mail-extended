@@ -235,6 +235,7 @@
     <string name="empty_inbox_body">Nothing in flight. New mail will land here.</string>
     <string name="empty_folder_title">Nothing here yet</string>
     <string name="empty_folder_body">This folder is empty.</string>
+    <string name="reading_pane_empty">Select a message to read it here.</string>
     <string name="empty_trash_title">Trash is empty</string>
     <string name="empty_trash_body">Deleted mail waits here before it\'s gone for good.</string>
     <string name="empty_offline_title">Can\'t reach your mail</string>

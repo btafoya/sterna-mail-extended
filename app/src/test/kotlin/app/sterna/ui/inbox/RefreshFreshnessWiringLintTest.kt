@@ -68,7 +68,7 @@ class RefreshFreshnessWiringLintTest {
             "selectUnified() must reconcile through the guard: switching to the unified inbox and " +
                 "straight back is #178's own gesture. Compared whole. Body was:",
             "fun selectUnified() { if (selection.value is Sel.Unified) return collapseThreads() " +
-                "selection.value = Sel.Unified unifiedInboxScopes.value = store.allInboxScopes() " +
+                "paneOnViewChanged() selection.value = Sel.Unified unifiedInboxScopes.value = store.allInboxScopes() " +
                 "meta.value = Meta(UNIFIED_LABEL, UNIFIED_LABEL, store.totalUnreadCount()) " +
                 "refreshUnlessFresh() }",
             declarationBody("fun selectUnified()"),
@@ -76,7 +76,7 @@ class RefreshFreshnessWiringLintTest {
         assertEquals(
             "selectUnread() must reconcile through the guard. Compared whole. Body was:",
             "fun selectUnread() { if (selection.value is Sel.Unread) return collapseThreads() " +
-                "selection.value = Sel.Unread " +
+                "paneOnViewChanged() selection.value = Sel.Unread " +
                 "meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()) " +
                 "refreshUnlessFresh() }",
             declarationBody("fun selectUnread()"),
@@ -85,18 +85,26 @@ class RefreshFreshnessWiringLintTest {
             "select(mailbox) must reconcile through the guard: tapping a folder, going back and " +
                 "tapping it again is the gesture that fired a full reconcile every time. Compared " +
                 "whole. Body was:",
-            "fun select(mailbox: Mailbox) { if (selection.value == Sel.Folder(mailbox.id)) return " +
-                "collapseThreads() selection.value = Sel.Folder(mailbox.id) " +
+            "fun select(mailbox: Mailbox) { select(mailbox, emptyPane = true) }",
+            declarationBody("fun select(mailbox: Mailbox)"),
+        )
+        assertEquals(
+            "the private overload is the body: the drawer's tap empties the reading pane (#103), the " +
+                "notification's folder keeps it (`emptyPane = false`, the ONE caller), and both go " +
+                "through the guard. Compared whole. Body was:",
+            "private fun select(mailbox: Mailbox, emptyPane: Boolean) { " +
+                "if (selection.value == Sel.Folder(mailbox.id)) return " +
+                "collapseThreads() if (emptyPane) paneOnViewChanged() selection.value = Sel.Folder(mailbox.id) " +
                 "meta.value = Meta(store.accountLabel(), mailbox.name, mailbox.unreadEmails) " +
                 "refreshUnlessFresh() }",
-            declarationBody("fun select(mailbox: Mailbox)"),
+            declarationBody("private fun select(mailbox: Mailbox, emptyPane: Boolean)"),
         )
         assertEquals(
             "showInbox() must reconcile through the guard: Back out of a folder lands here, and it " +
                 "is the second half of every folder tap. Compared whole. Body was:",
             "fun showInbox() { val inboxId = store.inboxMailboxId() " +
                 "if (selection.value == Sel.Folder(inboxId)) return collapseThreads() " +
-                "selection.value = Sel.Folder(inboxId) " +
+                "paneOnViewChanged() selection.value = Sel.Folder(inboxId) " +
                 "meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()) " +
                 "refreshUnlessFresh() }",
             declarationBody("fun showInbox()"),
@@ -117,15 +125,79 @@ class RefreshFreshnessWiringLintTest {
         )
     }
 
+    /**
+     * Compared WHOLE since #103, and no longer only counted: this switch is the fifth of the five,
+     * and the only one whose pane line a door count cannot see. Dropping `paneOnViewChanged()` from
+     * it left the whole suite green while an account switch kept the departing account's message on
+     * the right — the very thing the four other switches are pinned whole to prevent.
+     */
     @Test
-    fun `an account switch reconciles through the guard, and only through it`() {
+    fun `an account switch empties the pane, replays a notification's own message, and reconciles through the guard`() {
         val body = declarationBody("fun onAccountChanged()")
         assertEquals(
-            "Switching to an account whose inbox was read moments ago must not re-fetch it. The " +
-                "register is keyed on (account, folder), so the account being switched TO is the " +
-                "one judged. Body was:\n$body",
-            "0 refresh(), 1 refreshUnlessFresh()",
-            doorCount(body),
+            "Switching to an account whose inbox was read moments ago must not re-fetch it (the " +
+                "register is keyed on (account, folder), so the account switched TO is the one " +
+                "judged), it must empty the pane like every other change of scope, and it must " +
+                "then put back the message a tapped notification parked in [openFromNotification] " +
+                "— that one message and no other, or a notification for another account posts its " +
+                "mail and the switch it asked for immediately takes it off the right (#103). The " +
+                "replay goes through ReadingPaneRule.replayOnAccountChange, which ReadingPaneRuleTest " +
+                "EXECUTES: written bare, a park that outlived its own switch is put back onto the " +
+                "next account the user opens, one account's mail beside another's list (#92). And " +
+                "the park is dropped on the line AFTER it, unconditionally — inside the ?.let it " +
+                "survives every switch the anchor does not match. " +
+                "Compared whole. Body was:\n$body",
+            "fun onAccountChanged() { collapseThreads() paneOnViewChanged() " +
+                "ReadingPaneRule.replayOnAccountChange(notificationAnchor, store.currentId())?.let { openInPane(it) } " +
+                "notificationAnchor = null " +
+                "currentAccountId.value = store.currentId() " +
+                "selection.value = Sel.Folder(store.inboxMailboxId()) " +
+                "unifiedInboxScopes.value = store.allInboxScopes() " +
+                "folderSnapshot.value = null to emptyList() " +
+                "meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount()) " +
+                "refreshWatchedFolders() refreshCollapsedFolders() refreshUnlessFresh() }",
+            body,
+        )
+    }
+
+    // -- the reading pane's two bodies, pinned here for want of anywhere that can RUN them --------
+
+    /**
+     * ⚠ Neither of the two rules below is about the freshness guard. They live in this file because
+     * it is the one that compares whole DECLARATION BODIES of `InboxViewModel`, and that class is an
+     * `AndroidViewModel` over Room: nothing in this module can build one, so no executing test can
+     * reach either method.
+     */
+    @Test
+    fun `closing the pane really empties it`() {
+        val body = declarationBody("fun closePane(): Boolean")
+        assertEquals(
+            "closePane() must hand ReadingPaneRule.close() the CURRENT state, store the result and " +
+                "report whether it had anything. Written `setReadingPane(_readingPane.value)` it " +
+                "type-checks, persists the very same anchor, and the pane never empties again: " +
+                "`detailOpen` stays true, inboxBackAction answers CLOSE_DETAIL for ever and BACK " +
+                "NO LONGER LEAVES THE APP — the person is trapped, on a list whose right-hand side " +
+                "she cannot close either. InboxBackTest proves the rule and cannot see this wiring. " +
+                "Compared whole. Body was:\n$body",
+            "fun closePane(): Boolean { val had = _readingPane.value.anchor != null " +
+                "setReadingPane(ReadingPaneRule.close(_readingPane.value)) return had }",
+            body,
+        )
+    }
+
+    @Test
+    fun `a notification's message is parked as well as posted`() {
+        val body = declarationBody("fun openFromNotification(anchor: MessageAnchor)")
+        assertEquals(
+            "openFromNotification() must PARK the anchor and open it. The park is the whole point: " +
+                "a notification for another account switches that account, onAccountChanged() " +
+                "empties the pane like every other switch, and the park is what puts this one " +
+                "message back afterwards whichever of the two effects ran first. Reduced to " +
+                "`openInPane(anchor)` it compiles, every other rule stays green, and a tapped " +
+                "notification whose account is not the current one shows its message for one frame " +
+                "(#103). Compared whole. Body was:\n$body",
+            "fun openFromNotification(anchor: MessageAnchor) { notificationAnchor = anchor openInPane(anchor) }",
+            body,
         )
     }
 

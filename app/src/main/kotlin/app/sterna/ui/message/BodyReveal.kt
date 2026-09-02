@@ -18,12 +18,27 @@ internal sealed interface HeightPoll {
 }
 
 /**
- * The body's resting scroll geometry, measured at the instant its height poll settled: how far it
- * is scrolled ([scrollY], 0 on a fresh open) and how far it CAN scroll ([maxScrollPx], 0 when the
- * whole body fits the viewport). Enough to decide the Reply/Forward bar without waiting for a
- * scroll event — see [BodyReveal.barVisible].
+ * One report of the body's scroll geometry: how far it is scrolled ([scrollY], 0 on a fresh open)
+ * and the RAW numbers it was read from — the WebView's content range ([rangePx]), its visible
+ * extent ([viewportPx]) and the document's own laid-out height ([contentHeightPx], `WebView
+ * .contentHeight`, in CSS px and used here only as "is there a laid-out document at all").
+ *
+ * The raw numbers are carried instead of the derived [maxScrollPx] alone because a scroll range of
+ * zero has TWO meanings, and only these three numbers together tell them apart — see
+ * [BodyReveal.rangeMeasured].
  */
-internal data class BodyMetrics(val scrollY: Int, val maxScrollPx: Int)
+internal data class BodyMetrics(
+    val scrollY: Int,
+    val rangePx: Int,
+    val viewportPx: Int,
+    val contentHeightPx: Int,
+) {
+    /** How far this body can scroll: see [BodyReveal.maxScroll]. */
+    val maxScrollPx: Int get() = BodyReveal.maxScroll(rangePx, viewportPx)
+
+    /** Whether this report measured anything at all: see [BodyReveal.rangeMeasured]. */
+    val measured: Boolean get() = BodyReveal.rangeMeasured(rangePx, viewportPx, contentHeightPx)
+}
 
 /**
  * Everything the reader needs to decide the Reply/Forward bar, carried forward one report at a
@@ -86,6 +101,29 @@ internal object BodyReveal {
      */
     fun maxScroll(contentRangePx: Int, viewportPx: Int): Int =
         (contentRangePx - viewportPx).coerceAtLeast(0)
+
+    /**
+     * Whether a reading of the content range MEASURED anything, or merely read the floor.
+     *
+     * `BodyWebView.contentRangePx()` is `computeVerticalScrollRange()` floored at the view's own
+     * height, so before the document is laid out it returns exactly [viewportPx] — which is also
+     * what a short body that genuinely fits returns. The two are indistinguishable from the range
+     * alone, and reading the floor as "it fits" is what put the Reply/Forward bar on screen for the
+     * first message opened after process start (the process's first WebView boots its renderer while
+     * the settle poll is already reading, so the poll reads the floor three times, concludes, and
+     * the ordering rule of [barAfterReport] then makes that verdict permanent).
+     *
+     * A range TALLER than the viewport is certainly a measurement: the floor cannot produce it.
+     * Otherwise only the document itself can tell the two apart — `WebView.contentHeight` is 0
+     * until there is a laid-out document, and the reader already treats it as credible (it is the
+     * fallback the height poll measures with when the view is not a [BodyMetrics] source).
+     *
+     * The cost of this choice, paid deliberately: on a body that fits, the bar now appears when the
+     * document has laid out rather than on the first reading of the floor. Erring this way costs a
+     * slightly later bar; erring the other way costs a bar that does not belong to the message.
+     */
+    fun rangeMeasured(rangePx: Int, viewportPx: Int, contentHeightPx: Int): Boolean =
+        rangePx > viewportPx || (rangePx > 0 && contentHeightPx > 0)
 
     /**
      * Whether the Reply/Forward bar belongs on screen for a body scrolled to [scrollY] out of
@@ -173,18 +211,36 @@ internal class BarReveal {
      * view's own height. A fallback height is not a measurement, so it decides nothing at all here:
      * it neither reveals the bar nor takes one back, and the settle poll below has the last word,
      * exactly as before #63. Returns [shown].
+     *
+     * A SETTLED height can be just as empty: two agreeing readings of the pre-layout floor settle
+     * the poll perfectly well, and the geometry they carry measured nothing
+     * ([BodyMetrics.measured]). Such a report is inert for the same reason as a null one.
      */
     fun bodyReady(resting: BodyMetrics?, thresholdPx: Int): Boolean {
-        if (resting == null) return shown
+        if (resting == null || !resting.measured) return shown
         return fold(resting.scrollY, resting.maxScrollPx, thresholdPx)
     }
 
     /**
      * A live scroll report: the reader moved, or the load's settle poll fired its one terminal
      * report now that the scroll range is final. Returns [shown].
+     *
+     * A report that measured nothing ([BodyMetrics.measured]) is inert here too, for the same
+     * reason as a fallback height above: it neither reveals the bar nor takes one back.
+     *
+     * [lastWord] is the ONE exception, and it exists because discarding a report is only safe while
+     * another one can still arrive. The load's settle poll keeps polling until it reads a laid-out
+     * document, but it is capped (~2.5s) and its terminal report is the only report of the resting
+     * geometry the reader is guaranteed: a body that FITS produces no scroll of its own, so there is
+     * no later gesture to fall back on. Withholding the capped report as well would trade the bar
+     * that did not belong to the message for a bar that never comes at all — the worse of the two,
+     * because nothing recovers from it. So at the cap the reader takes what it has: after 2.5s of
+     * reading the floor, the floor is the best answer anyone is going to get.
      */
-    fun scrolled(scrollY: Int, maxScrollPx: Int, thresholdPx: Int): Boolean =
-        fold(scrollY, maxScrollPx, thresholdPx)
+    fun scrolled(m: BodyMetrics, thresholdPx: Int, lastWord: Boolean = false): Boolean {
+        if (!m.measured && !lastWord) return shown
+        return fold(m.scrollY, m.maxScrollPx, thresholdPx)
+    }
 
     /**
      * The document was REPLACED — the reader switched between the message's HTML and its text

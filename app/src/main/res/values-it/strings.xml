@@ -919,6 +919,7 @@
     <string name="empty_inbox_body">Nulla in volo. La nuova posta atterrerà qui.</string>
     <string name="empty_folder_title">Ancora niente qui</string>
     <string name="empty_folder_body">Questa cartella è vuota.</string>
+    <string name="reading_pane_empty">Scegli un messaggio per leggerlo qui.</string>
     <string name="empty_trash_title">Il cestino è vuoto</string>
     <string name="empty_trash_body">La posta eliminata sosta qui prima di sparire per sempre.</string>
     <string name="empty_offline_title">Impossibile raggiungere la posta</string>

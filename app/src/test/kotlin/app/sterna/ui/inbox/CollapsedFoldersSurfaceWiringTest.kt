@@ -45,11 +45,24 @@ class CollapsedFoldersSurfaceWiringTest {
         )
         assertEquals(
             "InboxScreen writes the collapse state into a local variable again. Every write must " +
-                "go through viewModel.setFolderCollapsed, or the choice dies with the Composable.",
-            0,
-            codeLines(INBOX_SCREEN).count {
-                it.startsWith("var collapsedFolders") || it.startsWith("collapsedFolders =")
+                "go through viewModel.setFolderCollapsed, or the choice dies with the Composable. " +
+                "A named ARGUMENT is not a write and is told apart by its trailing comma: since " +
+                "#103 volet 6 the drawer content is a function of its own and is HANDED the " +
+                "collected registry — which the rule below pins, so the exemption cannot be used " +
+                "to smuggle a screen-local one back in.",
+            emptyList<String>(),
+            codeLines(INBOX_SCREEN).filter {
+                it.startsWith("var collapsedFolders") ||
+                    (it.startsWith("collapsedFolders =") && !it.endsWith(","))
             },
+        )
+        assertEquals(
+            "the drawer content must be handed the ViewModel's registry, once per envelope — the " +
+                "modal sheet under 1 200 dp and the permanent sheet above it (#103 volet 6). A " +
+                "branch that passes something else to one of the two forgets the chevrons on that " +
+                "window size alone, which is exactly the shape nobody would look for.",
+            listOf("collapsedFolders = collapsedFolders,", "collapsedFolders = collapsedFolders,"),
+            codeLines(INBOX_SCREEN).filter { it.startsWith("collapsedFolders =") },
         )
     }
 

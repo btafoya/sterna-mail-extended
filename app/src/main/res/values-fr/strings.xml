@@ -925,6 +925,7 @@
     <string name="empty_inbox_body">Rien en vol pour l\'instant. Les nouveaux messages se poseront ici.</string>
     <string name="empty_folder_title">Rien ici pour le moment</string>
     <string name="empty_folder_body">Ce dossier est vide.</string>
+    <string name="reading_pane_empty">Choisissez un message pour le lire ici.</string>
     <string name="empty_trash_title">La corbeille est vide</string>
     <string name="empty_trash_body">Les messages supprimés patientent ici avant de disparaître pour de bon.</string>
     <string name="empty_offline_title">Impossible d\'accéder à vos messages</string>

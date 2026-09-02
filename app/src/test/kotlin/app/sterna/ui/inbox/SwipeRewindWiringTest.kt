@@ -240,9 +240,10 @@ class SwipeRewindWiringTest {
         val keys = callSites(row(), "pointerInput")
         assertEquals("SwipeableEmailRow must host exactly one pointerInput. Found ${keys.size}.", 1, keys.size)
         assertEquals(
-            "the key list must stay these four: any extra key restarts the gesture in progress " +
-                "every time the row is remeasured.",
-            "gesturesEnabled, rightAction, leftAction, drawerBandPx",
+            "the key list must stay these five: any extra key restarts the gesture in progress " +
+                "every time the row is remeasured. The fifth, drawerCanOpen, is a layout class " +
+                "and not a measurement — it moves only across 1 200 dp (#103 volet 6).",
+            "gesturesEnabled, rightAction, leftAction, drawerBandPx, drawerCanOpen",
             flat(keys.single()),
         )
     }

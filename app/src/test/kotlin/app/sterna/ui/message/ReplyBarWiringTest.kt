@@ -192,6 +192,99 @@ class ReplyBarWiringTest {
         return line.trimEnd()
     }
 
+    @Test fun `the settle poll refuses to conclude on a reading that measured nothing`() {
+        // The reader's ONE guaranteed report of the resting geometry is this poll's terminal one.
+        // contentRangePx() is floored at the view's own height, so a body whose renderer is still
+        // booting reads that floor over and over — three agreeing readings of nothing. Concluding
+        // there announced "the body fits" for the first message opened after process start, and the
+        // ordering rule of barAfterReport then made that verdict permanent: the bar followed the
+        // RANK of the selection, not the body.
+        //
+        // BarReveal now discards such a report. That alone is not enough, and this rule is why: if
+        // the poll still STOPPED on the floor, its report would be discarded and nothing would ever
+        // report the real geometry — a body that fits would lose its bar for good, which is worse
+        // than the defect. The gate must be the poll's, and it must be rangeMeasured (BodyRevealTest
+        // runs that decision); the old 'range > 0' is satisfied by the floor itself.
+        val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
+        assertTrue(
+            "the settle poll must gate its stability counter on the WHOLE call " +
+                "BodyReveal.rangeMeasured(range, webView.visibleExtentPx(), webView.contentHeight) " +
+                "&& range == settleLast. Back on 'range > 0 && range == settleLast' it concludes on " +
+                "the pre-layout floor again, and the bar is a function of the rank of the selection.",
+            "if (BodyReveal.rangeMeasured(range, webView.visibleExtentPx(), webView.contentHeight) " +
+                "&& range == settleLast ) {" in screen,
+        )
+        assertTrue(
+            "and the cap must still report, AND mark itself the last word: " +
+                "reportScroll(webView, settleStable < 2). The capped report is the only report of " +
+                "the resting geometry the reader is guaranteed — a body that fits never scrolls — " +
+                "so BarReveal must be allowed to take it even unmeasured. Drop the flag and a short " +
+                "body whose renderer never announced a document loses its bar for the life of the " +
+                "page, with no gesture that brings it back.",
+            "if (settleStable >= 2 || triesLeft <= 0) { webView.reportingEnabled = true " +
+                "reportScroll(webView, settleStable < 2)" in screen,
+        )
+        assertTrue(
+            "the poll's two counters are load-bearing and neither is reachable from a JVM test: " +
+                "'settleStable++' (three agreeing reads, not two — two reopens the flicker of #63) " +
+                "and 'webView.postDelayed({ settlePoll(50) }, 50)' (a ~2.5s cap; shorten it and the " +
+                "cap lands inside the cold-renderer window, where the last-word report is the " +
+                "pre-layout floor and the bar comes back on the FIRST message of the process).",
+            "settleStable++" in screen &&
+                "webView.postDelayed({ settlePoll(50) }, 50)" in screen,
+        )
+        assertTrue(
+            "nothing may sit between the reading and the gate: the whole block must be " +
+                "val range = webView.contentRangePx() if (BodyReveal.rangeMeasured(...)). A line " +
+                "inserted here (e.g. forcing settleStable) restores the defect while every " +
+                "substring this rule reads stays intact.",
+            "val range = webView.contentRangePx() if (BodyReveal.rangeMeasured(range, " +
+                "webView.visibleExtentPx(), webView.contentHeight) && range == settleLast ) {"
+                in screen,
+        )
+    }
+
+    @Test fun `the two writers are wired to the one place that decides`() {
+        // Both doors must fold through BarReveal, and the live one must pass the last-word flag on.
+        // Rewired to anything else — or the flag dropped at the call site — the guards above are
+        // still there, still tested, and no longer reached.
+        val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
+        assertTrue(
+            "the height poll's door must be onReady = { resting -> showBar = " +
+                "barReveal.bodyReady(resting, revealThresholdPx) ... }",
+            "showBar = barReveal.bodyReady(resting, revealThresholdPx)" in screen,
+        )
+        assertTrue(
+            "the scroll door must be onScroll = { m, lastWord -> ... showBar = " +
+                "barReveal.scrolled(m, revealThresholdPx, lastWord) }. Dropping lastWord here " +
+                "silently discards the capped report again.",
+            "onScroll = { m, lastWord -> scrollY.intValue = m.scrollY showBar = " +
+                "barReveal.scrolled(m, revealThresholdPx, lastWord) }" in screen,
+        )
+    }
+
+    @Test fun `both doors report the raw geometry, so the decision stays in one place`() {
+        // The two writers must hand BarReveal what they READ — range, viewport and the document's
+        // own laid-out height — not a maxScroll they already reduced. Reduced to maxScroll, "the
+        // renderer has not laid out yet" and "the body fits" are the same number, and no guard
+        // downstream can tell them apart.
+        val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
+        assertTrue(
+            "reportScroll must build the whole BodyMetrics( scrollY = wv.scrollY, rangePx = " +
+                "wv.contentRangePx(), viewportPx = wv.visibleExtentPx(), contentHeightPx = " +
+                "wv.contentHeight, ). Dropping contentHeightPx leaves the floor indistinguishable " +
+                "from a body that fits.",
+            "BodyMetrics( scrollY = wv.scrollY, rangePx = wv.contentRangePx(), viewportPx = " +
+                "wv.visibleExtentPx(), contentHeightPx = wv.contentHeight, )" in screen,
+        )
+        assertTrue(
+            "restingMetrics must do the same, keeping the tallest-reading rule: BodyMetrics( " +
+                "scrollY = body.scrollY, rangePx = maxOf(step.px, maxSeen), viewportPx = " +
+                "body.visibleExtentPx(), contentHeightPx = body.contentHeight, )",
+            "BodyMetrics( scrollY = body.scrollY, rangePx = maxOf(step.px, maxSeen), viewportPx = " +
+                "body.visibleExtentPx(), contentHeightPx = body.contentHeight, )" in screen,
+        )
+    }
     companion object {
         /** The reveal machinery, which the setting must not touch: two of these three serve the
          *  body and the header, not the bar. */

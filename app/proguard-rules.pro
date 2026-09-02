@@ -86,3 +86,13 @@
 # lambda IS the ring. The facade rule would leave them to be merged, renamed or inlined on their
 # own, and a minified build would then paint an empty screen on all fifteen loading states.
 -keep class app.sterna.ui.components.LoadingRingKt$** { *; }
+
+# Same family, pre-emptive (#103). ReadingPane holds two small, non-inline @Composable functions:
+# the row that puts the list beside the reading pane, and the pane's own "select a message" line.
+# Inlined away, a wide window would show the list alone — or a blank right half — in release only.
+-keep class app.sterna.ui.inbox.ReadingPaneKt { *; }
+# And its anonymous classes, same reason as LoadingRing above: the row's content lambdas — the
+# `{ list() }` and `{ detail() }` handed to each Box — compile to ReadingPaneKt$ListDetailPanes$…,
+# outside the facade the rule above keeps; merged or inlined on their own, a wide window would
+# paint one of the two halves empty in a minified build.
+-keep class app.sterna.ui.inbox.ReadingPaneKt$** { *; }

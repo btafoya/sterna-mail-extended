@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
@@ -245,8 +246,24 @@ data class UndoAction(
     val label: String,
 )
 
+/** The saved-state keys of the reading pane's anchor (#103), the quintuplet of the `message/…` route. */
+private const val PANE_EMAIL_ID = "pane.emailId"
+private const val PANE_ACCOUNT_ID = "pane.accountId"
+private const val PANE_SRC = "pane.src"
+private const val PANE_INDEX = "pane.index"
+private const val PANE_THREAD = "pane.thread"
+
+/**
+ * Built by the framework through `SavedStateViewModelFactory` — what `viewModel(entry)` on a
+ * `NavBackStackEntry` uses — which knows the `(Application, SavedStateHandle)` signature. The
+ * handle is the "inbox" entry's own and survives process death; it carries the reading pane's
+ * anchor (#103) and nothing else here. ⛔ Nothing in `app/src` instantiates this class by hand.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
-class InboxViewModel(application: Application) : AndroidViewModel(application) {
+class InboxViewModel(
+    application: Application,
+    private val savedState: SavedStateHandle,
+) : AndroidViewModel(application) {
     private val store = application.container.accountStore
     private val repo = application.container.mailRepository
     private val settings = application.container.settingsRepository
@@ -394,6 +411,102 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearHighlight() {
         _highlightId.value = null
+    }
+
+    // -- the reading pane beside the list, on a wide window (#103) --------------------------------
+
+    /**
+     * The message the pane shows, restored from the saved state after process death so the pane
+     * comes back on the message it had (the route would have, on a narrow window). The session
+     * restarts at 0: there is no pager alive to keep.
+     */
+    private val _readingPane = MutableStateFlow(ReadingPaneState(anchor = readSavedAnchor(), session = 0))
+    val readingPane: StateFlow<ReadingPaneState> = _readingPane.asStateFlow()
+
+    /**
+     * A tap on a row, on a wide window: the message opens in the pane instead of on a route. The
+     * flash staged by [onEmailOpened] — which the row calls just before this — is dropped: it was
+     * the return-to-list emphasis, and the list never leaves the screen here.
+     */
+    fun openInPane(anchor: MessageAnchor) {
+        setReadingPane(ReadingPaneRule.open(_readingPane.value, anchor))
+        pendingHighlightId = null
+    }
+
+    /**
+     * The message a TAPPED NOTIFICATION posts in the pane — parked as well as opened.
+     *
+     * A notification for another account switches that account first, and [onAccountChanged]
+     * empties the pane exactly like the four other changes of scope: what was open belongs to the
+     * list it was opened in. The park is what puts THIS one message back afterwards, so the order
+     * in which the host's two effects run stops mattering — the same parade as [notificationFolder]
+     * beside it: park, consume once, and every other switch still empties.
+     */
+    fun openFromNotification(anchor: MessageAnchor) {
+        notificationAnchor = anchor
+        openInPane(anchor)
+    }
+
+    /** The pane's pager settled on a page: the anchor — and the row painted current — follow it. */
+    fun followPage(emailId: String, accountId: String?, index: Int) {
+        setReadingPane(ReadingPaneRule.follow(_readingPane.value, emailId, accountId, index))
+    }
+
+    /**
+     * Empties the pane; true if it was showing something. The boolean is the guard against a
+     * second tap on Archive / Delete / Move in the pane's own bar: the first tap empties the pane
+     * and acts, the second finds nothing to act on. ⛔ Never "the next message" here: the settle
+     * marks a message read, and nothing may happen to a message nobody chose to open
+     * (`SECURITY.md`).
+     */
+    fun closePane(): Boolean {
+        val had = _readingPane.value.anchor != null
+        setReadingPane(ReadingPaneRule.close(_readingPane.value))
+        return had
+    }
+
+    private fun setReadingPane(next: ReadingPaneState) {
+        _readingPane.value = next
+        persistAnchor(next.anchor)
+    }
+
+    /**
+     * A switch of scope empties the pane, on the same line the threads are collapsed and for the
+     * same reason: what was open belongs to the list it was opened in. ⛔ Not from a collector on
+     * [selection] — the restored selection is emitted at start-up and would erase the restored
+     * anchor — and not on the folder a notification came from (`applyNotificationFolder`), which
+     * lands AFTER the anchor that notification posted.
+     */
+    private fun paneOnViewChanged() {
+        setReadingPane(ReadingPaneRule.onViewChanged(_readingPane.value))
+    }
+
+    /** Through [ReadingPaneRule.restored]: the message comes back alone, never with a pager on a list that restarts. */
+    private fun readSavedAnchor(): MessageAnchor? {
+        val emailId = savedState.get<String>(PANE_EMAIL_ID) ?: return null
+        val saved = MessageAnchor.fromRoute(
+            emailId = emailId,
+            accountId = savedState[PANE_ACCOUNT_ID],
+            index = savedState.get<Int>(PANE_INDEX) ?: 0,
+            src = savedState[PANE_SRC],
+            thread = savedState[PANE_THREAD],
+        )
+        return ReadingPaneRule.restored(saved)
+    }
+
+    /** Five keys for the five fields; an empty pane removes them all, so nothing stale is restored. */
+    private fun persistAnchor(anchor: MessageAnchor?) {
+        if (anchor == null) {
+            for (key in listOf(PANE_EMAIL_ID, PANE_ACCOUNT_ID, PANE_SRC, PANE_INDEX, PANE_THREAD)) {
+                savedState.remove<Any>(key)
+            }
+            return
+        }
+        savedState[PANE_EMAIL_ID] = anchor.emailId
+        savedState[PANE_ACCOUNT_ID] = anchor.accountId
+        savedState[PANE_SRC] = anchor.src
+        savedState[PANE_INDEX] = anchor.index
+        savedState[PANE_THREAD] = anchor.thread
     }
 
     /**
@@ -832,8 +945,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * The clock every rule about the refresh indicator and the freshness register reads, as a field
-     * rather than a constructor parameter: this is an `AndroidViewModel`, the framework builds it,
-     * and nothing here could hand it another one. The decisions themselves take `now` as an
+     * rather than a constructor parameter: this is an `AndroidViewModel`, the framework builds it
+     * (with its `SavedStateHandle`, the only other thing it knows how to hand over), and nothing
+     * here could hand it another one. The decisions themselves take `now` as an
      * argument and live in `RefreshIndicatorGrace.kt` and `RefreshFreshness.kt`, where plain JVM
      * tests run them on a virtual clock.
      *
@@ -865,13 +979,28 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private var refreshAnswersAGesture = false
 
     /**
-     * A folder a tapped notification asked the list to show, as (accountId, mailboxId), waiting
-     * for that account's folder list to arrive. Non-null only between the tap and the first
-     * loaded folder list — [applyNotificationFolder] consumes it either way, so it can never
+     * A folder a tapped notification asked the list to show, as (accountId, mailboxId, emailId),
+     * waiting for that account's folder list to arrive. Non-null only between the tap and the
+     * first loaded folder list — [applyNotificationFolder] consumes it either way, so it can never
      * resurface later and yank the user out of a folder they picked themselves. Declared before
      * the folder flow that reads it, which is the only place it is judged.
+     *
+     * The message id travels WITH the folder, and is the notification's own: it is what
+     * [ReadingPaneRule.onFolderFromNotification] judges the reading pane against (#103), and it is
+     * read from here rather than from [notificationAnchor] precisely because the anchor is a park
+     * the account switch spends — which of the two effects lands first is not this rule's business.
      */
-    private var notificationFolder: Pair<String, String>? = null
+    private var notificationFolder: Triple<String, String, String>? = null
+
+    /**
+     * The message a tapped notification posted in the reading pane, kept so the account switch that
+     * same notification asks for can put it back ([openFromNotification], [onAccountChanged]).
+     *
+     * ⛔ It is a park for ONE switch and nothing reads it as a flag: [applyNotificationFolder] has
+     * the notification's message id of its own ([notificationFolder]) and judges the pane against
+     * that, because this field is already spent by the time the folder list arrives (#103).
+     */
+    private var notificationAnchor: MessageAnchor? = null
 
     /**
      * The RESTORED folder whose name [restoredMeta] left blank, waiting for a folder list to name
@@ -1398,6 +1527,18 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun onAccountChanged() {
         collapseThreads()
+        // The pane empties with the account, on the same line the threads are collapsed and by the
+        // SAME door as the four other switches of scope (#103). ⛔ Never "keep it when the anchor
+        // is already the arriving account's": in the unified inbox a row of account B is opened
+        // while A is current, and switching to B by the drawer would then keep a message that may
+        // be in no folder the new list shows, with A's paging index still on it.
+        paneOnViewChanged()
+        // What a tapped notification asked for is the exception, and it is an exception this
+        // method can NAME: the message that notification parked in [openFromNotification]. Put
+        // back only onto the account it belongs to, and dropped WHATEVER the verdict — a park kept
+        // past its own switch is replayed onto a stranger's list the next time she switches (#92).
+        ReadingPaneRule.replayOnAccountChange(notificationAnchor, store.currentId())?.let { openInPane(it) }
+        notificationAnchor = null
         currentAccountId.value = store.currentId()
         selection.value = Sel.Folder(store.inboxMailboxId())
         unifiedInboxScopes.value = store.allInboxScopes()
@@ -1649,6 +1790,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun selectUnified() {
         if (selection.value is Sel.Unified) return
         collapseThreads()
+        paneOnViewChanged()
         selection.value = Sel.Unified
         unifiedInboxScopes.value = store.allInboxScopes()
         meta.value = Meta(UNIFIED_LABEL, UNIFIED_LABEL, store.totalUnreadCount())
@@ -1675,14 +1817,26 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun selectUnread() {
         if (selection.value is Sel.Unread) return
         collapseThreads()
+        paneOnViewChanged()
         selection.value = Sel.Unread
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refreshUnlessFresh()
     }
 
     fun select(mailbox: Mailbox) {
+        select(mailbox, emptyPane = true)
+    }
+
+    /**
+     * [emptyPane] is false on ONE path: the folder a tapped notification came from (#91),
+     * [applyNotificationFolder]. It lands after the anchor that notification posted in the pane —
+     * on a cold start or after an account switch the folder list arrives a beat later — and
+     * emptying there would take the very message the tap asked for off the right (#103).
+     */
+    private fun select(mailbox: Mailbox, emptyPane: Boolean) {
         if (selection.value == Sel.Folder(mailbox.id)) return
         collapseThreads()
+        if (emptyPane) paneOnViewChanged()
         selection.value = Sel.Folder(mailbox.id)
         meta.value = Meta(store.accountLabel(), mailbox.name, mailbox.unreadEmails)
         refreshUnlessFresh()
@@ -1702,14 +1856,14 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
      * otherwise. Consumed on that first verdict whatever it is: a request that cannot be
      * honoured (its account never became current) is dropped rather than kept to fire later.
      */
-    fun showFolderFromNotification(accountId: String, mailboxId: String) {
-        notificationFolder = accountId to mailboxId
+    fun showFolderFromNotification(accountId: String, mailboxId: String, emailId: String) {
+        notificationFolder = Triple(accountId, mailboxId, emailId)
         if (currentAccountId.value == accountId) applyNotificationFolder(state.value.mailboxes)
     }
 
     /** Judge a parked [notificationFolder] against a freshly loaded [folders] list. */
     private fun applyNotificationFolder(folders: List<Mailbox>) {
-        val (accountId, mailboxId) = notificationFolder ?: return
+        val (accountId, mailboxId, emailId) = notificationFolder ?: return
         // An empty list is "not known yet" — same conservative reading as [selectionIsGone].
         // Keep waiting rather than deciding on nothing.
         if (folders.isEmpty()) return
@@ -1726,7 +1880,14 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         // that is judged, by the same rule the fallback runs ([notificationFolderToShow]): the flag
         // is the current account's, which the guard two lines up is what makes true.
         val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return
-        folders.firstOrNull { it.id == show }?.let(::select)
+        // ⛔ Not a flat `emptyPane = false`, and no longer "was a message parked?" either — that
+        // question is answered by a park the ACCOUNT SWITCH spends, so a notification for another
+        // account read `null` here and emptied the very message it had just posted. The rule below
+        // asks the only order-proof question instead: is what the pane holds MY message? Applied
+        // BEFORE select(), which is then told to leave the pane alone, having nothing left to
+        // decide about it.
+        setReadingPane(ReadingPaneRule.onFolderFromNotification(_readingPane.value, emailId, accountId))
+        folders.firstOrNull { it.id == show }?.let { select(it, emptyPane = false) }
     }
 
     /**
@@ -1751,6 +1912,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         val inboxId = store.inboxMailboxId()
         if (selection.value == Sel.Folder(inboxId)) return
         collapseThreads()
+        paneOnViewChanged()
         selection.value = Sel.Folder(inboxId)
         meta.value = Meta(store.accountLabel(), store.inboxMailboxName(), store.unreadCount())
         refreshUnlessFresh()

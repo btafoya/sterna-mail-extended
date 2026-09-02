@@ -79,6 +79,10 @@ import kotlinx.coroutines.delay
  * the bold weight of an unread row is decided elsewhere and never consults it, so a reader who finds
  * the tint too loud still sees which mail is unread.
  *
+ * [current] is the row the reading pane beside the list is showing (#103): [ColorScheme.primaryContainer],
+ * behind the selection (which arms the destructive actions and must stay the one colour that says
+ * so) and ahead of the unread tint (the open message is marked read on settle a moment later anyway).
+ *
  * [flash] is the return-from-message emphasis: it tints whichever base was retained, never a branch
  * of its own, so the flash cannot erase the selected or unread state while it plays — and it is not
  * what [unreadTint] switches off.
@@ -86,12 +90,14 @@ import kotlinx.coroutines.delay
 internal fun rowBackground(
     scheme: ColorScheme,
     selected: Boolean,
+    current: Boolean,
     unread: Boolean,
     unreadTint: Boolean,
     flash: Float,
 ): Color {
     val base = when {
         selected -> scheme.secondaryContainer
+        current -> scheme.primaryContainer
         unread && unreadTint -> scheme.surfaceContainerHighest
         else -> scheme.surface
     }
@@ -167,6 +173,8 @@ fun EmailListItem(
     originColor: Color? = null,
     onToggleFavourite: (() -> Unit)? = null,
     selected: Boolean = false,
+    // The message open in the reading pane beside the list, on a wide window (#103).
+    current: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     // In conversation view: the thread's unread state and how many of its messages are in
     // the viewed folder(s) — the pill shows this in-view count.
@@ -261,6 +269,7 @@ fun EmailListItem(
     val rowColor = rowBackground(
         scheme = MaterialTheme.colorScheme,
         selected = selected,
+        current = current,
         unread = unread,
         unreadTint = unreadTint,
         flash = highlight.value,

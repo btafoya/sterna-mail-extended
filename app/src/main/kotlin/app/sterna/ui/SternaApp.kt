@@ -27,11 +27,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.withResumed
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -52,6 +54,8 @@ import app.sterna.ui.connect.ConnectScreen
 import app.sterna.core.jmap.model.Email
 import app.sterna.ui.inbox.InboxScreen
 import app.sterna.ui.inbox.InboxViewModel
+import app.sterna.ui.inbox.MessageAnchor
+import app.sterna.ui.inbox.ReadingPane
 import app.sterna.ui.inbox.Sel
 import app.sterna.ui.inbox.restoredSelection
 import app.sterna.ui.inbox.ThreadKey
@@ -274,6 +278,11 @@ private fun MainNavHost(
     onUnifiedOpenConsumed: () -> Unit = {},
 ) {
     val nav = rememberNavController()
+    // The window WIDTH decides whether a reading pane sits beside the list (#103) — never the
+    // orientation: a phone in landscape is 640–914 dp and qualifies. `panes` carries the decision
+    // (null = one pane, the layout under 600 dp); the "inbox" destination lays the split out, and
+    // the notification effect below asks it whether the pane is there to receive a message.
+    val panes = paneSplit(LocalConfiguration.current.screenWidthDp)
     // A tapped mailto: link opens the compose screen prefilled with the parsed fields
     // (Codeberg #15). Consumed immediately so recompositions can't re-navigate.
     LaunchedEffect(pendingMailto) {
@@ -305,6 +314,8 @@ private fun MainNavHost(
     // in the composition that consumes the tap (the NavHost has not composed its start
     // destination yet) — this waits for the composition where it is, instead of being dropped.
     var pendingFolderOpen by remember { mutableStateOf<EmailOpenTarget?>(null) }
+    // The message a tapped notification posts in the reading pane, held until the list exists (#103).
+    var pendingPaneOpen by remember { mutableStateOf<MessageAnchor?>(null) }
     // A tapped new-mail notification opens that specific message, standalone (no list paging),
     // even when the app was already running (Codeberg #17 follow-up). Same consume-once pattern.
     // Opening it also makes the message's own account current (issue #31 follow-up), so Back
@@ -329,11 +340,21 @@ private fun MainNavHost(
         // same server routinely share mailbox ids), and a notification old enough to carry
         // neither predates both extras.
         pendingFolderOpen = target.takeIf { it.accountId != null && it.mailboxId != null }
-        // unguarded: a single consumption, and it can arrive mid-transition — adding the guard
-        // here could lose the opening of a notification the user just tapped.
-        nav.navigate(
-            "message/${Uri.encode(target.emailId)}?accountId=${Uri.encode(target.accountId.orEmpty())}",
-        )
+        // On a wide window with the LIST on screen the message goes into the reading pane beside
+        // it (#103); anywhere else — one pane, or a composer, a search, a reader, the settings on
+        // top — the reader stacks as it always did. [PaneOrders] owns that verdict, alone and
+        // executable; do not inline it back into a condition here.
+        when (PaneOrders.emailOpen(panes != null, nav.currentBackStack.value.map { it.destination.route })) {
+            // unguarded: a single consumption, and it can arrive mid-transition — adding the guard
+            // here could lose the opening of a notification the user just tapped.
+            EmailOpenOrder.Navigate -> nav.navigate(
+                "message/${Uri.encode(target.emailId)}?accountId=${Uri.encode(target.accountId.orEmpty())}",
+            )
+            // A lone message, no paging context: the route above carries none either.
+            EmailOpenOrder.ShowInPane -> {
+                pendingPaneOpen = MessageAnchor(target.emailId, target.accountId, src = null, index = 0, thread = null)
+            }
+        }
     }
     // Keyed on [listViewModel] as well, so the request is handed over in the first composition
     // where the list exists rather than lost on a cold start.
@@ -341,7 +362,24 @@ private fun MainNavHost(
         val target = pendingFolderOpen ?: return@LaunchedEffect
         val list = listViewModel ?: return@LaunchedEffect
         pendingFolderOpen = null
-        list.showFolderFromNotification(target.accountId.orEmpty(), target.mailboxId.orEmpty())
+        // The message id travels with the folder: the folder switch is what decides whether the
+        // reading pane keeps what is in it, and it answers "is that MY message?" rather than
+        // "did something get parked?" — which of the two effects below lands first is not a
+        // question the pane may depend on (#103).
+        list.showFolderFromNotification(target.accountId.orEmpty(), target.mailboxId.orEmpty(), target.emailId)
+    }
+    // The pane half of the same hand-over, in the exact form of [pendingFolderOpen] and for the
+    // same reason: on a COLD start [listViewModel] is null in the composition that consumes the
+    // tap, so the anchor is held until the composition where the list exists. Declared AFTER the
+    // folder effect so, in the batch where both run, the folder switch lands first and the anchor
+    // second. ⛔ remember, never rememberSaveable — same reason as [heldUnifiedOpen] below.
+    LaunchedEffect(pendingPaneOpen, listViewModel) {
+        val anchor = pendingPaneOpen ?: return@LaunchedEffect
+        val list = listViewModel ?: return@LaunchedEffect
+        pendingPaneOpen = null
+        // openFromNotification, never openInPane: this message must also survive the account
+        // switch the same notification asked for a moment ago (#103).
+        list.openFromNotification(anchor)
     }
     // A tapped home-screen widget puts the list on the unified inbox (Codeberg #112) — the widget
     // only asks for it when the app has that view at all, i.e. from two accounts up (UnreadWidgetTap).
@@ -425,29 +463,65 @@ private fun MainNavHost(
         exitTransition = { ExitTransition.None },
     ) {
         composable("inbox") { entry ->
+            // `panes` (decided once, above, from the window width) says whether a reading pane
+            // sits beside the list. The ViewModel is the "inbox" entry's own — the one the reader
+            // and the composer share through getBackStackEntry("inbox") — so all three panes
+            // read one list state.
+            val inboxViewModel: InboxViewModel = viewModel(entry)
+            // What the reading pane shows (null anchor = the invitation line). The same anchor
+            // is what a narrow window turns into the `message/…` route below.
+            val pane by inboxViewModel.readingPane.collectAsStateWithLifecycle()
+            // Half of the width conversion (#103): the window narrowed under a message that was in
+            // the pane — a rotation, a folding phone, a freeform window resized — so the anchor
+            // goes back to being the `message/…` route a narrow window has always used. It is the
+            // ONLY navigation this app plays at a recreation, and it is driven by the STATE (an
+            // anchor is there, the split is gone), never by the intent: MainActivity's
+            // `savedInstanceState == null` guard and heldUnifiedOpen's `remember` exist precisely
+            // to stop a tap replaying itself across a recreation.
+            //
+            // The three calls are written in the order they read, and that order is NOT a guard:
+            // closePane() does not touch the staged return-flash (only openInPane clears it, see
+            // InboxViewModel.openInPane), so onEmailOpened stages the same id before it or after
+            // it. What matters is that onEmailOpened runs AT ALL — it gives Back out of this
+            // reader the same row flash a tap in portrait gets.
+            //
+            // withResumed because a restored entry is at most STARTED until its transition ends,
+            // and navigateOnce evaluated then would refuse and lose the conversion without a word.
+            // ⚠ If the entry is DESTROYED while withResumed waits, it throws
+            // LifecycleDestroyedException — which extends java.util.concurrent.CancellationException
+            // (read off androidx/lifecycle/LifecycleDestroyedException.class in lifecycle-runtime).
+            // The LaunchedEffect's coroutine is being cancelled at that very moment, so it absorbs
+            // it like any other cancellation: nothing to catch here, and no crash to fear.
+            val anchor = pane.anchor
+            if (PaneConversion.paneToReader(panes != null, anchor != null) && anchor != null) {
+                LaunchedEffect(anchor) {
+                    entry.lifecycle.withResumed {
+                        entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
+                        inboxViewModel.closePane()
+                        inboxViewModel.onEmailOpened(anchor.emailId)
+                    }
+                }
+            }
             InboxScreen(
                 onOpenEmail = { id, accountId, index, fromSearch ->
                     // Carry the tapped entry's position and whether it came from the inline
-                    // search results, so the reading view can page between the same entries.
-                    entry.navigateOnce {
-                        val src = if (fromSearch) "search" else "list"
-                        nav.navigate("message/${Uri.encode(id)}?accountId=${Uri.encode(accountId.orEmpty())}&index=$index&src=$src")
-                    }
+                    // search results ("src=list|search"), so the reading view can page between
+                    // the same entries. Wide window: the pane; narrow: the route, unchanged.
+                    val anchor = MessageAnchor(id, accountId, if (fromSearch) "search" else "list", index, null)
+                    if (panes != null) inboxViewModel.openInPane(anchor)
+                    else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
                 // A message tapped inside an inline-expanded conversation reads in the context
                 // of THAT conversation: the thread key + the tapped message's position travel
                 // along, so the reader swipes between the conversation's messages and stops at
-                // its ends instead of spilling into the list (Codeberg #13).
+                // its ends instead of spilling into the list (Codeberg #13). The key travels
+                // ACCOUNT-QUALIFIED (ThreadKey.encode): a route carrying a bare thread id let the
+                // reader page over the sibling account's homonymous conversation in the unified
+                // inbox (#92).
                 onOpenThreadMessage = { id, accountId, threadKey, index ->
-                    entry.navigateOnce {
-                        // The key travels ACCOUNT-QUALIFIED (ThreadKey.encode): a route carrying a
-                        // bare thread id let the reader page over the sibling account's
-                        // homonymous conversation in the unified inbox (#92).
-                        nav.navigate(
-                            "message/${Uri.encode(id)}?accountId=${Uri.encode(accountId.orEmpty())}" +
-                                "&index=$index&src=thread&thread=${Uri.encode(threadKey.encode())}",
-                        )
-                    }
+                    val anchor = MessageAnchor(id, accountId, "thread", index, threadKey.encode())
+                    if (panes != null) inboxViewModel.openInPane(anchor)
+                    else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
                 onCompose = { entry.navigateOnce { nav.navigate("compose") } },
                 // unguarded: reopening an undone send is a deliberate one-shot driven off the
@@ -474,6 +548,27 @@ private fun MainNavHost(
                 currentAccountId = currentAccountId,
                 onSwitchAccount = onSwitchAccount,
                 onOpenAccountSettings = { id -> entry.navigateOnce { nav.navigate("settings?accountId=$id") } },
+                viewModel = inboxViewModel,
+                panes = panes,
+                detail = panes?.let {
+                    {
+                        ReadingPane(
+                            state = pane,
+                            inboxViewModel = inboxViewModel,
+                            // The two hand-offs to the composer, guarded on the INBOX entry
+                            // being resumed, as the full-screen reader guards them on its own.
+                            onReply = { mode, replyToId, replyAccountId ->
+                                entry.navigateOnce {
+                                    val accountArg = replyAccountId?.let { "&accountId=${Uri.encode(it)}" }.orEmpty()
+                                    nav.navigate("compose?replyTo=${Uri.encode(replyToId)}&mode=$mode$accountArg")
+                                }
+                            },
+                            onComposeTo = { address ->
+                                entry.navigateOnce { nav.navigate("compose?to=${Uri.encode(address)}") }
+                            },
+                        )
+                    }
+                },
             )
         }
         composable(
@@ -505,6 +600,36 @@ private fun MainNavHost(
             val accountId = entry.arguments?.getString("accountId")?.let { Uri.decode(it) }?.ifBlank { null }
             val index = entry.arguments?.getString("index")?.toIntOrNull() ?: 0
             val src = entry.arguments?.getString("src")
+            // The account-qualified conversation key EXACTLY as the route carries it
+            // (ThreadKey.encode), read up here because the conversion below rebuilds the anchor out
+            // of this destination's own arguments and wants it in that form; [threadKey] just below
+            // is the decoded one the pager needs.
+            val threadArg = entry.arguments?.getString("thread")?.let { Uri.decode(it) }?.ifBlank { null }
+            // The other half of the width conversion (#103): nothing in the manifest holds a
+            // rotation back, so the activity is recreated and the NavHost restores this reader FULL
+            // SCREEN over a list that is now two panes wide. It is converted once, from the STATE of
+            // the restored stack — never from the intent, for the reason the "inbox" destination
+            // gives above.
+            //
+            // ⛔ And the reader is NOT composed on this pass: the message belongs to the pane now,
+            // and composing it here as well would run a second MessageViewModel over it and settle
+            // it twice — a read receipt offered twice, a second decryption, a message marked read
+            // from a screen nobody ever looked at. withResumed for the same reason as the other
+            // half: a restored entry is not RESUMED until its transition is over.
+            val stack = remember(entry) { nav.currentBackStack.value.map { it.destination.route } }
+            if (PaneConversion.readerToPane(panes != null, stack)) {
+                val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
+                val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
+                LaunchedEffect(entry) {
+                    entry.lifecycle.withResumed {
+                        inboxViewModel.openInPane(MessageAnchor.fromRoute(emailId, accountId, index, src, threadArg))
+                        entry.navigateOnce { nav.popBackStack() }
+                    }
+                }
+                // Nothing to draw: the message is in the pane, one destination below.
+                Box(Modifier.fillMaxSize())
+                return@composable
+            }
             // Share the inbox's own ViewModel (same backstack entry) so the reading view pages
             // over the exact list the user was looking at — reusing its paging, not a copy.
             val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
@@ -519,9 +644,7 @@ private fun MainNavHost(
             // taken from the expansion the list already holds in memory (no new query).
             // Snapshotted once for the reading session, like the search results above, so a
             // background thread completion can't shift the pages under the reader's fingers.
-            val threadKey = entry.arguments?.getString("thread")
-                ?.let { Uri.decode(it) }?.ifBlank { null }
-                ?.let { ThreadKey.decode(it) }
+            val threadKey = threadArg?.let { ThreadKey.decode(it) }
             val threadEntries = if (src == "thread" && threadKey != null) {
                 remember(inboxViewModel, threadKey) { inboxViewModel.threadEntries(threadKey) }
             } else {

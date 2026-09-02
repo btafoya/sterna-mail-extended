@@ -913,6 +913,7 @@
     <string name="empty_inbox_body">Nichts unterwegs. Neue Post landet hier.</string>
     <string name="empty_folder_title">Noch nichts hier</string>
     <string name="empty_folder_body">Dieser Ordner ist leer.</string>
+    <string name="reading_pane_empty">Wähle eine Nachricht aus, um sie hier zu lesen.</string>
     <string name="empty_trash_title">Papierkorb ist leer</string>
     <string name="empty_trash_body">Gelöschte Post wartet hier, bevor sie endgültig verschwindet.</string>
     <string name="empty_offline_title">Deine Post ist nicht erreichbar</string>

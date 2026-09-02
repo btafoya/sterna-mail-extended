@@ -12,6 +12,9 @@ internal enum class InboxBackAction {
     /** Multi-select is on: back drops the selection. */
     CLEAR_SELECTION,
 
+    /** A message is open in the reading pane beside the list: back empties the pane (#103). */
+    CLOSE_DETAIL,
+
     /** Inline search is open: back closes it and gives the list back (Codeberg #86). */
     CLOSE_SEARCH,
 
@@ -30,16 +33,24 @@ internal enum class InboxBackAction {
  * folder takes two presses (leave the search, then leave the folder), which is what closing
  * the search by hand then pressing Back would do.
  *
+ * The reading pane sits between the selection and the search: it is the portrait order, where
+ * the reader is stacked above the search and the selection bar covers the reader (#103).
+ *
  * The drawer is NOT part of this: [androidx.compose.material3.ModalNavigationDrawer] registers
  * its own back handling while it is open, and — being composed after these — it wins, so an
- * open drawer still closes on Back before any of this applies.
+ * open drawer still closes on Back before any of this applies. That is the case under 1 200 dp
+ * only: from there the drawer is permanent and has no Back of its own to register — it is never
+ * "open", so nothing is peeled off before this rule and [CLOSE_DETAIL] applies exactly as
+ * written (#103, volet 6).
  */
 internal fun inboxBackAction(
     selectionActive: Boolean,
+    detailOpen: Boolean,
     searching: Boolean,
     atInbox: Boolean,
 ): InboxBackAction = when {
     selectionActive -> InboxBackAction.CLEAR_SELECTION
+    detailOpen -> InboxBackAction.CLOSE_DETAIL
     searching -> InboxBackAction.CLOSE_SEARCH
     !atInbox -> InboxBackAction.SHOW_INBOX
     else -> InboxBackAction.LEAVE_APP

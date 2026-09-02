@@ -53,11 +53,14 @@ import java.io.File
  */
 class EmailListItemBackgroundWiringTest {
 
-    /** The call, whole, from its opening line to its closing parenthesis. Mutations 1, 2 and 3. */
+    /** The call, whole, from its opening line to its closing parenthesis. Mutations 1, 2 and 3 —
+     *  and, since #103, `current = current,` in its place: `current = false` there leaves the row
+     *  the reading pane shows unmarked on every wide window, with [RowBackgroundTest] green. */
     private val expectedCall = listOf(
         "val rowColor = rowBackground(",
         "scheme = MaterialTheme.colorScheme,",
         "selected = selected,",
+        "current = current,",
         "unread = unread,",
         "unreadTint = unreadTint,",
         "flash = highlight.value,",

@@ -264,8 +264,8 @@ class UnreadViewWiringLintTest {
         val lines = codeLines(INBOX_SCREEN).map { it.trim() }
             .filter { Regex("""\bbackAction\b""").containsMatchIn(it) }
         assertEquals(
-            "The list screen must hand inboxBackAction exactly these three flags and bind a handler " +
-                "for each of its three non-default outcomes. Widening the third argument (e.g. " +
+            "The list screen must hand inboxBackAction exactly these four flags and bind a handler " +
+                "for each of its four non-default outcomes. Widening the third argument (e.g. " +
                 "'ui.selectedMailboxId == null || ui.atInbox') restores the defect at the reading " +
                 "end, and dropping the SHOW_INBOX handler turns every Back outside the Inbox into " +
                 "leaving the app — neither is visible to any other test in this repo. Whole lines, " +
@@ -572,10 +572,16 @@ class UnreadViewWiringLintTest {
             "atInbox = isAtInbox(selection.value) { store.inboxMailboxId() },",
         )
 
-        /** The screen's whole use of the Back rule: the question, then the three handlers. */
+        /**
+         * The screen's whole use of the Back rule: the question, then the four handlers. The
+         * reading pane's flag is `detail != null && pane.anchor != null` (#103): the host's split
+         * AND a message in it — `pane.anchor != null` alone would swallow a Back on a narrow window
+         * over an anchor nothing there can show.
+         */
         private val EXPECTED_BACK_ACTION_LINES = listOf(
-            "val backAction = inboxBackAction(selectionActive, ui.searching, ui.atInbox)",
+            "val backAction = inboxBackAction(selectionActive, detailOpen = detail != null && pane.anchor != null, ui.searching, ui.atInbox)",
             "BackHandler(enabled = backAction == InboxBackAction.CLEAR_SELECTION) { viewModel.clearSelection() }",
+            "BackHandler(enabled = backAction == InboxBackAction.CLOSE_DETAIL) { viewModel.closePane() }",
             "BackHandler(enabled = backAction == InboxBackAction.CLOSE_SEARCH) { viewModel.setSearchActive(false) }",
             "BackHandler(enabled = backAction == InboxBackAction.SHOW_INBOX) { viewModel.showInbox() }",
         )

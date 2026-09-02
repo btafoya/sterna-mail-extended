@@ -54,9 +54,9 @@ Three principles:
 
 | Component | Treatment |
 |---|---|
-| Top bar | `MediumTopAppBar` that collapses on scroll; an unread-only filter, sort, search and an overflow menu as actions; hamburger opens the folder drawer, and Settings sits at the foot of that drawer rather than in the bar. |
+| Top bar | `MediumTopAppBar` that collapses on scroll; an unread-only filter, sort, search and an overflow menu as actions; hamburger opens the folder drawer below 1200 dp of window width; from 1200 dp there is no hamburger, the drawer is permanent. Settings sits at the foot of that drawer rather than in the bar. |
 | Message row | monogram (a setting) · sender + time · subject · preview (0 to 5 lines, a setting) · an account chip, tinted with the account's own colour when one is set, where rows come from several accounts (unified inbox, search) · paperclip and favourite star at the end. **Unread is shown by weight, never by a status dot**: sender, time and subject go bold, and the row also takes `surfaceContainerHighest` unless the reader turns that background off, because bold alone read too faint in the dark scheme. |
-| Folder drawer | `ModalNavigationDrawer` (the M3 drawer I kept): account header, folder tree, selected item in `secondaryContainer`. |
+| Folder drawer | `ModalNavigationDrawer` (the M3 drawer I kept) below 1200 dp of window width, `PermanentNavigationDrawer` with the same sheet from 1200 dp: account header, folder tree, selected item in `secondaryContainer`. From 600 dp the list and the open message share the window side by side (list 40%, never under 280 dp); the open row takes `primaryContainer`. |
 | Compose FAB | `FloatingActionButton` (extended) that shrinks to icon-only on scroll. |
 | Opened message | The one place a card is used; HTML in a WebView with remote content blocked. |
 
@@ -74,7 +74,8 @@ bounce) so it stays alive yet sober.
 
 | Interaction | Compose implementation | Duration / curve |
 |---|---|---|
-| List → message | `fadeIn` / `fadeOut` cross-fade; falls back to instant under reduced motion or when the fade-crash sentinel has latched | 200ms fade, `FastOutSlowIn` |
+| List → message (under 600 dp) | `fadeIn` / `fadeOut` cross-fade; falls back to instant under reduced motion or when the fade-crash sentinel has latched | 200ms fade, `FastOutSlowIn` |
+| List → reading pane (600 dp and up) | none: the message replaces the pane's content with no fade, because a fade over a live WebView is the crash window the sentinel guards (#10) | instant |
 | Row appearance | `animateItem()` on `LazyColumn` | default, subtle |
 | Swipe actions | `SwipeableEmailRow`, action icon fades in | tracks the finger |
 | Top bar / FAB collapse | `exitUntilCollapsedScrollBehavior`, FAB `expanded` | native |

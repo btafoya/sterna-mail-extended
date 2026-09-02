@@ -936,6 +936,7 @@
     <string name="empty_inbox_body">Ничего в пути. Новые письма приземлятся здесь.</string>
     <string name="empty_folder_title">Здесь пока пусто</string>
     <string name="empty_folder_body">Эта папка пуста.</string>
+    <string name="reading_pane_empty">Выберите сообщение, чтобы прочитать его здесь.</string>
     <string name="empty_trash_title">Корзина пуста</string>
     <string name="empty_trash_body">Удалённые письма ждут здесь, прежде чем исчезнуть навсегда.</string>
     <string name="empty_offline_title">Не удаётся загрузить почту</string>

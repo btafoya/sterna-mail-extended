@@ -933,6 +933,7 @@
     <string name="empty_inbox_body">Nic w drodze. Nowe wiadomości wylądują tutaj.</string>
     <string name="empty_folder_title">Jeszcze nic tu nie ma</string>
     <string name="empty_folder_body">Ten folder jest pusty.</string>
+    <string name="reading_pane_empty">Wybierz wiadomość, aby przeczytać ją tutaj.</string>
     <string name="empty_trash_title">Kosz jest pusty</string>
     <string name="empty_trash_body">Usunięte wiadomości czekają tutaj, zanim znikną na dobre.</string>
     <string name="empty_offline_title">Nie można połączyć się z pocztą</string>

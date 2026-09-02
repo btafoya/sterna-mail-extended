@@ -27,6 +27,23 @@ class BodyRevealTest {
         assertEquals(HeightPoll.Retry, step)
     }
 
+    @Test fun `a range taller than the viewport is a measurement on its own`() {
+        // The floor `contentRangePx()` returns before layout is the view's own height, so it can
+        // never exceed the viewport: anything taller came from a laid-out document.
+        assertTrue(BodyReveal.rangeMeasured(rangePx = 3000, viewportPx = 1080, contentHeightPx = 0))
+    }
+
+    @Test fun `a range equal to the viewport with no laid-out document measures nothing`() {
+        // THE DEFECT: this reading is the floor, and reading it as "the body fits" is what put the
+        // bar on the first message opened after process start.
+        assertFalse(BodyReveal.rangeMeasured(rangePx = 1080, viewportPx = 1080, contentHeightPx = 0))
+    }
+
+    @Test fun `a range equal to the viewport with a laid-out document is a measurement`() {
+        // The same number, but the document says it laid out — so the body genuinely fits.
+        assertTrue(BodyReveal.rangeMeasured(rangePx = 1080, viewportPx = 1080, contentHeightPx = 900))
+    }
+
     @Test fun `an oscillating body reports the tallest reading at the cap`() {
         // Never the last reading: pinning a short one would cut the body's tail off.
         val step = BodyReveal.step(px = 700, last = 1200, maxSeen = 1600, triesLeft = 0, viewHeightPx = 800)
@@ -310,6 +327,92 @@ class BarRevealTest {
 
     private val threshold = 12
 
+    /** A report from a body that HAS laid out, with [maxScroll] px left to scroll in a 1080 px view. */
+    private fun laidOut(scrollY: Int, maxScroll: Int, viewportPx: Int = 1080) = BodyMetrics(
+        scrollY = scrollY,
+        rangePx = viewportPx + maxScroll,
+        viewportPx = viewportPx,
+        contentHeightPx = viewportPx + maxScroll,
+    )
+
+    /** What every reading returns before the document is laid out: the floor, and no document. */
+    private fun floorOf(viewportPx: Int = 1080) =
+        BodyMetrics(scrollY = 0, rangePx = viewportPx, viewportPx = viewportPx, contentHeightPx = 0)
+
+    @Test fun `the same body decides the same bar read cold or read warm`() {
+        // THE DEFECT this volet is about. The FIRST message opened after process start owns the
+        // process's first WebView: its renderer is still booting while the settle poll reads, so
+        // every reading is the floor (`contentRangePx()` == the view's height) and reads exactly
+        // like "the body fits". Every later message reads the true range straight away. Same body,
+        // same final geometry, and the bar depended on which of the two it was.
+        //
+        // Both sequences are folded in WHOLE: nothing here picks which report counts — that is the
+        // decision under test.
+        val floor = floorOf()
+        val laid = BodyMetrics(scrollY = 0, rangePx = 3000, viewportPx = 1080, contentHeightPx = 2900)
+
+        val cold = BarReveal()
+        cold.bodyReady(floor, threshold)   // height poll settled on two agreeing floor readings
+        cold.scrolled(floor, threshold)    // settle poll's terminal report, still the floor
+        cold.scrolled(laid, threshold)     // layout lands: the real, tall range
+
+        val warm = BarReveal()
+        warm.bodyReady(laid, threshold)
+        warm.scrolled(laid, threshold)
+
+        assertEquals(
+            "the bar followed the rank of the message, not the body's geometry",
+            warm.shown,
+            cold.shown,
+        )
+        assertFalse("a body taller than the viewport showed the end-of-message bar at its top", cold.shown)
+    }
+
+    @Test fun `a body that genuinely fits still gets its bar once the document has laid out`() {
+        // The other side of the same guard: holding back an unmeasured report must not hold back a
+        // bar that belongs. Same cold/warm pair on a SHORT body — the bar is there either way.
+        val floor = floorOf()
+        val laid = BodyMetrics(scrollY = 0, rangePx = 1080, viewportPx = 1080, contentHeightPx = 900)
+
+        val cold = BarReveal()
+        cold.bodyReady(floor, threshold)
+        cold.scrolled(floor, threshold)
+        cold.scrolled(laid, threshold)
+
+        val warm = BarReveal()
+        warm.bodyReady(laid, threshold)
+
+        assertTrue("a short body lost the bar it has had since #63", cold.shown)
+        assertTrue(warm.shown)
+    }
+
+    @Test fun `the settle poll's capped report is taken even though it measured nothing`() {
+        // Discarding a report is only safe while another one can still arrive. The settle poll keeps
+        // polling until the document lays out, but it is capped, and on a body that FITS there is no
+        // later gesture at all — a body that fits never scrolls. If the capped report were withheld
+        // like every other unmeasured one, a short body whose renderer never announced a document
+        // would show no bar for the life of the page, and nothing would bring it back: a worse
+        // failure than the bar that did not belong, because that one is at least recoverable.
+        val bar = BarReveal()
+        bar.bodyReady(floorOf(), threshold)          // height poll settled on the floor: inert
+        bar.scrolled(floorOf(), threshold)           // a poll tick, still the floor: inert
+        assertFalse("an ordinary floor reading revealed the bar", bar.shown)
+
+        assertTrue(
+            "the capped report is the reader's last word and must be folded in",
+            bar.scrolled(floorOf(), threshold, lastWord = true),
+        )
+    }
+
+    @Test fun `the last word does not license every unmeasured report`() {
+        // The escape is the CAP's alone: a live scroll report that measured nothing stays inert, or
+        // the guard is worth nothing.
+        val bar = BarReveal()
+        bar.scrolled(floorOf(), threshold)
+        bar.scrolled(floorOf(), threshold)
+        assertFalse(bar.shown)
+    }
+
     @Test fun `a fresh body has no bar and nothing measured`() {
         val bar = BarReveal()
         assertFalse(bar.shown)
@@ -321,8 +424,8 @@ class BarRevealTest {
         // load's settle poll then fires its terminal report on the OTHER callback with the grown
         // range. Two separate states here would let the second undo the first.
         val bar = BarReveal()
-        assertTrue(bar.bodyReady(BodyMetrics(scrollY = 0, maxScrollPx = 0), threshold))
-        assertTrue("the two writers kept separate books", bar.scrolled(0, 7080, threshold))
+        assertTrue(bar.bodyReady(laidOut(0, 0), threshold))
+        assertTrue("the two writers kept separate books", bar.scrolled(laidOut(0, 7080), threshold))
         assertEquals("the scroll report's range was not carried over", 7080, bar.state.maxScrollPx)
     }
 
@@ -330,8 +433,8 @@ class BarRevealTest {
         // The other direction: the poll measured a long body, then a mid-reflow scroll report
         // arrives with a briefly tiny range. Sharing the state is what stops it claiming "it fits".
         val bar = BarReveal()
-        assertFalse(bar.bodyReady(BodyMetrics(scrollY = 0, maxScrollPx = 7080), threshold))
-        assertFalse("a reflow blip revealed the bar", bar.scrolled(0, 0, threshold))
+        assertFalse(bar.bodyReady(laidOut(0, 7080), threshold))
+        assertFalse("a reflow blip revealed the bar", bar.scrolled(laidOut(0, 0), threshold))
     }
 
     @Test fun `an unmeasured height decides nothing`() {
@@ -341,7 +444,7 @@ class BarRevealTest {
         val bar = BarReveal()
         assertFalse("a fallback height revealed the bar", bar.bodyReady(null, threshold))
         assertEquals("a fallback height was folded in", BarState(), bar.state)
-        assertTrue(bar.scrolled(0, 0, threshold))
+        assertTrue(bar.scrolled(laidOut(0, 0), threshold))
         assertTrue("a fallback height took the bar back", bar.bodyReady(null, threshold))
         assertEquals(0, bar.state.maxScrollPx)
     }
@@ -350,7 +453,7 @@ class BarRevealTest {
         val bar = BarReveal()
         val reports = listOf(0 to 0, 0 to 7080, 7080 to 7080, 3000 to 7080, 3000 to 9000)
         for ((y, max) in reports) {
-            val returned = bar.scrolled(y, max, threshold)
+            val returned = bar.scrolled(laidOut(y, max), threshold)
             assertEquals(bar.state.shown, bar.shown)
             assertEquals(bar.shown, returned)
         }
@@ -362,13 +465,13 @@ class BarRevealTest {
         // 7080 — a range the short body can never reach — and the bar never comes back, in either
         // mode, until the message is closed.
         val bar = BarReveal()
-        assertFalse("a long body at the top wants no bar", bar.bodyReady(BodyMetrics(0, 7080), threshold))
+        assertFalse("a long body at the top wants no bar", bar.bodyReady(laidOut(0, 7080), threshold))
 
         bar.documentReplaced()
         assertFalse(bar.shown)
         assertEquals(BarState(), bar.state)
 
-        assertTrue("the shorter body cannot reach the old range", bar.bodyReady(BodyMetrics(0, 0), threshold))
+        assertTrue("the shorter body cannot reach the old range", bar.bodyReady(laidOut(0, 0), threshold))
     }
 
     @Test fun `switching reading mode does not carry a shown bar onto the new body`() {
@@ -376,17 +479,17 @@ class BarRevealTest {
         // onto a long one, because "a shown bar is only taken back by the reader moving" and the
         // reader did not move — they toggled the mode.
         val bar = BarReveal()
-        assertTrue(bar.bodyReady(BodyMetrics(0, 0), threshold))
+        assertTrue(bar.bodyReady(laidOut(0, 0), threshold))
 
         bar.documentReplaced()
 
-        assertFalse("the bar rode over onto a body it was never measured on", bar.scrolled(0, 7080, threshold))
+        assertFalse("the bar rode over onto a body it was never measured on", bar.scrolled(laidOut(0, 7080), threshold))
     }
 
     @Test fun `the reader reaching the end and scrolling away still works through the seam`() {
         val bar = BarReveal()
-        assertFalse(bar.bodyReady(BodyMetrics(scrollY = 0, maxScrollPx = 7080), threshold))
-        assertTrue(bar.scrolled(7080, 7080, threshold))
-        assertFalse(bar.scrolled(3000, 7080, threshold))
+        assertFalse(bar.bodyReady(laidOut(0, 7080), threshold))
+        assertTrue(bar.scrolled(laidOut(7080, 7080), threshold))
+        assertFalse(bar.scrolled(laidOut(3000, 7080), threshold))
     }
 }

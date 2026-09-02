@@ -292,12 +292,17 @@ class SwipeCommitWiringTest {
             1, keys.size,
         )
         assertEquals(
-            "the key list must stay these four. The threshold is deliberately computed INSIDE the " +
+            "the key list must stay these five. The threshold is deliberately computed INSIDE the " +
                 "block: read from composition it would freeze at the block's first run — the dead " +
                 "re-swipe of 6f4f1cc3, documented right above this block — and adding it as a key " +
-                "instead restarts the gesture in progress every time the row is remeasured. Keys " +
+                "instead restarts the gesture in progress every time the row is remeasured. " +
+                "drawerCanOpen is the fifth since #103 volet 6 and is a LAYOUT CLASS, not a " +
+                "measurement: it moves only when the window crosses 1 200 dp, so it restarts no " +
+                "gesture anybody is in the middle of — and dropped from the list the block keeps " +
+                "the value it was composed with, so a window dragged past 1 200 dp still hands " +
+                "drags to a drawer that no longer opens. Keys " +
                 "were:\n${keys.single()}",
-            "gesturesEnabled, rightAction, leftAction, drawerBandPx",
+            "gesturesEnabled, rightAction, leftAction, drawerBandPx, drawerCanOpen",
             keys.single().trim().replace(Regex("\\s+"), " "),
         )
     }
@@ -309,7 +314,9 @@ class SwipeCommitWiringTest {
         // breaking a single test.
         assertTrue(
             "the direction lock must still hand an actionless direction back unconsumed via " +
-                "rowKeepsDrag(dx, rightAction, leftAction).",
+                "rowKeepsDrag(dx, rightAction, leftAction, drawerCanOpen) — the fourth argument " +
+                "included, or the row hands drags to a permanent drawer that cannot take them " +
+                "(#103 volet 6). DrawerGestureTest EXECUTES the rule; this pins that it is asked.",
             ROW_KEEPS_DRAG.containsMatchIn(row()),
         )
         assertTrue(
@@ -541,7 +548,7 @@ class SwipeCommitWiringTest {
         )
 
         private val ROW_KEEPS_DRAG = Regex(
-            """rowKeepsDrag\(\s*dx\s*,\s*rightAction\s*,\s*leftAction\s*,?\s*\)""",
+            """rowKeepsDrag\(\s*dx\s*,\s*rightAction\s*,\s*leftAction\s*,\s*drawerCanOpen\s*,?\s*\)""",
         )
 
         private val STARTS_IN_BAND = Regex(

@@ -257,6 +257,12 @@ fun MessageScreen(
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
     onComposeTo: (address: String) -> Unit,
+    /** Composed in the reading pane beside the list (#103): no back arrow — the system Back and
+     *  the actions suffice, as on Gmail's tablet layout — and nothing else changes. */
+    paneMode: Boolean = false,
+    /** The pager settled on a page: (emailId, accountId, page). The settle is a human gesture —
+     *  the only moment the pane's anchor follows the pager. Null on the full-screen route. */
+    onPageSettled: ((emailId: String, accountId: String?, page: Int) -> Unit)? = null,
 ) {
     when {
         listSource != null -> {
@@ -277,7 +283,7 @@ fun MessageScreen(
             if (entries.isEmpty()) {
                 // The shared paged flow replays its cached pages within a frame or two; show a
                 // brief loader until the entry list is known so the pager opens on the right page.
-                MessageLoadingScaffold(onBack)
+                MessageLoadingScaffold(onBack, paneMode)
             } else {
                 // Resolve the opening page once: by the anchor's key when it's in the loaded
                 // window (robust to the list having shifted), else the tapped index.
@@ -315,6 +321,8 @@ fun MessageScreen(
                     onArchive = onArchive,
                     onMove = onMove,
                     onComposeTo = onComposeTo,
+                    paneMode = paneMode,
+                    onPageSettled = onPageSettled,
                 )
             }
         }
@@ -336,6 +344,8 @@ fun MessageScreen(
                 onArchive = onArchive,
                 onMove = onMove,
                 onComposeTo = onComposeTo,
+                paneMode = paneMode,
+                onPageSettled = onPageSettled,
             )
         }
         // Opened from an unfolded conversation: page over that conversation only. The entries
@@ -368,6 +378,8 @@ fun MessageScreen(
                 onArchive = onArchive,
                 onMove = onMove,
                 onComposeTo = onComposeTo,
+                paneMode = paneMode,
+                onPageSettled = onPageSettled,
             )
         }
         // No list context: a lone message (e.g. opened from global search).
@@ -381,6 +393,8 @@ fun MessageScreen(
             onArchive = onArchive,
             onMove = onMove,
             onComposeTo = onComposeTo,
+            paneMode = paneMode,
+            onPageSettled = onPageSettled,
         )
     }
 }
@@ -408,6 +422,8 @@ private fun MessagePager(
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
     onComposeTo: (address: String) -> Unit,
+    paneMode: Boolean = false,
+    onPageSettled: ((emailId: String, accountId: String?, page: Int) -> Unit)? = null,
 ) {
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))) { pageCount }
     // The chrome (top app bar + bottom Reply/Forward bar) is FIXED: it lives OUTSIDE the
@@ -419,8 +435,13 @@ private fun MessagePager(
     // Settling on a page whose entry hasn't loaded means there is no message: drop the published
     // one, or the fixed chrome would keep starring/deleting the message the user swiped away from.
     // The page republishes itself (MessagePage's onActivated) as soon as its entry arrives.
+    // The settle is also the one moment the reading pane's anchor follows the pager (#103): a
+    // human gesture landed here, so the row painted current in the list moves with it. Never on
+    // currentPage — a page flicked past must not become "the current message".
     LaunchedEffect(pagerState.settledPage) {
-        if (entryAt(pagerState.settledPage) == null) activeMessage = null
+        val settled = entryAt(pagerState.settledPage)
+        if (settled == null) activeMessage = null
+        else onPageSettled?.invoke(settled.first, settled.second, pagerState.settledPage)
     }
     val scope = rememberCoroutineScope()
     // The finger's travel across the pager, watched without consuming anything, so the fling below
@@ -429,7 +450,7 @@ private fun MessagePager(
     Scaffold(
         topBar = {
             Column {
-                MessageTopBar(activeMessage, onBack, onReply, onDelete, onArchive, onMove)
+                MessageTopBar(activeMessage, onBack, onReply, onDelete, onArchive, onMove, paneMode)
                 // The position line belongs to the header, under the app bar rather than in its
                 // title slot: the toolbar already carries five actions, and on a narrow screen a
                 // counter squeezed between them would clip. It is part of the FIXED chrome, so it
@@ -600,7 +621,7 @@ private fun rememberDisposableViewModelStoreOwner(): ViewModelStoreOwner {
  *  (before [MessagePager] — and its fixed toolbar — can compose at all). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MessageLoadingScaffold(onBack: () -> Unit) {
+private fun MessageLoadingScaffold(onBack: () -> Unit, paneMode: Boolean = false) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -611,12 +632,15 @@ private fun MessageLoadingScaffold(onBack: () -> Unit) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
+                // In the reading pane the slot stays empty, as on the settled bar below (#103).
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.message_back),
-                        )
+                    if (!paneMode) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.message_back),
+                            )
+                        }
                     }
                 },
             )
@@ -643,17 +667,22 @@ private fun MessageTopBar(
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
+    paneMode: Boolean = false,
 ) {
     TopAppBar(
         // The subject is shown in full inside the message (Codeberg #44), so the bar has
         // no title — that frees the width for a Follow (star) action.
         title = {},
+        // No back arrow in the reading pane (#103): the list is right there, the system Back
+        // empties the pane, and Gmail's tablet reader shows none either.
         navigationIcon = {
-            IconButton(onClick = onBack) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.message_back),
-                )
+            if (!paneMode) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.message_back),
+                    )
+                }
             }
         },
         actions = {
@@ -1931,9 +1960,9 @@ private fun ConversationBody(
                         showBar = barReveal.bodyReady(resting, revealThresholdPx)
                         bodyReady = true
                     },
-                    onScroll = { y, maxY ->
-                        scrollY.intValue = y
-                        showBar = barReveal.scrolled(y, maxY, revealThresholdPx)
+                    onScroll = { m, lastWord ->
+                        scrollY.intValue = m.scrollY
+                        showBar = barReveal.scrolled(m, revealThresholdPx, lastWord)
                     },
                     modifier = Modifier.fillMaxSize().alpha(if (bodyReady) 1f else 0f),
                 )
@@ -4189,7 +4218,7 @@ private fun EmailWebView(
     backgroundColor: Int,
     textZoom: Int,
     onReady: (resting: BodyMetrics?) -> Unit,
-    onScroll: (scrollY: Int, maxScroll: Int) -> Unit,
+    onScroll: (metrics: BodyMetrics, lastWord: Boolean) -> Unit,
     modifier: Modifier,
 ) {
     val context = LocalContext.current
@@ -4234,8 +4263,22 @@ private fun EmailWebView(
     // by [BodyWebView.reportingEnabled] until then, so the load-time scroll-reset and reflow never
     // report a transient tiny range (which read as "fits" and flashed the bar on a fresh open). The
     // header/bar overlay the body, so this never resizes it.
-    val reportScroll: (BodyWebView) -> Unit = { wv ->
-        onScroll(wv.scrollY, (wv.contentRangePx() - wv.visibleExtentPx()).coerceAtLeast(0))
+    // The RAW geometry is reported, not a scroll range: `contentRangePx()` is floored at the view's
+    // height, so before the document lays out it is indistinguishable from a body that fits, and the
+    // decision of whether this report measured anything belongs to [BarReveal] alone.
+    // `lastWord` says this is the settle poll's CAPPED report — the only report of the resting
+    // geometry the reader is guaranteed, since a body that fits never scrolls. [BarReveal] discards
+    // a report that measured nothing, except that one.
+    val reportScroll: (BodyWebView, Boolean) -> Unit = { wv, lastWord ->
+        onScroll(
+            BodyMetrics(
+                scrollY = wv.scrollY,
+                rangePx = wv.contentRangePx(),
+                viewportPx = wv.visibleExtentPx(),
+                contentHeightPx = wv.contentHeight,
+            ),
+            lastWord,
+        )
     }
     // On the hardware layer, once the body has drawn safely, latch the device as "hardware proven" so
     // the crash sentinel never arms again. The delay outlives the first frame: an S7-class functor
@@ -4317,7 +4360,7 @@ private fun EmailWebView(
             webView.settings.textZoom = textZoom
             // Report scroll on each internal scroll, but only once reporting is enabled (after the
             // load settles, below), so load-time scroll-resets don't flash the bar.
-            webView.onScrolled = { if (webView.reportingEnabled) reportScroll(webView) }
+            webView.onScrolled = { if (webView.reportingEnabled) reportScroll(webView, false) }
             // Second chance to notice the body is laid out: the post-load height poll can run and
             // expire entirely while the view still has no size (nothing it reads can be non-zero
             // then), and it is never restarted. Getting a size is exactly the event it was missing.
@@ -4365,7 +4408,19 @@ private fun EmailWebView(
                     // abandon WITHOUT touching reporting, so a stale poll can't reveal the bar.
                     if (webView.settleToken !== settleToken || webView.parent == null) return
                     val range = webView.contentRangePx()
-                    if (range > 0 && range == settleLast) {
+                    // A reading that MEASURED nothing can never settle this poll, however many
+                    // times it repeats: the range is floored at the view's height, so three
+                    // agreeing readings of that floor are what a body reads while its renderer is
+                    // still booting — and this poll's terminal report is the reader's ONE
+                    // guaranteed report of the resting geometry. Concluding on the floor used to
+                    // announce "the body fits" for the first message opened after process start;
+                    // [BarReveal] now discards that report, and if the poll still stopped there
+                    // nothing would ever report the real geometry and a short body would lose its
+                    // bar for good. So keep polling until the document is laid out — the cap below
+                    // still reports unconditionally, because this poll may never end silently.
+                    if (BodyReveal.rangeMeasured(range, webView.visibleExtentPx(), webView.contentHeight) &&
+                        range == settleLast
+                    ) {
                         settleStable++
                     } else {
                         settleStable = 0
@@ -4376,7 +4431,7 @@ private fun EmailWebView(
                     // reveal once, now using the final (accurate) scroll range.
                     if (settleStable >= 2 || triesLeft <= 0) {
                         webView.reportingEnabled = true
-                        reportScroll(webView)
+                        reportScroll(webView, settleStable < 2)
                         // Debug-only: the body's HORIZONTAL geometry at rest, once per load, from
                         // the one point that already knows the layout has stopped moving. Reading
                         // it here and again at each drag verdict is what separates "no range at
@@ -4509,7 +4564,9 @@ private fun restingMetrics(wv: WebView, step: HeightPoll.Report, maxSeen: Int): 
     val body = wv as? BodyWebView ?: return null
     return BodyMetrics(
         scrollY = body.scrollY,
-        maxScrollPx = BodyReveal.maxScroll(maxOf(step.px, maxSeen), body.visibleExtentPx()),
+        rangePx = maxOf(step.px, maxSeen),
+        viewportPx = body.visibleExtentPx(),
+        contentHeightPx = body.contentHeight,
     )
 }
 

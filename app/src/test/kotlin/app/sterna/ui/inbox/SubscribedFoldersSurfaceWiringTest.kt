@@ -183,12 +183,24 @@ class SubscribedFoldersSurfaceWiringTest {
                 "purpose (a hidden folder is not an unknown one) and it is its RESULT that is judged. " +
                 "Selecting resolve()'s answer directly parks the list in a folder no drawer offers, " +
                 "which [inboxFallback] then bounces out of — intermittently, since the snapshot " +
-                "conflates equal folder lists (#91 vs #174, arbitration of 2026-08-25).",
+                "conflates equal folder lists (#91 vs #174, arbitration of 2026-08-25). And the " +
+                "pane is emptied UNLESS the message in it is the notification's OWN, which " +
+                "ReadingPaneRule.onFolderFromNotification decides and ReadingPaneRuleTest EXECUTES. " +
+                "It is handed the notification's (emailId, accountId) — never notificationAnchor, " +
+                "which is a park the account switch has already spent by the time a folder list " +
+                "arrives, and reading it here emptied the very message the tap had just posted. " +
+                "With `emptyPane = false` written flat and no rule above it, a notification tapped " +
+                "for another folder while a composer is on top (verdict Navigate, nothing posted in " +
+                "the pane) moves the list to that folder and leaves the PREVIOUS folder's message " +
+                "on the right, which is what the person meets on her way out of the reader (#103). " +
+                "The rule runs BEFORE select(), whose emptyPane is then false because the question " +
+                "is already answered.",
             listOf(
                 "val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return",
-                "folders.firstOrNull { it.id == show }?.let(::select)",
+                "setReadingPane(ReadingPaneRule.onFolderFromNotification(_readingPane.value, emailId, accountId))",
+                "folders.firstOrNull { it.id == show }?.let { select(it, emptyPane = false) }",
             ),
-            block(INBOX_VIEW_MODEL, "val show = notificationFolderToShow(", 2),
+            block(INBOX_VIEW_MODEL, "val show = notificationFolderToShow(", 3),
         )
         assertEquals(
             "the folder flow grew a line. It carries side effects and is collected ONCE: anything " +

@@ -38,10 +38,13 @@ internal const val DRAWER_EDGE_BAND_DP = 20
 internal fun edgeIsFree(systemGestureInsetPx: Int): Boolean = systemGestureInsetPx <= 0
 
 /**
- * Effective width of the strip: [bandPx] where the edge is free, 0 (inert) otherwise.
+ * Effective width of the strip: [bandPx] where the edge is free, 0 (inert) otherwise — and 0 as
+ * well where there is no drawer to slide ([drawerCanOpen] false, i.e. from 1 200 dp, where it is
+ * drawn beside the list). A strip kept there would take the action swipe of every row begun near
+ * the left edge and hand it to a drawer that cannot move.
  */
-internal fun drawerBandPx(systemGestureInsetPx: Int, bandPx: Float): Float =
-    if (edgeIsFree(systemGestureInsetPx)) bandPx.coerceAtLeast(0f) else 0f
+internal fun drawerBandPx(systemGestureInsetPx: Int, bandPx: Float, drawerCanOpen: Boolean): Float =
+    if (drawerCanOpen && edgeIsFree(systemGestureInsetPx)) bandPx.coerceAtLeast(0f) else 0f
 
 /**
  * Does a touch landing at [xInWindowPx] (window coordinates, so indented conversation
@@ -53,6 +56,18 @@ internal fun startsInDrawerBand(xInWindowPx: Float, bandPx: Float): Boolean =
 /**
  * Does the row keep a horizontal drag of [dx], or hand it to the drawer? Positive [dx]
  * is a swipe to the right (towards the drawer).
+ *
+ * With [drawerCanOpen] false there is nothing to hand it to — the drawer is already beside the
+ * list — so the row keeps every drag: a direction with no action then does nothing, or the list
+ * scrolls, instead of the gesture falling through unconsumed.
  */
-internal fun rowKeepsDrag(dx: Float, rightAction: SwipeAction, leftAction: SwipeAction): Boolean =
-    if (dx >= 0f) rightAction != SwipeAction.NONE else leftAction != SwipeAction.NONE
+internal fun rowKeepsDrag(
+    dx: Float,
+    rightAction: SwipeAction,
+    leftAction: SwipeAction,
+    drawerCanOpen: Boolean,
+): Boolean = when {
+    !drawerCanOpen -> true
+    dx >= 0f -> rightAction != SwipeAction.NONE
+    else -> leftAction != SwipeAction.NONE
+}

@@ -49,6 +49,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Richer search filters (from/subject/has-attachment/date, AND-combined); 💡 `SearchSnippet` highlights
 - ✅ Sterna brand identity, Arctic (light) / Pelagic (dark) palette, a calm sea-teal action colour with a coral accent (the tern's beak); Material You is an opt-in toggle; coastal line-art empty states; calmer microcopy
 - ✅ Per-account colour (avatar + unified-inbox chip); ✅ accessibility pass v1 (screen-reader labels, font scaling, system-bar contrast); ✅ home-screen widgets (unread count, recent mail); 💡 fuller TalkBack audit
+- ✅ List and reading pane side by side from 600 dp of window width (a phone in landscape, a tablet, a desktop window); the folder drawer stays open beside them from 1200 dp
 - ✅ Bundled/grouped notifications (per-account summary) + quiet hours (silent nightly window)
 - ✅ Settings export/import (app preferences → JSON file via SAF; excludes accounts/credentials); ✅ `/.well-known/jmap` autodiscovery (email → server); ✅ password-free OAuth2 sign-in (device flow, RFC 8628; authorization code + PKCE, RFC 6749 §4.1 + RFC 7636, for servers with no device endpoint)
 

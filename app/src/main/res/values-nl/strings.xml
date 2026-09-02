@@ -916,6 +916,7 @@
     <string name="empty_inbox_body">Niets onderweg. Nieuwe post landt hier.</string>
     <string name="empty_folder_title">Hier nog niets</string>
     <string name="empty_folder_body">Deze map is leeg.</string>
+    <string name="reading_pane_empty">Kies een bericht om het hier te lezen.</string>
     <string name="empty_trash_title">De prullenbak is leeg</string>
     <string name="empty_trash_body">Verwijderde post wacht hier voordat ze voorgoed verdwijnt.</string>
     <string name="empty_offline_title">Je post is niet bereikbaar</string>

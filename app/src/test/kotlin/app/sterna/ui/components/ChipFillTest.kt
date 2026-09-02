@@ -124,7 +124,7 @@ class ChipFillTest {
             for (selected in listOf(false, true)) {
                 for (unread in listOf(false, true)) {
                     for (unreadTint in listOf(false, true)) {
-                        val row = rowBackground(scheme, selected, unread, unreadTint, flash = 0f)
+                        val row = rowBackground(scheme, selected, current = false, unread, unreadTint, flash = 0f)
                         val chip = chipFill(scheme, selected, unread, unreadTint)
                         val distance = channelDistance(row, chip)
                         assertTrue(

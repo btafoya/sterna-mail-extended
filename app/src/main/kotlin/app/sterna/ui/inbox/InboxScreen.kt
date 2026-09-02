@@ -97,6 +97,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -116,6 +118,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.animation.animateColorAsState
@@ -172,7 +175,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.core.data.settings.SortOrder
 import app.sterna.core.data.settings.SwipeAction
 import app.sterna.core.data.mail.EmailKey
@@ -197,6 +199,9 @@ import app.sterna.ui.isOutgoingFolder
 import app.sterna.ui.messageFolderRole
 import app.sterna.ui.rememberMotionEnabled
 import app.sterna.ui.showsDraftBadge
+import app.sterna.ui.DRAWER_SHEET_WIDTH_DP
+import app.sterna.ui.PaneLayout
+import app.sterna.ui.PaneSplit
 import app.sterna.ui.showsRecipients
 import app.sterna.ui.showsRecipientsInThread
 import app.sterna.ui.search.SearchCount
@@ -244,7 +249,12 @@ fun InboxScreen(
     currentAccountId: String,
     onSwitchAccount: (String) -> Unit,
     onOpenAccountSettings: (String) -> Unit,
-    viewModel: InboxViewModel = viewModel(),
+    /** The inbox entry's own ViewModel — required, so the host names the owner (#103). */
+    viewModel: InboxViewModel,
+    /** The split the host decided from the window width; null = one pane, as before (#103). */
+    panes: PaneSplit? = null,
+    /** What the right pane shows when there is a split; null = no pane at all. */
+    detail: (@Composable () -> Unit)? = null,
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val listRows = viewModel.pagedListRows.collectAsLazyPagingItems()
@@ -297,6 +307,9 @@ fun InboxScreen(
     val outboxQueuedCount by viewModel.outboxQueuedCount.collectAsStateWithLifecycle()
     val outboxHasFailures by viewModel.outboxHasFailures.collectAsStateWithLifecycle()
     val highlightId by viewModel.highlightId.collectAsStateWithLifecycle()
+    // The message open in the reading pane beside the list, on a wide window: its row is painted
+    // "current" (#103). Empty under 600 dp, where nothing ever writes it.
+    val pane by viewModel.readingPane.collectAsStateWithLifecycle()
     // Rows whose swipe was played to the edge over a write that then failed — offline, above all.
     // They are still in the table (network-first), only gone from the screen; the flight has to be
     // wound back by hand. See [InboxViewModel.swipeRewind].
@@ -313,6 +326,11 @@ fun InboxScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val snackbarHostState = remember { SnackbarHostState() }
+    // From 1 200 dp the folder drawer is drawn beside the list and never slides (#103, volet 6).
+    // Read ONCE, here, and handed to everything that would otherwise offer a way to open it: the
+    // Menu icon, the tap on an empty list, and the two gesture rules. Three sites reading
+    // `panes?.layout == PaneLayout.Desk` for themselves is three chances for one of them to drift.
+    val permanentDrawer = panes?.layout == PaneLayout.Desk
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     // Codeberg #30: the rows hand a narrow strip at the start edge back to the drawer's own
     // drag — but only in three-button navigation, where Android reports no gesture inset
@@ -323,6 +341,7 @@ fun InboxScreen(
     val edgeBandPx = drawerBandPx(
         systemGestureInsetPx = WindowInsets.systemGestures.getLeft(density, LocalLayoutDirection.current),
         bandPx = with(density) { DRAWER_EDGE_BAND_DP.dp.toPx() },
+        drawerCanOpen = !permanentDrawer,
     )
     // Hoisted strings for snackbars shown from non-composable LaunchedEffect coroutines.
     val undoLabel = stringResource(R.string.inbox_undo)
@@ -354,8 +373,11 @@ fun InboxScreen(
     // [inboxBackAction] so exactly one handler is ever enabled (LEAVE_APP enables none, and the
     // system does its usual thing). Search is one of those modes, not a screen: Back closes it
     // and gives the list back instead of minimising the app (Codeberg #86).
-    val backAction = inboxBackAction(selectionActive, ui.searching, ui.atInbox)
+    // The reading pane is one more mode, between the selection and the search (#103): Back with a
+    // message on the right empties the pane, and the app is only left on the press after.
+    val backAction = inboxBackAction(selectionActive, detailOpen = detail != null && pane.anchor != null, ui.searching, ui.atInbox)
     BackHandler(enabled = backAction == InboxBackAction.CLEAR_SELECTION) { viewModel.clearSelection() }
+    BackHandler(enabled = backAction == InboxBackAction.CLOSE_DETAIL) { viewModel.closePane() }
     BackHandler(enabled = backAction == InboxBackAction.CLOSE_SEARCH) { viewModel.setSearchActive(false) }
     BackHandler(enabled = backAction == InboxBackAction.SHOW_INBOX) { viewModel.showInbox() }
 
@@ -824,281 +846,15 @@ fun InboxScreen(
         entryPlayed = true
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
-              // Scroll the whole drawer so long folder lists (and Settings below them) stay reachable (#7).
-              Column(Modifier.verticalScroll(rememberScrollState())) {
-                val currentAccount = accounts.firstOrNull { it.id == currentAccountId }
-                val currentLabel = currentAccount?.label()
-                    ?: ui.accountName.ifBlank { stringResource(R.string.inbox_app_name) }
-                val otherAccounts = accounts.filter { it.id != currentAccountId }
-                var accountsExpanded by remember { mutableStateOf(false) }
-                val accountOffset = remember { Animatable(0f) }
-                var chipWidth by remember { mutableIntStateOf(0) }
-                val curIdx = accounts.indexOfFirst { it.id == currentAccountId }
-                val nextAccount = if (accounts.size > 1 && curIdx >= 0) accounts[(curIdx + 1) % accounts.size] else null
-                val prevAccount = if (accounts.size > 1 && curIdx >= 0) accounts[(curIdx - 1 + accounts.size) % accounts.size] else null
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                ) {
-                    // The active account as a little carousel: drag it sideways to bring the
-                    // next/previous account in; releasing past a threshold slides it across and
-                    // switches account in place — the drawer stays open and its folders update.
-                    // A tap opens the account's settings; the chevron still lists all accounts.
-                    Box(
-                        modifier = Modifier.weight(1f).clipToBounds()
-                            .onSizeChanged { chipWidth = it.width }
-                            .then(
-                                if (accounts.size > 1) {
-                                    Modifier.pointerInput(accounts, currentAccountId) {
-                                        detectHorizontalDragGestures(
-                                            onHorizontalDrag = { change, delta ->
-                                                change.consume()
-                                                val w = chipWidth.toFloat().coerceAtLeast(1f)
-                                                scope.launch { accountOffset.snapTo((accountOffset.value + delta).coerceIn(-w, w)) }
-                                            },
-                                            onDragEnd = {
-                                                val w = chipWidth.toFloat().coerceAtLeast(1f)
-                                                val o = accountOffset.value
-                                                scope.launch {
-                                                    if (kotlin.math.abs(o) > w * 0.3f) {
-                                                        val goNext = o < 0
-                                                        val target = if (goNext) nextAccount else prevAccount
-                                                        accountOffset.animateTo(if (goNext) -w else w, tween(200, easing = FastOutSlowInEasing))
-                                                        if (target != null) onSwitchAccount(target.id)
-                                                        accountOffset.snapTo(0f)
-                                                    } else {
-                                                        accountOffset.animateTo(0f, tween(200, easing = FastOutSlowInEasing))
-                                                    }
-                                                }
-                                            },
-                                        )
-                                    }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                    ) {
-                        AccountChip(
-                            label = currentLabel,
-                            color = accountColorOf(currentAccount?.color),
-                            modifier = Modifier
-                                .graphicsLayer { translationX = accountOffset.value }
-                                .clickable {
-                                    // The account you are LOOKING AT, shared or not: the two
-                                    // settings a shared mailbox really owns (its colour, its
-                                    // notifications) are stored under ITS id, so a chip that
-                                    // opened the login's settings would have you switch off
-                                    // notifications for the wrong mailbox and watch the shared
-                                    // one keep ringing. Which screen is honest for it is the
-                                    // settings graph's call, not this tap's (issue #31).
-                                    onOpenAccountSettings(currentAccountId)
-                                    scope.launch { drawerState.close() }
-                                },
-                        )
-                        // The account being dragged toward, peeking in from the opposite edge.
-                        val peek = if (accountOffset.value < 0f) nextAccount
-                        else if (accountOffset.value > 0f) prevAccount else null
-                        if (peek != null) {
-                            AccountChip(
-                                label = peek.label(),
-                                color = accountColorOf(peek.color),
-                                modifier = Modifier.graphicsLayer {
-                                    translationX = accountOffset.value +
-                                        if (accountOffset.value < 0f) chipWidth.toFloat() else -chipWidth.toFloat()
-                                },
-                            )
-                        }
-                    }
-                    // Chevron → unfold the other accounts to switch to.
-                    if (otherAccounts.isNotEmpty()) {
-                        IconButton(onClick = { accountsExpanded = !accountsExpanded }) {
-                            Icon(
-                                if (accountsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                contentDescription = stringResource(R.string.inbox_switch_account),
-                            )
-                        }
-                    }
-                }
-                if (accountsExpanded) {
-                    otherAccounts.forEach { account ->
-                        val label = account.label()
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                                .clickable {
-                                    onSwitchAccount(account.id)
-                                    accountsExpanded = false
-                                    scope.launch { drawerState.close() }
-                                }
-                                .padding(start = 28.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
-                        ) {
-                            Monogram(seed = label, label = label, color = accountColorOf(account.color))
-                            Column {
-                                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                // A delegated account switches like any other, so it keeps its row
-                                // here — but it does not BEHAVE like any other (you send as someone
-                                // else, rights may be partial, it vanishes if the owner unshares),
-                                // so it says so quietly (issue #31).
-                                if (account.isShared) {
-                                    Text(
-                                        stringResource(R.string.account_shared),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                HorizontalDivider(Modifier.padding(bottom = 12.dp))
-                if (accounts.size > 1) {
-                    val unifiedLabel = if (ui.unified && ui.unreadCount > 0) {
-                        stringResource(R.string.inbox_all_inboxes_unread, ui.unreadCount)
-                    } else {
-                        stringResource(R.string.inbox_all_inboxes)
-                    }
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.AllInbox, contentDescription = null) },
-                        label = { Text(unifiedLabel) },
-                        selected = ui.unified,
-                        onClick = {
-                            viewModel.selectUnified()
-                            scope.launch { drawerState.close() }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
-                }
-                // ⭐ Outside the guard above, deliberately: this is one account's unread mail across
-                // its own folders, so it means exactly as much on a single-account install — where
-                // the drawer is the only way in.
-                val unreadLabel = if (ui.unreadViewCount > 0) {
-                    stringResource(R.string.inbox_unread_view_unread, ui.unreadViewCount)
-                } else {
-                    stringResource(R.string.inbox_unread_view)
-                }
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.MarkEmailUnread, contentDescription = null) },
-                    label = { Text(unreadLabel) },
-                    selected = ui.unreadView,
-                    onClick = {
-                        viewModel.selectUnread()
-                        scope.launch { drawerState.close() }
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
-                // The one place the registry AND the default become "what is folded"; see
-                // [collapsedFolderIds]. The list it resolves against is the one drawn just below.
-                val collapsedIds = collapsedFolderIds(ui.visibleMailboxes, collapsedFolders, folderRowsBadgeUnread)
-                mailboxTree(ui.visibleMailboxes, collapsedIds).forEach { node ->
-                    val mailbox = node.mailbox
-                    val displayName = mailboxDisplayName(mailbox.role, mailbox.name)
-                    // A FOLDED row badges the unread it hides — its own plus its descendants' — or
-                    // the mail under a folder folded by default is on no row at all; see
-                    // [drawerUnreadCount]. Same list and same folded set as the tree above.
-                    val unread = drawerUnreadCount(mailbox, ui.visibleMailboxes, collapsedIds)
-                    val label = if (unread > 0) {
-                        stringResource(R.string.inbox_folder_unread, displayName, unread)
-                    } else {
-                        displayName
-                    }
-                    val collapsed = mailbox.id in collapsedIds
-                    NavigationDrawerItem(
-                        icon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                // Indent children; a chevron toggles collapse for parents.
-                                Spacer(Modifier.width((node.depth * 16).dp))
-                                if (node.hasChildren) {
-                                    Icon(
-                                        if (collapsed) Icons.Filled.ChevronRight else Icons.Filled.ExpandMore,
-                                        contentDescription = stringResource(
-                                            if (collapsed) R.string.inbox_folder_expand else R.string.inbox_folder_collapse,
-                                        ),
-                                        modifier = Modifier.clickable {
-                                            viewModel.setFolderCollapsed(mailbox.id, !collapsed)
-                                        },
-                                    )
-                                } else {
-                                    Spacer(Modifier.width(24.dp))
-                                }
-                                Icon(folderIcon(mailbox.role), contentDescription = null)
-                            }
-                        },
-                        label = { Text(label) },
-                        // The inbox is always watched (no menu); notifying about one's own
-                        // sent/drafts/trash/junk would be noise (issue #16). Management
-                        // actions stay limited to user-created folders (no role).
-                        badge = if (mailbox.role !in watchMenuHiddenRoles) {
-                            {
-                                Box {
-                                    var folderMenu by remember { mutableStateOf(false) }
-                                    IconButton(onClick = { folderMenu = true }) {
-                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options))
-                                    }
-                                    DropdownMenu(folderMenu, onDismissRequest = { folderMenu = false }, shape = MaterialTheme.shapes.medium) {
-                                        val watched = mailbox.id in watchedFolders
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_folder_watch)) },
-                                            trailingIcon = { Checkbox(checked = watched, onCheckedChange = null) },
-                                            onClick = { folderMenu = false; viewModel.setFolderWatched(mailbox.id, !watched) },
-                                        )
-                                        if (mailbox.role == null) {
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.inbox_new_subfolder)) },
-                                                onClick = { folderMenu = false; folderToAddChild = mailbox },
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.inbox_rename)) },
-                                                onClick = { folderMenu = false; folderToRename = mailbox },
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.inbox_delete)) },
-                                                onClick = { folderMenu = false; folderToDelete = mailbox },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            null
-                        },
-                        selected = mailbox.id == ui.selectedMailboxId,
-                        onClick = {
-                            viewModel.select(mailbox)
-                            scope.launch { drawerState.close() }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
-                }
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.CreateNewFolder, contentDescription = null) },
-                    label = { Text(stringResource(R.string.inbox_new_folder)) },
-                    selected = false,
-                    onClick = { showCreateFolder = true },
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
-                HorizontalDivider()
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                    label = { Text(stringResource(R.string.inbox_settings)) },
-                    selected = false,
-                    onClick = {
-                        onOpenSettings()
-                        scope.launch { drawerState.close() }
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
-              }
-            }
-        },
-    ) {
+    // The list and its reading pane, hoisted into one lambda so they are composed ONCE and
+    // wrapped by whichever of the two drawer envelopes this window gets. Written twice, the
+    // two copies drift, and crossing 1 200 dp would throw away the whole list's state.
+    val content: @Composable () -> Unit = {
+        // The list's Scaffold, beside the reading pane when the host decided a split (#103):
+        // the pane is a SIBLING of this Scaffold (each takes the status bar once) and lives
+        // inside the drawer's envelope (the modal drawer covers the whole window, as in Gmail).
+        // The Scaffold block below is deliberately NOT re-indented, to keep the diff readable.
+        ListDetailPanes(panes, detail) {
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             // imePadding: deleting from search happens with the keyboard open, which would
@@ -1334,8 +1090,16 @@ fun InboxScreen(
                             }
                         },
                         navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.inbox_menu))
+                            // Nothing to open where the drawer is already beside the list. The
+                            // slot is kept rather than dropped so the bar keeps ONE shape in the
+                            // source, but what an empty slot does to the title's start inset is
+                            // NOT measured: Material gives the title max(bar inset, icon width),
+                            // so the title may well shift left from 1 200 dp. Read at the bench,
+                            // wide window, G24 of the test plan; nothing here promises otherwise.
+                            if (!permanentDrawer) {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.inbox_menu))
+                                }
                             }
                         },
                         actions = {
@@ -1640,6 +1404,8 @@ fun InboxScreen(
                         }
                     } else null,
                     selected = email.emailKey() in selectedKeys,
+                    // Account-qualified, like `selected` above (#92).
+                    current = pane.anchor?.matches(email.accountId, email.id) == true,
                     // LOAD-BEARING BEYOND THIS ROW, and nothing else says so: this is one of the
                     // guards that make "selection active while the search results are empty"
                     // unreachable. Selection mode is entered by a long-press on a row, so no row,
@@ -1672,6 +1438,7 @@ fun InboxScreen(
                     rewindSwipe = needsSwipeRewind(swipeRewind, email.accountId, email.id),
                     onSwipeRewound = { viewModel.swipeRewound(email.emailKey()) },
                     drawerBandPx = edgeBandPx,
+                    drawerCanOpen = !permanentDrawer,
                     modifier = rowModifier,
                 )
                 if (expandable) {
@@ -1721,6 +1488,7 @@ fun InboxScreen(
                         // above back into the rows it stands for, so each of them can name its folder.
                         folderFor = { child -> unreadRowFolder(child, ui, folderTrusted = true, inViewCount = 1) },
                         highlightId = highlightId,
+                        paneAnchor = pane.anchor,
                         selectionActive = selectionActive,
                         selectedKeys = selectedKeys,
                         onOpenChild = { child ->
@@ -1762,6 +1530,7 @@ fun InboxScreen(
                         swipeRewindKeys = swipeRewind,
                         onSwipeRewound = { child -> viewModel.swipeRewound(child.emailKey()) },
                         drawerBandPx = edgeBandPx,
+                        drawerCanOpen = !permanentDrawer,
                     )
                 }
                 HorizontalDivider()
@@ -2063,8 +1832,10 @@ fun InboxScreen(
                             folderRole = role,
                         )
                         // Empty list still pulls to refresh; tapping the empty space opens the
-                        // drawer (the only navigation when there are no rows to act on).
-                        PullableCenter(onClick = { scope.launch { drawerState.open() } }) {
+                        // drawer (the only navigation when there are no rows to act on) — except
+                        // from 1 200 dp, where the drawer is on screen and the tap has nothing to
+                        // do: null, so the empty state is not even clickable.
+                        PullableCenter(onClick = if (permanentDrawer) null else ({ scope.launch { drawerState.open() } })) {
                             EmptyState(
                                 art = scene.art,
                                 title = stringResource(scene.title),
@@ -2089,7 +1860,369 @@ fun InboxScreen(
             }
             }
         }
+        }
     }
+    // ONE drawer content, two envelopes. ⚠ `drawerState` is created above and closed from the
+    // content in BOTH branches, deliberately: close() on a state that is already Closed does
+    // nothing, so the six `scope.launch { drawerState.close() }` inside [DrawerContent] and the
+    // ON_START snap higher up need no branch of their own and are left exactly as they were.
+    // A permanent drawer is never open, so there is nothing for them to shut (#103, volet 6).
+    if (permanentDrawer) {
+        PermanentNavigationDrawer(
+            drawerContent = {
+                PermanentDrawerSheet(Modifier.width(DRAWER_SHEET_WIDTH_DP.dp)) {
+                    DrawerContent(
+                        accounts = accounts,
+                        currentAccountId = currentAccountId,
+                        ui = ui,
+                        watchedFolders = watchedFolders,
+                        collapsedFolders = collapsedFolders,
+                        folderRowsBadgeUnread = folderRowsBadgeUnread,
+                        viewModel = viewModel,
+                        scope = scope,
+                        drawerState = drawerState,
+                        onSwitchAccount = onSwitchAccount,
+                        onOpenAccountSettings = onOpenAccountSettings,
+                        onOpenSettings = onOpenSettings,
+                        onCreateFolder = { showCreateFolder = true },
+                        onAddSubfolder = { folderToAddChild = it },
+                        onRenameFolder = { folderToRename = it },
+                        onDeleteFolder = { folderToDelete = it },
+                    )
+                }
+            },
+            content = content,
+        )
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(modifier = Modifier.width(DRAWER_SHEET_WIDTH_DP.dp)) {
+                    DrawerContent(
+                        accounts = accounts,
+                        currentAccountId = currentAccountId,
+                        ui = ui,
+                        watchedFolders = watchedFolders,
+                        collapsedFolders = collapsedFolders,
+                        folderRowsBadgeUnread = folderRowsBadgeUnread,
+                        viewModel = viewModel,
+                        scope = scope,
+                        drawerState = drawerState,
+                        onSwitchAccount = onSwitchAccount,
+                        onOpenAccountSettings = onOpenAccountSettings,
+                        onOpenSettings = onOpenSettings,
+                        onCreateFolder = { showCreateFolder = true },
+                        onAddSubfolder = { folderToAddChild = it },
+                        onRenameFolder = { folderToRename = it },
+                        onDeleteFolder = { folderToDelete = it },
+                    )
+                }
+            },
+            content = content,
+        )
+    }
+}
+
+/**
+ * The ONE folder drawer, drawn by both envelopes (#103, volet 6): the modal sheet under 1 200 dp
+ * and the permanent sheet from 1 200 dp. Moved here from inside `ModalDrawerSheet` unchanged —
+ * ⛔ including its indentation, so the move reads as a move — with the carousel's three
+ * `remember`s travelling with it: they belong to the sheet that is on screen, and a window
+ * crossing 1 200 dp swaps envelopes, so an unfolded account list closing itself there is the
+ * honest outcome rather than state kept alive for a sheet that no longer exists.
+ *
+ * [drawerState] is taken by BOTH: every navigating tap closes it, and close() on the permanent
+ * drawer's always-Closed state does nothing. That is what keeps this content branch-free.
+ */
+@Composable
+private fun DrawerContent(
+    accounts: List<app.sterna.core.data.account.StoredAccount>,
+    currentAccountId: String,
+    ui: MailUi,
+    watchedFolders: Set<String>,
+    collapsedFolders: Map<String, Boolean>,
+    folderRowsBadgeUnread: Boolean,
+    viewModel: InboxViewModel,
+    scope: CoroutineScope,
+    drawerState: DrawerState,
+    onSwitchAccount: (String) -> Unit,
+    onOpenAccountSettings: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    /** The four dialogs the drawer opens live with the screen, not with the sheet: hoisted as
+     *  callbacks so a dialog outlives the modal sheet closing under it. */
+    onCreateFolder: () -> Unit,
+    onAddSubfolder: (Mailbox) -> Unit,
+    onRenameFolder: (Mailbox) -> Unit,
+    onDeleteFolder: (Mailbox) -> Unit,
+) {
+              // Scroll the whole drawer so long folder lists (and Settings below them) stay reachable (#7).
+              Column(Modifier.verticalScroll(rememberScrollState())) {
+                val currentAccount = accounts.firstOrNull { it.id == currentAccountId }
+                val currentLabel = currentAccount?.label()
+                    ?: ui.accountName.ifBlank { stringResource(R.string.inbox_app_name) }
+                val otherAccounts = accounts.filter { it.id != currentAccountId }
+                var accountsExpanded by remember { mutableStateOf(false) }
+                val accountOffset = remember { Animatable(0f) }
+                var chipWidth by remember { mutableIntStateOf(0) }
+                val curIdx = accounts.indexOfFirst { it.id == currentAccountId }
+                val nextAccount = if (accounts.size > 1 && curIdx >= 0) accounts[(curIdx + 1) % accounts.size] else null
+                val prevAccount = if (accounts.size > 1 && curIdx >= 0) accounts[(curIdx - 1 + accounts.size) % accounts.size] else null
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                ) {
+                    // The active account as a little carousel: drag it sideways to bring the
+                    // next/previous account in; releasing past a threshold slides it across and
+                    // switches account in place — the drawer stays open and its folders update.
+                    // A tap opens the account's settings; the chevron still lists all accounts.
+                    Box(
+                        modifier = Modifier.weight(1f).clipToBounds()
+                            .onSizeChanged { chipWidth = it.width }
+                            .then(
+                                if (accounts.size > 1) {
+                                    Modifier.pointerInput(accounts, currentAccountId) {
+                                        detectHorizontalDragGestures(
+                                            onHorizontalDrag = { change, delta ->
+                                                change.consume()
+                                                val w = chipWidth.toFloat().coerceAtLeast(1f)
+                                                scope.launch { accountOffset.snapTo((accountOffset.value + delta).coerceIn(-w, w)) }
+                                            },
+                                            onDragEnd = {
+                                                val w = chipWidth.toFloat().coerceAtLeast(1f)
+                                                val o = accountOffset.value
+                                                scope.launch {
+                                                    if (kotlin.math.abs(o) > w * 0.3f) {
+                                                        val goNext = o < 0
+                                                        val target = if (goNext) nextAccount else prevAccount
+                                                        accountOffset.animateTo(if (goNext) -w else w, tween(200, easing = FastOutSlowInEasing))
+                                                        if (target != null) onSwitchAccount(target.id)
+                                                        accountOffset.snapTo(0f)
+                                                    } else {
+                                                        accountOffset.animateTo(0f, tween(200, easing = FastOutSlowInEasing))
+                                                    }
+                                                }
+                                            },
+                                        )
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                    ) {
+                        AccountChip(
+                            label = currentLabel,
+                            color = accountColorOf(currentAccount?.color),
+                            modifier = Modifier
+                                .graphicsLayer { translationX = accountOffset.value }
+                                .clickable {
+                                    // The account you are LOOKING AT, shared or not: the two
+                                    // settings a shared mailbox really owns (its colour, its
+                                    // notifications) are stored under ITS id, so a chip that
+                                    // opened the login's settings would have you switch off
+                                    // notifications for the wrong mailbox and watch the shared
+                                    // one keep ringing. Which screen is honest for it is the
+                                    // settings graph's call, not this tap's (issue #31).
+                                    onOpenAccountSettings(currentAccountId)
+                                    scope.launch { drawerState.close() }
+                                },
+                        )
+                        // The account being dragged toward, peeking in from the opposite edge.
+                        val peek = if (accountOffset.value < 0f) nextAccount
+                        else if (accountOffset.value > 0f) prevAccount else null
+                        if (peek != null) {
+                            AccountChip(
+                                label = peek.label(),
+                                color = accountColorOf(peek.color),
+                                modifier = Modifier.graphicsLayer {
+                                    translationX = accountOffset.value +
+                                        if (accountOffset.value < 0f) chipWidth.toFloat() else -chipWidth.toFloat()
+                                },
+                            )
+                        }
+                    }
+                    // Chevron → unfold the other accounts to switch to.
+                    if (otherAccounts.isNotEmpty()) {
+                        IconButton(onClick = { accountsExpanded = !accountsExpanded }) {
+                            Icon(
+                                if (accountsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = stringResource(R.string.inbox_switch_account),
+                            )
+                        }
+                    }
+                }
+                if (accountsExpanded) {
+                    otherAccounts.forEach { account ->
+                        val label = account.label()
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable {
+                                    onSwitchAccount(account.id)
+                                    accountsExpanded = false
+                                    scope.launch { drawerState.close() }
+                                }
+                                .padding(start = 28.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+                        ) {
+                            Monogram(seed = label, label = label, color = accountColorOf(account.color))
+                            Column {
+                                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                // A delegated account switches like any other, so it keeps its row
+                                // here — but it does not BEHAVE like any other (you send as someone
+                                // else, rights may be partial, it vanishes if the owner unshares),
+                                // so it says so quietly (issue #31).
+                                if (account.isShared) {
+                                    Text(
+                                        stringResource(R.string.account_shared),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                HorizontalDivider(Modifier.padding(bottom = 12.dp))
+                if (accounts.size > 1) {
+                    val unifiedLabel = if (ui.unified && ui.unreadCount > 0) {
+                        stringResource(R.string.inbox_all_inboxes_unread, ui.unreadCount)
+                    } else {
+                        stringResource(R.string.inbox_all_inboxes)
+                    }
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.AllInbox, contentDescription = null) },
+                        label = { Text(unifiedLabel) },
+                        selected = ui.unified,
+                        onClick = {
+                            viewModel.selectUnified()
+                            scope.launch { drawerState.close() }
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+                }
+                // ⭐ Outside the guard above, deliberately: this is one account's unread mail across
+                // its own folders, so it means exactly as much on a single-account install — where
+                // the drawer is the only way in.
+                val unreadLabel = if (ui.unreadViewCount > 0) {
+                    stringResource(R.string.inbox_unread_view_unread, ui.unreadViewCount)
+                } else {
+                    stringResource(R.string.inbox_unread_view)
+                }
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.MarkEmailUnread, contentDescription = null) },
+                    label = { Text(unreadLabel) },
+                    selected = ui.unreadView,
+                    onClick = {
+                        viewModel.selectUnread()
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                // The one place the registry AND the default become "what is folded"; see
+                // [collapsedFolderIds]. The list it resolves against is the one drawn just below.
+                val collapsedIds = collapsedFolderIds(ui.visibleMailboxes, collapsedFolders, folderRowsBadgeUnread)
+                mailboxTree(ui.visibleMailboxes, collapsedIds).forEach { node ->
+                    val mailbox = node.mailbox
+                    val displayName = mailboxDisplayName(mailbox.role, mailbox.name)
+                    // A FOLDED row badges the unread it hides — its own plus its descendants' — or
+                    // the mail under a folder folded by default is on no row at all; see
+                    // [drawerUnreadCount]. Same list and same folded set as the tree above.
+                    val unread = drawerUnreadCount(mailbox, ui.visibleMailboxes, collapsedIds)
+                    val label = if (unread > 0) {
+                        stringResource(R.string.inbox_folder_unread, displayName, unread)
+                    } else {
+                        displayName
+                    }
+                    val collapsed = mailbox.id in collapsedIds
+                    NavigationDrawerItem(
+                        icon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Indent children; a chevron toggles collapse for parents.
+                                Spacer(Modifier.width((node.depth * 16).dp))
+                                if (node.hasChildren) {
+                                    Icon(
+                                        if (collapsed) Icons.Filled.ChevronRight else Icons.Filled.ExpandMore,
+                                        contentDescription = stringResource(
+                                            if (collapsed) R.string.inbox_folder_expand else R.string.inbox_folder_collapse,
+                                        ),
+                                        modifier = Modifier.clickable {
+                                            viewModel.setFolderCollapsed(mailbox.id, !collapsed)
+                                        },
+                                    )
+                                } else {
+                                    Spacer(Modifier.width(24.dp))
+                                }
+                                Icon(folderIcon(mailbox.role), contentDescription = null)
+                            }
+                        },
+                        label = { Text(label) },
+                        // The inbox is always watched (no menu); notifying about one's own
+                        // sent/drafts/trash/junk would be noise (issue #16). Management
+                        // actions stay limited to user-created folders (no role).
+                        badge = if (mailbox.role !in watchMenuHiddenRoles) {
+                            {
+                                Box {
+                                    var folderMenu by remember { mutableStateOf(false) }
+                                    IconButton(onClick = { folderMenu = true }) {
+                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options))
+                                    }
+                                    DropdownMenu(folderMenu, onDismissRequest = { folderMenu = false }, shape = MaterialTheme.shapes.medium) {
+                                        val watched = mailbox.id in watchedFolders
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.inbox_folder_watch)) },
+                                            trailingIcon = { Checkbox(checked = watched, onCheckedChange = null) },
+                                            onClick = { folderMenu = false; viewModel.setFolderWatched(mailbox.id, !watched) },
+                                        )
+                                        if (mailbox.role == null) {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.inbox_new_subfolder)) },
+                                                onClick = { folderMenu = false; onAddSubfolder(mailbox) },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.inbox_rename)) },
+                                                onClick = { folderMenu = false; onRenameFolder(mailbox) },
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.inbox_delete)) },
+                                                onClick = { folderMenu = false; onDeleteFolder(mailbox) },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                        selected = mailbox.id == ui.selectedMailboxId,
+                        onClick = {
+                            viewModel.select(mailbox)
+                            scope.launch { drawerState.close() }
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+                }
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.CreateNewFolder, contentDescription = null) },
+                    label = { Text(stringResource(R.string.inbox_new_folder)) },
+                    selected = false,
+                    onClick = onCreateFolder,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                HorizontalDivider()
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                    label = { Text(stringResource(R.string.inbox_settings)) },
+                    selected = false,
+                    onClick = {
+                        onOpenSettings()
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+              }
 }
 
 /**
@@ -2206,6 +2339,8 @@ private fun SwipeableEmailRow(
     onLongClick: (() -> Unit)? = null,
     onToggleFavourite: (() -> Unit)? = null,
     selected: Boolean,
+    /** The message open in the reading pane beside the list (#103). */
+    current: Boolean = false,
     gesturesEnabled: Boolean,
     unread: Boolean,
     threadCount: Int,
@@ -2226,6 +2361,13 @@ private fun SwipeableEmailRow(
     /** Width of the start-edge strip left to the drawer's own drag; 0 where the system
      *  owns that edge (gesture navigation). See [DrawerGesture]. */
     drawerBandPx: Float = 0f,
+    /** Is there a drawer to hand a drag to at all? False from 1 200 dp, where it is already
+     *  beside the list. Passed as a VALUE and keyed on below, never read out of a captured
+     *  State: the drag block runs outside composition and would keep the first one it saw.
+     *  See [DrawerGesture]. ⛔ No default: a third call site must ANSWER this question, and a
+     *  default would let it forget silently — with the lint next door still counting its three
+     *  `drawerCanOpen = !permanentDrawer,` and staying green over the row that has none. */
+    drawerCanOpen: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val motionOn = rememberMotionEnabled()
@@ -2294,7 +2436,7 @@ private fun SwipeableEmailRow(
             }
             .onGloballyPositioned { rowLeftPx = it.positionInWindow().x }
             .onSizeChanged { rowWidth = it.width }
-            .pointerInput(gesturesEnabled, rightAction, leftAction, drawerBandPx) {
+            .pointerInput(gesturesEnabled, rightAction, leftAction, drawerBandPx, drawerCanOpen) {
                 if (!gesturesEnabled) return@pointerInput
                 val slop = viewConfiguration.touchSlop
                 val minOffset = if (leftAction == SwipeAction.NONE) 0f else -rowWidth.toFloat()
@@ -2360,7 +2502,7 @@ private fun SwipeableEmailRow(
                                         // Codeberg #30: a direction with no action assigned has
                                         // nothing to do with this drag — leave it unconsumed so
                                         // the drawer, whose own drag spans the content, takes it.
-                                        if (!rowKeepsDrag(dx, rightAction, leftAction)) {
+                                        if (!rowKeepsDrag(dx, rightAction, leftAction, drawerCanOpen)) {
                                             return@awaitPointerEventScope false
                                         }
                                         change.consume()
@@ -2549,6 +2691,7 @@ private fun SwipeableEmailRow(
                 originColor = originColor,
                 onToggleFavourite = onToggleFavourite,
                 selected = selected,
+                current = current,
                 onLongClick = onLongClick,
                 unread = unread,
                 threadCount = threadCount,
@@ -2928,6 +3071,8 @@ private fun ThreadChildren(
      *  nothing. Null (the common case) draws no chip — see [unreadRowFolder]. */
     folderFor: (Email) -> Mailbox?,
     highlightId: String?,
+    /** The reading pane's anchor: the child it names is painted current (#103). */
+    paneAnchor: MessageAnchor?,
     selectionActive: Boolean,
     selectedKeys: Set<EmailKey>,
     onOpenChild: (Email) -> Unit,
@@ -2944,6 +3089,8 @@ private fun ThreadChildren(
     /** The drawer's start-edge strip, applied to the children too — measured from the
      *  window edge, so the indent doesn't shift it (see [DrawerGesture]). */
     drawerBandPx: Float,
+    /** And whether there is a drawer to open at all, for the same reason: a child is a row. */
+    drawerCanOpen: Boolean,
 ) {
     val motionOn = rememberMotionEnabled()
     AnimatedVisibility(
@@ -2977,6 +3124,7 @@ private fun ThreadChildren(
                             // top-level rows, so the unfolded preview matches the collapsed one.
                             onToggleFavourite = { onToggleChildFavourite(child) },
                             selected = child.emailKey() in selectedKeys,
+                            current = paneAnchor?.matches(child.accountId, child.id) == true,
                             gesturesEnabled = !selectionActive,
                             unread = !child.isSeen,
                             threadCount = 1,
@@ -2985,6 +3133,7 @@ private fun ThreadChildren(
                             rewindSwipe = needsSwipeRewind(swipeRewindKeys, child.accountId, child.id),
                             onSwipeRewound = { onSwipeRewound(child) },
                             drawerBandPx = drawerBandPx,
+                            drawerCanOpen = drawerCanOpen,
                             modifier = Modifier.weight(1f),
                         )
                     }
