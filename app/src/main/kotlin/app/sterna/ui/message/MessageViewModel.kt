@@ -59,6 +59,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -919,9 +920,84 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * "Save" on an attachment row: the part's bytes, straight from the server into the document she
+     * picked at [uri]. Same shape as [exportSource], and the same toast — "Saved as …", naming the
+     * document's REAL name (she may have renamed it in the picker), else [proposedName]. A failure
+     * lands on [actionStatus] like every other gesture on the open message: the message stays
+     * readable.
+     *
+     * ⛔ Never through `StorageRepository.cacheAttachment`, which is the OPEN path's business. The
+     * bytes go from the server into the chosen document and nowhere else: a saved attachment must
+     * not also exist as a second copy inside the app, sitting in the cache until something clears
+     * it — and nothing about saving needs a file the app can open.
+     *
+     * [ownerId] is the message the picker was launched FOR, [partKey] the part it was launched for,
+     * `partId ?: blobId` — the same key the attachment row is drawn from. BOTH are re-resolved from
+     * [messages] here, and ⚠ NEITHER is [loadedId]: the reader is a CONVERSATION, and the row hands
+     * over `msg.id`, which may be another message of the thread than the settled page. The picker's
+     * result comes back to whatever page is settled by then — an activity recreated behind the
+     * picker can restore onto ANOTHER page, or onto the same message with ANOTHER attachment — and
+     * writing part B's bytes under part A's name in her Downloads would be a lie about what she has
+     * on disk. So anything that does not resolve is refused. An empty key is refused for the same
+     * reason: no row can be drawn from a part with neither id, so an empty one means the saved state
+     * was lost, and refusing is the safe side of that.
+     *
+     * ⛔ [openingAttachment] is neither taken nor released: it holds back a second tap on OPEN, and
+     * coupling the two would make a save wait behind a download it has nothing to do with.
+     *
+     * ⛔ `CreateDocument` has the provider CREATE the document before this runs, so every failure —
+     * and the refusal above — deletes it again, or she later finds an empty `rapport.pdf` in
+     * Downloads and believes the attachment saved.
+     */
+    fun saveAttachment(uri: Uri, proposedName: String, ownerId: String, partKey: String) {
+        viewModelScope.launch {
+            try {
+                val part = _messages.value.firstOrNull { it.id == ownerId }
+                    ?.body?.fileAttachmentParts()
+                    ?.firstOrNull { (it.partId ?: it.blobId) == partKey }
+                if (ownerId.isEmpty() || partKey.isEmpty() || part == null) {
+                    discardDocument(uri)
+                    _actionStatus.value = getApplication<Application>().getString(R.string.status_action_failed)
+                    return@launch
+                }
+                val credentials = credentials()
+                    ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
+                val bytes = repo.downloadAttachment(credentials, part, ownerId)
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+                        ?: error("no output stream")
+                }
+                val name = displayNameOf(uri, proposedName)
+                _actionStatus.value = getApplication<Application>().getString(R.string.message_export_saved, name)
+            } catch (cancelled: CancellationException) {
+                // ⛔ Cancellation is NOT a failure to report, but the document still has to go: each
+                // pager page owns its ViewModel, so swiping two messages away mid-download cancels
+                // this scope, and caught as an ordinary throwable below it would leave the empty
+                // `rapport.pdf` the picker created sitting in her folder — with no toast to even
+                // hint at it, since this page is gone. [discardDocument] runs NonCancellable for
+                // exactly this moment. Rethrown, never swallowed: the scope stays honest.
+                discardDocument(uri)
+                throw cancelled
+            } catch (t: ContentTooLargeException) {
+                // Our own refusal, not a failure — the same sentence the open path gives it, which
+                // names no action precisely so both paths can wear it.
+                discardDocument(uri)
+                _actionStatus.value = getApplication<Application>().getString(R.string.status_attachment_too_large)
+            } catch (t: Throwable) {
+                discardDocument(uri)
+                _actionStatus.value = getApplication<Application>()
+                    .getString(R.string.status_save_attachment_failed, t.message ?: "error")
+            }
+        }
+    }
+
     /** Delete the document the picker created at [uri] — nothing was, or could be, written into it.
-     *  A provider that cannot delete costs nothing more: the failure toast is already on its way. */
-    private suspend fun discardDocument(uri: Uri) = withContext(Dispatchers.IO) {
+     *  A provider that cannot delete costs nothing more: the failure toast is already on its way.
+     *  ⛔ [NonCancellable], because the one moment this matters most is a cancelled scope: the page
+     *  swiped away mid-write is precisely when nobody is left to see a toast, and a plain
+     *  `withContext` would throw here instead of deleting, leaving the empty file behind for good. */
+    private suspend fun discardDocument(uri: Uri) = withContext(NonCancellable + Dispatchers.IO) {
         runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }
     }
 

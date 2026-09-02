@@ -207,6 +207,7 @@
     <string name="message_view_headers">Показать заголовки</string>
     <string name="message_export_eml">Сохранить как .eml</string>
     <string name="message_export_saved">Сохранено как %1$s</string>
+    <string name="message_save_attachment">Сохранить вложение</string>
     <string name="message_print">Печать</string>
     <string name="message_headers_title">Заголовки письма</string>
     <string name="message_headers_empty">Нет заголовков для отображения</string>
@@ -758,7 +759,8 @@
     <string name="status_attaching">Прикрепление…</string>
     <string name="status_read_file_failed">Не удалось прочитать выбранный файл.</string>
     <string name="status_open_attachment_failed">Не удалось открыть вложение: %1$s</string>
-    <string name="status_attachment_too_large">Это вложение слишком велико, чтобы его открыть.</string>
+    <string name="status_save_attachment_failed">Не удалось сохранить вложение: %1$s</string>
+    <string name="status_attachment_too_large">Это вложение слишком велико.</string>
     <string name="status_inline_images_too_large">Некоторые изображения в этом сообщении слишком велики для отображения.</string>
     <string name="status_message_too_large">Это сообщение слишком велико для отображения.</string>
     <string name="status_message_unavailable">Сервер не вернул это письмо. Повторите попытку позже.</string>

@@ -181,8 +181,10 @@ The categories further down list the full feature set; this is the order of work
   Per-account setup in Settings; a lock button in the composer cycles off /
   sign / encrypt, and a long press on it adds a fourth mode, encrypt without
   signing. Decrypted content is never written to disk (not cached, not
-  search-indexed), except an attachment you open, which is written to the app's
-  own storage until the cache is cleared. The message subject is not encrypted.
+  search-indexed), except an attachment: one you open is written to the app's own
+  storage until the cache is cleared, and one you save, with the button on its row
+  in the reader, goes to the folder you pick and stays there. The message subject
+  is not encrypted.
   User guide: [ENCRYPTION.md](ENCRYPTION.md).
 - 💡 S/MIME (longer-term)
 

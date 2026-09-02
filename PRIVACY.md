@@ -7,7 +7,7 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-09-01.
+explains exactly what that means, in plain terms. Last updated: 2026-09-02.
 
 ## What Sterna does NOT do
 
@@ -47,6 +47,13 @@ comes from. The rest stays here:
   clear the cache or sign the account out. You can clear it at any time from
   Settings, under Storage, with **Clear cache**, and signing the account out
   clears it too.
+- **Attachments you save**: saving an attachment writes it into the folder you
+  pick in the system's own file picker, outside the app, including one that
+  arrived encrypted, which is saved decrypted since that is what you asked for.
+  Its bytes go from your server into that file directly, without a copy in the
+  app's cache. Nothing prunes it and nothing clears it: neither **Clear cache**
+  nor signing the account out reaches a file that is no longer the app's, so it
+  stays on the device until you delete it yourself.
 - **Drafts you write on the phone.** A draft's subject, text and recipients are
   written to the device before anything goes to your server, and they stay there
   until it has been uploaded, which with no network can be days. Until that

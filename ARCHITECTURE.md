@@ -180,8 +180,10 @@ outbox-bearing tables migrate additively.
 - **OpenPGP:** via an external OpenPGP app over the vendored openpgp-api bound
   service, behind the `PgpEngine` seam. Encrypt-at-compose (JMAP uploads the
   ciphertext blob + `Email/import`; IMAP builds PGP/MIME); decrypted plaintext
-  lives only in memory, never in the cache, except an attachment you open, which
-  is written to the app's own storage until the cache is cleared. See
+  lives only in memory, never in the cache, except an attachment: one you open is
+  written to the app's own storage until the cache is cleared, and one you save is
+  streamed from the server into the document the system picker returns, never
+  through the cache. See
   [ENCRYPTION.md](ENCRYPTION.md).
 - **Outbox & scheduled send:** sends are persisted Room rows delivered by
   WorkManager jobs (network constraint, backoff, undo-send hold-back), so a

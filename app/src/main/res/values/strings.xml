@@ -345,6 +345,7 @@
     <!-- Reader overflow: save the message as it sits on the server (.eml) -->
     <string name="message_export_eml">Save as .eml</string>
     <string name="message_export_saved">Saved as %1$s</string>
+    <string name="message_save_attachment">Save attachment</string>
     <string name="message_attached_title">Attached message</string>
     <string name="message_attached_files">Attachments: %1$s</string>
     <string name="message_attached_empty">No text in this message</string>
@@ -954,7 +955,8 @@
     <string name="status_attaching">Attaching…</string>
     <string name="status_read_file_failed">Couldn\'t read the selected file.</string>
     <string name="status_open_attachment_failed">Couldn\'t open attachment: %1$s</string>
-    <string name="status_attachment_too_large">This attachment is too large to open.</string>
+    <string name="status_save_attachment_failed">Couldn\'t save attachment: %1$s</string>
+    <string name="status_attachment_too_large">This attachment is too large.</string>
     <string name="status_inline_images_too_large">Some images in this message are too large to display.</string>
     <string name="status_message_too_large">This message is too large to display.</string>
     <string name="status_message_unavailable">The server did not return this message. Try again later.</string>

@@ -28,8 +28,14 @@ class ExportSourceCallSiteTest {
         )
         assertEquals(
             "exportSource must open the picked document in \"wt\" mode (truncate: a re-saved " +
-                "file must not keep the tail of a longer one) and write the BYTES. Lines found:",
-            listOf("getApplication<Application>().contentResolver.openOutputStream(uri, \"wt\")?.use { it.write(bytes) }"),
+                "file must not keep the tail of a longer one) and write the BYTES. The second " +
+                "line is `saveAttachment`'s, pinned in the same shape by " +
+                "[SaveAttachmentCallSiteTest]; this rule reads the whole file, so both appear. " +
+                "Lines found:",
+            listOf(
+                "getApplication<Application>().contentResolver.openOutputStream(uri, \"wt\")?.use { it.write(bytes) }",
+                "getApplication<Application>().contentResolver.openOutputStream(uri, \"wt\")?.use { it.write(bytes) }",
+            ),
             lines.filter { "openOutputStream(" in it },
         )
         assertEquals(
@@ -37,9 +43,15 @@ class ExportSourceCallSiteTest {
                 "owner-mismatch refusal, must delete it again, or an empty `Subject.eml` sits in " +
                 "Downloads looking like a saved message. Lines found:",
             listOf(
+                // exportSource: the owner refusal, then any failure
                 "discardDocument(uri)",
                 "discardDocument(uri)",
-                "private suspend fun discardDocument(uri: Uri) = withContext(Dispatchers.IO) {",
+                // saveAttachment's four, pinned as such by [SaveAttachmentCallSiteTest]
+                "discardDocument(uri)",
+                "discardDocument(uri)",
+                "discardDocument(uri)",
+                "discardDocument(uri)",
+                "private suspend fun discardDocument(uri: Uri) = withContext(NonCancellable + Dispatchers.IO) {",
                 "runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }",
             ),
             lines.filter { "discardDocument(" in it || "deleteDocument(" in it },
@@ -54,8 +66,15 @@ class ExportSourceCallSiteTest {
     @Test fun `the menu entry launches a message-rfc822 document picker`() {
         val lines = codeLines(screen().readText())
         assertEquals(
-            "the picker must be created for the message/rfc822 MIME type. Lines found:",
-            listOf("ActivityResultContracts.CreateDocument(\"message/rfc822\"),"),
+            "the picker must be created for the message/rfc822 MIME type. The second line is the " +
+                "attachment picker's wildcard, pinned by [SaveAttachmentCallSiteTest]; this rule " +
+                "reads the whole file, so both appear, and the ORDER is part of the rule — the " +
+                "wildcard on the .eml launcher would offer a message a name with no extension. " +
+                "Lines found:",
+            listOf(
+                "ActivityResultContracts.CreateDocument(\"message/rfc822\"),",
+                "ActivityResultContracts.CreateDocument(\"*/*\"),",
+            ),
             lines.filter { "CreateDocument(" in it },
         )
         assertEquals(

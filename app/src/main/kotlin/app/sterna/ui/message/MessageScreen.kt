@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.VerifiedUser
 import app.sterna.core.data.mail.UnsubscribeAction
 import app.sterna.core.data.mail.UnsubscribeOptions
 import app.sterna.core.data.mail.preferredAction
+import app.sterna.core.data.text.attachmentFileName
 import app.sterna.core.data.text.safeFileName
 import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
@@ -1550,6 +1551,28 @@ private fun MessageContent(
         Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
         viewModel.clearActionStatus()
     }
+    // "Save" on an attachment row: the system picker, then the part's server bytes straight into
+    // the document it returns (MessageViewModel.saveAttachment). ⛔ Declared HERE, in the page's
+    // own body and outside every section, menu and loop, for the reason the .eml launcher gives
+    // where it sits: registered further down, it is disposed the moment the thing that carries it
+    // recomposes away — the header rebuilds on every settle — and the picker's result comes back
+    // with nowhere to land, so the tap saves nothing and says nothing.
+    // The three keys are rememberSaveable and not remember: the picker is another activity, the
+    // system may recreate this one behind it, and a plain remember comes back empty. Empty is
+    // refused by the ViewModel's owner guard, so the save would be lost without a word.
+    // ⛔ The MIME type is "*/*", fixed ONCE, and not the touched part's: a CreateDocument contract
+    // freezes its type when the launcher is registered, so typing it per part would need a
+    // recomposition between the tap and launch() — a race. What types the file in the end is its
+    // extension, carried by the proposed name (attachmentFileName).
+    var saveAttachmentFor by rememberSaveable { mutableStateOf("") }
+    var saveAttachmentPart by rememberSaveable { mutableStateOf("") }
+    var saveAttachmentName by rememberSaveable { mutableStateOf("") }
+    val saveAttachmentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*"),
+    ) { uri ->
+        // A cancelled picker (null) does nothing — no word, no file.
+        if (uri != null) viewModel.saveAttachment(uri, saveAttachmentName, saveAttachmentFor, saveAttachmentPart)
+    }
     // Print (the overflow menu's last entry). The document is built HERE and not in the menu
     // because this is where the three decisions the reader took live — the body it renders
     // (`readerBody`, the same call the page makes), the reading mode, and whether remote images
@@ -1630,6 +1653,12 @@ private fun MessageContent(
                 confirmLinks = confirmLinks,
                 attachmentStatus = attachmentStatus,
                 onOpenAttachment = viewModel::openAttachment,
+                onSaveAttachment = { part, ownerId ->
+                    saveAttachmentFor = ownerId
+                    saveAttachmentPart = part.partId ?: part.blobId ?: ""
+                    saveAttachmentName = attachmentFileName(part.name)
+                    saveAttachmentLauncher.launch(saveAttachmentName)
+                },
                 calendar = calendar,
                 onRespondToInvite = viewModel::respondToInvite,
                 textZoom = messageTextSize.zoom,
@@ -1688,6 +1717,7 @@ private fun ConversationBody(
     confirmLinks: Boolean,
     attachmentStatus: String?,
     onOpenAttachment: (EmailBodyPart, String) -> Unit,
+    onSaveAttachment: (EmailBodyPart, String) -> Unit,
     calendar: CalendarInvite?,
     onRespondToInvite: (String) -> Unit,
     textZoom: Int,
@@ -1980,7 +2010,7 @@ private fun ConversationBody(
                 .background(MaterialTheme.colorScheme.surface),
         ) {
             MessageHeader(
-                msg, full, attachmentStatus, onOpenAttachment, calendar, onRespondToInvite,
+                msg, full, attachmentStatus, onOpenAttachment, onSaveAttachment, calendar, onRespondToInvite,
                 onComposeTo, senderRule, showRecipients, deliveredTo, crypto, onCryptoAction,
                 deliveredToLine = deliveredToLine,
                 imagesStrip = imagesStrip,
@@ -2055,6 +2085,10 @@ private fun MessageHeader(
     full: Email?,
     attachmentStatus: String?,
     onOpenAttachment: (EmailBodyPart, String) -> Unit,
+    /** ⚠ Declared right after [onOpenAttachment] and handed over POSITIONALLY from
+     *  [ConversationBody], like everything up to `onCryptoAction`: two lambdas of the same type,
+     *  and swapped, the row's name would save and its icon would open. */
+    onSaveAttachment: (EmailBodyPart, String) -> Unit,
     calendar: CalendarInvite?,
     onRespondToInvite: (String) -> Unit,
     onComposeTo: (address: String) -> Unit,
@@ -2212,7 +2246,12 @@ private fun MessageHeader(
             val attachments = full.fileAttachmentParts()
             if (attachments.isNotEmpty()) {
                 HorizontalDivider()
-                AttachmentSection(attachments, attachmentStatus) { part -> onOpenAttachment(part, msg.id) }
+                AttachmentSection(
+                    attachments,
+                    attachmentStatus,
+                    onOpen = { part -> onOpenAttachment(part, msg.id) },
+                    onSave = { part -> onSaveAttachment(part, msg.id) },
+                )
             }
             // A calendar invite renders as an event preview card above the body.
             if (calendar != null && full.calendarParts().isNotEmpty()) {
@@ -2617,6 +2656,7 @@ private fun AttachmentSection(
     attachments: List<EmailBodyPart>,
     status: String?,
     onOpen: (EmailBodyPart) -> Unit,
+    onSave: (EmailBodyPart) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
@@ -2656,6 +2696,17 @@ private fun AttachmentSection(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
+                // Save this attachment into a document of her choosing. Beside the row rather than
+                // behind a long press, as K-9 and Gmail both put it: the row's body keeps its own
+                // tap, so the name opens and the icon saves. The name has maxLines = 1 and an
+                // ellipsis and the column above has weight(1f), so a long name shortens instead of
+                // pushing this button off the screen.
+                IconButton(onClick = { onSave(att) }) {
+                    Icon(
+                        Icons.Filled.SaveAlt,
+                        contentDescription = stringResource(R.string.message_save_attachment),
+                    )
                 }
             }
         }

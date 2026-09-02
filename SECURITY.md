@@ -214,8 +214,10 @@ Out of scope:
   an in-memory cache only, never written to the Room body cache and never added to the
   local search index (which indexes headers only). An encrypted message in the outbox
   stores only its ciphertext entity; the plaintext body is cleared at rest. Attachments
-  are the exception: an attachment you open is written to the app's own storage until
-  the cache is cleared.
+  are the exception: one you open is written to the app's own storage until the cache
+  is cleared, and one you save is written to the document the system picker returns —
+  outside the app, where neither clearing the cache nor signing the account out reaches
+  it. Saving is an explicit gesture, one attachment at a time.
 - The message **subject is not encrypted** on the way out (sent in the clear, matching
   common OpenPGP practice). Protected headers (RFC 9788) are **read, never written**: a
   decrypted PGP/MIME entity whose own header block carries a non-blank `Subject` is shown

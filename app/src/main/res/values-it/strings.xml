@@ -207,6 +207,7 @@
     <string name="message_view_headers">Mostra intestazioni</string>
     <string name="message_export_eml">Salva come .eml</string>
     <string name="message_export_saved">Salvato come %1$s</string>
+    <string name="message_save_attachment">Salva allegato</string>
     <string name="message_print">Stampa</string>
     <string name="message_headers_title">Intestazioni del messaggio</string>
     <string name="message_headers_empty">Nessuna intestazione da mostrare</string>
@@ -748,7 +749,8 @@
     <string name="status_attaching">Allegando…</string>
     <string name="status_read_file_failed">Impossibile leggere il file selezionato.</string>
     <string name="status_open_attachment_failed">Impossibile aprire l\'allegato: %1$s</string>
-    <string name="status_attachment_too_large">Questo allegato è troppo grande per essere aperto.</string>
+    <string name="status_save_attachment_failed">Impossibile salvare l\'allegato: %1$s</string>
+    <string name="status_attachment_too_large">Questo allegato è troppo grande.</string>
     <string name="status_inline_images_too_large">Alcune immagini di questo messaggio sono troppo grandi per essere visualizzate.</string>
     <string name="status_message_too_large">Questo messaggio è troppo grande per essere visualizzato.</string>
     <string name="status_message_unavailable">Il server non ha restituito questo messaggio. Riprova più tardi.</string>

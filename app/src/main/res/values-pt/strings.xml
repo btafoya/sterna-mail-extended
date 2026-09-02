@@ -207,6 +207,7 @@
     <string name="message_view_headers">Ver cabeçalhos</string>
     <string name="message_export_eml">Guardar como .eml</string>
     <string name="message_export_saved">Guardado como %1$s</string>
+    <string name="message_save_attachment">Guardar anexo</string>
     <string name="message_print">Imprimir</string>
     <string name="message_headers_title">Cabeçalhos da mensagem</string>
     <string name="message_headers_empty">Nenhum cabeçalho para mostrar</string>
@@ -748,7 +749,8 @@
     <string name="status_attaching">Anexando…</string>
     <string name="status_read_file_failed">Não foi possível ler o arquivo selecionado.</string>
     <string name="status_open_attachment_failed">Não foi possível abrir o anexo: %1$s</string>
-    <string name="status_attachment_too_large">Este anexo é demasiado grande para ser aberto.</string>
+    <string name="status_save_attachment_failed">Não foi possível guardar o anexo: %1$s</string>
+    <string name="status_attachment_too_large">Este anexo é demasiado grande.</string>
     <string name="status_inline_images_too_large">Algumas imagens desta mensagem são demasiado grandes para serem apresentadas.</string>
     <string name="status_message_too_large">Esta mensagem é demasiado grande para ser apresentada.</string>
     <string name="status_message_unavailable">O servidor não devolveu esta mensagem. Tente novamente mais tarde.</string>
