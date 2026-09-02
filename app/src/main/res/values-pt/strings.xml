@@ -647,6 +647,7 @@
     <string name="connect_oauth_admin_consent">O administrador da sua organização tem de aprovar o Sterna para o início de sessão da Microsoft, ou pode iniciar sessão com uma palavra-passe de aplicação.</string>
     <string name="connect_oauth_error_code">A Microsoft recusou o início de sessão (%1$s). Tente novamente ou use uma palavra-passe de aplicação.</string>
     <string name="connect_oauth_flow_unsupported">Este servidor oferece início de sessão com OAuth, mas não de uma forma que o Sterna já consiga usar. Utilize o e-mail e a palavra-passe.</string>
+    <string name="connect_oauth_elsewhere">Este servidor entrega o início de sessão a outro domínio e o Sterna não o segue até lá. Utilize o e-mail e a palavra-passe.</string>
     <string name="connect_oauth_error_reason">O servidor recusou o início de sessão (%1$s). Tente novamente ou utilize o e-mail e a palavra-passe.</string>
     <string name="connect_oauth_network">Não foi possível contactar o servidor enquanto se aguardava a aprovação. Verifique a ligação e tente novamente.</string>
     <string name="connect_account_added">Conta adicionada</string>

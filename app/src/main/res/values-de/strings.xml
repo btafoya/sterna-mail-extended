@@ -647,6 +647,7 @@
     <string name="connect_oauth_admin_consent">Der Administrator Ihrer Organisation muss Sterna für die Microsoft-Anmeldung genehmigen, oder Sie können sich mit einem App-Passwort anmelden.</string>
     <string name="connect_oauth_error_code">Microsoft hat die Anmeldung abgelehnt (%1$s). Versuchen Sie es erneut oder verwenden Sie ein App-Passwort.</string>
     <string name="connect_oauth_flow_unsupported">Dieser Server bietet die OAuth-Anmeldung an, aber nicht in einer Form, die Sterna bereits nutzen kann. Verwenden Sie stattdessen E-Mail-Adresse und Passwort.</string>
+    <string name="connect_oauth_elsewhere">Dieser Server übergibt die Anmeldung an eine andere Domain, und Sterna folgt ihm dorthin nicht. Verwenden Sie stattdessen E-Mail-Adresse und Passwort.</string>
     <string name="connect_oauth_error_reason">Der Server hat die Anmeldung abgelehnt (%1$s). Versuchen Sie es erneut oder verwenden Sie E-Mail-Adresse und Passwort.</string>
     <string name="connect_oauth_network">Der Server war beim Warten auf die Bestätigung nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.</string>
     <string name="connect_account_added">Konto hinzugefügt</string>

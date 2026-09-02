@@ -380,8 +380,14 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      * button keeps all four ([connectOAuth]), because there she asked for OAuth herself.
      */
     private suspend fun probeOAuthFor(address: String): OAuthDiscovery {
+        // ⛔ The address' bare domain BOUNDS what the discovery document may name (it is the only
+        // owner besides the host asked — `OAuthClient.discoverMetadata`). Read from
+        // `Jmap.autodiscoverHosts`, the one normalisation of an address in the app, and the very
+        // list `mailOAuthCandidates` derives from: a second one here could drift from it. A
+        // malformed address gives "", and the guard then falls back to the host asked alone.
+        val addressDomain = Jmap.autodiscoverHosts(address).firstOrNull().orEmpty()
         val chosen = discoverOAuthAmong(mailOAuthCandidates(address)) {
-            container.mailRepository.discoverOAuth(it)
+            container.mailRepository.discoverOAuth(it, addressDomain)
         }
         return OAuthDiscovery(address, chosen)
     }
@@ -611,8 +617,12 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             // not twice is reported as "this server doesn't support OAuth sign-in" — false, and
             // said to someone who never asked for OAuth in the first place.
             val reused = reusableOAuth(_oauthDiscovery.value, emailTrim, server)
+            // Same bound as the address step, and from the same normalisation: even when a server
+            // was typed by hand, what the document may NAME stays the typed host or the address'
+            // own domain (`OAuthClient.discoverMetadata`).
+            val addressDomain = Jmap.autodiscoverHosts(emailTrim).firstOrNull().orEmpty()
             val discovered = reused?.let { listOf(it) }
-                ?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it) }
+                ?: collectOAuthHosts(candidates) { container.mailRepository.discoverOAuth(it, addressDomain) }
             // "No OAuth here" and "OAuth, but not a flow this app can drive" are different facts
             // and used to be the same sentence. WHICH sentence is oauthDiscoveryFailure's call and
             // no longer this screen's — it answers for a null metadata too, so the "nothing

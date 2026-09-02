@@ -413,4 +413,113 @@ class OAuthErrorMessagesTest {
             oauthDiscoveryFailure(meta("mail.example.org", deviceFlow = false)),
         )
     }
+
+    // ---- Discovery that was REFUSED BY US, not by the server ----
+    //
+    // `OAuthClient.discoverMetadata` blanks an endpoint a document names off the queried host and
+    // off the address domain, and hands the fact back as `endpointsOffDomain`. A document blanked
+    // down to nothing then looks EXACTLY like a server with no usable grant, and used to be told
+    // "not in a way Sterna can use yet" — the server's OAuth is fine, the refusal is ours.
+    //
+    // These EXECUTE `oauthDiscoveryFailure` on metadata built by hand and pin the resource it
+    // returns; nothing here recomputes the rule, so inverting the order of the two `NONE` arms,
+    // or dropping the `&& NONE` conjunction, has to redden.
+
+    /** ⚠ Built the way `discoverMetadata` returns it: every endpoint refused, so the token
+     *  endpoint is BLANK (not null) and the two others are null, with the fact carried alongside. */
+    @Test fun `a document blanked down to nothing says the sign-in was handed elsewhere`() {
+        val blanked = OAuthMetadata(
+            issuer = "https://idp.example",
+            authorizationEndpoint = null,
+            tokenEndpoint = "",
+            deviceAuthorizationEndpoint = null,
+            endpointsOffDomain = true,
+        )
+        assertEquals(R.string.connect_oauth_elsewhere, oauthDiscoveryFailure(blanked))
+    }
+
+    /**
+     * ⛔ The witness that keeps the new branch from eating the old one: nothing was refused here,
+     * the server itself advertises OAuth with no grant this app can drive. Same `NONE`, same empty
+     * flow, different fact — and this one keeps the sentence it already had.
+     */
+    @Test fun `a server with no usable grant and nothing refused keeps the flow sentence`() {
+        val advertised = OAuthMetadata(
+            issuer = "https://idp.example",
+            authorizationEndpoint = null,
+            tokenEndpoint = "https://idp.example/token",
+            deviceAuthorizationEndpoint = null,
+            endpointsOffDomain = false,
+        )
+        assertEquals(R.string.connect_oauth_flow_unsupported, oauthDiscoveryFailure(advertised))
+    }
+
+    /** And the same with no endpoint at all: still the server's shortcoming, still that sentence. */
+    @Test fun `a document with no endpoint at all and nothing refused keeps the flow sentence`() {
+        val empty = OAuthMetadata(
+            issuer = "https://idp.example",
+            authorizationEndpoint = null,
+            tokenEndpoint = "",
+            deviceAuthorizationEndpoint = null,
+            endpointsOffDomain = false,
+        )
+        assertEquals(R.string.connect_oauth_flow_unsupported, oauthDiscoveryFailure(empty))
+    }
+
+    /**
+     * ⛔ THE WITNESS OF THE CONJUNCTION. Only the device endpoint was off-domain and blanked; the
+     * authorization and token endpoints survived, so the code grant still runs. Refusing here would
+     * break a sign-in that works. `endpointsOffDomain` alone must say NOTHING.
+     */
+    @Test fun `a partial refusal that still leaves a usable grant is no failure`() {
+        val partly = OAuthMetadata(
+            issuer = "https://idp.example",
+            authorizationEndpoint = "https://mail.example.org/authorize",
+            tokenEndpoint = "https://mail.example.org/token",
+            deviceAuthorizationEndpoint = null,
+            endpointsOffDomain = true,
+        )
+        assertEquals(OAuthGrant.AUTHORIZATION_CODE, chooseOAuthGrant(partly))
+        assertNull(oauthDiscoveryFailure(partly))
+    }
+
+    /** Same, with the device flow itself intact: a blanked authorization endpoint changes nothing. */
+    @Test fun `a partial refusal that still leaves the device flow is no failure`() {
+        val partly = OAuthMetadata(
+            issuer = "https://idp.example",
+            authorizationEndpoint = null,
+            tokenEndpoint = "https://mail.example.org/token",
+            deviceAuthorizationEndpoint = "https://mail.example.org/device",
+            endpointsOffDomain = true,
+        )
+        assertNull(oauthDiscoveryFailure(partly))
+    }
+
+    /**
+     * ⛔ THE WITNESS OF THE SHAPE, and it is the one the suite was missing. The token endpoint is
+     * on-domain and SURVIVES; only the device endpoint was sent to a third party, and there is no
+     * authorization endpoint — so nothing can be driven, and the reason is the third party.
+     *
+     * Without this case, `endpointsOffDomain && tokenEndpoint.isBlank()` reads the same as
+     * `endpointsOffDomain && NONE` across the whole file, and that mutant puts the old, false
+     * sentence back on exactly the document this volet exists for.
+     */
+    @Test fun `a token endpoint that survives still says elsewhere when nothing can be driven`() {
+        val handed = OAuthMetadata(
+            issuer = "https://mail.example.org",
+            authorizationEndpoint = null,
+            tokenEndpoint = "https://mail.example.org/token",
+            deviceAuthorizationEndpoint = null,
+            endpointsOffDomain = true,
+        )
+        assertEquals(OAuthGrant.NONE, chooseOAuthGrant(handed))
+        assertEquals(R.string.connect_oauth_elsewhere, oauthDiscoveryFailure(handed))
+    }
+
+    /** ⛔ No metadata at all stays "this server has no OAuth" — see also
+     *  `no metadata means the server has no OAuth`; the elsewhere branch must not reach it. */
+    @Test fun `nothing discovered is still no OAuth, not a handover`() {
+        assertNotEquals(R.string.connect_oauth_elsewhere, oauthDiscoveryFailure(null))
+        assertEquals(R.string.connect_oauth_unsupported, oauthDiscoveryFailure(null))
+    }
 }

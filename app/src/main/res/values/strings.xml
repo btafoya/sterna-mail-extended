@@ -847,6 +847,7 @@
     <string name="connect_oauth_admin_consent">Your organisation\'s admin must approve Sterna for Microsoft sign-in, or you can sign in with an app password instead.</string>
     <string name="connect_oauth_error_code">Microsoft refused the sign-in (%1$s). Try again, or use an app password instead.</string>
     <string name="connect_oauth_flow_unsupported">This server offers OAuth sign-in, but not in a way Sterna can use yet. Use email and password instead.</string>
+    <string name="connect_oauth_elsewhere">This server hands sign-in to another domain, and Sterna doesn\'t follow it there. Use email and password instead.</string>
     <string name="connect_oauth_error_reason">The server refused the sign-in (%1$s). Try again, or use email and password instead.</string>
     <string name="connect_oauth_network">Couldn\'t reach the server while waiting for approval. Check your connection, then try again.</string>
     <string name="connect_account_added">Account added</string>

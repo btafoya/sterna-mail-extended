@@ -647,6 +647,7 @@
     <string name="connect_oauth_admin_consent">L\'administrateur de votre organisation doit approuver Sterna pour la connexion Microsoft, ou vous pouvez vous connecter avec un mot de passe d\'application.</string>
     <string name="connect_oauth_error_code">Microsoft a refusé la connexion (%1$s). Réessayez, ou utilisez un mot de passe d\'application.</string>
     <string name="connect_oauth_flow_unsupported">Ce serveur propose la connexion OAuth, mais pas sous une forme que Sterna sait encore utiliser. Utilisez plutôt votre adresse e-mail et votre mot de passe.</string>
+    <string name="connect_oauth_elsewhere">Ce serveur confie la connexion à un autre domaine, et Sterna ne l\'y suit pas. Utilisez plutôt votre adresse e-mail et votre mot de passe.</string>
     <string name="connect_oauth_error_reason">Le serveur a refusé la connexion (%1$s). Réessayez, ou utilisez plutôt votre adresse e-mail et votre mot de passe.</string>
     <string name="connect_oauth_network">Impossible de joindre le serveur pendant l\'attente de l\'approbation. Vérifiez votre connexion, puis réessayez.</string>
     <string name="connect_account_added">Compte ajouté</string>

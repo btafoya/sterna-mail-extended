@@ -647,6 +647,7 @@
     <string name="connect_oauth_admin_consent">Администратор вашей организации должен одобрить Sterna для входа через Microsoft, либо вы можете войти с паролем приложения.</string>
     <string name="connect_oauth_error_code">Microsoft отклонил вход (%1$s). Попробуйте снова или используйте пароль приложения.</string>
     <string name="connect_oauth_flow_unsupported">Этот сервер поддерживает вход через OAuth, но не тем способом, который Sterna пока умеет использовать. Используйте адрес электронной почты и пароль.</string>
+    <string name="connect_oauth_elsewhere">Этот сервер передаёт вход другому домену, и Sterna за ним туда не идёт. Используйте адрес электронной почты и пароль.</string>
     <string name="connect_oauth_error_reason">Сервер отклонил вход (%1$s). Повторите попытку или используйте адрес электронной почты и пароль.</string>
     <string name="connect_oauth_network">Не удалось связаться с сервером во время ожидания подтверждения. Проверьте подключение и повторите попытку.</string>
     <string name="connect_account_added">Учётная запись добавлена</string>

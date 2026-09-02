@@ -111,14 +111,20 @@ Out of scope:
   bodyless GET whose answer the caller would then read as a token grant, which would let the
   redirect target choose the access token the app uses. Such a response is surfaced as a
   failure instead, and the target is never contacted.
-- **Metadata discovery is the deliberate exception, and it decides who receives the tokens.**
+- **Metadata discovery is the deliberate exception, and what it may name is bounded.**
   `discoverMetadata` keeps the shared JMAP client and does follow 3xx: it is a GET that
   carries no secret, and real servers behind a proxy or a vhost answer a redirect there
-  (Codeberg #54, #137). Worth stating plainly, because it is the same trade as the JMAP
-  discovery above: that lookup is what names the token endpoint, so whoever answers it,
-  redirects included, chooses the host the token POSTs then go to over HTTPS. Refusing to
-  follow redirects protects the hops that carry a secret; it does not constrain the choice of
-  who receives one.
+  (Codeberg #54, #137). That lookup is what names the token endpoint, so whoever answers it,
+  redirects included, would otherwise choose the host the token POSTs then go to over HTTPS.
+  Refusing to follow redirects protects the hops that carry a secret; it does not constrain
+  the choice of who receives one, so that choice is constrained where it is made instead: an
+  endpoint the document names is kept only over HTTPS, and only on the host that was asked,
+  on the domain of the address being signed in, or on a subdomain of either. The comparison
+  is the one autoconfiguration uses below, leading dot included. A refused endpoint is
+  blanked, which leaves no flow to start, and the sign-in says the server hands sign-in to
+  another domain rather than claiming it offers no OAuth. The test runs at discovery, so it
+  bounds every account added from then on; an account already set up keeps the token endpoint
+  it was given, since re-judging one would lock a working account out with no way back in.
 - **Autoconfiguration follows redirects by hand, and only within your own domain.** The
   published-config lookup (`autoconfig.<domain>`, then the `.well-known` path on the domain
   itself) also uses a client of its own, with `followRedirects(false)`: OkHttp's built-in

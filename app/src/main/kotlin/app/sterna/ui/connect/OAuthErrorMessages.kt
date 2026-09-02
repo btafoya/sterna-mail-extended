@@ -157,9 +157,23 @@ fun chooseOAuthHost(discovered: List<Pair<String, OAuthMetadata>>): Pair<String,
 /**
  * null when discovery found a server this app can actually sign into; otherwise what to show.
  *
- * The two failures are different facts and used to render the same sentence: a server with no
- * OAuth at all, and a server that offers OAuth but no grant this app can drive — the second was
- * being told it "doesn't support OAuth sign-in", which is simply false.
+ * THREE failures, three different facts, and they used to render the same sentence or worse the
+ * wrong one:
+ *  - no OAuth here at all;
+ *  - OAuth, but not a flow this app can drive — being told it "doesn't support OAuth sign-in" is
+ *    simply false;
+ *  - OAuth, but it hands the sign-in to another domain. `OAuthClient.discoverMetadata` refuses an
+ *    endpoint named off the queried host and off the address domain, blanks it, and reports the
+ *    fact as [OAuthMetadata.endpointsOffDomain]. This is the only one of the three where the
+ *    refusal is OURS: the server's OAuth is standard and would work. Blanked down to nothing it
+ *    looks exactly like the second case, and "not in a way Sterna can use yet" then blames a
+ *    server that did nothing wrong.
+ *
+ * ⛔ The order and the conjunction are the decision. The off-domain arm comes FIRST but only fires
+ * when nothing usable is left: a document whose device endpoint alone was refused, keeping an
+ * authorization and a token endpoint on-domain, signs in through the code grant and must be told
+ * NOTHING — refusing there would break a sign-in that works. And an off-domain refusal must never
+ * fall back on "this server doesn't support OAuth sign-in": that is the lie #54/#137 settled.
  *
  * ⚠ "A grant this app can drive" is [chooseOAuthGrant]'s answer and no longer a device endpoint:
  * a server publishing only an authorization endpoint is signed into through the code grant (#55),
@@ -168,6 +182,8 @@ fun chooseOAuthHost(discovered: List<Pair<String, OAuthMetadata>>): Pair<String,
 @StringRes
 fun oauthDiscoveryFailure(metadata: OAuthMetadata?): Int? = when {
     metadata == null -> R.string.connect_oauth_unsupported
+    metadata.endpointsOffDomain && chooseOAuthGrant(metadata) == OAuthGrant.NONE ->
+        R.string.connect_oauth_elsewhere
     chooseOAuthGrant(metadata) == OAuthGrant.NONE -> R.string.connect_oauth_flow_unsupported
     else -> null
 }

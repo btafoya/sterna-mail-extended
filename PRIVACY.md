@@ -7,7 +7,7 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-09-02.
+explains exactly what that means, in plain terms. Last updated: 2026-09-03.
 
 ## What Sterna does NOT do
 
@@ -177,11 +177,16 @@ sets it off.
    itself travelling, and, where your own server signs you in with the device
    flow, the address you typed going to its approval page so it can fill the
    field for you. Worth stating plainly: that host is the one the discovery
-   document named, and the discovery follows redirects, so it need not sit under
-   the domain of your own address. The one exception is the Outlook / Microsoft
-   option, which is not discovered at all: it signs in against Microsoft's own
-   fixed address, `login.microsoftonline.com`, and is not handed the address you
-   typed. Sterna also goes back to it on its own: an access token expires, so
+   document named, and the discovery still follows redirects, but the document
+   can no longer name just anyone. An endpoint is used only over HTTPS, and
+   only on the host that was asked, on the domain of your own address, or on a
+   subdomain of one of those; anything else is dropped and the sign-in is
+   refused instead of being sent elsewhere. That check happens when the account
+   is added, so an account already set up keeps the endpoint it was given.
+   The one exception is the Outlook / Microsoft option, which is not
+   discovered at all: it signs in against Microsoft's own fixed address,
+   `login.microsoftonline.com`, and is not handed the address you typed.
+   Sterna also goes back to it on its own: an access token expires, so
    the stored refresh token is sent to the same token endpoint for a fresh one
    whenever a sync, a send or a push check needs a valid token, screen off and
    nobody watching. An account using a password or an app password sends it

@@ -673,9 +673,13 @@ class OAuthHandoverWiringTest {
         )
         assertPinnedLine(
             VIEW_MODEL,
-            "container.mailRepository.discoverOAuth(it)",
+            "container.mailRepository.discoverOAuth(it, addressDomain)",
             "And the probe is the repository's credentials-free metadata GET — which is what " +
-                "makes it safe to run before any secret has been typed.",
+                "makes it safe to run before any secret has been typed. ⛔ Pinned WITH the " +
+                "address domain: it is what bounds the hosts the document may name (executed in " +
+                "`OAuthClientTest.oauthEndpointAllowed_*`), and dropping the argument here " +
+                "would leave the guard with the queried host alone — the bench's own deployment, " +
+                "which serves OAuth from a sibling host, becomes unaddable.",
         )
         val calls = Regex(Regex.escape("discoverOAuthAmong(")).findAll(source(VIEW_MODEL)).count()
         assertEquals(

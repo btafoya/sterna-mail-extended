@@ -134,10 +134,20 @@ class MailOAuthCandidatesWiringTest {
                 "secret is typed. Body was:\n$body",
             body.lines().map { it.trim() }.contains(ADDRESS_STEP),
         )
-        val offenders = body.lines().map { it.trim() }.filter { it.contains("autodiscoverHosts") }
+        assertTrue(
+            "ConnectViewModel.probeOAuthFor must carry exactly this whole line:\n  $ADDRESS_DOMAIN\n" +
+                "It is the BOUND on what a discovery document may name (executed in " +
+                "OAuthClientTest.oauthEndpointAllowed_*), and it is the ONE use of " +
+                "autodiscoverHosts allowed in this body. Body was:\n$body",
+            body.lines().map { it.trim() }.contains(ADDRESS_DOMAIN),
+        )
+        val offenders = body.lines().map { it.trim() }
+            .filterNot { it.startsWith("//") || it.startsWith("*") }
+            .filter { it.contains("autodiscoverHosts") && it != ADDRESS_DOMAIN }
         assertEquals(
             "⛔ the address step must not reach for the four raw candidates: the first of them is " +
-                "the organisation's website, whose OAuth document is not about the mail. Found:\n" +
+                "the organisation's website, whose OAuth document is not about the mail. The bare " +
+                "domain may be READ (the line pinned just above), never PROBED. Found:\n" +
                 offenders.joinToString("\n"),
             emptyList<String>(), offenders,
         )
@@ -156,6 +166,15 @@ class MailOAuthCandidatesWiringTest {
             "ConnectViewModel.connectOAuth must carry exactly this whole line:\n  $MANUAL_BUTTON\n" +
                 "Body was:\n$body",
             body.lines().map { it.trim() }.contains(MANUAL_BUTTON),
+        )
+        assertTrue(
+            "ConnectViewModel.connectOAuth must carry exactly this whole line:\n  $MANUAL_DOMAIN\n" +
+                "⛔ THE WHOLE LINE, not just the argument at the call site: this is the door where " +
+                "the reader typed a server herself, and trimming the domain here (`.substringAfterLast" +
+                "('.')` — \"com\") would let the discovery document name ANY host under that suffix " +
+                "as the one the refresh token is POSTed to, for the life of the account. The rule " +
+                "itself is executed in OAuthClientTest.oauthEndpointAllowed_*. Body was:\n$body",
+            body.lines().map { it.trim() }.contains(MANUAL_DOMAIN),
         )
         val offenders = body.lines().map { it.trim() }.filter { it.contains("mailOAuthCandidates") }
         assertEquals(
@@ -192,6 +211,13 @@ class MailOAuthCandidatesWiringTest {
         val VIEW_MODEL = repoFile("app/src/main/kotlin/app/sterna/ui/connect/ConnectViewModel.kt")
 
         const val ADDRESS_STEP = "val chosen = discoverOAuthAmong(mailOAuthCandidates(address)) {"
+
+        /** The only autodiscoverHosts allowed in that body: the bound, not the candidate list. */
+        const val ADDRESS_DOMAIN =
+            "val addressDomain = Jmap.autodiscoverHosts(address).firstOrNull().orEmpty()"
+        /** The manual button's own bound, pinned whole for the same reason as [ADDRESS_DOMAIN]. */
+        const val MANUAL_DOMAIN =
+            "val addressDomain = Jmap.autodiscoverHosts(emailTrim).firstOrNull().orEmpty()"
         const val MANUAL_BUTTON =
             "val candidates = if (server.isNotBlank()) listOf(server.trim()) else Jmap.autodiscoverHosts(emailTrim)"
 

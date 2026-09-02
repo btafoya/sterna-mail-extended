@@ -3194,8 +3194,12 @@ class MailRepository(
      * without a device-authorization endpoint is returned AS IS, `supportsDeviceFlow` false:
      * dropping it here made "this server has no OAuth" the only thing the connect screen could
      * say about two different facts, and one of them was a lie.
+     *
+     * [addressDomain] is the bare domain of the address being signed in, and it BOUNDS what the
+     * document may name: see `OAuthClient.discoverMetadata`. Passed in, never derived from [host].
      */
-    suspend fun discoverOAuth(host: String): OAuthMetadata? = oauthClient.discoverMetadata(host)
+    suspend fun discoverOAuth(host: String, addressDomain: String): OAuthMetadata? =
+        oauthClient.discoverMetadata(host, addressDomain)
 
     /** Begin the device flow against [metadata] using Sterna's client id + scopes. */
     suspend fun startDeviceAuthorization(metadata: OAuthMetadata): DeviceAuthorization =

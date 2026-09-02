@@ -25,6 +25,16 @@ data class OAuthMetadata(
     @SerialName("authorization_endpoint") val authorizationEndpoint: String? = null,
     @SerialName("token_endpoint") val tokenEndpoint: String = "",
     @SerialName("device_authorization_endpoint") val deviceAuthorizationEndpoint: String? = null,
+    /**
+     * Set by [OAuthClient.discoverMetadata] when a named endpoint was blanked FOR ITS HOST — the
+     * document sent the sign-in to somewhere we will not carry tokens. Never read off the wire.
+     *
+     * ⛔ Narrower than "an endpoint was refused", and deliberately: [oauthEndpointAllowed] also
+     * refuses cleartext and an unreadable URL, and a server naming `http://mail.<your domain>`
+     * has named no one else. The connect screen turns this into a sentence that says the server
+     * hands sign-in to another domain, so the fact has to be exactly that and nothing wider.
+     */
+    @kotlinx.serialization.Transient val endpointsOffDomain: Boolean = false,
 ) {
     /** True when this server supports the Device Authorization Grant (RFC 8628). */
     val supportsDeviceFlow: Boolean
@@ -276,6 +286,52 @@ internal fun defaultOAuthHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .build()
 
 /**
+ * Whether a discovery document may name [endpoint]: only over https, and only on [queriedHost]
+ * itself, on [addressDomain] itself, or on a subdomain of either. Refused by construction: any
+ * third party, any descent to cleartext http, and any host that merely CONTAINS one of the two
+ * without being under it (`evil-<domain>`, `<domain>.evil.tld` — hence the leading dot in the
+ * suffix check). Case-insensitive; an empty owner accepts nothing, so a malformed address (which
+ * gives an empty [addressDomain]) falls back to the queried host alone. A pure function, so the
+ * decision is executed by a test with pinned arguments instead of being re-read off this text.
+ *
+ * Same rule and same shape as `MailAutoconfig.redirectAllowed`, deliberately: this is the second
+ * place where a document we did not write chooses a host, and one rule is easier to carry than
+ * two. ⛔ Not shared code — `core:data` depends on `core:jmap`, not the other way round.
+ */
+internal fun oauthEndpointAllowed(endpoint: String, queriedHost: String, addressDomain: String): Boolean {
+    val url = endpoint.toHttpUrlOrNull() ?: return false
+    if (url.scheme != "https") return false
+    val host = url.host.lowercase()
+    return underOwner(host, queriedHost) || underOwner(host, addressDomain)
+}
+
+/**
+ * Whether [endpoint] names a host that is neither under [queriedHost] nor under [addressDomain] —
+ * the ONE of [oauthEndpointAllowed]'s three refusals that is about WHO, and the only one the
+ * connect screen is entitled to describe as the server handing sign-in elsewhere.
+ *
+ * ⛔ False for an endpoint that cannot be read as a URL and false for a cleartext one on a host
+ * that IS ours: both are refused, neither names a third party, and saying so would be a new lie
+ * in the place a lie was just taken out (#54, #137). A pure function, executed by a test.
+ */
+internal fun oauthEndpointNamesAnotherHost(
+    endpoint: String,
+    queriedHost: String,
+    addressDomain: String,
+): Boolean {
+    val url = endpoint.toHttpUrlOrNull() ?: return false
+    val host = url.host.lowercase()
+    return !underOwner(host, queriedHost) && !underOwner(host, addressDomain)
+}
+
+/** [host] is [owner] or a subdomain of it. An empty [owner] owns nothing: never `h.endsWith(".")`. */
+private fun underOwner(host: String, owner: String): Boolean {
+    val own = owner.lowercase()
+    if (own.isEmpty()) return false
+    return host == own || host.endsWith(".$own")
+}
+
+/**
  * Minimal OAuth 2.0 client for the Device Authorization Grant (RFC 8628), the
  * Authorization Code Grant with PKCE (RFC 6749 §4.1 + RFC 7636) and refresh-token
  * grants — the flows used to sign a mobile app into a JMAP server (e.g. Stalwart)
@@ -291,19 +347,62 @@ class OAuthClient internal constructor(
     /** Public constructor for app code — shared client for discovery, dedicated one for the POSTs. */
     constructor() : this(JmapClient.defaultHttpClient(), defaultOAuthHttpClient(), JmapClient.DefaultJson)
 
-    /** Fetch the server's OAuth metadata, or null if it advertises none. */
-    suspend fun discoverMetadata(host: String): OAuthMetadata? = withContext(Dispatchers.IO) {
+    /**
+     * Fetch the server's OAuth metadata, or null if it advertises none.
+     *
+     * [addressDomain] is the domain of the address being signed in — the bare domain of
+     * `Jmap.autodiscoverHosts`, PASSED IN and never guessed by trimming a label off [host]:
+     * `mail.example.com` would give `example.com`, but an `example.com` typed by hand would give
+     * `com`. Empty when the address is malformed, and then the queried host alone is the owner.
+     *
+     * ⛔ WHAT THE DOCUMENT MAY NAME is judged here, endpoint by endpoint ([oauthEndpointAllowed]),
+     * because this GET follows 3xx on purpose (#54, #137) and what comes back names the URLs that
+     * the device code, the authorization code, the PKCE verifier and — for the whole life of the
+     * account — the REFRESH TOKEN are POSTed to. `AccountStore.addOAuth` engraves the token
+     * endpoint on the login record and discovery is never replayed, so a third party named here is
+     * not one failed sign-in: it is a permanent forward.
+     *
+     * A refused endpoint is BLANKED, and the object is still returned with [endpointsOffDomain]
+     * raised. ⛔ Not dropped: `supportsDeviceFlow` / `supportsCodeFlow` already require a non-empty
+     * token endpoint, so nothing can be POSTed anywhere, while returning null would make the
+     * connect screen say "this server does not support OAuth", which is false.
+     *
+     * ⛔ A document with NO token endpoint is still null, exactly as before: that is a server
+     * without OAuth, not a refusal.
+     */
+    suspend fun discoverMetadata(host: String, addressDomain: String): OAuthMetadata? = withContext(Dispatchers.IO) {
+        val metadataUrl = Jmap.oauthMetadataUrlFor(host)
         val request = Request.Builder()
-            .url(Jmap.oauthMetadataUrlFor(host))
+            .url(metadataUrl)
             .header("Accept", "application/json")
             .get()
             .build()
-        runCatching {
+        val found = runCatching {
             discoveryHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
                 json.decodeFromString<OAuthMetadata>(response.body?.string().orEmpty())
             }
-        }.getOrNull()?.takeIf { it.tokenEndpoint.isNotBlank() }
+        }.getOrNull() ?: return@withContext null
+        if (found.tokenEndpoint.isBlank()) return@withContext null
+
+        // The host actually asked, read off the URL that was actually built: [host] may be a bare
+        // host or a full URL, and `oauthMetadataUrlFor` is what normalises the two. Unreadable
+        // leaves [addressDomain] as the only owner — the safe side.
+        val queriedHost = metadataUrl.toHttpUrlOrNull()?.host.orEmpty()
+        fun allowed(endpoint: String?) = oauthEndpointAllowed(endpoint.orEmpty(), queriedHost, addressDomain)
+        // ⛔ The FACT is narrower than the refusal: only a host that is someone else's raises it.
+        // A cleartext endpoint on our own host, or one that is not a URL at all, is blanked just
+        // the same and says nothing about who — see [OAuthMetadata.endpointsOffDomain].
+        fun elsewhere(endpoint: String?) = !endpoint.isNullOrBlank() &&
+            oauthEndpointNamesAnotherHost(endpoint, queriedHost, addressDomain)
+        found.copy(
+            authorizationEndpoint = found.authorizationEndpoint?.takeIf { allowed(it) },
+            tokenEndpoint = found.tokenEndpoint.takeIf { allowed(it) }.orEmpty(),
+            deviceAuthorizationEndpoint = found.deviceAuthorizationEndpoint?.takeIf { allowed(it) },
+            endpointsOffDomain = elsewhere(found.tokenEndpoint) ||
+                elsewhere(found.authorizationEndpoint) ||
+                elsewhere(found.deviceAuthorizationEndpoint),
+        )
     }
 
     /** Begin the device flow: ask the server for a user code + verification URL. */

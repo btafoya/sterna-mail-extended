@@ -7,6 +7,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -392,6 +393,16 @@ class OAuthClientTest {
     // and shows connect_oauth_unsupported, i.e. "your server does not support this" (#54, #137).
     // So this one MUST stay followed, and this test is what fails if the fix overreaches.
 
+    /**
+     * The hop itself: the fetch must still be CARRIED to the redirect target, and the document
+     * that comes back must be the one that is judged.
+     *
+     * ⚠ Here the document names `idp.example`, which is neither the host asked nor under the
+     * address' domain, so its endpoints are BLANKED — that half is the guard, pinned next door.
+     * What this test owns is `second.requestCount == 1`: the redirect was followed and the
+     * document was read. Making it green by moving the second server's endpoints on-domain would
+     * throw away the only witness that discovery still follows a 3xx (#54, #137).
+     */
     @Test fun discoverMetadata_stillFollowsARedirect() = runBlocking {
         val second = startSecondServer()
         try {
@@ -408,11 +419,43 @@ class OAuthClientTest {
                 ),
             )
 
-            val metadata = client.discoverMetadata(server.url("/").toString())
+            val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+            assertEquals("the discovery redirect must still be followed", 1, second.requestCount)
+            assertNotNull("the document behind the redirect must be the one judged", metadata)
+            assertEquals("but a third party's endpoints are blanked", "", metadata?.tokenEndpoint)
+            assertNull(metadata?.deviceAuthorizationEndpoint)
+            assertTrue("and the fact is carried", metadata?.endpointsOffDomain == true)
+        } finally {
+            second.shutdown()
+        }
+    }
+
+    /** The other half: a document served behind a redirect and naming an ACCEPTABLE host is
+     *  kept whole, and the sign-in it describes is drivable. */
+    @Test fun discoverMetadata_keepsTheMetadataBehindARedirectWhenItIsOnDomain() = runBlocking {
+        val second = startSecondServer()
+        try {
+            second.enqueue(
+                MockResponse().setHeader("Content-Type", "application/json").setBody(
+                    """{"issuer":"https://idp.example","token_endpoint":"https://idp.example/token",
+                       "device_authorization_endpoint":"https://idp.example/device"}""",
+                ),
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(307).setHeader(
+                    "Location",
+                    second.url("/.well-known/oauth-authorization-server").toString(),
+                ),
+            )
+
+            val metadata = client.discoverMetadata(server.url("/").toString(), "idp.example")
 
             assertEquals("the discovery redirect must still be followed", 1, second.requestCount)
             assertEquals("https://idp.example/token", metadata?.tokenEndpoint)
+            assertEquals("https://idp.example/device", metadata?.deviceAuthorizationEndpoint)
             assertTrue("the metadata behind the redirect must be the one we use", metadata?.supportsDeviceFlow == true)
+            assertFalse("and nothing was blanked", metadata?.endpointsOffDomain == true)
         } finally {
             second.shutdown()
         }
@@ -901,6 +944,317 @@ class OAuthClientTest {
             "https://idp.example.com/device?code=QA-BENCH",
             withLoginHint("https://idp.example.com/device?code=QA-BENCH", "   "),
         )
+    }
+
+    // ════════ WHERE a discovery document is allowed to send the secrets ════════
+    //
+    // The discovery GET follows 3xx on purpose (above), and what comes back names the three
+    // endpoints that the device code, the authorization code, the PKCE verifier and — for the
+    // whole life of the account — the REFRESH TOKEN are POSTed to. `AccountStore.addOAuth`
+    // engraves that token endpoint on the login record and discovery is never replayed, so a
+    // document naming a third party is not one failed sign-in: it is a permanent forward.
+    //
+    // The decision is `oauthEndpointAllowed`, a PURE FUNCTION, and the tests below EXECUTE it
+    // with pinned literal arguments. Nothing here re-derives the rule to choose what it expects:
+    // invert the rule in the source and these go red.
+
+    @Test fun oauthEndpointAllowed_takesTheQueriedHostAndItsSubdomains() {
+        assertTrue(
+            "the host that was just asked must be able to name itself",
+            oauthEndpointAllowed("https://mail.example.com/token", "mail.example.com", ""),
+        )
+        assertTrue(
+            "a subdomain of the host that was asked is under it",
+            oauthEndpointAllowed("https://auth.mail.example.com/token", "mail.example.com", ""),
+        )
+    }
+
+    @Test fun oauthEndpointAllowed_takesTheAddressDomainAndItsSubdomains() {
+        assertTrue(
+            "the address' own domain is the second thing the reader typed",
+            oauthEndpointAllowed("https://example.com/token", "asked.example.org", "example.com"),
+        )
+        assertTrue(
+            "a sibling host under the address domain is the bench's own deployment",
+            oauthEndpointAllowed("https://stalwart.example.com/token", "asked.example.org", "example.com"),
+        )
+    }
+
+    @Test fun oauthEndpointAllowed_refusesAHostThatMerelyContainsTheDomain() {
+        assertFalse(
+            "evil-<domain> is a third party, not a subdomain — hence the leading dot",
+            oauthEndpointAllowed("https://evil-example.com/token", "asked.example.org", "example.com"),
+        )
+        assertFalse(
+            "<domain>.evil.tld is a third party too",
+            oauthEndpointAllowed("https://example.com.evil.tld/token", "asked.example.org", "example.com"),
+        )
+        assertFalse(
+            "and so is a host that merely contains the queried host",
+            oauthEndpointAllowed("https://mail.example.com.evil.tld/token", "mail.example.com", ""),
+        )
+    }
+
+    @Test fun oauthEndpointAllowed_refusesCleartextEvenOnAGoodHost() {
+        assertFalse(
+            "a token endpoint on http:// hands the refresh token to the network",
+            oauthEndpointAllowed("http://mail.example.com/token", "mail.example.com", "example.com"),
+        )
+    }
+
+    @Test fun oauthEndpointAllowed_ignoresCase() {
+        assertTrue(
+            "a document may shout its own host",
+            oauthEndpointAllowed("https://MAIL.EXAMPLE.COM/token", "mail.example.com", ""),
+        )
+        assertTrue(
+            "and the host we asked, or the domain typed, may be in any case too",
+            oauthEndpointAllowed("https://stalwart.example.com/token", "MAIL.EXAMPLE.COM", "EXAMPLE.COM"),
+        )
+    }
+
+    @Test fun oauthEndpointAllowed_refusesWhatItCannotRead() {
+        assertFalse(
+            "a string that is not a URL names nothing",
+            oauthEndpointAllowed("not a url at all", "mail.example.com", "example.com"),
+        )
+        assertFalse(
+            "an absent endpoint arrives here empty",
+            oauthEndpointAllowed("", "mail.example.com", "example.com"),
+        )
+    }
+
+    @Test fun oauthEndpointAllowed_anEmptyOwnerOpensNothing() {
+        assertFalse(
+            "a malformed address gives an empty domain, and an empty domain must not match",
+            oauthEndpointAllowed("https://idp.example.org/token", "mail.example.com", ""),
+        )
+        assertFalse(
+            "nor may an empty queried host and an empty domain accept a host ending in a dot",
+            oauthEndpointAllowed("https://idp.example.org./token", "", ""),
+        )
+    }
+
+    // ---- The same decision, executed through the real fetch ----
+
+    /** The document a compromised (or merely redirected) server can serve: everything elsewhere. */
+    @Test fun discoverMetadata_blanksThreeEndpointsNamedOffDomain() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://ailleurs.example",
+                   "authorization_endpoint":"https://ailleurs.example/authorize",
+                   "token_endpoint":"https://ailleurs.example/token",
+                   "device_authorization_endpoint":"https://ailleurs.example/device"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertNotNull("a refused document is still an ANSWER: null would say 'no OAuth here'", metadata)
+        assertEquals("the token endpoint must not survive", "", metadata?.tokenEndpoint)
+        assertNull("nor the authorization endpoint", metadata?.authorizationEndpoint)
+        assertNull("nor the device endpoint", metadata?.deviceAuthorizationEndpoint)
+        assertFalse("no device flow can be built from it", metadata?.supportsDeviceFlow == true)
+        assertFalse("no code flow either", metadata?.supportsCodeFlow == true)
+        assertTrue("and the fact must be carried", metadata?.endpointsOffDomain == true)
+    }
+
+    /**
+     * The neighbour case, and it is the BENCH's own deployment: the host asked is not the host
+     * that serves OAuth, but both are under the address' domain. Refusing this makes every such
+     * account unaddable, which is a worse defect than the one being fixed.
+     */
+    @Test fun discoverMetadata_keepsASiblingHostUnderTheAddressDomain() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://stalwart.example.com",
+                   "authorization_endpoint":"https://stalwart.example.com/authorize",
+                   "token_endpoint":"https://stalwart.example.com/token",
+                   "device_authorization_endpoint":"https://stalwart.example.com/device"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertEquals("https://stalwart.example.com/token", metadata?.tokenEndpoint)
+        assertEquals("https://stalwart.example.com/authorize", metadata?.authorizationEndpoint)
+        assertEquals("https://stalwart.example.com/device", metadata?.deviceAuthorizationEndpoint)
+        assertTrue("the sign-in must still be drivable", metadata?.supportsDeviceFlow == true)
+        assertFalse("and nothing was blanked", metadata?.endpointsOffDomain == true)
+    }
+
+    /** One endpoint elsewhere does not condemn the others — nor does it pass. */
+    @Test fun discoverMetadata_blanksOnlyTheEndpointThatIsElsewhere() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://mail.example.com",
+                   "authorization_endpoint":"https://mail.example.com/authorize",
+                   "token_endpoint":"https://mail.example.com/token",
+                   "device_authorization_endpoint":"https://ailleurs.example/device"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertEquals("https://mail.example.com/token", metadata?.tokenEndpoint)
+        assertEquals("https://mail.example.com/authorize", metadata?.authorizationEndpoint)
+        assertNull("the third party's device endpoint must go", metadata?.deviceAuthorizationEndpoint)
+        assertFalse("so there is no device flow left", metadata?.supportsDeviceFlow == true)
+        assertTrue("the code grant survives", metadata?.supportsCodeFlow == true)
+        assertTrue("and the fact is carried", metadata?.endpointsOffDomain == true)
+    }
+
+    /**
+     * Acceptance coming from THE HOST THAT WAS ASKED, alone: the address' domain here is
+     * unrelated, so only the queried host can let these endpoints through.
+     *
+     * ⛔ This is what pins that the queried host is read off the URL actually built
+     * (`Jmap.oauthMetadataUrlFor(host).toHttpUrlOrNull()?.host`) and not off [host] verbatim —
+     * `host` may arrive as a bare host OR as a full URL, and passing the raw string to the guard
+     * leaves it comparing a URL to a hostname, i.e. refusing the server that just answered.
+     *
+     * The endpoints are named https:// on that same host and port. Nothing is fetched from them
+     * here, so the mock server's own http:// scheme is not in the way.
+     */
+    @Test fun discoverMetadata_keepsEndpointsOnTheHostThatWasAsked() = runBlocking {
+        val asked = "https://${server.hostName}:${server.port}"
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"$asked","token_endpoint":"$asked/token",
+                   "device_authorization_endpoint":"$asked/device"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "unrelated.example")
+
+        assertEquals("$asked/token", metadata?.tokenEndpoint)
+        assertEquals("$asked/device", metadata?.deviceAuthorizationEndpoint)
+        assertFalse("nothing was blanked", metadata?.endpointsOffDomain == true)
+    }
+
+    /** A document with no token endpoint is a server WITHOUT OAuth, not a refusal. Still null. */
+    @Test fun discoverMetadata_aDocumentWithoutATokenEndpointIsStillNull() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://mail.example.com"}""",
+            ),
+        )
+
+        assertNull(client.discoverMetadata(server.url("/").toString(), "example.com"))
+    }
+
+    /** ⛔ The fact is ours, never the server's: a document claiming it is ignored. */
+    @Test fun discoverMetadata_theOffDomainFactIsNeverReadOffTheWire() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://mail.example.com","endpointsOffDomain":true,
+                   "token_endpoint":"https://mail.example.com/token"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertEquals("https://mail.example.com/token", metadata?.tokenEndpoint)
+        assertFalse("the server does not get to set this", metadata?.endpointsOffDomain == true)
+    }
+
+    // ---- The fact is about WHO, not about every refusal ----
+    //
+    // `oauthEndpointAllowed` refuses for three reasons: another host, cleartext, and a string that
+    // is not a URL. Only the FIRST is something the connect screen may describe as the server
+    // handing sign-in to another domain. Widening the fact to "an endpoint was refused" puts a new
+    // lie exactly where #54/#137 took one out.
+
+    @Test fun oauthEndpointNamesAnotherHost_isTrueOnlyForSomeoneElse() {
+        assertTrue(
+            "a third party is the whole point",
+            oauthEndpointNamesAnotherHost("https://ailleurs.example/token", "mail.example.com", "example.com"),
+        )
+        assertFalse(
+            "the host asked is not another host",
+            oauthEndpointNamesAnotherHost("https://mail.example.com/token", "mail.example.com", "example.com"),
+        )
+        assertFalse(
+            "nor is a sibling under the address' own domain",
+            oauthEndpointNamesAnotherHost("https://stalwart.example.com/token", "mail.example.com", "example.com"),
+        )
+    }
+
+    @Test fun oauthEndpointNamesAnotherHost_saysNothingOfCleartextOnOurOwnHost() {
+        assertFalse(
+            "http:// on our own host is refused, but it names NOBODY else — telling the reader " +
+                "her server hands sign-in to another domain would be false",
+            oauthEndpointNamesAnotherHost("http://mail.example.com/token", "mail.example.com", "example.com"),
+        )
+        assertFalse(
+            "and a string that is not a URL names nobody at all",
+            oauthEndpointNamesAnotherHost("/token", "mail.example.com", "example.com"),
+        )
+    }
+
+    /**
+     * The whole document is on the host asked, but in the clear. Blanked, and the sign-in fails —
+     * yet nothing may claim a third party was named.
+     */
+    @Test fun discoverMetadata_blanksCleartextWithoutCallingItAnotherDomain() = runBlocking {
+        val asked = "http://${server.hostName}:${server.port}"
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"$asked","token_endpoint":"$asked/token",
+                   "device_authorization_endpoint":"$asked/device"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertEquals("cleartext is still refused", "", metadata?.tokenEndpoint)
+        assertNull("and so is the device endpoint", metadata?.deviceAuthorizationEndpoint)
+        assertFalse(
+            "but no other host was named, so the fact must stay down",
+            metadata?.endpointsOffDomain == true,
+        )
+    }
+
+    /**
+     * ⛔ The token endpoint ALONE must raise the fact. Written because a document that also names
+     * an off-domain authorization or device endpoint would raise it through those instead, and a
+     * guard that only looked at the other two would pass every test in this file.
+     */
+    @Test fun discoverMetadata_raisesTheFactOnTheTokenEndpointAlone() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://mail.example.com",
+                   "token_endpoint":"https://ailleurs.example/token"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertEquals("", metadata?.tokenEndpoint)
+        assertTrue("the token endpoint alone must carry it", metadata?.endpointsOffDomain == true)
+    }
+
+    /**
+     * And the mirror: a token endpoint kept, a DEVICE endpoint sent elsewhere, no authorization
+     * endpoint at all. Nothing is left to sign in with, and the reason is a third party — this is
+     * the shape that tells `connect_oauth_elsewhere` from `connect_oauth_flow_unsupported`.
+     */
+    @Test fun discoverMetadata_raisesTheFactWhileTheTokenEndpointSurvives() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://mail.example.com",
+                   "token_endpoint":"https://mail.example.com/token",
+                   "device_authorization_endpoint":"https://ailleurs.example/device"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertEquals("https://mail.example.com/token", metadata?.tokenEndpoint)
+        assertNull(metadata?.deviceAuthorizationEndpoint)
+        assertFalse("nothing can be driven", metadata?.supportsDeviceFlow == true)
+        assertFalse("nothing at all", metadata?.supportsCodeFlow == true)
+        assertTrue("and a third party WAS named", metadata?.endpointsOffDomain == true)
     }
 
     private companion object {
