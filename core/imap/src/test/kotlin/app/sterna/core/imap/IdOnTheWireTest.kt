@@ -179,21 +179,18 @@ class IdOnTheWireTest {
     }
 
     /**
-     * ⛔ **A guard against losing mail, not an optimisation.** The question above is put by hand —
+     * What the session KEEPS of the question above: nothing. It is put by hand —
      * `parseCapabilities(command("CAPABILITY").untagged)` — and NOT through `capabilities()` /
-     * `hasCapability`, because those two CACHE what they learn. `ImapSession.move` reads "the
-     * capability probe itself could not be answered" as "the socket is gone, do not copy"; with a
-     * cache already filled at connect that question can no longer fail, and a `UID MOVE` cut
-     * mid-command walks into the destructive copy fallback. Measured, before this shape existed:
+     * `hasCapability`, which CACHE what they learn, so the next reader pays for its own round
+     * trip, and that is how the coldness is visible from outside at all.
      *
-     * `the mail was copied: [CAPABILITY, SELECT "INBOX", UID MOVE 1:3 "Archive", UID COPY 1:3
-     * "Archive", LOGOUT]`
-     *
-     * So the cache must still be COLD when the session is handed out, and the way to see that from
-     * outside is that the next reader has to pay for its own round trip. Add a
-     * `.also { advertisedCapabilities = it }` to the line in [ImapSession.identify] and this test
-     * fails here, next to `ExpungeTest.a move cut mid-command does not enter the fallback on a
-     * probe it cannot answer`.
+     * ⚠ This once protected mail: `ImapSession.move` read "the capability probe could not be
+     * answered" as "the socket is gone, do not copy", so a cache filled at connect made that
+     * question unfailable and a `UID MOVE` cut mid-command walked into the destructive copy
+     * fallback. It no longer does — the fallback now requires a tagged NO/BAD from the server
+     * before it may copy and erase, and `ExpungeTest` pins that directly. So what is pinned here
+     * is the shape as it stands, and the waste it costs: kept as debt, to be lifted on its own,
+     * with this test rewritten with it.
      */
     @Test
     fun `asking for the ID capability leaves the session cache cold`() {

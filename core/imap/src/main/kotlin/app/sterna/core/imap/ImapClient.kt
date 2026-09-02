@@ -19,8 +19,22 @@ import javax.net.ssl.SSLSocketFactory
  * `UNAVAILABLE`, … — and `null` otherwise (no code on the line, or a local failure such as a
  * closed connection). One field, not a type per code: it is the TYPED half of the failure, the
  * one a caller may branch on, while [message] stays the loggable text and never drives a branch.
+ *
+ * [taggedStatus] is the completion's status word — `"NO"` or `"BAD"` — when the server was heard
+ * REFUSING the command, and `null` when no tagged completion was ever read: a closed connection,
+ * a locally built argument this client refuses to send, anything raised without the server having
+ * answered. ⚠ A read that ran out its budget is not in that list because it is not in this class
+ * at all: it arrives as a `SocketTimeoutException`, and a caller branching on "the server refused"
+ * must exclude it by TYPE first. That distinction is what [ImapSession.move] branches on before it
+ * may erase anything, so it is a field for the same reason [responseCode] is, and not a subtype: a
+ * subtype would travel through every existing `catch (e: ImapException)` —
+ * `ImapMailService.runWithRetry`'s among them — and change what they catch.
  */
-class ImapException(message: String, val responseCode: String? = null) : Exception(message)
+class ImapException(
+    message: String,
+    val responseCode: String? = null,
+    val taggedStatus: String? = null,
+) : Exception(message)
 
 /**
  * The selected mailbox has been renumbered: its UIDVALIDITY is no longer the one the caller's
@@ -152,10 +166,10 @@ class ImapSession(private var socket: Socket) : Closeable {
      * response code of their LOGIN/AUTHENTICATE completion.
      *
      * ⚠ "At most once" is true OF THIS FUNCTION, not of the session: [identify] puts a `CAPABILITY`
-     * of its own at connect time on a server that volunteered nothing, and deliberately throws the
-     * answer away rather than fill this cache — see its KDoc for the mail-losing reason. Such a
-     * session therefore sends two, and `IdOnTheWireTest.asking for the ID capability leaves the
-     * session cache cold` pins exactly that.
+     * of its own at connect time on a server that volunteered nothing, and throws the answer away
+     * rather than fill this cache — one round trip, knowingly wasted, see its KDoc. Such a session
+     * therefore sends two, and `IdOnTheWireTest.asking for the ID capability leaves the session
+     * cache cold` pins exactly that.
      *
      * Deliberately a set of names and not a boolean per feature: the first caller needs UIDPLUS
      * (whether `UID EXPUNGE` exists, see [delete]), and the next one will need something else
@@ -203,6 +217,7 @@ class ImapSession(private var socket: Socket) : Closeable {
                         throw ImapException(
                             "AUTHENTICATE … failed: ${resp.drop(1).joinToString(" ")}",
                             responseCodeIn(resp),
+                            status,
                         )
                     }
                     rememberCapabilities(resp)
@@ -236,23 +251,19 @@ class ImapSession(private var socket: Socket) : Closeable {
      * never puts a `CAPABILITY`. So this guard is where the fix can quietly do nothing, and the
      * answer costs one question to the reporter rather than a guess in this comment.
      *
-     * ⛔ **The question is put BY HAND, and its answer is thrown away** — `parseCapabilities` on a
-     * `CAPABILITY` of our own, never [capabilities] or [hasCapability]. Those two CACHE what they
-     * learn (`:143-145`), and this session's cache must still be COLD when the session is handed
-     * out. [move] decides its destructive copy fallback on
-     * `runCatching { hasCapability(CAP_MOVE) }.getOrDefault(true)`: a probe that cannot be answered
-     * means "the socket is gone, do not copy". Fill the cache here and that question can no longer
-     * fail, so a `UID MOVE` cut mid-command walks straight into `UID COPY` + `\Deleted` + purge.
-     * Measured, with `hasCapability` in this spot:
+     * ⚠ **The question is put BY HAND, and its answer is thrown away** — `parseCapabilities` on a
+     * `CAPABILITY` of our own, never [capabilities] or [hasCapability], which CACHE what they learn
+     * (`:143-145`). Debt, deliberately kept, and no longer a guard: [move] used to read "the
+     * capability probe could not be answered" as "the socket is gone, do not copy", so a cache
+     * filled here made that question unfailable and sent a `UID MOVE` cut mid-command into
+     * `UID COPY` + `\Deleted` + purge. That reading is gone — the fallback now needs a tagged
+     * NO/BAD from the server before it may erase anything, and it never needed this coldness on a
+     * server that publishes its list at LOGIN, which was already most of them.
      *
-     * `the mail was copied: [CAPABILITY, SELECT "INBOX", UID MOVE 1:3 "Archive", UID COPY 1:3
-     * "Archive", LOGOUT]`
-     *
-     * — i.e. `ExpungeTest.a move cut mid-command does not enter the fallback on a probe it cannot
-     * answer` failing, next to `IdOnTheWireTest.asking for the ID capability leaves the session
-     * cache cold`, which pins the cold cache directly. ⛔ So no `.also { advertisedCapabilities =
-     * it }` on the line below, ever. A later reader asking the same question again is waste, and
-     * waste is what was chosen over a mailbox.
+     * What is left is a round trip a later reader repeats, against the risk of touching the
+     * capability cache on the deletion path in the same change. The cheaper side was the waste, and
+     * it can be lifted on its own, cold, with `IdOnTheWireTest.asking for the ID capability leaves
+     * the session cache cold` rewritten with it.
      *
      * ⛔ **Best effort, all of it inside one `runCatching`** — the question included, since that
      * `CAPABILITY` can throw too. A fatal command here would be fatal twice over:
@@ -269,7 +280,8 @@ class ImapSession(private var socket: Socket) : Closeable {
     internal fun identify(clientVersion: String?) {
         runCatching {
             val published = advertisedCapabilities
-            // ⛔ No `.also { advertisedCapabilities = it }` here — see above: the cache stays cold.
+            // No `.also { advertisedCapabilities = it }` here — see above: the cache stays cold,
+            // as debt now rather than as a guard.
             val advertised = published ?: parseCapabilities(command("CAPABILITY").untagged)
             if (CAP_ID !in advertised) return@runCatching
             val fields = buildList {
@@ -389,6 +401,7 @@ class ImapSession(private var socket: Socket) : Closeable {
                         throw ImapException(
                             "${redactCommand(line)} failed: ${resp.drop(1).joinToString(" ")}",
                             responseCodeIn(resp),
+                            status,
                         )
                     }
                     return ImapResult(status, untagged, resp)
@@ -535,8 +548,10 @@ class ImapSession(private var socket: Socket) : Closeable {
      * still happened; only per-message Undo positioning is lost — AND the destination folder's
      * numbering, which the same COPYUID states and this client used to throw away (see
      * [ImapMoved]). Chunked to stay well under
-     * command-length limits. The fallback is reserved for a server that does not advertise MOVE
-     * (RFC 6851); any other refusal of the UID MOVE travels up untouched.
+     * command-length limits. The fallback is reserved for a server that ANSWERED with a tagged
+     * NO/BAD and does not advertise MOVE (RFC 6851); every other failure of the UID MOVE travels
+     * up untouched, a read timeout and a lost connection included — neither established that the
+     * server did not carry the move out.
      *
      * ⚠ More than [UID_SET_CHUNK] UIDs is several commands, so several COPYUIDs — all naming one
      * destination folder, so all stating one numbering, and that one number is kept. When they
@@ -596,19 +611,35 @@ class ImapSession(private var socket: Socket) : Closeable {
                 // somebody adds an early exit above it.
                 byMove = false
                 // The fallback answers ONE question — "this server has no MOVE extension" — and it
-                // answers it destructively: copy, flag, purge the SOURCE folder. Everything else
-                // that can fail a UID MOVE (a NO [OVERQUOTA] or [TRYCREATE], a dead socket, a read
-                // that timed out) is a real error, and taking the copy path on those duplicates the
-                // mail and then erases the originals from what, for "delete", is the inbox. So when
-                // the server ADVERTISES MOVE, the failure goes up as it came.
-                // Deliberately not a precondition on the UID MOVE itself: servers implement it
-                // without advertising it, and gating the attempt would send MORE accounts down the
-                // destructive path. And when the capability probe itself fails (the socket is gone,
-                // so `capabilities()` cannot ask), we rethrow too. So the failure goes up whenever
-                // the server advertises MOVE, and whenever the question cannot be put at all; the
-                // fallback stays the answer to a capability list that does not carry MOVE —
-                // including an EMPTY one, which is how [capabilities] reads a server that answers
-                // the query with no list, and is not the same as a server proved to lack MOVE.
+                // answers it destructively: copy, flag, purge the SOURCE folder. So it starts on
+                // two conditions, both required:
+                //
+                // 1. the server was HEARD refusing: a tagged NO/BAD completion was read, so the
+                //    command reached it, was understood and was declined. A failure carrying no
+                //    tagged status — a dead socket, a read that ran out its budget, `Connection
+                //    closed` — says nothing about what the server did, and a server that went
+                //    quiet may well have PERFORMED the move: copying then duplicates the mail and
+                //    erases the originals from what, for "delete", is the inbox. Those go up as
+                //    they came.
+                // 2. its capability list does not carry MOVE. A server that advertises MOVE and
+                //    still refuses is reporting a real error (NO [OVERQUOTA], [TRYCREATE]), not an
+                //    extension it lacks.
+                //
+                // ⛔ Condition 1 is on the TYPE of the failure, never on its response code: a
+                // refusal that reaches here with no MOVE in the list takes the fallback whatever
+                // the code says, which is what a server that has never heard of `UID MOVE` answers
+                // with. Deliberately not a precondition on the UID MOVE itself either: servers
+                // implement it without advertising it, and gating the attempt would send MORE
+                // accounts down the destructive path. The fallback stays the answer to a capability
+                // list that does not carry MOVE — including an EMPTY one, which is how
+                // [capabilities] reads a server that answers the query with no list, and is not the
+                // same as a server proved to lack MOVE.
+                if (it !is ImapException || it.taggedStatus == null) throw it
+                // ⭐ The probe stays wrapped, and an unanswerable probe still means "rethrow": the
+                // refusal was heard, but a `CAPABILITY` that cannot be answered right behind it
+                // says the socket left in between, and not copying is the right side of that error.
+                // It costs nothing on the common path — the list usually arrived with the
+                // authentication completion, and no command goes out at all.
                 val announcesMove = runCatching { hasCapability(CAP_MOVE) }.getOrDefault(true)
                 if (announcesMove) throw it
                 val byUid = hasCapability(CAP_UIDPLUS)
@@ -1389,7 +1420,18 @@ class ImapSession(private var socket: Socket) : Closeable {
         )
         output.flush()
         val cont = input.readResponse()
-        if (cont.getOrNull(0) != "+") throw ImapException("APPEND not accepted: $cont", responseCodeIn(cont))
+        // Not a "+": the APPEND did not get its go-ahead. ⚠ This line is not necessarily the
+        // tagged completion — RFC 3501 §7 lets an untagged `* 12 EXISTS` / `* BYE …` land here —
+        // so the status word is taken as a refusal the server PRONOUNCED only when the tag is
+        // actually on it. Anything else leaves [ImapException.taggedStatus] null, which is what
+        // its KDoc promises and what [move] reads before it may erase anything.
+        if (cont.getOrNull(0) != "+") {
+            throw ImapException(
+                "APPEND not accepted: $cont",
+                responseCodeIn(cont),
+                if (cont.getOrNull(0) == tag) cont.getOrNull(1) as? String else null,
+            )
+        }
         output.write(message)
         output.write("\r\n".toByteArray(Charsets.UTF_8))
         output.flush()
@@ -1398,7 +1440,11 @@ class ImapSession(private var socket: Socket) : Closeable {
             if (resp.getOrNull(0) == tag) {
                 val status = resp.getOrNull(1) as? String ?: "BAD"
                 if (status != "OK") {
-                    throw ImapException("APPEND failed: ${resp.drop(1).joinToString(" ")}", responseCodeIn(resp))
+                    throw ImapException(
+                        "APPEND failed: ${resp.drop(1).joinToString(" ")}",
+                        responseCodeIn(resp),
+                        status,
+                    )
                 }
                 return appendUidIn(resp)
             }
@@ -1624,9 +1670,10 @@ internal const val CLIENT_NAME = "Sterna Mail"
 internal const val CAP_UIDPLUS = "UIDPLUS"
 
 /**
- * The MOVE extension (RFC 6851): the one that provides `UID MOVE <set> <dest>`. Consulted only
- * to tell "this server has no MOVE" from "this MOVE failed" — see [ImapSession.move]; never to
- * decide whether to try the command.
+ * The MOVE extension (RFC 6851): the one that provides `UID MOVE <set> <dest>`. Consulted only to
+ * tell "this server has no MOVE" from "this MOVE was refused for another reason" — see
+ * [ImapSession.move]; never to decide whether to try the command. It is asked only about a refusal
+ * the server was heard pronouncing, so it is now the second of the two questions, not the only one.
  */
 internal const val CAP_MOVE = "MOVE"
 

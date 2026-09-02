@@ -520,23 +520,18 @@ class ExpungeTest {
     }
 
     /**
-     * The probe itself can fail: the socket died with the UID MOVE, so `CAPABILITY` cannot be
-     * answered and "does this server advertise MOVE?" gets no answer. What this pins is that an
-     * unanswerable probe does NOT send the operation down the fallback: the original failure is
-     * rethrown and nothing else is attempted.
-     *
-     * ⚠ It is green on the code before the fix as well — that code also wrote a single probe at a
-     * dead socket, having no probe of its own to write. It is here for the `getOrDefault` that
-     * decides what an unanswerable probe means, which nothing else exercises.
+     * The socket died with the UID MOVE: no tagged completion was ever read, so the server was
+     * never heard refusing anything and the failure is rethrown as it came — no capability is
+     * asked about, no copy is set up. This server volunteers no capability list, so its cache is
+     * cold and the probe could not have been answered either; the twin below takes that excuse
+     * away.
      *
      * Driven against a really half-closed socket, which keeps recording what the client writes
-     * after the EOF (see [FakeImapServer.cutAfter]). On a dead socket no `UID COPY` can reach the
-     * wire whatever the decision — the UIDPLUS probe in front of it would fail first — so what
-     * tells "it stopped" from "it went on setting up the fallback" is the number of probes the
-     * client wrote at a server that had already gone: one, not two.
+     * after the EOF (see [FakeImapServer.cutAfter]) — so a `UID COPY` attempted at a server that
+     * has already gone still lands in [FakeImapServer.issued] and is seen here.
      */
     @Test(timeout = 60_000)
-    fun `a move cut mid-command does not enter the fallback on a probe it cannot answer`() {
+    fun `a move cut mid-command takes no copy fallback on a refusal it never heard`() {
         FakeImapServer(
             responder = { tag, line ->
                 when {
@@ -556,12 +551,11 @@ class ExpungeTest {
 
             val issued = server.issued()
             // Counted from the UID MOVE on: the question put at connect for the RFC 2971 ID
-            // command (#173) is a live-socket one and keeps nothing, so the probe below is still
-            // the first thing the fallback asks — and it still cannot be answered.
+            // command (#173) sits ahead of it and is nobody's fallback probe.
             assertEquals(
-                "the client kept probing on a dead socket, i.e. it was setting up the copy " +
-                    "fallback without ever having established that MOVE is absent: $issued",
-                1,
+                "the client went on asking a dead socket about MOVE, i.e. it was setting up the " +
+                    "copy fallback on a refusal it never heard: $issued",
+                0,
                 issued.dropWhile { !it.startsWith("UID MOVE") }.count { it.startsWith("CAPABILITY") },
             )
             assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
@@ -572,13 +566,49 @@ class ExpungeTest {
     }
 
     /**
-     * The failure the symptom names first, and the one no test above can express: not a refusal
-     * but a SILENCE. [ImapSession.command] wraps neither its write nor its read, so a UID MOVE
-     * that runs out the operation's read budget comes back as a `SocketTimeoutException` from the
-     * socket layer — not as an [ImapException] — and a server that advertises MOVE and went quiet
-     * is one whose mail must stay exactly where it is. Only the UID MOVE goes unanswered here: the
-     * socket is alive, so the capability probe behind it really does get its answer, and the
-     * decision that follows is taken on a real capability list.
+     * The same cut, on the production shape: the capability list arrived with the LOGIN completion
+     * and carries no MOVE, so the cache is hot and "does this server advertise MOVE?" is answered
+     * out of memory, instantly, on a socket that has gone. Nothing about the probe can stand in for
+     * "the connection died" any more; what does is that no tagged completion was ever read.
+     */
+    @Test(timeout = 60_000)
+    fun `a move cut mid-command takes no copy fallback when the login advertised no MOVE`() {
+        FakeImapServer(
+            responder = { tag, line ->
+                when {
+                    line.startsWith("LOGIN") -> "$tag OK [CAPABILITY IMAP4rev1 LITERAL+ UIDPLUS] logged in\r\n"
+                    line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
+                    else -> ok(tag)
+                }
+            },
+            cutAfter = { line -> if (line.startsWith("UID MOVE")) emptyList() else null },
+        ).use { server ->
+            assertThrows(ImapException::class.java) {
+                server.session().use { session ->
+                    session.select("INBOX")
+                    session.move(listOf(1L, 2L, 3L), "Archive")
+                }
+            }
+            server.awaitDone()
+
+            val issued = server.issued()
+            assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
+            assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
+            assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
+            assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
+        }
+    }
+
+    /**
+     * Not a refusal but a SILENCE. [ImapSession.command] wraps neither its write nor its read, so
+     * a UID MOVE that runs out the operation's read budget comes back as a `SocketTimeoutException`
+     * from the socket layer, carrying no tagged status at all — and a server that went quiet is one
+     * whose mail stays exactly where it is, because it may have carried the move out before going
+     * quiet.
+     *
+     * ⚠ This fixture ADVERTISES MOVE, so it is refused by the capability half of the decision as
+     * well and proves little on its own; the socket is alive here, so the probe would have been
+     * answered. The version that bites is the one below it, where the list carries no MOVE.
      */
     @Test(timeout = 60_000)
     fun `a move that runs out its read budget is not answered with a copy`() {
@@ -605,14 +635,106 @@ class ExpungeTest {
             assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
             assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
             assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
-            // From the UID MOVE on, for the same reason as above: the connect-time ID question
-            // (#173) sits at index 0 and keeps nothing.
+            assertTrue("expected a read timeout, got $failure", failure is SocketTimeoutException)
+        }
+    }
+
+    /**
+     * The same silence, on the server this is developed against: one that publishes its capability
+     * list in the LOGIN completion — Stalwart does, and it carries no MOVE. The list is in hand
+     * before the first command, so the capability probe behind a failed `UID MOVE` cannot fail
+     * either, and nothing but the type of the failure tells "this server has never heard of MOVE"
+     * from "this MOVE was never answered". A server that went quiet may perfectly well have
+     * PERFORMED the move: copying and then erasing the source duplicates the mail and deletes the
+     * originals out of what, for "delete", is the inbox.
+     */
+    @Test(timeout = 60_000)
+    fun `a move that goes unanswered takes no copy fallback when the login advertised no MOVE`() {
+        FakeImapServer { tag, line ->
+            when {
+                // Production shape: the capability list travels in the LOGIN completion, so the
+                // session cache is hot and no CAPABILITY command ever goes out.
+                line.startsWith("LOGIN") -> "$tag OK [CAPABILITY IMAP4rev1 LITERAL+ UIDPLUS] logged in\r\n"
+                line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
+                // Never answered at all: the wedged server, the black-holed network.
+                line.startsWith("UID MOVE") -> ""
+                line.startsWith("UID COPY") -> "$tag OK [COPYUID 1 1:3 7:9] copy completed\r\n"
+                else -> ok(tag)
+            }
+        }.use { server ->
+            val failure = server.session().use { session ->
+                session.select("INBOX")
+                runCatching {
+                    session.withReadTimeout(200) { session.move(listOf(1L, 2L, 3L), "Archive") }
+                }.exceptionOrNull()
+            }
+            server.awaitDone()
+
+            val issued = server.issued()
+            assertTrue("the capability was asked: $issued", issued.none { it.startsWith("CAPABILITY") })
+            assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
+            assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
+            assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
+            assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
+            assertTrue("expected a read timeout, got $failure", failure is SocketTimeoutException)
+        }
+    }
+
+    /**
+     * The last unguarded corner of the decision, and the one the rewritten cut-socket tests above
+     * gave up: what an UNANSWERABLE capability probe means once a refusal HAS been heard. The two
+     * halves of the guard fail differently — the tagged-status half now returns before the probe
+     * is ever sent, so nothing else in this file reaches the `getOrDefault` behind it.
+     *
+     * The server refuses the `UID MOVE` with a tagged NO, so the fallback is entitled to ask its
+     * second question — and then refuses the `CAPABILITY` that carries it. A probe that comes back
+     * refused has NOT established that this server lacks MOVE, and answering an unestablished
+     * absence with `UID COPY` + `\Deleted` + a purge of the source is the destructive side of the
+     * error. So the original refusal is rethrown, and the client stops there.
+     *
+     * ⚠ Only the FIRST capability question after the move is refused: the count below is what
+     * bites. Reading the unanswerable probe as "no MOVE here" would send the operation on to the
+     * UIDPLUS question, which this server would answer, and the copy would follow.
+     */
+    @Test(timeout = 60_000)
+    fun `a refused move takes no copy fallback when the capability probe is refused too`() {
+        var moved = false
+        var probesRefused = 0
+        FakeImapServer { tag, line ->
+            when {
+                // No [CAPABILITY] on the LOGIN completion: the cache stays cold, so the fallback's
+                // question really does go out on the wire and really can be refused.
+                line.startsWith("SELECT") -> selectResponse(tag, exists = 3)
+                line.startsWith("UID MOVE") -> { moved = true; "$tag NO [CANNOT] MOVE unsupported\r\n" }
+                line.startsWith("CAPABILITY") && moved && probesRefused++ == 0 ->
+                    "$tag NO [UNAVAILABLE] capability unavailable\r\n"
+                line.startsWith("CAPABILITY") ->
+                    "* CAPABILITY IMAP4rev1 LITERAL+ UIDPLUS\r\n$tag OK capability completed\r\n"
+                line.startsWith("UID COPY") -> "$tag OK [COPYUID 1 1:3 7:9] copy completed\r\n"
+                else -> ok(tag)
+            }
+        }.use { server ->
+            val error = assertThrows(ImapException::class.java) {
+                server.session().use { session ->
+                    session.select("INBOX")
+                    session.move(listOf(1L, 2L, 3L), "Archive")
+                }
+            }
+
+            val issued = server.issued()
+            // The MOVE's own refusal travels up, not the probe's: what the caller is told is why
+            // the move failed, not why the question about it could not be put.
+            assertEquals("CANNOT", error.responseCode)
             assertEquals(
-                "the capability was not asked: $issued",
+                "the client asked a second capability question, i.e. it read an unanswerable " +
+                    "probe as \"this server has no MOVE\" and went on setting up the copy: $issued",
                 1,
                 issued.dropWhile { !it.startsWith("UID MOVE") }.count { it.startsWith("CAPABILITY") },
             )
-            assertTrue("expected a read timeout, got $failure", failure is SocketTimeoutException)
+            assertTrue("the mail was copied: $issued", issued.none { it.startsWith("UID COPY") })
+            assertTrue("the originals were flagged: $issued", issued.none { it.startsWith("UID STORE") })
+            assertTrue("UID EXPUNGE went out: $issued", issued.none { it.startsWith("UID EXPUNGE") })
+            assertEquals("a bare EXPUNGE went out: $issued", 0, issued.bareExpunges())
         }
     }
 }
