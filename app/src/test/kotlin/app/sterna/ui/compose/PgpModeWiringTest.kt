@@ -65,9 +65,61 @@ class PgpModeWiringTest {
                 "htmlBody: String?,",
                 "attachments: List<EmailBodyPart>,",
                 "mode: PgpMode,",
+                "protectedSubject: String?,",
                 "interactionResult: Intent?,",
             ),
-            block(VIEW_MODEL, "private suspend fun buildPgpEntity(", 8),
+            block(VIEW_MODEL, "private suspend fun buildPgpEntity(", 9),
+        )
+    }
+
+    @Test fun `the send hands the entity builder the subject the pure function decided`() {
+        // protectedSubject(mode, subject) is executed by ProtectedSubjectTest, and
+        // ProtectedHeadersEntityTest executes what buildBodyEntity does with its answer. Between
+        // the two there is one line, and nothing in this repo can run it. Written as
+        // `subject` instead of `protectedSubject(mode, subject)`, every SIGNED-only message grows
+        // a Subject: header inside the very bytes the signature covers, and a message sent with no
+        // subject claims its subject is the empty string — both suites stay green throughout.
+        // Written as `protectedSubject(_pgpMode.value, subject)`, the mode is read a second time
+        // after the provider round-trip, which is the defect the test above exists for.
+        assertEquals(
+            "the send site no longer passes protectedSubject(mode, subject) to buildPgpEntity. " +
+                "Whatever it passes now is invisible to every executing test here: this class " +
+                "cannot be instantiated in a JVM test.",
+            listOf(
+                "buildPgpEntity(",
+                "credentials, recipients + ccList + bccList,",
+                "textBody, htmlBody, attachments, mode,",
+                "protectedSubject(mode, subject), interactionResult,",
+                ")",
+            ),
+            block(VIEW_MODEL, "buildPgpEntity(", 5),
+        )
+    }
+
+    @Test fun `the entity builder is handed that subject, and not the default`() {
+        // The joint has TWO lines, not one. The test above pins the first (send site to
+        // buildPgpEntity); this pins the second, and it is the more dangerous of the two because
+        // `protectedSubject` on OutgoingMime.buildBodyEntity is a DEFAULTED parameter. Delete the
+        // argument line below and the call still compiles, still type-checks, still passes every
+        // test in this repo — and no encrypted message carries a protected subject ever again. The
+        // feature dies in silence, with ProtectedSubjectTest and ProtectedHeadersEntityTest both
+        // green, because each of them executes one END of a wire nothing walks.
+        assertEquals(
+            "the PGP entity is no longer built with the subject the send decided. Passing " +
+                "anything else here — or nothing, which is what the default argument makes easy " +
+                "— leaves every encrypted message with no protected subject at all, silently.",
+            listOf(
+                "val inner = OutgoingMime.buildBodyEntity(",
+                "OutgoingMessage(",
+                "from = \"-\", to = listOf(\"-\"), subject = \"\",",
+                "body = textBody, html = htmlBody,",
+                "messageId = \"\$boundarySeed@pgp\", dateMillis = System.currentTimeMillis(),",
+                "attachments = outAttachments,",
+                "),",
+                "protectedSubject = protectedSubject,",
+                ")",
+            ),
+            block(VIEW_MODEL, "val inner = OutgoingMime.buildBodyEntity(", 9),
         )
     }
 

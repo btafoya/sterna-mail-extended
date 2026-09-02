@@ -2351,7 +2351,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     try {
                         buildPgpEntity(
                             credentials, recipients + ccList + bccList,
-                            textBody, htmlBody, attachments, mode, interactionResult,
+                            textBody, htmlBody, attachments, mode,
+                            protectedSubject(mode, subject), interactionResult,
                         )
                     } catch (e: PgpInteractionNeeded) {
                         pendingSendArgs = args
@@ -3087,6 +3088,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         htmlBody: String?,
         attachments: List<EmailBodyPart>,
         mode: PgpMode,
+        protectedSubject: String?,
         interactionResult: Intent?,
     ): String {
         val app = getApplication<Application>()
@@ -3119,6 +3121,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             app.getString(R.string.compose_pgp_too_large)
         }
         val boundarySeed = java.util.UUID.randomUUID().toString().replace("-", "")
+        // ⭐ The subject goes in TWICE, and only one of them is this one. The message's real
+        // `Subject:` is written by `OutgoingMime.build` on the envelope, in the clear, unchanged —
+        // the `subject = ""` just below is this throwaway carrier's own, and the entity built from
+        // it never grows an envelope. What [protectedSubject] adds is a copy INSIDE the bytes about
+        // to be encrypted (RFC 9788 § 3), so a recipient can tell that the subject they were shown
+        // is the subject that was sent. Null on SIGN and on a blank subject; the decision is the
+        // pure function of that name, executed by ProtectedSubjectTest.
         val inner = OutgoingMime.buildBodyEntity(
             OutgoingMessage(
                 from = "-", to = listOf("-"), subject = "",
@@ -3126,6 +3135,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 messageId = "$boundarySeed@pgp", dateMillis = System.currentTimeMillis(),
                 attachments = outAttachments,
             ),
+            protectedSubject = protectedSubject,
         )
         val payload = PgpMime.signablePayload(inner)
         return when (mode) {

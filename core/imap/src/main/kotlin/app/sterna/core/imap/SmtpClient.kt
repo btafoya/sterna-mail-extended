@@ -488,17 +488,40 @@ object OutgoingMime {
      * The message's MIME entity WITHOUT the top-level message headers: starts at
      * its own Content-Type line. Split out so the PGP path can build the exact
      * inner entity to sign/encrypt with the same code that normal sends use.
+     *
+     * [protectedSubject], when given, is repeated as a `Subject:` field INSIDE this entity and
+     * marks the top-level Content-Type with `protected-headers="v1"` (RFC 9788 § 3). It is only
+     * ever passed on the ENCRYPTING path (`ComposeViewModel.buildPgpEntity`, decided by
+     * `protectedSubject(mode, subject)`), and it hides nothing: the real subject still travels in
+     * the clear on the envelope ([build] above). The copy sealed in the ciphertext is what lets a
+     * recipient catch an outer subject a relay rewrote.
+     *
+     * ⛔ Null must produce the bytes this function produced before protected headers existed, in
+     * all four branches — `OutgoingMime.build` calls it for every ordinary message, and a stray
+     * header line here would land in every one of them.
+     *
+     * ⚠ The parameter marks the TOP-LEVEL Content-Type and nothing below it. A sub-part carrying
+     * `protected-headers="v1"` claims its own headers are the protected ones, which they are not;
+     * the entity has exactly one protected header block, the one this function opens.
      */
-    fun buildBodyEntity(m: OutgoingMessage): String {
+    fun buildBodyEntity(m: OutgoingMessage, protectedSubject: String? = null): String {
         return buildString {
             val bodyContent = m.html ?: m.body
             val bodyType = if (m.html != null) "text/html" else "text/plain"
             val inlineParts = m.attachments.filter { it.inline }
             val fileParts = m.attachments.filter { !it.inline }
+            // Both empty when there is no protected subject, so the four branches below emit
+            // exactly the bytes they always did. [encodeHeader] is the same door the envelope
+            // subject goes through: non-ASCII becomes an RFC 2047 encoded-word, and CR/LF go the
+            // same way (its guard is `value.all { it.code in 32..126 }`), so no header line of
+            // this block can be split in two by a subject.
+            val subjectField = protectedSubject?.let { "Subject: ${encodeHeader(it)}\r\n" }.orEmpty()
+            val protectedParam = if (protectedSubject != null) "; protected-headers=\"v1\"" else ""
             when {
                 // Plain body, nothing carried — single part (unchanged).
                 inlineParts.isEmpty() && fileParts.isEmpty() -> {
-                    append("Content-Type: $bodyType; charset=utf-8\r\n")
+                    append(subjectField)
+                    append("Content-Type: $bodyType; charset=utf-8$protectedParam\r\n")
                     append("Content-Transfer-Encoding: base64\r\n")
                     append("\r\n")
                     append(base64(bodyContent.toByteArray(Charsets.UTF_8)))
@@ -506,7 +529,8 @@ object OutgoingMime {
                 // File attachments only — multipart/mixed (unchanged).
                 inlineParts.isEmpty() -> {
                     val boundary = boundary(m, "mixed")
-                    append("Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n\r\n")
+                    append(subjectField)
+                    append("Content-Type: multipart/mixed; boundary=\"$boundary\"$protectedParam\r\n\r\n")
                     append("--$boundary\r\n")
                     appendBodyPart(bodyType, bodyContent)
                     for (att in fileParts) {
@@ -518,15 +542,21 @@ object OutgoingMime {
                 // Inline images, no files — the message body is a multipart/related.
                 fileParts.isEmpty() -> {
                     val related = boundary(m, "related")
-                    append("Content-Type: multipart/related; type=\"$bodyType\"; boundary=\"$related\"\r\n\r\n")
+                    append(subjectField)
+                    append(
+                        "Content-Type: multipart/related; type=\"$bodyType\"; " +
+                            "boundary=\"$related\"$protectedParam\r\n\r\n",
+                    )
                     appendRelatedParts(related, bodyType, bodyContent, inlineParts)
                 }
                 // Inline images AND files — multipart/mixed( multipart/related(html, images), files ).
                 else -> {
                     val mixed = boundary(m, "mixed")
                     val related = boundary(m, "related")
-                    append("Content-Type: multipart/mixed; boundary=\"$mixed\"\r\n\r\n")
+                    append(subjectField)
+                    append("Content-Type: multipart/mixed; boundary=\"$mixed\"$protectedParam\r\n\r\n")
                     append("--$mixed\r\n")
+                    // ⛔ The NESTED related is a sub-part: no protected-headers parameter here.
                     append("Content-Type: multipart/related; type=\"$bodyType\"; boundary=\"$related\"\r\n\r\n")
                     appendRelatedParts(related, bodyType, bodyContent, inlineParts)
                     for (att in fileParts) {

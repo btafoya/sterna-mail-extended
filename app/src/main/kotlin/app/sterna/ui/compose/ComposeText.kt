@@ -1095,6 +1095,35 @@ internal fun pgpEncryptArgs(mode: PgpMode, selfKeyId: Long, recipientKeys: List<
     )
 }
 
+/**
+ * The subject to repeat INSIDE the entity that is about to be encrypted (RFC 9788 "protected
+ * headers"), or null when nothing is to be repeated.
+ *
+ * This is INTEGRITY, not confidentiality. The subject keeps travelling in the clear on the
+ * envelope, exactly as before, and nothing here hides it — [OutgoingMime.build] still writes the
+ * real `Subject:` at the top of the message. What the copy sealed inside the ciphertext adds is
+ * that a relay rewriting the outer subject can be caught: the recipient's client compares the two.
+ * ⛔ Do not turn this into subject masking (`hp-legacy-display`, RFC 9788 § 5.2.2): the composer's
+ * note tells the user the subject is not encrypted, and it stays true.
+ *
+ * Two conditions, both necessary:
+ *  - [mode] ENCRYPTS. ⛔ Asked through [encrypts] and never `== PgpMode.ENCRYPT` — the unsigned
+ *    encrypting mode must protect its subject too, and the six call sites that compared by name
+ *    are exactly the bug that property exists to prevent. A SIGN-only message must get NOTHING:
+ *    its entity is what gets signed AND is what the recipient reads, so an inner `Subject:` there
+ *    is a header the reader may show INSTEAD of the envelope's, on a message where no ciphertext
+ *    ever protected it;
+ *  - the subject is not blank. An empty `Subject:` line inside the entity says "this message's
+ *    real subject is empty", which is a claim, and a wrong one for a message sent with no subject
+ *    at all where the outer header is simply absent.
+ *
+ * Pure, and called with the mode the send captured, so the decision the send makes is the decision
+ * a JVM test executes — `ComposeViewModel` is an `AndroidViewModel` and nothing in this module can
+ * instantiate it. Same reason as [pgpEncryptArgs] next door.
+ */
+internal fun protectedSubject(mode: PgpMode, subject: String): String? =
+    subject.takeIf { mode.encrypts && it.isNotBlank() }
+
 /** Why a message stopped being signed/encrypted, when the composer had to give the mode up. */
 internal enum class PgpDropReason { NONE, NOT_CONFIGURED, NO_PROVIDER }
 

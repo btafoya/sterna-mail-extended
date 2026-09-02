@@ -219,7 +219,17 @@ Out of scope:
   outside the app, where neither clearing the cache nor signing the account out reaches
   it. Saving is an explicit gesture, one attachment at a time.
 - The message **subject is not encrypted** on the way out (sent in the clear, matching
-  common OpenPGP practice). Protected headers (RFC 9788) are **read, never written**: a
+  common OpenPGP practice). Protected headers (RFC 9788) are **read, and written on an
+  encrypting send**: the entity that gets encrypted opens with a `Subject` field holding the
+  real subject, above a top-level `Content-Type` marked `protected-headers="v1"`, so the subject
+  is covered by the encryption and, when the message is signed too, by the signature. That is
+  **integrity, not confidentiality** — the envelope still carries the subject in the clear, and
+  nothing that was visible before is hidden now. What it buys is that the subject a relay
+  rewrites in transit is no longer the only copy there is. Sterna itself does not compare the
+  two, and does not warn when they differ. Only `Subject` is written: the sender, the recipients
+  and the date stay those of the envelope, no legacy-display part is emitted, a message sent
+  with no subject writes nothing, and a signed-only message carries neither the field nor the
+  parameter. On the way in, a
   decrypted PGP/MIME entity whose own header block carries a non-blank `Subject` is shown
   under that subject instead of the envelope's, while an empty or absent one leaves the
   envelope's subject untouched. It is sender-controlled content just like the envelope's
