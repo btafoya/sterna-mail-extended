@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Kursiv</string>
     <string name="compose_format_underline">Unterstrichen</string>
     <string name="compose_format_strikethrough">Durchgestrichen</string>
+    <string name="compose_format_list_bulleted">Aufzählung</string>
+    <string name="compose_format_list_numbered">Nummerierte Liste</string>
     <string name="compose_format_clear">Formatierung entfernen</string>
     <string name="compose_quote_attribution">Am %1$s schrieb %2$s:</string>
     <string name="compose_quote_someone">jemand</string>

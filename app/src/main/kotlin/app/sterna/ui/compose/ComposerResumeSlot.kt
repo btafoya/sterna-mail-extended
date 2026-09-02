@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import app.sterna.core.data.text.Block
+import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
@@ -49,6 +51,13 @@ class ComposerResumeSlot(private val file: File) {
         val ranges: Map<Inline, List<Span>>,
         /** The baseline's styling, compared by the leave guard exactly like its text. */
         val baselineRanges: Map<Inline, List<Span>>,
+        /**
+         * The body's list blocks (#131), by line. Empty for a body with none, for a `/2` file
+         * (the build that had spans but no lists) and for a `/1` one.
+         */
+        val blocks: List<Block> = emptyList(),
+        /** The baseline's blocks: a reopened list is not an edit, so the baseline carries it too. */
+        val baselineBlocks: List<Block> = emptyList(),
     )
 
     /**
@@ -75,6 +84,8 @@ class ComposerResumeSlot(private val file: File) {
         baseline: String,
         ranges: Map<Inline, List<Span>> = emptyMap(),
         baselineRanges: Map<Inline, List<Span>> = emptyMap(),
+        blocks: List<Block> = emptyList(),
+        baselineBlocks: List<Block> = emptyList(),
     ): Boolean {
         val tmp = tempFile()
         return try {
@@ -82,7 +93,7 @@ class ComposerResumeSlot(private val file: File) {
             tmp.outputStream().bufferedWriter(Charsets.UTF_8).use { out ->
                 out.write(header(token, selectionStart, selectionEnd, body.length, baseline.length))
                 // Normalised through RichBody, so what is written is always within the text.
-                out.write(encodeRanges(RichBody(body, ranges), RichBody(baseline, baselineRanges)))
+                out.write(encodeRanges(RichBody(body, ranges, blocks), RichBody(baseline, baselineRanges, baselineBlocks)))
                 out.write("\n")
                 out.write(body)
                 out.write(baseline)
@@ -125,14 +136,15 @@ class ComposerResumeSlot(private val file: File) {
     //
     // One self-describing header line, ONE styling line (#131), then the two texts back to back:
     //
-    //     sterna-composer-resume/2 <token> <selStart> <selEnd> <bodyChars> <baselineChars>\n
+    //     sterna-composer-resume/3 <token> <selStart> <selEnd> <bodyChars> <baselineChars>\n
     //     <body styling>|<baseline styling>\n
     //     <body><baseline>
     //
     // The styling line ([encodeRanges]) holds neither `:` nor `\n`, so the second newline is its
     // end whatever the body contains, and it is parsed STRICTLY: one unreadable character refuses
     // the record whole, like a bad header. A `/1` file (the build before #131) has no styling
-    // line and still reads, with no styling.
+    // line and still reads, with no styling; a `/2` file (spans, no lists) reads with four groups
+    // per side instead of six, which is what makes a composer parked before this lot come back.
     //
     // The lengths are in CHARACTERS (UTF-16 code units, i.e. Kotlin's String.length) on both
     // sides, so an emoji's surrogate pair counts as the two it is and the split lands where it
@@ -149,7 +161,7 @@ class ComposerResumeSlot(private val file: File) {
         val newline = text.indexOf('\n')
         if (newline < 0) return null
         val head = text.substring(0, newline).split(' ')
-        if (head.size != 6 || (head[0] != MAGIC && head[0] != MAGIC_V1)) return null
+        if (head.size != 6 || head[0] !in READABLE_MAGIC) return null
         // The token, and the whole point of it: this file belongs to some OTHER saved composer.
         if (head[1] != token) return null
         val start = head[2].toIntOrNull() ?: return null
@@ -157,21 +169,24 @@ class ComposerResumeSlot(private val file: File) {
         val bodyLen = head[4].toIntOrNull() ?: return null
         val baseLen = head[5].toIntOrNull() ?: return null
         if (bodyLen < 0 || baseLen < 0) return null
-        val styling: Pair<Map<Inline, List<Span>>, Map<Inline, List<Span>>>
+        val styling: DecodedStyling
         val rest: String
-        if (head[0] == MAGIC) {
+        if (head[0] != MAGIC_V1) {
             val second = text.indexOf('\n', newline + 1)
             if (second < 0) return null
             styling = decodeRanges(text.substring(newline + 1, second), bodyLen, baseLen) ?: return null
             rest = text.substring(second + 1)
         } else {
-            styling = emptyMap<Inline, List<Span>>() to emptyMap<Inline, List<Span>>()
+            styling = DecodedStyling()
             rest = text.substring(newline + 1)
         }
         // The verification the header exists for: a file cut short by a crash or a full disk has
         // fewer characters than it promised, and is refused whole rather than handed back short.
         if (rest.length != bodyLen + baseLen) return null
-        return Resume(rest.substring(0, bodyLen), start, end, rest.substring(bodyLen), styling.first, styling.second)
+        return Resume(
+            rest.substring(0, bodyLen), start, end, rest.substring(bodyLen),
+            styling.ranges, styling.baselineRanges, styling.blocks, styling.baselineBlocks,
+        )
     }
 
     private fun tempFile(): File = File(file.parentFile, file.name + ".tmp")
@@ -194,10 +209,17 @@ class ComposerResumeSlot(private val file: File) {
             }
         }
 
-        private const val MAGIC = "sterna-composer-resume/2"
+        private const val MAGIC = "sterna-composer-resume/3"
 
-        /** The format before #131: no styling line. Still read, never written. */
+        /** #131 before the lists: a styling line of four groups per side. Read, never written. */
+        private const val MAGIC_V2 = "sterna-composer-resume/2"
+
+        /** The format before #131: no styling line at all. Read, never written. */
         private const val MAGIC_V1 = "sterna-composer-resume/1"
+
+        /** ⛔ Written: [MAGIC] only. Read: the two older ones too, or a composer parked by the
+         *  build being replaced comes back empty on the first rotation after the update. */
+        private val READABLE_MAGIC = setOf(MAGIC, MAGIC_V2, MAGIC_V1)
     }
 }
 
@@ -212,6 +234,10 @@ class ComposerResumeState(
     ranges: Map<Inline, List<Span>> = emptyMap(),
     /** The baseline's styling: the leave guard compares text AND styling against it. */
     baselineRanges: Map<Inline, List<Span>> = emptyMap(),
+    /** The body's list blocks (#131), held beside the text exactly like the spans. */
+    blocks: List<Block> = emptyList(),
+    /** The baseline's blocks: reopening a draft that HELD a list is not an edit. */
+    baselineBlocks: List<Block> = emptyList(),
     /**
      * Names the record this composer parks, and it is minted ONCE — here — never per write.
      *
@@ -245,6 +271,8 @@ class ComposerResumeState(
     val baselineState: MutableState<String> = mutableStateOf(baseline)
     val rangesState: MutableState<Map<Inline, List<Span>>> = mutableStateOf(ranges)
     val baselineRangesState: MutableState<Map<Inline, List<Span>>> = mutableStateOf(baselineRanges)
+    val blocksState: MutableState<List<Block>> = mutableStateOf(blocks)
+    val baselineBlocksState: MutableState<List<Block>> = mutableStateOf(baselineBlocks)
 
     /**
      * Raised when the composer closes FOR GOOD (sent, saved, scheduled, deleted, abandoned).
@@ -313,9 +341,14 @@ internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResume
         baseline = baseline,
         ranges = state.rangesState.value,
         baselineRanges = state.baselineRangesState.value,
+        blocks = state.blocksState.value,
+        baselineBlocks = state.baselineBlocksState.value,
     )
     // The styling line travels in the parcel with the text, so it counts against the bound.
-    val encoded = encodeRanges(RichBody(body.text, state.rangesState.value), RichBody(baseline, state.baselineRangesState.value))
+    val encoded = encodeRanges(
+        RichBody(body.text, state.rangesState.value, state.blocksState.value),
+        RichBody(baseline, state.baselineRangesState.value, state.baselineBlocksState.value),
+    )
     val carried = when {
         parked -> TOKEN_FORM + state.token
         body.text.length + baseline.length + encoded.length <= INLINE_LIMIT ->
@@ -385,6 +418,8 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
         resume?.baseline.orEmpty(),
         ranges = resume?.ranges.orEmpty(),
         baselineRanges = resume?.baselineRanges.orEmpty(),
+        blocks = resume?.blocks.orEmpty(),
+        baselineBlocks = resume?.baselineBlocks.orEmpty(),
         bodyWasLost = lost || unreadable,
     )
 }
@@ -409,7 +444,8 @@ private fun parseInlineResume(saved: String): ComposerResumeSlot.Resume? {
     if (bodyLen < 0 || bodyLen > payload.length) return null
     val styling = decodeRanges(saved.substring(c + 1, d), bodyLen, payload.length - bodyLen) ?: return null
     return ComposerResumeSlot.Resume(
-        payload.substring(0, bodyLen), start, end, payload.substring(bodyLen), styling.first, styling.second,
+        payload.substring(0, bodyLen), start, end, payload.substring(bodyLen),
+        styling.ranges, styling.baselineRanges, styling.blocks, styling.baselineBlocks,
     )
 }
 
@@ -417,22 +453,42 @@ private fun parseInlineResume(saved: String): ComposerResumeSlot.Resume? {
 
 private val LETTER_OF = mapOf(Inline.BOLD to 'b', Inline.ITALIC to 'i', Inline.UNDERLINE to 'u', Inline.STRIKE to 's')
 
+/** ⛔ Upper case, so a block group can never be mistaken for an inline one by a sloppy parser. */
+private val BLOCK_LETTER_OF = mapOf(BlockKind.BULLET to 'U', BlockKind.NUMBER to 'O')
+
 /**
- * `b0-4,9-12;i;u;s|b;i;u;s`: the body's four families in declaration order, `|`, the baseline's
- * four. Every span is `start-end` (half-open, characters). Neither `:` nor `\n` ever appears in
- * it, which is what lets the file and the parcel find its end without escaping anything.
+ * `b0-4,9-12;i;u;s;U1-3;O|b;i;u;s;U;O`: the body's four inline families in declaration order, then
+ * its bullet runs and its numbered runs, then `|`, then the baseline's six. Every span is
+ * `start-end` (half-open, characters); every block run is `first-last` (INCLUSIVE, line indices).
+ * Neither `:` nor `\n` ever appears in it, which is what lets the file and the parcel find its end
+ * without escaping anything.
  */
 internal fun encodeRanges(body: RichBody, baseline: RichBody): String =
-    encodeFamilies(body.ranges) + "|" + encodeFamilies(baseline.ranges)
+    encodeSide(body) + "|" + encodeSide(baseline)
 
-private fun encodeFamilies(ranges: Map<Inline, List<Span>>): String =
+private fun encodeSide(body: RichBody): String =
     Inline.entries.joinToString(";") { kind ->
-        LETTER_OF.getValue(kind) + ranges[kind].orEmpty().joinToString(",") { "${it.start}-${it.end}" }
+        LETTER_OF.getValue(kind) + body.ranges[kind].orEmpty().joinToString(",") { "${it.start}-${it.end}" }
+    } + BlockKind.entries.joinToString("") { kind ->
+        ";" + BLOCK_LETTER_OF.getValue(kind) +
+            body.blocks.filter { it.kind == kind }.joinToString(",") { "${it.lines.first}-${it.lines.last}" }
     }
 
+/** What one styling line says, for the body and for the baseline. */
+internal data class DecodedStyling(
+    val ranges: Map<Inline, List<Span>> = emptyMap(),
+    val baselineRanges: Map<Inline, List<Span>> = emptyMap(),
+    val blocks: List<Block> = emptyList(),
+    val baselineBlocks: List<Block> = emptyList(),
+)
+
 /**
- * STRICT inverse of [encodeRanges]: exactly two parts, exactly four families each, each opened by
- * its letter, every span `start-end` with `0 <= start <= end <= length` of the text it styles.
+ * STRICT inverse of [encodeRanges] — strict about the SHAPE of a group, deliberately not about
+ * how many: exactly two parts, then FOUR OR SIX groups each — six as
+ * written today, four for a `/2` line written before the lists existed — each opened by its
+ * letter, every span `start-end` with `0 <= start <= end <= length` of the text it styles, every
+ * block run `first-last` with `0 <= first <= last <= length` (a text of `length` characters holds
+ * at most `length + 1` lines, and a run past the end is dropped by `RichBody` anyway).
  * Anything else is `null`, and the caller refuses the whole record: a guessed styling is a
  * draft that is not what the user wrote.
  */
@@ -440,19 +496,20 @@ internal fun decodeRanges(
     line: String,
     bodyLength: Int,
     baselineLength: Int,
-): Pair<Map<Inline, List<Span>>, Map<Inline, List<Span>>>? {
+): DecodedStyling? {
     val parts = line.split('|')
     if (parts.size != 2) return null
-    val body = decodeFamilies(parts[0], bodyLength) ?: return null
-    val baseline = decodeFamilies(parts[1], baselineLength) ?: return null
-    return body to baseline
+    val body = decodeSide(parts[0], bodyLength) ?: return null
+    val baseline = decodeSide(parts[1], baselineLength) ?: return null
+    return DecodedStyling(body.first, baseline.first, body.second, baseline.second)
 }
 
-private fun decodeFamilies(text: String, length: Int): Map<Inline, List<Span>>? {
-    val families = text.split(';')
-    if (families.size != Inline.entries.size) return null
+private fun decodeSide(text: String, length: Int): Pair<Map<Inline, List<Span>>, List<Block>>? {
+    val groups = text.split(';')
+    // ⛔ Four or six, and nothing else: five groups is a line this app never wrote.
+    if (groups.size != Inline.entries.size && groups.size != Inline.entries.size + BlockKind.entries.size) return null
     val out = LinkedHashMap<Inline, List<Span>>()
-    for ((kind, family) in Inline.entries.zip(families)) {
+    for ((kind, family) in Inline.entries.zip(groups)) {
         if (family.isEmpty() || family[0] != LETTER_OF.getValue(kind)) return null
         val spans = family.substring(1)
         if (spans.isEmpty()) continue
@@ -465,7 +522,22 @@ private fun decodeFamilies(text: String, length: Int): Map<Inline, List<Span>>? 
             Span(start, end)
         }
     }
-    return out
+    if (groups.size == Inline.entries.size) return out to emptyList()
+    val blocks = ArrayList<Block>()
+    for ((kind, group) in BlockKind.entries.zip(groups.drop(Inline.entries.size))) {
+        if (group.isEmpty() || group[0] != BLOCK_LETTER_OF.getValue(kind)) return null
+        val runs = group.substring(1)
+        if (runs.isEmpty()) continue
+        for (pair in runs.split(',')) {
+            val dash = pair.indexOf('-')
+            if (dash < 0) return null
+            val first = pair.substring(0, dash).toIntOrNull() ?: return null
+            val last = pair.substring(dash + 1).toIntOrNull() ?: return null
+            if (first < 0 || first > last || last > length) return null
+            blocks.add(Block(kind, first..last))
+        }
+    }
+    return out to blocks
 }
 
 /** What goes into the activity's parcel for the composer's body: a short token, and that is all. */

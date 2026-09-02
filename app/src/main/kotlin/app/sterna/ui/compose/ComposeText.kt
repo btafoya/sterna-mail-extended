@@ -638,6 +638,7 @@ internal fun draftFieldsOf(o: Email, cached: Email?): DraftFields {
         subject = o.subject.orEmpty(),
         body = rich.text,
         bodyRanges = rich.ranges,
+        bodyBlocks = rich.blocks,
         expand = cc.isNotBlank() || bcc.isNotBlank(),
     )
 }

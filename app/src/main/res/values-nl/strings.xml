@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Cursief</string>
     <string name="compose_format_underline">Onderstreept</string>
     <string name="compose_format_strikethrough">Doorgehaald</string>
+    <string name="compose_format_list_bulleted">Lijst met opsommingstekens</string>
+    <string name="compose_format_list_numbered">Genummerde lijst</string>
     <string name="compose_format_clear">Opmaak wissen</string>
     <string name="compose_quote_attribution">Op %1$s schreef %2$s:</string>
     <string name="compose_quote_someone">iemand</string>

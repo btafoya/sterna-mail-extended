@@ -2,6 +2,8 @@ package app.sterna.ui.compose
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import app.sterna.core.data.text.Block
+import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Span
 import java.io.File
@@ -566,14 +568,17 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * Exactly at the bound — body, baseline AND the 15-character styling line of an unstyled
-     * composer (`b;i;u;s|b;i;u;s`) — accepted, so the bound is a bound and not a guess.
-     * ⚠ Adapted for #131: the baseline used to be 384 characters; the styling line now counts.
+     * Exactly at the bound — body, baseline AND the 23-character styling line of an unstyled
+     * composer (`b;i;u;s;U;O|b;i;u;s;U;O`) — accepted, so the bound is a bound and not a guess.
+     * ⚠ Adapted twice: the baseline was 384 characters before #131 (no styling line at all), then
+     * 369 when the line held the four inline families, and 361 now that it carries the two block
+     * groups as well. ⛔ The number moves with the FORMAT, never with the bound: `INLINE_LIMIT` is
+     * the size of parcel this screen may still send, and it has not changed.
      */
     @Test
     fun `a body exactly at the inline bound still travels`() {
         val body = "y".repeat(16_000)
-        val baseline = "z".repeat(369)
+        val baseline = "z".repeat(361)
         val state = ComposerResumeState(TextFieldValue(body, TextRange(5)), baseline)
 
         val saved = saveComposerResume(state, unwritableSlot())!!
@@ -589,7 +594,7 @@ class ComposerResumeSlotTest {
      */
     @Test
     fun `the styling line counts against the inline bound`() {
-        val body = "y".repeat(16_360)   // 16 360 + the 15-character unstyled line = 16 375: fits
+        val body = "y".repeat(16_360)   // 16 360 + the 23-character unstyled line = 16 383: fits
         val plain = ComposerResumeState(TextFieldValue(body, TextRange(0)), "")
         assertEquals("unstyled, this body must still travel inline", "v:",
             saveComposerResume(plain, unwritableSlot())?.take(2))
@@ -600,7 +605,7 @@ class ComposerResumeSlotTest {
         )
         val saved = saveComposerResume(styled, unwritableSlot())
         assertEquals(
-            "with its styling line the parcel would be 16 391 characters, over the bound: the text " +
+            "with its styling line the parcel would be 16 399 characters, over the bound: the text " +
                 "must be dropped and the loss marked, not forced into the parcel",
             "l:", saved,
         )
@@ -638,6 +643,87 @@ class ComposerResumeSlotTest {
         assertEquals(TextRange(3, 9), back.bodyState.value.selection)
     }
 
+    /**
+     * The lists (#131), through the file: both sides, both kinds, and the numbering that is NOT
+     * stored — a block is a run of lines, the markers are drawn from it.
+     */
+    @Test
+    fun `the body's and the baseline's blocks round trip through the file`() {
+        val body = "shopping\nmilk\neggs\nlater\none\ntwo"
+        val blocks = listOf(Block(BlockKind.BULLET, 1..2), Block(BlockKind.NUMBER, 4..5))
+        val state = ComposerResumeState(
+            TextFieldValue(body, TextRange(9, 13)), "shopping\nmilk",
+            ranges = mapOf(Inline.BOLD to listOf(Span(0, 8))),
+            blocks = blocks,
+            baselineBlocks = listOf(Block(BlockKind.BULLET, 1..1)),
+        )
+
+        val saved = saveComposerResume(state, slot)!!
+        assertEquals("the record had to be PARKED for this test to mean anything", "t:", saved.take(2))
+        val back = restoreComposerResume(saved, slot)!!
+
+        assertEquals(
+            "⛔ the lists must come back: a rotation that flattens them is the list REMOVED, and " +
+                "the next save writes the removal",
+            blocks, back.blocksState.value,
+        )
+        assertEquals(
+            "…and the baseline's own, or the leave guard sees an edit nobody made",
+            listOf(Block(BlockKind.BULLET, 1..1)), back.baselineBlocksState.value,
+        )
+        assertEquals("the text must still come back whole beside them", body, back.bodyState.value.text)
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 8))), back.rangesState.value)
+        assertEquals(TextRange(9, 13), back.bodyState.value.selection)
+    }
+
+    /** The same, through the parcel: the inline fallback carries the blocks or it carries a lie. */
+    @Test
+    fun `the inline fallback carries the blocks`() {
+        val blocks = listOf(Block(BlockKind.NUMBER, 0..1))
+        val state = ComposerResumeState(
+            TextFieldValue("milk\neggs", TextRange(0)), "",
+            blocks = blocks,
+        )
+
+        val saved = saveComposerResume(state, unwritableSlot())!!
+        assertTrue("the fallback must be the inline form: `$saved`", saved.startsWith("v:"))
+        assertEquals(blocks, restoreComposerResume(saved, unwritableSlot())!!.blocksState.value)
+    }
+
+    /**
+     * ⭐ A file written by the build being REPLACED: `/2`, four groups per side, no block groups.
+     * It still opens, with no list — the composer that was parked before this lot came back or the
+     * first rotation after the update loses a body.
+     */
+    @Test
+    fun `a version 2 file still reads, with its spans and no blocks`() {
+        file.parentFile!!.mkdirs()
+        file.writeText(
+            "sterna-composer-resume/2 tok-2 1 2 5 4\nb0-4;i;u;s|b;i;u;s\nhellobase",
+            Charsets.UTF_8,
+        )
+
+        val resume = slot.read("tok-2")
+        assertTrue("a `/2` file written by the previous build must still open", resume != null)
+        assertEquals("hello", resume!!.body)
+        assertEquals("base", resume.baseline)
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 4))), resume.ranges)
+        assertEquals("a `/2` file carries no list", emptyList<Block>(), resume.blocks)
+        assertEquals(emptyList<Block>(), resume.baselineBlocks)
+    }
+
+    /** ⛔ And what is WRITTEN is `/3`, always: a `/2` header out of this build would drop the
+     *  blocks of every record parked from now on, silently. */
+    @Test
+    fun `what this build writes is the version 3 header`() {
+        park(slot, "hello", 1, 2, "base", blocks = listOf(Block(BlockKind.BULLET, 0..0)))
+
+        assertTrue(
+            "the header line must open with the /3 magic: `${file.readText(Charsets.UTF_8).take(40)}`",
+            file.readText(Charsets.UTF_8).startsWith("sterna-composer-resume/3 "),
+        )
+    }
+
     /** A file written by the build before #131: the old magic, no styling line, still readable. */
     @Test
     fun `a version 1 file still reads, with no styling`() {
@@ -652,6 +738,7 @@ class ComposerResumeSlotTest {
         assertEquals(2, resume.selectionEnd)
         assertEquals("a `/1` file carries no styling", emptyMap<Inline, List<Span>>(), resume.ranges)
         assertEquals(emptyMap<Inline, List<Span>>(), resume.baselineRanges)
+        assertEquals("…and no list either", emptyList<Block>(), resume.blocks)
     }
 
     /** The styling line is parsed strictly: anything unreadable refuses the WHOLE record. */
@@ -659,11 +746,18 @@ class ComposerResumeSlotTest {
     fun `a corrupt styling line reads null, never a draft with guessed styling`() {
         val token = park(slot, "hello", 1, 2, "base", ranges = mapOf(Inline.BOLD to listOf(Span(0, 4))))
         val lines = file.readText(Charsets.UTF_8).split('\n', limit = 3)
-        assertEquals("a `/2` file is a header line, a styling line, then the texts", 3, lines.size)
+        assertEquals("a `/3` file is a header line, a styling line, then the texts", 3, lines.size)
         for (corrupt in listOf(
             "garbage", "", "b0-4;i;u", "b0-4;i;u;s", "b0-4;i;u;s|b;i;u", "x0-4;i;u;s|b;i;u;s",
             "b4-0;i;u;s|b;i;u;s", "b0-x;i;u;s|b;i;u;s", "b0-99;i;u;s|b;i;u;s", "b0-4,;i;u;s|b;i;u;s",
             "b;i;u;s|b0-9;i;u;s",
+            // …and the block groups (#131), read exactly as strictly: five groups is a line this
+            // app never wrote, a wrong letter is not ours, a reversed or unparsable run is not a
+            // run, and a run past the last possible line is a list over letters that are not there.
+            "b;i;u;s;U", "b;i;u;s;U;O;U", "b;i;u;s;X;O|b;i;u;s;U;O", "b;i;u;s;U;X|b;i;u;s;U;O",
+            "b;i;u;s;U3-0;O|b;i;u;s;U;O", "b;i;u;s;U0-x;O|b;i;u;s;U;O",
+            "b;i;u;s;U0-99;O|b;i;u;s;U;O", "b;i;u;s;U0-1,;O|b;i;u;s;U;O",
+            "b;i;u;s;U;O|b;i;u;s;U0-9;O",
         )) {
             file.writeText(lines[0] + "\n" + corrupt + "\n" + lines[2], Charsets.UTF_8)
             assertNull("`$corrupt` must refuse the record whole", slot.read(token))
@@ -772,9 +866,10 @@ class ComposerResumeSlotTest {
         baseline: String,
         token: String = newComposerToken(),
         ranges: Map<Inline, List<Span>> = emptyMap(),
+        blocks: List<Block> = emptyList(),
     ): String {
         assertTrue("the record had to be written for this test to mean anything",
-            slot.write(token, body, selectionStart, selectionEnd, baseline, ranges))
+            slot.write(token, body, selectionStart, selectionEnd, baseline, ranges, emptyMap(), blocks))
         return token
     }
 

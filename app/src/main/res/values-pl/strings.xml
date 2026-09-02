@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Kursywa</string>
     <string name="compose_format_underline">Podkreślenie</string>
     <string name="compose_format_strikethrough">Przekreślenie</string>
+    <string name="compose_format_list_bulleted">Lista punktowana</string>
+    <string name="compose_format_list_numbered">Lista numerowana</string>
     <string name="compose_format_clear">Wyczyść formatowanie</string>
     <string name="compose_quote_attribution">Dnia %1$s, %2$s napisał(a):</string>
     <string name="compose_quote_someone">ktoś</string>

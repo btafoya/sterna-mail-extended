@@ -1,6 +1,8 @@
 package app.sterna.send
 
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.text.Block
+import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Span
 import kotlinx.coroutines.CoroutineScope
@@ -132,11 +134,23 @@ class SendOutboxTest {
         assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 3))), reopened.bodyRanges)
     }
 
+    @Test fun `a queued message that held a list reopens with it`() {
+        // ⛔ Re-editing enqueues a NEW row from the composer's state: a list dropped in this
+        // hand-over is not merely missing from the screen, it is REMOVED from what finally goes out.
+        val reopened = composeDraftOf(
+            queued(htmlBody = "<ul><li>see</li><li>you there</li></ul>", body = "- see\n- you there"),
+        )
+
+        assertEquals("see\nyou there", reopened.body)
+        assertEquals(listOf(Block(BlockKind.BULLET, 0..1)), reopened.bodyBlocks)
+    }
+
     @Test fun `a queued message with no html reopens plain, exactly as before`() {
         val reopened = composeDraftOf(queued(htmlBody = null))
 
         assertEquals("see you there", reopened.body)
         assertEquals(emptyMap<Inline, List<Span>>(), reopened.bodyRanges)
+        assertEquals(emptyList<Block>(), reopened.bodyBlocks)
     }
 
     @Test fun `a queued forward reopens on its text, not on markup`() {

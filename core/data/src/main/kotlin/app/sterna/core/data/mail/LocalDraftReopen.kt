@@ -3,6 +3,7 @@ package app.sterna.core.data.mail
 import app.sterna.core.data.db.LOCAL_DRAFT_ID_PREFIX
 import app.sterna.core.data.db.LocalDraftEntity
 import app.sterna.core.data.db.LocalDraftState
+import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
@@ -79,6 +80,12 @@ data class LocalDraftPrefill(
      * and lays the spans over it, so both halves travel as they are stored.
      */
     val bodyRanges: Map<Inline, List<Span>> = emptyMap(),
+    /**
+     * The list blocks [body] carries (#131), read back out of the same `htmlBody` as the spans,
+     * and EMPTY for a draft that has none. ⛔ Dropped here, a draft holding a list reopens without
+     * it and the next save stores the removal.
+     */
+    val bodyBlocks: List<Block> = emptyList(),
     /** Reveal the Cc/Bcc row, so a draft that carried them does not hide them on reopen. */
     val expand: Boolean,
     /** The address the draft was written as — the identity to pre-select (#31). */
@@ -154,6 +161,7 @@ fun localDraftPrefill(row: LocalDraftEntity): LocalDraftPrefill {
         subject = row.subject,
         body = rich.text,
         bodyRanges = rich.ranges,
+        bodyBlocks = rich.blocks,
         expand = cc.isNotEmpty() || bcc.isNotEmpty(),
         fromEmail = row.fromEmail,
         inReplyTo = localDraftMessageIds(row.inReplyTo),

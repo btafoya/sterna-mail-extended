@@ -1,6 +1,7 @@
 package app.sterna.send
 
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.richBodyFrom
@@ -37,6 +38,11 @@ class SendOutbox(private val scope: CoroutineScope) {
          * fields below whose default would be a per-message CHOICE silently cancelled.
          */
         val bodyRanges: Map<Inline, List<Span>> = emptyMap(),
+        /**
+         * The list blocks [body] carries (#131), beside the spans. Empty is the honest answer for
+         * a message with none — every message queued before this lot, and every flat one since.
+         */
+        val bodyBlocks: List<Block> = emptyList(),
         val fromAccountId: String?,
         val fromIdentityEmail: String?,
         val attachments: List<EmailBodyPart>,
@@ -153,6 +159,14 @@ internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.Compo
     // parses back into spans and reopens exactly as it was written; a forward's html (the carried
     // original appended) and an imported HTML signature do not parse, and the row's plain text is
     // what comes back — which is what happened to every message before #131.
+    //
+    // ⚠ AND SINCE THE LISTS, THAT FALLBACK CARRIES THE MARKERS AS LETTERS. The row's text column is
+    // the text/plain part about to be delivered, and that part spells lists out (`- milk`), so a
+    // queued FORWARD holding a list reopens with two literal dashes in the body instead of a list.
+    // ⛔ Arbitrated, not overlooked: the alternative was to store the raw text beside the delivered
+    // one — a column, a migration, and a second truth about the same message — for a path that was
+    // ALREADY lossy before the lists (the styling went the same way), and where the dashes at least
+    // keep the information the vanished list carried. Rules 1 then 5.
     val rich = richBodyFrom(draft.htmlBody) { draft.body }
     return SendOutbox.ComposeDraft(
         to = draft.to,
@@ -161,6 +175,7 @@ internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.Compo
         subject = draft.subject,
         body = rich.text,
         bodyRanges = rich.ranges,
+        bodyBlocks = rich.blocks,
         fromAccountId = draft.fromAccountId,
         fromIdentityEmail = draft.fromEmail,
         attachments = draft.attachments,

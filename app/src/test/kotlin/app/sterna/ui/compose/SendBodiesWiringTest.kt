@@ -47,6 +47,42 @@ class SendBodiesWiringTest {
     }
 
     /**
+     * The TEXT alternative, the half no lint watched until the lists arrived (#131).
+     *
+     * Bold has no spelling in plain text, so the text part was rightly the body as typed. A LIST
+     * does have one — `- ` and `1. `, written by `toPlainText`, which is EXECUTED by `RichBodyTest`
+     * — and `userBody.text` carries none of it: `body.text` is what the editor holds, and the
+     * markers live only in the drawing and in the html. A recipient reading the text part would
+     * get the items as a run of loose lines, and so would the copy the sender keeps.
+     *
+     * ⛔ Both call sites, because the forward path builds its own string: fixing one and leaving
+     * the other means a plain reply is fine and a forwarded one is not.
+     */
+    @Test fun `the text alternative spells the list markers out`() {
+        val code = codeLines(COMPOSE_VIEW_MODEL.readText())
+
+        assertEquals(
+            "the direct return of `bodiesForSend` must hand `toPlainText(userBody)` to the text " +
+                "alternative, whole line, once.",
+            listOf("val fwd = forwarded ?: return toPlainText(userBody) to html"),
+            code.filter { it.startsWith("val fwd = forwarded ?:") },
+        )
+        assertEquals(
+            "…and so must the forward's concatenation, which builds its own text alternative: " +
+                "exactly ONE line of this class opens with the marker-bearing form.",
+            1,
+            code.count { it.startsWith("return \"\${toPlainText(userBody)}") },
+        )
+        assertEquals(
+            "⛔ and NOT ONE `userBody.text` may be left in this class: it is the exact mutation " +
+                "this rule exists for, it compiles, and the only sign of it is on the recipient's " +
+                "screen.",
+            emptyList<String>(),
+            code.filter { "userBody.text" in it },
+        )
+    }
+
+    /**
      * The undo round trip, both ends. The record kept for the undo window lives in memory, and the
      * branch that reopens from it is `prepare()`'s: nothing in this module can execute either.
      *
@@ -66,10 +102,23 @@ class SendBodiesWiringTest {
             code.filter { it.startsWith("bodyRanges = body.ranges") },
         )
         assertEquals(
+            "…and its LISTS, off that same composer state (#131): dropped, undoing a send hands " +
+                "back a message whose list has been flattened, and the re-send delivers the " +
+                "flattening.",
+            listOf("bodyBlocks = body.blocks,"),
+            code.filter { it.startsWith("bodyBlocks = body.blocks") },
+        )
+        assertEquals(
             "…and prepare()'s restore branch must lay them back on the prefill: this is the one " +
                 "way into the screen (the composer owns its `ranges` in a rememberSaveable)",
             listOf("bodyRanges = d.bodyRanges,"),
             code.filter { it.startsWith("bodyRanges = d.bodyRanges") },
+        )
+        assertEquals(
+            "…and the blocks with them, on the same statement: half the body handed back is a " +
+                "message the composer shows differently from the one that was sent.",
+            listOf("bodyBlocks = d.bodyBlocks,"),
+            code.filter { it.startsWith("bodyBlocks = d.bodyBlocks") },
         )
     }
 

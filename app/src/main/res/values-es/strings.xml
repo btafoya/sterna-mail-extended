@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Cursiva</string>
     <string name="compose_format_underline">Subrayado</string>
     <string name="compose_format_strikethrough">Tachado</string>
+    <string name="compose_format_list_bulleted">Lista con viñetas</string>
+    <string name="compose_format_list_numbered">Lista numerada</string>
     <string name="compose_format_clear">Borrar formato</string>
     <string name="compose_quote_attribution">El %1$s, %2$s escribió:</string>
     <string name="compose_quote_someone">alguien</string>

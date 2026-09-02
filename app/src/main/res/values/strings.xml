@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Italic</string>
     <string name="compose_format_underline">Underline</string>
     <string name="compose_format_strikethrough">Strikethrough</string>
+    <string name="compose_format_list_bulleted">Bulleted list</string>
+    <string name="compose_format_list_numbered">Numbered list</string>
     <string name="compose_format_clear">Clear formatting</string>
     <!-- Attribution line above a quoted reply: %1$s is the date, %2$s the sender. -->
     <string name="compose_quote_attribution">On %1$s, %2$s wrote:</string>

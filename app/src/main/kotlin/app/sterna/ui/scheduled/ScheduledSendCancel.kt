@@ -78,6 +78,9 @@ fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
     // The html first, the stored text as the fallback — and the draft's own html derived from
     // what came back, never copied from the row: both halves out of ONE answer, so the text filed
     // and the styling filed cannot describe different messages.
+    // ⚠ Same fallback, same accepted cost as `composeDraftOf` (SendOutbox.kt): the stored text is
+    // the text/plain that was to be delivered, so it spells a list out — an unparsable html
+    // (a forward, an imported HTML signature) files a draft holding `- milk` as letters.
     val rich = richBodyFrom(row.htmlBody) { row.textBody }
     return ScheduledSendDraft(
         to = row.recipients.split(",").map { it.trim() }.filter { it.isNotEmpty() },

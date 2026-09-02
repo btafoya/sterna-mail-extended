@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -56,6 +57,8 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatClear
 import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.MoreVert
@@ -146,12 +149,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
+import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.clear as clearFormatting
 import app.sterna.core.data.text.remapAfterEdit
 import app.sterna.core.data.text.stylesAt
 import app.sterna.core.data.text.toggle as toggleFormatting
+import app.sterna.core.data.text.toggleBlock
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -517,6 +522,9 @@ fun ComposeScreen(
     // holds plain text, and the spans are laid over it at render time, so the ~70 sites that read
     // `body.text` / `body.selection` see exactly what they saw before.
     var ranges by resume.rangesState
+    // …and its list blocks (#131), beside the spans and beside the text for the same reason: a
+    // block is a run of LINES, and `body.text` is what the field, the save and the send still read.
+    var blocks by resume.blocksState
     // What the next keystroke at the caret should carry, once a button was tapped with nothing
     // selected; `null` = no instruction, the sticky rule of `remapAfterEdit` decides. Transient
     // on purpose: it is a gesture in flight, not a value worth parking across a rotation.
@@ -539,12 +547,13 @@ fun ComposeScreen(
     var initialSubject by rememberSaveable { mutableStateOf("") }
     var initialBody by resume.baselineState
     var baselineRanges by resume.baselineRangesState
+    var baselineBlocks by resume.baselineBlocksState
     // …the box included: a reopened outbox message can OPEN ticked, so "ticked" is not an edit while
     // ticking or clearing it is. Without this baseline the leave guard could not see either, and
     // clearing the box then leaving sent the message still asking (see [ComposeDirty]).
     var initialRequestReceipt by rememberSaveable { mutableStateOf(false) }
     // The body and its styling as one value: derived on every recomposition, never stored twice.
-    val rich = RichBody(body.text, ranges)
+    val rich = RichBody(body.text, ranges, blocks)
 
     // Which compose this is, for the signature rules: a forward carries its original at send time
     // (so its body holds no quote), while both a reply and a forward obey the "signature in
@@ -592,6 +601,9 @@ fun ComposeScreen(
                 // spans, every other opening brings none. ⛔ `emptyMap()` here, as it was, opens a
                 // styled draft with its bold gone from the screen — and the next save stores that.
                 ranges = it.bodyRanges
+                // …and its lists, on the same terms: `emptyList()` here opens a draft that HELD a
+                // list without it, and the next save writes that removal.
+                blocks = it.bodyBlocks
                 initialTo = prefilledTo
                 initialCc = cc
                 initialBcc = bcc
@@ -601,6 +613,7 @@ fun ComposeScreen(
                 // here makes a reopened styled draft look edited the moment it opens, and the
                 // leave guard then asks about changes nobody made.
                 baselineRanges = it.bodyRanges
+                baselineBlocks = it.bodyBlocks
                 // This prefill CARRIED the quote — the original was not cached, so `prepare` built
                 // the whole body with the quoted original inside it and there is no out-of-band
                 // hand-over to raise the flag below. Without this post the flag stays false while
@@ -642,7 +655,9 @@ fun ComposeScreen(
             body = TextFieldValue(quote, TextRange(0))
             // A quote replaces a plain prefill: neither the body nor its baseline carries styling.
             ranges = emptyMap()
+            blocks = emptyList()
             baselineRanges = emptyMap()
+            baselineBlocks = emptyList()
             initialBody = quote
             // Dropped in exactly once, AFTER the write: the activity is recreated by a rotation, a
             // theme flip, a language change or a multi-window resize while the ViewModel survives,
@@ -713,7 +728,7 @@ fun ComposeScreen(
         cc = cc, initialCc = initialCc,
         bcc = bcc, initialBcc = initialBcc,
         subject = subject.text, initialSubject = initialSubject,
-        body = RichBody(body.text, ranges), initialBody = RichBody(initialBody, baselineRanges),
+        body = RichBody(body.text, ranges, blocks), initialBody = RichBody(initialBody, baselineRanges, baselineBlocks),
         requestReceipt = requestReceipt, initialRequestReceipt = initialRequestReceipt,
         attachmentsTouched = attachmentsTouched,
     )
@@ -1576,15 +1591,17 @@ fun ComposeScreen(
                                         // The rewrite works on the TEXT; the user's styling is
                                         // carried across it by diffing (#131), so a bold word
                                         // above the signature stays bold and stays put.
-                                        rewriteRichBody(RichBody(body.text, ranges), body.selection.start, rewrite)?.let { rewritten ->
+                                        rewriteRichBody(RichBody(body.text, ranges, blocks), body.selection.start, rewrite)?.let { rewritten ->
                                             body = TextFieldValue(
                                                 rewritten.text,
                                                 TextRange(body.selection.start.coerceAtMost(rewritten.text.length)),
                                             )
                                             ranges = rewritten.ranges
-                                            rewriteRichBody(RichBody(initialBody, baselineRanges), 0, rewrite)?.let {
+                                            blocks = rewritten.blocks
+                                            rewriteRichBody(RichBody(initialBody, baselineRanges, baselineBlocks), 0, rewrite)?.let {
                                                 initialBody = it.text
                                                 baselineRanges = it.ranges
+                                                baselineBlocks = it.blocks
                                             }
                                         }
                                     }
@@ -1730,16 +1747,25 @@ fun ComposeScreen(
                 onValueChange = { next ->
                     // ⛔ Read HERE, not `rich`: that one is captured at composition, and two
                     // callbacks before a recomposition would remap from a stale body.
-                    val current = RichBody(body.text, ranges)
+                    val current = RichBody(body.text, ranges, blocks)
                     if (next.text != body.text) {
-                        // One edit, whatever produced it: the styling follows the text by diffing.
-                        ranges = remapAfterEdit(current, next.text, span(body.selection), span(next.selection), pending).ranges
+                        // One edit, whatever produced it: the styling follows the text by diffing,
+                        // and so do the lists — ONE remap, both halves of its answer taken. A
+                        // second call would diff the same edit twice and could answer differently.
+                        val remapped = remapAfterEdit(current, next.text, span(body.selection), span(next.selection), pending)
+                        ranges = remapped.ranges
+                        blocks = remapped.blocks
                     } else if (next.selection != body.selection) {
                         // The caret moved: a style armed for the next keystroke no longer applies.
                         pending = null
                     }
                     body = TextFieldValue(next.text, next.selection, next.composition)
                 },
+                // ⛔ The list markers are drawn HERE and nowhere else (#131): in the text layer, by
+                // a transformation, so not one of their characters enters `body.text`. The mapping
+                // that comes with it is what keeps the caret, the selection and the IME in step —
+                // see [markedText].
+                visualTransformation = markerTransformation(blocks),
                 textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 // Capitalisation ONLY: no imeAction here on purpose, because the body is the only
@@ -1771,7 +1797,10 @@ fun ComposeScreen(
                             .padding(horizontal = 16.dp)
                             .padding(top = 12.dp, bottom = 16.dp),
                     ) {
-                        if (body.text.isEmpty()) {
+                        // ⛔ …and no list either: a bullet tapped on an empty composer is drawn
+                        // at the start of the first line, exactly where the placeholder sits, and
+                        // the two overprint each other until the first keystroke.
+                        if (body.text.isEmpty() && blocks.isEmpty()) {
                             Text(
                                 stringResource(R.string.compose_body_placeholder),
                                 style = MaterialTheme.typography.bodyLarge,
@@ -1788,8 +1817,9 @@ fun ComposeScreen(
             if (bodyFocused) {
                 FormattingBar(
                     active = pending ?: stylesAt(rich, span(body.selection)),
+                    activeList = listKindAt(rich, span(body.selection)),
                     onToggle = { kind ->
-                        val current = RichBody(body.text, ranges)
+                        val current = RichBody(body.text, ranges, blocks)
                         val sel = span(body.selection)
                         if (!sel.isEmpty) {
                             ranges = toggleFormatting(current, sel, kind).ranges
@@ -1797,8 +1827,15 @@ fun ComposeScreen(
                             pending = (pending ?: stylesAt(current, sel)).let { if (kind in it) it - kind else it + kind }
                         }
                     },
+                    onToggleList = { kind ->
+                        // ⚠ No `pending` and no empty-selection branch, unlike the four families
+                        // above: a block is a run of LINES, so the caret alone already names one
+                        // (`toggleBlock`), and the tap applies at once — the gesture in Gmail.
+                        val current = RichBody(body.text, ranges, blocks)
+                        blocks = toggleBlock(current, span(body.selection), kind).blocks
+                    },
                     onClear = {
-                        val current = RichBody(body.text, ranges)
+                        val current = RichBody(body.text, ranges, blocks)
                         val sel = span(body.selection)
                         if (!sel.isEmpty) ranges = clearFormatting(current, sel).ranges else pending = emptySet()
                     },
@@ -2418,22 +2455,66 @@ private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
 }
 
 /**
- * The five formatting buttons under the body (#131): the four families, then "clear". Placed DOWN
- * HERE on purpose: `DraftReopenWiringTest` reads the FIRST `actions = {` line of this file as the
- * top bar (nothing here declares one), and `ScheduleMenuWiringTest` reads `schedulePresets` below
- * to the END of the file, so nothing may follow it. ⚠ Nothing focusable beyond the buttons
- * themselves: a bar that takes the focus hides itself.
+ * The seven formatting buttons under the body (#131): the four inline families, the two lists,
+ * then "clear". Placed DOWN HERE on purpose: `DraftReopenWiringTest` reads the FIRST `actions = {`
+ * line of this file as the top bar (nothing here declares one), and `ScheduleMenuWiringTest` reads
+ * `schedulePresets` below to the END of the file, so nothing may follow it. ⚠ Nothing focusable
+ * beyond the buttons themselves: a bar that takes the focus hides itself.
  */
 @Composable
-private fun FormattingBar(active: Set<Inline>, onToggle: (Inline) -> Unit, onClear: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+private fun FormattingBar(
+    active: Set<Inline>,
+    activeList: BlockKind?,
+    onToggle: (Inline) -> Unit,
+    onToggleList: (BlockKind) -> Unit,
+    onClear: () -> Unit,
+) {
+    // ⛔ SCROLLABLE, since the bar went from five buttons to seven: 7 × 48 dp + 8 = 344 dp of fixed
+    // width. It fits a 360 dp phone, and it does NOT fit a side-by-side multi-window pane (this
+    // screen is rebuilt by exactly that resize, see the token comment above) nor a large "display
+    // size" setting — where the last button, "clear formatting", would simply be off the screen
+    // with no way to reach it. Scrolling is also what Gmail's own bar does when it runs out of room
+    // (rule 4). ⚠ A scroll container, not a focusable one: the bar must never take the focus, or it
+    // hides itself.
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 4.dp),
+    ) {
         FormattingButton(Inline.BOLD, Icons.Filled.FormatBold, R.string.compose_format_bold, active, onToggle)
         FormattingButton(Inline.ITALIC, Icons.Filled.FormatItalic, R.string.compose_format_italic, active, onToggle)
         FormattingButton(Inline.UNDERLINE, Icons.Filled.FormatUnderlined, R.string.compose_format_underline, active, onToggle)
         FormattingButton(Inline.STRIKE, Icons.Filled.FormatStrikethrough, R.string.compose_format_strikethrough, active, onToggle)
+        ListButton(BlockKind.BULLET, Icons.Filled.FormatListBulleted, R.string.compose_format_list_bulleted, activeList, onToggleList)
+        ListButton(BlockKind.NUMBER, Icons.Filled.FormatListNumbered, R.string.compose_format_list_numbered, activeList, onToggleList)
         IconButton(onClick = onClear, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Filled.FormatClear, contentDescription = stringResource(R.string.compose_format_clear))
         }
+    }
+}
+
+/** One list's button, built exactly like [FormattingButton]: same 48 dp, same `selected`, same
+ *  tint. `activeList` is the kind covering the whole of the selection (or the caret's line), so at
+ *  most one of the two is ever lit — a run of lines is of ONE kind. */
+@Composable
+private fun ListButton(
+    kind: BlockKind,
+    icon: ImageVector,
+    label: Int,
+    activeList: BlockKind?,
+    onToggleList: (BlockKind) -> Unit,
+) {
+    val isActive = kind == activeList
+    IconButton(
+        onClick = { onToggleList(kind) },
+        modifier = Modifier.size(48.dp).semantics { selected = isActive },
+    ) {
+        Icon(
+            icon,
+            contentDescription = stringResource(label),
+            tint = if (isActive) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+        )
     }
 }
 

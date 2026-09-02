@@ -1,10 +1,13 @@
 package app.sterna.core.data.text
 
+import app.sterna.core.data.text.BlockKind.BULLET
+import app.sterna.core.data.text.BlockKind.NUMBER
 import app.sterna.core.data.text.Inline.BOLD
 import app.sterna.core.data.text.Inline.ITALIC
 import app.sterna.core.data.text.Inline.STRIKE
 import app.sterna.core.data.text.Inline.UNDERLINE
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -17,6 +20,9 @@ class RichBodyTest {
     private fun cursor(c: Int) = Span(c, c)
     private fun body(text: String, vararg ranges: Pair<Inline, List<Span>>) = RichBody.of(text, mapOf(*ranges))
     private fun ranges(vararg ranges: Pair<Inline, List<Span>>) = mapOf(*ranges)
+    private fun blk(kind: BlockKind, from: Int, to: Int) = Block(kind, from..to)
+    private fun listBody(text: String, blocks: List<Block>, vararg ranges: Pair<Inline, List<Span>>) =
+        RichBody.of(text, mapOf(*ranges), blocks)
 
     /** An edit with no selection hint beyond "the cursor sits after the edit", and no pending. */
     private fun edit(old: RichBody, newText: String, cursorAfter: Int, pending: Set<Inline>? = null) =
@@ -410,6 +416,17 @@ class RichBodyTest {
             body("é€😀x", BOLD to listOf(sp(0, 1)), ITALIC to listOf(sp(2, 4))),
             body("a\r\nb\tc", BOLD to listOf(sp(0, 4)), STRIKE to listOf(sp(3, 6))),
             RichBody.plain("\r\n\t"),
+            // …and the same property with blocks: the list markup must survive the trip too.
+            listBody("a\nb", listOf(blk(BULLET, 0, 1))),
+            listBody("a\nb\nc", listOf(blk(NUMBER, 1, 1))),
+            listBody("", listOf(blk(BULLET, 0, 0))),
+            listBody("a\n\nb", listOf(blk(NUMBER, 0, 2))),
+            listBody("x < y\n& z", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 3))),
+            listBody(
+                "a\nb\nc\nd",
+                listOf(blk(BULLET, 0, 0), blk(NUMBER, 1, 2)),
+                ITALIC to listOf(sp(4, 9)),
+            ),
         )
         for (x in bodies) {
             val html = toHtml(x)
@@ -421,5 +438,261 @@ class RichBodyTest {
 
     @Test fun plainTextIsTheText() {
         assertEquals("hello world", toPlainText(helloBold))
+    }
+
+    // --- blocks: the model ---------------------------------------------------------------------
+
+    @Test fun lineCountIsNewlinesPlusOne() {
+        assertEquals(1, RichBody.plain("").lineCount)
+        assertEquals(1, RichBody.plain("abc").lineCount)
+        assertEquals(2, RichBody.plain("a\nb").lineCount)
+        assertEquals(3, RichBody.plain("a\nb\n").lineCount)
+    }
+
+    @Test fun blocksAreClampedSortedMergedAndEmptiesDropped() {
+        val b = listBody(
+            "a\nb\nc\nd",
+            listOf(
+                blk(NUMBER, 7, 9),      // wholly past the end: gone, NOT clamped onto the last line
+                blk(BULLET, 2, 2),
+                blk(BULLET, 0, 0),
+                blk(BULLET, -3, 1),     // clamped at the start
+                Block(BULLET, 2..1),    // empty
+            ),
+        )
+        assertEquals(listOf(Block(BULLET, 0..2)), b.blocks)
+    }
+
+    @Test fun theLastBlockWrittenTakesTheDisputedLine() {
+        // Two kinds never overlap once normalised: the one written last owns the shared line.
+        assertEquals(
+            listOf(Block(BULLET, 0..0), Block(NUMBER, 1..2)),
+            listBody("a\nb\nc", listOf(blk(BULLET, 0, 1), blk(NUMBER, 1, 2))).blocks,
+        )
+        assertEquals(
+            listOf(Block(BULLET, 0..1), Block(NUMBER, 2..2)),
+            listBody("a\nb\nc", listOf(blk(NUMBER, 1, 2), blk(BULLET, 0, 1))).blocks,
+        )
+    }
+
+    @Test fun aBlockMakesTheBodyRichAndCountsInEquality() {
+        val listed = listBody("a", listOf(blk(BULLET, 0, 0)))
+        assertFalse("a body with a list is not plain — a draft with a list must store HTML", listed.isPlain)
+        assertTrue(RichBody.plain("a").isPlain)
+        assertTrue(listed != RichBody.plain("a"))
+        assertTrue(listed != listBody("a", listOf(blk(NUMBER, 0, 0))))
+        assertEquals(listed, listBody("a", listOf(blk(BULLET, 0, 0), blk(BULLET, 0, 0))))
+        assertEquals(listed.hashCode(), listBody("a", listOf(blk(BULLET, 0, 0))).hashCode())
+        // an out-of-range block is no block at all
+        assertEquals(RichBody.plain("a"), listBody("a", listOf(blk(BULLET, 3, 4))))
+        // hashCode must move with the blocks (0..0 and 0..1 hash differently, deterministically)
+        assertTrue(
+            listBody("a\nb", listOf(blk(BULLET, 0, 0))).hashCode() !=
+                listBody("a\nb", listOf(blk(BULLET, 0, 1))).hashCode(),
+        )
+        assertTrue(listed.toString().contains("Block(kind=BULLET, lines=0..0)"))
+    }
+
+    @Test fun aStyleDoesNotCoverTheBreakBetweenTwoItems() {
+        // `</li><li>` carries no character, so the newline it stands for carries no style either.
+        val b = listBody("a\nb", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 3)))
+        assertEquals(listOf(sp(0, 1), sp(2, 3)), b.ranges[BOLD])
+        // outside any list the newline keeps its style, as before
+        assertEquals(listOf(sp(0, 3)), body("a\nb", BOLD to listOf(sp(0, 3))).ranges[BOLD])
+    }
+
+    // --- toggleBlock ---------------------------------------------------------------------------
+
+    @Test fun toggleBlockMarksEveryLineTheSelectionTouches() {
+        val b = RichBody.plain("un\ndeux\ntrois")
+        val r = toggleBlock(b, sp(1, 5), BULLET)   // "n\nde": lines 0 and 1, not 2
+        assertEquals(listOf(Block(BULLET, 0..1)), r.blocks)
+        assertEquals("un\ndeux\ntrois", r.text)
+    }
+
+    @Test fun aSelectionStoppingAtALineStartDoesNotReachIntoThatLine() {
+        // "un\n" — the selection ends exactly where line 1 begins, and takes nothing of it. Read
+        // with `end` instead of `end - 1`, a line the user never selected becomes a bullet.
+        val b = RichBody.plain("un\ndeux\ntrois")
+        assertEquals(listOf(Block(BULLET, 0..0)), toggleBlock(b, sp(0, 3), BULLET).blocks)
+    }
+
+    @Test fun toggleBlockOnAnEmptySelectionTakesTheCursorLine() {
+        // ⚠ Unlike `toggle` on an inline style, a bare cursor is enough here: Gmail's gesture.
+        val b = RichBody.plain("un\ndeux")
+        assertEquals(listOf(Block(NUMBER, 1..1)), toggleBlock(b, cursor(5), NUMBER).blocks)
+        assertEquals(listOf(Block(NUMBER, 0..0)), toggleBlock(b, cursor(0), NUMBER).blocks)
+    }
+
+    @Test fun toggleBlockRemovesOnlyWhenEveryTouchedLineAlreadyCarriesTheKind() {
+        val all = listBody("a\nb\nc", listOf(blk(BULLET, 0, 2)))
+        assertEquals(emptyList<Block>(), toggleBlock(all, sp(0, 5), BULLET).blocks)
+        assertTrue(toggleBlock(all, sp(0, 5), BULLET).isPlain)
+        // one line short of the kind: the whole selection becomes that kind instead
+        val mixed = listBody("a\nb\nc", listOf(blk(BULLET, 0, 0)))
+        assertEquals(listOf(Block(BULLET, 0..2)), toggleBlock(mixed, sp(0, 5), BULLET).blocks)
+        // and the other kind always applies
+        assertEquals(listOf(Block(NUMBER, 0..2)), toggleBlock(all, sp(0, 5), NUMBER).blocks)
+    }
+
+    @Test fun toggleBlockOffInTheMiddleSplitsTheList() {
+        val all = listBody("a\nb\nc", listOf(blk(BULLET, 0, 2)))
+        assertEquals(
+            listOf(Block(BULLET, 0..0), Block(BULLET, 2..2)),
+            toggleBlock(all, cursor(2), BULLET).blocks,
+        )
+    }
+
+    @Test fun togglingAnInlineStyleLeavesTheListsAlone() {
+        // ⛔ `toggle` and `clear` rebuild the body: dropping its blocks there makes one tap on Bold
+        // — or on "clear formatting" — erase every list in the message, in silence.
+        val listed = listBody("a\nb", listOf(blk(BULLET, 0, 1)))
+        assertEquals(listed.blocks, toggle(listed, sp(0, 1), BOLD).blocks)
+        assertEquals(listed.blocks, toggle(toggle(listed, sp(0, 1), BOLD), sp(0, 1), BOLD).blocks)
+        assertEquals(listed.blocks, clear(listBody("a\nb", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 1))), sp(0, 1)).blocks)
+    }
+
+    @Test fun anInlineStyleIsStillRemovableAcrossTwoItemsOfAList() {
+        // ⛔ The break `</li><li>` stands for carries no character, so no span may cover it — which
+        // means a selection running over two items is never inside ONE span. Read as "not covered",
+        // the button goes dark on two bold items and the tap APPLIES bold instead of removing it:
+        // bold becomes impossible to take off inside a list, with no way back but "clear
+        // formatting".
+        val two = listBody("a\nb", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 3)))
+        assertEquals(listOf(sp(0, 1), sp(2, 3)), two.ranges[BOLD])
+        assertEquals(setOf(BOLD), stylesAt(two, sp(0, 3)))
+        assertTrue("the tap must REMOVE it", toggle(two, sp(0, 3), BOLD).ranges[BOLD] == null)
+        // …and a selection where one of the two items is NOT styled still applies, as before.
+        val half = listBody("a\nb", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 1)))
+        assertEquals(emptySet<Inline>(), stylesAt(half, sp(0, 3)))
+        assertEquals(listOf(sp(0, 1), sp(2, 3)), toggle(half, sp(0, 3), BOLD).ranges[BOLD])
+    }
+
+    // --- remapAfterEdit and the blocks -----------------------------------------------------------
+
+    @Test fun enterInsideAnItemGivesTwoItemsOfTheSameList() {
+        val b = listBody("ab", listOf(blk(BULLET, 0, 0)))
+        val r = edit(b, "a\nb", 2)
+        assertEquals(listOf(Block(BULLET, 0..1)), r.blocks)
+    }
+
+    @Test fun deletingTheNewlineBetweenTwoItemsMergesThem() {
+        val b = listBody("a\nb", listOf(blk(BULLET, 0, 1)))
+        val r = edit(b, "ab", 1)
+        assertEquals(listOf(Block(BULLET, 0..0)), r.blocks)
+        assertEquals("ab", r.text)
+    }
+
+    @Test fun aNewLineTakesTheKindOfTheLineItCameFrom() {
+        val b = listBody("a\nb\nc", listOf(blk(BULLET, 0, 0), blk(NUMBER, 2, 2)))
+        val r = edit(b, "a\nXb\nc", 3)
+        assertEquals(listOf(Block(BULLET, 0..0), Block(NUMBER, 2..2)), r.blocks)
+        assertEquals("a\nXb\nc", r.text)
+    }
+
+    @Test fun pastingOverASelectionKeepsTheKindOfTheLineItLandsOn() {
+        // ⚠ A REPLACEMENT, not an insertion: `removed > 0 && n > 0` is its own branch of the
+        // remap, and it is the one a paste over a selection and an IME autocorrect both take.
+        // Select "a\nb" in a body whose first line is a bullet and paste "X\nY" over it: both
+        // pasted lines land where line 0 was, so both are bullets. Mapped back to the END of the
+        // replaced segment instead of its start, the list disappears under the paste in silence.
+        val b = listBody("a\nb\nc", listOf(blk(BULLET, 0, 0)))
+        val r = remapAfterEdit(b, "X\nY\nc", sp(0, 3), cursor(3), null)
+        assertEquals("X\nY\nc", r.text)
+        assertEquals(listOf(Block(BULLET, 0..1)), r.blocks)
+    }
+
+    @Test fun enterOnAnEmptyItemLeavesTheList() {
+        // Gmail's rule. ⚠ Gmail also removes the blank line; remapAfterEdit may not change the
+        // text, so ours stays — assumed debt, already arbitrated.
+        val b = listBody("a\n", listOf(blk(BULLET, 0, 1)))
+        val r = edit(b, "a\n\n", 3)
+        assertEquals(listOf(Block(BULLET, 0..0)), r.blocks)
+        assertEquals("a\n\n", r.text)
+        // …only for a bare Enter: pasting "\nx" on the same empty item stays in the list
+        assertEquals(listOf(Block(BULLET, 0..2)), edit(b, "a\n\nx", 4).blocks)
+    }
+
+    // --- toHtml with blocks ------------------------------------------------------------------------
+
+    @Test fun aListWritesUlOrOlAndNoBrBetweenItsItems() {
+        assertEquals("<ul><li>a</li><li>b</li></ul>", toHtml(listBody("a\nb", listOf(blk(BULLET, 0, 1)))))
+        assertEquals("<ol><li>a</li><li>b</li></ol>", toHtml(listBody("a\nb", listOf(blk(NUMBER, 0, 1)))))
+    }
+
+    @Test fun theBrSitsAroundTheListNeverInsideIt() {
+        assertEquals(
+            "<ul><li>a</li><li>b</li></ul><br>c",
+            toHtml(listBody("a\nb\nc", listOf(blk(BULLET, 0, 1)))),
+        )
+        assertEquals(
+            "a<br><ol><li>b</li></ol><br>c",
+            toHtml(listBody("a\nb\nc", listOf(blk(NUMBER, 1, 1)))),
+        )
+        assertEquals(
+            "<ul><li>a</li></ul><br><ol><li>b</li></ol>",
+            toHtml(listBody("a\nb", listOf(blk(BULLET, 0, 0), blk(NUMBER, 1, 1)))),
+        )
+    }
+
+    @Test fun inlineStylesAreWrittenInsideTheItem() {
+        assertEquals(
+            "<ul><li><b>a</b>b</li><li>c</li></ul>",
+            toHtml(listBody("ab\nc", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 1)))),
+        )
+        assertEquals(
+            "<ul><li><b>a</b></li><li><b>b</b></li></ul>",
+            toHtml(listBody("a\nb", listOf(blk(BULLET, 0, 1)), BOLD to listOf(sp(0, 3)))),
+        )
+    }
+
+    // --- fromHtml with blocks ----------------------------------------------------------------------
+
+    @Test fun listsAreParsedBackIntoBlocks() {
+        assertEquals(listBody("a\nb", listOf(blk(BULLET, 0, 1))), fromHtml("<ul><li>a</li><li>b</li></ul>"))
+        assertEquals(
+            listBody("a\nb\nc", listOf(blk(NUMBER, 1, 1))),
+            fromHtml("a<br><ol><li>b</li></ol><br>c"),
+        )
+        assertEquals(listBody("", listOf(blk(BULLET, 0, 0))), fromHtml("<ul><li></li></ul>"))
+    }
+
+    @Test fun anythingUnusualAboutAListIsNull() {
+        val rejected = listOf(
+            "<li>x</li>",                               // an item outside any list
+            "<ul><li>a</li>",                           // a list left open
+            "<ul></ul>",                                // an empty list
+            "<ul><li>a</li><ul><li>b</li></ul></ul>",   // a nested list
+            "<ul><li>a<ul><li>b</li></ul></li></ul>",   // …nested inside an item
+            "<ul><li>a<br>b</li></ul>",                 // a <br> inside an item
+            "<ul></li></ul>",                           // a </li> with no <li>
+            "<ul><li>a</li></li></ul>",                 // …one too many
+            "<ul><li><b>a</li></ul>",                   // an inline tag still open at </li>
+            "<ul><li>a</li></ol>",                      // the wrong closing tag
+            """<ul class="x"><li>a</li></ul>""",          // an attribute
+            "<ul>a<li>b</li></ul>",                     // text outside an item
+            "<ul><li>a</li>b</ul>",                     // …after one
+            "<b><ul><li>a</li></ul></b>",               // a list inside an inline tag
+            "<ul><li>a<li>b</li></ul>",                 // an item left open
+            "</ul>",                                    // a list closed but never opened
+            // ⛔ A list stands on lines of its own. Read otherwise, these three glue two lines
+            // into one AND come back as a body this editor claims to reproduce faithfully —
+            // which is the licence that lets the next save destroy the original draft.
+            "a<ul><li>b</li></ul>",                     // text running straight into a list
+            "<ul><li>a</li></ul>x",                     // …and straight out of one
+            "<ul><li>a</li></ul><ol><li>b</li></ol>",   // two lists with no line between them
+        )
+        for (h in rejected) assertNull("should reject: $h", fromHtml(h))
+    }
+
+    // --- toPlainText -------------------------------------------------------------------------------
+
+    @Test fun plainTextMarksListLinesAndRenumbersEveryBlock() {
+        val b = listBody("a\nb\nc\nd\ne", listOf(blk(BULLET, 0, 1), blk(NUMBER, 2, 3)))
+        assertEquals("- a\n- b\n1. c\n2. d\ne", toPlainText(b))
+        assertEquals("the marker is written by toPlainText and NOWHERE else", "a\nb\nc\nd\ne", b.text)
+        // a second numbered block starts again at 1
+        val two = listBody("a\nb\nc", listOf(blk(NUMBER, 0, 0), blk(NUMBER, 2, 2)))
+        assertEquals("1. a\nb\n1. c", toPlainText(two))
     }
 }

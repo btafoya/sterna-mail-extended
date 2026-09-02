@@ -41,12 +41,14 @@ import app.sterna.core.data.mail.unlessDraftBelongsElsewhere
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.pgp.PgpResult
+import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.draftHtmlIsLossy
 import app.sterna.core.data.text.draftHtmlToSave
 import app.sterna.core.data.text.safeFileName
+import app.sterna.core.data.text.toPlainText
 import app.sterna.core.imap.OutgoingAttachment
 import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
@@ -109,6 +111,16 @@ data class DraftFields(
      * "no styling yet": it is showing the styling REMOVED, and the next save writes that removal.
      */
     val bodyRanges: Map<Inline, List<Span>> = emptyMap(),
+    /**
+     * The list blocks [body] carries (#131) — BESIDE [bodyRanges] and not inside it, for the same
+     * reason: the screen holds the text in a `TextFieldValue` and lays both over it.
+     *
+     * ⛔ The `emptyList()` default is load-bearing: a draft written before this lot has no block,
+     * and every opening that is not a reopened draft has none either. ⛔ A route that reopens a
+     * body holding a list and drops this is not showing "no list yet": it is showing the list
+     * REMOVED, and the next save writes that removal.
+     */
+    val bodyBlocks: List<Block> = emptyList(),
     /** Reveal the Cc/Bcc row (used when restoring a draft that had them). */
     val expand: Boolean = false,
     /**
@@ -1345,6 +1357,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // (`composeDraftOf`). Dropped here, undoing a send hands back a message with
                     // its bold removed, and the re-send delivers the removal.
                     bodyRanges = d.bodyRanges,
+                    bodyBlocks = d.bodyBlocks,
                     expand = d.cc.isNotBlank() || d.bcc.isNotBlank(),
                     // The box comes back ticked for a message that asked for a receipt (#70): this
                     // composer will enqueue a NEW row, so a clear box here cancels the request.
@@ -1840,6 +1853,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // …and the styling the row stored, out of the SAME projection as the text
             // (`localDraftPrefill` reads the html part first and falls back to the text column).
             bodyRanges = fields.bodyRanges,
+            bodyBlocks = fields.bodyBlocks,
             expand = fields.expand,
         )
         _attachments.value = fields.attachments
@@ -2433,6 +2447,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // out, which carries the signature substituted verbatim and the forwarded
                     // original appended and would not parse back (#131).
                     bodyRanges = body.ranges,
+                    bodyBlocks = body.blocks,
                     fromAccountId = _selectedFrom.value?.accountId,
                     fromIdentityEmail = identity?.email,
                     attachments = attachments, inReplyTo = replyTo, references = refs,
@@ -2619,8 +2634,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      *    retrieval and flattens the message to one line. The explicit `<br>` survives that;
      *  - an imported HTML signature is substituted for its plain block in the html alternative, but
      *    only while that block is untouched (see [htmlBodyWithSignature]);
-     *  - the styling the user applied (#131) is written into the html alternative and only there:
-     *    the text alternative is the body's plain text.
+     *  - the INLINE styling the user applied (#131) is written into the html alternative and only
+     *    there: bold has no spelling in plain text. A LIST does have one, so the text alternative
+     *    is `toPlainText`, which writes `- ` / `1. ` in front of each item — ⛔ never `userBody.text`,
+     *    which is the typed text with the markers nowhere, and reads as a run of loose lines to
+     *    anyone whose client shows the text part.
      * For a forward, the carried original is then appended below, identically, to both.
      */
     private suspend fun bodiesForSend(userBody: RichBody, identity: StoredIdentity?): Pair<String, String?> {
@@ -2628,8 +2646,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             userBody, signatureTextOf(identity), signatureHtmlOf(identity),
             settings.signatureDelimiter.first(),
         )
-        val fwd = forwarded ?: return userBody.text to html
-        return "${userBody.text}\n\n${fwd.text}" to "$html<br><br>${fwd.html}"
+        val fwd = forwarded ?: return toPlainText(userBody) to html
+        return "${toPlainText(userBody)}\n\n${fwd.text}" to "$html<br><br>${fwd.html}"
     }
 
     /**

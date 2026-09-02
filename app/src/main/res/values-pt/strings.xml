@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Itálico</string>
     <string name="compose_format_underline">Sublinhado</string>
     <string name="compose_format_strikethrough">Riscado</string>
+    <string name="compose_format_list_bulleted">Lista com marcadores</string>
+    <string name="compose_format_list_numbered">Lista numerada</string>
     <string name="compose_format_clear">Limpar formatação</string>
     <string name="compose_quote_attribution">A %1$s, %2$s escreveu:</string>
     <string name="compose_quote_someone">alguém</string>

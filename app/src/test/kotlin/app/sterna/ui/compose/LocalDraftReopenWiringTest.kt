@@ -251,6 +251,9 @@ class LocalDraftReopenWiringTest {
                 // Left out, a draft this app styled reopens with its bold gone from the screen,
                 // and the next save stores that removal.
                 "bodyRanges = fields.bodyRanges,",
+                // …and its lists (#131), out of that same projection. Left out, a draft holding a
+                // list reopens flat and the next save writes the flattening.
+                "bodyBlocks = fields.bodyBlocks,",
                 "expand = fields.expand,",
                 ")",
                 "_attachments.value = fields.attachments",

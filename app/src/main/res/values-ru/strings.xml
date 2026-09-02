@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Курсив</string>
     <string name="compose_format_underline">Подчёркнутый</string>
     <string name="compose_format_strikethrough">Зачёркнутый</string>
+    <string name="compose_format_list_bulleted">Маркированный список</string>
+    <string name="compose_format_list_numbered">Нумерованный список</string>
     <string name="compose_format_clear">Убрать форматирование</string>
     <string name="compose_quote_attribution">%1$s, %2$s написал(а):</string>
     <string name="compose_quote_someone">кто-то</string>

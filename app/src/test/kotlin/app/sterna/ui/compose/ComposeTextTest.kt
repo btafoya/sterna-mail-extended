@@ -1,6 +1,8 @@
 package app.sterna.ui.compose
 
 import app.sterna.core.data.account.StoredIdentity
+import app.sterna.core.data.text.Block
+import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Span
 import app.sterna.core.jmap.model.Email
@@ -259,6 +261,33 @@ class ComposeTextTest {
         assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 5))), fields.bodyRanges)
     }
 
+    @Test fun draftFieldsCarryTheListsOfTheHtmlPart() {
+        // #131 lists. ⛔ The `<ul>` is in the html part only, and it must be read FIRST: read
+        // text-first, whatever the text part holds would show as typed text and the next save
+        // would store it INSIDE the body. The dashes here are the worst case on purpose — ⚠ a
+        // draft Sterna saves stores the text as TYPED, unmarked; only the outbox row, which is the
+        // part to be delivered, spells a list out.
+        val draft = Email(
+            id = "d8",
+            subject = "Shopping",
+            to = listOf(EmailAddress(email = "a@example.com")),
+            textBody = listOf(EmailBodyPart(partId = "t", type = "text/plain")),
+            htmlBody = listOf(EmailBodyPart(partId = "h", type = "text/html")),
+            bodyValues = mapOf(
+                "t" to EmailBodyValue("shopping\n- milk\n- eggs"),
+                "h" to EmailBodyValue("shopping<br><ul><li>milk</li><li>eggs</li></ul>"),
+            ),
+        )
+        val fields = draftFieldsOf(draft, cached = null)
+        assertEquals("shopping\nmilk\neggs", fields.body)
+        assertEquals(
+            "the list must reach the prefill as a BLOCK — dropped, the reopened draft is three " +
+                "loose lines and the next save sends it as such",
+            listOf(Block(BlockKind.BULLET, 1..2)),
+            fields.bodyBlocks,
+        )
+    }
+
     @Test fun draftFieldsOfAPlainDraftCarryNoStyling() {
         val draft = Email(
             id = "d6",
@@ -270,6 +299,7 @@ class ComposeTextTest {
         val fields = draftFieldsOf(draft, cached = null)
         assertEquals("hello world", fields.body)
         assertEquals(emptyMap<Inline, List<Span>>(), fields.bodyRanges)
+        assertEquals(emptyList<Block>(), fields.bodyBlocks)
     }
 
     @Test fun draftFieldsTolerateEmptyDraft() {

@@ -1,5 +1,7 @@
 package app.sterna.ui.compose
 
+import app.sterna.core.data.text.Block
+import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
@@ -81,6 +83,29 @@ class ComposeDirtyTest {
         assertFalse(
             "same text, same spans: reopening a styled draft and closing it changed nothing",
             dirty(body = RichBody("Body text", styled), initialBody = RichBody("Body text", styled)),
+        )
+    }
+
+    @Test fun turningTwoLinesIntoAListWithoutChangingTheTextIsDirty() {
+        // #131 lists. The markers are DRAWN, never typed, so the text is byte for byte what it was:
+        // if the blocks were not compared, tapping "bulleted list" and leaving would discard the
+        // list without a word, on a screen that showed it a second earlier.
+        assertTrue(
+            dirty(
+                body = RichBody("milk\neggs", emptyMap(), listOf(Block(BlockKind.BULLET, 0..1))),
+                initialBody = RichBody.plain("milk\neggs"),
+            ),
+        )
+    }
+
+    @Test fun aReopenedDraftHoldingAListIsNotDirtyUntouched() {
+        val blocks = listOf(Block(BlockKind.NUMBER, 0..1))
+        assertFalse(
+            "same text, same blocks: reopening a draft that held a list and closing it changed nothing",
+            dirty(
+                body = RichBody("milk\neggs", emptyMap(), blocks),
+                initialBody = RichBody("milk\neggs", emptyMap(), blocks),
+            ),
         )
     }
 

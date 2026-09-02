@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Italique</string>
     <string name="compose_format_underline">Souligné</string>
     <string name="compose_format_strikethrough">Barré</string>
+    <string name="compose_format_list_bulleted">Liste à puces</string>
+    <string name="compose_format_list_numbered">Liste numérotée</string>
     <string name="compose_format_clear">Effacer la mise en forme</string>
     <string name="compose_quote_attribution">Le %1$s, %2$s a écrit :</string>
     <string name="compose_quote_someone">quelqu\'un</string>

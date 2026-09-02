@@ -26,6 +26,8 @@
     <string name="compose_format_italic">Corsivo</string>
     <string name="compose_format_underline">Sottolineato</string>
     <string name="compose_format_strikethrough">Barrato</string>
+    <string name="compose_format_list_bulleted">Elenco puntato</string>
+    <string name="compose_format_list_numbered">Elenco numerato</string>
     <string name="compose_format_clear">Cancella formattazione</string>
     <string name="compose_quote_attribution">Il %1$s, %2$s ha scritto:</string>
     <string name="compose_quote_someone">qualcuno</string>
