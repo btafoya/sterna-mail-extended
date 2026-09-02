@@ -812,7 +812,9 @@
     <string name="outbox_state_sending">Wysyłanie…</string>
     <string name="outbox_state_failed">Niepowodzenie: %1$s</string>
     <string name="outbox_state_failed_unknown">nie udało się wysłać</string>
+    <string name="outbox_waiting_reason">Ostatni błąd: %1$s</string>
     <string name="outbox_error_edit_interrupted">edycja przerwana, nie wysłano</string>
+    <string name="outbox_error_not_armed">nie udało się zaplanować wysyłki</string>
     <string name="outbox_state_kept_as_draft">Zapisano jako wersję roboczą na tym urządzeniu, nie wysłano</string>
     <string name="outbox_state_interrupted">Przerwano, wiadomość mogła już zostać wysłana</string>
     <string name="outbox_retry">Ponów</string>

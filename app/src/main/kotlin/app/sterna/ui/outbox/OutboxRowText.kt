@@ -57,6 +57,64 @@ fun outboxStateShowsReason(state: OutboxState): Boolean = when (state) {
 }
 
 /**
+ * Whether a row that is WAITING prints its `lastError` as an EXTRA line, under its state sentence.
+ *
+ * Not the same question as [outboxStateShowsReason], which asks whether the state's own string
+ * substitutes the reason into "Failed: %1$s". This one adds a second line and changes neither the
+ * state's words nor its colour: a row that waits is not a row that failed.
+ *
+ * ⛔ `!lastError.isNullOrBlank()` is THE GUARD OF THE NORMAL CASE, not a null-check for tidiness.
+ * Offline — the majority of what is ever seen in this screen — the `NetworkType.CONNECTED`
+ * constraint (`app/src/main/kotlin/app/sterna/send/Outbox.kt`) means no attempt runs at all, so a
+ * QUEUED row carries NO reason. Without the guard every waiting row would grow an empty
+ * complement, or "sending couldn't be scheduled" under a message nothing has yet tried to send.
+ *
+ * ⛔ BLANK counts as no reason, and that is the same guard on a value the producer really writes:
+ * `OutboxWorker` stores `t.message ?: t.javaClass.simpleName`, and a Throwable's message can be
+ * the empty string — `MailRepository.unarmedNote` protects itself from exactly that with
+ * `takeIf { it.isNotBlank() }`. On `null` alone, such a row prints the frame of
+ * [outboxWaitingReasonLabel] followed by nothing.
+ *
+ * ⛔ [OutboxState.KEPT_AS_DRAFT] is excluded ON PURPOSE. A row that carried the reason of a real
+ * send failure BEFORE it was reopened and saved as a draft (#95 × #70) keeps that text, and
+ * printing it under a save that did exactly what was asked hands the reason to a state that is not
+ * its own.
+ *
+ * ⛔ [OutboxState.INTERRUPTED] and [OutboxState.SENDING] are excluded for the same family of
+ * reason: the first has a whole sentence of its own that is careful about what it claims (the
+ * delivery may already have got through), the second has a delivery in flight. [OutboxState.FAILED]
+ * is excluded because it already prints its reason, inside its own line.
+ */
+fun outboxShowsWaitingReason(state: OutboxState, lastError: String?): Boolean = when (state) {
+    OutboxState.QUEUED, OutboxState.HELD -> !lastError.isNullOrBlank()
+    OutboxState.SENDING, OutboxState.FAILED, OutboxState.KEPT_AS_DRAFT,
+    OutboxState.INTERRUPTED, OutboxState.EDITING,
+    -> false
+}
+
+/**
+ * The string a WAITING row's complement is FRAMED with — "Last error: %1$s", the reason substituted
+ * into it.
+ *
+ * ⛔ The frame exists because `lastError` is the LAST reason recorded on the row, not necessarily
+ * the reason it is waiting now. Nothing clears it: a re-arm that SUCCEEDS — at app start
+ * (`SternaApplication`) or when an edit is released (`MailRepository.releaseOutboxEdit`) — leaves
+ * the old text in place, and an offline row can carry the reason of an online failure for days.
+ * Printed bare, that text reads as the present cause; framed as history it is true in both cases,
+ * and the server's own words from attempts 1 to 4 (#183) are still shown, which is what the screen
+ * is for.
+ *
+ * ⛔ It does NOT say "Failed": the row has not failed, it is queued and waiting. That word, and the
+ * error colour, belong to [OutboxState.FAILED] alone. And it promises nothing about when the
+ * message leaves — see [app.sterna.core.data.mail.unarmedNote] for why nobody at this level can.
+ *
+ * Named here rather than in the composable for [outboxStateLabel]'s reason: which resource is
+ * printed is a decision, and a decision belongs where a JVM test can execute it.
+ */
+@StringRes
+fun outboxWaitingReasonLabel(): Int = R.string.outbox_waiting_reason
+
+/**
  * The reason a FAILED row substitutes into "Failed: %1$s" — words of ours to translate, or text to
  * print as it is.
  */
@@ -69,7 +127,8 @@ sealed class OutboxFailureReason {
 }
 
 /**
- * What a FAILED row's `lastError` means on screen.
+ * What a row's `lastError` means on screen — for the reason a FAILED row substitutes into its own
+ * sentence, and for the complement a WAITING row prints under it ([outboxShowsWaitingReason]).
  *
  * A row parked because its EDIT WAS INTERRUPTED — closed over a lost body, see
  * `MailRepository.parkInterruptedOutboxEdit` — carries the SENTINEL [OutboxLogic.EDIT_INTERRUPTED],
@@ -77,13 +136,34 @@ sealed class OutboxFailureReason {
  * it was written, on a row that may sit in the Outbox for weeks. So the sentinel is stored and the
  * words are chosen here, at display time, in the current locale.
  *
+ * [OutboxLogic.NOT_ARMED] is the same kind of sentinel, written when the scheduler could not be
+ * armed (`MailRepository.enqueueSend` → `armOrNote`): the row is durable and QUEUED or HELD, and
+ * this says why nothing has moved. No FAILED row ever carries it, since the send worker overwrites
+ * `lastError` with the fresh error at every delivery failure.
+ *
+ * All three [Words] are FRAGMENTS of the same shape, substituted into a frame by whoever prints
+ * them: "Failed: %1$s" on a failed row, [outboxWaitingReasonLabel]'s "Last error: %1$s" on the
+ * complement of a waiting one. None of them is ever printed on its own.
+ *
+ * ⛔ [OutboxLogic.NOT_ARMED_LEGACY_PREFIX] is the SAME EVENT under the words 1.5.2 and 1.5.3 wrote:
+ * those versions stored `unarmedNote`'s whole English sentence on the row instead of the sentinel.
+ * No migration rewrites those rows — a display defect does not earn an irreversible write — so a
+ * row still QUEUED on a phone that ran either version is decoded HERE, by its opening, and comes
+ * out as the same words as the sentinel. Unrecognised, it prints English under a translated
+ * "Waiting to send" in eight locales.
+ *
  * ⛔ The server's words (#183) are of ANOTHER nature and unchanged: they are what the server said,
- * they were never ours to translate, and they are printed as they came. A null reason keeps the
- * fallback it always had.
+ * they were never ours to translate, and they are printed as they came — including a reason that
+ * merely starts with the same first word. A null reason keeps the fallback it always had.
  */
-fun outboxFailureReason(lastError: String?): OutboxFailureReason = when (lastError) {
-    null -> OutboxFailureReason.Words(R.string.outbox_state_failed_unknown)
-    OutboxLogic.EDIT_INTERRUPTED -> OutboxFailureReason.Words(R.string.outbox_error_edit_interrupted)
+fun outboxFailureReason(lastError: String?): OutboxFailureReason = when {
+    lastError == null -> OutboxFailureReason.Words(R.string.outbox_state_failed_unknown)
+    lastError == OutboxLogic.EDIT_INTERRUPTED ->
+        OutboxFailureReason.Words(R.string.outbox_error_edit_interrupted)
+    lastError == OutboxLogic.NOT_ARMED ->
+        OutboxFailureReason.Words(R.string.outbox_error_not_armed)
+    lastError.startsWith(OutboxLogic.NOT_ARMED_LEGACY_PREFIX) ->
+        OutboxFailureReason.Words(R.string.outbox_error_not_armed)
     else -> OutboxFailureReason.Text(lastError)
 }
 

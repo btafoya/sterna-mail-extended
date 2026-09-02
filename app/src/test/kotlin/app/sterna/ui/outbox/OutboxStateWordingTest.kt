@@ -49,6 +49,23 @@ class OutboxStateWordingTest {
     }
 
     /**
+     * ⛔ The frame the waiting row's complement is printed in, EXECUTED — the source lint one
+     * screen down pins that the composable calls this function, never which string it answers.
+     * Answering R.string.outbox_state_failed here would put "Failed: …" back over a row that is
+     * queued and waiting, in nine languages, and every other test in this file would stay green.
+     */
+    @Test fun `the waiting row's complement is framed as history, not as a failure`() {
+        assertEquals(
+            "⛔ the complement's frame must be R.string.outbox_waiting_reason — 'Last error: %1\$s'. " +
+                "It says the reason is the LAST one recorded, which is the only true thing that " +
+                "can be said: nothing clears lastError when a re-arm succeeds, and an offline row " +
+                "carries an online failure's reason for days.",
+            R.string.outbox_waiting_reason,
+            outboxWaitingReasonLabel(),
+        )
+    }
+
+    /**
      * ⛔ THE sentence of this fix. A row saved as a draft on the phone must say so, on its own, and
      * must not be dressed as a failure: "Failed: saved as a draft on this device, not sent" is what
      * the previous attempt printed in nine languages, over a save that did exactly what was asked.
@@ -159,6 +176,67 @@ class OutboxStateWordingTest {
         )
     }
 
+    /**
+     * ⛔ THE PREDICATE OF THIS FIX, state by state and BOTH ways, written out by hand — never
+     * recomputed from the shipped rule, which would make the rule its own witness.
+     *
+     * A row that waits and carries a reason (a delivery the server refused on attempts 1 to 4, an
+     * arming that never happened) must print it as an extra line: pressing Retry against a silent
+     * screen is what this closes. And every other answer here is a guard:
+     *  - with NO reason, a waiting row prints nothing at all. Offline, the CONNECTED constraint
+     *    means no attempt ever runs, so QUEUED rows with a null lastError are the MAJORITY of what
+     *    is seen — an empty complement, or "couldn't send", would be the normal case;
+     *  - KEPT_AS_DRAFT and INTERRUPTED are not waiting: the first keeps the reason of a failure
+     *    that happened before it was saved as a draft (#95 × #70), the second has a whole sentence
+     *    of its own about a delivery that may have got through. Neither may borrow this line.
+     */
+    @Test fun `only a waiting row that carries a reason says why it is still there`() {
+        assertEquals(
+            "⛔ with a reason on the row, QUEUED and HELD — and only those two — print it as a " +
+                "second line. FAILED already prints it inside its own sentence; KEPT_AS_DRAFT and " +
+                "INTERRUPTED would be borrowing a reason that is not about their state; SENDING " +
+                "has a delivery in flight.",
+            mapOf(
+                OutboxState.HELD to true,
+                OutboxState.QUEUED to true,
+                OutboxState.SENDING to false,
+                OutboxState.FAILED to false,
+                OutboxState.KEPT_AS_DRAFT to false,
+                OutboxState.EDITING to false,
+                OutboxState.INTERRUPTED to false,
+            ),
+            OutboxState.entries.associateWith {
+                outboxShowsWaitingReason(it, "550 5.1.1 No such user")
+            },
+        )
+        assertEquals(
+            "⛔ with NO reason on the row, nothing prints for any state — including the waiting " +
+                "ones. This is the normal case, not an edge: offline the CONNECTED constraint " +
+                "(send/Outbox.kt) means no attempt runs, so a QUEUED row has no reason to give, " +
+                "and a complement here would be blank or read 'couldn't send' under a message " +
+                "nothing has tried to send yet.",
+            OutboxState.entries.associateWith { false },
+            OutboxState.entries.associateWith { outboxShowsWaitingReason(it, null) },
+        )
+        assertEquals(
+            "⛔ with an EMPTY reason on the row, nothing prints either — and that is the same " +
+                "guard of the normal case, not a tidiness check. `OutboxWorker` writes " +
+                "`t.message ?: t.javaClass.simpleName`, and a Throwable's message really can be " +
+                "the empty string: `unarmedNote` protects itself from exactly that value with " +
+                "takeIf { it.isNotBlank() }. Unguarded here the complement becomes its frame " +
+                "followed by nothing — 'Last error: ' under 'Waiting to send' — which is the blank " +
+                "line the predicate exists to avoid.",
+            OutboxState.entries.associateWith { false },
+            OutboxState.entries.associateWith { outboxShowsWaitingReason(it, "") },
+        )
+        assertEquals(
+            "⛔ and the same for a reason that is only whitespace: the frame would be printed " +
+                "over a blank, which reads as a truncated sentence rather than as no reason.",
+            OutboxState.entries.associateWith { false },
+            OutboxState.entries.associateWith { outboxShowsWaitingReason(it, "   ") },
+        )
+    }
+
     // -- executed: the reason a FAILED row prints -------------------------------------------------
 
     /**
@@ -176,15 +254,41 @@ class OutboxStateWordingTest {
             outboxFailureReason(OutboxLogic.EDIT_INTERRUPTED),
         )
         assertEquals(
+            "⛔ the arming sentinel must come out as R.string.outbox_error_not_armed — printed raw " +
+                "it reads 'not-armed' in nine languages, on a row that is merely waiting",
+            OutboxFailureReason.Words(R.string.outbox_error_not_armed),
+            outboxFailureReason(OutboxLogic.NOT_ARMED),
+        )
+        assertEquals(
             "a row with no reason keeps the fallback it always had",
             OutboxFailureReason.Words(R.string.outbox_state_failed_unknown),
             outboxFailureReason(null),
+        )
+        assertEquals(
+            "⛔ and the WHOLE ENGLISH SENTENCE 1.5.2 and 1.5.3 wrote into that column must " +
+                "decode to the same words. Those two published versions stored `unarmedNote`'s " +
+                "diagnostic English on the row instead of the sentinel, and NO migration rewrites " +
+                "it — so a row still QUEUED on a phone that ran either of them prints that English " +
+                "under 'Waiting to send' in eight locales, which is the whole thing this branch " +
+                "exists to stop.",
+            OutboxFailureReason.Words(R.string.outbox_error_not_armed),
+            outboxFailureReason(
+                "${OutboxLogic.NOT_ARMED_LEGACY_PREFIX} WorkManager is not initialised. " +
+                    "The message stays in the Outbox.",
+            ),
         )
         assertEquals(
             "the server's own words (#183) are printed as they are — another nature of reason, " +
                 "and untouched",
             OutboxFailureReason.Text("550 5.1.1 No such user"),
             outboxFailureReason("550 5.1.1 No such user"),
+        )
+        assertEquals(
+            "⛔ and recognising the historic prefix must not start swallowing the server's " +
+                "words: a reason that does NOT open with it stays verbatim, even when it opens " +
+                "with the same first word",
+            OutboxFailureReason.Text("Queued for delivery, 250 2.0.0 Ok"),
+            outboxFailureReason("Queued for delivery, 250 2.0.0 Ok"),
         )
     }
 
@@ -201,24 +305,34 @@ class OutboxStateWordingTest {
         val lines = codeLines(OUTBOX_SCREEN)
         assertEquals(
             "OutboxScreen must consult item.state only through outboxStateShowsReason / " +
-                "outboxStateLabel / outboxStateIsError (and OutboxLogic.canEdit for the button). A " +
-                "`when (item.state)` back in the composable is unreachable from every test in this " +
-                "module, which is exactly where the `else ->` that printed 'Failed: …' over a " +
-                "saved draft lived.",
+                "outboxStateLabel / outboxStateIsError / outboxShowsWaitingReason (and " +
+                "OutboxLogic.canEdit for the button). A `when (item.state)` back in the composable " +
+                "is unreachable from every test in this module, which is exactly where the " +
+                "`else ->` that printed 'Failed: …' over a saved draft lived. The waiting row's " +
+                "complement goes through a pure function for that same reason: whether a row that " +
+                "waits prints why it is still there is a decision, and it is decided in " +
+                "OutboxRowText where a test can run it.",
             listOf(
                 "if (outboxStateShowsReason(item.state)) {",
                 "outboxStateLabel(item.state),",
                 "stringResource(outboxStateLabel(item.state))",
                 "color = if (outboxStateIsError(item.state)) {",
+                "if (outboxShowsWaitingReason(item.state, item.lastError)) {",
                 "if (OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) {",
             ),
             lines.map { it.trim() }.filter { "item.state" in it },
         )
         assertEquals(
-            "and the reason it substitutes must be asked of outboxFailureReason(item.lastError) — " +
-                "the row's lastError printed raw, as it used to be, puts 'Failed: edit-interrupted' " +
-                "on screen in nine languages over a row this fix parks",
-            listOf("when (val reason = outboxFailureReason(item.lastError)) {"),
+            "and every reading of the row's lastError must go through " +
+                "outboxFailureReason(item.lastError) — the raw column printed on screen puts " +
+                "'edit-interrupted' or 'not-armed' in nine languages. Three lines: the reason the " +
+                "FAILED sentence substitutes, the guard that decides whether a WAITING row prints " +
+                "one at all, and the reason that complement resolves.",
+            listOf(
+                "when (val reason = outboxFailureReason(item.lastError)) {",
+                "if (outboxShowsWaitingReason(item.state, item.lastError)) {",
+                "when (val reason = outboxFailureReason(item.lastError)) {",
+            ),
             lines.map { it.trim() }.filter { "item.lastError" in it },
         )
         assertEquals(
@@ -226,6 +340,56 @@ class OutboxStateWordingTest {
                 "OutboxRowText, where a test can execute it",
             emptyList<String>(),
             lines.map { it.trim() }.filter { "R.string.outbox_state_" in it || "R.string.outbox_error_" in it },
+        )
+    }
+
+    /**
+     * ⚠ SOURCE LINT, same disclaimer. The COLOUR of the waiting row's complement, pinned as WHOLE
+     * LINES in sequence: `MaterialTheme.colorScheme.error` at that one place paints a row that is
+     * waiting for the network in the colour of failure, and nothing would ever repaint it — the
+     * message has not failed, it has not left yet. The typography line is pinned with it, since a
+     * complement raised to the state sentence's weight is the same claim by another means.
+     */
+    @Test fun `the waiting row's complement is not painted as a failure`() {
+        val lines = codeLines(OUTBOX_SCREEN).map { it.trim() }
+        val at = lines.indexOf("if (outboxShowsWaitingReason(item.state, item.lastError)) {")
+        check(at >= 0) { "OutboxScreen prints no waiting-reason complement any more" }
+        assertEquals(
+            "the complement must be a line of its own, FRAMED by outboxWaitingReasonLabel(), " +
+                "resolved through outboxFailureReason, and painted onSurfaceVariant. Printed " +
+                "BARE the stored reason reads as the reason the row is waiting NOW, which a " +
+                "successful re-arm does not clear; colorScheme.error here would say a row waiting " +
+                "for the network has failed — red belongs to FAILED alone, and this red would " +
+                "never be taken back when the message finally goes out.",
+            listOf(
+                "if (outboxShowsWaitingReason(item.state, item.lastError)) {",
+                "Text(",
+                "stringResource(",
+                "outboxWaitingReasonLabel(),",
+                "when (val reason = outboxFailureReason(item.lastError)) {",
+                "is OutboxFailureReason.Words -> stringResource(reason.id)",
+                "is OutboxFailureReason.Text -> reason.text",
+                "},",
+                "),",
+                "style = MaterialTheme.typography.bodySmall,",
+                "color = MaterialTheme.colorScheme.onSurfaceVariant,",
+            ),
+            lines.drop(at).take(11),
+        )
+        // ⭐ And WHERE it sits, which no assertion above constrains: the block must come BEFORE
+        // the row's button Row. Slid inside it, the complement is laid out as a fourth item on
+        // that end-aligned line and pushes Retry and Delete out of the card — an unreachable
+        // Delete on the one screen where a message exists nowhere else — and every executable
+        // test in this file stays green, because nothing here reads the layout.
+        val buttons = lines.indexOf(
+            "Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {",
+        )
+        check(buttons >= 0) { "OutboxScreen no longer lays the row's buttons out in that Row" }
+        assertTrue(
+            "the waiting complement must be laid out BEFORE the Retry/Edit/Delete Row (found at " +
+                "$at, the Row at $buttons): inside that Row it becomes a fourth end-aligned item " +
+                "and pushes the buttons off the card.",
+            at < buttons,
         )
     }
 

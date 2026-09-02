@@ -802,7 +802,9 @@
     <string name="outbox_state_sending">Enviando…</string>
     <string name="outbox_state_failed">Error: %1$s</string>
     <string name="outbox_state_failed_unknown">no se pudo enviar</string>
+    <string name="outbox_waiting_reason">Último error: %1$s</string>
     <string name="outbox_error_edit_interrupted">edición interrumpida, no enviado</string>
+    <string name="outbox_error_not_armed">no se pudo programar el envío</string>
     <string name="outbox_state_kept_as_draft">Guardado como borrador en este dispositivo, sin enviar</string>
     <string name="outbox_state_interrupted">Interrumpido, puede que ya se haya enviado</string>
     <string name="outbox_retry">Reintentar</string>

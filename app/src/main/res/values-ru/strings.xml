@@ -814,7 +814,9 @@
     <string name="outbox_state_sending">Отправка…</string>
     <string name="outbox_state_failed">Ошибка: %1$s</string>
     <string name="outbox_state_failed_unknown">не удалось отправить</string>
+    <string name="outbox_waiting_reason">Последняя ошибка: %1$s</string>
     <string name="outbox_error_edit_interrupted">редактирование прервано, не отправлено</string>
+    <string name="outbox_error_not_armed">не удалось запланировать отправку</string>
     <string name="outbox_state_kept_as_draft">Сохранено как черновик на этом устройстве, не отправлено</string>
     <string name="outbox_state_interrupted">Прервано, возможно, уже отправлено</string>
     <string name="outbox_retry">Повторить</string>

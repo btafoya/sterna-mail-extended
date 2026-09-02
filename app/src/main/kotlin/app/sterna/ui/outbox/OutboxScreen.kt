@@ -162,6 +162,29 @@ fun OutboxScreen(
                             MaterialTheme.colorScheme.primary
                         },
                     )
+                    // A row that is still waiting sometimes knows WHY — the server's refusal on one
+                    // of the first attempts, or an arming that never happened — and that reason was
+                    // stored and shown nowhere, so Retry was pressed against a silent screen. It is
+                    // a LINE OF ITS OWN, under the state sentence, which stays untouched and true:
+                    // the row is waiting, it has not failed. ⛔ Hence onSurfaceVariant and not
+                    // colorScheme.error, and no "Failed" anywhere — red belongs to FAILED alone, and
+                    // nothing would ever repaint a red put here once the message goes out.
+                    // ⛔ FRAMED as history, never printed bare: lastError is the LAST reason recorded
+                    // and not necessarily the current one — a re-arm that succeeded does not clear
+                    // it, and an offline row carries an online failure's reason for days.
+                    if (outboxShowsWaitingReason(item.state, item.lastError)) {
+                        Text(
+                            stringResource(
+                                outboxWaitingReasonLabel(),
+                                when (val reason = outboxFailureReason(item.lastError)) {
+                                    is OutboxFailureReason.Words -> stringResource(reason.id)
+                                    is OutboxFailureReason.Text -> reason.text
+                                },
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = { viewModel.retry(item.id) }) {
                             Text(stringResource(R.string.outbox_retry))

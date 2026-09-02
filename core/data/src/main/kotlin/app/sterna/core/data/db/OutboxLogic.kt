@@ -29,6 +29,40 @@ object OutboxLogic {
     const val EDIT_INTERRUPTED = "edit-interrupted"
 
     /**
+     * The `lastError` a row carries when its delivery could NOT BE ARMED: the row is inserted, its
+     * payload is staged, and the scheduler threw (`armOrNote`, called at the tail of
+     * `MailRepository.enqueueSend`). The row stays QUEUED or HELD — arming is not queueing — and it
+     * is this token that tells the Outbox screen why nothing has moved yet.
+     *
+     * A SENTINEL, translated by the Outbox screen at display time (`outboxFailureReason` →
+     * `R.string.outbox_error_not_armed`) — never a localized sentence stored in the row, which
+     * would stay in the language of the day it was written on a row that may sit in the Outbox for
+     * weeks. The diagnostic English of `unarmedNote` keeps its own life in logcat, where it was
+     * written to be read; only what lands in the database is this token.
+     *
+     * It is stored in every user's database from the first version that ships it, so the literal
+     * never changes: `NotArmedRowTest` pins it, exactly as [EDIT_INTERRUPTED] is pinned.
+     */
+    const val NOT_ARMED = "not-armed"
+
+    /**
+     * The HISTORIC opening of what 1.5.2 and 1.5.3 wrote into `outbox.lastError` when arming
+     * failed: those versions stored `MailRepository.unarmedNote`'s whole diagnostic English
+     * sentence on the row, before [NOT_ARMED] existed.
+     *
+     * ⛔ Frozen, and here to be RECOGNISED, never written. Nothing converts those rows — no
+     * migration touches `outbox.lastError`, and writing to a user's database to fix a display is
+     * not a trade this project makes — so a row still QUEUED on a phone that ran either version
+     * carries that sentence for as long as it sits there. Recognised at display time
+     * (`outboxFailureReason`) it comes out as the same words as the sentinel, since it is the
+     * same event; unrecognised it is printed verbatim, in English, under a French "Waiting to
+     * send".
+     *
+     * `unarmedNote` builds its sentence from this constant so the two cannot drift apart.
+     */
+    const val NOT_ARMED_LEGACY_PREFIX = "Queued, but delivery could not be armed:"
+
+    /**
      * A HELD item is due once its undo window has passed; QUEUED is always due. A scheduled send is
      * NOT held here — it waits in its own table and only enters the outbox when ScheduledSendWorker
      * fires, which queues it like any other send (holdMs = 0). So the only hold this deadline ever

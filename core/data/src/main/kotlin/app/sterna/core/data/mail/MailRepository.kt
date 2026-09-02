@@ -963,11 +963,12 @@ internal suspend fun armOrNote(
  * What an unarmed row is told to carry: why the worker could not be armed, and that the message is
  * still there.
  *
- * Diagnostic English on purpose, and ⛔ NOT a translated string: it is written to the row's
- * `lastError`, which is printed only for a FAILED row (`outboxStateShowsReason`) — and a row this
- * text lands on is QUEUED or HELD, so the screen keeps saying "waiting", which is true. It is read
- * back off the database in debugging; the copy that reaches a bug report is the logcat line the
- * call site writes beside it.
+ * Diagnostic English on purpose, and ⛔ NOT a translated string — which is why it does NOT go on
+ * the row any more. The Outbox screen prints a waiting row's reason as a complement
+ * (`outboxShowsWaitingReason`), so this sentence on screen would be English under eight other
+ * locales; the row takes the sentinel `OutboxLogic.NOT_ARMED` instead, and the screen translates it
+ * at display time. This text is now written to ONE place, the logcat line the call site emits — the
+ * copy that reaches a bug report, and the one that was always the readable one.
  *
  * ⛔ It says the row STAYS, and deliberately does not promise when it leaves. The startup re-arm it
  * relies on (`SternaApplication`) walks the unfinished rows in an unguarded loop, so a scheduler
@@ -977,12 +978,17 @@ internal suspend fun armOrNote(
  * A null or blank message falls back to the exception's class name: "could not be armed:" followed
  * by nothing names no candidate at all, and half of these will be `NullPointerException` and
  * `IllegalStateException` from a WorkManager that was never initialised.
+ *
+ * ⚠ Its opening is [OutboxLogic.NOT_ARMED_LEGACY_PREFIX], SHARED with the display-side decoding:
+ * 1.5.2 and 1.5.3 wrote this whole sentence onto the row, those rows are still in users'
+ * databases, and `outboxFailureReason` recognises them by that opening. Built from the constant so
+ * the writer and the reader cannot drift apart — the text produced is unchanged.
  */
 internal fun unarmedNote(t: Throwable): String {
     val reason = t.message?.takeIf { it.isNotBlank() }
         ?: t.javaClass.simpleName.takeIf { it.isNotBlank() }
         ?: t.javaClass.name
-    return "Queued, but delivery could not be armed: $reason. The message stays in the Outbox."
+    return "${OutboxLogic.NOT_ARMED_LEGACY_PREFIX} $reason. The message stays in the Outbox."
 }
 
 /**
@@ -7985,17 +7991,20 @@ class MailRepository(
         // on that: a quick reply hands its text back and keeps the notification (quickReplyAct,
         // queued = false), the person sends again, the recipient gets it twice. So the failure is
         // recorded ON the row — lastError only, never its state: updateOutboxState would turn a
-        // HELD row (scheduled send, undo window) into a QUEUED one that leaves at once, and
-        // lastError is printed only for a FAILED row (outboxStateShowsReason), so this one keeps
-        // saying "waiting" while the reason stays readable. The row is where the reason SURVIVES;
-        // logcat is where it is reachable at all, since no screen and no export ever shows a
-        // QUEUED row's lastError.
+        // HELD row (scheduled send, undo window) into a QUEUED one that leaves at once, so this
+        // row goes on saying "waiting", which is what it is doing.
+        // What lands in the database is the SENTINEL OutboxLogic.NOT_ARMED, not `note`: the Outbox
+        // screen now prints a waiting row's reason as a line of its own (outboxShowsWaitingReason)
+        // and translates the sentinel there, in the language of the day it is READ. `note` is
+        // diagnostic English and stays exactly where it was written to be read — the Log.w on the
+        // line above, which is what reaches a bug report. The row is where the reason SURVIVES for
+        // weeks; logcat is where its detail lives.
         // ⛔ And the row is not touched otherwise: a destroy added into this lambda would take the
         // message away while telling the caller it is queued — the typed text of a quick reply
         // lives nowhere else, so it would be lost outright. ArmingWiringTest pins this tail whole.
         return armOrNote(id, holdMs, outboxScheduler) { note ->
             android.util.Log.w("MailRepository", "outbox $id: $note")
-            outboxDao.byId(id)?.let { outboxDao.update(it.copy(lastError = note)) }
+            outboxDao.byId(id)?.let { outboxDao.update(it.copy(lastError = OutboxLogic.NOT_ARMED)) }
         }
     }
 

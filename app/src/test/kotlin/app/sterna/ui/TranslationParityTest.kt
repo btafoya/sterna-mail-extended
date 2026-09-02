@@ -329,6 +329,70 @@ class TranslationParityTest {
     }
 
     /**
+     * WHAT A ROW THAT IS STILL WAITING IS TOLD (#183 × the arming fix), pinned whole — because
+     * those two strings ARE what this branch delivers, and nothing else in the build reads their
+     * text. The wiring lints pin the resource IDS (`outboxWaitingReasonLabel()`,
+     * `R.string.outbox_error_not_armed`) and the rule at the top of this file pins the keys in the
+     * nine languages, so the English could be replaced by anything at all — including
+     * "Couldn\'t send: it will go out the next time you open the app", which commits both of the
+     * two forbidden acts at once — and the whole suite would stay green.
+     *
+     * The two statements they owe, and the two they may never make:
+     *  - the row has NOT failed. It is QUEUED or HELD, the send worker will pick it up, and
+     *    `outboxStateIsError` deliberately paints nothing red here. "Failed" belongs to
+     *    OutboxState.FAILED and to it alone, and no repaint would ever take it back;
+     *  - and nobody may promise WHEN it leaves. `MailRepository.unarmedNote` writes down why:
+     *    the startup re-arm it relies on (`SternaApplication`) walks the unfinished rows in an
+     *    UNGUARDED forEach, so a scheduler still broken at the next start stops that walk on its
+     *    first bad row. "It will be sent next time you open the app" is a guarantee the layer
+     *    below does not give.
+     *
+     * The frame is the second half of the same fix: `lastError` is the LAST reason recorded, not
+     * necessarily the current one — a re-arm that succeeded does not clear it — so the reason is
+     * printed as history ("Last error: …") and not as the present state of the row.
+     *
+     * The forbidden screen runs FIRST on purpose: a reword that walked either sentence into one of
+     * those claims should be told WHICH promise it broke, not merely that a pin stopped matching.
+     *
+     * Whole-value equality, because `contains` is blind to anything a reword appends.
+     *
+     * ⛔ The eight translations are NOT pinned here, for the reason given over
+     * [the draft the phone lost asks for nothing, and blames no network]: nobody on this side
+     * reads them, so freezing their text would block a translation fix while proving nothing about
+     * meaning. Their keys are held by the parity rule at the top of this file.
+     */
+    @Test
+    fun `the waiting row is told no failure, and promised no departure`() {
+        val actual = valuesOf(File(res, "values/strings.xml"))
+            .filterKeys { it in WAITING_REASON_ENGLISH }
+        // The screen runs FIRST, on what the file actually says. Backslashes are dropped before
+        // matching: the XML escapes an apostrophe as \', so "couldn't send" would otherwise slip
+        // through the one screen written to catch it.
+        val forbidden = actual.values.flatMap { value ->
+            val text = value.lowercase().replace("\\", "")
+            FORBIDDEN_OF_A_WAITING_ROW.filter { it in text }.map { "'$it' in \"$value\"" }
+        }
+        assertEquals(
+            "the two sentences a WAITING row prints may not announce a failure — the row has not " +
+                "failed, it has not left yet, and nothing would ever repaint that claim — and may " +
+                "not promise when the message goes out: the startup re-arm is an unguarded " +
+                "forEach that stops on its first bad row, as unarmedNote says in writing. Found:",
+            emptyList<String>(),
+            forbidden,
+        )
+        assertEquals(
+            "the English text of outbox_waiting_reason / outbox_error_not_armed changed. They owe " +
+                "exactly this and no more: a frame saying the reason is the LAST one recorded (a " +
+                "successful re-arm does not clear it, and an offline row can carry an online " +
+                "failure's reason for days), and a FRAGMENT to substitute into it. Those two " +
+                "sentences are the whole visible deliverable of the branch that writes them; " +
+                "every other rule about them pins a resource id, not the words.",
+            WAITING_REASON_ENGLISH,
+            actual,
+        )
+    }
+
+    /**
      * The help line under "Clear this account's cache", by name in the nine languages.
      *
      * Named keys rather than the general parity rule at the top of this file: that rule compares
@@ -811,6 +875,27 @@ class TranslationParityTest {
         val FORBIDDEN_OF_A_LOST_DRAFT = listOf(
             "close this screen", "open it again", "opening it again", "try again",
             "connection", "offline", "network",
+        )
+
+        /**
+         * The two strings a WAITING Outbox row prints, in English, whole: the frame and the
+         * fragment substituted into it.
+         *
+         * ⚠ The fragment is a FRAGMENT (lower case, no full stop), of the same shape as
+         * `outbox_error_edit_interrupted`: it is never printed on its own any more.
+         */
+        val WAITING_REASON_ENGLISH = mapOf(
+            "outbox_waiting_reason" to "Last error: %1\$s",
+            "outbox_error_not_armed" to "sending couldn\\'t be scheduled",
+        )
+
+        /**
+         * What those two may never say, in lower case: any announcement of failure over a row
+         * that has not failed, and any promise about when the message leaves.
+         */
+        val FORBIDDEN_OF_A_WAITING_ROW = listOf(
+            "failed", "failure", "couldn't send",
+            "next time", "restart", "will be sent", "try again",
         )
 
         const val ACCOUNT_CACHE_HELP_KEY = "settings_clear_account_cache_help"
