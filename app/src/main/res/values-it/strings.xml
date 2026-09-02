@@ -167,6 +167,7 @@
     <string name="message_reply">Rispondi</string>
     <string name="message_reply_all">Rispondi a tutti</string>
     <string name="message_forward">Inoltra</string>
+    <string name="message_forward_attachment">Inoltra come allegato</string>
     <string name="message_flag">Aggiungi a Speciali</string>
     <string name="message_unflag">Rimuovi da Speciali</string>
     <string name="message_archive">Archivia</string>

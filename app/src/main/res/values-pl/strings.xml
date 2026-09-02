@@ -167,6 +167,7 @@
     <string name="message_reply">Odpowiedz</string>
     <string name="message_reply_all">Odpowiedz wszystkim</string>
     <string name="message_forward">Przekaż</string>
+    <string name="message_forward_attachment">Przekaż jako załącznik</string>
     <string name="message_flag">Oznacz</string>
     <string name="message_unflag">Usuń oznaczenie</string>
     <string name="message_archive">Archiwizuj</string>

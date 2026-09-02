@@ -274,13 +274,14 @@ class QuoteOnScreenSilencesPrepareWiringTest {
 
         // …and the forward branch keeps the default. Its editable body is empty (just the user's
         // note and the signature); the original travels separately to send time.
-        val forward = all.indexOf(""""forward" -> DraftFields(""")
-        val replyAll = all.indexOf(""""replyAll" -> DraftFields(""")
+        val forward = all.indexOf("ComposeOpening.FORWARD, ComposeOpening.FORWARD_ATTACHMENT -> DraftFields(")
+        val replyAll = all.indexOf("ComposeOpening.REPLY_ALL -> DraftFields(")
         assertTrue(
             "buildPrefill's three branches must still be readable in order in " +
-                "$COMPOSE_VIEW_MODEL_PATH: '\"forward\" -> DraftFields(' (index $forward) then " +
-                "'\"replyAll\" -> DraftFields(' (index $replyAll). Rewritten, the rule below " +
-                "stops looking at the forward branch and silently guards nothing.",
+                "$COMPOSE_VIEW_MODEL_PATH: 'ComposeOpening.FORWARD, ComposeOpening.FORWARD_ATTACHMENT " +
+                "-> DraftFields(' (index $forward) then 'ComposeOpening.REPLY_ALL -> DraftFields(' " +
+                "(index $replyAll). Rewritten, the rule below stops looking at the forward branch " +
+                "and silently guards nothing.",
             forward in 0 until replyAll,
         )
         assertEquals(

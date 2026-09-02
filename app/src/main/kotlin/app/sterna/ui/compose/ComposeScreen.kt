@@ -472,7 +472,7 @@ fun ComposeScreen(
     val initialFocus = remember {
         initialComposeFocus(
             isDraft = draftId != null,
-            isReply = replyTo != null && mode != "forward",
+            isReply = replyTo != null && composeOpening(mode).quotes,
             linkTo = to,
             linkSubject = subject,
         )
@@ -517,7 +517,7 @@ fun ComposeScreen(
     // Which compose this is, for the signature rules: a forward carries its original at send time
     // (so its body holds no quote), while both a reply and a forward obey the "signature in
     // replies" / "below the quoted text" settings.
-    val isReplyBody = replyTo != null && mode != "forward"
+    val isReplyBody = replyTo != null && composeOpening(mode).quotes
     val isReplyOrForward = replyTo != null
     // Changing "From" reads those settings from DataStore, which suspends.
     val scope = rememberCoroutineScope()

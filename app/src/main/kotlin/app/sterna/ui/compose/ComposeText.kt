@@ -336,7 +336,8 @@ internal fun composeTitle(
     editingOutbox: Boolean,
 ): ComposeTitle = when {
     draftId != null -> ComposeTitle.DRAFT
-    mode == "forward" -> ComposeTitle.FORWARD
+    // Both forwards (inline and as attachment): the top bar says the word the subject carries.
+    composeOpening(mode).subjectPrefix == "Fwd:" -> ComposeTitle.FORWARD
     replyTo != null -> ComposeTitle.REPLY
     restore && editingOutbox -> ComposeTitle.OUTBOX_EDIT
     else -> ComposeTitle.NEW
@@ -1355,6 +1356,38 @@ internal fun receivingFromOption(
 internal fun withPrefix(subject: String?, prefix: String): String {
     val s = subject.orEmpty()
     return if (s.startsWith(prefix, ignoreCase = true)) s else "$prefix $s"
+}
+
+/**
+ * What a compose `mode` navigation argument opens. Parsed ONCE, here, so the three places in
+ * [ComposeViewModel.prepare] that branch on it cannot disagree: a mode known to one and not the
+ * others opened, in silence, a quoted reply carrying In-Reply-To.
+ */
+internal enum class ComposeOpening(
+    /** Sets In-Reply-To / References from the original. */
+    val threads: Boolean,
+    /** "Re:" / "Fwd:" */
+    val subjectPrefix: String,
+    /** The body starts with the quoted original. */
+    val quotes: Boolean,
+    /** `buildForwarded`: the original travels inline, under the note, at send time. */
+    val carriesOriginal: Boolean,
+    /** The original's raw source is staged as a `message/rfc822` part (`.eml`). */
+    val attachesSource: Boolean,
+) {
+    REPLY(threads = true, subjectPrefix = "Re:", quotes = true, carriesOriginal = false, attachesSource = false),
+    REPLY_ALL(threads = true, subjectPrefix = "Re:", quotes = true, carriesOriginal = false, attachesSource = false),
+    FORWARD(threads = false, subjectPrefix = "Fwd:", quotes = false, carriesOriginal = true, attachesSource = false),
+    FORWARD_ATTACHMENT(threads = false, subjectPrefix = "Fwd:", quotes = false, carriesOriginal = false, attachesSource = true),
+}
+
+/** The one reader of the route's `mode`. Null and any unknown string open a reply, as the
+ *  `else` of the old `when` did. */
+internal fun composeOpening(mode: String?): ComposeOpening = when (mode) {
+    "forward" -> ComposeOpening.FORWARD
+    "forwardAttachment" -> ComposeOpening.FORWARD_ATTACHMENT
+    "replyAll" -> ComposeOpening.REPLY_ALL
+    else -> ComposeOpening.REPLY
 }
 
 /**

@@ -839,6 +839,13 @@ private fun MessageActions(
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = null) },
                 onClick = { menuOpen = false; onReply("forward", replyTargetId, accountId) },
             )
+            // The same message, but as a .eml the composer attaches (its exact server bytes),
+            // with an empty body: the recipient gets it whole, headers included.
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.message_forward_attachment)) },
+                leadingIcon = { Icon(Icons.Filled.AttachFile, contentDescription = null) },
+                onClick = { menuOpen = false; onReply("forwardAttachment", replyTargetId, accountId) },
+            )
             // Reading mode (#149): read the message as text instead of its HTML, and back. The
             // label says what the tap DOES, so it follows the mode actually RENDERED — the stored
             // setting included, which is why the entry reads "Show HTML" on a message the setting

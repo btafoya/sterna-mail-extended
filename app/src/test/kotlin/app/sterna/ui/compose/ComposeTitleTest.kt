@@ -78,6 +78,12 @@ class ComposeTitleTest {
         )
     }
 
+    @Test fun aForwardAsAttachmentIsAForward() {
+        // Same replyTo as a reply, no "forward" literal: read through composeOpening, or the top
+        // bar says "Reply" over an empty-bodied "Fwd:" with a .eml attached.
+        assertEquals(ComposeTitle.FORWARD, title(replyTo = "m1", mode = "forwardAttachment"))
+    }
+
     @Test fun aForwardOutranksTheReplyItSharesItsArgumentWith() {
         assertEquals(ComposeTitle.FORWARD, title(replyTo = "m1", mode = "forward"))
         assertEquals(ComposeTitle.REPLY, title(replyTo = "m1", mode = null))

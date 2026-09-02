@@ -117,6 +117,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Compose and send (JMAP `EmailSubmission/set`, or SMTP submit + APPEND-to-Sent for IMAP)
 - ✅ Opens `mailto:` links (registered as an email app, from browsers and other apps); the link's addresses, subject, body, cc and bcc prefill compose
 - ✅ Reply / reply-all / forward with quoting (threaded via `inReplyTo`/`references`)
+- ✅ Forward as attachment: the original message attached as a `.eml` file (`message/rfc822`), from the message menu
 - ✅ Save drafts (JMAP, or IMAP APPEND to Drafts); closing compose with unsaved edits prompts to save the draft, discard the changes, or cancel and keep editing (intercepts the Close button and system back). The prompt says it drops the *changes*, not the message, when a saved draft stays on the server; Save draft is greyed out on an empty composer (saving nothing would delete the draft); and the draft itself can be deleted from the composer, on confirmation, to the Trash
 - ✅ Attachments: pick & send, view/download/open incoming (JMAP blobs / IMAP multipart MIME + BODY-section fetch)
 - ✅ Attached messages (message/rfc822): a tap opens a sheet with the attached message's From/To/Cc/Date/Subject, its text body and the names of its own attachments (JMAP and IMAP, nothing written to disk)

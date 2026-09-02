@@ -41,6 +41,7 @@ import app.sterna.core.data.mail.unlessDraftBelongsElsewhere
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.pgp.PgpResult
+import app.sterna.core.data.text.safeFileName
 import app.sterna.core.imap.OutgoingAttachment
 import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
@@ -49,6 +50,8 @@ import app.sterna.mail.MessageDestroyWorker
 import app.sterna.send.Outbox
 import app.sterna.send.ScheduledSends
 import app.sterna.send.SendOutbox
+import app.sterna.core.jmap.ContentTooLargeException
+import app.sterna.core.jmap.DownloadLimits
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.net.hasUsableNetwork
@@ -1536,6 +1539,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             val credentials = credentials() ?: return@launch
+            // Parsed ONCE: the three branches below read this and never the raw string, so a mode
+            // one of them does not know cannot open, in silence, a threaded quoted reply.
+            val opening = composeOpening(mode)
             fun prefillFailed() {
                 _attachmentStatus.value =
                     getApplication<Application>().getString(R.string.compose_prefill_failed)
@@ -1558,7 +1564,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // not back-filled and still come back with their copy columns empty.
                 preselectReceivingIdentity(credentials.id, cached)
                 _prefill.value = buildPrefill(cached, mode, selves(credentials), quoteBody = false)
-                if (mode != "forward") {
+                if (opening.threads) {
                     // Threading ids aren't cached on the list row (empty here) — the fetch below
                     // supplies the real ones; keep whatever the cache has meanwhile.
                     inReplyTo = cached.messageId
@@ -1590,12 +1596,52 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // signature lands belongs to the identity finally selected.
             preselectReceivingIdentity(credentials.id, original)
 
-            if (mode == "forward") {
+            if (opening.carriesOriginal) {
                 // A forward's editable body stays empty; the original is carried at send time. Its
                 // "Fwd: …" subject came from the cache above — set it now only if nothing was cached.
                 if (cached == null) _prefill.value = buildPrefill(original, mode, selves(credentials))
                 runCatching { forwarded = buildForwarded(credentials, original) }
                     .onFailure { prefillFailed() }
+                return@launch
+            }
+
+            if (opening.attachesSource) {
+                // Forward as attachment: the original's exact server bytes, staged as ONE
+                // message/rfc822 part. Empty body (plus the signature, as for a forward), no
+                // threading ids, and no buildForwarded — the original travels as the .eml only.
+                if (cached == null) _prefill.value = buildPrefill(original, mode, selves(credentials))
+                // Say so while the source is on its way, as attach() does: the composer is on
+                // screen and sendable before the part is, and a "Fwd:" with an empty body and no
+                // attachment must never look finished.
+                _attachmentStatus.value = getApplication<Application>().getString(R.string.status_attaching)
+                runCatching {
+                    // The attachment ceiling, restated on what actually came back. Over JMAP the
+                    // download itself already refuses a blob over it (downloadBlob's default
+                    // maxBytes, ContentTooLargeException); over IMAP the parser drains a literal
+                    // over its own 32 MiB into an EMPTY source, which rawSource then refuses as
+                    // unreadable. So this line is reached only if one of those two stops holding.
+                    val bytes = repo.rawSource(credentials, replyToId)
+                    DownloadLimits.enforce(bytes.size.toLong(), DownloadLimits.ATTACHMENT_MAX_BYTES)
+                    stageOutgoing(
+                        credentials, bytes, type = "message/rfc822",
+                        name = safeFileName(original.subject, "message") + ".eml",
+                        disposition = "attachment", cid = null,
+                    )
+                }.onSuccess { part ->
+                    // In a straight line, NOT through attach(): that one arms _attachmentsTouched,
+                    // and the composer would open "dirty" — a discard box on the way back without
+                    // a key typed (#70).
+                    _attachments.value = _attachments.value + part
+                    _attachmentStatus.value = null
+                }.onFailure { t ->
+                    Log.w(TAG, "Forward as attachment: source not staged", t)
+                    if (t is ContentTooLargeException) {
+                        _attachmentStatus.value =
+                            getApplication<Application>().getString(R.string.status_attachment_too_large)
+                    } else {
+                        prefillFailed()
+                    }
+                }
                 return@launch
             }
 
@@ -2733,18 +2779,21 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // [replyBody]: a composer opened moments after launch must not fall back to the default
         // while DataStore is still opening — with the switch on, that beat would write local time.
         val zone = resolveOutgoingDateZone(settings.quotedDatesUtc)
-        return when (mode) {
-            "forward" -> DraftFields(
+        val opening = composeOpening(mode)
+        return when (opening) {
+            // Same fields for both forwards: what differs (carried inline vs. attached as .eml)
+            // happens in prepare(), after this prefill.
+            ComposeOpening.FORWARD, ComposeOpening.FORWARD_ATTACHMENT -> DraftFields(
                 to = "",
-                subject = withPrefix(original.subject, "Fwd:"),
+                subject = withPrefix(original.subject, opening.subjectPrefix),
                 // The editable body starts empty (just the user's note, plus the signature when the
                 // "signature on replies and forwards" setting is on); the original is carried separately
                 // to send time so its formatting survives. See [buildForwarded].
                 body = replyBody(""),
             )
-            "replyAll" -> DraftFields(
+            ComposeOpening.REPLY_ALL -> DraftFields(
                 to = replyAllRecipients(original, selves),
-                subject = withPrefix(original.subject, "Re:"),
+                subject = withPrefix(original.subject, opening.subjectPrefix),
                 body = replyBody(if (quoteBody) quote(original, zone) else ""),
                 // Travels with the body above, and says exactly what that body holds: when the
                 // original was not cached, THIS is how the quote reaches the screen (there is no
@@ -2752,9 +2801,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // composer keep quiet about a quote it is showing after a process death.
                 quoted = quoteBody,
             )
-            else -> DraftFields( // reply
+            ComposeOpening.REPLY -> DraftFields(
                 to = replyRecipient(original),
-                subject = withPrefix(original.subject, "Re:"),
+                subject = withPrefix(original.subject, opening.subjectPrefix),
                 body = replyBody(if (quoteBody) quote(original, zone) else ""),
                 // Same claim as the reply-all above, and `quoteBody` and not `true`: when the full
                 // body could not be loaded the quote was skipped, the body carries none, and
