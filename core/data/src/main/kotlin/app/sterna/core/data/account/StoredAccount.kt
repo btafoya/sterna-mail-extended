@@ -114,6 +114,23 @@ data class StoredAccount(
     // OpenPGP (via the OpenKeychain provider). The key id is not a secret.
     val pgpEnabled: Boolean = false,
     val pgpSignKeyId: Long = 0L,
+    /**
+     * Cache of this account's own OpenPGP public key: the MINIMIZED key the provider returns for
+     * [pgpSignKeyId], base64 with no line breaks ([pgpPublicKeyCacheValue] is the one encoder).
+     * Empty when nothing has been read yet, which is the state of every account configured before
+     * this field existed — [pgpPublicKeyBackfill] is what fills those in.
+     *
+     * ⭐ It exists because the key can only be READ at a screen: the provider may answer
+     * USER_INTERACTION_REQUIRED, and launching its PendingIntent needs an Activity. A worker
+     * writing a header hours later has no screen, so what it emits has to already be here.
+     *
+     * ⛔ Bound to [pgpSignKeyId], and to nothing else: every change of the key id empties it (see
+     * [withoutPgpSignKeys] and [withCachedPgpPublicKey]). A cache surviving a key change would
+     * announce, under the new key's id, the bytes of the old one.
+     *
+     * Not a secret — it is the PUBLIC half, and it is meant to be published in a header.
+     */
+    val pgpPublicKey: String = "",
     val pgpEncryptByDefault: Boolean = false,
 ) {
     /** The id whose stored secret/OAuth tokens back this record: its login (or itself if standalone). */

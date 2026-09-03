@@ -208,6 +208,16 @@ Out of scope:
   keys and passphrases live in that app and never enter Sterna's process. Reading
   decrypts + verifies; composing signs and/or encrypts as PGP/MIME (RFC 3156), on both
   JMAP and IMAP/SMTP.
+- **Public keys travel in a message header** (Autocrypt Level 1 `Autocrypt:`), in both
+  directions, and only that. Composing announces the sending account's own public key,
+  minimized to that account's identity, on every message an account with OpenPGP enabled
+  and a key chosen sends; a send whose `From` is another mailbox announces nothing.
+  Reading an opened message hands any key it announces to the OpenPGP app, which files it
+  in the public keyring. No `prefer-encrypt` attribute is emitted and none is honoured, so
+  nothing here turns encryption on by itself; gossip headers and the Autocrypt Setup
+  Message are not implemented. A key obtained this way is opportunistic and unconfirmed:
+  it makes encryption possible and proves nothing about who is at the other end, and
+  confirming it stays a deliberate act in the OpenPGP app.
 - **Sterna does not verify who it is talking to.** Any installed app answering that
   service intent can be bound. One package is refused by the vendored api library
   itself, for an incompatible implementation of the interface rather than out of

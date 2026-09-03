@@ -16,6 +16,7 @@ import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.SyncWindow
 import app.sterna.core.data.account.identitiesToCreate
 import app.sterna.core.data.account.mayCreateIdentities
+import app.sterna.core.data.account.pgpPublicKeyCacheValue
 import app.sterna.core.data.account.subscriptionSyncOnToggle
 import app.sterna.core.data.account.syncWindowChanged
 import app.sterna.core.data.mail.OAuthDeniedException
@@ -706,10 +707,22 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             when (val result = pgp.getSignKeyId(account.username, interactionResult)) {
                 is PgpResult.Success -> {
+                    // The public half, cached alongside the id so something with no screen can
+                    // announce it later (StoredAccount.pgpPublicKey).
+                    // ⚠ BEST EFFORT, and the order matters: whatever the provider says about the
+                    // key — absent, erroring, or asking to be unlocked — the KEY ID is persisted
+                    // and the gesture succeeds. Failing "Choose key" over the public half would
+                    // break a working PGP setup for a cache, and the composer catches it up on its
+                    // next opening (pgpPublicKeyBackfill).
+                    val publicKey = when (val key = pgp.getPublicKey(result.value, account.username)) {
+                        is PgpResult.Success -> pgpPublicKeyCacheValue(key.value)
+                        else -> ""
+                    }
                     store.setPgp(
                         accountId,
                         enabled = true,
                         signKeyId = result.value,
+                        publicKey = publicKey,
                         encryptByDefault = account.pgpEncryptByDefault,
                     )
                     refresh()
@@ -726,7 +739,15 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     /** Toggle PGP off (keeps the chosen key), or update encrypt-by-default. */
     fun setPgp(accountId: String, enabled: Boolean, encryptByDefault: Boolean) {
         val account = store.account(accountId) ?: return
-        store.setPgp(accountId, enabled, account.pgpSignKeyId, encryptByDefault)
+        // The key id does not change here, so its cached public key stays valid and is handed
+        // straight back: this is the toggle, not a key choice.
+        store.setPgp(
+            accountId,
+            enabled = enabled,
+            signKeyId = account.pgpSignKeyId,
+            publicKey = account.pgpPublicKey,
+            encryptByDefault = encryptByDefault,
+        )
         refresh()
     }
 

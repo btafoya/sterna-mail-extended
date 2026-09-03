@@ -115,6 +115,56 @@ interface PgpEngine {
     ): PgpResult<Long>
 
     /**
+     * This account's OWN public key, as the provider hands it back for [keyId]: the MINIMIZED
+     * transferable public key (signatures stripped, and user ids narrowed to [ownAddress]), in
+     * BINARY — no ASCII armor is requested.
+     *
+     * ⛔ [ownAddress] is not decoration and not a hint: it is the account's own address
+     * (`StoredAccount.username`), and it is what keeps the export down to the ONE identity this
+     * account may announce. A keyring holding several user ids — a private address, a former
+     * employer, a pseudonym — would otherwise put all of them in the `Autocrypt:` header of every
+     * message to every correspondent.
+     *
+     * ⛔ Raw bytes, like every other payload on this interface. What gets STORED is base64, and the
+     * one encoder is `pgpPublicKeyCacheValue` in the account package: keeping it out of the
+     * provider binding means both call sites that persist a key encode it the same way, and a
+     * caller that wants the bytes (a header, a file) is not made to decode them back.
+     *
+     * ⚠ Expect [PgpResult.UserInteractionRequired] here as anywhere else — the provider may want to
+     * be unlocked, or may not hold the key. That is precisely why the answer is cached on the
+     * account: a caller with no screen cannot take that branch.
+     */
+    suspend fun getPublicKey(
+        keyId: Long,
+        ownAddress: String,
+        interactionResult: Intent? = null,
+    ): PgpResult<ByteArray>
+
+    /**
+     * File a CORRESPONDENT's public key in the provider under [peerId] (their address), as read
+     * from the `Autocrypt` header of a message they sent — OpenPGP's Autocrypt Level 1 §5.4 peer
+     * update. [effectiveDateMillis] is that message's own date: the provider keeps the newest, so a
+     * date is not decoration, it is what stops an old message overwriting a newer key.
+     *
+     * The key lands in the public keyring, which is the whole point: [findKeys] then finds it with
+     * no other call, and the composer stops saying the recipient has no key.
+     *
+     * ⛔ No `interactionResult`, unlike every other method here, and none can be added usefully:
+     * this runs while a message is being OPENED, from a repository that has no screen and no way to
+     * launch a [PgpResult.UserInteractionRequired] intent (the only launcher in the app is a
+     * `@Composable`). Every answer that is not [PgpResult.Success] is dropped in silence by the
+     * caller.
+     *
+     * ⛔ Never mutual. Autocrypt's `prefer-encrypt` is read off the header and thrown away: whether
+     * this app starts encrypting by itself is a separate decision, and it is not this one.
+     */
+    suspend fun updateAutocryptPeer(
+        peerId: String,
+        keyData: ByteArray,
+        effectiveDateMillis: Long,
+    ): PgpResult<Unit>
+
+    /**
      * Resolve recipient addresses to public-key ids. Fails (Error) when any
      * address has no usable key — callers surface which ones via [findKeysEach].
      */

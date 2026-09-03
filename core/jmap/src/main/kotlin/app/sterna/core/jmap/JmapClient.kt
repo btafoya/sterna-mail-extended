@@ -1181,6 +1181,81 @@ class JmapClient internal constructor(
         session.apiUrl in serversRefusingReceiptHeader
 
     /**
+     * The THIRD per-URL memo, for [AUTOCRYPT_HEADER_PROPERTY] on [sendEmail] — and a third one, not
+     * a share of either of the other two, for the reason written above [withReceiptHeaderFallback]:
+     * one guard over several property groups drops all of them the moment any one is refused, and
+     * none of them ever comes back for that server.
+     *
+     * ⭐ **What is at stake here is not a missing banner, it is a message that does not leave.** The
+     * two reading guards protect a header the reader displays; this one sits on the send. A server
+     * that refuses an unknown `header:` property on create would fail every send of a PGP account —
+     * one outbox line stuck, then all of them, for a header nobody asked for.
+     *
+     * ⛔ **Replayed ONLY when the server named the property AND nothing has been created or
+     * submitted yet, and that narrowness is the safety property, not a style.**
+     * [withReceiptHeaderFallback] replays anything, because retrying a READ costs a request. A send
+     * is not a read: this request creates a message AND submits it, so a replay of a failure that
+     * happened after the create sends the message twice, and a duplicate send cannot be taken back
+     * (the rule: the option that cannot lose or duplicate data wins).
+     *
+     * ⛔ **Naming the property is NOT on its own evidence that nothing was created.** It reads like
+     * it should be — an unknown create property is refused by `Email/set` before anything exists —
+     * and this KDoc claimed exactly that until a counter-expertise took it apart. The failures of a
+     * send are not all `Email/set` refusals: the delivery check that runs AFTER the submission
+     * (`failIfRecipientsWereRefused`) throws a message built from the RECIPIENT'S ADDRESS and the
+     * server's own SMTP reply, neither of which this app writes. A send refused for
+     * `autocrypt@lists.mayfirst.org` — the Autocrypt project's own list — matched, and the message
+     * went out a second time to everyone who had accepted it. Hardening the searched string does
+     * not fix that: any server may put the word in any refusal.
+     *
+     * ⭐ **So the replay is gated on progress, not on words.** [SendPointOfNoReturn] is tripped by
+     * the body itself, in the one place that knows: the moment the server's answer shows the
+     * `Email/set` create succeeded. It can only ever be tripped, never cleared, and it is read
+     * BEFORE the message is looked at ([mayReplayWithoutAutocryptHeader]) — so no failure raised
+     * after that point, whatever its text, can reach the replay. The replay gets a FRESH point: it
+     * is a new request, and its own progress is its own.
+     *
+     * ⚠ The price, taken knowingly: a server that refuses the property WITHOUT naming it fails the
+     * send, and keeps failing it. That is a visible, reported, reversible failure; sending a message
+     * twice is not.
+     */
+    private suspend fun <T> withAutocryptHeaderFallback(
+        session: JmapSession,
+        carriesHeader: Boolean,
+        call: suspend (withAutocryptHeader: Boolean, point: SendPointOfNoReturn) -> T,
+    ): T {
+        val ask = carriesHeader && session.apiUrl !in serversRefusingAutocryptHeader
+        val point = SendPointOfNoReturn()
+        return try {
+            call(ask, point)
+        } catch (e: JmapException) {
+            if (!mayReplayWithoutAutocryptHeader(ask, point.passed, e.message)) throw e
+            val answered = try {
+                call(false, SendPointOfNoReturn())
+            } catch (_: JmapException) {
+                // The property was not the problem after all. Report what the sender actually met.
+                throw e
+            }
+            serversRefusingAutocryptHeader.add(session.apiUrl)
+            answered
+        }
+    }
+
+    /**
+     * Whether [session]'s server was measured to reject [AUTOCRYPT_HEADER_PROPERTY], i.e. whether
+     * its sends are going out without the sender's key attached.
+     *
+     * ⛔ `internal`, unlike [refusesReceiptHeader] next door, and the difference is not an
+     * oversight: that one is READ by `MailRepository` (core/data) to turn a refused property into
+     * an unknown before a draft is saved, so it has to cross the module. This memo answers nobody
+     * outside [withAutocryptHeaderFallback] — a send that goes out without the header is not a
+     * decision any caller takes — so its only other reader is this module's own tests, and there is
+     * no reason to publish it wider than that.
+     */
+    internal fun refusesAutocryptHeader(session: JmapSession): Boolean =
+        session.apiUrl in serversRefusingAutocryptHeader
+
+    /**
      * Every message of a thread (lightweight, no body) — `Thread/get`, then `Email/get` on the ids
      * it named, split across as many requests as [JmapSession.getBatchSize] requires
      * ([getInBatches]).
@@ -1849,109 +1924,142 @@ class JmapClient internal constructor(
          * sees in `From:` (issue #172).
          */
         envelope: SubmissionEnvelope? = null,
+        /**
+         * This sender's own OpenPGP public key, as the ready value of an `Autocrypt:` header
+         * (Autocrypt Level 1 §2.1), or null to announce nothing. Flat, NOT folded: RFC 8621 hands
+         * the server a value, and the server writes the field — so folding here would put literal
+         * CRLFs inside a JSON string for the server to fold a second time.
+         *
+         * Whether an account may announce its key at all is decided in core/data
+         * (`autocryptHeaderValue`), never here.
+         */
+        autocryptHeader: String? = null,
     ): String? = withContext(Dispatchers.IO) {
-        val payload = buildJsonObject {
-            putJsonArray("using") {
-                add(Jmap.CORE_CAPABILITY)
-                add(Jmap.MAIL_CAPABILITY)
-                add(Jmap.SUBMISSION_CAPABILITY)
-            }
-            putJsonArray("methodCalls") {
-                addJsonArray {
-                    add("Email/set")
-                    addJsonObject {
-                        put("accountId", accountId)
-                        putJsonObject("create") {
-                            putJsonObject("draft") {
-                                putJsonArray("from") { addJsonObject { addAddress(from) } }
-                                putJsonArray("to") { to.forEach { addJsonObject { addAddress(it) } } }
-                                if (cc.isNotEmpty()) {
-                                    putJsonArray("cc") { cc.forEach { addJsonObject { addAddress(it) } } }
-                                }
-                                if (bcc.isNotEmpty()) {
-                                    putJsonArray("bcc") { bcc.forEach { addJsonObject { addAddress(it) } } }
-                                }
-                                put("subject", subject)
-                                if (inReplyTo.isNotEmpty()) {
-                                    putJsonArray("inReplyTo") { inReplyTo.forEach { add(it) } }
-                                }
-                                if (references.isNotEmpty()) {
-                                    putJsonArray("references") { references.forEach { add(it) } }
-                                }
-                                // Where a read receipt should come back (RFC 8098). No Email
-                                // property exists for it, so RFC 8621 §4.1.2's `header:<name>:<form>`
-                                // is set on create; `asAddresses` takes {name, email} objects.
-                                // The address is `from` — the mailbox the correspondent sees,
-                                // which for a delegated send is not the submitting identity.
-                                if (requestReceipt) {
-                                    putJsonArray("header:Disposition-Notification-To:asAddresses") {
-                                        addJsonObject { addAddress(from) }
+        withAutocryptHeaderFallback(session, autocryptHeader != null) { withAutocryptHeader, point ->
+            val payload = buildJsonObject {
+                putJsonArray("using") {
+                    add(Jmap.CORE_CAPABILITY)
+                    add(Jmap.MAIL_CAPABILITY)
+                    add(Jmap.SUBMISSION_CAPABILITY)
+                }
+                putJsonArray("methodCalls") {
+                    addJsonArray {
+                        add("Email/set")
+                        addJsonObject {
+                            put("accountId", accountId)
+                            putJsonObject("create") {
+                                putJsonObject("draft") {
+                                    putJsonArray("from") { addJsonObject { addAddress(from) } }
+                                    putJsonArray("to") { to.forEach { addJsonObject { addAddress(it) } } }
+                                    if (cc.isNotEmpty()) {
+                                        putJsonArray("cc") { cc.forEach { addJsonObject { addAddress(it) } } }
                                     }
-                                }
-                                addAttachments(attachments)
-                                putJsonObject("keywords") { put("\$draft", true); put("\$seen", true) }
-                                putJsonObject("mailboxIds") { put(draftMailboxId, true) }
-                                putJsonArray("textBody") {
-                                    addJsonObject { put("partId", "textbody"); put("type", "text/plain") }
-                                }
-                                if (htmlBody != null) {
-                                    putJsonArray("htmlBody") {
-                                        addJsonObject { put("partId", "htmlbody"); put("type", "text/html") }
+                                    if (bcc.isNotEmpty()) {
+                                        putJsonArray("bcc") { bcc.forEach { addJsonObject { addAddress(it) } } }
                                     }
-                                }
-                                putJsonObject("bodyValues") {
-                                    putJsonObject("textbody") { put("value", textBody) }
-                                    if (htmlBody != null) putJsonObject("htmlbody") { put("value", htmlBody) }
+                                    put("subject", subject)
+                                    if (inReplyTo.isNotEmpty()) {
+                                        putJsonArray("inReplyTo") { inReplyTo.forEach { add(it) } }
+                                    }
+                                    if (references.isNotEmpty()) {
+                                        putJsonArray("references") { references.forEach { add(it) } }
+                                    }
+                                    // Where a read receipt should come back (RFC 8098). No Email
+                                    // property exists for it, so RFC 8621 §4.1.2's `header:<name>:<form>`
+                                    // is set on create; `asAddresses` takes {name, email} objects.
+                                    // The address is `from` — the mailbox the correspondent sees,
+                                    // which for a delegated send is not the submitting identity.
+                                    if (requestReceipt) {
+                                        putJsonArray("header:Disposition-Notification-To:asAddresses") {
+                                            addJsonObject { addAddress(from) }
+                                        }
+                                    }
+                                    // The sender's own OpenPGP key (Autocrypt Level 1 §2.1). Same
+                                    // §4.1.2 `header:<name>:<form>` seam as the receipt above, in
+                                    // the `asText` form: the value is a structured string this app
+                                    // assembled, not a list of addresses.
+                                    //
+                                    // ⭐ Handed over FLAT. The server writes the field and folds it
+                                    // to its own taste; a value folded here would carry literal
+                                    // CRLFs into a JSON string, to be folded twice.
+                                    //
+                                    // ⛔ [saveDraft] does NOT do this. A draft is not a send: the
+                                    // header announces a key to a correspondent, and a draft has
+                                    // no correspondent yet.
+                                    if (withAutocryptHeader && autocryptHeader != null) {
+                                        put(AUTOCRYPT_HEADER_PROPERTY, autocryptHeader)
+                                    }
+                                    addAttachments(attachments)
+                                    putJsonObject("keywords") { put("\$draft", true); put("\$seen", true) }
+                                    putJsonObject("mailboxIds") { put(draftMailboxId, true) }
+                                    putJsonArray("textBody") {
+                                        addJsonObject { put("partId", "textbody"); put("type", "text/plain") }
+                                    }
+                                    if (htmlBody != null) {
+                                        putJsonArray("htmlBody") {
+                                            addJsonObject { put("partId", "htmlbody"); put("type", "text/html") }
+                                        }
+                                    }
+                                    putJsonObject("bodyValues") {
+                                        putJsonObject("textbody") { put("value", textBody) }
+                                        if (htmlBody != null) putJsonObject("htmlbody") { put("value", htmlBody) }
+                                    }
                                 }
                             }
                         }
+                        add("e0")
                     }
-                    add("e0")
-                }
-                addJsonArray {
-                    add("EmailSubmission/set")
-                    addJsonObject {
-                        put("accountId", accountId)
-                        put("create", submissionCreate(identityId, envelope))
-                        putJsonObject("onSuccessUpdateEmail") {
-                            putJsonObject("#sub") {
-                                put("mailboxIds/$sentMailboxId", true)
-                                put("mailboxIds/$draftMailboxId", JsonNull)
-                                put("keywords/\$draft", JsonNull)
+                    addJsonArray {
+                        add("EmailSubmission/set")
+                        addJsonObject {
+                            put("accountId", accountId)
+                            put("create", submissionCreate(identityId, envelope))
+                            putJsonObject("onSuccessUpdateEmail") {
+                                putJsonObject("#sub") {
+                                    put("mailboxIds/$sentMailboxId", true)
+                                    put("mailboxIds/$draftMailboxId", JsonNull)
+                                    put("keywords/\$draft", JsonNull)
+                                }
                             }
                         }
+                        add("s0")
                     }
-                    add("s0")
                 }
             }
+            val request = Request.Builder()
+                .url(session.apiUrl)
+                .header("Authorization", auth.authorizationHeader())
+                .header("Accept", "application/json")
+                .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            val created = httpClient.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw JmapException("Send failed: HTTP ${response.code} ${response.message}")
+                }
+                val emailArgs = methodResponseArgs(body, "Email/set")
+                (emailArgs["notCreated"] as? JsonObject)?.get("draft")?.let {
+                    throw JmapException("Could not create the message: $it")
+                }
+                // ⛔ THE POINT OF NO RETURN, and it is here because this is the first line that
+                // knows: the create was not refused, so a message exists on the server and the
+                // submission attached to it has been handed over. Everything below — a refused
+                // submission, an unreadable body, the delivery check outside this block — may throw
+                // whatever it likes; no replay may follow it ([withAutocryptHeaderFallback]).
+                point.pass()
+                val subArgs = methodResponseArgs(body, "EmailSubmission/set")
+                (subArgs["notCreated"] as? JsonObject)?.get("sub")?.let {
+                    throw JmapException("Could not send the message: $it")
+                }
+                createdEmailId(emailArgs) to subArgs
+            }
+            // ⛔ A CREATED submission is not a delivered message: a recipient refused before queueing
+            // arrives here, never in `notCreated`, and no bounce follows it (#183). Asked outside the
+            // `use` above so the first response is closed before the second request goes out.
+            val (emailId, submissionArgs) = created
+            failIfRecipientsWereRefused(session, accountId, auth, submissionArgs)
+            emailId
         }
-        val request = Request.Builder()
-            .url(session.apiUrl)
-            .header("Authorization", auth.authorizationHeader())
-            .header("Accept", "application/json")
-            .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
-            .build()
-        val created = httpClient.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                throw JmapException("Send failed: HTTP ${response.code} ${response.message}")
-            }
-            val emailArgs = methodResponseArgs(body, "Email/set")
-            (emailArgs["notCreated"] as? JsonObject)?.get("draft")?.let {
-                throw JmapException("Could not create the message: $it")
-            }
-            val subArgs = methodResponseArgs(body, "EmailSubmission/set")
-            (subArgs["notCreated"] as? JsonObject)?.get("sub")?.let {
-                throw JmapException("Could not send the message: $it")
-            }
-            createdEmailId(emailArgs) to subArgs
-        }
-        // ⛔ A CREATED submission is not a delivered message: a recipient refused before queueing
-        // arrives here, never in `notCreated`, and no bounce follows it (#183). Asked outside the
-        // `use` above so the first response is closed before the second request goes out.
-        val (emailId, submissionArgs) = created
-        failIfRecipientsWereRefused(session, accountId, auth, submissionArgs)
-        emailId
     }
 
     /** The Email id minted for the [creationId] creation ("draft" by default) in an Email/set or
@@ -2882,6 +2990,14 @@ class JmapClient internal constructor(
     private val serversRefusingReceiptHeader: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
+    /**
+     * API URLs whose server rejected [AUTOCRYPT_HEADER_PROPERTY] on an `Email/set` create. Its OWN
+     * set again — see [withAutocryptHeaderFallback]. Memory only, one entry per API URL: a server
+     * that gains support gets it back at the next app start.
+     */
+    private val serversRefusingAutocryptHeader: MutableSet<String> =
+        java.util.concurrent.ConcurrentHashMap.newKeySet()
+
     companion object {
         /** How often the server should ping the EventSource connection, in seconds. */
         private const val PING_SECONDS = 90L
@@ -2951,6 +3067,46 @@ class JmapClient internal constructor(
          * with two forms, deliberately.
          */
         internal const val RECEIPT_HEADER_PROPERTY = "header:Disposition-Notification-To:asText"
+
+        /**
+         * The property [sendEmail] writes the sender's own OpenPGP key into (Autocrypt Level 1
+         * §2.1, in RFC 8621 §4.1.2's header form). `asText`: the value is one structured string,
+         * not a list of addresses, and the server must re-emit it verbatim.
+         */
+        internal const val AUTOCRYPT_HEADER_PROPERTY = "header:Autocrypt:asText"
+
+        /**
+         * Whether a failure's words name [AUTOCRYPT_HEADER_PROPERTY] — the ONE failure
+         * [withAutocryptHeaderFallback] replays, extracted so it can be run rather than read.
+         *
+         * The refusal a server writes for an unknown property is RFC 8620 §5.3's `invalidProperties`
+         * `SetError`, whose `properties` array names it; that whole object is what
+         * [sendEmail]'s "Could not create the message" carries. Matching on the field NAME rather
+         * than on the exact property string is deliberate: header field names are case-insensitive
+         * (RFC 5322 §1.2.2) and a server is free to echo the property in its own spelling, or to
+         * quote only the header name in a description. Nothing else this app sends says
+         * "autocrypt", so the word can only be about this property.
+         *
+         * ⛔ Not [isPropertyRejection]. That one answers "the server dislikes SOMETHING here", which
+         * on a send is not enough to justify a replay: the create may already have gone through.
+         */
+        internal fun namesAutocryptProperty(text: String?): Boolean =
+            text != null && text.contains("Autocrypt", ignoreCase = true)
+
+        /**
+         * The replay decision of [withAutocryptHeaderFallback], whole, as one pure function so a
+         * test can EXECUTE it rather than read the branch that contains it.
+         *
+         * [pastPointOfNoReturn] comes first in the reading for a reason: it is the only term that
+         * is about what HAPPENED rather than about what a server wrote. The message text is the
+         * server's, and any server may put "autocrypt" in any refusal — a recipient address is
+         * enough. So once something has been created or submitted, no text may buy a replay.
+         */
+        internal fun mayReplayWithoutAutocryptHeader(
+            asked: Boolean,
+            pastPointOfNoReturn: Boolean,
+            failure: String?,
+        ): Boolean = asked && !pastPointOfNoReturn && namesAutocryptProperty(failure)
 
         /**
          * Method-level errors that mean "I do not accept this argument" (RFC 8620 §3.6.2), i.e.
@@ -3189,6 +3345,23 @@ private fun JsonObjectBuilder.addAttachments(attachments: List<EmailBodyPart>) {
                 if (att.size > 0) put("size", att.size)
             }
         }
+    }
+}
+
+/**
+ * How far a send got, for the ONE question [JmapClient.withAutocryptHeaderFallback] asks before it
+ * replays anything: has the server created or submitted a message yet?
+ *
+ * One-way on purpose — [pass] is the only mutator and there is no way back. A send that is retried
+ * without the header is a NEW request and gets a NEW instance; nothing carries progress across.
+ */
+internal class SendPointOfNoReturn {
+    /** True once the server's answer showed something exists server-side. Never goes back. */
+    var passed: Boolean = false
+        private set
+
+    fun pass() {
+        passed = true
     }
 }
 

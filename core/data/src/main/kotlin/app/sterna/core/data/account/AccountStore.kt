@@ -700,15 +700,30 @@ class AccountStore(context: Context) {
         )
     }
 
-    /** Persist the account's OpenPGP settings. No-op if the id is unknown. */
+    /**
+     * Persist the account's OpenPGP settings. No-op if the id is unknown.
+     *
+     * ⛔ [publicKey] travels with [signKeyId] and is never optional: the cached public key is a
+     * fact about THAT key id (see [StoredAccount.pgpPublicKey]). A default here would let a caller
+     * change the key and leave the previous key's bytes behind without ever naming them — which is
+     * exactly the mistake this parameter exists to make impossible. Callers that only flip the two
+     * switches pass the account's current value back.
+     */
     @Synchronized
-    fun setPgp(id: String, enabled: Boolean, signKeyId: Long, encryptByDefault: Boolean) {
+    fun setPgp(
+        id: String,
+        enabled: Boolean,
+        signKeyId: Long,
+        publicKey: String,
+        encryptByDefault: Boolean,
+    ) {
         saveAccounts(
             accounts().map {
                 if (it.id == id) {
                     it.copy(
                         pgpEnabled = enabled,
                         pgpSignKeyId = signKeyId,
+                        pgpPublicKey = publicKey,
                         pgpEncryptByDefault = encryptByDefault,
                     )
                 } else {
@@ -716,6 +731,16 @@ class AccountStore(context: Context) {
                 }
             },
         )
+    }
+
+    /**
+     * Write the public key read back for [signKeyId] into that account's cache, and only while the
+     * account still carries that key id: see [withCachedPgpPublicKey] for why the guard is the
+     * point. No-op if the id is unknown or the key changed under the read.
+     */
+    @Synchronized
+    fun setPgpPublicKey(id: String, signKeyId: Long, publicKey: String) {
+        saveAccounts(withCachedPgpPublicKey(accounts(), id, signKeyId, publicKey))
     }
 
     /**

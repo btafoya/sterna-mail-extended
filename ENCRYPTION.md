@@ -125,8 +125,16 @@ straight back to **Off**, not on to another encrypting mode.
 
 To **encrypt**, Sterna needs a public key for every recipient. A recipient
 without a known key is flagged, and you will not be able to send encrypted until
-their key is imported into your OpenPGP app (ask them for it, or fetch it from a
-key server). **Signing** has no such requirement: you can sign to anyone.
+their key is in your OpenPGP app. It can get there three ways: you ask them for
+it, you fetch it from a key server, or it simply arrives with one of their
+messages (see below). **Signing** has no such requirement: you can sign to
+anyone.
+
+Once an account has OpenPGP turned on and a key chosen, Sterna attaches that
+key's public half to the messages that account sends, in a header. Nothing is
+attached before you have chosen a key, and turning OpenPGP off stops it. Only
+your public key travels, and only the identity of the account it belongs to:
+other identities on the same key stay in your OpenPGP app.
 
 A few things behave differently while a message is set to either encrypting
 mode: it cannot be saved as a plaintext draft, and scheduled send is
@@ -150,9 +158,22 @@ body you will see the result:
   - 🔴 **red**: the signature does not verify: the content may have been
     altered, or the key is revoked / expired / insecure.
   - ⚪ **grey**: the signer's public key is not in your OpenPGP app, so the
-    signature cannot be checked. Import their key to verify it.
+    signature cannot be checked. Import their key to verify it, if it has not
+    arrived on its own already.
 
 Sterna also reads legacy **inline PGP** messages, not just modern PGP/MIME.
+
+Several mail clients attach the sender's public key to every message they send,
+the same way Sterna does. When you **open** a message carrying one, that key is
+handed to your OpenPGP app, and you can encrypt back to that person without
+asking them for anything. It happens on the messages you open, not on everything
+that lands in the folder, so a correspondent you have never read is a
+correspondent whose key has not arrived yet.
+
+A key that turns up this way is a convenience, not a proof of identity: it says
+what the sender's client claimed, and nothing about who is really at the other
+end. Confirming a key stays a deliberate act in your OpenPGP app, and the
+signature badge keeps telling you whether you have done it.
 
 ## Troubleshooting
 
@@ -160,8 +181,8 @@ Sterna also reads legacy **inline PGP** messages, not just modern PGP/MIME.
   offers OpenKeychain, from
   [F-Droid](https://f-droid.org/packages/org.sufficientlysecure.keychain/).
 - **Can't turn on encryption for a recipient.** Their public key isn't in your
-  OpenPGP app yet. Import it (from a file they sent, or a key server) and try
-  again.
+  OpenPGP app yet. Open a message from them first: their client may attach it.
+  Failing that, import it (from a file they sent, or a key server) and try again.
 - **Grey signature badge.** You don't have the sender's public key. Import it to
   turn the check green (or yellow until you confirm it).
 - **No passphrase prompt / it stopped asking.** OpenKeychain caches your

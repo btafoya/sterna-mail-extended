@@ -18,6 +18,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.openintents.openpgp.AutocryptPeerUpdate
 import org.openintents.openpgp.IOpenPgpService2
 import org.openintents.openpgp.OpenPgpDecryptionResult
 import org.openintents.openpgp.OpenPgpError
@@ -135,6 +136,32 @@ class OpenKeychainPgpEngine(
     private fun request(action: String, interactionResult: Intent?): Intent =
         (interactionResult?.let { Intent(it) } ?: Intent()).setAction(action)
 
+    /**
+     * The Intent for a [PgpApiRequest] — the ONE place a pure request becomes an Android object.
+     *
+     * ⛔ The `when` is exhaustive over what [PgpApiRequest] is allowed to carry, and the `error`
+     * branch is not decoration: a fifth type added to a request without a branch here would
+     * otherwise be dropped in silence, i.e. an extra the provider never receives. A JVM test walks
+     * both requests and asserts every value is one of these four types.
+     */
+    private fun intentFor(spec: PgpApiRequest, interactionResult: Intent?): Intent =
+        request(spec.action, interactionResult).apply {
+            for ((name, value) in spec.extras) when (value) {
+                is Boolean -> putExtra(name, value)
+                is Long -> putExtra(name, value)
+                is String -> putExtra(name, value)
+                is PeerUpdateFacts -> putExtra(
+                    name,
+                    AutocryptPeerUpdate.create(
+                        value.keyData,
+                        java.util.Date(value.effectiveDateMillis),
+                        value.isMutual,
+                    ),
+                )
+                else -> error("no Intent form for extra $name")
+            }
+        }
+
     override suspend fun getSignKeyId(
         userIdHint: String?,
         interactionResult: Intent?,
@@ -144,6 +171,51 @@ class OpenKeychainPgpEngine(
         return mapResult(execute(intent, input = null, collectOutput = false)) { result, _ ->
             val keyId = result.getLongExtra(OpenPgpApi.EXTRA_SIGN_KEY_ID, 0L)
             if (keyId != 0L) PgpResult.Success(keyId) else PgpResult.Error("No signing key selected")
+        }
+    }
+
+    /**
+     * ACTION_GET_KEY: the provider streams the public key to the output stream, which is why this
+     * is the one read here that collects output.
+     *
+     * ⛔ **The arguments are [publicKeyRequest]'s, not this method's**, and that is the point: they
+     * decide the bytes that end up in every outgoing `Autocrypt:` header, and nothing in this class
+     * can be executed by a test. Built as a value, they are pinned by a test that runs them.
+     */
+    override suspend fun getPublicKey(
+        keyId: Long,
+        ownAddress: String,
+        interactionResult: Intent?,
+    ): PgpResult<ByteArray> {
+        val intent = intentFor(publicKeyRequest(keyId, ownAddress), interactionResult)
+        return mapResult(execute(intent, input = null, collectOutput = true)) { _, output ->
+            if (output != null && output.isNotEmpty()) PgpResult.Success(output)
+            else PgpResult.Error("Provider returned no public key")
+        }
+    }
+
+    /**
+     * ACTION_UPDATE_AUTOCRYPT_PEER: the provider files [keyData] in its PUBLIC keyring under
+     * [peerId], which is why nothing else has to be called afterwards — the next
+     * `ACTION_GET_KEY_IDS` ([findKeys]) finds it and the composer stops saying "no key".
+     *
+     * ⛔ `isMutual = false`, always. `prefer-encrypt` is parsed off the header and dropped
+     * (`autocryptPeerImportOf`): MUTUAL is a standing instruction to start encrypting by itself,
+     * and that decision is not taken from an incoming message.
+     *
+     * ⛔ No input stream and no output collected: this action carries everything in its extras.
+     * ⛔ No `interactionResult` either — see [PgpEngine.updateAutocryptPeer]; the caller has no
+     * screen, so anything other than success is dropped where it is mapped.
+     */
+    override suspend fun updateAutocryptPeer(
+        peerId: String,
+        keyData: ByteArray,
+        effectiveDateMillis: Long,
+    ): PgpResult<Unit> {
+        val intent =
+            intentFor(autocryptPeerRequest(peerId, keyData, effectiveDateMillis), interactionResult = null)
+        return mapResult(execute(intent, input = null, collectOutput = false)) { _, _ ->
+            PgpResult.Success(Unit)
         }
     }
 

@@ -17,12 +17,14 @@ class PgpSignKeyResetTest {
         keyId: Long,
         enabled: Boolean = true,
         encryptByDefault: Boolean = false,
+        publicKey: String = if (keyId == 0L) "" else "cached-$id",
     ) = StoredAccount(
         id = id,
         server = "mail.example.test",
         username = "$id@example.test",
         pgpEnabled = enabled,
         pgpSignKeyId = keyId,
+        pgpPublicKey = publicKey,
         pgpEncryptByDefault = encryptByDefault,
     )
 
@@ -39,6 +41,20 @@ class PgpSignKeyResetTest {
             after.map { it.pgpSignKeyId },
         )
         assertEquals(listOf("a", "b", "c"), after.map { it.id })
+    }
+
+    @Test fun `the cached public key goes with the key id, for every account`() {
+        // The cache is the bytes of a key belonging to the provider being LEFT. Kept, the account
+        // would keep announcing that key — under a key id the screen no longer shows, or under a
+        // new one it does not match. It is one fact, so it is dropped in one gesture.
+        val after = withoutPgpSignKeys(
+            listOf(account("a", 0x11L), account("b", 0x22L), account("c", 0x33L)),
+        )
+        assertEquals(
+            "an account kept the cached public key of the provider the user just left.",
+            listOf("", "", ""),
+            after.map { it.pgpPublicKey },
+        )
     }
 
     @Test fun `the two PGP switches are left exactly as the user set them`() {
@@ -72,7 +88,7 @@ class PgpSignKeyResetTest {
         val before = account("a", 0x5L, enabled = true, encryptByDefault = true)
         assertEquals(
             "the reset rewrote something other than the signing key.",
-            listOf(before.copy(pgpSignKeyId = 0L)),
+            listOf(before.copy(pgpSignKeyId = 0L, pgpPublicKey = "")),
             withoutPgpSignKeys(listOf(before)),
         )
     }

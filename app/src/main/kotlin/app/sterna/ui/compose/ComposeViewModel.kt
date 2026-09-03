@@ -17,6 +17,8 @@ import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
+import app.sterna.core.data.account.pgpPublicKeyBackfill
+import app.sterna.core.data.account.pgpPublicKeyCacheValue
 import app.sterna.core.data.db.OutboxState
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.mail.DraftOpenRoute
@@ -661,6 +663,34 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 PgpDropReason.NOT_CONFIGURED -> _notices.tryEmit(R.string.compose_pgp_not_configured)
                 PgpDropReason.NO_PROVIDER -> _notices.tryEmit(R.string.message_pgp_no_provider)
             }
+            // Last, and never in front of the mode: this writes nothing on screen and must not
+            // delay what does.
+            if (available) cachePgpPublicKey(account)
+        }
+    }
+
+    /** Accounts whose public key this composer has already tried to read; see
+     *  [pgpPublicKeyBackfill] for why one attempt per opening and not one per refresh. */
+    private val pgpPublicKeyTried = mutableSetOf<String>()
+
+    /**
+     * Read this account's own public key from the provider and cache it on the account, for the
+     * accounts that have a key id but no cache — i.e. every account configured before the cache
+     * existed. Emitting it later happens with no screen, so this is where it can be fetched at all.
+     *
+     * ⛔ SILENT, in every direction. No banner, no dialog, no new string: the provider may want to
+     * be unlocked and answers UserInteractionRequired, and nothing here may interrupt someone
+     * writing a message over a cache. An account simply stays without one and is tried again next
+     * time the composer opens. ⛔ And it is [store.setPgpPublicKey], which refuses the write if the
+     * key id moved while the provider was thinking.
+     */
+    private suspend fun cachePgpPublicKey(account: StoredAccount?) {
+        val id = pgpPublicKeyBackfill(account, pgpPublicKeyTried) ?: return
+        val keyId = account?.pgpSignKeyId ?: return
+        pgpPublicKeyTried += id
+        val read = pgp.getPublicKey(keyId, account.username)
+        if (read is PgpResult.Success) {
+            store.setPgpPublicKey(id, keyId, pgpPublicKeyCacheValue(read.value))
         }
     }
 

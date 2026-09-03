@@ -14,8 +14,13 @@ package app.sterna.core.data.account
  * made, and re-enabling it is not something an app should decide on their behalf. It is what K-9
  * does with `NO_OPENPGP_KEY`.
  *
+ * ⛔ [StoredAccount.pgpPublicKey] goes WITH the key id, in the same gesture: it is a copy of the
+ * bytes of a key in the keyring being left. Kept behind, the account would go on announcing that
+ * key while the screen shows no key at all — and the next key chosen in the new app would inherit
+ * someone else's public half.
+ *
  * Lives outside [AccountStore] because nothing in this module can build one (it needs a `Context`
  * and the Keystore, and there is no Robolectric here) — so this is the part a JVM test can EXECUTE.
  */
 fun withoutPgpSignKeys(accounts: List<StoredAccount>): List<StoredAccount> =
-    accounts.map { it.copy(pgpSignKeyId = 0L) }
+    accounts.map { it.copy(pgpSignKeyId = 0L, pgpPublicKey = "") }

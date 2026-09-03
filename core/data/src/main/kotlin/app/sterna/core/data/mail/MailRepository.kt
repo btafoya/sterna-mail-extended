@@ -19,6 +19,7 @@ import app.sterna.core.data.account.OAuthCredentials
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.UnifiedInbox
 import app.sterna.core.data.account.accountKeyOf
+import app.sterna.core.data.account.autocryptHeaderValue
 import app.sterna.core.data.account.resolveExistingLogin
 import app.sterna.core.data.account.resolveExistingLoginAmong
 import app.sterna.core.data.filter.FilterRule
@@ -3783,19 +3784,40 @@ class MailRepository(
         }
         return try {
             val ctx = connect(credentials)
-            OriginRead(
-                header = originalSenderHeaderOf(
-                    client.getEmailHeaders(ctx.session, ctx.accountId, emailId, ctx.auth)
-                        .map { it.name to it.value },
-                ),
-                succeeded = true,
-            )
+            val headers = client.getEmailHeaders(ctx.session, ctx.accountId, emailId, ctx.auth)
+                .map { it.name to it.value }
+            // Autocrypt rides on the read that is already happening: no second round trip, and no
+            // property added to EMAIL_BODY_PROPERTIES (a server that refuses one rejects the whole
+            // Email/get, and then nothing opens at all on that account).
+            importAutocryptKey(headers, email.from.firstOrNull()?.email, email.receivedAt)
+            OriginRead(header = originalSenderHeaderOf(headers), succeeded = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
             android.util.Log.w("MailRepository", "origin header of $emailId unreadable", failure)
             OriginRead(header = null, succeeded = false)
         }
+    }
+
+    /**
+     * Give the OpenPGP provider the public key an incoming message announced, if it announced one
+     * this app will take ([autocryptPeerImportOf] holds every rule; nothing is decided here).
+     *
+     * ⛔ **Fire and forget, on [bgScope].** The three call sites are all on the path of OPENING a
+     * message, and reaching a foreign process over a binder can hang, fail or want the user. None
+     * of that may delay the body appearing, and none of it may fail the open: the coroutine is
+     * launched and dropped, `runCatching` swallows what comes out of it, and the reader is told
+     * nothing either way. A key that does not arrive costs a "no key" badge in the composer, which
+     * is the state the user was already in.
+     *
+     * ⛔ No new network call anywhere: every caller already holds the headers.
+     */
+    private fun importAutocryptKey(
+        headers: List<Pair<String, String>>,
+        fromAddress: String?,
+        receivedAt: String?,
+    ) {
+        bgScope.launch { runCatching { importAutocryptPeer(pgpEngine, headers, fromAddress, receivedAt) } }
     }
 
     /**
@@ -3808,13 +3830,20 @@ class MailRepository(
      * failure rather than an empty map — see [cachesBodyAfterOriginRead] for what caching an
      * unmeasured null costs.
      */
-    private suspend fun originalSendersOf(ctx: Context, ids: List<String>): Map<String, String?>? = try {
-        client.getEmailsHeaders(ctx.session, ctx.accountId, ids, ctx.auth)
-            .mapValues { (_, headers) -> originalSenderHeaderOf(headers.map { it.name to it.value }) }
+    private suspend fun originalSendersOf(ctx: Context, emails: List<Email>): Map<String, String?>? = try {
+        val byId = client.getEmailsHeaders(ctx.session, ctx.accountId, emails.map { it.id }, ctx.auth)
+        // The prefetch is where the inbox's newest messages are read, so it is where most keys
+        // arrive — on the SAME grouped call, with no extra round trip. Each message is judged
+        // against its OWN From and its own date.
+        for (email in emails) {
+            val headers = byId[email.id] ?: continue
+            importAutocryptKey(headers.map { it.name to it.value }, email.from.firstOrNull()?.email, email.receivedAt)
+        }
+        byId.mapValues { (_, headers) -> originalSenderHeaderOf(headers.map { it.name to it.value }) }
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
-        android.util.Log.w("MailRepository", "origin headers of ${ids.size} prefetched messages unreadable", failure)
+        android.util.Log.w("MailRepository", "origin headers of ${emails.size} prefetched messages unreadable", failure)
         // ⛔ null, never emptyMap(): an empty map is indistinguishable from "none of them carries
         // one", and the caller would cache twenty bodies saying so — permanently, since the cache
         // is served before any network call.
@@ -3895,6 +3924,12 @@ class MailRepository(
         // one. Accepted for this lot: both are the sender's own, and picking one of two is not
         // the failure mode worth a second parser.
         val unsubscribe = unsubscribeHeadersOf(raw)
+        val headers = MimeParser.rawHeaders(raw)
+        // Autocrypt (the receiving half): the correspondent's key, off the source already in hand.
+        // ⛔ IMAP has no other place for it — a key does NOT arrive from a message that is never
+        // opened, and that is the accepted limit of this path, not a defect to go and fix with a
+        // header added to a list FETCH.
+        importAutocryptKey(headers, envelope.from.firstOrNull()?.email, envelope.receivedAt)
         return envelope.withBody(body).copy(
             messageId = headerIds(MimeParser.headerOf(raw, "Message-ID")),
             references = headerIds(MimeParser.headerOf(raw, "References")),
@@ -3907,7 +3942,7 @@ class MailRepository(
             // Free on the same source too, and read through `rawHeaders` rather than `headerOf`:
             // `headerOf` is a Map where the LAST occurrence wins, and for a relay header that is
             // not neutral — it would name the outermost alias instead of the innermost hop.
-            originalSender = originalSenderHeaderOf(MimeParser.rawHeaders(raw)),
+            originalSender = originalSenderHeaderOf(headers),
         )
     }
 
@@ -4406,7 +4441,7 @@ class MailRepository(
             // written with an unmeasured null would each say "no origin" for good, and these are
             // exactly the twenty messages a reader tries a new feature on. A skipped prefetch
             // costs latency on the next open; a poisoned one costs the feature.
-            val origins = originalSendersOf(ctx, missing) ?: return
+            val origins = originalSendersOf(ctx, emails) ?: return
             for (email in emails) {
                 val withOrigin = email.copy(originalSender = origins[email.id])
                 persistBody(credentials.id, email.id, withOrigin, emptyMap())
@@ -8326,6 +8361,13 @@ class MailRepository(
             runCatching { java.io.File(path).readText() }.getOrNull()
         }
 
+        // The account behind this send, read ONCE above the fork: the only thing asked of it here
+        // is whether it may announce its own OpenPGP key (Autocrypt Level 1 §2.1), and the answer
+        // is `autocryptHeaderValue`'s, not this function's. Both protocols pass it the address that
+        // will actually be in `From:` — the guard that stops a delegated send from announcing this
+        // account's key under somebody else's mailbox lives inside that rule.
+        val sendingAccount = accountStore.account(credentials.id)
+
         if (credentials.protocol == MailProtocol.IMAP) {
             val recipients = to
             require(recipients.isNotEmpty()) { "Add at least one recipient." }
@@ -8349,6 +8391,12 @@ class MailRepository(
             ).copy(
                 attachments = if (prebuiltEntity != null) emptyList() else outAttachments,
                 prebuiltEntity = prebuiltEntity,
+                // The same fallback `outgoing` above applies to build the From header: no explicit
+                // sender address means the message goes out as the account itself.
+                autocryptHeader = autocryptHeaderValue(
+                    sendingAccount,
+                    fromEmail?.takeIf { it.isNotBlank() } ?: credentials.username,
+                ),
             )
             // The Sent copy is a SECOND write, and some submission servers file it themselves —
             // the account then ends up with two. Which folder (if any) reaches the APPEND is
@@ -8435,7 +8483,10 @@ class MailRepository(
                     credentials, to, subject, "", inReplyTo, references, null,
                     from.name ?: fromName, from.email, ccTrimmed, bccTrimmed,
                     requestReceipt = item.requestReceipt,
-                ).copy(prebuiltEntity = prebuiltEntity),
+                ).copy(
+                    prebuiltEntity = prebuiltEntity,
+                    autocryptHeader = autocryptHeaderValue(sendingAccount, from.email),
+                ),
             )
             client.importAndSendEmail(
                 session = ctx.session,
@@ -8466,6 +8517,7 @@ class MailRepository(
                 references = references,
                 attachments = attachments,
                 requestReceipt = item.requestReceipt,
+                autocryptHeader = autocryptHeaderValue(sendingAccount, from.email),
                 envelope = envelope,
             )
         }

@@ -58,10 +58,17 @@ class OriginalSenderWiringTest {
      * which for a relay header names the outermost alias instead of the innermost hop.
      */
     @Test fun `the IMAP open poses the origin header off the source it already holds`() {
+        // The `rawHeaders` call moved onto its own line when the Autocrypt import started reading
+        // the SAME list, so both lines are pinned: what feeds the reader has to stay `rawHeaders`,
+        // never `headerOf`, and `headers` has to be the list this very source produced.
         assertEquals(
             "openEmailImap must set originalSender from the raw source it already has. Found:",
-            listOf("originalSender = originalSenderHeaderOf(MimeParser.rawHeaders(raw)),"),
-            codeLines(bodyOf("openEmailImap")).filter { it.startsWith("originalSender") },
+            listOf(
+                "val headers = MimeParser.rawHeaders(raw)",
+                "originalSender = originalSenderHeaderOf(headers),",
+            ),
+            codeLines(bodyOf("openEmailImap"))
+                .filter { it.startsWith("originalSender") || it.startsWith("val headers =") },
         )
     }
 
@@ -118,13 +125,13 @@ class OriginalSenderWiringTest {
 
         assertEquals(
             "one grouped read for the ids the prefetch is about to cache",
-            listOf("val origins = originalSendersOf(ctx, missing) ?: return"),
+            listOf("val origins = originalSendersOf(ctx, emails) ?: return"),
             body.filter { "originalSendersOf(" in it },
         )
         assertTrue(
             "the grouped read must be able to say it FAILED — a plain map cannot, and null would " +
                 "then be cached as 'no origin' on the whole window. Found: " + body,
-            body.any { it == "val origins = originalSendersOf(ctx, missing) ?: return" },
+            body.any { it == "val origins = originalSendersOf(ctx, emails) ?: return" },
         )
         assertEquals(
             "…and each body is persisted carrying what that read found",

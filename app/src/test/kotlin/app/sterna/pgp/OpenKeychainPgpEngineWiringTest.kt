@@ -130,6 +130,63 @@ class OpenKeychainPgpEngineWiringTest {
         )
     }
 
+    @Test fun `both Autocrypt calls hand their arguments to the pure requests`() {
+        // ⛔ What each of these two lines is holding up is now EXECUTED next door
+        // ([PgpApiRequestTest]): the minimize pair and the absent armor for the key read, the peer
+        // id / date / isMutual = false for the peer update. What no executing test can see is
+        // whether these two methods still CALL them, with the arguments they were given — a
+        // `publicKeyRequest(keyId, "")` here would pass every test over there while broadcasting
+        // every user id on the keyring.
+        assertEquals(
+            "getPublicKey no longer builds its intent from publicKeyRequest with the key id AND " +
+                "the account's own address. Either the announced key stops being minimized to the " +
+                "one identity this account may claim, or the arguments stopped coming from the " +
+                "caller.",
+            listOf("val intent = intentFor(publicKeyRequest(keyId, ownAddress), interactionResult)"),
+            block(ENGINE, prefix = "val intent = intentFor(publicKeyRequest", count = 1),
+        )
+        assertEquals(
+            "updateAutocryptPeer no longer builds its intent from autocryptPeerRequest with the " +
+                "peer id, the key and the message's own date.",
+            listOf(
+                "intentFor(autocryptPeerRequest(peerId, keyData, effectiveDateMillis), interactionResult = null)",
+            ),
+            block(ENGINE, prefix = "intentFor(autocryptPeerRequest(", count = 1),
+        )
+    }
+
+    @Test fun `the one place a pure request becomes an Intent puts every extra it can carry`() {
+        // The translation half. It cannot be executed here (Intent is a stub in this source set),
+        // and dropping ONE branch is invisible everywhere else: the extra is simply never put, and
+        // the provider answers as if it had never been asked — a full keyring export, or an
+        // Autocrypt peer filed with no key at all.
+        assertEquals(
+            "intentFor changed shape. A missing type branch silently drops an extra; a value that " +
+                "is not the one from the request (a `false` for isMutual's own field, a `Date()` " +
+                "for the message's date) is the same defect one level down.",
+            listOf(
+                "private fun intentFor(spec: PgpApiRequest, interactionResult: Intent?): Intent =",
+                "request(spec.action, interactionResult).apply {",
+                "for ((name, value) in spec.extras) when (value) {",
+                "is Boolean -> putExtra(name, value)",
+                "is Long -> putExtra(name, value)",
+                "is String -> putExtra(name, value)",
+                "is PeerUpdateFacts -> putExtra(",
+                "name,",
+                "AutocryptPeerUpdate.create(",
+                "value.keyData,",
+                "java.util.Date(value.effectiveDateMillis),",
+                "value.isMutual,",
+                "),",
+                ")",
+                "else -> error(\"no Intent form for extra \$name\")",
+                "}",
+                "}",
+            ),
+            block(ENGINE, prefix = "private fun intentFor(", count = 17),
+        )
+    }
+
     /** Code lines of [path], trimmed; comments and blanks dropped (a mutation cannot hide in a comment). */
     private fun code(path: String): List<String> {
         val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }

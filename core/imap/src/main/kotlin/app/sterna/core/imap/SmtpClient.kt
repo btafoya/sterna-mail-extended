@@ -154,6 +154,19 @@ data class OutgoingMessage(
      * single-line check and the [headerSafe] below, which is the whole CRLF-injection guard.
      */
     val requestReceipt: Boolean = false,
+    /**
+     * The value of the `Autocrypt:` header to announce this sender's own OpenPGP public key
+     * (Autocrypt Level 1 §2.1), or null to announce nothing. Already assembled and sanitised, NOT
+     * folded: [OutgoingMime.build] folds it, because folding is a property of the wire format and
+     * the JMAP path wants the same value flat.
+     *
+     * ⛔ A ready value and not an account, deliberately: whether an account may announce its key —
+     * PGP still enabled, a key cached for it, and the `From` being that account's own address and
+     * not a delegated mailbox's — is decided in `app.sterna.core.data.account`'s
+     * `autocryptHeaderValue`, where a JVM test can execute it. Nothing in this module knows what an
+     * account is, and adding that here would put the decision behind a socket.
+     */
+    val autocryptHeader: String? = null,
 )
 
 /**
@@ -459,6 +472,20 @@ object OutgoingMime {
             // the PGP/MIME branch below too: that entity replaces the body, and a receipt emitted
             // inside it would leave every signed and every encrypted message asking for nothing.
             if (m.requestReceipt) append("Disposition-Notification-To: ${headerSafe(m.from)}\r\n")
+            // This sender's own OpenPGP public key (Autocrypt Level 1 §2.1), when the account has
+            // one to announce for THIS From — the rule is `autocryptHeaderValue`, in core/data.
+            //
+            // ⭐ HERE, above the body, for the same reason the receipt is: a pre-built entity
+            // ([OutgoingMessage.prebuiltEntity]) replaces the whole body below, and a header
+            // written inside it would change the octets [PgpMime.signablePayload] was handed —
+            // every signature this app has ever made covers those bytes exactly. Written above,
+            // it costs the entity nothing and it also covers the JMAP signed/encrypted send,
+            // which builds its raw message right here.
+            //
+            // ⚠ It goes to every recipient, blind copies included: there is no header filter
+            // between this builder and the socket (see [blindCopies]). That is what a published
+            // public key is for, but it is worth knowing that this line has no other reader.
+            m.autocryptHeader?.let { append("${AutocryptHeader.NAME}: ${AutocryptHeader.fold(headerSafe(it))}\r\n") }
             append("MIME-Version: 1.0\r\n")
             // A pre-built entity (PGP/MIME, or a multipart/report receipt) replaces the whole
             // body construction — see [OutgoingMessage.prebuiltEntity].
