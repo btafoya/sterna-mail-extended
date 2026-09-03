@@ -461,6 +461,51 @@ class RemoteImagesTest {
     }
 
     /**
+     * The THIRD door the same blocking answer has to go through, and the one nothing here was
+     * watching: the printer. `ReaderBodyTest` pins how `showRemote` is DECIDED, `HEADER_WIRING`
+     * pins what the strip is handed, `BODY_WIRING` what the rendered page is handed — and none of
+     * them can see this line. [bodyCallLines] only starts reading at
+     * `is MessageState.Loaded -> ConversationBody(`, which sits LOWER in `MessageContent` than the
+     * print effect, so the print line is dropped before any comparison is made. It is read here
+     * off the whole composable instead, and as a WHOLE LINE.
+     *
+     * `blockRemote = false` — or the argument dropped for a default — is thirty seconds of
+     * "printing does not need the blocker". It sends every print and every "save as PDF" to the
+     * network for the sender's pictures, on a message she read with those pictures held back: he
+     * learns she opened it and gets her IP address, at the moment she is making a paper copy.
+     * `blockRemote = showRemote` is the same damage with the trust inverted — the refused
+     * sender's pictures fetched, the allowed one's held back.
+     */
+    @Test fun `the printer is handed the same blocking state as the screen`() {
+        val lines = block("private fun MessageContent(").lines().map { it.trim() }
+        assertEquals(
+            "MessageContent must build the printed document with the blocking state the SCREEN " +
+                "used, VERBATIM: `$PRINT_CALL_LINE`. Handed `blockRemote = false` (or no " +
+                "argument at all), every print and every save-as-PDF goes to the network for " +
+                "the sender's remote pictures — telling him she opened the message and handing " +
+                "him her IP — for a message whose pictures she never allowed on screen. Handed " +
+                "`showRemote`, the refused sender's pictures are fetched and the allowed one's " +
+                "are held back. ⛔ EVERY line naming the call is compared, not the ones that " +
+                "OPEN with it: a second print tucked after an `if` on the same line would send " +
+                "its own document to the network while a `startsWith` rule stayed green. No " +
+                "other rule in this class reads this line — bodyCallLines() starts at " +
+                "'$BODY_CALL_OPENING', which is below it in the same composable. What was found:",
+            listOf(PRINT_CALL_LINE),
+            lines.filter { "printDocument(" in it },
+        )
+        assertEquals(
+            "…and `printDocument(` may be named exactly TWICE in the whole file: this one call " +
+                "and its own declaration. The rule above reads MessageContent only, so a second " +
+                "print path opened anywhere else in this 4 900-line file — a \"print the whole " +
+                "conversation\" action, say — could be handed `blockRemote = false` and fetch " +
+                "the sender's pictures for a message whose pictures were held back, with that " +
+                "rule still green.",
+            2,
+            SOURCE.readText().lines().count { "printDocument(" in it },
+        )
+    }
+
+    /**
      * WHETHER the row is drawn at all — the condition no other rule in this class reads, and the
      * cheapest way left to bring the whole defect back.
      *
@@ -648,6 +693,14 @@ class RemoteImagesTest {
             "blockRemote = !showRemote",
             "plainText = plainText",
         )
+
+        /**
+         * The print call, whole. `blockRemote` is the third and last place the reader's answer
+         * about remote pictures has to be honoured, after the strip and the rendered page.
+         */
+        const val PRINT_CALL_LINE =
+            "printDocument(activity, doc, printJobName(header.subject, appName), " +
+                "blockRemote = !showRemote)"
 
         const val PRESENCE_LINE =
             "val imagesStrip = remember(full, plainText) { " +

@@ -57,6 +57,10 @@ class SendBodiesWiringTest {
      *
      * ⛔ Both call sites, because the forward path builds its own string: fixing one and leaving
      * the other means a plain reply is fine and a forwarded one is not.
+     *
+     * ⛔ And both as WHOLE LINES, the class promise this test did not keep: the forward's return
+     * was counted by its PREFIX, so removing the appended original from its tail left the count at
+     * one and the suite green.
      */
     @Test fun `the text alternative spells the list markers and the addresses out`() {
         val code = codeLines(COMPOSE_VIEW_MODEL.readText())
@@ -68,10 +72,17 @@ class SendBodiesWiringTest {
             code.filter { it.startsWith("val fwd = forwarded ?:") },
         )
         assertEquals(
-            "…and so must the forward's concatenation, which builds its own text alternative: " +
-                "exactly ONE line of this class opens with the marker-bearing form.",
-            1,
-            code.count { it.startsWith("return \"\${toPlainText(userBody)}") },
+            "…and so must the forward's concatenation, which builds its own text alternative — " +
+                "the WHOLE LINE, tail included. Drop `\\n\\n\${fwd.text}` from it and the text " +
+                "alternative of every forward carries only what was typed: the carried original " +
+                "gone from it, still there in the html beside it, so the sender's own copy looks " +
+                "whole and only a recipient reading the text part gets a forward with nothing " +
+                "forwarded. A prefix (or a `contains`) is blind to exactly that: the mutation " +
+                "touches nothing before the first closing brace.",
+            listOf(
+                "return \"\${toPlainText(userBody)}\\n\\n\${fwd.text}\" to \"\$html<br><br>\${fwd.html}\"",
+            ),
+            code.filter { it.startsWith("return \"\${toPlainText(userBody)}") },
         )
         assertEquals(
             "⛔ and NOT ONE `userBody.text` may be left in this class: it is the exact mutation " +
