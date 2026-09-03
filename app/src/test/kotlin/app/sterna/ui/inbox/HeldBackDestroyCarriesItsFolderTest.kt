@@ -336,12 +336,19 @@ class HeldBackDestroyCarriesItsFolderTest {
             body.indexOf("val ticked = tickedUnder") < body.indexOf("viewModelScope.launch"),
         )
         assertEquals(
-            "the field has exactly TWO writers and no third: the collector on the selection, so a " +
-                "new way of ticking a row cannot arrive without its stamp; and the give-back, " +
-                "which puts the stamps OF THE TICK back before the keys they belong to. A third " +
-                "writer is a stamp written at a moment nobody chose.",
+            "the field has exactly THREE writers and no fourth: the collector on the selection, so " +
+                "a new way of ticking a row cannot arrive without its stamp; and the two " +
+                "give-backs — the held-back destroy's and the cross-account move's — each of " +
+                "which puts the stamps OF THE TICK back before the keys they belong to. The two " +
+                "remaining lines are not writers at all: they are the NAMED ARGUMENT of the pure " +
+                "split, `tickedUnder = { ticked[...] }`, which reads the local copy taken at the " +
+                "gesture. A writer beyond these three is a stamp written at a moment nobody chose. " +
+                "Listed in file order: collector, destroy (argument, then give-back), " +
+                "cross-account move (argument, then give-back).",
             listOf(
                 "tickedUnder = (known + read).filterKeys { it in still }",
+                "tickedUnder = { ticked[it.emailKey()] },",
+                "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
                 "tickedUnder = { ticked[it.emailKey()] },",
                 "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
             ),
@@ -358,6 +365,56 @@ class HeldBackDestroyCarriesItsFolderTest {
                 "is thousands of database reads on a select-all",
             listOf("val numbering = repo.numberingRowsWereReadUnder(credentials, group.map { it.emailId })"),
             codeLinesNaming(bodyOf(INBOX_VIEW_MODEL, "rememberTickedNumbering"), "repo."),
+        )
+        // ⛔ LOADING THE STAMPS TAKES FOUR LINES, NOT ONE, and each of the four can be mutated
+        // while the other three keep their exact appearance: `repo.numberingRowsWereReadUnder(…)`
+        // READS, `read[key] = …` WRITES what was read, `val still = …` decides WHICH STAMPS
+        // SURVIVE the (suspending) read, and `tickedUnder = (known + read)…` PUBLISHES them. The
+        // assertion above pins the read; the three below pin the other three, and the existing
+        // `known` assertion pins the last.
+        //
+        // ⚠ What a broken load costs is IMAP mail, and IMAP mail only.
+        // `MailRepository.numberingRowsWereReadUnder` returns `emptyMap()` for anything that is
+        // not `MailProtocol.IMAP`, so a JMAP stamp is null already, and an absent stamp PASSES by
+        // construction (`UidValidity.destroyableUnderTheNumberingItWasTickedUnder`, which refuses
+        // only when two real numbers disagree). On IMAP the loss is whole: both #99 guards — the
+        // bulk delete's and the cross-account move's — lose the ability to refuse anything at all.
+        val remembered = bodyOf(INBOX_VIEW_MODEL, "rememberTickedNumbering")
+        // What the user loses if this line drops what it read (`read[key] = null`): every IMAP
+        // stamp is null, the bulk delete destroys a line swapped under the tick again, and the
+        // move between accounts sends it to the other account again — no Undo there to take it
+        // back — while the repository call above still reads word for word as it does today.
+        assertEquals(
+            "the numbering read for the new keys must be WRITTEN under each key: a stamp that is " +
+                "read and then discarded is no stamp at all, and both #99 guards then pass every " +
+                "IMAP row. Body was:\n$remembered",
+            listOf("group.forEach { key -> read[key] = numbering[key.emailId] }"),
+            codeLinesNaming(remembered, "read[key]"),
+        )
+        // ⛔ ONLY THE KEYS WITHOUT A STAMP ARE READ. `(fresh + keys)` compiles without a warning
+        // and inverts the rule this very test is named after: every already-stamped key is read
+        // again, `read` then carries TODAY's numbering, and `(known + read)` lets `read` win. The
+        // rows the split refused are handed straight back into `_selectedKeys` — the give-backs at
+        // the end of `deleteSelected` and of `moveSelectedToAccount` — so they return through this
+        // same collector and are re-stamped with the numbering of the renumbering itself. The
+        // second tap then destroys, or sends to the other account, exactly what the first tap
+        // saved: the guard would buy the user one tap.
+        assertEquals(
+            "only the keys that carry no stamp yet may be read: a re-read answers what the row " +
+                "carries NOW, which is the one value this field exists not to hold. " +
+                "Body was:\n$remembered",
+            listOf("fresh.groupBy { credentialsFor(it) }.forEach { (credentials, group) ->"),
+            codeLinesNaming(remembered, "groupBy"),
+        )
+        // ⛔ AND WHAT SURVIVES THE READ IS THE SELECTION AS IT IS NOW. The read above suspends, so
+        // the stamps are filtered on the keys still ticked when it comes back. Written as a
+        // constant — `emptySet()` — the field is emptied on every pass instead: no stamp survives,
+        // both guards pass everything on IMAP, and no call site anywhere looks different.
+        assertEquals(
+            "the stamps kept must be those of the keys STILL ticked when the read came back, off " +
+                "the flow and never a constant. Body was:\n$remembered",
+            listOf("val still = _selectedKeys.value"),
+            codeLinesNaming(remembered, "val still ="),
         )
         // ⛔ And it must read ONLY the keys it does not already hold. Re-reading a known key
         // answers what its row carries NOW — which is the value the whole field exists not to be —

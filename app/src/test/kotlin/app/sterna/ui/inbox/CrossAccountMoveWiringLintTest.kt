@@ -2,6 +2,7 @@ package app.sterna.ui.inbox
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -61,6 +62,179 @@ class CrossAccountMoveWiringLintTest {
             "moveSelectedTo() must route on isCrossAccountMove against the SELECTION's account. Body was:\n$many",
             listOf("if (isCrossAccountMove(targetAccountId, moveAccountId)) {"),
             codeLinesNaming(many, "isCrossAccountMove("),
+        )
+    }
+
+    /**
+     * ⛔ THE NUMBERING GUARD OF #99, CARRIED TO THE MOVE BETWEEN ACCOUNTS.
+     *
+     * An IMAP key is `imap:<account>:<folder>:<uid>` and carries nothing that says which numbering
+     * that UID belongs to. A server that renumbers the shifting way makes the next background pass
+     * `@Upsert` ANOTHER message's envelope under the exact text of a key that is already ticked:
+     * the tick does not move, the new message is on screen already selected without a gesture, and
+     * a tap on Move copies THAT message to account B and puts the original in A's Trash. There is
+     * no Undo on this path (A3), so the user loses the gesture entirely: mail she never pointed at
+     * is now in another account, and a message she may have wanted is in a bin she has to find.
+     *
+     * ⚠ Source lint, and only because `InboxViewModel` needs an `Application` and Room. The
+     * decision itself is EXECUTED elsewhere — `UidValidity.destroyableUnderTheNumberingItWasTickedUnder`
+     * is run by `DestroyOnlyWhatWasTickedTest`. What can only be read as text is the WIRING: where
+     * the stamp is captured, which rows the "now" side is built from, and what is done with the
+     * half the split refuses.
+     */
+    @Test fun `the move between accounts opposes the numbering the rows were ticked under`() {
+        val one = body(INBOX_VIEW_MODEL, "moveSelectedTo")
+        // What is lost if this line goes: nothing captures the stamp of the tick, the guard below
+        // has no earlier fact to oppose, and the swap is invisible again.
+        assertEquals(
+            "moveSelectedTo() must capture the stamps of the tick beside the keys. Body was:\n$one",
+            listOf("val ticked = tickedUnder"),
+            codeLinesNaming(one, "val ticked ="),
+        )
+        // What is lost if the capture moves INSIDE the launch: moveSelectedToAccount calls
+        // clearSelection() at its head, the collector on _selectedKeys empties the field, and the
+        // captured map is empty — the guard passes everything and the loss is back whole.
+        assertTrue(
+            "…and BEFORE viewModelScope.launch: read a suspension later it is either empty (the " +
+                "clearSelection() at the head of moveSelectedToAccount) or the numbering of the " +
+                "very renumbering it exists to refuse. Body was:\n$one",
+            one.indexOf("val ticked = tickedUnder") < one.indexOf("viewModelScope.launch"),
+        )
+        // ⛔ AND THE CAPTURE MUST BE HANDED ON. The capture above and the guard below are two
+        // halves that only meet on THIS line, and nothing else in the repository reads it: pass
+        // `emptyMap()` here — or drop the argument to a default — and the guard opposes an empty
+        // map to every row, refuses nothing ever, and the whole volet is decoration. The user
+        // loses exactly what the guard exists to save: a message she never pointed at is copied
+        // to account B and hers goes to A's bin, with no Undo on this path.
+        assertEquals(
+            "moveSelectedTo() must hand the STAMPS IT JUST CAPTURED down to the cross-account " +
+                "move — the local `ticked`, not an empty map and not a re-read. Body was:\n$one",
+            listOf("moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked)"),
+            codeLinesNaming(one, "moveSelectedToAccount("),
+        )
+
+        val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        val lines = many.lines().map { it.trim() }
+        val call = lines.indexOf("val split = UidValidity.destroyableUnderTheNumberingItWasTickedUnder(")
+        // What is lost if the cut is written inline here instead: a comparison no test can run,
+        // and a second copy of a rule that already has two callers.
+        assertTrue(
+            "the cut must go through the shared pure function, not a twin written here. " +
+                "Body was:\n$many",
+            call >= 0,
+        )
+        // What is lost if an argument changes: hand it the same map twice (`readUnderNow` fed from
+        // `ticked`, or `tickedUnder = { null }`) and it can never refuse anything, while every
+        // name in the call still reads exactly as it does here.
+        assertEquals(
+            "and its ARGUMENTS are the rule: the cached rows about to leave, the stamp of the " +
+                "TICK, and the stamp the row carries NOW. Body was:\n$many",
+            listOf(
+                "rows = emails.values.toList(),",
+                "tickedUnder = { ticked[it.emailKey()] },",
+                "readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },",
+                ")",
+            ),
+            lines.subList(call + 1, call + 5),
+        )
+        // What is lost if this becomes `repo.recordedUidValidity(...)`: the FOLDER's record is
+        // what a background pass realigns the moment it meets a renumbering, so the guard would
+        // oppose the new number to itself, agree, and licence the move it exists to refuse.
+        assertEquals(
+            "the 'now' side must be the per-ROW read, grouped per account. Body was:\n$many",
+            listOf("val now = recordedNumbering(crossAccountTargets)"),
+            codeLinesNaming(many, "recordedNumbering("),
+        )
+        // ⛔ AND THE ROWS IT READS ARE THE ROWS ABOUT TO MOVE. This line is one identifier away
+        // from reading some other list: `now` would then hold no entry for any row being moved,
+        // `readUnderNow` would answer null for every one of them, `drifted` would be empty by
+        // construction — a guard that can never refuse is a guard that is not there, and the call
+        // above would still read word for word as it does here.
+        assertEquals(
+            "the 'now' read must be built from the cached rows of the movable selection. " +
+                "Body was:\n$many",
+            listOf(
+                "val crossAccountTargets = emails.values.mapNotNull { e -> credentialsFor(e)?.let " +
+                    "{ Triple(it, e.id, e.mailboxId.orEmpty()) } }",
+            ),
+            codeLinesNaming(many, "crossAccountTargets ="),
+        )
+        // What is lost if the refused rows are attempted anyway: nothing at all is guarded — this
+        // is the one line that turns the split into a refusal. `repo.moveToAccount(` is already
+        // pinned to its single call site by the first test of this class, so the refusal cannot
+        // be routed around by a second call.
+        assertEquals(
+            "what the split refused must be answered with a Failed and never attempted: no copy " +
+                "on B, no Trash on A. Body was:\n$many",
+            listOf(
+                "val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
+                "if (key in refused) {",
+            ),
+            codeLinesNaming(many, "refused"),
+        )
+        // ⛔ AND THE WHOLE BODY OF THAT REFUSAL, `continue` INCLUDED. The two lines above say a
+        // Failed is recorded; they say nothing about what happens next. Drop the `continue` and
+        // the refused row is recorded as failed AND THEN MOVED ANYWAY — copied to B, original to
+        // A's Trash — while the banner counts it as a failure and the give-back puts it back
+        // under the tick: the screen would say the exact opposite of what the server did, and the
+        // data loss this volet exists to close would be back whole and invisible.
+        assertEquals(
+            "the refusal must RETURN: a Failed and then `continue`, never a Failed followed by " +
+                "the move it was supposed to prevent.",
+            listOf(
+                "if (key in refused) {",
+                "results += CrossAccountMove.Failed(\"renumbered since it was ticked: \${key.emailId}\")",
+                "continue",
+                "}",
+            ),
+            block(INBOX_VIEW_MODEL, "if (key in refused) {", 4),
+        )
+    }
+
+    /**
+     * What the split refused goes BACK under the user's eyes, still ticked, with the stamps of the
+     * tick — and the stamps first.
+     *
+     * Given back without their stamps, the collector on `_selectedKeys` sees keys it has never met,
+     * reads their numbering AS IT IS NOW, and the second tap on Move sends to B exactly what the
+     * first tap saved: the guard would buy one tap. Dropped altogether, the refused messages leave
+     * the selection in silence and the screen agrees with a half-done gesture that has no Undo.
+     */
+    @Test fun `what the cross-account move refused goes back into the selection, stamps first`() {
+        val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        assertEquals(
+            "the refused rows must go back into the selection, still ticked, WITH THE STAMPS THEY " +
+                "WERE TICKED UNDER. Body was:\n$many",
+            listOf(
+                "val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
+                "if (split.drifted.isNotEmpty()) {",
+                "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
+                "_selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
+            ),
+            codeLinesNaming(many, "split.drifted"),
+        )
+        // What is lost if the two lines swap: see above — the second tap moves what the first
+        // refused, and nothing on screen ever says so.
+        assertTrue(
+            "…and the stamps BEFORE the keys: nothing suspends between the two lines, which is " +
+                "the only reason the collector cannot slip in and re-read them. Body was:\n$many",
+            many.indexOf("tickedUnder = split.drifted.associate") <
+                many.indexOf("_selectedKeys.value = split.drifted"),
+        )
+        // What is lost without it: the keys are back but the selection bar is not, so there is
+        // nothing on screen to act on them with.
+        assertEquals(
+            "with the selection bar back up. Body was:\n$many",
+            listOf("_selectionActive.value = true"),
+            codeLinesNaming(many, "_selectionActive"),
+        )
+        // What is lost if it moves earlier: clearSelection() runs at the head of this body, so a
+        // re-selection written before the banner is wiped by the very gesture it belongs to.
+        assertTrue(
+            "⛔ and AFTER the banner, never before: clearSelection() is called at the head of " +
+                "this body. Body was:\n$many",
+            many.indexOf("val outcome = crossAccountBanner(results, skipped.size)") <
+                many.indexOf("if (split.drifted.isNotEmpty()) {"),
         )
     }
 

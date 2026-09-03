@@ -3176,6 +3176,13 @@ class InboxViewModel(
      */
     fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
         val keys = _selectedKeys.value
+        // The numbering each ticked row carried WHEN IT WAS TICKED, captured beside the keys and
+        // OUTSIDE the launch, exactly as [deleteSelected] does (#99) — everything below suspends,
+        // and a background pass landing in one of those suspensions is the event this opposes.
+        // ⛔ Not inside [moveSelectedToAccount]: that body calls clearSelection() at its head,
+        // which wakes the collector on _selectedKeys and empties the field, so a read taken there
+        // would race its own erasure and oppose nothing.
+        val ticked = tickedUnder
         viewModelScope.launch {
             // The picker offered the SELECTION's account folders (see [selectionMailboxes]), so the
             // move targets that account: a unified selection of a secondary account now lands in its
@@ -3186,7 +3193,7 @@ class InboxViewModel(
             val moveAccountId = selectionAccount(keys) ?: store.currentId()
             // Into another account's folder (#189): its own path, one message after the other.
             if (isCrossAccountMove(targetAccountId, moveAccountId)) {
-                moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId)
+                moveSelectedToAccount(keys, moveAccountId, requireNotNull(targetAccountId), targetMailboxId, ticked)
                 return@launch
             }
             val (movable, skipped) = keys.partition { it.accountId == moveAccountId }
@@ -3228,6 +3235,7 @@ class InboxViewModel(
         ownerAccountId: String?,
         targetAccountId: String,
         targetMailboxId: String,
+        ticked: Map<EmailKey, Long?>,
     ) {
         val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }
         clearSelection()
@@ -3238,12 +3246,35 @@ class InboxViewModel(
             return
         }
         val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }
+        // ⛔ THE HALF THAT CAN SEE A ROW SWAPPED UNDER A TICK, the one [deleteSelected] already
+        // carries (#99). `recordedNumbering` answers what each row about to leave carries NOW —
+        // per row, grouped per account. Opposed to the stamp of the tick, a disagreement means the
+        // line was replaced since the user pointed at it: same UID text, another message, and this
+        // move would copy it to B and put the original in A's bin, with no Undo to take it back.
+        // ⛔ Not the folder's own record: a background pass that met the renumbering has already
+        // realigned that one, and opposing it to itself licenses exactly what this refuses.
+        val crossAccountTargets = emails.values.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
+        val now = recordedNumbering(crossAccountTargets)
+        val split = UidValidity.destroyableUnderTheNumberingItWasTickedUnder(
+            rows = emails.values.toList(),
+            tickedUnder = { ticked[it.emailKey()] },
+            readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },
+        )
+        val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
         val results = ArrayList<CrossAccountMove>(movable.size)
         for (key in movable) {
             val source = credentialsFor(key)
             val email = emails[key]
             if (source == null || email == null) {
                 results += CrossAccountMove.Failed("no cached row for ${key.emailId}")
+                continue
+            }
+            // NOT ATTEMPTED: no copy on B, no Trash on A, and no search-result surgery either —
+            // the row on screen is not the row that was ticked. It counts as a failure, which is
+            // the verdict crossAccountBanner already turns into the existing partial-failure line;
+            // no new sentence, no ninth translation.
+            if (key in refused) {
+                results += CrossAccountMove.Failed("renumbered since it was ticked: ${key.emailId}")
                 continue
             }
             dropSearchResults(setOf(key))
@@ -3277,6 +3308,22 @@ class InboxViewModel(
                 _message.value = app.getString(checkNotNull(crossAccountSelectionFailedRes(outcome)))
         }
         if (results.any { it is CrossAccountMove.Failed }) refresh()
+        // ⛔ LAST, after the banner and never before it: clearSelection() runs at the head of this
+        // body, so a re-selection written earlier would be wiped by the gesture it belongs to.
+        // What was refused goes back under the user's eyes, still ticked — a move that quietly
+        // dropped part of a selection would be a lie the screen agrees with, and this path has no
+        // Undo to correct it with.
+        if (split.drifted.isNotEmpty()) {
+            // ⛔ THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector on
+            // _selectedKeys only reads keys it does not already know, so stamps written AFTER the
+            // keys — or not at all — leave it looking at rows it has never seen: it reads their
+            // numbering AS IT IS NOW, the second tap on Move compares the new number with itself,
+            // agrees, and sends to B exactly what this refusal just saved. Nothing suspends
+            // between these two lines, which is what makes the order enough.
+            tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }
+            _selectionActive.value = true
+            _selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
+        }
     }
 
     /**
