@@ -911,6 +911,63 @@ internal fun rawSourceBytes(emailId: String, raw: String): ByteArray {
 }
 
 /**
+ * An attachment's octets never came back: zero of them. The measured producer is IMAP — the UID
+ * destroyed server-side between opening the message and the Save tap, so `UID FETCH <uid>
+ * (BODY.PEEK[<section>])` answers OK with no untagged `FETCH` line at all. `ImapClient.fetchSection`
+ * (ImapClient.kt:1175-1176) reads that answer through `bodyItem()`, whose four early returns hand
+ * back "" for a FETCH carrying no body item (ImapClient.kt:1267-1274), and `MimeParser.decodeBytes`
+ * turns "" into an empty `ByteArray` WITHOUT throwing (MimeParser.kt:388-394), on every branch.
+ *
+ * ⭐ `isEmpty()`, and deliberately NOT the blank-equivalent its neighbour [sourceCouldNotBeRead]
+ * uses. The two judge different things. A source is a MESSAGE: one made of nothing but whitespace
+ * carries no header and no address, so it is not a message either, whoever produced it. An
+ * attachment is a stream of arbitrary octets — a PDF, a photo, a fixed-width export padded with
+ * spaces — and there is no content in it this code can judge. So the absence of octets is refused
+ * and nothing else is: a file of nothing but spaces IS a file, and would have to keep saving.
+ *
+ * ⛔ And no size is compared here. "Too large" is a different answer with a sentence of its own
+ * (`DownloadLimits.enforce` / `status_attachment_too_large`), and a short attachment is not a
+ * broken one — a 12-byte text file is exactly 12 bytes.
+ */
+internal fun attachmentCouldNotBeRead(bytes: ByteArray): Boolean = bytes.isEmpty()
+
+/**
+ * Refuse to hand on an attachment that [attachmentCouldNotBeRead] — the twin of [rawSourceBytes],
+ * for the octets of one part rather than of a whole message.
+ *
+ * ⛔ Why it throws instead of letting zero bytes past: a 0-byte `rapport.pdf` in her Downloads
+ * LOOKS like a saved attachment, it carries the real name she chose, and the save path announces
+ * `message_export_saved` with that name on the very next line. She would leave believing she has
+ * the file.
+ *
+ * ⚠ `MessageUnavailableException` is reused for ONE wiring reason, and the wiring is what makes it
+ * true: both save paths route their catch through `readFailureStringRes`
+ * (MessageViewModel.kt:408-416), which maps this exception to `status_message_unavailable` —
+ * already translated into the nine languages, so this adds no string and no translation. ⛔ Without
+ * that mapping the text below does NOT stay technical: `saveAttachment` interpolates `t.message`
+ * raw into `status_save_attachment_failed`, and a French reader would get this English sentence,
+ * the part key and the message id on her screen — precisely what #159 forbids
+ * (MessageViewModel.kt:399-402). The wording here stays technical and English BECAUSE it is meant
+ * for logcat and a bug report, never for the screen.
+ *
+ * ⭐ It answers `Unit` and not the bytes: unlike [rawSourceBytes] there is nothing to CONVERT here,
+ * the caller already holds the `ByteArray` it downloaded.
+ *
+ * ⭐ Public, unlike its two neighbours, and for the same reason `attachmentFileName` is: its one
+ * caller is `MessageViewModel.saveAttachment`, which lives in `:app`, and Kotlin's `internal` does
+ * not cross a Gradle module boundary (no friend paths in this build). ⛔ Narrowed back to
+ * `internal`, `:app` stops compiling — a build failure, loud and immediate, not a silent
+ * regression. That is the cheap failure mode, and it is the reason nothing here needs a test.
+ *
+ * Pure, so a test executes it.
+ */
+fun requireAttachmentBytes(emailId: String, partKey: String, bytes: ByteArray) {
+    if (attachmentCouldNotBeRead(bytes)) {
+        throw MessageUnavailableException("Attachment $partKey of $emailId came back empty; the server did not give us the bytes.")
+    }
+}
+
+/**
  * Run [stage] — persisting an outbox item's payload/attachments after its row is already inserted —
  * and, if it throws, [rollback] the just-inserted row before the error propagates. A staging
  * failure must leave NO row behind: an orphan (inserted with attachmentsJson "[]") would be

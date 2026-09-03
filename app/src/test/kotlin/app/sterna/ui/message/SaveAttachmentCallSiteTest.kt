@@ -42,6 +42,67 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
+     * ⛔ And they are REFUSED when there are none of them. `MimeParser.decodeBytes("", …)` answers a
+     * zero-length ByteArray without throwing (MimeParser.kt:388-394), and its "" is what
+     * `ImapClient.bodyItem()` yields whenever a `UID FETCH (BODY.PEEK[…])` came back OK with no
+     * untagged FETCH at all — measured on the test server for a UID destroyed server-side between
+     * opening the message and the Save tap. Unguarded, `openOutputStream(…, "wt")` truncates the
+     * picked document to nothing and the next line announces `message_export_saved` with its name:
+     * she leaves with a 0-byte `rapport.pdf` she believes is her attachment, and no toast ever
+     * hinted otherwise. The DECISION is EXECUTED next door in core/data by
+     * `AttachmentCouldNotBeReadTest`; what nothing else can see is whether this call site still
+     * asks it, with the right ARGUMENTS, and EARLY ENOUGH.
+     */
+    @Test fun `zero bytes are refused instead of written and announced as saved`() {
+        val body = saveAttachmentBody()
+        assertEquals(
+            "saveAttachment must ask requireAttachmentBytes about the bytes it just downloaded, " +
+                "naming the message and the part the picker was launched for — the two keys a bug " +
+                "report has to be able to quote. Lines found:",
+            listOf("requireAttachmentBytes(ownerId, partKey, bytes)"),
+            body.filter { "requireAttachmentBytes" in it },
+        )
+        val download = body.indexOf("val bytes = repo.downloadAttachment(credentials, part, ownerId)")
+        val guard = body.indexOf("requireAttachmentBytes(ownerId, partKey, bytes)")
+        val write = body.indexOf("withContext(Dispatchers.IO) {")
+        assertTrue("the download must still be in saveAttachment: $body", download >= 0)
+        assertTrue("the write must still be in saveAttachment: $body", write >= 0)
+        assertTrue(
+            "the refusal must sit BETWEEN the download and the write (download at $download, " +
+                "refusal at $guard, write at $write): below the write, her document has already " +
+                "been truncated to zero bytes when the refusal fires, and `discardDocument` " +
+                "runCatchings its deletion — a provider that cannot delete then leaves behind " +
+                "exactly the 0-byte file this guard exists to prevent.",
+            guard in (download + 1) until write,
+        )
+    }
+
+    /**
+     * ⛔ THE hole every trimmed-line assertion is blind to: wrapping the refusal in an
+     * `if (…) { … }` leaves it word for word where it is, one level deeper, and disarms it.
+     * [saveAttachmentBody] trims, so nesting is invisible to it by construction, and the rank
+     * assertion above would still read the same order. Indentation is the only witness — and it is
+     * compared to the DOWNLOAD's and the WRITE's own indentation, never to a literal count of
+     * spaces: a reformat of the whole function must not turn this red, only a change of block must.
+     */
+    @Test fun `the refusal sits in the same block as the download and the write`() {
+        val raw = saveAttachmentRawLines()
+        val refusal = indentOf(raw, "requireAttachmentBytes(ownerId, partKey, bytes)")
+        assertEquals(
+            "same indentation as the download means same block: nested inside an `if (…) { … }` " +
+                "the refusal reads identically, every trimmed-line assertion stays green, and it " +
+                "fires on nothing",
+            indentOf(raw, "val bytes = repo.downloadAttachment(credentials, part, ownerId)"),
+            refusal,
+        )
+        assertEquals(
+            "…and the same indentation as the write it stands in front of",
+            indentOf(raw, "withContext(Dispatchers.IO) {"),
+            refusal,
+        )
+    }
+
+    /**
      * ⛔ And they never touch the app's cache on the way. `storage.cacheAttachment` belongs to the
      * OPEN path, which needs a file it can hand to a viewer app; saving needs no such file. Routed
      * through it, every attachment she saves would also exist as a second copy inside the app,
@@ -164,6 +225,87 @@ class SaveAttachmentCallSiteTest {
     }
 
     /**
+     * ⛔ THE mutation that pinning the NUMBER of discards cannot see, and the worst one on this
+     * path. A FOURTH catch, slipped in just above the general one:
+     *
+     *     } catch (t: MessageUnavailableException) {
+     *         _actionStatus.value = getApplication<Application>()
+     *             .getString(R.string.message_export_saved, proposedName)
+     *
+     * It compiles. The four discards and the eight are still four and eight, the refusal's own line
+     * and its indentation are untouched, so every other assertion in this file stays green — and
+     * she is handed the whole defect back: the 0-byte `rapport.pdf` stays in her Downloads, under a
+     * toast that says "Saved as rapport.pdf". What closes it is not a count but a PAIRING — the
+     * exact list of catch clauses, and a success announcement that lives outside every one of them.
+     */
+    @Test fun `no fourth catch turns a refusal back into an announced save`() {
+        val body = saveAttachmentBody()
+        assertEquals(
+            "saveAttachment must carry exactly these three catch clauses, in this order: " +
+                "cancellation first (not a failure, and rethrown), then our own too-large refusal " +
+                "with its own sentence, then everything else — which discards and reports. A " +
+                "fourth clause is a way out that answers the user without either. Lines found:",
+            listOf(
+                "} catch (cancelled: CancellationException) {",
+                "} catch (t: ContentTooLargeException) {",
+                "} catch (t: Throwable) {",
+            ),
+            body.filter { it.startsWith("} catch (") },
+        )
+        val announcements = body.filter { "message_export_saved" in it }
+        assertEquals(
+            "saveAttachment must announce a save in exactly ONE place, and it is the line after " +
+                "the write. Lines found:",
+            listOf("_actionStatus.value = getApplication<Application>().getString(R.string.message_export_saved, name)"),
+            announcements,
+        )
+        val announced = body.indexOf(announcements.first())
+        val firstCatch = body.indexOfFirst { it.startsWith("} catch (") }
+        assertTrue("saveAttachment must still catch something at all: $body", firstCatch >= 0)
+        assertTrue(
+            "the save must be announced BEFORE the first catch (announced at $announced, first " +
+                "catch at $firstCatch). An announcement emitted from INSIDE a catch says " +
+                "\"Saved as rapport.pdf\" about a save that just failed — that is the defect " +
+                "itself, not an edge of it.",
+            announced in 0 until firstCatch,
+        )
+    }
+
+    /**
+     * ⛔ And the general catch does not put the exception's own English on her screen. The message
+     * `requireAttachmentBytes` raises names the part key and the message id, in English, for a bug
+     * report — interpolated raw into `status_save_attachment_failed` it reads, in French,
+     * "Impossible d'enregistrer la pièce jointe : Attachment 2.1 of M8fa4… came back empty", which
+     * is exactly what the #159 doctrine at the top of this file forbids. `readFailureStringRes` is
+     * the wiring that maps it to the already-translated `status_message_unavailable`, and
+     * `exportSource` — the twin this path copies — has consulted it all along.
+     */
+    @Test fun `the failure sentence is translated before the exception's own text is used`() {
+        val body = saveAttachmentBody()
+        assertEquals(
+            "saveAttachment's general catch must consult readFailureStringRes BEFORE falling back " +
+                "on the exception's raw text, exactly as exportSource's catch does. Lines found:",
+            listOf("_actionStatus.value = readFailureStringRes(t)?.let { getApplication<Application>().getString(it) }"),
+            body.filter { "readFailureStringRes" in it },
+        )
+        val mapped = body.indexOfFirst { "readFailureStringRes" in it }
+        val raw = body.indexOfFirst { "status_save_attachment_failed" in it }
+        assertTrue("the raw fallback must still exist for everything else: $body", raw >= 0)
+        assertTrue(
+            "the mapping must come BEFORE the raw fallback (mapped at $mapped, raw at $raw): " +
+                "after it, the English text wins and the translation is never reached.",
+            mapped in 0 until raw,
+        )
+        assertEquals(
+            "…and the too-large refusal keeps its OWN sentence: a refusal of SIZE is not a missing " +
+                "octet, and its catch stays ahead of the general one so it never reaches the " +
+                "mapping. Lines found:",
+            listOf("_actionStatus.value = getApplication<Application>().getString(R.string.status_attachment_too_large)"),
+            body.filter { "status_attachment_too_large" in it },
+        )
+    }
+
+    /**
      * The screen's half. The picker is registered with a wildcard type, ONCE (the contract freezes
      * its type at registration, so a per-part type would need a recomposition between the tap and
      * `launch()`); the name it proposes goes through `attachmentFileName`, which is what carries
@@ -249,6 +391,18 @@ class SaveAttachmentCallSiteTest {
      * level. Fails loudly when the function is gone rather than passing on an empty list.
      */
     private fun saveAttachmentBody(): List<String> {
+        val body = codeLines(saveAttachmentRawLines().joinToString("\n"))
+        assertTrue("saveAttachment must have a body", body.isNotEmpty())
+        return body
+    }
+
+    /**
+     * The same span, RAW — indentation intact. A sibling of [saveAttachmentBody] rather than a
+     * second span of its own: every assertion above compares TRIMMED lines, and the one assertion
+     * that has to read the leading spaces would be defeated by that trim. Both views read this,
+     * so they cannot drift onto different spans.
+     */
+    private fun saveAttachmentRawLines(): List<String> {
         val lines = viewModel().readText().lines()
         val start = lines.indexOfFirst {
             it.trim().startsWith("fun saveAttachment(uri: Uri, proposedName: String, ownerId: String, partKey: String)")
@@ -259,9 +413,17 @@ class SaveAttachmentCallSiteTest {
         // discardDocument`, and a narrower marker runs the body straight past the end of it.
         val end = rest.indexOfFirst { it.startsWith("    fun ") || it.startsWith("    private ") }
             .let { if (it < 0) rest.size else it }
-        val body = codeLines(rest.take(end).joinToString("\n"))
-        assertTrue("saveAttachment must have a body", body.isNotEmpty())
-        return body
+        return rest.take(end)
+    }
+
+    /** The leading spaces of the one line of [raw] that trims to [needle]. */
+    private fun indentOf(raw: List<String>, needle: String): String {
+        val line = raw.firstOrNull { it.trim() == needle }
+        assertTrue(
+            "saveAttachment must still carry the line `$needle`. Lines found: ${raw.map { it.trim() }}",
+            line != null,
+        )
+        return line.orEmpty().takeWhile { it == ' ' }
     }
 
     /** [text]'s lines, trimmed, comment-only lines dropped. */

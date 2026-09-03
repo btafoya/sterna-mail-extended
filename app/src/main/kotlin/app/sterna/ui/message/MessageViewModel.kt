@@ -9,6 +9,7 @@ import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.MessageUnavailableException
+import app.sterna.core.data.mail.requireAttachmentBytes
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.imap.CryptoKind
 import androidx.lifecycle.AndroidViewModel
@@ -964,6 +965,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 val credentials = credentials()
                     ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
                 val bytes = repo.downloadAttachment(credentials, part, ownerId)
+                requireAttachmentBytes(ownerId, partKey, bytes)
                 withContext(Dispatchers.IO) {
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
                         ?: error("no output stream")
@@ -986,8 +988,16 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 _actionStatus.value = getApplication<Application>().getString(R.string.status_attachment_too_large)
             } catch (t: Throwable) {
                 discardDocument(uri)
-                _actionStatus.value = getApplication<Application>()
-                    .getString(R.string.status_save_attachment_failed, t.message ?: "error")
+                // ⛔ [readFailureStringRes] FIRST, exactly as exportSource's own catch does. The
+                // sentence below interpolates `t.message` raw, and the message an unavailable part
+                // carries names the part key and the message id in English (#159, the doctrine at
+                // the top of this file): on a French screen that reads "Impossible d'enregistrer la
+                // pièce jointe : Attachment 2.1 of M8fa4… came back empty". Mapped, she gets
+                // status_message_unavailable, already translated into the nine languages.
+                // Everything else keeps its own text.
+                _actionStatus.value = readFailureStringRes(t)?.let { getApplication<Application>().getString(it) }
+                    ?: getApplication<Application>()
+                        .getString(R.string.status_save_attachment_failed, t.message ?: "error")
             }
         }
     }
