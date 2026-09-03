@@ -45,6 +45,7 @@ import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.draftHtmlIsLossy
@@ -123,6 +124,16 @@ data class DraftFields(
      * REMOVED, and the next save writes that removal.
      */
     val bodyBlocks: List<Block> = emptyList(),
+    /**
+     * The links [body] carries (#131) — beside the spans and the blocks, and for the same reason.
+     *
+     * ⛔ And this one is the sharpest of the three. Since the parser accepts an anchor, a draft
+     * holding a link is judged REPRODUCIBLE (`draftHtmlIsLossy`), so the next save DESTROYS the
+     * server original and writes this composer's answer in its place. A route that reopens such a
+     * body and drops the links does not merely show a message with its addresses removed: it
+     * replaces the only copy that still had them.
+     */
+    val bodyLinks: List<Link> = emptyList(),
     /** Reveal the Cc/Bcc row (used when restoring a draft that had them). */
     val expand: Boolean = false,
     /**
@@ -1388,6 +1399,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // its bold removed, and the re-send delivers the removal.
                     bodyRanges = d.bodyRanges,
                     bodyBlocks = d.bodyBlocks,
+                    bodyLinks = d.bodyLinks,
                     expand = d.cc.isNotBlank() || d.bcc.isNotBlank(),
                     // The box comes back ticked for a message that asked for a receipt (#70): this
                     // composer will enqueue a NEW row, so a clear box here cancels the request.
@@ -1884,6 +1896,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // (`localDraftPrefill` reads the html part first and falls back to the text column).
             bodyRanges = fields.bodyRanges,
             bodyBlocks = fields.bodyBlocks,
+            bodyLinks = fields.bodyLinks,
             expand = fields.expand,
         )
         _attachments.value = fields.attachments
@@ -2478,6 +2491,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     // original appended and would not parse back (#131).
                     bodyRanges = body.ranges,
                     bodyBlocks = body.blocks,
+                    bodyLinks = body.links,
                     fromAccountId = _selectedFrom.value?.accountId,
                     fromIdentityEmail = identity?.email,
                     attachments = attachments, inReplyTo = replyTo, references = refs,
@@ -2865,7 +2879,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)
                 .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
             val outcome = repo.saveDraft(
-                credentials, recipients, subject, body.text,
+                // ⛔ `toPlainText(body)` and never `body.text` (#131): the text part is the
+                // alternative a client with no HTML shows, and it is the ONE plain-text answer the
+                // send already uses (`bodiesForSend`). `body.text` here stores a draft whose text
+                // part has the list markers nowhere and every URL missing, while the message built
+                // from the same body has both — one body saying two different things.
+                credentials, recipients, subject, toPlainText(body),
                 // ⛔ The styling as a SECOND part, decided by the one pure function every route
                 // uses (`draftHtmlToSave`): null for a body with no styling, so a plain draft is
                 // stored, uploaded and appended exactly as it was before #131. ⛔ NOT
@@ -2880,6 +2899,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 attachments = _attachments.value,
                 bodyIsLossy = editingDraftLossy,
                 composerBodyWasLost = composerBodyWasLost,
+                // ⛔ The emptiness travels APART from the text, because the text no longer answers
+                // it: `toPlainText(body)` of an empty body carrying one bullet is `"- "`, which is
+                // not blank. Judged there, the lost-body guard stands down and `"- "` is written
+                // over the only copy of a local draft. `body.text` is what the user TYPED — the
+                // same string `hasDraftContent` and `lostBodySaveDestroysQueuedRow` above read.
+                typedBodyIsBlank = body.text.isBlank(),
                 fromName = identity?.name, fromEmail = identity?.email,
                 requestReceipt = requestReceipt,
             )

@@ -58,7 +58,7 @@ class SendBodiesWiringTest {
      * ⛔ Both call sites, because the forward path builds its own string: fixing one and leaving
      * the other means a plain reply is fine and a forwarded one is not.
      */
-    @Test fun `the text alternative spells the list markers out`() {
+    @Test fun `the text alternative spells the list markers and the addresses out`() {
         val code = codeLines(COMPOSE_VIEW_MODEL.readText())
 
         assertEquals(
@@ -79,6 +79,40 @@ class SendBodiesWiringTest {
                 "screen.",
             emptyList<String>(),
             code.filter { "userBody.text" in it },
+        )
+    }
+
+    /**
+     * ⭐ THE SAME ANSWER FOR THE DRAFT (#131), and it is a different call site: `saveDraft` takes
+     * the text part as its own argument, and it said `body.text` until the links landed.
+     *
+     * ⛔ A draft stored with `body.text` is one whose text part has the list markers nowhere and
+     * every URL missing, while the html part beside it — `draftHtmlToSave(body)`, on the very same
+     * body — carries both. One body, two parts, two different messages: whichever part the next
+     * reader takes decides what the draft says. And on a reopen the text part is the FALLBACK, so
+     * the drift is not even stable.
+     */
+    @Test fun `the draft save stores the same plain-text answer as the send`() {
+        val code = codeLines(COMPOSE_VIEW_MODEL.readText())
+
+        assertEquals(
+            "BOTH calls that open `credentials, recipients, subject, …` are pinned here, in " +
+                "source order: the SEND's enqueue, which is handed the `textBody` " +
+                "`bodiesForSend` built, and the draft save, which must be handed " +
+                "`toPlainText(body)`. Pinning only the second would let the first be the one " +
+                "that answers this rule.",
+            listOf(
+                "credentials, recipients, subject, textBody, replyTo, refs,",
+                "credentials, recipients, subject, toPlainText(body),",
+            ),
+            code.filter { it.startsWith("credentials, recipients, subject,") },
+        )
+        assertEquals(
+            "⛔ …so exactly THREE lines of this class may name `toPlainText(`: the send's two " +
+                "arms and the draft save. Fewer means one of them writes a different message " +
+                "about the same body; more means a fourth answer nothing here decides.",
+            3,
+            code.count { "toPlainText(" in it },
         )
     }
 
@@ -119,6 +153,18 @@ class SendBodiesWiringTest {
                 "message the composer shows differently from the one that was sent.",
             listOf("bodyBlocks = d.bodyBlocks,"),
             code.filter { it.startsWith("bodyBlocks = d.bodyBlocks") },
+        )
+        assertEquals(
+            "…and its LINKS, off that same composer state: dropped, undoing a send hands back a " +
+                "message whose addresses have been REMOVED, and the re-send delivers the removal.",
+            listOf("bodyLinks = body.links,"),
+            code.filter { it.startsWith("bodyLinks = body.links") },
+        )
+        assertEquals(
+            "…the links likewise on prepare()'s restore branch — ROUTE 4 OF 4, and the only one " +
+                "of the four whose record never touches a disk, so nothing else can see it.",
+            listOf("bodyLinks = d.bodyLinks,"),
+            code.filter { it.startsWith("bodyLinks = d.bodyLinks") },
         )
     }
 

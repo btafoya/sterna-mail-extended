@@ -3,6 +3,7 @@ package app.sterna.send
 import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.richBodyFrom
 import app.sterna.core.jmap.model.EmailBodyPart
@@ -43,6 +44,11 @@ class SendOutbox(private val scope: CoroutineScope) {
          * a message with none — every message queued before this lot, and every flat one since.
          */
         val bodyBlocks: List<Block> = emptyList(),
+        /**
+         * The links [body] carries (#131), beside the spans and the blocks and for the same
+         * reasons. Empty is the honest answer for a message that has none.
+         */
+        val bodyLinks: List<Link> = emptyList(),
         val fromAccountId: String?,
         val fromIdentityEmail: String?,
         val attachments: List<EmailBodyPart>,
@@ -176,6 +182,7 @@ internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.Compo
         body = rich.text,
         bodyRanges = rich.ranges,
         bodyBlocks = rich.blocks,
+        bodyLinks = rich.links,
         fromAccountId = draft.fromAccountId,
         fromIdentityEmail = draft.fromEmail,
         attachments = draft.attachments,

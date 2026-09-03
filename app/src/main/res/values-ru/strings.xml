@@ -29,6 +29,14 @@
     <string name="compose_format_list_bulleted">Маркированный список</string>
     <string name="compose_format_list_numbered">Нумерованный список</string>
     <string name="compose_format_clear">Убрать форматирование</string>
+    <string name="compose_format_link">Ссылка</string>
+    <string name="compose_link_title">Ссылка</string>
+    <string name="compose_link_url">Адрес</string>
+    <string name="compose_link_text">Текст</string>
+    <string name="compose_link_bad_url">Введите веб-адрес (http, https) или почтовый адрес в виде mailto:kto-to@example.org</string>
+    <string name="compose_link_remove">Убрать ссылку</string>
+    <string name="compose_link_apply">ОК</string>
+    <string name="compose_link_cancel">Отмена</string>
     <string name="compose_quote_attribution">%1$s, %2$s написал(а):</string>
     <string name="compose_quote_someone">кто-то</string>
     <string name="compose_quote_not_added">Цитата не добавлена: вы уже начали писать.</string>

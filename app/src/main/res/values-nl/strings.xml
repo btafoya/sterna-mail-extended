@@ -29,6 +29,14 @@
     <string name="compose_format_list_bulleted">Lijst met opsommingstekens</string>
     <string name="compose_format_list_numbered">Genummerde lijst</string>
     <string name="compose_format_clear">Opmaak wissen</string>
+    <string name="compose_format_link">Link</string>
+    <string name="compose_link_title">Link</string>
+    <string name="compose_link_url">Adres</string>
+    <string name="compose_link_text">Tekst</string>
+    <string name="compose_link_bad_url">Voer een webadres (http, https) in, of een mailadres als mailto:iemand@example.org</string>
+    <string name="compose_link_remove">Link verwijderen</string>
+    <string name="compose_link_apply">OK</string>
+    <string name="compose_link_cancel">Annuleren</string>
     <string name="compose_quote_attribution">Op %1$s schreef %2$s:</string>
     <string name="compose_quote_someone">iemand</string>
     <string name="compose_quote_not_added">Geciteerd bericht niet toegevoegd: je was al begonnen met schrijven.</string>

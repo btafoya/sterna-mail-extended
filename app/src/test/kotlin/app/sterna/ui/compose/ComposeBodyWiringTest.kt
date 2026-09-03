@@ -30,13 +30,13 @@ class ComposeBodyWiringTest {
                 "text, the bar lights up and nothing typed is bold.",
         )
         assertPinned(
-            "val current = RichBody(body.text, ranges, blocks)",
+            "val current = RichBody(body.text, ranges, blocks, links)",
             "`onValueChange`, `onToggle`, `onToggleList` and `onClear` each rebuild the body from " +
-                "the live `body.text`, `ranges` AND `blocks` at the top of the callback, and " +
-                "nothing else does. ⛔ `RichBody(body.text, ranges)` there compiles on the block " +
-                "parameter's default: every keystroke would then remap a body that has no list, " +
+                "the live `body.text`, `ranges`, `blocks` AND `links` at the top of the callback, " +
+                "and nothing else does. ⛔ `RichBody(body.text, ranges)` there compiles on the " +
+                "defaults: every keystroke would then remap a body that has no list and no link, " +
                 "and `onToggleList` would toggle one onto an empty slate — the list on screen is " +
-                "erased by the very next character typed.",
+                "erased by the very next character typed, and so is every address.",
             times = 4,
         )
     }
@@ -50,7 +50,7 @@ class ComposeBodyWiringTest {
      * `remapAfterEdit(` call instead of the shared `remapped` is the other shape: the same edit
      * diffed twice, two answers, and nothing says which one the screen took.
      */
-    @Test fun `the one remap hands back both the styling and the blocks`() {
+    @Test fun `the one remap hands back the styling, the blocks and the links`() {
         assertPinned(
             "ranges = remapped.ranges",
             "the remap's spans must be taken off the SHARED answer.",
@@ -59,6 +59,13 @@ class ComposeBodyWiringTest {
             "blocks = remapped.blocks",
             "…and its blocks, off that same answer — dropped, a list survives exactly until the " +
                 "next character is typed.",
+        )
+        assertPinned(
+            "links = remapped.links",
+            "…and its LINKS, off that same answer again. ⛔ Dropped, every link of the body dies " +
+                "on the very next keystroke while the styling survives: `remapAfterEdit` is " +
+                "executed by `RichBodyLinkTest` and still answers the right links, so the suite " +
+                "stays green, the address is gone from the message, and nothing on screen says so.",
         )
         assertEquals(
             "exactly ONE call of `remapAfterEdit(` in $SCREEN: the edit is diffed once.",
@@ -133,6 +140,91 @@ class ComposeBodyWiringTest {
             "…and on the baseline, or a reopened list counts as an edit the moment it opens and " +
                 "the leave guard asks about changes nobody made.",
         )
+        assertPinned(
+            "links = it.bodyLinks",
+            "the prefill's LINKS must land the same way — and this is the sharpest of the three. " +
+                "Since the parser accepts an anchor, a draft that carries one is judged " +
+                "REPRODUCIBLE (`draftHtmlIsLossy`), so the next save expunges the server " +
+                "original. `emptyList()` here does not merely show a message with its addresses " +
+                "removed: it destroys the only copy that still had them.",
+        )
+        assertPinned(
+            "baselineLinks = it.bodyLinks",
+            "…and on the baseline, or a draft that merely carries a link counts as edited the " +
+                "moment it opens.",
+        )
+    }
+
+    /**
+     * (d bis) The bar's link button, and the dialog's answer coming back.
+     *
+     * `linkApplied` and `linkDialogFields` are EXECUTED by [LinkDialogTest]; that the button is
+     * lit by the same answer the dialog opens on, and that the dialog's body reaches the editor
+     * whole, is visible nowhere but here.
+     */
+    @Test fun `the link button is lit by linkAt, and opens the dialog`() {
+        assertPinned(
+            "linkActive = linkAt(rich, span(body.selection)) != null,",
+            "the button's lit state must be `linkAt`'s answer on the LIVE body at the caret — the " +
+                "very answer the dialog itself opens on (`linkDialogFields`). Anything else and " +
+                "the button says one thing while the dialog offers another.",
+        )
+        assertPinned(
+            "onLink = { linkDialog = true },",
+            "…and the button must do nothing but open the dialog: a link carries an address, so " +
+                "it cannot be toggled on the spot like a family.",
+        )
+    }
+
+    /** (d ter) The dialog is composed on the LIVE selection — one mutation, one test. */
+    @Test fun `the dialog is composed on the live selection`() {
+        assertPinned(
+            "selection = span(body.selection),",
+            "⛔ the dialog is handed the LIVE selection. `span(TextRange(0))` there compiles and " +
+                "reads tidy: selecting a word and putting a link on it would then insert the " +
+                "label at offset 0 instead of linking what is selected, and the dialog would " +
+                "open on whatever link happens to sit at the top of the body.",
+        )
+    }
+
+    /** (d quater) The caret moves by exactly what was inserted — its DEFINITION, on its own line. */
+    @Test fun `the caret moves by exactly what the dialog inserted`() {
+        assertPinned(
+            "val inserted = applied.text.length - rich.text.length",
+            "⛔ and this is the DEFINITION of the caret's shift, pinned apart from its use on the " +
+                "next line. `val inserted = 0` leaves that next line LITERALLY UNCHANGED, so a " +
+                "rule that only pinned the expression stays green while the caret falls back to " +
+                "the start of the label just inserted and the next letter typed lands before it.",
+        )
+        assertPinned(
+            "body = TextFieldValue(applied.text, TextRange(body.selection.max + inserted))",
+            "…and the use of it: the new text and a caret moved past what was inserted must both " +
+                "land, out of the body OK gave back.",
+        )
+    }
+
+    /** (d quinquies) …and the body OK gave back lands whole: styling, blocks and links. */
+    @Test fun `the dialog's answer lands on the styling, the blocks and the links`() {
+        assertPinned(
+            "ranges = applied.ranges",
+            "⛔ and the styling with it. Dropped, the text grows by N characters while the spans " +
+                "stay where they were: normalisation CLAMPS them instead of shifting them, so " +
+                "every bold and italic after the insertion point slides N characters to the left " +
+                "— on screen and into the next save.",
+        )
+        assertPinned(
+            "blocks = applied.blocks",
+            "…and the blocks: `setLink` inserts its label through `remapAfterEdit`, which splits " +
+                "and renumbers the items, and dropping its answer leaves the list describing the " +
+                "lines as they were BEFORE the insertion.",
+        )
+        assertPinned(
+            "links = applied.links",
+            "…and the links, TWICE — once for OK and once for Remove, and neither callback does " +
+                "anything else about them. Either one dropped, that button closes the dialog and " +
+                "changes nothing at all.",
+            times = 2,
+        )
     }
 
     /**
@@ -146,8 +238,11 @@ class ComposeBodyWiringTest {
      */
     @Test fun `the leave guard is given the blocks on both sides`() {
         assertPinned(
-            "body = RichBody(body.text, ranges, blocks), initialBody = RichBody(initialBody, baselineRanges, baselineBlocks),",
-            "both bodies handed to `ComposeDirty.isDirty` must carry their blocks.",
+            "body = RichBody(body.text, ranges, blocks, links), initialBody = RichBody(initialBody, baselineRanges, baselineBlocks, baselineLinks),",
+            "both bodies handed to `ComposeDirty.isDirty` must carry their blocks AND their " +
+                "links. ⛔ Either argument dropped compiles on the defaults, and putting a link " +
+                "on a word — or taking one off — would then be no edit at all: the back gesture " +
+                "leaves without a word and the address is gone.",
         )
     }
 
@@ -164,9 +259,17 @@ class ComposeBodyWiringTest {
                 "while it is being written; `VisualTransformation.None` there is the same thing.",
         )
         assertPinned(
-            "val rich = RichBody(body.text, ranges, blocks)",
-            "…and the body the field DRAWS carries the blocks too, so the bar can light the right " +
-                "button (`listKindAt(rich, …)`).",
+            "val rich = RichBody(body.text, ranges, blocks, links)",
+            "…and the body the field DRAWS carries the blocks AND the links too, so the bar can " +
+                "light the right button (`listKindAt(rich, …)`, `linkAt(rich, …)`) and " +
+                "`toAnnotatedString` can colour the anchors.",
+        )
+        assertPinned(
+            "value = body.copy(annotatedString = toAnnotatedString(rich, MaterialTheme.colorScheme.primary)),",
+            "the field draws the body through `toAnnotatedString` — executed in " +
+                "[RichBodyStyleTest] — and the link colour is handed in from the THEME here. " +
+                "⛔ A hard-coded colour there is unreadable in one of the two themes, and it is " +
+                "also what would let that function stop being pure.",
         )
         assertPinned(
             "activeList = listKindAt(rich, span(body.selection)),",

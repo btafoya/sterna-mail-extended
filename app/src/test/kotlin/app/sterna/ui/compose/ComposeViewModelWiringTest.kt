@@ -289,7 +289,12 @@ class ComposeViewModelWiringTest {
                 "val replaces = SendDraftTarget(emailId = editingDraftId, uidValidity = editingDraftUidValidity)",
                 ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
                 "val outcome = repo.saveDraft(",
-                "credentials, recipients, subject, body.text,",
+                // ⛔ The text part is `toPlainText(body)` and NOT `body.text` (#131): a list is
+                // written `- ` / `1. ` there and a link is written `label <url>`, so a recipient
+                // — or a client — reading only the text part still gets both. `body.text` here
+                // stores a draft whose text part disagrees with the html part beside it, built
+                // from the very same body.
+                "credentials, recipients, subject, toPlainText(body),",
                 // ⛔ The styling as a SECOND part, from the one pure function every route uses:
                 // null for a body with no styling, so a plain draft is written EXACTLY as it was
                 // before #131. ⛔ NOT `htmlBodyWithSignature(...)` — that is the SEND's html, it
@@ -307,6 +312,12 @@ class ComposeViewModelWiringTest {
                 // weigh. Passing `editingDraftLossy` here too refuses an erasure the user made on
                 // purpose on every reopened HTML draft, in silence.
                 "composerBodyWasLost = composerBodyWasLost,",
+                // ⛔ …and the EMPTINESS of what was typed, which travels apart from the text since
+                // the text is derived (#131). `toPlainText(body)` of an empty body carrying one
+                // bullet is `"- "`, and `"- ".isBlank()` is false: read off the body handed over,
+                // the lost-body guard stands down on a composer that had nothing, and those two
+                // characters replace the only copy of a local draft.
+                "typedBodyIsBlank = body.text.isBlank(),",
                 "fromName = identity?.name, fromEmail = identity?.email,",
                 "requestReceipt = requestReceipt,",
                 ")",

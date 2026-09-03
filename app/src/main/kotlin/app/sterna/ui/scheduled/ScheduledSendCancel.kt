@@ -5,6 +5,7 @@ import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.DraftSaveOutcome
 import app.sterna.core.data.text.draftHtmlToSave
 import app.sterna.core.data.text.richBodyFrom
+import app.sterna.core.data.text.toPlainText
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
@@ -81,13 +82,17 @@ fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
     // ⚠ Same fallback, same accepted cost as `composeDraftOf` (SendOutbox.kt): the stored text is
     // the text/plain that was to be delivered, so it spells a list out — an unparsable html
     // (a forward, an imported HTML signature) files a draft holding `- milk` as letters.
+    // ⛔ And the text filed is `toPlainText`, never `rich.text` (#131): it is the SAME plain-text
+    // answer the composer's own save writes, so a message filed from here and one saved from the
+    // composer cannot describe the same link — or the same list — differently. `rich.text` here
+    // stores a draft whose text part holds neither a marker nor an address.
     val rich = richBodyFrom(row.htmlBody) { row.textBody }
     return ScheduledSendDraft(
         to = row.recipients.split(",").map { it.trim() }.filter { it.isNotEmpty() },
         cc = row.cc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
         bcc = row.bcc?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
         subject = row.subject,
-        body = rich.text,
+        body = toPlainText(rich),
         html = draftHtmlToSave(rich),
         inReplyTo = row.inReplyTo?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),
         references = row.references?.split(" ")?.filter { it.isNotBlank() } ?: emptyList(),

@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
@@ -153,6 +154,7 @@ import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.clear as clearFormatting
+import app.sterna.core.data.text.linkAt
 import app.sterna.core.data.text.remapAfterEdit
 import app.sterna.core.data.text.stylesAt
 import app.sterna.core.data.text.toggle as toggleFormatting
@@ -525,10 +527,19 @@ fun ComposeScreen(
     // …and its list blocks (#131), beside the spans and beside the text for the same reason: a
     // block is a run of LINES, and `body.text` is what the field, the save and the send still read.
     var blocks by resume.blocksState
+    // …and its links (#131), held the same way and for the same reason: `body` stays plain text,
+    // and a link is a span over it that happens to carry an address.
+    var links by resume.linksState
     // What the next keystroke at the caret should carry, once a button was tapped with nothing
     // selected; `null` = no instruction, the sticky rule of `remapAfterEdit` decides. Transient
     // on purpose: it is a gesture in flight, not a value worth parking across a rotation.
     var pending by remember { mutableStateOf<Set<Inline>?>(null) }
+    // Whether the link dialog is up (#131). ⚠ `rememberSaveable`, like the flags of the composer's
+    // own dialogs: a rotation with it open brings the DIALOG back rather than dropping the gesture.
+    // ⛔ It says nothing about what was typed INSIDE it: the two fields are plain `remember`s in
+    // `LinkDialog`, so an address half typed is lost to a rotation. Measured and accepted at the
+    // bench pass — the box is reopened and retyped — not claimed here as though it were held.
+    var linkDialog by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var applied by rememberSaveable { mutableStateOf(false) }
     // "Ask for a read receipt" (RFC 8098), per message, from the overflow menu.
@@ -548,12 +559,13 @@ fun ComposeScreen(
     var initialBody by resume.baselineState
     var baselineRanges by resume.baselineRangesState
     var baselineBlocks by resume.baselineBlocksState
+    var baselineLinks by resume.baselineLinksState
     // …the box included: a reopened outbox message can OPEN ticked, so "ticked" is not an edit while
     // ticking or clearing it is. Without this baseline the leave guard could not see either, and
     // clearing the box then leaving sent the message still asking (see [ComposeDirty]).
     var initialRequestReceipt by rememberSaveable { mutableStateOf(false) }
     // The body and its styling as one value: derived on every recomposition, never stored twice.
-    val rich = RichBody(body.text, ranges, blocks)
+    val rich = RichBody(body.text, ranges, blocks, links)
 
     // Which compose this is, for the signature rules: a forward carries its original at send time
     // (so its body holds no quote), while both a reply and a forward obey the "signature in
@@ -604,6 +616,11 @@ fun ComposeScreen(
                 // …and its lists, on the same terms: `emptyList()` here opens a draft that HELD a
                 // list without it, and the next save writes that removal.
                 blocks = it.bodyBlocks
+                // …and its LINKS, the last statement between the four reopen routes and the
+                // screen. ⛔ `emptyList()` here is not "no link yet": the draft is judged
+                // reproducible because its anchor parsed, so the next save expunges the server
+                // original and stores this removal in its place.
+                links = it.bodyLinks
                 initialTo = prefilledTo
                 initialCc = cc
                 initialBcc = bcc
@@ -614,6 +631,7 @@ fun ComposeScreen(
                 // leave guard then asks about changes nobody made.
                 baselineRanges = it.bodyRanges
                 baselineBlocks = it.bodyBlocks
+                baselineLinks = it.bodyLinks
                 // This prefill CARRIED the quote — the original was not cached, so `prepare` built
                 // the whole body with the quoted original inside it and there is no out-of-band
                 // hand-over to raise the flag below. Without this post the flag stays false while
@@ -656,8 +674,10 @@ fun ComposeScreen(
             // A quote replaces a plain prefill: neither the body nor its baseline carries styling.
             ranges = emptyMap()
             blocks = emptyList()
+            links = emptyList()
             baselineRanges = emptyMap()
             baselineBlocks = emptyList()
+            baselineLinks = emptyList()
             initialBody = quote
             // Dropped in exactly once, AFTER the write: the activity is recreated by a rotation, a
             // theme flip, a language change or a multi-window resize while the ViewModel survives,
@@ -728,7 +748,7 @@ fun ComposeScreen(
         cc = cc, initialCc = initialCc,
         bcc = bcc, initialBcc = initialBcc,
         subject = subject.text, initialSubject = initialSubject,
-        body = RichBody(body.text, ranges, blocks), initialBody = RichBody(initialBody, baselineRanges, baselineBlocks),
+        body = RichBody(body.text, ranges, blocks, links), initialBody = RichBody(initialBody, baselineRanges, baselineBlocks, baselineLinks),
         requestReceipt = requestReceipt, initialRequestReceipt = initialRequestReceipt,
         attachmentsTouched = attachmentsTouched,
     )
@@ -1591,17 +1611,19 @@ fun ComposeScreen(
                                         // The rewrite works on the TEXT; the user's styling is
                                         // carried across it by diffing (#131), so a bold word
                                         // above the signature stays bold and stays put.
-                                        rewriteRichBody(RichBody(body.text, ranges, blocks), body.selection.start, rewrite)?.let { rewritten ->
+                                        rewriteRichBody(RichBody(body.text, ranges, blocks, links), body.selection.start, rewrite)?.let { rewritten ->
                                             body = TextFieldValue(
                                                 rewritten.text,
                                                 TextRange(body.selection.start.coerceAtMost(rewritten.text.length)),
                                             )
                                             ranges = rewritten.ranges
                                             blocks = rewritten.blocks
-                                            rewriteRichBody(RichBody(initialBody, baselineRanges, baselineBlocks), 0, rewrite)?.let {
+                                            links = rewritten.links
+                                            rewriteRichBody(RichBody(initialBody, baselineRanges, baselineBlocks, baselineLinks), 0, rewrite)?.let {
                                                 initialBody = it.text
                                                 baselineRanges = it.ranges
                                                 baselineBlocks = it.blocks
+                                                baselineLinks = it.links
                                             }
                                         }
                                     }
@@ -1743,18 +1765,20 @@ fun ComposeScreen(
             // value handed back by the field is stored without its spans (#131). Selection and
             // composition are `body`'s own, or the IME loses its composing region on every frame.
             BasicTextField(
-                value = body.copy(annotatedString = toAnnotatedString(rich)),
+                value = body.copy(annotatedString = toAnnotatedString(rich, MaterialTheme.colorScheme.primary)),
                 onValueChange = { next ->
                     // ⛔ Read HERE, not `rich`: that one is captured at composition, and two
                     // callbacks before a recomposition would remap from a stale body.
-                    val current = RichBody(body.text, ranges, blocks)
+                    val current = RichBody(body.text, ranges, blocks, links)
                     if (next.text != body.text) {
                         // One edit, whatever produced it: the styling follows the text by diffing,
-                        // and so do the lists — ONE remap, both halves of its answer taken. A
-                        // second call would diff the same edit twice and could answer differently.
+                        // and so do the lists AND the links — ONE remap, all three parts of its
+                        // answer taken. A second call would diff the same edit twice and could
+                        // answer differently, and the three would drift apart on one keystroke.
                         val remapped = remapAfterEdit(current, next.text, span(body.selection), span(next.selection), pending)
                         ranges = remapped.ranges
                         blocks = remapped.blocks
+                        links = remapped.links
                     } else if (next.selection != body.selection) {
                         // The caret moved: a style armed for the next keystroke no longer applies.
                         pending = null
@@ -1818,8 +1842,13 @@ fun ComposeScreen(
                 FormattingBar(
                     active = pending ?: stylesAt(rich, span(body.selection)),
                     activeList = listKindAt(rich, span(body.selection)),
+                    // Lit when the caret is IN a link — the same answer the dialog opens on
+                    // (`linkDialogFields` asks `linkAt` too), so "the button is on" and "the
+                    // dialog offers to edit it" cannot disagree.
+                    linkActive = linkAt(rich, span(body.selection)) != null,
+                    onLink = { linkDialog = true },
                     onToggle = { kind ->
-                        val current = RichBody(body.text, ranges, blocks)
+                        val current = RichBody(body.text, ranges, blocks, links)
                         val sel = span(body.selection)
                         if (!sel.isEmpty) {
                             ranges = toggleFormatting(current, sel, kind).ranges
@@ -1831,14 +1860,36 @@ fun ComposeScreen(
                         // ⚠ No `pending` and no empty-selection branch, unlike the four families
                         // above: a block is a run of LINES, so the caret alone already names one
                         // (`toggleBlock`), and the tap applies at once — the gesture in Gmail.
-                        val current = RichBody(body.text, ranges, blocks)
+                        val current = RichBody(body.text, ranges, blocks, links)
                         blocks = toggleBlock(current, span(body.selection), kind).blocks
                     },
                     onClear = {
-                        val current = RichBody(body.text, ranges, blocks)
+                        val current = RichBody(body.text, ranges, blocks, links)
                         val sel = span(body.selection)
                         if (!sel.isEmpty) ranges = clearFormatting(current, sel).ranges else pending = emptySet()
                     },
+                )
+            }
+            if (linkDialog) {
+                // ⛔ The body AND the caret go back into the composer's own state: `setLink` can
+                // INSERT the label, so the text changes here as it does under a keystroke, and the
+                // caret must land after what was inserted or the next letter lands inside the link.
+                LinkDialog(
+                    body = rich,
+                    selection = span(body.selection),
+                    onApply = { applied ->
+                        val inserted = applied.text.length - rich.text.length
+                        body = TextFieldValue(applied.text, TextRange(body.selection.max + inserted))
+                        ranges = applied.ranges
+                        blocks = applied.blocks
+                        links = applied.links
+                        linkDialog = false
+                    },
+                    onRemove = { applied ->
+                        links = applied.links
+                        linkDialog = false
+                    },
+                    onDismiss = { linkDialog = false },
                 )
             }
         }
@@ -2455,8 +2506,8 @@ private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
 }
 
 /**
- * The seven formatting buttons under the body (#131): the four inline families, the two lists,
- * then "clear". Placed DOWN HERE on purpose: `DraftReopenWiringTest` reads the FIRST `actions = {`
+ * The eight formatting buttons under the body (#131): the four inline families, the two lists, the
+ * link, then "clear". Placed DOWN HERE on purpose: `DraftReopenWiringTest` reads the FIRST `actions = {`
  * line of this file as the top bar (nothing here declares one), and `ScheduleMenuWiringTest` reads
  * `schedulePresets` below to the END of the file, so nothing may follow it. ⚠ Nothing focusable
  * beyond the buttons themselves: a bar that takes the focus hides itself.
@@ -2465,12 +2516,14 @@ private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
 private fun FormattingBar(
     active: Set<Inline>,
     activeList: BlockKind?,
+    linkActive: Boolean,
+    onLink: () -> Unit,
     onToggle: (Inline) -> Unit,
     onToggleList: (BlockKind) -> Unit,
     onClear: () -> Unit,
 ) {
-    // ⛔ SCROLLABLE, since the bar went from five buttons to seven: 7 × 48 dp + 8 = 344 dp of fixed
-    // width. It fits a 360 dp phone, and it does NOT fit a side-by-side multi-window pane (this
+    // ⛔ SCROLLABLE, since the bar went from five buttons to eight: 8 × 48 dp + 8 = 392 dp of fixed
+    // width. It no longer fits even a 360 dp phone, let alone a side-by-side multi-window pane (this
     // screen is rebuilt by exactly that resize, see the token comment above) nor a large "display
     // size" setting — where the last button, "clear formatting", would simply be off the screen
     // with no way to reach it. Scrolling is also what Gmail's own bar does when it runs out of room
@@ -2488,6 +2541,15 @@ private fun FormattingBar(
         FormattingButton(Inline.STRIKE, Icons.Filled.FormatStrikethrough, R.string.compose_format_strikethrough, active, onToggle)
         ListButton(BlockKind.BULLET, Icons.Filled.FormatListBulleted, R.string.compose_format_list_bulleted, activeList, onToggleList)
         ListButton(BlockKind.NUMBER, Icons.Filled.FormatListNumbered, R.string.compose_format_list_numbered, activeList, onToggleList)
+        // The link is not a family: it carries an address, so it opens a dialog instead of
+        // toggling, and it is lit by `linkAt` rather than by the `active` set.
+        IconButton(onClick = onLink, modifier = Modifier.size(48.dp).semantics { selected = linkActive }) {
+            Icon(
+                Icons.Filled.Link,
+                contentDescription = stringResource(R.string.compose_format_link),
+                tint = if (linkActive) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+            )
+        }
         IconButton(onClick = onClear, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Filled.FormatClear, contentDescription = stringResource(R.string.compose_format_clear))
         }

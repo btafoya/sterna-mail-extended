@@ -4,6 +4,7 @@ import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.Span
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -145,12 +146,41 @@ class SendOutboxTest {
         assertEquals(listOf(Block(BlockKind.BULLET, 0..1)), reopened.bodyBlocks)
     }
 
+    /**
+     * ROUTE 2 OF 4 — the QUEUED outbox row, reopened by Outbox → Edit.
+     *
+     * ⛔ Re-editing enqueues a NEW row from the composer's state: a link dropped in this hand-over
+     * is not merely missing from the screen, it is REMOVED from the message that finally goes out,
+     * with the words still there and nothing saying the address left.
+     */
+    @Test fun `a queued message this app linked reopens with its link`() {
+        val reopened = composeDraftOf(queued(htmlBody = """see <a href="https://x">you</a> there"""))
+
+        assertEquals("see you there", reopened.body)
+        assertEquals(listOf(Link(Span(4, 7), "https://x")), reopened.bodyLinks)
+    }
+
+    /** ROUTE 2 OF 4, a list AND a link on one row: both halves survive the hand-over. */
+    @Test fun `a queued message holding a list and a link reopens with both`() {
+        val reopened = composeDraftOf(
+            queued(
+                htmlBody = """<ul><li>see</li><li>you <a href="https://x">there</a></li></ul>""",
+                body = "- see\n- you there",
+            ),
+        )
+
+        assertEquals("see\nyou there", reopened.body)
+        assertEquals(listOf(Block(BlockKind.BULLET, 0..1)), reopened.bodyBlocks)
+        assertEquals(listOf(Link(Span(8, 13), "https://x")), reopened.bodyLinks)
+    }
+
     @Test fun `a queued message with no html reopens plain, exactly as before`() {
         val reopened = composeDraftOf(queued(htmlBody = null))
 
         assertEquals("see you there", reopened.body)
         assertEquals(emptyMap<Inline, List<Span>>(), reopened.bodyRanges)
         assertEquals(emptyList<Block>(), reopened.bodyBlocks)
+        assertEquals(emptyList<Link>(), reopened.bodyLinks)
     }
 
     @Test fun `a queued forward reopens on its text, not on markup`() {

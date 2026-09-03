@@ -29,6 +29,14 @@
     <string name="compose_format_list_bulleted">Lista com marcadores</string>
     <string name="compose_format_list_numbered">Lista numerada</string>
     <string name="compose_format_clear">Limpar formatação</string>
+    <string name="compose_format_link">Ligação</string>
+    <string name="compose_link_title">Ligação</string>
+    <string name="compose_link_url">Endereço</string>
+    <string name="compose_link_text">Texto</string>
+    <string name="compose_link_bad_url">Introduza um endereço web (http, https), ou um endereço de correio escrito mailto:alguem@example.org</string>
+    <string name="compose_link_remove">Remover ligação</string>
+    <string name="compose_link_apply">OK</string>
+    <string name="compose_link_cancel">Cancelar</string>
     <string name="compose_quote_attribution">A %1$s, %2$s escreveu:</string>
     <string name="compose_quote_someone">alguém</string>
     <string name="compose_quote_not_added">Mensagem citada não adicionada: já tinha começado a escrever.</string>

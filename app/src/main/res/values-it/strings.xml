@@ -29,6 +29,14 @@
     <string name="compose_format_list_bulleted">Elenco puntato</string>
     <string name="compose_format_list_numbered">Elenco numerato</string>
     <string name="compose_format_clear">Cancella formattazione</string>
+    <string name="compose_format_link">Collegamento</string>
+    <string name="compose_link_title">Collegamento</string>
+    <string name="compose_link_url">Indirizzo</string>
+    <string name="compose_link_text">Testo</string>
+    <string name="compose_link_bad_url">Inserisci un indirizzo web (http, https), o un indirizzo email scritto mailto:qualcuno@example.org</string>
+    <string name="compose_link_remove">Rimuovi collegamento</string>
+    <string name="compose_link_apply">OK</string>
+    <string name="compose_link_cancel">Annulla</string>
     <string name="compose_quote_attribution">Il %1$s, %2$s ha scritto:</string>
     <string name="compose_quote_someone">qualcuno</string>
     <string name="compose_quote_not_added">Messaggio citato non aggiunto: avevi già iniziato a scrivere.</string>

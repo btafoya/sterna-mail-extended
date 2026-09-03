@@ -8,6 +8,10 @@ import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.db.OutboxBadgeItem
 import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.db.OutboxState
+import app.sterna.core.data.text.Block
+import app.sterna.core.data.text.BlockKind
+import app.sterna.core.data.text.RichBody
+import app.sterna.core.data.text.toPlainText
 import app.sterna.core.jmap.model.EmailBodyPart
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.awaitCancellation
@@ -799,6 +803,80 @@ class LocalDraftSaveTest {
         assertEquals(
             "and a row holding nothing worth keeping has nothing to protect",
             "", localDraftBodyToWrite("", "   ", composerBodyWasLost = true),
+        )
+    }
+
+    /**
+     * ⭐ THE DERIVED BODY MUST NOT WALK THROUGH THE GUARD (#131).
+     *
+     * Since the lists and the links, what reaches this rule is not what the user typed: the save
+     * hands over `toPlainText(body)`, which spells the markers out. `toPlainText` of a body whose
+     * TEXT is empty but which carries one bullet is `"- "` — a block survives on an empty text,
+     * `lineCount` being 1 for `""` — and `"- ".isBlank()` is FALSE.
+     *
+     * The chain, every link of it reachable: a local draft reopened, the resume parcel lost
+     * (`composerBodyWasLost = true`, measured on the bench), the body back EMPTY with the
+     * recipients intact so Save is still lit. The user taps the bullet button — a gesture this app
+     * offers on an empty composer, its placeholder even steps aside for it — and saves. Read off
+     * the handed-over body the guard stands down, and BOTH columns of the row are overwritten:
+     * the only copy of the draft becomes `"- "`.
+     *
+     * ⛔ Executed on the real projection, never on a hand-written `"- "`: it is `toPlainText` that
+     * makes the value, and a test that typed the two characters itself would go on passing if the
+     * projection changed.
+     */
+    @Test fun `a bullet tapped on a lost and empty body never overwrites the stored draft`() {
+        val typed = RichBody("", emptyMap(), listOf(Block(BlockKind.BULLET, 0..0)))
+        val handedOver = toPlainText(typed)
+
+        assertEquals("the projection really does manufacture text out of an empty body", "- ", handedOver)
+        assertFalse("…and that text is NOT blank, which is the whole defect", handedOver.isBlank())
+
+        assertEquals(
+            "⛔ the stored text must stand: the composer had nothing typed, so this save has " +
+                "nothing to write and the row is the only copy",
+            "what was typed",
+            localDraftBodyToWrite(
+                handedOver, "what was typed",
+                composerBodyWasLost = true, typedBodyIsBlank = typed.text.isBlank(),
+            ),
+        )
+        assertEquals(
+            "…and the html follows it, or the reopen — which reads the html FIRST — shows the " +
+                "draft blank with the text column still holding it",
+            "<b>what</b> was typed",
+            localDraftHtmlToWrite(
+                html = "<ul><li></li></ul>", existingHtml = "<b>what</b> was typed",
+                body = handedOver, existingBody = "what was typed",
+                composerBodyWasLost = true, typedBodyIsBlank = typed.text.isBlank(),
+            ),
+        )
+        assertEquals(
+            "⛔ and the WHOLE row, through the production path: the two columns come out of one " +
+                "condition, and this is the row that would have replaced the draft",
+            "what was typed" to "<b>what</b> was typed",
+            localDraftRow(
+                accountId = ACCOUNT, id = "$LOCAL_DRAFT_ID_PREFIX-9", messageId = "v2@example.org",
+                to = listOf("carol@example.org"), cc = emptyList(), bcc = emptyList(),
+                subject = "Six o'clock", body = handedOver, html = "<ul><li></li></ul>",
+                bodyIsLossy = true, composerBodyWasLost = true,
+                typedBodyIsBlank = typed.text.isBlank(),
+                existing = row().copy(textBody = "what was typed", htmlBody = "<b>what</b> was typed"),
+                nowMillis = NOW + 5_000L,
+            ).let { it.textBody to it.htmlBody },
+        )
+    }
+
+    @Test fun `a body the user really typed still goes in, markers and all`() {
+        // ⛔ The other side, or the fix above would be "never write anything": a bullet on a body
+        // with WORDS in it is a real save and must land, projection included.
+        val typed = RichBody("milk", emptyMap(), listOf(Block(BlockKind.BULLET, 0..0)))
+        assertEquals(
+            "- milk",
+            localDraftBodyToWrite(
+                toPlainText(typed), "what was typed",
+                composerBodyWasLost = true, typedBodyIsBlank = typed.text.isBlank(),
+            ),
         )
     }
 

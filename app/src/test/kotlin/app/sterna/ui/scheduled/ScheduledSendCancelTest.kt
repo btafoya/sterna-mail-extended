@@ -270,6 +270,23 @@ class ScheduledSendCancelTest {
         assertEquals("<b>see</b> you there", draft.html)
     }
 
+    @Test fun `a cancelled message keeps its link, in the html AND in the text filed`() {
+        // ⛔ Both halves, and the text one is the mutation this exists for. `rich.text` there —
+        // which is what this file said until the links (#131) — files a draft whose text part is
+        // "see you there" while the html part beside it, built from the SAME body, carries the
+        // anchor. One deposit, two parts, two different messages about one address.
+        val draft = draftFromScheduledSend(
+            row(htmlBody = """see <a href="https://x">you</a> there"""),
+        )
+
+        assertEquals(
+            "the text part must be the ONE plain-text answer the composer's own save writes",
+            "see you <https://x> there",
+            draft.body,
+        )
+        assertEquals("""see <a href="https://x">you</a> there""", draft.html)
+    }
+
     @Test fun `a message with no html is filed exactly as it always was`() {
         val draft = draftFromScheduledSend(row(htmlBody = null))
 

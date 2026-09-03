@@ -5,6 +5,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.Span
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -568,17 +569,18 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * Exactly at the bound — body, baseline AND the 23-character styling line of an unstyled
-     * composer (`b;i;u;s;U;O|b;i;u;s;U;O`) — accepted, so the bound is a bound and not a guess.
-     * ⚠ Adapted twice: the baseline was 384 characters before #131 (no styling line at all), then
-     * 369 when the line held the four inline families, and 361 now that it carries the two block
-     * groups as well. ⛔ The number moves with the FORMAT, never with the bound: `INLINE_LIMIT` is
-     * the size of parcel this screen may still send, and it has not changed.
+     * Exactly at the bound — body, baseline AND the 27-character styling line of an unstyled
+     * composer (`b;i;u;s;U;O;a|b;i;u;s;U;O;a`) — accepted, so the bound is a bound and not a guess.
+     * ⚠ Adapted three times: the baseline was 384 characters before #131 (no styling line at all),
+     * then 369 when the line held the four inline families, 361 once it carried the two block
+     * groups, and 357 now that the links have a section of their own. ⛔ The number moves with the
+     * FORMAT, never with the bound: `INLINE_LIMIT` is the size of parcel this screen may still
+     * send, and it has not changed.
      */
     @Test
     fun `a body exactly at the inline bound still travels`() {
         val body = "y".repeat(16_000)
-        val baseline = "z".repeat(361)
+        val baseline = "z".repeat(357)
         val state = ComposerResumeState(TextFieldValue(body, TextRange(5)), baseline)
 
         val saved = saveComposerResume(state, unwritableSlot())!!
@@ -594,31 +596,128 @@ class ComposerResumeSlotTest {
      */
     @Test
     fun `the styling line counts against the inline bound`() {
-        val body = "y".repeat(16_360)   // 16 360 + the 23-character unstyled line = 16 383: fits
+        val body = "y".repeat(16_356)   // 16 356 + the 27-character unstyled line = 16 383: fits
         val plain = ComposerResumeState(TextFieldValue(body, TextRange(0)), "")
         assertEquals("unstyled, this body must still travel inline", "v:",
             saveComposerResume(plain, unwritableSlot())?.take(2))
 
         val styled = ComposerResumeState(
             TextFieldValue(body, TextRange(0)), "",
-            ranges = mapOf(Inline.BOLD to listOf(Span(0, 1), Span(2, 3), Span(4, 5), Span(6, 7))),   // +16 characters
+            ranges = mapOf(Inline.BOLD to listOf(Span(0, 1), Span(2, 3), Span(4, 5), Span(6, 7))),   // +15 characters
         )
         val saved = saveComposerResume(styled, unwritableSlot())
         assertEquals(
-            "with its styling line the parcel would be 16 399 characters, over the bound: the text " +
+            "with its styling line the parcel would be 16 398 characters, over the bound: the text " +
                 "must be dropped and the loss marked, not forced into the parcel",
             "l:", saved,
         )
         assertFalse("not one character of the body may reach the parcel: `$saved`", saved!!.contains("y"))
     }
 
-    /** Anything the saver does not recognise is nothing, and never an exception out of a restore. */
+    /**
+     * Anything the saver does not recognise is nothing, and never an exception out of a restore.
+     *
+     * ⛔ The bound is the EMPTY form, on both carriers: `t:` and `v:` on their own NAME nothing, so
+     * they must still restore to nothing — a parcel that never promised a body may not arm the
+     * loss on a composer that never parked one.
+     */
     @Test
     fun `an unrecognised parcel value restores nothing`() {
-        for (junk in listOf("", "x:whatever", "v:", "v:12", "v:1:2", "v:1:2:3", "t:", "v:a:b:c:body")) {
+        for (junk in listOf("", "x:whatever", "v:", "t:")) {
             assertNull("`$junk` must restore to nothing, not to a mangled draft", restoreComposerResume(junk, slot))
         }
     }
+
+    /**
+     * ⛔ …AND THE OTHER SIDE OF THAT BOUND: a `v:` that CARRIES something and cannot be read is a
+     * LOSS, not an absence — the same sentence the file already writes for `t:`. Restored as
+     * nothing, `rememberSaveable` falls back to its factory and the composer comes back empty AND
+     * clean: `initialBody` is empty too, so `ComposeDirty` answers "unchanged", the Save icon is
+     * still lit because a recipient survived, and that save goes out with `replacesEmailId` armed
+     * and a clean verdict. The server copy is destroyed in favour of a bodiless one, in silence.
+     */
+    @Test
+    fun `an inline parcel that carries something unreadable is a loss, not an absence`() {
+        for (broken in listOf(
+            "v:12", "v:1:2", "v:1:2:3", "v:a:b:c:body",
+            // A styling line in a shape no build ever wrote: five sections opened `Z`.
+            "v:1:2:5:b;i;u;s;Z|b;i;u;s;Z:hellobase",
+            // …and one whose payload is shorter than the body length it promises.
+            "v:1:2:99:b;i;u;s;U;O;a|b;i;u;s;U;O;a:hellobase",
+        )) {
+            val back = restoreComposerResume(broken, unwritableSlot())
+            assertTrue("`$broken` promised a body: it must restore SOMETHING", back != null)
+            assertEquals("`$broken`: nothing readable came back", "", back!!.bodyState.value.text)
+            assertTrue("⛔ `$broken` must arm the loss, or the next save destroys the server copy",
+                back.bodyWasLost)
+        }
+    }
+
+    // -- a composer parked INLINE crosses an update too -------------------------------------------
+
+    /**
+     * ⛔ THE REGRESSION THIS TEST EXISTS FOR. The parcel is NOT always this build's own: the disk
+     * write fails (full disk, an unwritable `filesDir`), the body travels inline instead, the app
+     * is updated, and the process comes back on a saved state the PREVIOUS build wrote. Read with
+     * the current shape nailed on, that line is refused — and a refused `v:` is worse than a
+     * refused `t:`, because until the loss was marked the composer came back empty AND clean.
+     * Every form any build ever put in a parcel must still open here.
+     */
+    @Test
+    fun `a parcel written by an older build still restores its body and its styling`() {
+        // `v:<start>:<end>:<bodyChars>:<styling>:<body><baseline>`, written out by hand.
+        val lists = "v:1:2:5:b0-5;i;u;s;U0-0;O|b;i;u;s;U;O:hellobase"
+        val fromLists = restoreComposerResume(lists, unwritableSlot())
+        assertTrue("⛔ a parcel from the LISTS build must not be refused", fromLists != null)
+        assertEquals("hello", fromLists!!.bodyState.value.text)
+        assertEquals("base", fromLists.baselineState.value)
+        assertEquals(TextRange(1, 2), fromLists.bodyState.value.selection)
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 5))), fromLists.rangesState.value)
+        assertEquals(listOf(Block(BlockKind.BULLET, 0..0)), fromLists.blocksState.value)
+        assertEquals("that build knew no link", emptyList<Link>(), fromLists.linksState.value)
+        assertFalse("nothing was lost: the record read whole", fromLists.bodyWasLost)
+
+        val links = "v:1:2:5:b0-5;i;u;s;a0-5-https%3A%2F%2Fx|b;i;u;s;a:hellobase"
+        val fromLinks = restoreComposerResume(links, unwritableSlot())
+        assertTrue("⛔ a parcel from the LINKS build must not be refused", fromLinks != null)
+        assertEquals("hello", fromLinks!!.bodyState.value.text)
+        assertEquals(listOf(Link(Span(0, 5), "https://x")), fromLinks.linksState.value)
+        assertEquals("that build knew no list", emptyList<Block>(), fromLinks.blocksState.value)
+        assertFalse(fromLinks.bodyWasLost)
+
+        val spans = "v:1:2:5:b0-5;i;u;s|b;i;u;s:hellobase"
+        val fromSpans = restoreComposerResume(spans, unwritableSlot())
+        assertTrue("⛔ a parcel from the build before either of them must not be refused", fromSpans != null)
+        assertEquals("hello", fromSpans!!.bodyState.value.text)
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 5))), fromSpans.rangesState.value)
+        assertEquals(emptyList<Block>(), fromSpans.blocksState.value)
+        assertEquals(emptyList<Link>(), fromSpans.linksState.value)
+        assertFalse(fromSpans.bodyWasLost)
+    }
+
+    /**
+     * THE DECISION, from the LINE ALONE — the parcel has no header to offer, so this is the whole
+     * of what it can read. Executed, with its arguments pinned.
+     */
+    @Test
+    fun `the shape of a styling line is read from the line alone`() {
+        assertEquals("four sections: the families alone",
+            StylingShape.FAMILIES, stylingShapeOfLine("b0-5;i;u;s|b;i;u;s"))
+        assertEquals("five, the fifth opened by `a`: the families and the links",
+            StylingShape.FAMILIES_LINKS, stylingShapeOfLine("b;i;u;s;a0-5-x|b;i;u;s;a"))
+        assertEquals("six, opened by `U` then `O`: the families and the lists",
+            StylingShape.FAMILIES_BLOCKS, stylingShapeOfLine("b;i;u;s;U0-0;O|b;i;u;s;U;O"))
+        assertEquals("seven: all three, what is written today",
+            StylingShape.FAMILIES_BLOCKS_LINKS, stylingShapeOfLine("b;i;u;s;U;O;a|b;i;u;s;U;O;a"))
+        for (never in listOf(
+            "", "garbage", "b;i;u", "b;i;u;s;U|b;i;u;s;U", "b;i;u;s;a;O|b;i;u;s;a;O",
+            "b;i;u;s;U;a|b;i;u;s;U;a", "b;i;u;s;a;O;a|b;i;u;s;a;O;a", "b;i;u;s;U;O;U|b;i;u;s;U;O;U",
+            "b;i;u;s;U;O;a;a|b;i;u;s;U;O;a;a",
+        )) {
+            assertNull("`$never` is a line no build ever wrote", stylingShapeOfLine(never))
+        }
+    }
+
 
     // -- the styling travels with the text (#131) ------------------------------------------------
 
@@ -691,12 +790,12 @@ class ComposerResumeSlotTest {
     }
 
     /**
-     * ⭐ A file written by the build being REPLACED: `/2`, four groups per side, no block groups.
-     * It still opens, with no list — the composer that was parked before this lot came back or the
-     * first rotation after the update loses a body.
+     * ⭐ A file written by the build before either the lists or the links: `/2`, four groups per
+     * side. It still opens, with no list and no link — the composer that was parked before this
+     * lot came back or the first rotation after the update loses a body.
      */
     @Test
-    fun `a version 2 file still reads, with its spans and no blocks`() {
+    fun `a version 2 file still reads, with its spans and neither block nor link`() {
         file.parentFile!!.mkdirs()
         file.writeText(
             "sterna-composer-resume/2 tok-2 1 2 5 4\nb0-4;i;u;s|b;i;u;s\nhellobase",
@@ -710,17 +809,33 @@ class ComposerResumeSlotTest {
         assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 4))), resume.ranges)
         assertEquals("a `/2` file carries no list", emptyList<Block>(), resume.blocks)
         assertEquals(emptyList<Block>(), resume.baselineBlocks)
+        assertEquals("…and no link either", emptyList<Link>(), resume.links)
+        assertEquals(emptyList<Link>(), resume.baselineLinks)
     }
 
-    /** ⛔ And what is WRITTEN is `/3`, always: a `/2` header out of this build would drop the
-     *  blocks of every record parked from now on, silently. */
+    /**
+     * ⛔ And what is WRITTEN is `/4`, always. A `/3` header over a seven-section line is a record
+     * NO build can read — not the lists build, which expects six groups, not the links build,
+     * which expects five, not this one, which reads the shape and finds a line `/3` never held.
+     * Every one of them refuses it, and a refused record is a composer that comes back empty.
+     */
     @Test
-    fun `what this build writes is the version 3 header`() {
-        park(slot, "hello", 1, 2, "base", blocks = listOf(Block(BlockKind.BULLET, 0..0)))
+    fun `what this build writes is the version 4 header`() {
+        park(
+            slot, "hello", 1, 2, "base",
+            blocks = listOf(Block(BlockKind.BULLET, 0..0)),
+            links = listOf(Link(Span(0, 5), "https://x")),
+        )
+        val text = file.readText(Charsets.UTF_8)
 
-        assertTrue(
-            "the header line must open with the /3 magic: `${file.readText(Charsets.UTF_8).take(40)}`",
-            file.readText(Charsets.UTF_8).startsWith("sterna-composer-resume/3 "),
+        assertEquals(
+            "the header line must open with the /4 magic: `${text.take(40)}`",
+            "sterna-composer-resume/4", text.substringBefore(' '),
+        )
+        assertEquals(
+            "…over a line of seven sections a side, in the one order they are written",
+            "b;i;u;s;U0-0;O;a0-5-https%3A%2F%2Fx|b;i;u;s;U;O;a",
+            text.split('\n')[1],
         )
     }
 
@@ -739,6 +854,7 @@ class ComposerResumeSlotTest {
         assertEquals("a `/1` file carries no styling", emptyMap<Inline, List<Span>>(), resume.ranges)
         assertEquals(emptyMap<Inline, List<Span>>(), resume.baselineRanges)
         assertEquals("…and no list either", emptyList<Block>(), resume.blocks)
+        assertEquals("…and no link either", emptyList<Link>(), resume.links)
     }
 
     /** The styling line is parsed strictly: anything unreadable refuses the WHOLE record. */
@@ -746,18 +862,19 @@ class ComposerResumeSlotTest {
     fun `a corrupt styling line reads null, never a draft with guessed styling`() {
         val token = park(slot, "hello", 1, 2, "base", ranges = mapOf(Inline.BOLD to listOf(Span(0, 4))))
         val lines = file.readText(Charsets.UTF_8).split('\n', limit = 3)
-        assertEquals("a `/3` file is a header line, a styling line, then the texts", 3, lines.size)
+        assertEquals("a `/4` file is a header line, a styling line, then the texts", 3, lines.size)
         for (corrupt in listOf(
-            "garbage", "", "b0-4;i;u", "b0-4;i;u;s", "b0-4;i;u;s|b;i;u", "x0-4;i;u;s|b;i;u;s",
-            "b4-0;i;u;s|b;i;u;s", "b0-x;i;u;s|b;i;u;s", "b0-99;i;u;s|b;i;u;s", "b0-4,;i;u;s|b;i;u;s",
-            "b;i;u;s|b0-9;i;u;s",
-            // …and the block groups (#131), read exactly as strictly: five groups is a line this
-            // app never wrote, a wrong letter is not ours, a reversed or unparsable run is not a
-            // run, and a run past the last possible line is a list over letters that are not there.
-            "b;i;u;s;U", "b;i;u;s;U;O;U", "b;i;u;s;X;O|b;i;u;s;U;O", "b;i;u;s;U;X|b;i;u;s;U;O",
-            "b;i;u;s;U3-0;O|b;i;u;s;U;O", "b;i;u;s;U0-x;O|b;i;u;s;U;O",
-            "b;i;u;s;U0-99;O|b;i;u;s;U;O", "b;i;u;s;U0-1,;O|b;i;u;s;U;O",
-            "b;i;u;s;U;O|b;i;u;s;U0-9;O",
+            "garbage", "", "b0-4;i;u", "b0-4;i;u;s;U;O;a", "b0-4;i;u;s;U;O;a|b;i;u;s;U;O",
+            "x0-4;i;u;s;U;O;a|b;i;u;s;U;O;a", "b4-0;i;u;s;U;O;a|b;i;u;s;U;O;a",
+            "b0-x;i;u;s;U;O;a|b;i;u;s;U;O;a", "b0-99;i;u;s;U;O;a|b;i;u;s;U;O;a",
+            "b0-4,;i;u;s;U;O;a|b;i;u;s;U;O;a", "b;i;u;s;U;O;a|b0-9;i;u;s;U;O;a",
+            // …and the block groups (#131), read exactly as strictly: a wrong letter is not ours,
+            // a reversed or unparsable run is not a run, and a run past the last possible line is
+            // a list over letters that are not there.
+            "b;i;u;s;X;O;a|b;i;u;s;U;O;a", "b;i;u;s;U;X;a|b;i;u;s;U;O;a",
+            "b;i;u;s;U3-0;O;a|b;i;u;s;U;O;a", "b;i;u;s;U0-x;O;a|b;i;u;s;U;O;a",
+            "b;i;u;s;U0-99;O;a|b;i;u;s;U;O;a", "b;i;u;s;U0-1,;O;a|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a|b;i;u;s;U0-9;O;a",
         )) {
             file.writeText(lines[0] + "\n" + corrupt + "\n" + lines[2], Charsets.UTF_8)
             assertNull("`$corrupt` must refuse the record whole", slot.read(token))
@@ -802,6 +919,272 @@ class ComposerResumeSlotTest {
             assertEquals("$name: caret", TextRange(3, 9), back.bodyState.value.selection)
             assertEquals("$name: body styling", ranges, back.rangesState.value)
             assertEquals("$name: baseline styling", baselineRanges, back.baselineRangesState.value)
+        }
+    }
+
+
+    // -- the links travel with the text (#131) ---------------------------------------------------
+
+    /**
+     * ⭐ THE RECORD THIS VOLET EXISTS FOR: one body carrying BOTH a list and a link, on both
+     * sides, through the file. Two builds shipped a `#131` that could carry one or the other; a
+     * record holding the two together is what neither of them could read back.
+     */
+    @Test
+    fun `blocks and links come back together, on both sides`() {
+        val body = "shopping\nmilk\neggs\nlater\none\ntwo"
+        val blocks = listOf(Block(BlockKind.BULLET, 1..2), Block(BlockKind.NUMBER, 4..5))
+        val links = listOf(
+            Link(Span(0, 8), "https://shop.example/a"),
+            Link(Span(9, 13), "mailto:iris@example.org"),
+        )
+        val baselineBlocks = listOf(Block(BlockKind.BULLET, 1..1))
+        val baselineLinks = listOf(Link(Span(0, 8), "http://e.example/z"))
+        val state = ComposerResumeState(
+            TextFieldValue(body, TextRange(9, 13)), "shopping\nmilk",
+            ranges = mapOf(Inline.BOLD to listOf(Span(0, 8))),
+            blocks = blocks, baselineBlocks = baselineBlocks,
+            links = links, baselineLinks = baselineLinks,
+        )
+
+        for ((name, s) in listOf("disk" to slot, "inline" to unwritableSlot())) {
+            val saved = saveComposerResume(state, s)!!
+            val back = restoreComposerResume(saved, s)!!
+            assertEquals("$name: the body's lists", blocks, back.blocksState.value)
+            assertEquals("$name: the baseline's lists", baselineBlocks, back.baselineBlocksState.value)
+            assertEquals("$name: the body's links", links, back.linksState.value)
+            assertEquals("$name: the baseline's links", baselineLinks, back.baselineLinksState.value)
+            assertEquals("$name: the styling beside them",
+                mapOf(Inline.BOLD to listOf(Span(0, 8))), back.rangesState.value)
+            assertEquals("$name: the text", body, back.bodyState.value.text)
+            assertEquals("$name: the baseline", "shopping\nmilk", back.baselineState.value)
+            assertEquals("$name: the caret", TextRange(9, 13), back.bodyState.value.selection)
+        }
+    }
+
+    /**
+     * ⛔ The URL is the ONE value in this record that can hold the format's own punctuation — `:`
+     * would end the parcel's header, `\n` would end the styling line, `|` separates the two sides,
+     * `,` and `-` cut the spans apart. It is percent-encoded for exactly that reason, and this is
+     * the test that says so: a URL carrying every one of them at once, through the FILE and
+     * through the PARCEL.
+     */
+    @Test
+    fun `a link whose URL holds every separator round trips, on disk and inline`() {
+        val url = "https://e.example/a:b,c;d|e-f g?x=1&y=2#é"
+        // ⛔ THE UNRESERVED SET, ON BOTH SIDES. The encoder writes `A-Za-z0-9._~` raw and the
+        // decoder accepts exactly those raw; nothing else in this suite carries a `~`, a `_`, a
+        // digit or an upper-case letter OUTSIDE a `%XX` escape, so nothing else can see the two
+        // sets drift apart. Drop `~` from either one and `https://example.org/~iris` refuses the
+        // whole record — an empty composer, then a destroyed server copy. `+` is on the other
+        // side of the line and must come back through `%2B`.
+        val unreserved = "https://E.example/~Iris_9+a"
+        val links = listOf(
+            Link(Span(0, 5), url),
+            Link(Span(6, 11), "mailto:iris@example.org"),
+            Link(Span(12, 14), unreserved),
+        )
+        val baselineLinks = listOf(Link(Span(2, 6), "http://e.example/z"))
+        val state = ComposerResumeState(
+            // 14 characters: STYLED reaches to 14, and a shorter text would clamp it silently.
+            TextFieldValue("hello world :)", TextRange(3, 9)), "> quoted",
+            ranges = STYLED, baselineRanges = mapOf(Inline.BOLD to listOf(Span(2, 6))),
+            links = links, baselineLinks = baselineLinks,
+        )
+
+        for ((name, s) in listOf("disk" to slot, "inline" to unwritableSlot())) {
+            val saved = saveComposerResume(state, s)!!
+            val back = restoreComposerResume(saved, s)!!
+            assertEquals("$name: the body's links", links, back.linksState.value)
+            assertEquals("$name: the baseline's links", baselineLinks, back.baselineLinksState.value)
+            assertEquals("$name: the styling must still come back beside them", STYLED, back.rangesState.value)
+            assertEquals("$name: the text", "hello world :)", back.bodyState.value.text)
+            assertEquals("$name: the baseline", "> quoted", back.baselineState.value)
+            assertEquals("$name: the caret", TextRange(3, 9), back.bodyState.value.selection)
+        }
+    }
+
+    /** A body with no link at all writes the section empty, and reads back empty. */
+    @Test
+    fun `a body with no link comes back with none`() {
+        val token = park(slot, "hello", 0, 0, "base", ranges = mapOf(Inline.BOLD to listOf(Span(0, 5))))
+        val resume = slot.read(token)!!
+        assertEquals(emptyList<Link>(), resume.links)
+        assertEquals(emptyList<Link>(), resume.baselineLinks)
+    }
+
+    /** The link section is parsed as strictly as the spans: one bad character refuses the record. */
+    @Test
+    fun `a corrupt link section reads null, never a draft with a guessed address`() {
+        val token = park(slot, "hello", 1, 2, "base", links = listOf(Link(Span(0, 4), "https://x")))
+        val lines = file.readText(Charsets.UTF_8).split('\n', limit = 3)
+        assertEquals("a `/4` file is a header line, a styling line, then the texts", 3, lines.size)
+        for (corrupt in listOf(
+            "b;i;u;s;U;O|b;i;u;s;U;O",                       // six sections where seven are due
+            "b;i;u;s;U;O;a0-4-https%3A%2F%2Fx",              // …and on one side only
+            "b;i;u;s;U;O;x0-4-https%3A%2F%2Fx|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-4|b;i;u;s;U;O;a",                // no URL field at all
+            "b;i;u;s;U;O;a0-4-https%3A%2F%2Fx-more|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a4-0-https%3A%2F%2Fx|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-99-https%3A%2F%2Fx|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-x-https%3A%2F%2Fx|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;aX-4-https%3A%2F%2Fx|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-4-https%3|b;i;u;s;U;O;a",        // a truncated percent sequence
+            "b;i;u;s;U;O;a0-4-https%ZZx|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-4-https://x|b;i;u;s;U;O;a",      // a raw URL, which the format cannot hold
+            "b;i;u;s;U;O;a|b;i;u;s;U;O;a0-9-https%3A%2F%2Fx",
+        )) {
+            file.writeText(lines[0] + "\n" + corrupt + "\n" + lines[2], Charsets.UTF_8)
+            assertNull("`$corrupt` must refuse the record whole", slot.read(token))
+            assertTrue("a refused read must leave the file", file.isFile)
+        }
+        file.writeText(lines.joinToString("\n"), Charsets.UTF_8)
+        assertEquals(
+            "the intact line must still read",
+            listOf(Link(Span(0, 4), "https://x")),
+            slot.read(token)!!.links,
+        )
+    }
+
+    /**
+     * ⛔ THE THIRD BORDER. The guard is written as living at every border a URL crosses, and this
+     * file is one of them: a parked record hands a `Link` straight to the composer, and the next
+     * send writes it into the message as `<a href="…">`. A record carrying `javascript:` — or a
+     * RELATIVE address, which this border may not invent a scheme for either — refuses the whole
+     * record, exactly like any other unreadable section.
+     */
+    @Test
+    fun `a parked record may not bring back an address the guard would refuse`() {
+        val token = park(slot, "hello", 0, 0, "base", links = listOf(Link(Span(0, 5), "https://x")))
+        val lines = file.readText(Charsets.UTF_8).split('\n', limit = 3)
+        for (hostile in listOf(
+            "b;i;u;s;U;O;a0-5-javascript%3Aalert%281%29|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-5-data%3Atext%2Fhtml%2Cx|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-5-file%3A%2F%2F%2Fetc%2Fpasswd|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-5-exemple.org|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-5-%2Fprix|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-5-%23top|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a0-5-|b;i;u;s;U;O;a",
+            "b;i;u;s;U;O;a|b;i;u;s;U;O;a0-4-javascript%3Ax",
+        )) {
+            file.writeText(lines[0] + "\n" + hostile + "\n" + lines[2], Charsets.UTF_8)
+            assertNull("`$hostile` must refuse the record whole", slot.read(token))
+            assertTrue("a refused read must leave the file", file.isFile)
+        }
+        file.writeText(lines.joinToString("\n"), Charsets.UTF_8)
+        assertEquals(
+            "an address the guard accepts must still come back",
+            listOf(Link(Span(0, 5), "https://x")),
+            slot.read(token)!!.links,
+        )
+    }
+
+    // -- one `/3` header, two builds that wrote different lines under it --------------------------
+
+    /**
+     * ⭐ A file left by the LISTS build, written by hand: `/3`, SIX groups a side. ⛔ It must read,
+     * blocks and all. Refusing it is not a lost list: `read` answers null, the parcel still says
+     * `t:<token>`, and the composer comes back EMPTY over a draft it believes was parked.
+     */
+    @Test
+    fun `a version 3 file from the lists build reads its blocks, and is not refused`() {
+        file.parentFile!!.mkdirs()
+        file.writeText(
+            "sterna-composer-resume/3 tok-b 1 2 5 4\nb0-5;i;u;s;U0-0;O|b;i;u;s;U;O\nhellobase",
+            Charsets.UTF_8,
+        )
+
+        val resume = slot.read("tok-b")
+        assertTrue("⛔ a `/3` file from the lists build must NOT be refused", resume != null)
+        assertEquals("hello", resume!!.body)
+        assertEquals("base", resume.baseline)
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 5))), resume.ranges)
+        assertEquals("its list must come back", listOf(Block(BlockKind.BULLET, 0..0)), resume.blocks)
+        assertEquals("that build knew no link, so there is none", emptyList<Link>(), resume.links)
+        assertEquals(emptyList<Link>(), resume.baselineLinks)
+    }
+
+    /**
+     * ⭐ And a file left by the LINKS build, under the SAME `/3`: FIVE sections a side. It must
+     * read too, links and all — which is why the version number alone may not decide the shape.
+     */
+    @Test
+    fun `a version 3 file from the links build reads its links, and is not refused`() {
+        file.parentFile!!.mkdirs()
+        file.writeText(
+            "sterna-composer-resume/3 tok-a 1 2 5 4\nb0-5;i;u;s;a0-5-https%3A%2F%2Fx|b;i;u;s;a\nhellobase",
+            Charsets.UTF_8,
+        )
+
+        val resume = slot.read("tok-a")
+        assertTrue("⛔ a `/3` file from the links build must NOT be refused", resume != null)
+        assertEquals("hello", resume!!.body)
+        assertEquals("base", resume.baseline)
+        assertEquals(mapOf(Inline.BOLD to listOf(Span(0, 5))), resume.ranges)
+        assertEquals("its link must come back",
+            listOf(Link(Span(0, 5), "https://x")), resume.links)
+        assertEquals("that build knew no list, so there is none", emptyList<Block>(), resume.blocks)
+        assertEquals(emptyList<Block>(), resume.baselineBlocks)
+    }
+
+    /**
+     * THE DECISION ITSELF, executed: which shape a styling line was written in, from the header
+     * and the LINE — never from the header alone, because two builds wrote a `/3`.
+     */
+    @Test
+    fun `the shape of a styling line is read from its sections and their letters`() {
+        assertEquals(
+            "seven sections under a /4: what this build writes",
+            StylingShape.FAMILIES_BLOCKS_LINKS,
+            ComposerResumeSlot.stylingShapeOf("sterna-composer-resume/4", "b;i;u;s;U;O;a|b;i;u;s;U;O;a"),
+        )
+        assertEquals(
+            "six groups under a /3: the lists build",
+            StylingShape.FAMILIES_BLOCKS,
+            ComposerResumeSlot.stylingShapeOf("sterna-composer-resume/3", "b;i;u;s;U0-0;O|b;i;u;s;U;O"),
+        )
+        assertEquals(
+            "five sections under a /3: the links build — the LETTER is what tells them apart",
+            StylingShape.FAMILIES_LINKS,
+            ComposerResumeSlot.stylingShapeOf("sterna-composer-resume/3", "b;i;u;s;a0-5-x|b;i;u;s;a"),
+        )
+        assertEquals(
+            "four groups under a /2: the build before either of them",
+            StylingShape.FAMILIES,
+            ComposerResumeSlot.stylingShapeOf("sterna-composer-resume/2", "b0-5;i;u;s|b;i;u;s"),
+        )
+        // ⛔ And every form no build ever wrote. A shape answered here is a draft handed back as
+        // something other than what was written.
+        for ((magic, line) in listOf(
+            "sterna-composer-resume/3" to "b;i;u;s;U|b;i;u;s;U",           // five, opened by U
+            "sterna-composer-resume/3" to "b;i;u;s;a;O|b;i;u;s;a;O",       // six, fifth opened by a
+            "sterna-composer-resume/3" to "b;i;u;s;U;O;a|b;i;u;s;U;O;a",   // seven under a /3
+            "sterna-composer-resume/4" to "b;i;u;s;U;O|b;i;u;s;U;O",       // six under a /4
+            "sterna-composer-resume/4" to "b;i;u;s;a|b;i;u;s;a",           // five under a /4
+            "sterna-composer-resume/4" to "b;i;u;s|b;i;u;s",               // four under a /4
+            "sterna-composer-resume/2" to "b;i;u;s;U;O;a|b;i;u;s;U;O;a",   // seven under a /2
+            "sterna-composer-resume/2" to "b;i;u;s;a|b;i;u;s;a",           // five under a /2
+            "sterna-composer-resume/1" to "b;i;u;s;U;O;a|b;i;u;s;U;O;a",   // a /1 has no line at all
+            "sterna-composer-resume/5" to "b;i;u;s;U;O;a|b;i;u;s;U;O;a",   // a header from the future
+        )) {
+            assertNull("`$magic` + `$line` is a form no build wrote", ComposerResumeSlot.stylingShapeOf(magic, line))
+        }
+    }
+
+    /** …and the record carrying such a line is refused whole, exactly like a bad header. */
+    @Test
+    fun `a styling line no build ever wrote refuses the record`() {
+        file.parentFile!!.mkdirs()
+        for ((magic, line) in listOf(
+            "sterna-composer-resume/3" to "b;i;u;s;U|b;i;u;s;U",
+            "sterna-composer-resume/3" to "b;i;u;s;a;O|b;i;u;s;a;O",
+            "sterna-composer-resume/3" to "b;i;u;s;U;O;a|b;i;u;s;U;O;a",
+            "sterna-composer-resume/4" to "b;i;u;s;U;O|b;i;u;s;U;O",
+            "sterna-composer-resume/4" to "b;i;u;s|b;i;u;s",
+        )) {
+            file.writeText("$magic tok-x 1 2 5 4\n$line\nhellobase", Charsets.UTF_8)
+            assertNull("`$magic` + `$line` must refuse the record whole", slot.read("tok-x"))
+            assertTrue("a refused read must leave the file", file.isFile)
         }
     }
 
@@ -867,9 +1250,15 @@ class ComposerResumeSlotTest {
         token: String = newComposerToken(),
         ranges: Map<Inline, List<Span>> = emptyMap(),
         blocks: List<Block> = emptyList(),
+        links: List<Link> = emptyList(),
     ): String {
-        assertTrue("the record had to be written for this test to mean anything",
-            slot.write(token, body, selectionStart, selectionEnd, baseline, ranges, emptyMap(), blocks))
+        assertTrue(
+            "the record had to be written for this test to mean anything",
+            slot.write(
+                token, body, selectionStart, selectionEnd, baseline, ranges, emptyMap(), blocks,
+                emptyList(), links,
+            ),
+        )
         return token
     }
 

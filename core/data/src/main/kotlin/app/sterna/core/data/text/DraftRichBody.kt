@@ -16,10 +16,11 @@ package app.sterna.core.data.text
 /**
  * The HTML part a draft save must store for [body], or `null` when there is nothing to store.
  *
- * ⛔ `null` for a body with no styling, and that is the whole point: a plain draft is written
- * EXACTLY as it was before #131 — same row, same `Email/set`, same APPEND, no `text/html` part
- * anywhere. Storing `toHtml` of a plain body would give every draft ever saved a second MIME part,
- * and turn a draft another client reads as text into one it reads as HTML.
+ * ⛔ `null` for a body with no styling, no list AND no link (#131) — `isPlain` counts all three —
+ * and that is the whole point: a plain draft is written EXACTLY as it was before #131 — same row,
+ * same `Email/set`, same APPEND, no `text/html` part anywhere. Storing `toHtml` of a plain body
+ * would give every draft ever saved a second MIME part, and turn a draft another client reads as
+ * text into one it reads as HTML.
  *
  * What comes out is the closed subset [toHtml] writes, so [fromHtml] reads it back exactly — the
  * round trip is what makes a reopened draft keep its bold instead of showing markup.

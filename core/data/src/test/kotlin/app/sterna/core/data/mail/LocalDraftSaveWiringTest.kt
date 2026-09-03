@@ -93,6 +93,17 @@ class LocalDraftSaveWiringTest {
             listOf("return saveDraftLocalFirst("),
             body.filter { "saveDraftLocalFirst(" in it },
         )
+        assertEquals(
+            "⛔ the lost-body guard's emptiness term must be HANDED DOWN, never re-derived here " +
+                "(#131). `typedBodyIsBlank = body.isBlank()` compiles and reads innocent, and it " +
+                "is the defect itself: `body` is the plain-text PROJECTION of the rich body, so a " +
+                "bullet tapped on an empty composer makes it `\"- \"`, the guard stands down, and " +
+                "the only copy of a local draft is replaced by those two characters. " +
+                "`localDraftRow` carries a default for the callers whose body IS the typed text; " +
+                "this call site is the one for which that default is wrong.",
+            listOf("typedBodyIsBlank = typedBodyIsBlank,"),
+            body.filter { it.startsWith("typedBodyIsBlank") },
+        )
     }
 
     @Test fun `the things saveDraftLocalFirst is given are the real store, whole lines`() {
@@ -216,12 +227,18 @@ class LocalDraftSaveWiringTest {
                 // the WRITE guard weighs — folded back together, erasing a marked draft's body is
                 // refused in silence again.
                 "composerBodyWasLost = composerBodyWasLost,",
+                // ⛔ …and the EMPTINESS of what was TYPED, which travels beside it and not
+                // inside `body` (#131). `body` is the plain-text projection now, and a bullet on
+                // an empty composer projects to `"- "`: read there, the lost-body guard stands
+                // down and those two characters replace the only copy of the draft. Dropped from
+                // this call, `localDraftRow`'s default answers `body.isBlank()` — the defect.
+                "typedBodyIsBlank = typedBodyIsBlank,",
                 "requestReceipt = requestReceipt,",
                 "existing = existing,",
                 "nowMillis = System.currentTimeMillis(),",
                 ")",
             ),
-            body.drop(at).take(24),
+            body.drop(at).take(25),
         )
     }
 

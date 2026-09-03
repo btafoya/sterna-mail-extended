@@ -7050,6 +7050,16 @@ class MailRepository(
          * only copy of a draft's text. Each caller states which of the two it is.
          */
         composerBodyWasLost: Boolean,
+        /**
+         * Whether the composer had NOTHING TYPED — its own `body.text`, and ⛔ NOT `[body].isBlank()`,
+         * which this function may not ask since #131: [body] is the plain-text PROJECTION of the
+         * rich body (`toPlainText`), and a bullet tapped on an empty composer projects to `"- "`.
+         * Read off [body], the lost-body guard (`localDraftKeepsTheStoredBody`) stands down on a
+         * save that carries nothing, and those two characters are written over the only copy of a
+         * local draft. ⛔ No default, for the reason [composerBodyWasLost] has none: this is the
+         * border where the derived value is born, and it is the one term that must never be guessed.
+         */
+        typedBodyIsBlank: Boolean,
         // The composer's chosen From, so a delegated sub-account's draft is honest about the
         // identity it will be sent as instead of falling back to the login's address (issue #31).
         fromName: String? = null,
@@ -7105,6 +7115,9 @@ class MailRepository(
             },
             bodyIsLossy = bodyIsLossy,
             composerBodyWasLost = composerBodyWasLost,
+            // ⛔ Handed DOWN, never re-derived here: `body` is the projection, and the answer this
+            // guard needs is about the text the user typed (see the parameter's KDoc).
+            typedBodyIsBlank = typedBodyIsBlank,
             requestReceipt = requestReceipt,
             existing = existing,
             nowMillis = System.currentTimeMillis(),

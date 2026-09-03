@@ -29,6 +29,14 @@
     <string name="compose_format_list_bulleted">Liste à puces</string>
     <string name="compose_format_list_numbered">Liste numérotée</string>
     <string name="compose_format_clear">Effacer la mise en forme</string>
+    <string name="compose_format_link">Lien</string>
+    <string name="compose_link_title">Lien</string>
+    <string name="compose_link_url">Adresse</string>
+    <string name="compose_link_text">Texte</string>
+    <string name="compose_link_bad_url">Saisissez une adresse web (http, https), ou une adresse courriel écrite mailto:quelquun@example.org</string>
+    <string name="compose_link_remove">Retirer le lien</string>
+    <string name="compose_link_apply">Valider</string>
+    <string name="compose_link_cancel">Annuler</string>
     <string name="compose_quote_attribution">Le %1$s, %2$s a écrit :</string>
     <string name="compose_quote_someone">quelqu\'un</string>
     <string name="compose_quote_not_added">Message cité non ajouté : vous aviez déjà commencé à écrire.</string>

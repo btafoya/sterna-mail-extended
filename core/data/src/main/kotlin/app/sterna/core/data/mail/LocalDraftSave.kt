@@ -167,9 +167,15 @@ internal suspend fun localDraftUidValidity(
  *
  * - [composerBodyWasLost] — without it, no re-save could ever shorten or empty a draft again: every
  *   save with less text than the row holds would be read as a loss.
- * - [body] being blank — without it, a composer that lost its body but was handed a fresh one (the
+ * - [typedBodyIsBlank] — without it, a composer that lost its body but was handed a fresh one (the
  *   user retyped before saving) would have the retyped text thrown away for the stale row. Blank
  *   and not empty, as `draftHasContent` reads a body: whitespace is not text either.
+ *   ⛔ **It is the TYPED text that answers it, never [body].** Since #131 [body] is a DERIVED
+ *   value — `toPlainText`, which spells the list markers out and writes `label <url>` — and
+ *   `toPlainText` of a body whose text is EMPTY but which carries one bullet is `"- "`, which is
+ *   not blank. Judged on [body], the guard then stands down on a composer that handed over
+ *   nothing at all, and `"- "` is written over the only copy of the draft. A bullet tapped on an
+ *   empty composer is a gesture this app offers, so the two characters are one tap away.
  * - [existingBody] being neither null nor blank — a first save (no row under it) writes what it has,
  *   and so does a save onto a row that holds nothing to protect.
  *
@@ -178,8 +184,25 @@ internal suspend fun localDraftUidValidity(
  * `requestReceipt`, the fresh `Message-ID`, the timestamps — is written normally, and the row still
  * carries `bodyIsLossy` so every destroy guard downstream keeps refusing.
  */
-internal fun localDraftBodyToWrite(body: String, existingBody: String?, composerBodyWasLost: Boolean): String =
-    if (localDraftKeepsTheStoredBody(body, existingBody, composerBodyWasLost)) existingBody.orEmpty() else body
+internal fun localDraftBodyToWrite(
+    body: String,
+    existingBody: String?,
+    composerBodyWasLost: Boolean,
+    /**
+     * Whether the composer had NOTHING TYPED — its own `body.text`, not [body].
+     *
+     * ⚠ The default is the identity for every caller whose handed-over body IS the typed text,
+     * which was every caller before #131 and is still every one but the composer's own save. ⛔ The
+     * production path (`localDraftRow` ← `MailRepository.saveDraft`) states it, and `saveDraft`
+     * takes it with NO default so no call site can leave it to be guessed.
+     */
+    typedBodyIsBlank: Boolean = body.isBlank(),
+): String =
+    if (localDraftKeepsTheStoredBody(typedBodyIsBlank, existingBody, composerBodyWasLost)) {
+        existingBody.orEmpty()
+    } else {
+        body
+    }
 
 /**
  * The three terms above, as ONE decision — so the HTML part cannot answer differently from the
@@ -187,10 +210,10 @@ internal fun localDraftBodyToWrite(body: String, existingBody: String?, composer
  * exact and not a default: this predicate is only true when [existingBody] is non-blank.
  */
 internal fun localDraftKeepsTheStoredBody(
-    body: String,
+    typedBodyIsBlank: Boolean,
     existingBody: String?,
     composerBodyWasLost: Boolean,
-): Boolean = composerBodyWasLost && body.isBlank() && !existingBody.isNullOrBlank()
+): Boolean = composerBodyWasLost && typedBodyIsBlank && !existingBody.isNullOrBlank()
 
 /**
  * The HTML part a save writes on the row (#131) — ⛔ **it FOLLOWS the text, always.**
@@ -209,8 +232,14 @@ internal fun localDraftHtmlToWrite(
     body: String,
     existingBody: String?,
     composerBodyWasLost: Boolean,
+    /** As in [localDraftBodyToWrite], and it must be the SAME answer: one condition, two columns. */
+    typedBodyIsBlank: Boolean = body.isBlank(),
 ): String? =
-    if (localDraftKeepsTheStoredBody(body, existingBody, composerBodyWasLost)) existingHtml else html
+    if (localDraftKeepsTheStoredBody(typedBodyIsBlank, existingBody, composerBodyWasLost)) {
+        existingHtml
+    } else {
+        html
+    }
 
 /**
  * The row to write, built from what the composer handed over plus [existing] (the row a re-save
@@ -259,6 +288,11 @@ internal fun localDraftRow(
      * site quietly delete a draft's only copy. Every call states which one it is.
      */
     composerBodyWasLost: Boolean,
+    /**
+     * Whether the composer had nothing TYPED — see [localDraftBodyToWrite]. ⛔ Since #131 [body] is
+     * derived (`toPlainText`) and cannot answer it: a bullet on an empty body makes [body] `"- "`.
+     */
+    typedBodyIsBlank: Boolean = body.isBlank(),
     requestReceipt: Boolean = false,
     existing: LocalDraftEntity? = null,
     nowMillis: Long,
@@ -270,12 +304,14 @@ internal fun localDraftRow(
     cc = joinAddresses(cc),
     bcc = joinAddresses(bcc),
     subject = subject,
-    textBody = localDraftBodyToWrite(body, existing?.textBody, composerBodyWasLost),
+    textBody = localDraftBodyToWrite(body, existing?.textBody, composerBodyWasLost, typedBodyIsBlank),
     // ⛔ The HTML FOLLOWS the text through the lost-body guard, never past it: see
     // [localDraftHtmlToWrite]. Written as a bare `html` here, a composer that lost its body kept
     // last week's text beside the empty HTML of this save, and the reopen — which reads the HTML
     // first — showed the draft blank with the guard green.
-    htmlBody = localDraftHtmlToWrite(html, existing?.htmlBody, body, existing?.textBody, composerBodyWasLost),
+    htmlBody = localDraftHtmlToWrite(
+        html, existing?.htmlBody, body, existing?.textBody, composerBodyWasLost, typedBodyIsBlank,
+    ),
     fromName = fromName,
     fromEmail = fromEmail,
     inReplyTo = inReplyTo.joinToString(" ").ifBlank { null },

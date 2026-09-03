@@ -647,6 +647,7 @@ internal fun draftFieldsOf(o: Email, cached: Email?): DraftFields {
         body = rich.text,
         bodyRanges = rich.ranges,
         bodyBlocks = rich.blocks,
+        bodyLinks = rich.links,
         expand = cc.isNotBlank() || bcc.isNotBlank(),
     )
 }
@@ -1331,12 +1332,23 @@ internal fun htmlBodyWithSignature(
 }
 
 /**
- * Whether no style range of any family reaches into `[start, end)` of [body] — half-open on both
- * sides, so a range ending exactly at [start] or starting exactly at [end] does not count. Pure, so
- * the decision is executed by `ComposeSignatureTest` and not re-derived there.
+ * Whether nothing the user laid over the body — no style range of any family, ⭐ and no LINK
+ * (#131) — reaches into `[start, end)` of [body]; half-open on both sides, so a range ending
+ * exactly at [start] or starting exactly at [end] does not count. Pure, so the decision is
+ * executed by `ComposeSignatureTest` and not re-derived there.
+ *
+ * ⛔ The links belong here for the same reason the ranges do, and their absence would be worse:
+ * the verbatim substitution REPLACES those characters with the stored HTML, so a link the user put
+ * on a word of the signature block would simply not be in the message — the address gone, with the
+ * text still on screen exactly as she left it.
+ *
+ * ⚠ The list BLOCKS are NOT counted here, and this volet did not change that: they were left out
+ * when the lists landed and nothing about the links makes that call again. What a block over the
+ * signature does to the substituted html is the lists' question, not this one.
  */
 internal fun signatureBlockIsIntact(body: RichBody, start: Int, end: Int): Boolean =
-    body.ranges.values.none { spans -> spans.any { it.start < end && it.end > start } }
+    body.ranges.values.none { spans -> spans.any { it.start < end && it.end > start } } &&
+        body.links.none { it.span.start < end && it.span.end > start }
 
 // --- Reply / reply-all / forward header derivation (pure, so it works from a cached list row) ---
 // These need only the original's headers (sender, recipients, subject) — never its body — so a

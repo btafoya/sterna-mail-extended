@@ -4,6 +4,7 @@ import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.Span
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
@@ -264,9 +265,11 @@ class ComposeTextTest {
     @Test fun draftFieldsCarryTheListsOfTheHtmlPart() {
         // #131 lists. ⛔ The `<ul>` is in the html part only, and it must be read FIRST: read
         // text-first, whatever the text part holds would show as typed text and the next save
-        // would store it INSIDE the body. The dashes here are the worst case on purpose — ⚠ a
-        // draft Sterna saves stores the text as TYPED, unmarked; only the outbox row, which is the
-        // part to be delivered, spells a list out.
+        // would store it INSIDE the body. The dashes here are the worst case on purpose — ⚠ and
+        // since the links (#131) that IS what a draft's text column holds: the save writes
+        // `toPlainText(body)`, the one plain-text answer the send uses too, so the markers and the
+        // addresses are spelled out in both. The html part is read first, so the reopen is exact;
+        // this fixture is what happens when it cannot be.
         val draft = Email(
             id = "d8",
             subject = "Shopping",
@@ -288,6 +291,58 @@ class ComposeTextTest {
         )
     }
 
+    /**
+     * ROUTE 1 OF 4 — the SERVER draft (JMAP and IMAP alike land on `draftFieldsOf`).
+     *
+     * ⛔ Why this one is not decoration. Since the parser accepts an anchor, this draft is judged
+     * REPRODUCIBLE (`draftHtmlIsLossy`), so the next save destroys the server original and puts
+     * this composer's answer in its place. `bodyLinks` dropped here and the replacement carries no
+     * anchor at all: the address is gone from the only copy there was.
+     */
+    @Test fun draftFieldsOfALinkedDraftCarryItsLinks() {
+        val draft = Email(
+            id = "d10",
+            subject = "Linked draft",
+            to = listOf(EmailAddress(email = "a@example.com")),
+            textBody = listOf(EmailBodyPart(partId = "t", type = "text/plain")),
+            htmlBody = listOf(EmailBodyPart(partId = "h", type = "text/html")),
+            bodyValues = mapOf(
+                "t" to EmailBodyValue("hello world"),
+                "h" to EmailBodyValue("""hello <a href="https://x">world</a>"""),
+            ),
+        )
+        val fields = draftFieldsOf(draft, cached = null)
+        assertEquals("hello world", fields.body)
+        assertEquals(
+            "the link comes back off the html part, or reopening a draft removes an address",
+            listOf(Link(Span(6, 11), "https://x")),
+            fields.bodyLinks,
+        )
+    }
+
+    /** ROUTE 1 OF 4, a list AND a link on one body: the two answers come back together. */
+    @Test fun draftFieldsOfADraftWithAListAndALinkCarryBoth() {
+        val draft = Email(
+            id = "d11",
+            subject = "Both",
+            to = listOf(EmailAddress(email = "a@example.com")),
+            textBody = listOf(EmailBodyPart(partId = "t", type = "text/plain")),
+            htmlBody = listOf(EmailBodyPart(partId = "h", type = "text/html")),
+            bodyValues = mapOf(
+                "t" to EmailBodyValue("- milk\n- the site"),
+                "h" to EmailBodyValue("""<ul><li>milk</li><li>the <a href="https://x">site</a></li></ul>"""),
+            ),
+        )
+        val fields = draftFieldsOf(draft, cached = null)
+        assertEquals("milk\nthe site", fields.body)
+        assertEquals(listOf(Block(BlockKind.BULLET, 0..1)), fields.bodyBlocks)
+        assertEquals(
+            "the list and the link say different things about the same body; both must come back",
+            listOf(Link(Span(9, 13), "https://x")),
+            fields.bodyLinks,
+        )
+    }
+
     @Test fun draftFieldsOfAPlainDraftCarryNoStyling() {
         val draft = Email(
             id = "d6",
@@ -300,6 +355,7 @@ class ComposeTextTest {
         assertEquals("hello world", fields.body)
         assertEquals(emptyMap<Inline, List<Span>>(), fields.bodyRanges)
         assertEquals(emptyList<Block>(), fields.bodyBlocks)
+        assertEquals(emptyList<Link>(), fields.bodyLinks)
     }
 
     @Test fun draftFieldsTolerateEmptyDraft() {

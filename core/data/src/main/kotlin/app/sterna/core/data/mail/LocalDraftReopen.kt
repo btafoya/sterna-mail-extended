@@ -5,6 +5,7 @@ import app.sterna.core.data.db.LocalDraftEntity
 import app.sterna.core.data.db.LocalDraftState
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.richBodyFrom
@@ -86,6 +87,8 @@ data class LocalDraftPrefill(
      * it and the next save stores the removal.
      */
     val bodyBlocks: List<Block> = emptyList(),
+    /** The links [body] carries (#131), read back out of the same `htmlBody` as the spans. */
+    val bodyLinks: List<Link> = emptyList(),
     /** Reveal the Cc/Bcc row, so a draft that carried them does not hide them on reopen. */
     val expand: Boolean,
     /** The address the draft was written as — the identity to pre-select (#31). */
@@ -162,6 +165,7 @@ fun localDraftPrefill(row: LocalDraftEntity): LocalDraftPrefill {
         body = rich.text,
         bodyRanges = rich.ranges,
         bodyBlocks = rich.blocks,
+        bodyLinks = rich.links,
         expand = cc.isNotEmpty() || bcc.isNotEmpty(),
         fromEmail = row.fromEmail,
         inReplyTo = localDraftMessageIds(row.inReplyTo),

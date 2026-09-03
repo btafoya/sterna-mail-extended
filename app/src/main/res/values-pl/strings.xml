@@ -29,6 +29,14 @@
     <string name="compose_format_list_bulleted">Lista punktowana</string>
     <string name="compose_format_list_numbered">Lista numerowana</string>
     <string name="compose_format_clear">Wyczyść formatowanie</string>
+    <string name="compose_format_link">Odnośnik</string>
+    <string name="compose_link_title">Odnośnik</string>
+    <string name="compose_link_url">Adres</string>
+    <string name="compose_link_text">Tekst</string>
+    <string name="compose_link_bad_url">Wpisz adres internetowy (http, https) albo adres pocztowy w postaci mailto:ktos@example.org</string>
+    <string name="compose_link_remove">Usuń odnośnik</string>
+    <string name="compose_link_apply">OK</string>
+    <string name="compose_link_cancel">Anuluj</string>
     <string name="compose_quote_attribution">Dnia %1$s, %2$s napisał(a):</string>
     <string name="compose_quote_someone">ktoś</string>
     <string name="compose_quote_not_added">Nie dodano cytowanej wiadomości: pisanie było już rozpoczęte.</string>

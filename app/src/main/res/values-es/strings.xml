@@ -29,6 +29,14 @@
     <string name="compose_format_list_bulleted">Lista con viñetas</string>
     <string name="compose_format_list_numbered">Lista numerada</string>
     <string name="compose_format_clear">Borrar formato</string>
+    <string name="compose_format_link">Enlace</string>
+    <string name="compose_link_title">Enlace</string>
+    <string name="compose_link_url">Dirección</string>
+    <string name="compose_link_text">Texto</string>
+    <string name="compose_link_bad_url">Escribe una dirección web (http, https), o una dirección de correo como mailto:alguien@example.org</string>
+    <string name="compose_link_remove">Quitar enlace</string>
+    <string name="compose_link_apply">Aceptar</string>
+    <string name="compose_link_cancel">Cancelar</string>
     <string name="compose_quote_attribution">El %1$s, %2$s escribió:</string>
     <string name="compose_quote_someone">alguien</string>
     <string name="compose_quote_not_added">Mensaje citado no añadido: ya habías empezado a escribir.</string>

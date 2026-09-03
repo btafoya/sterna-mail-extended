@@ -9,8 +9,10 @@ import androidx.compose.ui.text.input.TextFieldValue
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
+import app.sterna.core.data.text.linkUrlFromHref
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 
@@ -52,12 +54,19 @@ class ComposerResumeSlot(private val file: File) {
         /** The baseline's styling, compared by the leave guard exactly like its text. */
         val baselineRanges: Map<Inline, List<Span>>,
         /**
-         * The body's list blocks (#131), by line. Empty for a body with none, for a `/2` file
-         * (the build that had spans but no lists) and for a `/1` one.
+         * The body's list blocks (#131), by line. Empty for a body with none, for a file whose
+         * styling line carries no block section, and for a `/1` one.
          */
         val blocks: List<Block> = emptyList(),
         /** The baseline's blocks: a reopened list is not an edit, so the baseline carries it too. */
         val baselineBlocks: List<Block> = emptyList(),
+        /**
+         * The body's links (#131). Empty for a body with none, for a file whose styling line
+         * carries no link section, and for a `/1` one.
+         */
+        val links: List<Link> = emptyList(),
+        /** The baseline's links, compared by the leave guard exactly like its text. */
+        val baselineLinks: List<Link> = emptyList(),
     )
 
     /**
@@ -86,6 +95,8 @@ class ComposerResumeSlot(private val file: File) {
         baselineRanges: Map<Inline, List<Span>> = emptyMap(),
         blocks: List<Block> = emptyList(),
         baselineBlocks: List<Block> = emptyList(),
+        links: List<Link> = emptyList(),
+        baselineLinks: List<Link> = emptyList(),
     ): Boolean {
         val tmp = tempFile()
         return try {
@@ -93,7 +104,12 @@ class ComposerResumeSlot(private val file: File) {
             tmp.outputStream().bufferedWriter(Charsets.UTF_8).use { out ->
                 out.write(header(token, selectionStart, selectionEnd, body.length, baseline.length))
                 // Normalised through RichBody, so what is written is always within the text.
-                out.write(encodeRanges(RichBody(body, ranges, blocks), RichBody(baseline, baselineRanges, baselineBlocks)))
+                out.write(
+                    encodeRanges(
+                        RichBody(body, ranges, blocks, links),
+                        RichBody(baseline, baselineRanges, baselineBlocks, baselineLinks),
+                    ),
+                )
                 out.write("\n")
                 out.write(body)
                 out.write(baseline)
@@ -136,15 +152,30 @@ class ComposerResumeSlot(private val file: File) {
     //
     // One self-describing header line, ONE styling line (#131), then the two texts back to back:
     //
-    //     sterna-composer-resume/3 <token> <selStart> <selEnd> <bodyChars> <baselineChars>\n
+    //     sterna-composer-resume/4 <token> <selStart> <selEnd> <bodyChars> <baselineChars>\n
     //     <body styling>|<baseline styling>\n
     //     <body><baseline>
     //
     // The styling line ([encodeRanges]) holds neither `:` nor `\n`, so the second newline is its
     // end whatever the body contains, and it is parsed STRICTLY: one unreadable character refuses
     // the record whole, like a bad header. A `/1` file (the build before #131) has no styling
-    // line and still reads, with no styling; a `/2` file (spans, no lists) reads with four groups
-    // per side instead of six, which is what makes a composer parked before this lot come back.
+    // line and still reads, with no styling.
+    //
+    // ⛔ THE SHAPE OF THE LINE IS READ, NEVER ASSUMED FROM THE VERSION — and that is not
+    // pedantry, it is the ONE thing this format got wrong once. TWO builds of #131 shipped a
+    // `sterna-composer-resume/3` and they did not write the same line: the lists build wrote SIX
+    // groups a side (`b;i;u;s;U;O`), the links build FIVE sections (`b;i;u;s;a`). Either one read
+    // with the other's parser is refused, and ⛔ a refused record is not a cosmetic loss: the
+    // composer comes back EMPTY over a draft the parcel says was parked, `ComposeDirty` answers
+    // "unchanged", and the next save destroys the server copy in favour of a bodiless one. So the
+    // form is decided by the number of sections AND the letter that opens them
+    // ([stylingShapeOf]), and anything no build ever wrote is `null`:
+    //
+    //     /4  seven sections   b;i;u;s;U;O;a   families, blocks and links — the only one WRITTEN
+    //     /3  six groups       b;i;u;s;U;O     the lists build
+    //     /3  five sections    b;i;u;s;a       the links build
+    //     /2  four groups      b;i;u;s         the build before either of them
+    //     /1  no styling line at all           the build before #131
     //
     // The lengths are in CHARACTERS (UTF-16 code units, i.e. Kotlin's String.length) on both
     // sides, so an emoji's surrogate pair counts as the two it is and the split lands where it
@@ -174,7 +205,11 @@ class ComposerResumeSlot(private val file: File) {
         if (head[0] != MAGIC_V1) {
             val second = text.indexOf('\n', newline + 1)
             if (second < 0) return null
-            styling = decodeRanges(text.substring(newline + 1, second), bodyLen, baseLen) ?: return null
+            val line = text.substring(newline + 1, second)
+            // ⛔ The shape comes from the line itself, not from the version alone: two builds
+            // wrote a `/3`. An unknown shape refuses the record, exactly like an unreadable span.
+            val shape = stylingShapeOf(head[0], line) ?: return null
+            styling = decodeRanges(line, bodyLen, baseLen, shape) ?: return null
             rest = text.substring(second + 1)
         } else {
             styling = DecodedStyling()
@@ -186,6 +221,7 @@ class ComposerResumeSlot(private val file: File) {
         return Resume(
             rest.substring(0, bodyLen), start, end, rest.substring(bodyLen),
             styling.ranges, styling.baselineRanges, styling.blocks, styling.baselineBlocks,
+            styling.links, styling.baselineLinks,
         )
     }
 
@@ -209,17 +245,46 @@ class ComposerResumeSlot(private val file: File) {
             }
         }
 
-        private const val MAGIC = "sterna-composer-resume/3"
+        /** The only header ever WRITTEN: four families, two block groups, one link section. */
+        private const val MAGIC = "sterna-composer-resume/4"
 
-        /** #131 before the lists: a styling line of four groups per side. Read, never written. */
+        /**
+         * ⛔ AMBIGUOUS ON PURPOSE, and read as such. Two builds of #131 shipped a `/3` and wrote
+         * DIFFERENT lines under it — six groups for the lists, five sections for the links — so
+         * this number alone says nothing about the shape. Read, never written.
+         */
+        private const val MAGIC_V3 = "sterna-composer-resume/3"
+
+        /** #131 before either of them: a styling line of four groups per side. Read, never written. */
         private const val MAGIC_V2 = "sterna-composer-resume/2"
 
         /** The format before #131: no styling line at all. Read, never written. */
         private const val MAGIC_V1 = "sterna-composer-resume/1"
 
-        /** ⛔ Written: [MAGIC] only. Read: the two older ones too, or a composer parked by the
+        /** ⛔ Written: [MAGIC] only. Read: the three older ones too, or a composer parked by the
          *  build being replaced comes back empty on the first rotation after the update. */
-        private val READABLE_MAGIC = setOf(MAGIC, MAGIC_V2, MAGIC_V1)
+        private val READABLE_MAGIC = setOf(MAGIC, MAGIC_V3, MAGIC_V2, MAGIC_V1)
+
+        /**
+         * The shape [line] was written in UNDER [magic], or `null` — the FILE's face of the
+         * decision. [stylingShapeOfLine] reads the shape; this one then checks that the header
+         * and the shape are a pair some build actually wrote together, which no `/3` alone can
+         * say. The parcel has no header and uses the other face directly.
+         *
+         * ⭐ Pure, and exercised as such: this is the decision, not a comment about it.
+         */
+        internal fun stylingShapeOf(magic: String, line: String): StylingShape? {
+            val shape = stylingShapeOfLine(line) ?: return null
+            val written = when (magic) {
+                MAGIC -> shape == StylingShape.FAMILIES_BLOCKS_LINKS
+                // The one header two builds wrote different lines under, and the only reason
+                // [stylingShapeOfLine] exists as a decision of its own.
+                MAGIC_V3 -> shape == StylingShape.FAMILIES_BLOCKS || shape == StylingShape.FAMILIES_LINKS
+                MAGIC_V2 -> shape == StylingShape.FAMILIES
+                else -> false
+            }
+            return if (written) shape else null
+        }
     }
 }
 
@@ -238,6 +303,10 @@ class ComposerResumeState(
     blocks: List<Block> = emptyList(),
     /** The baseline's blocks: reopening a draft that HELD a list is not an edit. */
     baselineBlocks: List<Block> = emptyList(),
+    /** The body's links (#131), held beside the text exactly like the spans. */
+    links: List<Link> = emptyList(),
+    /** The baseline's links: the leave guard compares text, styling, blocks AND links against it. */
+    baselineLinks: List<Link> = emptyList(),
     /**
      * Names the record this composer parks, and it is minted ONCE — here — never per write.
      *
@@ -273,6 +342,8 @@ class ComposerResumeState(
     val baselineRangesState: MutableState<Map<Inline, List<Span>>> = mutableStateOf(baselineRanges)
     val blocksState: MutableState<List<Block>> = mutableStateOf(blocks)
     val baselineBlocksState: MutableState<List<Block>> = mutableStateOf(baselineBlocks)
+    val linksState: MutableState<List<Link>> = mutableStateOf(links)
+    val baselineLinksState: MutableState<List<Link>> = mutableStateOf(baselineLinks)
 
     /**
      * Raised when the composer closes FOR GOOD (sent, saved, scheduled, deleted, abandoned).
@@ -343,11 +414,16 @@ internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResume
         baselineRanges = state.baselineRangesState.value,
         blocks = state.blocksState.value,
         baselineBlocks = state.baselineBlocksState.value,
+        links = state.linksState.value,
+        baselineLinks = state.baselineLinksState.value,
     )
     // The styling line travels in the parcel with the text, so it counts against the bound.
     val encoded = encodeRanges(
-        RichBody(body.text, state.rangesState.value, state.blocksState.value),
-        RichBody(baseline, state.baselineRangesState.value, state.baselineBlocksState.value),
+        RichBody(body.text, state.rangesState.value, state.blocksState.value, state.linksState.value),
+        RichBody(
+            baseline, state.baselineRangesState.value, state.baselineBlocksState.value,
+            state.baselineLinksState.value,
+        ),
     )
     val carried = when {
         parked -> TOKEN_FORM + state.token
@@ -401,7 +477,16 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
     // body is a VALUE — the composer whose recipient is typed before its first word — and reading
     // the emptiness instead would arm the destroy licence on the most ordinary screen in the app
     // (pinned by `an empty body that was parked and read back whole has lost nothing`).
-    val unreadable = resume == null && form.startsWith(TOKEN_FORM) && form.length > TOKEN_FORM.length
+    // ⛔ AND THE SAME SENTENCE FOR `v:`, for the same reason and with the same bound. `v:<…>`
+    // is a promise that a body WAS carried; a `v:` whose styling line is a shape this build cannot
+    // read, or whose fields are truncated, collapses to the same `null`, and none of those causes
+    // means "there was nothing to restore". Left as an absence it is the quietest data loss in
+    // this file: not even the mark travels, so the composer comes back empty AND clean. ⛔ The
+    // bound is the EMPTY form, and only that: `v:` on its own names nothing.
+    val unreadable = resume == null && (
+        (form.startsWith(TOKEN_FORM) && form.length > TOKEN_FORM.length) ||
+            (form.startsWith(INLINE_FORM) && form.length > INLINE_FORM.length)
+        )
     // ⛔ `null` ONLY when there was no mark either. With the mark there, returning `null` would
     // drop the loss along with the text: `rememberSaveable` would fall back to its factory, the
     // composer would come back empty AND clean, and the next save would destroy the server copy of
@@ -420,6 +505,8 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
         baselineRanges = resume?.baselineRanges.orEmpty(),
         blocks = resume?.blocks.orEmpty(),
         baselineBlocks = resume?.baselineBlocks.orEmpty(),
+        links = resume?.links.orEmpty(),
+        baselineLinks = resume?.baselineLinks.orEmpty(),
         bodyWasLost = lost || unreadable,
     )
 }
@@ -442,10 +529,25 @@ private fun parseInlineResume(saved: String): ComposerResumeSlot.Resume? {
     val bodyLen = saved.substring(b + 1, c).toIntOrNull() ?: return null
     val payload = saved.substring(d + 1)
     if (bodyLen < 0 || bodyLen > payload.length) return null
-    val styling = decodeRanges(saved.substring(c + 1, d), bodyLen, payload.length - bodyLen) ?: return null
+    // ⛔ THE PARCEL CARRIES OLD FORMS TOO, and the sentence that used to stand here — "written
+    // and read by the SAME build" — was false. It contradicted [ComposerResumeSlot.READABLE_MAGIC]
+    // four hundred lines up, which exists precisely because a parked composer CROSSES an update:
+    // the disk write fails (full disk, an unwritable `filesDir` — both measured on the bench), the
+    // body travels in the parcel instead, the app is updated, and the process comes back on a
+    // saved state written by the build before. Read with the current shape nailed on, that line is
+    // refused — and a refused `v:` is the worst of the three outcomes: the composer comes back
+    // empty AND clean, `ComposeDirty` answers "unchanged", and the next save destroys the server
+    // copy in favour of a bodiless one. So the shape is read off the LINE, exactly as the file
+    // does it; there is simply no magic here to cross it with.
+    val stylingLine = saved.substring(c + 1, d)
+    val shape = stylingShapeOfLine(stylingLine) ?: return null
+    val styling = decodeRanges(
+        stylingLine, bodyLen, payload.length - bodyLen, shape,
+    ) ?: return null
     return ComposerResumeSlot.Resume(
         payload.substring(0, bodyLen), start, end, payload.substring(bodyLen),
         styling.ranges, styling.baselineRanges, styling.blocks, styling.baselineBlocks,
+        styling.links, styling.baselineLinks,
     )
 }
 
@@ -456,23 +558,133 @@ private val LETTER_OF = mapOf(Inline.BOLD to 'b', Inline.ITALIC to 'i', Inline.U
 /** ⛔ Upper case, so a block group can never be mistaken for an inline one by a sloppy parser. */
 private val BLOCK_LETTER_OF = mapOf(BlockKind.BULLET to 'U', BlockKind.NUMBER to 'O')
 
+/** The one section that is not a family and not a block: the links. */
+private const val LINK_LETTER = 'a'
+
 /**
- * `b0-4,9-12;i;u;s;U1-3;O|b;i;u;s;U;O`: the body's four inline families in declaration order, then
- * its bullet runs and its numbered runs, then `|`, then the baseline's six. Every span is
- * `start-end` (half-open, characters); every block run is `first-last` (INCLUSIVE, line indices).
- * Neither `:` nor `\n` ever appears in it, which is what lets the file and the parcel find its end
- * without escaping anything.
+ * WHICH sections one side of a styling line holds, in the one order they are ever written:
+ * the four inline families, then the two block groups, then the links.
+ *
+ * ⛔ A NAMED SHAPE, and never a `Boolean` with a default. The links build carried
+ * `withLinks: Boolean = true` and the default was the trap: the next format added a section, the
+ * calls that had not been touched kept compiling, and a file read in the wrong shape is refused —
+ * which is a composer that comes back EMPTY over a draft it was told had been parked. Both callers
+ * ([ComposerResumeSlot.parse] for the file, [parseInlineResume] for the parcel) now READ the shape
+ * off the line ([stylingShapeOfLine]) and pass it, out loud.
+ */
+internal enum class StylingShape(val sections: Int, val hasBlocks: Boolean, val hasLinks: Boolean) {
+    /** `b;i;u;s` — a `/2` line, written before either the lists or the links existed. */
+    FAMILIES(Inline.entries.size, false, false),
+
+    /** `b;i;u;s;U;O` — a `/3` line as the LISTS build wrote it. */
+    FAMILIES_BLOCKS(Inline.entries.size + BlockKind.entries.size, true, false),
+
+    /** `b;i;u;s;a` — a `/3` line as the LINKS build wrote it. The two never met until now. */
+    FAMILIES_LINKS(Inline.entries.size + 1, false, true),
+
+    /** `b;i;u;s;U;O;a` — the `/4` line, the only one this build writes. */
+    FAMILIES_BLOCKS_LINKS(Inline.entries.size + BlockKind.entries.size + 1, true, true),
+}
+
+/**
+ * The shape a styling line was written in, from the LINE ALONE — no header needed, and the parcel
+ * has none to offer. Four forms have ever been written, and each is told apart by the number of
+ * sections AND the letter that opens the ones past the families:
+ *
+ *     4 sections   b;i;u;s           the families alone
+ *     5 sections   …;a               the families and the links
+ *     6 sections   …;U;O             the families and the block groups
+ *     7 sections   …;U;O;a           all three — what is written today
+ *
+ * ⛔ EVERYTHING ELSE IS `null`, and the caller refuses the record: five sections whose fifth opens
+ * `U`, six whose fifth opens `a`, eight of anything, are lines no build of this app ever wrote,
+ * and answering a shape for one of them hands back a draft that is not what the user wrote.
+ *
+ * ⚠ Only the body side is measured — [decodeRanges] then holds BOTH sides to that one shape, so a
+ * line whose two sides disagree is refused there. The four family letters are not checked here
+ * either: [decodeFamilies] refuses a wrong one, whatever shape was named.
+ */
+internal fun stylingShapeOfLine(line: String): StylingShape? {
+    val sections = line.substringBefore('|').split(';')
+    val opens = { index: Int, letter: Char -> sections.getOrNull(index)?.firstOrNull() == letter }
+    val bullet = BLOCK_LETTER_OF.getValue(BlockKind.BULLET)
+    val number = BLOCK_LETTER_OF.getValue(BlockKind.NUMBER)
+    val families = Inline.entries.size
+    return when {
+        sections.size == StylingShape.FAMILIES.sections -> StylingShape.FAMILIES
+        sections.size == StylingShape.FAMILIES_LINKS.sections && opens(families, LINK_LETTER) ->
+            StylingShape.FAMILIES_LINKS
+        sections.size == StylingShape.FAMILIES_BLOCKS.sections &&
+            opens(families, bullet) && opens(families + 1, number) -> StylingShape.FAMILIES_BLOCKS
+        sections.size == StylingShape.FAMILIES_BLOCKS_LINKS.sections &&
+            opens(families, bullet) && opens(families + 1, number) && opens(families + 2, LINK_LETTER) ->
+            StylingShape.FAMILIES_BLOCKS_LINKS
+        else -> null
+    }
+}
+
+/**
+ * `b0-4,9-12;i;u;s;U1-3;O;a2-6-https%3A%2F%2Fx|b;i;u;s;U;O;a`: the body's four inline families in
+ * declaration order, then its bullet runs and its numbered runs, then its links, then `|`, then
+ * the baseline's seven sections. Every span is `start-end` (half-open, characters); every block
+ * run is `first-last` (INCLUSIVE, line indices); every link is `start-end-URL` with the URL
+ * percent-encoded. Neither `:` nor `\n` ever appears in it, which is what lets the file and the
+ * parcel find its end without escaping anything.
  */
 internal fun encodeRanges(body: RichBody, baseline: RichBody): String =
     encodeSide(body) + "|" + encodeSide(baseline)
 
-private fun encodeSide(body: RichBody): String =
+private fun encodeSide(rich: RichBody): String =
     Inline.entries.joinToString(";") { kind ->
-        LETTER_OF.getValue(kind) + body.ranges[kind].orEmpty().joinToString(",") { "${it.start}-${it.end}" }
+        LETTER_OF.getValue(kind) + rich.ranges[kind].orEmpty().joinToString(",") { "${it.start}-${it.end}" }
     } + BlockKind.entries.joinToString("") { kind ->
         ";" + BLOCK_LETTER_OF.getValue(kind) +
-            body.blocks.filter { it.kind == kind }.joinToString(",") { "${it.lines.first}-${it.lines.last}" }
+            rich.blocks.filter { it.kind == kind }.joinToString(",") { "${it.lines.first}-${it.lines.last}" }
+    } + ";" + LINK_LETTER +
+    rich.links.joinToString(",") { "${it.span.start}-${it.span.end}-" + encodeLinkUrl(it.url) }
+
+/**
+ * ⛔ Percent-encoding of everything outside `A-Za-z0-9._~`, over the UTF-8 bytes — and the `-` is
+ * encoded WITH the rest, because it separates the two bounds from the URL. What must not survive
+ * raw is not only the `:` and the `\n` the line cannot hold: `|`, `;`, `,` and `-` each cut this
+ * line somewhere, and a URL is free to contain all of them.
+ */
+private fun encodeLinkUrl(url: String): String {
+    val out = StringBuilder(url.length + 8)
+    for (byte in url.toByteArray(Charsets.UTF_8)) {
+        val c = (byte.toInt() and 0xFF).toChar()
+        if (c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c == '.' || c == '_' || c == '~') {
+            out.append(c)
+        } else {
+            out.append('%').append(HEX[(byte.toInt() shr 4) and 0xF]).append(HEX[byte.toInt() and 0xF])
+        }
     }
+    return out.toString()
+}
+
+/** The strict inverse: an unreserved character, or `%` and two hex digits. Anything else, `null`. */
+private fun decodeLinkUrl(encoded: String): String? {
+    val bytes = java.io.ByteArrayOutputStream(encoded.length)
+    var i = 0
+    while (i < encoded.length) {
+        val c = encoded[i]
+        when {
+            c == '%' -> {
+                val high = encoded.getOrNull(i + 1)?.digitToIntOrNull(16) ?: return null
+                val low = encoded.getOrNull(i + 2)?.digitToIntOrNull(16) ?: return null
+                bytes.write(high * 16 + low)
+                i += 3
+            }
+            c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c == '.' || c == '_' || c == '~' -> {
+                bytes.write(c.code)
+                i++
+            }
+            // A raw separator, or anything else this encoder never writes: the record is refused.
+            else -> return null
+        }
+    }
+    return String(bytes.toByteArray(), Charsets.UTF_8)
+}
 
 /** What one styling line says, for the body and for the baseline. */
 internal data class DecodedStyling(
@@ -480,36 +692,63 @@ internal data class DecodedStyling(
     val baselineRanges: Map<Inline, List<Span>> = emptyMap(),
     val blocks: List<Block> = emptyList(),
     val baselineBlocks: List<Block> = emptyList(),
+    val links: List<Link> = emptyList(),
+    val baselineLinks: List<Link> = emptyList(),
 )
 
 /**
- * STRICT inverse of [encodeRanges] — strict about the SHAPE of a group, deliberately not about
- * how many: exactly two parts, then FOUR OR SIX groups each — six as
- * written today, four for a `/2` line written before the lists existed — each opened by its
- * letter, every span `start-end` with `0 <= start <= end <= length` of the text it styles, every
- * block run `first-last` with `0 <= first <= last <= length` (a text of `length` characters holds
- * at most `length + 1` lines, and a run past the end is dropped by `RichBody` anyway).
- * Anything else is `null`, and the caller refuses the whole record: a guessed styling is a
- * draft that is not what the user wrote.
+ * STRICT inverse of [encodeRanges], in the [shape] the caller has already identified: exactly two
+ * parts, then exactly [StylingShape.sections] sections each, each opened by its letter, every span
+ * `start-end` with `0 <= start <= end <= length` of the text it styles, every block run
+ * `first-last` with `0 <= first <= last <= length` (a text of `length` characters holds at most
+ * `length + 1` lines, and a run past the end is dropped by `RichBody` anyway), every link
+ * `start-end-URL` with the same bounds and a URL the STRICT face of the guard accepts.
+ *
+ * ⛔ BOTH SIDES ARE HELD TO THE ONE SHAPE: a line whose baseline side has a different number of
+ * sections than its body side is a line no build wrote. Anything else is `null`, and the caller
+ * refuses the whole record: a guessed styling is a draft that is not what the user wrote, and a
+ * guessed URL is an address the user never typed.
  */
 internal fun decodeRanges(
     line: String,
     bodyLength: Int,
     baselineLength: Int,
+    shape: StylingShape,
 ): DecodedStyling? {
     val parts = line.split('|')
     if (parts.size != 2) return null
-    val body = decodeSide(parts[0], bodyLength) ?: return null
-    val baseline = decodeSide(parts[1], baselineLength) ?: return null
-    return DecodedStyling(body.first, baseline.first, body.second, baseline.second)
+    val body = decodeSide(parts[0], bodyLength, shape) ?: return null
+    val baseline = decodeSide(parts[1], baselineLength, shape) ?: return null
+    return DecodedStyling(
+        body.ranges, baseline.ranges, body.blocks, baseline.blocks, body.links, baseline.links,
+    )
 }
 
-private fun decodeSide(text: String, length: Int): Pair<Map<Inline, List<Span>>, List<Block>>? {
-    val groups = text.split(';')
-    // ⛔ Four or six, and nothing else: five groups is a line this app never wrote.
-    if (groups.size != Inline.entries.size && groups.size != Inline.entries.size + BlockKind.entries.size) return null
+/** One side of a styling line, decoded. */
+private class DecodedSide(
+    val ranges: Map<Inline, List<Span>>,
+    val blocks: List<Block>,
+    val links: List<Link>,
+)
+
+private fun decodeSide(text: String, length: Int, shape: StylingShape): DecodedSide? {
+    val sections = text.split(';')
+    if (sections.size != shape.sections) return null
+    val ranges = decodeFamilies(sections.take(Inline.entries.size), length) ?: return null
+    val blocks =
+        if (shape.hasBlocks) {
+            decodeBlocks(sections.subList(Inline.entries.size, Inline.entries.size + BlockKind.entries.size), length)
+                ?: return null
+        } else {
+            emptyList()
+        }
+    val links = if (shape.hasLinks) (decodeLinks(sections.last(), length) ?: return null) else emptyList()
+    return DecodedSide(ranges, blocks, links)
+}
+
+private fun decodeFamilies(families: List<String>, length: Int): Map<Inline, List<Span>>? {
     val out = LinkedHashMap<Inline, List<Span>>()
-    for ((kind, family) in Inline.entries.zip(groups)) {
+    for ((kind, family) in Inline.entries.zip(families)) {
         if (family.isEmpty() || family[0] != LETTER_OF.getValue(kind)) return null
         val spans = family.substring(1)
         if (spans.isEmpty()) continue
@@ -522,9 +761,12 @@ private fun decodeSide(text: String, length: Int): Pair<Map<Inline, List<Span>>,
             Span(start, end)
         }
     }
-    if (groups.size == Inline.entries.size) return out to emptyList()
+    return out
+}
+
+private fun decodeBlocks(groups: List<String>, length: Int): List<Block>? {
     val blocks = ArrayList<Block>()
-    for ((kind, group) in BlockKind.entries.zip(groups.drop(Inline.entries.size))) {
+    for ((kind, group) in BlockKind.entries.zip(groups)) {
         if (group.isEmpty() || group[0] != BLOCK_LETTER_OF.getValue(kind)) return null
         val runs = group.substring(1)
         if (runs.isEmpty()) continue
@@ -537,8 +779,37 @@ private fun decodeSide(text: String, length: Int): Pair<Map<Inline, List<Span>>,
             blocks.add(Block(kind, first..last))
         }
     }
-    return out to blocks
+    return blocks
 }
+
+/**
+ * ⛔ THE THIRD BORDER OF THE URL GUARD. What comes out of here is a `Link` the composer hands
+ * straight to the next send, which writes it as `<a href="…">` into the message — so this file is
+ * as much a border as [app.sterna.core.data.text.fromHtml] is, and it uses the same STRICT face:
+ * the scheme must be there and be one we allow. ⛔ Never `normalizeLinkUrl`: this border did not
+ * watch anyone type, so it may not invent a scheme either.
+ *
+ * ⚠ No hostile producer is claimed — the file lives in `filesDir`. What is claimed is that the
+ * guard is at EVERY border, and a border with no guard makes that sentence false.
+ */
+private fun decodeLinks(section: String, length: Int): List<Link>? {
+    if (section.isEmpty() || section[0] != LINK_LETTER) return null
+    val body = section.substring(1)
+    if (body.isEmpty()) return emptyList()
+    return body.split(',').map { record ->
+        // Exactly three fields: a raw `-` inside the URL would make four, and is refused — which
+        // is why the encoder percent-encodes the `-` as well.
+        val fields = record.split('-')
+        if (fields.size != 3) return null
+        val start = fields[0].toIntOrNull() ?: return null
+        val end = fields[1].toIntOrNull() ?: return null
+        if (start < 0 || start > end || end > length) return null
+        val url = linkUrlFromHref(decodeLinkUrl(fields[2]) ?: return null) ?: return null
+        Link(Span(start, end), url)
+    }
+}
+
+private val HEX = "0123456789ABCDEF".toCharArray()
 
 /** What goes into the activity's parcel for the composer's body: a short token, and that is all. */
 fun composerResumeSaver(slot: ComposerResumeSlot): Saver<ComposerResumeState, String> = Saver(

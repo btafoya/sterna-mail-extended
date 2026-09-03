@@ -103,6 +103,11 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             // has no default, and it must not be: `true` here would silently refuse
                             // to deposit a message whose body is genuinely empty.
                             composerBodyWasLost = false,
+                            // ⛔ Only ever READ when `composerBodyWasLost` is true, which this
+                            // route never is (line above). It is answered from the text being
+                            // deposited because that is the only text this route has ever had —
+                            // the scheduled row's own, and there is no composer to ask.
+                            typedBodyIsBlank = d.body.isBlank(),
                             fromName = d.fromName,
                             fromEmail = d.fromEmail,
                             requestReceipt = d.requestReceipt,

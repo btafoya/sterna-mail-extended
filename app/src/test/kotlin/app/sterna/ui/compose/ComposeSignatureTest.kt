@@ -1,8 +1,12 @@
 package app.sterna.ui.compose
 
+import app.sterna.core.data.text.Block
+import app.sterna.core.data.text.BlockKind
 import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
+import app.sterna.core.data.text.toPlainText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -276,6 +280,28 @@ class ComposeSignatureTest {
         )
     }
 
+    @Test fun aLinkInsideTheBlockIsAnEditToo_noSubstitution() {
+        // ⛔ A link is the one kind of styling the substitution would DESTROY rather than merely
+        // ignore: the stored HTML replaces those characters wholesale, so the address would not be
+        // in the message at all while the words stayed on screen. "Hi Bob,\n\n-- \n" is 13
+        // characters, so "Alex" sits at [13, 17).
+        val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
+        val body = RichBody(text, emptyMap(), emptyList(), listOf(Link(Span(13, 17), "https://alex.example")))
+        assertEquals(
+            "Hi Bob,<br><br>-- <br><a href=\"https://alex.example\">Alex</a> Rivera<br>Acme",
+            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
+        )
+    }
+
+    @Test fun aLinkAboveAnIntactBlockKeepsTheHtmlSignatureSubstitution() {
+        val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
+        val body = RichBody(text, emptyMap(), emptyList(), listOf(Link(Span(3, 6), "https://bob.example")))
+        assertEquals(
+            "Hi <a href=\"https://bob.example\">Bob</a>,<br><br>-- <br><b>Alex Rivera</b><br>Acme",
+            htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
+        )
+    }
+
     @Test fun aRangeEndingExactlyWhereTheBlockStartsLeavesItIntact() {
         // Half-open spans: [0, 7) touches the block without covering any of it.
         val text = "Hi Bob," + bodyWithSignature("", sig, delimiter = true)
@@ -283,6 +309,41 @@ class ComposeSignatureTest {
         assertEquals(
             "<b>Hi Bob,</b><br><br>-- <br><b>Alex Rivera</b><br>Acme",
             htmlBodyWithSignature(body, sig, "<b>Alex Rivera</b><br>Acme", delimiter = true),
+        )
+    }
+
+    // --- One body, a list AND a link, through the two halves the send is made of (#131) ---------
+
+    /**
+     * `bodiesForSend` is a private method of an `AndroidViewModel` and cannot be run here; the two
+     * expressions it is made of CAN, and they are what actually leaves: `htmlBodyWithSignature`
+     * for the html alternative and `toPlainText` for the text one. Both are run here on ONE body
+     * that carries a numbered list and a link inside it.
+     *
+     * ⛔ The two must agree. The html carrying the anchor while the text alternative says only
+     * "the site" is a message whose address exists for half its readers.
+     */
+    @Test fun aBodyWithAListAndALinkCrossesBothAlternativesWhole() {
+        val body = RichBody(
+            "shopping\nmilk\nthe site",
+            mapOf(Inline.BOLD to listOf(Span(0, 8))),
+            listOf(Block(BlockKind.NUMBER, 1..2)),
+            listOf(Link(Span(18, 22), "https://shop.example")),
+        )
+
+        assertEquals(
+            "the html alternative carries the list as <ol>/<li> and the link as an <a> inside its " +
+                "item — no signature is imported here, so the whole body is escaped and styled",
+            "<b>shopping</b><br><ol><li>milk</li><li>the " +
+                "<a href=\"https://shop.example\">site</a></li></ol>",
+            htmlBodyWithSignature(body, signature = "", signatureHtml = "", delimiter = true),
+        )
+        assertEquals(
+            "…and the text alternative carries the MARKER and the ADDRESS. ⛔ `body.text` here is " +
+                "\"shopping\\nmilk\\nthe site\": no numbering, no URL, and a reader with no HTML " +
+                "gets a message that names nothing.",
+            "shopping\n1. milk\n2. the site <https://shop.example>",
+            toPlainText(body),
         )
     }
 

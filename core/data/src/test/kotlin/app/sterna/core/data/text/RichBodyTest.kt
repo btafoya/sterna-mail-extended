@@ -19,6 +19,7 @@ class RichBodyTest {
     private fun sp(s: Int, e: Int) = Span(s, e)
     private fun cursor(c: Int) = Span(c, c)
     private fun body(text: String, vararg ranges: Pair<Inline, List<Span>>) = RichBody.of(text, mapOf(*ranges))
+    private fun link(text: String, vararg links: Link) = RichBody(text, emptyMap(), links = links.toList())
     private fun ranges(vararg ranges: Pair<Inline, List<Span>>) = mapOf(*ranges)
     private fun blk(kind: BlockKind, from: Int, to: Int) = Block(kind, from..to)
     private fun listBody(text: String, blocks: List<Block>, vararg ranges: Pair<Inline, List<Span>>) =
@@ -358,7 +359,7 @@ class RichBodyTest {
 
     @Test fun anythingOutsideTheSubsetIsNull() {
         val rejected = listOf(
-            """<b style="x">t</b>""", "<p>t</p>", "<div>t</div>", """<a href="x">t</a>""",
+            """<b style="x">t</b>""", "<p>t</p>", "<div>t</div>", """<a href="x" id="y">t</a>""",
             "<span>t</span>", "<!DOCTYPE html><b>t</b>", "<html>t</html>", "<!-- c -->t",
             "t&nbsp;u", "a < b", "t</b>", "<b>t", "<b><i>t</b></i>", "<b/>t", "a</br>b",
             "a & b", "&#0;", "&#xD800;", "a > b", "<b >t</b>", "<br x>",
@@ -427,6 +428,14 @@ class RichBodyTest {
                 listOf(blk(BULLET, 0, 0), blk(NUMBER, 1, 2)),
                 ITALIC to listOf(sp(4, 9)),
             ),
+            // …and the links (#131), which nest OUTSIDE the four families.
+            link("un lien", Link(sp(0, 7), "https://example.org")),
+            RichBody("un lien fort", mapOf(BOLD to listOf(sp(3, 7))), links = listOf(Link(sp(3, 7), "https://x"))),
+            RichBody("abcdefghij", mapOf(BOLD to listOf(sp(1, 9))), links = listOf(Link(sp(3, 6), "https://x"))),
+            // ⛔ Two touching links under ONE url: merged, they would come back as a single anchor.
+            link("abcd", Link(sp(0, 2), "https://x"), Link(sp(2, 4), "https://x")),
+            link("x", Link(sp(0, 1), "https://e.org/?a=1&b=2<3>4\"q\"'s' z")),
+            link("é€😀x", Link(sp(0, 4), "mailto:iris@example.org")),
         )
         for (x in bodies) {
             val html = toHtml(x)

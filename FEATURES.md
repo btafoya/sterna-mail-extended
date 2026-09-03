@@ -125,7 +125,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Attachments: pick & send, view/download/open incoming (JMAP blobs / IMAP multipart MIME + BODY-section fetch)
 - ✅ Attached messages (message/rfc822): a tap opens a sheet with the attached message's From/To/Cc/Date/Subject, its text body and the names of its own attachments (JMAP and IMAP, nothing written to disk)
 - ✅ Inline images (`cid:`) rendered in the body (downloaded as data URIs)
-- ✅ Rich-text editor: bold, italic, underline, strikethrough, bulleted and numbered lists, clear formatting, in a bar above the keyboard; drafts keep it
+- ✅ Rich-text editor: bold, italic, underline, strikethrough, bulleted and numbered lists, links (http, https, mailto), clear formatting, in a bar above the keyboard; drafts keep it
 - ✅ Undo send (hold-back window), held in an app-scoped outbox; ✅ full Outbox, a
   Room-backed send queue that survives app death and auto-retries with exponential
   backoff when the network returns; every send path (compose, reply/forward, RSVP,

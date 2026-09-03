@@ -254,6 +254,10 @@ class LocalDraftReopenWiringTest {
                 // …and its lists (#131), out of that same projection. Left out, a draft holding a
                 // list reopens flat and the next save writes the flattening.
                 "bodyBlocks = fields.bodyBlocks,",
+                // …and its LINKS (#131) — ROUTE 3 OF 4. Left out, a draft that carries an address
+                // reopens without it, and since the anchor PARSED the row is judged reproducible:
+                // the next save writes the removal over the only copy that had it.
+                "bodyLinks = fields.bodyLinks,",
                 "expand = fields.expand,",
                 ")",
                 "_attachments.value = fields.attachments",

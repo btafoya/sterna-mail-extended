@@ -99,6 +99,10 @@ class ScheduledCancelScopeWiringTest {
                 // whole, so nothing was lost on the way into a parcel. `true` here would refuse to
                 // write the body of a message whose text is genuinely empty.
                 "composerBodyWasLost" to "false",
+                // ⛔ Only ever read when the line above is true, which this route never is — but
+                // `saveDraft` takes it with no default, so it is stated. It is answered from the
+                // text being deposited: there is no composer in this story to ask (#131).
+                "typedBodyIsBlank" to "d.body.isBlank()",
                 "requestReceipt" to "d.requestReceipt",
             ),
             save,
