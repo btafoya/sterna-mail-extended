@@ -168,6 +168,33 @@ class ReplyBarWiringTest {
         .sortedBy { it.parentFile.name }
 
 
+    /** [file]'s code line by line, comments cut and each line trimmed — for the rules that must
+     *  pin a WHOLE line: a `contains` on a fragment is blind to anything appended to it. */
+    private fun codeLines(file: File): List<String> = code(file).lines().map { it.trim() }
+
+    /** The `header { … }` block in [source], braces balanced, whitespace runs collapsed. Comments
+     *  are already gone (see [code]), so no brace can hide in one. Same instrument as
+     *  BodySideScrollWiringTest's: a whole block, compared whole. */
+    private fun block(header: String, source: String): String {
+        val start = source.indexOf(header)
+        assertTrue("block header not found in MessageScreen.kt: $header", start >= 0)
+        var depth = 0
+        var i = start + header.length - 1 // on the header's own opening brace
+        while (i < source.length) {
+            when (source[i]) {
+                '{' -> depth++
+                '}' -> {
+                    depth--
+                    if (depth == 0) {
+                        return source.substring(start, i + 1).replace(Regex("""\s+"""), " ")
+                    }
+                }
+            }
+            i++
+        }
+        error("unbalanced braces after: $header")
+    }
+
     /** [file]'s code as one string, comments cut — the comments beside these call sites name the
      *  very expressions the rules forbid. */
     private fun code(file: File): String = file.readLines().mapNotNull { line ->
@@ -260,6 +287,155 @@ class ReplyBarWiringTest {
                 "silently discards the capped report again.",
             "onScroll = { m, lastWord -> scrollY.intValue = m.scrollY showBar = " +
                 "barReveal.scrolled(m, revealThresholdPx, lastWord) }" in screen,
+        )
+    }
+
+    @Test fun `the third writer is wired to the one place that decides`() {
+        // The body's OWN gesture door (#63's cousin): closing the <details> that folds a reply's
+        // quoted history shortens the document under a reader who is not scrolling, so no scroll
+        // report ever comes — and if one did, barAfterReport would keep the unfolded body's range
+        // and answer "there is more to read" for ever. Rewired to barReveal.scrolled(...) the
+        // Reply/Forward bar leaves the reader for good on the second tap of the fold, with every
+        // test in BodyRevealTest still green: the decision that separates the two doors is
+        // barAfterResize, and only this line reaches it.
+        val screen = code(MESSAGE_SCREEN).replace(Regex("""\s+"""), " ")
+        assertTrue(
+            "the resize door must be the WHOLE lambda onResized = { m -> scrollY.intValue = " +
+                "m.scrollY showBar = barReveal.resized(m, revealThresholdPx) }, — the scroll " +
+                "offset goes with it because the WebView clamped its own scroll as it shrank and " +
+                "the collapsing header must follow it down.",
+            "onResized = { m -> scrollY.intValue = m.scrollY showBar = " +
+                "barReveal.resized(m, revealThresholdPx) }," in screen,
+        )
+        assertTrue(
+            "and the verdict line must be exactly 'showBar = barReveal.resized(m, " +
+                "revealThresholdPx)' — a longer line (a second call, a condition appended) passes " +
+                "every substring rule here and changes what the reader is shown.",
+            "showBar = barReveal.resized(m, revealThresholdPx)" in codeLines(MESSAGE_SCREEN),
+        )
+    }
+
+    @Test fun `the resize probe hangs off the end of the reader's gesture, and expires in silence`() {
+        // javaScriptEnabled = false and CSP default-src 'none': nothing in the document can tell us
+        // it resized, and there is no permanent size watcher on purpose (a body that relayouts in a
+        // loop exists — it is why the settle poll is capped — and a watcher would blink the bar on
+        // it). What changes a script-less document's height is a gesture of the reader's — tapping
+        // a <summary>, or pinching to zoom, which this reader supports — so the probe is armed by
+        // the end of a gesture, ONCE per gesture, and never per frame.
+        val lines = codeLines(MESSAGE_SCREEN)
+        assertTrue(
+            "the gesture door must be exactly 'MotionEvent.ACTION_UP -> onActivated?.invoke()' in " +
+                "BodyWebView.onTouchEvent. Nothing else in a script-less document changes its height.",
+            "MotionEvent.ACTION_UP -> onActivated?.invoke()" in lines,
+        )
+        assertTrue(
+            "ACTION_CANCEL must NOT arm it: a cancelled gesture is one the pager took off us " +
+                "(swipe between messages), and it activated nothing in the document.",
+            lines.none { it.startsWith("MotionEvent.ACTION_CANCEL") && "onActivated" in it },
+        )
+        assertEquals(
+            "THE KEYBOARD DOOR, WHOLE. Pinned as one block, like the touch door in " +
+                "BodySideScrollWiringTest and for the same reason: line rules that only ask " +
+                "whether a line exists SOMEWHERE in this file cannot see the three edits that " +
+                "matter most, and every one of them restores the shipped defect in full.\n" +
+                " · dispatchKeyEvent, not onKeyUp: onKeyUp is only reached for a key NOBODY " +
+                "consumed, and Blink consumes the one that works the fold (the body did fold on " +
+                "the bench), so that door never ran. WebView overrides dispatchKeyEvent, so this " +
+                "subclass is handed every key on the way in — the position the touch door holds " +
+                "in onTouchEvent.\n" +
+                " · the call must be IN this function, not in a private method nothing calls, and " +
+                "it must be BEFORE `return super.dispatchKeyEvent(event)`: super is where the " +
+                "document acts on the key, so a reading taken after it is of the already-folded " +
+                "body, which BodyReveal.resizeStep reports nothing about. Posting it " +
+                "(`post { onActivated?.invoke() }`) has exactly the same effect and is exactly as " +
+                "invisible to a substring rule.\n" +
+                " · it must be onActivated, not onScrolled: onScrolled reports a scroll of a body " +
+                "that did not scroll, no probe is ever armed, and Reply/Forward stay gone for the " +
+                "life of the page — the defect, verbatim, with every executing test green.\n" +
+                " · the arguments are the raw action, code and repeat count: BodyReveal" +
+                ".keyArmsResizeProbe (run value by value in KeyArmsResizeProbeTest) cannot answer " +
+                "about the press, the release or a held key unless it is handed all three.\n" +
+                " · and the answer is SUPER'S, unchanged: this door observes, it never consumes. " +
+                "Every key the body receives passes here — text selection, keyboard zoom, D-pad " +
+                "navigation — so returning true, or returning something computed beside super's " +
+                "answer, breaks reading with a keyboard and D-pad accessibility. Nothing " +
+                "touch-driven would notice, so no bench pass on a phone would either.\n" +
+                "If this failure is a deliberate rewrite, re-read those five points and update " +
+                "the expected text.",
+            listOf(
+                "override fun dispatchKeyEvent(event: KeyEvent): Boolean {",
+                "if (BodyReveal.keyArmsResizeProbe(event.action, event.keyCode, " +
+                    "event.repeatCount)) {",
+                "onActivated?.invoke()",
+                "}",
+                "return super.dispatchKeyEvent(event)",
+                "}",
+            ).joinToString(" "),
+            block("override fun dispatchKeyEvent(event: KeyEvent): Boolean {", code(MESSAGE_SCREEN)),
+        )
+        assertTrue(
+            "the old key door must be GONE, not left beside the new one: an 'override fun " +
+                "onKeyUp' here would arm the probe a second time, on the release, where the " +
+                "range it reads is the already-folded one — the very reading that reports nothing.",
+            lines.none { it.startsWith("override fun onKeyUp") },
+        )
+        assertTrue(
+            "the probe must stay behind the load's own gate — exactly " +
+                "'if (webView.reportingEnabled) {'. Ungated, a tap during the load window reads a " +
+                "range that is still settling and re-founds the bar on it, which is the flash of " +
+                "Codeberg #63 the gate exists to prevent.",
+            "if (webView.reportingEnabled) {" in lines,
+        )
+        assertTrue(
+            "the probe must compare against the range read AT THE GESTURE — exactly " +
+                "'val atGesture = webView.contentRangePx()'. Re-reading it per tick compares a " +
+                "reading with itself and the fold is never seen.",
+            "val atGesture = webView.contentRangePx()" in lines,
+        )
+        assertTrue(
+            "each tick must read the range ONCE — 'val now = webView.contentRangePx()' — and hand " +
+                "BodyReveal.resizeStep that reading, the gesture's, and the previous tick's: " +
+                "'when (BodyReveal.resizeStep(now, atGesture, last, triesLeft)) {'. Two separate " +
+                "reads inside one tick would compare a number with a later version of itself.",
+            "val now = webView.contentRangePx()" in lines &&
+                "when (BodyReveal.resizeStep(now, atGesture, last, triesLeft)) {" in lines,
+        )
+        assertTrue(
+            "the retry must carry THIS tick's reading forward as the next tick's 'last', and spend " +
+                "a tick: exactly 'ResizeProbe.Retry -> webView.postDelayed({ probe(now, " +
+                "triesLeft - 1) }, RESIZE_PROBE_MS)'. Written 'probe(now, triesLeft)' the probe " +
+                "polls the UI thread at 20 Hz for ever, from the reader's first gesture on every " +
+                "open body — and nothing executing in this suite would see it.",
+            "ResizeProbe.Retry -> webView.postDelayed({ probe(now, triesLeft - 1) }, RESIZE_PROBE_MS)"
+                in lines,
+        )
+        assertTrue(
+            "and it must be ARMED with the whole budget and the gesture's own reading: exactly " +
+                "'webView.postDelayed({ probe(atGesture, RESIZE_PROBE_TICKS) }, RESIZE_PROBE_MS)'. " +
+                "Armed with probe(atGesture, 0) it takes ONE reading 50ms after her finger leaves " +
+                "and gives up — the original defect, word for word, with the whole suite green, " +
+                "because a pure resizeStep(…, triesLeft = 0) answering Done is exactly right.",
+            "webView.postDelayed({ probe(atGesture, RESIZE_PROBE_TICKS) }, RESIZE_PROBE_MS)" in lines,
+        )
+        assertEquals(
+            "the probe's budget is load-bearing and nothing executes it: 20 ticks of 50ms is ~1s, " +
+                "which is room for a fold's relayout to reach a PLATEAU on slow hardware (the " +
+                "settle poll allows 2.5s for the same layout work) while staying an order of " +
+                "magnitude under that cap and strictly BOUNDED. Shorten it and the probe expires " +
+                "mid-relayout, which reports nothing at all: the fold's bar is lost with no second " +
+                "chance, since a body that fits never scrolls and nothing re-arms this.",
+            listOf(
+                "private const val RESIZE_PROBE_TICKS = 20",
+                "private const val RESIZE_PROBE_MS = 50L",
+            ),
+            lines.filter { it.startsWith("private const val RESIZE_PROBE") },
+        )
+        assertTrue(
+            "only Report may report — 'ResizeProbe.Report -> reportResize(webView)' — and the " +
+                "expiry must stay silent: 'ResizeProbe.Done -> Unit'. Reporting on expiry " +
+                "re-founds the bar's range on a body that never moved, at every tap on a paragraph.",
+            "ResizeProbe.Report -> reportResize(webView)" in lines &&
+                "ResizeProbe.Done -> Unit" in lines,
         )
     }
 

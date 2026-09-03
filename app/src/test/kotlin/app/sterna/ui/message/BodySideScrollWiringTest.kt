@@ -180,7 +180,15 @@ class BodySideScrollWiringTest {
                 "second time is not a record of the decision. Dropping the guard puts string " +
                 "building on the hot touch path of every release build; moving the call below the " +
                 "claim, or above `axisDecided = true`, changes what instant is measured.\n" +
-                "If this failure is a deliberate rewrite, re-read those nine points and update the " +
+                " · ACTION_UP, and ACTION_UP alone, tells the host the reader may have opened or " +
+                "closed the <details> that folds a reply's quoted history: the document carries no " +
+                "script and the View has no content-size callback, so her gesture ending is the " +
+                "ONLY warning that the body's height is about to change. ACTION_CANCEL must NOT " +
+                "call it — a cancelled gesture is one the pager took off us (swipe between " +
+                "messages) and it activated nothing — and a body already at the top does not " +
+                "scroll as it shrinks, so removing this line loses Reply/Forward for the life of " +
+                "the page with every executing test green.\n" +
+                "If this failure is a deliberate rewrite, re-read those ten points and update the " +
                 "expected text.",
             listOf(
                 "override fun onTouchEvent(event: MotionEvent): Boolean {",
@@ -222,6 +230,7 @@ class BodySideScrollWiringTest {
                 "if (owner == BodyDrag.CLAIM) parent?.requestDisallowInterceptTouchEvent(true)",
                 "}",
                 "}",
+                "MotionEvent.ACTION_UP -> onActivated?.invoke()",
                 "}",
                 "return super.onTouchEvent(event)",
                 "}",

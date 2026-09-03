@@ -34,6 +34,7 @@ import android.print.PrintManager
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.util.Log
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -1945,6 +1946,9 @@ private fun ConversationBody(
                 // can read resources, and handed to the document already localised.
                 val derivedNotice = stringResource(R.string.message_plain_text_derived)
                 val noContent = stringResource(R.string.message_no_content)
+                // The quote-fold button's label, resolved here for the same reason as the two
+                // above. A locale change recreates the activity, so it is safe in the key below.
+                val quoteLabel = stringResource(R.string.message_quoted_text)
                 // plainText is part of the key, or the toggle would change the mode and re-render
                 // the SAME document; the rebuilt document then differs, which is what makes
                 // EmailWebView's loadKey reload the page.
@@ -1955,11 +1959,11 @@ private fun ConversationBody(
                 // and resets the zoom she was setting — in a loop, for as long as she pinches.
                 val html = remember(
                     full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,
-                    plainText, derivedNotice, noContent,
+                    plainText, derivedNotice, noContent, quoteLabel,
                 ) {
                     buildHtmlDocument(
                         full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,
-                        plainText, derivedNotice, noContent,
+                        plainText, derivedNotice, noContent, quoteLabel,
                     )
                 }
                 EmailWebView(
@@ -1993,6 +1997,16 @@ private fun ConversationBody(
                     onScroll = { m, lastWord ->
                         scrollY.intValue = m.scrollY
                         showBar = barReveal.scrolled(m, revealThresholdPx, lastWord)
+                    },
+                    // The body she is reading changed height under her own finger — the quote fold
+                    // opened or closed. The scroll offset goes with the verdict: the WebView clamps
+                    // its own scroll as it shrinks, and the collapsing header reads this value, so
+                    // without it the header would stay translated off a scroll that no longer
+                    // exists. This is the ONLY door allowed to forget the range of the body as it
+                    // was before the fold — see [BarReveal.resized].
+                    onResized = { m ->
+                        scrollY.intValue = m.scrollY
+                        showBar = barReveal.resized(m, revealThresholdPx)
                     },
                     modifier = Modifier.fillMaxSize().alpha(if (bodyReady) 1f else 0f),
                 )
@@ -4003,9 +4017,40 @@ private class BodyWebView(context: Context) : WebView(context) {
      *  the host a second, layout-driven chance to notice the body is there. */
     var onSized: (() -> Unit)? = null
 
+    /** Invoked when a gesture that could have ACTIVATED something in the document happens: an
+     *  ACTION_UP, or an activation key PRESSED OR RELEASED (which of the two the document acts on
+     *  is not knowable here — see [BodyReveal.keyArmsResizeProbe]). The document has no script and
+     *  no size callback, so this is the host's only warning that the `<details>` folding the
+     *  quoted history may just have opened or closed — i.e. that the body it measured is now a different height. It says
+     *  "she touched it", never "it resized": the host reads the geometry itself. */
+    var onActivated: (() -> Unit)? = null
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (w > 0 && h > 0) onSized?.invoke()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The keyboard's half of [onActivated]. It hangs off dispatchKeyEvent, not onKeyUp:
+        // onKeyUp is only reached for a key NOBODY consumed, and Blink consumes the one that
+        // works the fold — the bench folded the quoted history with SPACE / ENTER / DPAD_CENTER
+        // and Reply/Forward never came back, which is that door never running. WebView overrides
+        // dispatchKeyEvent, so this subclass sees every key on the way in, consumed or not — the
+        // same position the touch door holds in onTouchEvent.
+        //
+        // Armed BEFORE super, like the touch door and for a sharper reason: super is where the
+        // document acts on the key, so this is the last instant at which the range still holds the
+        // pre-toggle height. Which of the press and the release the document acts on is not
+        // knowable here and may differ per key, so both arm — [BodyReveal.keyArmsResizeProbe] owns
+        // that arbitration and what the spare probe costs, and is run value by value in
+        // KeyArmsResizeProbeTest.
+        //
+        // ⛔ THIS OBSERVES, IT NEVER CONSUMES. Every key the body receives passes here — text
+        // selection, keyboard zoom, D-pad navigation — so the answer is super's, unchanged.
+        if (BodyReveal.keyArmsResizeProbe(event.action, event.keyCode, event.repeatCount)) {
+            onActivated?.invoke()
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -4089,6 +4134,10 @@ private class BodyWebView(context: Context) : WebView(context) {
                     if (owner == BodyDrag.CLAIM) parent?.requestDisallowInterceptTouchEvent(true)
                 }
             }
+            // The end of a gesture the body kept. ACTION_CANCEL is deliberately NOT here: a
+            // cancelled gesture is one the pager took off us (swipe between messages), and it
+            // activated nothing in this document. Reporting nothing here either — see [onActivated].
+            MotionEvent.ACTION_UP -> onActivated?.invoke()
         }
         return super.onTouchEvent(event)
     }
@@ -4260,6 +4309,32 @@ private fun bodyTemplateName(html: String): String =
  */
 private const val HEIGHT_REPORT_BACKSTOP_MS = 1_200L
 
+/**
+ * The resize probe's window: [RESIZE_PROBE_TICKS] readings [RESIZE_PROBE_MS] apart, ~1s, armed by
+ * the END of a gesture the body kept.
+ *
+ * Why a whole second, when the fold itself is instant: the probe must see the relayout reach a
+ * PLATEAU (two agreeing readings — [BodyReveal.resizeStep]), and a forty-message thread with inline
+ * images takes several ticks to get there on the hardware this app is meant for. The load's settle
+ * poll allows 2.5s for the same layout work; this stays an order of magnitude under that cap while
+ * leaving real room for the plateau. It was 6 ticks (~300ms) and that is not room for one.
+ *
+ * Expiring is FINAL — nothing re-arms it, and a folded body that fits the screen never scrolls
+ * again, so it produces no further report of any kind. A budget too short therefore does not delay
+ * the bar, it loses it.
+ *
+ * And it stays strictly BOUNDED, for the symmetric reason: a body that relayouts in a loop exists
+ * (that is what the settle poll's own cap is about), and an unbounded probe would poll the UI
+ * thread for as long as that body is open, blinking the bar on it (Codeberg #63).
+ *
+ * ⚠ What is armed per gesture, not what is free: EVERY gesture the body keeps ends in an ACTION_UP,
+ * a scroll included, so a scroll arms one closure and up to [RESIZE_PROBE_TICKS] posted readings.
+ * That is once per GESTURE, not once per frame, and nothing is added to `onScrollChanged` or to the
+ * draw path — the two places where per-frame work would be felt (Codeberg #5/#6).
+ */
+private const val RESIZE_PROBE_TICKS = 20
+private const val RESIZE_PROBE_MS = 50L
+
 @Composable
 private fun EmailWebView(
     html: String,
@@ -4270,6 +4345,7 @@ private fun EmailWebView(
     textZoom: Int,
     onReady: (resting: BodyMetrics?) -> Unit,
     onScroll: (metrics: BodyMetrics, lastWord: Boolean) -> Unit,
+    onResized: (metrics: BodyMetrics) -> Unit,
     modifier: Modifier,
 ) {
     val context = LocalContext.current
@@ -4329,6 +4405,21 @@ private fun EmailWebView(
                 contentHeightPx = wv.contentHeight,
             ),
             lastWord,
+        )
+    }
+    // The same raw geometry, through the THIRD door: this body is the one already on screen and it
+    // just changed height under the reader's finger (she opened or closed the quote fold). Only
+    // [BarReveal.resized] may set aside the "a measured range only grows" rule, and only because
+    // this report is armed by a gesture — so it has its own callback rather than a flag on the
+    // scroll one, and nothing on the scroll path can reach it by accident.
+    val reportResize: (BodyWebView) -> Unit = { wv ->
+        onResized(
+            BodyMetrics(
+                scrollY = wv.scrollY,
+                rangePx = wv.contentRangePx(),
+                viewportPx = wv.visibleExtentPx(),
+                contentHeightPx = wv.contentHeight,
+            ),
         )
     }
     // On the hardware layer, once the body has drawn safely, latch the device as "hardware proven" so
@@ -4417,6 +4508,38 @@ private fun EmailWebView(
             // then), and it is never restarted. Getting a size is exactly the event it was missing.
             webView.onSized = {
                 if (heightPx <= 0) heightPx = webView.contentRangePx().coerceAtLeast(webView.height)
+            }
+            // The third door. Closing the <details> that folds a reply's quoted history really
+            // SHORTENS the document, and nothing announces it: the document has no script, the
+            // View has no content-size callback, and a body already at the top does not scroll as
+            // it shrinks — so no scroll report is produced at all. The remembered range then stays
+            // that of the unfolded body, which the folded one can never reach again, and
+            // Reply/Forward are gone until the message is reopened.
+            //
+            // Every gesture the body keeps ends here, not just a tap on the fold: a scroll, a long
+            // press, a pinch. Two of them really do change the height (the fold, and zooming out),
+            // and the rest read the same number twice and expire in silence — see [ResizeProbe].
+            //
+            // ⛔ This LOOKS ONLY. Nothing here re-keys the document or touches the load key: a
+            // reload would send the reader back to the top of the message she is reading.
+            webView.onActivated = {
+                if (webView.reportingEnabled) {
+                    // The load this gesture belongs to, and the height the document had when her
+                    // finger left the screen. Both are captured now: the probe below compares
+                    // against THIS reading, and stands down if a newer load replaced the token.
+                    val loadToken = webView.settleToken
+                    val atGesture = webView.contentRangePx()
+                    fun probe(last: Int, triesLeft: Int) {
+                        if (webView.settleToken !== loadToken || webView.parent == null) return
+                        val now = webView.contentRangePx()
+                        when (BodyReveal.resizeStep(now, atGesture, last, triesLeft)) {
+                            ResizeProbe.Report -> reportResize(webView)
+                            ResizeProbe.Retry -> webView.postDelayed({ probe(now, triesLeft - 1) }, RESIZE_PROBE_MS)
+                            ResizeProbe.Done -> Unit
+                        }
+                    }
+                    webView.postDelayed({ probe(atGesture, RESIZE_PROBE_TICKS) }, RESIZE_PROBE_MS)
+                }
             }
             // update() runs on every recomposition; only (re)load when the document
             // actually changed, otherwise expanding one card reloads (and flickers)
@@ -4838,6 +4961,12 @@ internal fun buildHtmlDocument(
     // screen this string exists to prevent, produced in silence by the very code meant to prevent
     // it. Whoever builds a document says what the reader is told when there is nothing to show.
     noContent: String,
+    // ⭐ THIS one HAS a default, unlike [noContent] right above it, and for the opposite reason: a
+    // caller who forgets it gets a document with no quote fold, which is the page as it has always
+    // been — never an empty one. That is guard 1 of [foldTopLevelQuotes] seen from outside, and it
+    // is why the two parameters are spelled differently: omitting the "no content" line costs the
+    // reader the only sentence a body-less message has, omitting this one costs a button.
+    quoteLabel: String = "",
 ): String {
     // Which part of the message the document carries, and what that implies for the page, is
     // decided in ONE place a test can run — see [readerBody].
@@ -4862,6 +4991,12 @@ internal fun buildHtmlDocument(
         // always-false condition. The email then always renders its light design, which we show
         // as-is (light theme) or invert (dark theme). Shared with the print document.
         inner = neutraliseDarkModeStyles(inner)
+        // Fold the TRAILING quoted block behind a native <details> (no script, so the
+        // CSP and javaScriptEnabled=false above are untouched). INSIDE the richHtml guard, after
+        // the two rewrites: it wraps the message's OWN blockquotes, and a body we paint ourselves
+        // is escaped text with no element to wrap. NOT shared with [buildPrintDocument] — paper
+        // does not unfold, so what is printed is the whole quote (see PrintDocument.kt).
+        inner = foldTopLevelQuotes(inner, quoteLabel)
     }
     // Bracket the content with two real DOCUMENT elements (scrollable, unlike body padding which Blink
     // drops, or WebView view padding which clips the last lines): a transparent TOP spacer of the
@@ -4920,6 +5055,12 @@ internal fun buildHtmlDocument(
                  colour would invert to pure black (#fff -> #000), which doesn't match the app's dark
                  surface and left a visibly-off rectangle at the end of the mail. */
               .s-end { background: transparent; }
+              /* First-level quote folded behind a native <details> ([foldTopLevelQuotes]).
+                 ⛔ NO counter-invert on the summary, unlike img/svg/.s-emo above: the button is
+                 text of ours, drawn in the page's own colours, so it must invert WITH the page.
+                 Counter-inverting it would paint dark-on-dark. */
+              details.s-quote { margin: 12px 0; }
+              details.s-quote > summary { cursor: pointer; padding: 4px 0; font-size: 0.9em; opacity: 0.8; }
             </style></head><body>${wrapEmoji(inner)}</body></html>
         """.trimIndent()
     }
@@ -4951,6 +5092,11 @@ internal fun buildHtmlDocument(
           /* Bottom spacer reserving room for the overlaying Reply/Forward bar; surface colour so it
              blends with the body background. */
           .s-end { background: $bg; }
+          /* The quote-fold button ([foldTopLevelQuotes]). Both templates carry this rule: they
+             share no CSS, and a rule in only one of them leaves the other with the browser's
+             default disclosure triangle. */
+          details.s-quote { margin: 12px 0; }
+          details.s-quote > summary { cursor: pointer; padding: 4px 0; font-size: 0.9em; opacity: 0.8; }
         </style></head><body>$inner</body></html>
     """.trimIndent()
 }

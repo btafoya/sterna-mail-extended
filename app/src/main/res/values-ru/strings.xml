@@ -224,6 +224,7 @@
     <string name="message_received_at">Получено на адрес %1$s</string>
     <string name="message_no_subject">(без темы)</string>
     <string name="message_no_content">(без содержимого)</string>
+    <string name="message_quoted_text">Цитируемый текст</string>
     <string name="list_to_recipients">Кому: %1$s</string>
     <string name="message_attachments">Вложения (%1$d)</string>
     <string name="message_attachment_fallback">вложение</string>

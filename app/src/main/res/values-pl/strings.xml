@@ -224,6 +224,7 @@
     <string name="message_received_at">Odebrano na adres %1$s</string>
     <string name="message_no_subject">(bez tematu)</string>
     <string name="message_no_content">(brak treści)</string>
+    <string name="message_quoted_text">Cytowany tekst</string>
     <string name="list_to_recipients">Do: %1$s</string>
     <string name="message_attachments">Załączniki (%1$d)</string>
     <string name="message_attachment_fallback">załącznik</string>

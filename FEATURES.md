@@ -76,6 +76,7 @@ The categories further down list the full feature set; this is the order of work
   dark mode: theme colours for plain text, CSS invert for rich HTML); plain-text
   bodies preserve paragraphs and unwrap `format=flowed` soft line breaks (RFC 3676)
   so they read as written instead of one run-on block or mid-sentence wraps
+- ✅ In **HTML**, a reply that ends on the thread's history opens on the reply: the trailing quoted block is collapsed behind a "Quoted text" button, and one tap unfolds it. Only that one block, and only when there is something above it to read, so an interleaved or bottom-posted reply is left as written. Closed again on every opening (nothing is remembered), no setting, and no JavaScript. Printing is not affected: the quote goes on paper in full, since a PDF cannot be unfolded
 - ✅ Print a message, or save it as PDF, from the message menu (system print preview; remote images stay blocked on paper)
 - ✅ Offline reading (Room cache)
 - ✅ Mark read/unread, star, archive, delete *(M3; JMAP + IMAP)*

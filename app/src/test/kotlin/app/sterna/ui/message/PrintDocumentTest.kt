@@ -26,6 +26,32 @@ class PrintDocumentTest {
     private val rich = ReaderBody("<p>BODY-SENTINEL</p>", richHtml = true, derived = false)
     private val plain = ReaderBody("<pre class=\"plain\">BODY-SENTINEL</pre>", richHtml = false, derived = false)
 
+    /**
+     * ⛔ Paper goes out WHOLE. The reader folds the trailing quoted history behind a `<details>`
+     * ([foldTopLevelQuotes]); a PDF cannot be unfolded, so a folded quote on paper is history
+     * lost for good. Today that holds because the fold is only ever called from
+     * [buildHtmlDocument] — but "it is not called from here" is not something a reader of this
+     * file can see, and adding one line to [buildPrintDocument] would leave the whole suite green
+     * and start printing amputated PDFs. This is the assertion that would not stay green.
+     */
+    @Test fun `the print document never folds the quoted history away`() {
+        val quoted = ReaderBody(
+            "<p>My answer.</p><blockquote type=\"cite\"><p>Forty messages.</p></blockquote>",
+            richHtml = true,
+            derived = false,
+        )
+        val doc = buildPrintDocument(header(), labels, quoted)
+
+        assertFalse(
+            "no <details> may reach paper.\nDocument was:\n$doc",
+            "s-quote" in doc || "<details" in doc,
+        )
+        assertTrue(
+            "and the quoted history itself must be printed, in full.\nDocument was:\n$doc",
+            "<blockquote type=\"cite\"><p>Forty messages.</p></blockquote>" in doc,
+        )
+    }
+
     @Test fun `the subject, the sender and the body reach the document`() {
         val doc = buildPrintDocument(header(), labels, rich)
 

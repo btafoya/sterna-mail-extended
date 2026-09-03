@@ -492,4 +492,226 @@ class BarRevealTest {
         assertTrue(bar.scrolled(laidOut(7080, 7080), threshold))
         assertFalse(bar.scrolled(laidOut(3000, 7080), threshold))
     }
+
+    @Test fun `folding the quoted history away gives back the bar the long body took`() {
+        // The bench sequence, report by report: the reply opens with its history folded, the reader
+        // unfolds it (five screens), reads to the end, comes back to the top, and folds it away
+        // again. The last event is not a scroll — the body is at the top and stays there — it is a
+        // body that SHRANK under a still reader, and only this door can say so.
+        val bar = BarReveal()
+        assertFalse(bar.scrolled(laidOut(0, 7080), threshold))
+        assertTrue(bar.scrolled(laidOut(7080, 7080), threshold))
+        assertFalse(bar.scrolled(laidOut(0, 7080), threshold))
+
+        assertTrue(
+            "the folded body still carried the unfolded body's range, so Reply/Forward were gone " +
+                "for the life of the page",
+            bar.resized(laidOut(0, 0), threshold),
+        )
+        assertEquals("the range of the unfolded body was kept", 0, bar.state.maxScrollPx)
+    }
+
+    @Test fun `a resize report that measured nothing changes nothing`() {
+        // A reading of the pre-layout floor is SHORTER than a measured long body, so it looks
+        // exactly like a fold from here — and rebasing on it would hand the bar to a body that is
+        // still five screens tall. Inert, like every other unmeasured report (there is no last
+        // word on this door: a gesture that changed nothing is followed by the next gesture).
+        val bar = BarReveal()
+        assertFalse(bar.scrolled(laidOut(0, 7080), threshold))
+        val before = bar.state
+
+        assertFalse("an unmeasured resize report revealed the bar", bar.resized(floorOf(), threshold))
+        assertEquals("an unmeasured resize report was folded in", before, bar.state)
+    }
+}
+
+/**
+ * The bar's THIRD door: the same document, still on screen, that changed size under a reader who
+ * did not move (Codeberg #63's cousin, found on the quote-fold volet).
+ *
+ * Closing the `<details>` that holds a reply's quoted history genuinely SHORTENS the document.
+ * [BodyReveal.barAfterReport]'s first rule — a measured range only grows — reads that as a body
+ * caught mid-layout and keeps the range of the unfolded body; the short body can never reach it
+ * again, so [BodyReveal.barVisible] answers "there is more to read" for ever and Reply/Forward
+ * leave the reader for good. Reopening the message is the only way back.
+ *
+ * [BarReveal.documentReplaced] already holds this reasoning, but for ANOTHER document (#149). Here
+ * it is the same one, so the rule cannot be "forget everything whenever the numbers get smaller":
+ * that is what the mid-layout rule exists to refuse. It is "forget everything when a GESTURE of
+ * the reader's shortened it", and the caller is what knows a gesture happened.
+ */
+class BarResizeTest {
+
+    private val threshold = 12 // ~4dp on a 3x screen
+
+    @Test fun `a bar lost to the unfolded history comes back when the history is folded away`() {
+        // THE DEFECT, in the order the bench produced it on ultranabla2: open, unfold, read to the
+        // bottom (bar), scroll back to the top (bar goes, correctly), fold away. The body is now
+        // two screens shorter than the range the state remembers.
+        var state = BarState()
+        state = BodyReveal.barAfterReport(state, 0, 7080, threshold)
+        state = BodyReveal.barAfterReport(state, 7080, 7080, threshold)
+        state = BodyReveal.barAfterReport(state, 0, 7080, threshold)
+        assertFalse("the reader is back at the top of a long body", state.shown)
+
+        assertTrue(
+            "the folded body fits the screen, so the reader is at its end and the bar belongs there",
+            BodyReveal.barAfterResize(state, scrollY = 0, maxScrollPx = 0, thresholdPx = threshold).shown,
+        )
+        assertFalse(
+            "the SAME report through barAfterReport is what loses the bar for good — if this ever " +
+                "becomes true, the two functions are the same one and this volet is undone",
+            BodyReveal.barAfterReport(state, 0, 0, threshold).shown,
+        )
+    }
+
+    @Test fun `folding away forgets the range the unfolded body reached`() {
+        // Not just the verdict: the RANGE. Kept, it would decide every later report of this body —
+        // a scroll inside the folded body would answer "there is more" all over again.
+        val prev = BarState(shown = false, maxScrollPx = 7080, scrollY = 0)
+        val after = BodyReveal.barAfterResize(prev, scrollY = 0, maxScrollPx = 400, thresholdPx = threshold)
+
+        assertEquals("the unfolded body's range was dragged along", 400, after.maxScrollPx)
+        assertEquals(0, after.scrollY)
+        assertFalse("400 px left to read is not the end of the message", after.shown)
+    }
+
+    @Test fun `folding away keeps a bar the reader had already earned`() {
+        // THE MISSING QUADRANT: every other case here starts with the bar OFF. A short reply whose
+        // unfolded history is barely taller than the screen shows the bar as soon as she reaches
+        // its end; folding it away leaves a body that FITS, which is the strongest reason there is
+        // to keep the bar — and the WebView clamps its own scroll from 300 to 0 as it shrinks, so
+        // the report carries a moved scrollY.
+        //
+        // Rebasing "only when the bar is off" (shrank && !prev.shown) survives every other test in
+        // this file, and turns the fix into its opposite: the range of the unfolded body survives,
+        // the moved scrollY counts as the reader moving, and the bar goes away AT THE INSTANT the
+        // fold should have kept it. Nothing brings it back.
+        val prev = BarState(shown = true, maxScrollPx = 300, scrollY = 300)
+        val after = BodyReveal.barAfterResize(prev, scrollY = 0, maxScrollPx = 0, thresholdPx = threshold)
+
+        assertTrue("the fold took away the bar the reader had already earned", after.shown)
+        assertEquals("the unfolded body's range survived the fold", 0, after.maxScrollPx)
+    }
+
+    @Test fun `a body that GREW is folded in exactly as any other report`() {
+        // Unfolding is measured green on the bench: the bar stays where it is until the reader
+        // moves. Re-founding on a growth would send a bar that is already on screen away with no
+        // gesture at all — the blink of Codeberg #63, back through a new door. So growth is not
+        // "handled like" barAfterReport, it IS barAfterReport, and this pins the whole state.
+        val prev = BarState(shown = true, maxScrollPx = 1200, scrollY = 300)
+        val reports = listOf(0 to 1200, 300 to 1200, 300 to 5000, 5000 to 5000, 1200 to 9000)
+        for ((scrollY, maxScrollPx) in reports) {
+            assertEquals(
+                "report ($scrollY, $maxScrollPx) took a different course through barAfterResize",
+                BodyReveal.barAfterReport(prev, scrollY, maxScrollPx, threshold),
+                BodyReveal.barAfterResize(prev, scrollY, maxScrollPx, threshold),
+            )
+        }
+    }
+}
+
+/**
+ * The tick of the probe that watches for that shrink ([BodyReveal.resizeStep]).
+ *
+ * The document has no script (`javaScriptEnabled = false`, CSP `default-src 'none'`), so nothing in
+ * it can tell the reader it resized. What DOES change its height is a gesture of hers — tapping the
+ * `<summary>`, or pinching to zoom, which this reader supports (`builtInZoomControls`) — so the
+ * probe hangs off the END of her gesture, reads the content range a few times, and reports a
+ * reading that both differs from the one taken at the gesture AND repeats: a body relayouts in
+ * steps, and the first differing reading is a number in transit.
+ *
+ * It must expire SILENTLY. A tap that opened nothing (on a paragraph, on a link) is the common
+ * case, and a report saying "nothing moved" would re-found the bar's range on an arbitrary instant
+ * of a body that may still be laying out, on every tap.
+ */
+class ResizeProbeTest {
+
+    @Test fun `a reading that differs is NOT reported until it repeats`() {
+        // THE DEFECT this rule exists for. A fold's relayout lands in STEPS on a long thread with
+        // inline images: the first reading that differs is an intermediate one (3000 px on the way
+        // from 7800 to 900). Reported, barAfterResize re-founds the bar's range on 3000 — and the
+        // body then settles at 900 WITHOUT producing a single event (it fits, so it never scrolls,
+        // so onScrolled never fires). The bar stays away until the message is reopened: the
+        // original symptom, intact. The other two readers of contentRangePx() in this reader take
+        // exactly this precaution (BodyReveal.step wants two agreeing readings, the settle poll
+        // three) and for exactly this reason.
+        assertEquals(
+            ResizeProbe.Retry,
+            BodyReveal.resizeStep(now = 3000, atGesture = 7800, last = 7800, triesLeft = 5),
+        )
+    }
+
+    @Test fun `two agreeing readings that differ from the gesture are reported`() {
+        assertEquals(
+            ResizeProbe.Report,
+            BodyReveal.resizeStep(now = 900, atGesture = 7800, last = 900, triesLeft = 5),
+        )
+    }
+
+    @Test fun `a relayout that lands in steps is reported only once it has stopped moving`() {
+        // The bench sequence, tick by tick, through the decision itself: 7800 at the gesture, then
+        // 3000 (mid-relayout), then 900, then 900. Only the last one may report, and it must report
+        // 900 — the height the reader is actually left looking at.
+        var last = 7800
+        val verdicts = listOf(3000, 900, 900).map { now ->
+            BodyReveal.resizeStep(now, atGesture = 7800, last = last, triesLeft = 10).also { last = now }
+        }
+        assertEquals(listOf(ResizeProbe.Retry, ResizeProbe.Retry, ResizeProbe.Report), verdicts)
+    }
+
+    @Test fun `an unfold settles the same way as a fold`() {
+        // Growing changes the height as much as shrinking; which of the two it was is
+        // barAfterResize's question, not this one's.
+        assertEquals(
+            ResizeProbe.Report,
+            BodyReveal.resizeStep(now = 7800, atGesture = 2400, last = 7800, triesLeft = 5),
+        )
+    }
+
+    @Test fun `a reading unchanged since the gesture polls again while ticks remain`() {
+        // The relayout does not land in the same frame as the tap, and a tap on a paragraph never
+        // lands at all — both look like this, and neither may report.
+        assertEquals(
+            ResizeProbe.Retry,
+            BodyReveal.resizeStep(now = 2400, atGesture = 2400, last = 2400, triesLeft = 1),
+        )
+    }
+
+    @Test fun `a height that never left the gesture's value is never reported`() {
+        // However many times it repeats: repeating the value it had at the gesture is not a resize.
+        assertEquals(
+            ResizeProbe.Retry,
+            BodyReveal.resizeStep(now = 2400, atGesture = 2400, last = 2400, triesLeft = 99),
+        )
+    }
+
+    @Test fun `the probe expires without reporting anything`() {
+        // THE GUARD: not Report. A tap that opened nothing (a paragraph, a link, a scroll that
+        // ended in a tap) is the common case, and reporting "nothing moved" would re-found the
+        // bar's remembered range on an arbitrary instant of a body that may still be laying out.
+        assertEquals(
+            ResizeProbe.Done,
+            BodyReveal.resizeStep(now = 2400, atGesture = 2400, last = 2400, triesLeft = 0),
+        )
+    }
+
+    @Test fun `a relayout still moving when the ticks run out is dropped, not reported`() {
+        // The other expiry, and the one the report-on-first-difference version got wrong: the
+        // budget ran out on a body that is STILL moving (3000 now, 900 a tick ago, neither is the
+        // gesture's 7800). Its height is a number in transit; founding the bar on it is the very
+        // defect above, one tick later. Dropping it costs the fold's bar on a body that never
+        // settles inside a whole second — a body that is already broken in every other way.
+        assertEquals(
+            ResizeProbe.Done,
+            BodyReveal.resizeStep(now = 3000, atGesture = 7800, last = 900, triesLeft = 0),
+        )
+    }
+
+    @Test fun `a plateau reached on the very last tick is still reported`() {
+        assertEquals(
+            ResizeProbe.Report,
+            BodyReveal.resizeStep(now = 900, atGesture = 7800, last = 900, triesLeft = 0),
+        )
+    }
 }

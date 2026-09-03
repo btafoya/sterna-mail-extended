@@ -1,5 +1,7 @@
 package app.sterna.ui.message
 
+import android.view.KeyEvent
+
 /** What one tick of the body height poll decides (see [BodyReveal.step]). */
 internal sealed interface HeightPoll {
     /**
@@ -58,6 +60,41 @@ internal data class BarState(
     /** The scroll offset the last report carried: a report that repeats it moved nothing. */
     val scrollY: Int = 0,
 )
+
+/**
+ * What one tick of the post-gesture resize probe decides (see [BodyReveal.resizeStep]).
+ *
+ * The body's document carries no script (`javaScriptEnabled = false`, CSP `default-src 'none'`), so
+ * it cannot tell the reader that it changed size, and there is deliberately no permanent size
+ * watcher either: a body that relayouts in a loop exists (it is why the load's settle poll is
+ * capped), and a watcher would blink the bar on it for as long as it is open. So the probe hangs
+ * off the END of a gesture — once per gesture, never per frame.
+ *
+ * ⚠ TWO gestures change this document's height, not one. Tapping the `<summary>` of the `<details>`
+ * that folds a reply's quoted history is the one this door was written for; PINCHING TO ZOOM is the
+ * other, and it is supported here (`builtInZoomControls`, and the ACTION_POINTER_DOWN branch of the
+ * body's touch handler exists because of it). A zoom therefore ends in an ACTION_UP, arms this
+ * probe, and — if it zoomed OUT — reaches [barAfterResize] as a shrink, which throws the whole
+ * [BarState] away, [BarState.shown] included. That is ACCEPTED, and it is the same reasoning as
+ * the fold: the reader deliberately changed the geometry the bar was decided on, so deciding again
+ * from the new geometry is what she asked for. It is not a case this probe can, or should, refuse.
+ */
+internal sealed interface ResizeProbe {
+    /** The height changed: report the geometry now and stop. */
+    data object Report : ResizeProbe
+
+    /** Unchanged so far — the relayout does not land in the same frame as the tap. Poll again. */
+    data object Retry : ResizeProbe
+
+    /**
+     * Out of ticks with the height unchanged: stop, and report NOTHING.
+     *
+     * A tap that opened nothing (a paragraph, a link, a scroll that ended in a tap) is the common
+     * case. Reporting "nothing moved" would re-found the bar's remembered range on an arbitrary
+     * instant of a body that may still be laying out, at every one of those taps.
+     */
+    data object Done : ResizeProbe
+}
 
 /**
  * The message body is drawn by a WebView that the reader keeps INVISIBLE (alpha 0, spinner on
@@ -179,6 +216,126 @@ internal object BodyReveal {
             scrollY = scrollY,
         )
     }
+
+    /**
+     * Fold in a report about a body that changed size UNDER THE READER'S OWN GESTURE — the same
+     * document, still on screen, that grew or shrank because she opened or closed the `<details>`
+     * holding a reply's quoted history.
+     *
+     * [barAfterReport] cannot take this report. Its first rule — a measured range only grows —
+     * exists to tell a body caught mid-layout from a final measurement, and a folded quote is
+     * neither: the document really is two screens shorter than it was. Fed through it, the range of
+     * the UNFOLDED body survives the fold, the short body can never reach it again, and
+     * [barVisible] answers "there is more to read" for ever: Reply and Forward leave the reader for
+     * the life of the page, with nothing but reopening the message to bring them back (measured on
+     * the bench: 60 flings down did not).
+     *
+     * So a SHRINK starts over from a fresh [BarState] — range forgotten, bar not shown — and then
+     * folds this report into it, exactly as the first report of a newly opened body would be. It is
+     * the same reasoning as [BarReveal.documentReplaced], applied to a document that was not
+     * replaced. Two things, TOGETHER, are what make it safe: the caller only asks after a gesture
+     * of the reader's, and [resizeStep] only lets through a height that has stopped moving. Neither
+     * suffices alone — a gesture is followed by a relayout in steps, and a plateau reached without
+     * a gesture is just a body that finished laying out, which the growth rule already handles.
+     *
+     * A GROWTH is [barAfterReport], word for word, deliberately. Unfolding is measured green: the
+     * bar stays where it is until the reader moves. Re-founding on a growth would send a bar that is
+     * already on screen away without a gesture — which is the retraction the reader sees as a blink
+     * (Codeberg #63), reintroduced through a new door.
+     */
+    fun barAfterResize(prev: BarState, scrollY: Int, maxScrollPx: Int, thresholdPx: Int): BarState {
+        val shrank = maxScrollPx < prev.maxScrollPx
+        val from = if (shrank) BarState() else prev
+        return barAfterReport(from, scrollY, maxScrollPx, thresholdPx)
+    }
+
+    /**
+     * One tick of the resize probe: [now] is this tick's reading of the content range, [atGesture]
+     * the reading taken when the reader's gesture ended, [last] the previous tick's reading, and
+     * [triesLeft] how many ticks remain.
+     *
+     * Two conditions, and BOTH are needed. The height must have LEFT the value it had at the
+     * gesture — otherwise nothing happened, which is what most taps do — and it must have STOPPED
+     * moving, i.e. this reading repeats the previous one.
+     *
+     * The plateau is not caution, it is the defect: a body relayouts in steps (a forty-message
+     * thread with inline images goes 7800 → 3000 → 900), so the first reading that DIFFERS is a
+     * number in transit. Reported, [barAfterResize] re-founds the bar's range on 3000, the body
+     * then settles at 900 without producing a single event — it fits, so it never scrolls, so
+     * nothing reports again — and the bar stays away until the message is reopened: the very
+     * symptom this door exists to fix, one step further along. Both other readers of the content
+     * range in this reader take the same precaution for the same reason ([step] wants two agreeing
+     * readings, the load's settle poll three).
+     *
+     * Which DIRECTION it moved is not asked here: a fold and an unfold settle the same way, and
+     * what to do about each is [barAfterResize]'s question. An expiry reports nothing at all —
+     * including an expiry on a body still in transit, whose height is not an answer either; see
+     * [ResizeProbe.Done] for why that silence is the point.
+     */
+    fun resizeStep(now: Int, atGesture: Int, last: Int, triesLeft: Int): ResizeProbe {
+        if (now != atGesture && now == last) return ResizeProbe.Report
+        if (triesLeft <= 0) return ResizeProbe.Done
+        return ResizeProbe.Retry
+    }
+
+    /**
+     * Whether a key event should arm the resize probe: [action] and [repeatCount] are the raw
+     * `KeyEvent.getAction()` / `getRepeatCount()`, [keyCode] the raw code.
+     *
+     * A `<details>` is keyboard-operable: with a hardware keyboard or a D-pad the quoted history
+     * folds without a single touch event, and folding it really SHORTENS a document that announces
+     * nothing (no script, no size callback, and a body at the top does not scroll as it shrinks).
+     * So the keyboard needs the same arming as the finger.
+     *
+     * THE PRESS AND THE RELEASE, BOTH. The probe's `atGesture` reading has to be taken BEFORE the
+     * document acts on the key, or [resizeStep] compares the folded height with itself, never sees
+     * `now != atGesture`, and expires in silence: Reply/Forward stay gone until the message is
+     * reopened. WHICH of the two events the document acts on is NOT knowable from this repo, and
+     * there is reason to think it differs between keys — the usual reading of Blink is that a
+     * keydown on SPACE only marks the `<summary>` active and the synthesised click leaves on the
+     * KEYUP, while ENTER and DPAD_CENTER act on the press. So this does not bet on it.
+     *
+     * The costs are asymmetric, which is what decides it. Arming on the instant the document did
+     * NOT use costs one bounded probe that reads the same height twice and reports nothing
+     * ([ResizeProbe.Done], silent). Arming on only one of them, if the guess is wrong, loses the
+     * bar exactly as the shipped defect did — and a held SPACE would lose it even under the other
+     * guess, since the probe's twenty ticks expire long before the release arrives.
+     *
+     * REPEATS ARE OUT. Holding a key produces DOWN after DOWN with a growing [repeatCount] (and
+     * batched `ACTION_MULTIPLE` events). Arming on those would hang a fresh probe off the UI thread
+     * several times a second for as long as the key is held — a permanent size watcher through the
+     * back door, and the bar-blink of Codeberg #63 that the probe's bounded budget exists to keep
+     * shut. The release that ends the burst carries `repeatCount` 0, so the state she stopped on is
+     * still measured, once.
+     *
+     * ⚠ The probe's window stays BOUNDED (20 ticks of 50ms, ~1s from the event that armed it) and
+     * nothing re-arms it: a fold that somehow reached its plateau later than that is not caught,
+     * and the bar would stay as it was until her next gesture. That limit is deliberate (#63) and
+     * this door does not lift it.
+     *
+     * ⚠ WHAT THIS DOES NOT DECIDE, and what no JVM test in this repo can reach: whether the
+     * platform ever hands the event to the door that calls this. It must be `dispatchKeyEvent` —
+     * `onKeyUp` is only reached for a key nobody consumed, and Blink consumes the one that works
+     * the fold. That half has one falsifier only, a bench pass. TalkBack is a third path and is
+     * covered by neither door: it activates the `<summary>` through an accessibility action on a
+     * virtual Chromium node, which produces no key event and no touch event. Still open.
+     *
+     * Runs in a JVM test with no `android.jar`: every `KeyEvent` constant here is a Java
+     * `static final int`, inlined by the compiler, so nothing loads the class at run time.
+     */
+    fun keyArmsResizeProbe(action: Int, keyCode: Int, repeatCount: Int): Boolean =
+        (action == KeyEvent.ACTION_DOWN || action == KeyEvent.ACTION_UP) &&
+            repeatCount == 0 &&
+            keyCode in ACTIVATION_KEYS
+
+    /** The keys that activate a focused `<summary>`: what a hardware keyboard or a D-pad uses to
+     *  open (or close) the fold. Run key by key by `KeyArmsResizeProbeTest`. */
+    private val ACTIVATION_KEYS = setOf(
+        KeyEvent.KEYCODE_DPAD_CENTER,
+        KeyEvent.KEYCODE_ENTER,
+        KeyEvent.KEYCODE_NUMPAD_ENTER,
+        KeyEvent.KEYCODE_SPACE,
+    )
 }
 
 /**
@@ -193,7 +350,8 @@ internal object BodyReveal {
  * Only [shown] — a Boolean that changes a handful of times per message — is worth observing, and
  * the caller mirrors it into a Compose state where writing the same value again costs nothing.
  *
- * The two methods are the two writers, so the rule about which of them may decide what lives here
+ * The methods are the writers — the height poll, the live scroll, and the reader's own gesture
+ * resizing the document ([resized]) — so the rule about which of them may decide what lives here
  * rather than at the call sites: they fold into ONE state, which is the whole point (#63).
  */
 internal class BarReveal {
@@ -262,6 +420,33 @@ internal class BarReveal {
     fun documentReplaced() {
         state = BarState()
         shown = false
+    }
+
+    /**
+     * The body RESIZED under the reader's gesture: she opened or closed the `<details>` that folds
+     * the quoted history, and the resize probe caught the new geometry. Returns [shown].
+     *
+     * The third writer, and the only one allowed through [BodyReveal.barAfterResize] — the two
+     * others report a body they believe is unchanged, and must keep the mid-layout rule that this
+     * one is allowed to set aside.
+     *
+     * A report that measured nothing ([BodyMetrics.measured]) is inert here as everywhere else, but
+     * ⛔ do not read that guard as the protection against a mid-layout reading: it is not, and it
+     * cannot be. This door only fires on a document the reader is LOOKING AT, so `contentHeight` is
+     * long since positive and [BodyReveal.rangeMeasured] passes on every reading, transient ones
+     * included. What keeps an intermediate height out is the plateau in [BodyReveal.resizeStep].
+     * The guard is kept for what it does do — a view detached or reloaded under the probe reads the
+     * floor, and that reading decides nothing — and it costs one comparison.
+     *
+     * There is no `lastWord` escape here: that escape exists because a body that fits never scrolls
+     * again, and this door has no such dead end — it is armed by a gesture, and a gesture is always
+     * followed by another one.
+     */
+    fun resized(m: BodyMetrics, thresholdPx: Int): Boolean {
+        if (!m.measured) return shown
+        state = BodyReveal.barAfterResize(state, m.scrollY, m.maxScrollPx, thresholdPx)
+        shown = state.shown
+        return shown
     }
 
     private fun fold(scrollY: Int, maxScrollPx: Int, thresholdPx: Int): Boolean {

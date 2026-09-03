@@ -29,6 +29,15 @@ internal data class PrintLabels(val from: String, val to: String, val cc: String
  * Pure: no `Context`, no resource. [body] is the fragment [readerBody] already decided for the
  * screen, so what gets printed is what was being read — plain text stays a `<pre class="plain">`,
  * a rich body gets its inline images embedded exactly as the reader does it.
+ *
+ * ⚠ ONE deliberate exception to "what was being read": the QUOTED history. The reader folds the
+ * trailing quoted block behind a `<details>` ([foldTopLevelQuotes]); paper and PDF get it in full,
+ * always, because a sheet does not unfold and a print that silently dropped the quote would be a
+ * print of half the message. That holds by construction and not by a flag: the fold is called only
+ * from [buildHtmlDocument], never from here, and the CSS below carries `pre.plain` and `p.s-note`
+ * only — a `details.s-quote` rule does not exist in this document. ⛔ "It is not called from here"
+ * is invisible to whoever edits this function, so it is PINNED: see PrintDocumentTest's
+ * `the print document never folds the quoted history away`.
  */
 internal fun buildPrintDocument(
     header: PrintHeader,

@@ -590,9 +590,18 @@ class ReaderBodyTest {
         )
         assertEquals(
             "the page must pass noContent to buildHtmlDocument AND keep it in the remember key: " +
-                "passing \"\" renders <p></p>, which is the empty screen this string exists for",
+                "passing \"\" renders <p></p>, which is the empty screen this string exists for. " +
+                "quoteLabel rides the same line for the same two reasons",
             2,
-            lines(source, """plainText, derivedNotice, noContent,"""),
+            lines(source, """plainText, derivedNotice, noContent, quoteLabel,"""),
+        )
+        assertEquals(
+            "the page must RESOLVE message_quoted_text: a literal would label the quote button " +
+                "'Quoted text' in nine languages, and an absent label falls on quoteLabel's " +
+                "default (\"\"), which switches the fold off in production with every test in " +
+                "this file still green",
+            1,
+            lines(source, """val quoteLabel = stringResource\(R\.string\.message_quoted_text\)"""),
         )
     }
 

@@ -223,7 +223,15 @@ internal fun htmlToQuotedText(html: String): String {
     return out.toString().replace(Regex("\n{3,}"), "\n\n").trim()
 }
 
-private val BLOCKQUOTE_TAG = Regex("(?i)<blockquote\\b[^>]*>|</blockquote\\s*>")
+/**
+ * The blockquote open/close tags, and the ONE place quoting depth is read from.
+ *
+ * `internal`, not file-private, since the reader's quote fold: [app.sterna.ui.message.foldTopLevelQuotes]
+ * needs exactly this notion of "level" — same reason [bodySource] was opened up above. A second
+ * copy would be free to drift, and the composer's ">" markers and the reader's fold button would
+ * then disagree about what the first level of a reply chain is.
+ */
+internal val BLOCKQUOTE_TAG = Regex("(?i)<blockquote\\b[^>]*>|</blockquote\\s*>")
 
 /**
  * Add one quoting level to [line]: an already-quoted line gets a tighter ">" (so a reply to a reply
