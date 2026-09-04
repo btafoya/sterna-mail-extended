@@ -4222,13 +4222,13 @@ class MailRepository(
      * [fetchRawSource] into "Message has no blob id." on every synced message, so JMAP goes
      * through [openEmail], which returns the server's object.
      */
-    suspend fun rawSource(credentials: AccountCredentials, emailId: String): ByteArray {
+    suspend fun rawSource(credentials: AccountCredentials, emailId: String, expectedUidValidity: Long? = null): ByteArray {
         val email = if (credentials.protocol == MailProtocol.IMAP) {
             cachedEmail(credentials.id, emailId) ?: openEmail(credentials, emailId, markRead = false)
         } else {
             openEmail(credentials, emailId, markRead = false)
         }
-        return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId))
+        return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId, expectedUidValidity))
     }
 
     // ---- OpenPGP read path -------------------------------------------------------------------
@@ -4269,13 +4269,23 @@ class MailRepository(
         credentials: AccountCredentials,
         email: Email,
         emailId: String,
+        expectedUidValidity: Long? = null,
     ): String {
-        rawSourceCache.get(cryptoKey(credentials.id, emailId))?.let { return it }
+        rawSourceFromCache(expectedUidValidity) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }
         val raw = if (credentials.protocol == MailProtocol.IMAP) {
             val mailboxId = emailDao.mailboxOf(credentials.id, emailId) ?: email.mailboxId
                 ?: error("Unknown mailbox for message.")
             val uid = ImapMailService.uidOf(emailId) ?: error("Not an IMAP message.")
-            imap.fetchSource(credentials, mailboxId, uid)
+            // ⛔ THE STAMP GOES ON THE WIRE, and this argument is the whole read half of the
+            // guard. Without it `onMailbox` selects under `null ?: recorded` — the folder's own
+            // record, which the first iteration of a cross-account loop realigns the moment it
+            // meets the renumbering — so the number is compared with itself, agrees, and the
+            // octets of whatever holds this uid TODAY are fetched. And because the read then
+            // SUCCEEDS, crossAccountMove goes on to write them on the other account: only the
+            // Trash refuses afterwards, which is "copied, not removed" — a permanent duplicate,
+            // with no Undo on this path. Skipping the cache above without opposing anything here
+            // is strictly worse than doing neither.
+            imap.fetchSource(credentials, mailboxId, uid, expectedUidValidity)
         } else {
             val blobId = email.blobId ?: error("Message has no blob id.")
             val ctx = connect(credentials)
@@ -4899,14 +4909,20 @@ class MailRepository(
      * 12. This read sits BEFORE the eviction and the enqueue, and outside any `runCatching`, so an
      * unbounded `IN (...)` would not fail the delete, it would crash it: the rows would stay, the
      * destroy would never be scheduled, and nothing on screen would say why.
+     *
+     * ⭐ THE DECISION ITSELF LIVES IN [numberingStampsOfRows], and this is only the hand-over. It
+     * was moved there because this class cannot be instantiated in a JVM test (Room, a `Context`,
+     * an `LruCache` in a property initialiser), so the protocol guard and the stamp were shipped
+     * with nothing executing them: inverting the `!=` or answering `null` per row made both #99
+     * guards decorative and no test noticed. `NumberingStampsTest` runs it now; what stays here —
+     * the account id (Codeberg #31) and the `chunk` — is pinned line-for-line by
+     * `NumberingStampsSourceTest`.
      */
     suspend fun numberingRowsWereReadUnder(
         credentials: AccountCredentials,
         emailIds: List<String>,
     ): Map<String, Long?> {
-        if (credentials.protocol != MailProtocol.IMAP || emailIds.isEmpty()) return emptyMap()
-        val rows = byIdsChunked(emailIds) { chunk -> emailDao.numberingOfRows(credentials.id, chunk) }
-        return rows.associate { it.id to it.uidValidity }
+        return numberingStampsOfRows(credentials, emailIds) { chunk -> emailDao.numberingOfRows(credentials.id, chunk) }
     }
 
     /**
@@ -6094,8 +6110,20 @@ class MailRepository(
      *  nothing to move (the message was already destroyed server-side; its zombie row is pruned).
      *  An account whose server sets no `trash` role has its bin resolved by name, and one created
      *  when it has none at all — exactly as [archive] does, and never All Mail (a message left
-     *  there is still in the list, so the delete would appear to do nothing). */
-    suspend fun delete(credentials: AccountCredentials, emailId: String): String? {
+     *  there is still in the list, so the delete would appear to do nothing).
+     *
+     *  [expectedUidValidity] is the numbering the caller's id was read under, when the caller
+     *  froze one — [moveToAccount] freezes it at the TICK (#189), and by the time the original is
+     *  binned the folder's own record may already have been realigned by a background pass that
+     *  met the renumbering, so opposing that record would be opposing it to itself. `null`, the
+     *  default, is every ordinary delete (a swipe, a notification action, a conversation) and
+     *  falls back on the record, which is the right thing there: the id is read from the cache and
+     *  the move goes out in the same call, with nothing in between. */
+    suspend fun delete(
+        credentials: AccountCredentials,
+        emailId: String,
+        expectedUidValidity: Long? = null,
+    ): String? {
         // Same rule as every other mover (#99): a message the user acts on individually is no
         // longer part of a pending Empty-trash order.
         unlistFromTrashPurge(credentials.id, listOf(emailId))
@@ -6126,7 +6154,7 @@ class MailRepository(
                 // is opposed to what the server states in the SELECT the move goes out under, so a
                 // renumbered folder — or one whose numbering the server has stopped stating — is
                 // refused instead of having a live message thrown away (#99).
-                val landed = imap.move(credentials, mb, uid, trash, recordedUidValidity(credentials, mb))
+                val landed = imap.move(credentials, mb, uid, trash, expectedUidValidity ?: recordedUidValidity(credentials, mb))
                 landed.uids[uid]?.let {
                     lastImapMove[emailId] = ImapLoc(trash, it, landed.destinationUidValidity)
                     recentLocalMoves.mark(credentials.id, ImapMailService.emailId(credentials.id, trash, it))
@@ -6174,6 +6202,16 @@ class MailRepository(
      * The original leaves A through [delete] — the bin, with its own Undo — and B's folder is
      * reloaded as after an appended draft, so the copy shows without a pull-to-refresh.
      *
+     * [expectedUidValidity] is the numbering the row was ticked under, and it travels to the two
+     * steps that touch A's mail and to no other: the READ (through [rawSource], down to the SELECT
+     * the FETCH goes out on) and the BIN (through [delete]). B's folder has a numbering of its own
+     * that this number says nothing about. Refused on the read, the move is a `Failed` and nothing
+     * at all was written — which is why the read is where it has to land: refused only at the bin,
+     * the copy is already on B under an APPEND that is never replayed, and the user keeps a
+     * permanent duplicate. `null` is "nothing was frozen" and keeps main's behaviour: the reader's
+     * single move has no tick to freeze, and a row cached before the numbering column existed
+     * carries no stamp either.
+     *
      * ⚠ [connect] keeps ONE context: connecting B for the import and then trashing on a JMAP A
      * fetches A's session again. Accepted — one extra session fetch per move between two JMAP
      * accounts, and nothing else depends on which account the context last held.
@@ -6183,13 +6221,14 @@ class MailRepository(
         email: Email,
         target: AccountCredentials,
         targetMailboxId: String,
+        expectedUidValidity: Long? = null,
     ): CrossAccountMove {
         val from = withCachedFallback(email, cachedEmail(source.id, email.id))
         val steps = object : CrossAccountMoveSteps {
             var messageId: String? = null
             override fun checkSourceConfigured() = checkAccountStillConfigured(source.id, accountStore.accounts().map { it.id })
             override fun checkTargetConfigured() = checkAccountStillConfigured(target.id, accountStore.accounts().map { it.id })
-            override suspend fun readSource(): ByteArray = rawSource(source, email.id).also { messageId = messageIdOf(from, it) }
+            override suspend fun readSource(): ByteArray = rawSource(source, email.id, expectedUidValidity).also { messageId = messageIdOf(from, it) }
             override suspend fun writeTarget(bytes: ByteArray): String? {
                 if (target.protocol == MailProtocol.IMAP) {
                     val uid = imap.appendBytes(target, targetMailboxId, bytes, imapFlagsOf(from.keywords), internalDateOf(from.receivedAt))
@@ -6205,7 +6244,7 @@ class MailRepository(
                 return uid?.let { ImapMailService.emailId(target.id, targetMailboxId, it) }
             }
             override fun markTargetLocalMove(targetId: String) = recentLocalMoves.mark(target.id, targetId)
-            override suspend fun trashSource() { delete(source, email.id) }
+            override suspend fun trashSource() { delete(source, email.id, expectedUidValidity) }
             override suspend fun refreshTargetFolder() { refresh(target, targetMailboxId) }
         }
         return crossAccountMove(steps)

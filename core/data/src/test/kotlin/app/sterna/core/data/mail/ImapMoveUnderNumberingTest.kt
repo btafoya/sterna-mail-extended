@@ -67,10 +67,11 @@ class ImapMoveUnderNumberingTest {
     // ---- the three single-message movers ------------------------------------------------------
 
     /**
-     * `archive`, `moveToMailbox` and `delete` each read the numbering ON THE SPOT, for the folder
-     * the message is in RIGHT NOW — which is also the folder the move will SELECT. There is no
-     * window to close here, unlike the draft paths: the id is read from the cache and the move
-     * goes out in the same call, with no user confirmation and no worker in between.
+     * `archive` and `moveToMailbox` each read the numbering ON THE SPOT, for the folder the message
+     * is in RIGHT NOW — which is also the folder the move will SELECT. There is no window to close
+     * here, unlike the draft paths: the id is read from the cache and the move goes out in the same
+     * call, with no user confirmation and no worker in between. (`delete` used to be read here too;
+     * it has a window of its own now, and its own rule below.)
      *
      * ⛔ The read is the repository's own [MailRepository.recordedUidValidity], never
      * `imap.recordedUidValidity(` — a closed-list rule in [ImapDestroyUnderNumberingTest] ("the
@@ -87,7 +88,6 @@ class ImapMoveUnderNumberingTest {
             "archive" to "val landed = imap.move(credentials, mb, uid, dest, recordedUidValidity(credentials, mb))",
             "moveToMailbox" to
                 "val landed = imap.move(credentials, mb, uid, targetMailboxId, recordedUidValidity(credentials, mb))",
-            "delete" to "val landed = imap.move(credentials, mb, uid, trash, recordedUidValidity(credentials, mb))",
         )
         expected.forEach { (function, line) ->
             val body = bodyOf(function)
@@ -100,6 +100,60 @@ class ImapMoveUnderNumberingTest {
                 codeLinesNaming(body, "imap.move("),
             )
         }
+    }
+
+    /**
+     * ⭐ `delete` IS THE BIN, AND IT IS ALSO THE SECOND HALF OF A MOVE BETWEEN ACCOUNTS (#189).
+     *
+     * Called from a swipe it has no window: the id comes off the cache and the `UID MOVE` goes out
+     * in the same call, so the folder's own record is the right thing to oppose. Called from
+     * `moveToAccount` it is the step that BINS THE ORIGINAL on account A, minutes of network after
+     * the user ticked the row — and by then the folder's record is worthless: the first iteration
+     * of the loop that met the renumbering has already realigned it, so opposing it compares the
+     * new number with itself, agrees, and bins whatever holds that uid now. There is no Undo on
+     * that path.
+     *
+     * So the shape is `frozen ?: recorded`, and it is the shape both mistakes break:
+     *
+     *  - `recordedUidValidity(credentials, mb)` alone — the caller's stamp is dropped and the
+     *    cross-account move bins a message nobody ticked, in silence;
+     *  - `expectedUidValidity` alone — every ordinary swipe-to-delete carries nothing, and
+     *    `mayDestroyUnderStatedNumbering(null, 42)` is FALSE, so deleting a message would fail
+     *    100 % of the time on IMAP. The fallback is not a convenience, it is what keeps the
+     *    ordinary gesture working.
+     */
+    @Test fun `the bin opposes the stamp it was handed, falling back on the folder's record`() {
+        val body = bodyOf("delete")
+        assertEquals(
+            "delete must oppose the numbering it was HANDED — the stamp of the tick, when a " +
+                "cross-account move hands one — and fall back on the source folder's record when " +
+                "it was handed none. Dropping the `expectedUidValidity ?:` still compiles and " +
+                "still bins: it simply confirms nothing minutes after the gesture. Dropping the " +
+                "`?: recordedUidValidity(...)` refuses every swipe-to-delete on IMAP. " +
+                "Body was:\n$body",
+            listOf("val landed = imap.move(credentials, mb, uid, trash, expectedUidValidity ?: recordedUidValidity(credentials, mb))"),
+            codeLinesNaming(body, "imap.move("),
+        )
+        assertEquals(
+            "and delete must mention a numbering on exactly these two lines, under ANY name: the " +
+                "one that hands the opposed number to the wire, and the one that FREEZES what the " +
+                "move itself reported about the Trash (not a read — the server stated it in the " +
+                "same response as the uid, and a UID MOVE never SELECTs its destination). Any " +
+                "other is a second read at execution. Body was:\n$body",
+            listOf(
+                "val landed = imap.move(credentials, mb, uid, trash, expectedUidValidity ?: recordedUidValidity(credentials, mb))",
+                "lastImapMove[emailId] = ImapLoc(trash, it, landed.destinationUidValidity)",
+            ),
+            codeLinesNaming(body, anyNumbering),
+        )
+        val signature = signatureOf("delete")
+        assertEquals(
+            "and it takes that stamp LAST and optional: the swipe, the notification action and " +
+                "the conversation delete all carry nothing, and `null` must keep meaning 'fall " +
+                "back on the record'. Signature was:\n$signature",
+            listOf("expectedUidValidity: Long? = null,"),
+            codeLinesNaming(signature, "expectedUidValidity"),
+        )
     }
 
     /**

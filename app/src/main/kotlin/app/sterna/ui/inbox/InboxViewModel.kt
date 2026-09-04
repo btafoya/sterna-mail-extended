@@ -2182,7 +2182,12 @@ class InboxViewModel(
             val key = email.emailKey()
             dropSearchResults(setOf(key))
             val result = hidingThreadMembers(setOf(key)) {
-                runCatching { repo.moveToAccount(source, email, target, targetMailboxId) }
+                // ⛔ NOTHING FROZEN, and said so out loud. This gesture starts on the message that
+                // is OPEN: there is no tick, so there is no earlier numbering to oppose, and null
+                // is what keeps main's behaviour — the read and the bin fall back on the folder's
+                // record. Written rather than left to the default so that this line and the
+                // selection's (which DOES carry a stamp) differ by a token a copy-paste changes.
+                runCatching { repo.moveToAccount(source, email, target, targetMailboxId, null) }
                     .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
             }
             val folder = folderLabel(target.id, targetMailboxId)
@@ -3279,7 +3284,15 @@ class InboxViewModel(
             }
             dropSearchResults(setOf(key))
             val result = hidingThreadMembers(setOf(key)) {
-                runCatching { repo.moveToAccount(source, email, target, targetMailboxId) }
+                // ⛔ AND THE STAMP GOES DOWN THE WIRE. The split above refuses the rows whose
+                // numbering had ALREADY drifted when the loop reached them; this carries the same
+                // stamp into the two gestures that touch A's mail, so a folder renumbered WHILE
+                // the loop runs is refused too — by the server, in the SELECT the read and the bin
+                // go out under. Without it both fall back on the folder's record, which the first
+                // iteration that met the renumbering has already realigned: the record is then
+                // compared with itself, agrees, and every later row travels. `ticked[key]`, never
+                // a re-read: the re-read IS the realigned number.
+                runCatching { repo.moveToAccount(source, email, target, targetMailboxId, ticked[key]) }
                     .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
             }
             if (result !is CrossAccountMove.Moved) {

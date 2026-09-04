@@ -379,6 +379,10 @@ class HeldBackDestroyCarriesItsFolderTest {
         // construction (`UidValidity.destroyableUnderTheNumberingItWasTickedUnder`, which refuses
         // only when two real numbers disagree). On IMAP the loss is whole: both #99 guards — the
         // bulk delete's and the cross-account move's — lose the ability to refuse anything at all.
+        // ⭐ That repository behaviour is no longer taken on trust from source text: the decision
+        // lives in `numberingStampsOfRows` and `core:data`'s `NumberingStampsTest` EXECUTES it —
+        // empty on JMAP with the database never read, the row's own number on IMAP, and a
+        // null-stamped row kept as a key. What no JVM test can run stays here: this load.
         val remembered = bodyOf(INBOX_VIEW_MODEL, "rememberTickedNumbering")
         // What the user loses if this line drops what it read (`read[key] = null`): every IMAP
         // stamp is null, the bulk delete destroys a line swapped under the tick again, and the

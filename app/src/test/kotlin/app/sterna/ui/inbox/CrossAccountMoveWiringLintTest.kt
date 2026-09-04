@@ -31,15 +31,38 @@ import org.junit.Test
  */
 class CrossAccountMoveWiringLintTest {
 
+    /**
+     * ⭐ THE FIFTH ARGUMENT IS THE VOLET. Each site is pinned WITH the numbering it hands down, and
+     * the two are deliberately different:
+     *
+     *  - the SELECTION's move carries `ticked[key]` — the stamp that row was ticked under, frozen
+     *     outside the launch. `null` there, or a re-read of the folder's record, and the whole
+     *     guard is decoration: the record is realigned by the first iteration that meets the
+     *     renumbering, so from then on it is compared with itself, agrees, and the octets of a
+     *     message nobody ticked go to account B while hers goes to A's bin, with no Undo;
+     *  - the READER's single move carries an explicit `null` — there is no tick, so there is no
+     *     stamp to oppose, and that is main's behaviour unchanged. Written out rather than left to
+     *     the default ON PURPOSE: the two call sites then differ by a token that a copy-paste
+     *     between them changes, and this list sees it.
+     */
     @Test fun `the move between accounts has no Undo and never calls the same-account move`() {
-        for (name in listOf("moveToAccount", "moveSelectedToAccount")) {
+        val handedDown = mapOf(
+            "moveToAccount" to "runCatching { repo.moveToAccount(source, email, target, targetMailboxId, null) }",
+            "moveSelectedToAccount" to "runCatching { repo.moveToAccount(source, email, target, targetMailboxId, ticked[key]) }",
+        )
+        for ((name, call) in handedDown) {
             val body = body(INBOX_VIEW_MODEL, name)
             assertEquals("$name() must not write _undo (A3: no Undo on a two-sided move). Body was:\n$body", emptyList<String>(), codeLinesNaming(body, "_undo"))
             assertEquals("$name() must not build an UndoAction. Body was:\n$body", emptyList<String>(), codeLinesNaming(body, "UndoAction"))
             assertEquals("$name() must not fall back to moveToMailbox: an id of B sent to A (#92). Body was:\n$body", emptyList<String>(), codeLinesNaming(body, "moveToMailbox"))
             assertEquals(
-                "$name() must hand the repository exactly source, email, target and the folder id, whole. Body was:\n$body",
-                listOf("runCatching { repo.moveToAccount(source, email, target, targetMailboxId) }"),
+                "$name() must hand the repository exactly source, email, target, the folder id " +
+                    "AND the numbering that row was ticked under — `ticked[key]` from the " +
+                    "selection, an explicit `null` from the reader, which has no tick. Whole " +
+                    "line: dropping the fifth argument compiles (it defaults to null) and the " +
+                    "move then reads and bins under the folder's own record, which a background " +
+                    "pass realigned the moment it met the renumbering. Body was:\n$body",
+                listOf(call),
                 codeLinesNaming(body, "repo.moveToAccount("),
             )
         }

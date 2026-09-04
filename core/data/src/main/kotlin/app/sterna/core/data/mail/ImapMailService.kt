@@ -1301,9 +1301,26 @@ class ImapMailService(
         }
     }
 
-    /** Raw RFC822 source of a message (caller parses out the body/attachments). */
-    suspend fun fetchSource(credentials: AccountCredentials, mailboxId: String, uid: Long): String =
-        onMailbox(credentials, mailboxId) { session, _ -> session.fetchSource(uid) }
+    /**
+     * Raw RFC822 source of a message (caller parses out the body/attachments).
+     *
+     * [expectedUidValidity] is the numbering [uid] was read under, for a caller that froze one —
+     * the move between accounts freezes it at the TICK (#189). Opposed in the SELECT this read
+     * goes out under, exactly as [move] and [deleteBatch] oppose theirs: a folder renumbered since
+     * then answers [app.sterna.core.imap.ImapUidValidityChanged] and NOT ONE OCTET is read, so the
+     * copy written on the other account cannot be a message nobody pointed at.
+     *
+     * `null`, the default, is every ordinary read (open a message, view headers, save as .eml) and
+     * keeps [onMailbox]'s fallback on the recorded number: those callers have nothing frozen, and
+     * refusing there would break reading mail.
+     */
+    suspend fun fetchSource(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        expectedUidValidity: Long? = null,
+    ): String =
+        onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity) { session, _ -> session.fetchSource(uid) }
 
     /**
      * The SERVER's own delivery timestamp for one message (`INTERNALDATE`) in epoch millis, or

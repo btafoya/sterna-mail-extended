@@ -97,10 +97,15 @@ class ChunkedIdReadsSourceTest {
             "imapDestroyGroup",
             "search",
             "fetchThreadMembers",
-            // The freeze of a held-back destroy: its id list IS the selection, and it runs BEFORE
-            // the eviction and the enqueue and outside any runCatching — unbounded, it would not
-            // fail the delete, it would crash it (#99).
-            "numberingRowsWereReadUnder",
+            // ⭐ The freeze of a held-back destroy (`numberingRowsWereReadUnder`, #99) is NOT in
+            // this list any more, and that is a tightening, not a hole: its id list IS the
+            // selection, and it runs BEFORE the eviction and outside any runCatching, so
+            // unbounded it would crash the delete rather than fail it — but the split now lives
+            // in `numberingStampsOfRows`, where `NumberingStampsTest` EXECUTES it on 1201 ids and
+            // pins the size of every chunk. A rule that reads the word `byIdsChunked(` in a body
+            // could never say that. What is left un-executed is only the hand-over, and
+            // `NumberingStampsSourceTest` pins that line whole — including the `chunk` argument
+            // this test could only have seen as a name.
             // Its network loop is bounded by JMAP_BATCH_CEILING, which lives in core:jmap and is
             // documented as a NETWORK limit. Raising it must not push this SELECT past SQLite's
             // 999 bindings, so the read carries its own split as well.
@@ -110,7 +115,9 @@ class ChunkedIdReadsSourceTest {
             "byIdsChunked(" in DaoQuerySource.mailFunctionBody("MailRepository", it)
         }
         assertEquals(
-            "these MailRepository paths no longer chunk their id reads",
+            "these MailRepository paths no longer chunk their id reads (a path may leave this " +
+                "list only by handing its split to a helper a JVM test EXECUTES, the way " +
+                "numberingRowsWereReadUnder did)",
             emptyList<String>(), missing,
         )
     }
