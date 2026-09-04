@@ -878,10 +878,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      * "Save as .eml": write the message exactly as the server holds it — [MailRepository.rawSource]'s
      * bytes, one per octet — into the document the user picked at [uri]. ⛔ The server's octets,
      * never the clear text of an encrypted message: an OpenPGP message is saved as received, still
-     * encrypted, because decrypted content is never written to disk (README). The toast names the
-     * document's REAL name (she may have renamed it in the picker), else [proposedName]. A failure
-     * lands on [actionStatus] like every other gesture on the open message, never on
-     * [MessageState.Error]: the message stays readable.
+     * encrypted, because decrypted content is never written to disk, save for the exceptions the
+     * README names — an attachment she opens, one she saves, and printing or saving a message as
+     * PDF, which hands the decrypted text to the system print service. A .eml export is none of
+     * them. The toast names the document's REAL name (she may have renamed it in the picker), else
+     * [proposedName]. A failure lands on [actionStatus] like every other gesture on the open
+     * message, never on [MessageState.Error]: the message stays readable.
      *
      * [ownerId] is the message the picker was launched FOR. The result comes back to whatever page
      * is settled by then — an activity recreated behind the picker can restore onto another one —

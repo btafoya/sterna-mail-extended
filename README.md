@@ -145,8 +145,9 @@ Running your own server, with a free certificate or one you issued yourself? See
   read and send signed and/or encrypted mail (PGP/MIME) on both JMAP and
   IMAP/SMTP. Decrypted content is never written to disk, with attachments as the
   exception: one you open is written to the app's own storage until the cache is
-  cleared, and one you save goes to the folder you pick and stays there. See the
-  [encryption guide](ENCRYPTION.md) to get started.
+  cleared, and one you save goes to the folder you pick and stays there.
+  Printing a message, or saving it as a PDF, hands its decrypted text to the
+  system print service. See the [encryption guide](ENCRYPTION.md) to get started.
 
 **🔔 Notifications & server power**
 - Push for new mail with **no Google / FCM** (JMAP EventSource, IMAP IDLE or

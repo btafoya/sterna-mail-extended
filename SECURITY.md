@@ -250,7 +250,12 @@ Out of scope:
   are the exception: one you open is written to the app's own storage until the cache
   is cleared, and one you save is written to the document the system picker returns —
   outside the app, where neither clearing the cache nor signing the account out reaches
-  it. Saving is an explicit gesture, one attachment at a time.
+  it. Saving is an explicit gesture, one attachment at a time. Printing a message is the
+  other exception: the decrypted body is handed to the system print service. Choosing
+  "Save as PDF" there writes that plaintext into a document outside the app, where the
+  same two clearances do not reach it either; choosing a printer hands it to the print
+  spooler and to the printer instead, and leaves no document to point at. Both happen
+  only on that request.
 - The message **subject is not encrypted** on the way out (sent in the clear, matching
   common OpenPGP practice). Protected headers (RFC 9788) are **read, and written on an
   encrypting send**: the entity that gets encrypted opens with a `Subject` field holding the
@@ -336,9 +341,20 @@ Out of scope:
   their own**: `MessagingReceiverImpl`, whose filter is how a UnifiedPush distributor delivers a
   push (`MESSAGE`, `NEW_ENDPOINT`, `UNREGISTERED`, `REGISTRATION_FAILED`, `TEMP_UNAVAILABLE`), and
   `RaiseToForegroundService`. That is the shape the UnifiedPush specification requires — delivery
-  is an inter-app broadcast by design — so another app can forge one. It carries no mail: a
-  forged event can at most make Sterna ask its own server whether anything is new, over the
-  account's own authenticated connection.
+  is an inter-app broadcast by design — so another app can forge one. It carries no mail: the
+  fetch a forged event triggers runs over the account's own authenticated connection, and
+  nothing of the mailbox travels through the broadcast. It is not inert, though, and what
+  follows is what I have traced, not a proof that there is nothing else. A `PushVerification`
+  payload is refused outright on any non-JMAP account, so a forged one cannot push Sterna into
+  an authentication round-trip against a host that speaks IMAP; that guard is scoped to the
+  protocol, and claims nothing beyond it. An IMAP account that has published a relay push
+  address and is still waiting for its first delivery treats a forged event as that delivery:
+  the account arms, its transport switches to UnifiedPush and its IMAP IDLE drops, and it stays
+  that way until the address is removed in settings, the distributor is uninstalled or the
+  endpoint rotates. Once it is armed, a forged event still stamps that account's last wake, so
+  the status line can report a fresh wake for a relay nobody has posted to in weeks. Only an
+  account that asked for a relay address has a transport that can be moved this way; a JMAP
+  account does not, nor does an IMAP account without one.
 
 ## Coordinated disclosure
 

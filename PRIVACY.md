@@ -7,7 +7,7 @@ device.**
 
 Sterna is free software (GPLv3) with no business model built on your data. There
 is no Sterna account, no Sterna server, and no company in the middle. This document
-explains exactly what that means, in plain terms. Last updated: 2026-09-03.
+explains exactly what that means, in plain terms. Last updated: 2026-09-04.
 
 ## What Sterna does NOT do
 
@@ -51,9 +51,28 @@ comes from. The rest stays here:
   pick in the system's own file picker, outside the app, including one that
   arrived encrypted, which is saved decrypted since that is what you asked for.
   Its bytes go from your server into that file directly, without a copy in the
-  app's cache. Nothing prunes it and nothing clears it: neither **Clear cache**
-  nor signing the account out reaches a file that is no longer the app's, so it
-  stays on the device until you delete it yourself.
+  app's cache. Nothing prunes it and nothing clears it: neither **Clear cache**,
+  nor signing the account out, nor uninstalling the app reaches a file that is no
+  longer the app's, so it stays on the device until you delete it yourself.
+- **A message you save as `.eml`**: **Save as .eml** writes the message exactly
+  as your server holds it, its headers and everyone it was addressed to
+  included, into the folder you pick in the system's own file picker, outside
+  the app. A message that arrived encrypted is written as it arrived, still
+  encrypted. Nothing prunes it and nothing clears it: neither **Clear cache**,
+  nor signing the account out, nor uninstalling the app reaches a file that is
+  no longer the app's, so it stays on the device until you delete it yourself.
+- **A message you print, or save as PDF**: **Print** hands the message, laid out
+  as you are reading it, to Android's own print service, including one that
+  arrived encrypted, which is handed over decrypted since what goes on paper is
+  what is on screen. What stays on the device then depends on what you pick
+  there. Choosing **Save as PDF** writes a document into the folder you pick in
+  the system's own file picker, outside the app, and nothing prunes it and
+  nothing clears it: neither **Clear cache**, nor signing the account out, nor
+  uninstalling the app reaches it either, so it too stays until you delete it
+  yourself. Choosing a real printer leaves no file of Sterna's behind: the
+  decrypted message goes to the print service and on to that printer instead.
+  What Android's own print service keeps of a job while it is queued, and for
+  how long, belongs to that service rather than to the app.
 - **Drafts you write on the phone.** A draft's subject, text and recipients are
   written to the device before anything goes to your server, and they stay there
   until it has been uploaded, which with no network can be days. Until that
@@ -103,9 +122,12 @@ Everything above is removed when you remove the account or uninstall the app,
 subject to normal Android storage behaviour, except for what stays behind: your
 settings, the list of addresses you have written to and the list of senders you
 allow to load their images are filed under no account, so removing one account
-leaves them in place; and a message still waiting to go out is not taken with the
-account, since your server never received it. Uninstalling the app removes all of
-it.
+leaves them in place; a message still waiting to go out is not taken with the
+account, since your server never received it; and the files written outside the
+app (an attachment you saved, a message you saved as `.eml`, a document you
+saved as PDF) belong to the folder you picked rather than to the app, so nothing
+Sterna does reaches them. Uninstalling the app removes the rest, but not those:
+they stay on the device until you delete them yourself.
 
 ## Network connections
 
@@ -208,16 +230,33 @@ Beyond these six, Sterna opens no connection of its own initiative: no update
 check, no license check, no reporting endpoint.
 
 **A UnifiedPush distributor** (ntfy, NextPush…) sits on the path too, when your
-account uses that push transport, but it is not a host Sterna connects to. Sterna
-hands the endpoint URL that your distributor issued to your mail server, and it is
-your server that posts the new-mail signal there. On the phone, the distributor app
-passes the signal to Sterna through Android, not over the network. The signal holds
-no message content, so the distributor cannot read your mail or see who wrote to
-you; it does see that push traffic is going to that account, and when. Whether the
-signal is encrypted is your server's doing: Sterna gives the server WebPush keys
-for it, and refuses the distributor outright when the keys are missing, falling
-back to the direct connection, but it does accept a signal that arrives
-unencrypted. The mail itself is always fetched from your own server.
+account uses that push transport, but it is not a host Sterna connects to. On the
+phone, the distributor app passes the signal to Sterna through Android, not over
+the network. The signal holds no message content, so the distributor cannot read
+your mail or see who wrote to you; it does see that push traffic is going to that
+account, and when. The mail itself is always fetched from your own server. What
+Sterna does with the endpoint address the distributor issued depends on the
+account.
+
+On a **JMAP account**, Sterna hands that endpoint address to your mail server, and
+it is your server that posts the new-mail signal there. Whether the signal is
+encrypted is your server's doing: Sterna gives the server WebPush keys for it, and
+refuses the distributor outright when the keys are missing, falling back to the
+direct connection, but it does accept a signal that arrives unencrypted.
+
+On an **IMAP account**, the address is a relay address, and Sterna hands it to
+nobody. There is one only if you asked for it: that account's notification
+settings offer to get an address, and only while a UnifiedPush app is installed.
+Once there is one, the same screen shows it with a button to copy it, and you
+are the one who gives it to whatever you already trust. Sterna gives no WebPush
+keys to anyone on this path, and asks your mail server for no push key either.
+Nothing of your mailbox travels through that address: a POST to it carries no
+mail, and what it sets off is Sterna going to check your own server over its own
+connection. It is not nothing, though. The first POST to arrive is what tells
+Sterna the address works, so that account starts being woken this way and lets
+its permanent IMAP connection go; later ones stamp the last wake time that
+account's notification settings show you. Anyone who has the address can do
+that, not only whatever you gave it to. SECURITY.md follows it through.
 
 Some addresses in the app are **links, not connections**: your provider's
 app-password page, the OAuth approval page, an unsubscribe page offered without

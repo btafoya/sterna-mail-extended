@@ -4210,9 +4210,11 @@ class MailRepository(
      * The message exactly as the server holds it, for "Save as .eml": the raw RFC 5322 source
      * over IMAP or JMAP (fetched/cached like any other read), as bytes. ⛔ Never the clear text of
      * an OpenPGP message: an encrypted message is saved as received, still encrypted (README:
-     * "Decrypted content is never written to disk"). Throws [MessageUnavailableException] when the
-     * server gives nothing back, so the caller can discard the document instead of keeping an
-     * empty file that looks like a saved message.
+     * "Decrypted content is never written to disk", with three named exceptions — an attachment
+     * she opens, one she saves, and printing or saving a message as PDF, which hands the decrypted
+     * text to the system print service; a .eml export is none of them). Throws
+     * [MessageUnavailableException] when the server gives nothing back, so the caller can discard
+     * the document instead of keeping an empty file that looks like a saved message.
      *
      * The [Email] is resolved per protocol, as [rawHeaders] and [decryptMessage] do: IMAP only
      * needs the mailbox, which the cached row carries; JMAP needs the `blobId`, and the cache has

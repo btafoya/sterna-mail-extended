@@ -2670,9 +2670,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * The outgoing (text, html) bodies. The body is sent exactly as the composer shows it — the
-     * signature is already inside it, inserted when compose opened, so nothing is appended here any
-     * more (WYSIWYG). Two things still happen:
+     * The outgoing (text, html) bodies. The pair BUILT HERE carries exactly what the composer
+     * shows — the signature is already inside it, inserted when compose opened, so nothing is
+     * appended here any more (WYSIWYG). ⚠ How much of the pair reaches the recipient is a matter of
+     * protocol, see the closing note. Two things still happen:
      *  - an HTML alternative is ALWAYS produced, signature or not: a lone text/plain body is subject
      *    to format=flowed reflow by some servers (e.g. Stalwart), which joins single newlines on
      *    retrieval and flattens the message to one line. The explicit `<br>` survives that;
@@ -2681,9 +2682,23 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      *  - the INLINE styling the user applied (#131) is written into the html alternative and only
      *    there: bold has no spelling in plain text. A LIST does have one, so the text alternative
      *    is `toPlainText`, which writes `- ` / `1. ` in front of each item — ⛔ never `userBody.text`,
-     *    which is the typed text with the markers nowhere, and reads as a run of loose lines to
-     *    anyone whose client shows the text part.
+     *    which is the typed text with the markers nowhere, and reads as a run of loose lines
+     *    wherever the text part is the one displayed.
      * For a forward, the carried original is then appended below, identically, to both.
+     *
+     * ⚠ Which of the two parts actually leaves the phone is not decided here, and only ONE route out
+     * of three carries both. `OutgoingMime.buildBodyEntity` (`SmtpClient.kt:534` — in `object
+     * OutgoingMime`, NOT in `SmtpClient`) emits a SINGLE body and takes the html whenever there is
+     * one (`m.html ?: m.body`, `:536-537`); it knows no `multipart/alternative` at all. Since an html
+     * alternative is always produced above, `m.html` is never null, so every route through that
+     * builder drops the text this function just built:
+     *  - a plain JMAP send carries BOTH. It bypasses that builder: `JmapClient.kt:1995-2006` declares
+     *    a `textbody` and an `htmlbody` and puts both values in `bodyValues`;
+     *  - IMAP/SMTP carries the html alone;
+     *  - a PGP/MIME send carries the html alone on EITHER protocol, and drops the text earlier: the
+     *    inner entity is built through that same builder in the composer (`:3213`), and on JMAP the
+     *    prebuilt entity is then imported whole (`MailRepository.kt:8631-8651` →
+     *    `JmapClient.importAndSendEmail`), never through `Email/set` body fields.
      */
     private suspend fun bodiesForSend(userBody: RichBody, identity: StoredIdentity?): Pair<String, String?> {
         val html = htmlBodyWithSignature(

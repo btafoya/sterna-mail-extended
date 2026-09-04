@@ -163,7 +163,7 @@ The categories further down list the full feature set; this is the order of work
 - ✅ Push reconnects automatically when the connection drops (catches missed mail)
 - ✅ Bundled/grouped notifications per account, individual new-mail notifications collapse under a per-account summary
 - ✅ Push/notifications beyond the Inbox (issue #16), per-folder watch switch in the drawer (Sieve-filtered folders included): JMAP account-wide changes filtered on the watched set; IMAP non-Inbox folders via the periodic poll (IDLE is single-folder)
-- ✅ ⭐ UnifiedPush transport (issue #17), JMAP `PushSubscription` to a UnifiedPush endpoint (ntfy, NextPush…) removes the persistent connection and its permanent notification for JMAP accounts; IMAP keeps direct IDLE or the periodic poll. The transport is picked automatically per account; the only user-facing setting is outcome-framed ("New mail delivery: Instant / Battery saver"); a read-only per-account status line shows what's in use; a distributor picker appears only when several are installed
+- ✅ ⭐ UnifiedPush transport (issue #17), JMAP `PushSubscription` to a UnifiedPush endpoint (ntfy, NextPush…) removes the persistent connection and its permanent notification for JMAP accounts; an IMAP account can ride UnifiedPush too (issue #177: Settings → Accounts → [account] → Notifications → Relay push address, a block that shows on an IMAP account whose own notifications are on, and that needs a UnifiedPush app installed before there is an address to hand out): Sterna publishes an address you copy into whatever relay you already trust, and a POST to that address wakes the app to check for mail, with nothing of the mailbox travelling through it. The transport is picked automatically per account; the delivery setting is outcome-framed ("New mail delivery: Instant / Battery saver"), while the relay address block is phrased by mechanism instead, because an address has to be copied out by hand; IMAP IDLE gives way to UnifiedPush only once a payload has really arrived on that address, so an address nobody posts to never costs a working connection; a read-only per-account status line shows what's in use; a distributor picker appears only when several are installed
 - ✅ Quiet hours, a nightly window (Settings → Notifications) during which new mail still arrives but silently (no sound/vibration/heads-up)
 
 ## Privacy & security
@@ -184,8 +184,9 @@ The categories further down list the full feature set; this is the order of work
   signing. Decrypted content is never written to disk (not cached, not
   search-indexed), except an attachment: one you open is written to the app's own
   storage until the cache is cleared, and one you save, with the button on its row
-  in the reader, goes to the folder you pick and stays there. The message subject
-  is not encrypted.
+  in the reader, goes to the folder you pick and stays there. Printing a message,
+  or saving it as a PDF, hands its decrypted text to the system print service.
+  The message subject is not encrypted.
   User guide: [ENCRYPTION.md](ENCRYPTION.md).
 - 💡 S/MIME (longer-term)
 

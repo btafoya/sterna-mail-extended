@@ -33,13 +33,19 @@ import app.sterna.ui.message.MessageScreen
  * would. A swipe in the pane changes the anchor without changing the session, so the pager the
  * finger is on stays, and only the row painted current in the list moves ([ReadingPaneRule]).
  *
- * Every action that takes the message away (Back, archive, delete, move, and the reader's own
+ * Every action taken FROM THE PANE (Back, archive, delete, move, and the reader's own
  * unread / snooze / spam, which all call `onBack`) EMPTIES the pane — never "the next message":
  * settling on a page marks it read, and nothing may happen to a message nobody chose to open
  * (`SECURITY.md`). [InboxViewModel.closePane] returns whether there was something to act on, so
  * a second tap on the same action finds the pane already empty and does nothing. The Undo
  * snackbar shows on the list, as it does after the full-screen reader; Undo puts the row back,
  * not the message in the pane.
+ *
+ * ⚠ Nothing on the LIST side is one of those actions, and none of it closes the pane: a swipe
+ * (`performSwipe`, `performThreadSwipe`, `InboxScreen.kt`) and the bulk actions on a selection
+ * ([InboxViewModel.deleteSelected], [InboxViewModel.archiveSelected], [InboxViewModel.moveSelectedTo])
+ * all act on the row without ever calling [InboxViewModel.closePane]. Swiping away, or bulk-deleting,
+ * the very message the pane is showing leaves the pane on it.
  *
  * ⛔ No animation around this: no `AnimatedContent`, no `Crossfade`. A fade composites the body
  * WebView through an offscreen layer, which is the door to the native crash of #10.

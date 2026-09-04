@@ -125,16 +125,29 @@ per-account sources.
 
 ## Push & notifications
 
-`PushController` picks a transport per account, automatically: JMAP with a
-UnifiedPush distributor → UnifiedPush; JMAP otherwise → an EventSource (SSE)
-connection; IMAP → IDLE. Direct connections live in a foreground service
-declared `specialUse` (not `dataSync`, which Android 15+ budgets and kills).
-With UnifiedPush the server posts a WebPush-encrypted `StateChange` to the
-distributor's endpoint; the connector library generates and holds the P-256
-keys on-device and hands Sterna decrypted payloads, which enqueue an expedited
-fetch worker, the process can be dead between pushes. A periodic ~30-minute
-`MailFetchWorker` is the safety net for every transport (push can die silently)
-and polls what IDLE cannot see.
+`PushController` picks a transport per account, automatically, and the first
+rule that applies wins: a linked sub-account (issue #31) → the periodic worker,
+because the server never pushes an ACL-shared account's changes; otherwise an
+account whose UnifiedPush endpoint is ACTIVE → UnifiedPush, whatever its
+protocol, so an IMAP relay address (issue #177) rides this too; otherwise
+battery saver → the periodic worker; otherwise JMAP → an EventSource (SSE)
+connection; otherwise IMAP → IDLE. ACTIVE means the server's `PushVerification`
+came back on JMAP, and on a relay that a payload really arrived, never merely
+that an address exists: once an account has asked for one, the subsystem enrols
+whatever distributor is installed and an address appears on its own, so arming on
+that alone would trade a working IMAP IDLE for an endpoint nobody ever posts to. Direct connections live in a foreground
+service declared `specialUse` (not `dataSync`, which Android 15+ budgets and
+kills). With UnifiedPush on a JMAP account the server posts a
+WebPush-encrypted `StateChange` to the distributor's endpoint; the connector
+library generates and holds the P-256 keys on-device and hands Sterna
+decrypted payloads, which enqueue an expedited fetch worker, the process can
+be dead between pushes. On an IMAP relay Sterna hands out nothing: no VAPID
+call, no WebPush keys and not even the address, which it publishes locally for
+the user to copy into a relay of their own choosing. What arrives is whatever
+that relay posted, so the nominal path is an undecryptable payload treated as
+a bare wake signal, which enqueues the same fetch. A periodic ~30-minute
+`MailFetchWorker` is the safety net for every transport (push can die
+silently) and polls what IDLE cannot see.
 
 Notifications diff against *persisted per-folder baselines* of already-announced
 ids (shared by live push and the fallback worker, so they never double-notify),
@@ -183,7 +196,8 @@ outbox-bearing tables migrate additively.
   lives only in memory, never in the cache, except an attachment: one you open is
   written to the app's own storage until the cache is cleared, and one you save is
   streamed from the server into the document the system picker returns, never
-  through the cache. See
+  through the cache. Printing, and saving as a PDF, are the other way out: the
+  in-memory plaintext body goes to the system print service. See
   [ENCRYPTION.md](ENCRYPTION.md).
 - **Outbox & scheduled send:** sends are persisted Room rows delivered by
   WorkManager jobs (network constraint, backoff, undo-send hold-back), so a
