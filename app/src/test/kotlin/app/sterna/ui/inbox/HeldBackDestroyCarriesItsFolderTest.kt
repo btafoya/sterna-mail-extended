@@ -33,11 +33,34 @@ import java.io.File
  */
 class HeldBackDestroyCarriesItsFolderTest {
 
+    /** The code lines of [body], comments and blanks dropped, whitespace normalised. */
+    private fun codeLinesOf(body: String): List<String> =
+        body.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
+            .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
+            .filter { it.isNotEmpty() }
+
     /** The code lines of [body] naming [needle], comments dropped. */
     private fun codeLinesNaming(body: String, needle: String): List<String> =
         body.lines().map { it.trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
+
+    /**
+     * The order of two WHOLE code lines of [lines], with BOTH required to exist.
+     *
+     * ⛔ Why this is not an `indexOf` on the raw text, which is what every one of these rules used
+     * to be: `String.indexOf` answers -1 for a needle that has VANISHED, and `-1 < n` is true for
+     * ever. The assertion then stops asserting without ever going red — the rule dies silently at
+     * the exact moment the line it guards is renamed or removed, which is the moment it is needed.
+     * Whole lines, and the index demanded, so a disappearance is named in the message.
+     */
+    private fun assertLineOrder(what: String, lines: List<String>, first: String, then: String) {
+        val i = lines.indexOf(first)
+        val j = lines.indexOf(then)
+        assertTrue("$what — no code line reads exactly <$first>; the rule guards nothing", i >= 0)
+        assertTrue("$what — no code line reads exactly <$then>; the rule guards nothing", j >= 0)
+        assertTrue("$what — <$first> (line $i) must come BEFORE <$then> (line $j)", i < j)
+    }
 
     /** The block body of `fun [name]` in [file] — braces included. */
     private fun bodyOf(file: File, name: String): String {
@@ -324,16 +347,34 @@ class HeldBackDestroyCarriesItsFolderTest {
                 "split, and give the refused ones back — those three lines and no fourth. " +
                 "Body was:\n$body",
             listOf(
-                "val ticked = tickedUnder",
+                "val ticked = awaitTickedNumbering(keys)",
                 "tickedUnder = { ticked[it.emailKey()] },",
                 "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
             ),
-            codeLinesNaming(body, "tickedUnder"),
+            codeLinesNaming(body, "ticked"),
         )
-        assertTrue(
-            "…and BEFORE the launch: read a suspension later it is the numbering of the very " +
-                "renumbering it exists to refuse. Body was:\n$body",
-            body.indexOf("val ticked = tickedUnder") < body.indexOf("viewModelScope.launch"),
+        // ⛔ THE FIRST LINE OF THE LAUNCH, and that is what replaces the old "capture outside the
+        // launch" rule. The stamps are no longer TAKEN at the gesture, they are AWAITED: the read
+        // that produces them starts at the TICK, in the collector on _selectedKeys, and a
+        // "Select all" publishes it a dozen queries later. A wait suspends, so it goes inside the
+        // launch; it goes FIRST because everything below it either suspends or clears the
+        // selection, and the collector empties the field the moment the selection is cleared.
+        // ⛔ Still never a re-read: awaiting a publication is not reading the row again, and a
+        // re-read here would be the realigned number the guard exists to refuse.
+        val gestureLines = body.lines().map { it.trim() }
+            .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
+            .filter { it.isNotEmpty() }
+        assertEquals(
+            "…and it must be the FIRST statement inside viewModelScope.launch: after " +
+                "selectionNumbering, the cache read or the Trash probes it would be racing its " +
+                "own clearSelection(). Body was:\n$body",
+            "val ticked = awaitTickedNumbering(keys)",
+            gestureLines[gestureLines.indexOfFirst { it == "viewModelScope.launch {" } + 1],
+        )
+        assertLineOrder(
+            "and the KEYS stay captured before the launch — they say WHICH selection the stamps " +
+                "are awaited for. Body was:\n$body",
+            gestureLines, "val keys = _selectedKeys.value", "viewModelScope.launch {",
         )
         assertEquals(
             "the field has exactly THREE writers and no fourth: the collector on the selection, so " +
@@ -475,11 +516,12 @@ class HeldBackDestroyCarriesItsFolderTest {
             ),
             codeLinesNaming(body, "split.drifted"),
         )
-        assertTrue(
+        assertLineOrder(
             "…and the stamps BEFORE the keys: nothing suspends between the two lines, which is " +
                 "the only reason the collector cannot slip in and re-read them. Body was:\n$body",
-            body.indexOf("tickedUnder = split.drifted.associate") <
-                body.indexOf("_selectedKeys.value = split.drifted"),
+            codeLinesOf(body),
+            "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
+            "_selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
         )
         assertEquals(
             "with the selection bar back up — the keys alone leave the screen in a state nothing " +
@@ -487,11 +529,11 @@ class HeldBackDestroyCarriesItsFolderTest {
             listOf("_selectionActive.value = true"),
             codeLinesNaming(body, "_selectionActive"),
         )
-        assertTrue(
+        assertLineOrder(
             "⛔ and AFTER the delegation, never before: bulkBatched calls clearSelection() " +
                 "synchronously at the call, so a re-selection written earlier is wiped by the very " +
                 "line that follows it. Body was:\n$body",
-            body.indexOf("bulkBatched(") < body.indexOf("if (split.drifted.isNotEmpty()) {"),
+            codeLinesOf(body), "bulkBatched(", "if (split.drifted.isNotEmpty()) {",
         )
     }
 

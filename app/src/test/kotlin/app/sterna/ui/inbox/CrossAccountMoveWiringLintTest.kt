@@ -35,20 +35,26 @@ class CrossAccountMoveWiringLintTest {
      * ⭐ THE FIFTH ARGUMENT IS THE VOLET. Each site is pinned WITH the numbering it hands down, and
      * the two are deliberately different:
      *
-     *  - the SELECTION's move carries `ticked[key]` — the stamp that row was ticked under, frozen
-     *     outside the launch. `null` there, or a re-read of the folder's record, and the whole
-     *     guard is decoration: the record is realigned by the first iteration that meets the
+     *  - the SELECTION's move carries `FrozenNumbering.Frozen(ticked[key])` — the stamp that row
+     *     was ticked under, frozen outside the launch, WRAPPED so that an absent stamp still says
+     *     "a tick happened". A re-read of the folder's record there, or an unwrapped value, and the
+     *     whole guard is decoration: the record is realigned by the first iteration that meets the
      *     renumbering, so from then on it is compared with itself, agrees, and the octets of a
      *     message nobody ticked go to account B while hers goes to A's bin, with no Undo;
-     *  - the READER's single move carries an explicit `null` — there is no tick, so there is no
-     *     stamp to oppose, and that is main's behaviour unchanged. Written out rather than left to
-     *     the default ON PURPOSE: the two call sites then differ by a token that a copy-paste
-     *     between them changes, and this list sees it.
+     *  - the READER's single move carries `FrozenNumbering.NothingFrozen` — there is no tick, so
+     *     there is no stamp to oppose, and that is main's behaviour unchanged. Written out rather
+     *     than left to the default ON PURPOSE: the two call sites then differ by a token that a
+     *     copy-paste between them changes, and this list sees it.
+     *
+     * ⛔ THE TWO ARE NOT INTERCHANGEABLE, and that is the volet (#189). `Frozen(null)` is refused
+     * at both ends by `MailRepository`; `NothingFrozen` falls back on the folder's record, as every
+     * ordinary gesture does. Under the `Long?` this parameter used to be, both were `null` and the
+     * ticked row silently borrowed the reader's fallback.
      */
     @Test fun `the move between accounts has no Undo and never calls the same-account move`() {
         val handedDown = mapOf(
-            "moveToAccount" to "runCatching { repo.moveToAccount(source, email, target, targetMailboxId, null) }",
-            "moveSelectedToAccount" to "runCatching { repo.moveToAccount(source, email, target, targetMailboxId, ticked[key]) }",
+            "moveToAccount" to "runCatching { repo.moveToAccount(source, email, target, targetMailboxId, FrozenNumbering.NothingFrozen) }",
+            "moveSelectedToAccount" to "runCatching { repo.moveToAccount(source, email, target, targetMailboxId, FrozenNumbering.Frozen(ticked[key])) }",
         )
         for ((name, call) in handedDown) {
             val body = body(INBOX_VIEW_MODEL, name)
@@ -57,11 +63,13 @@ class CrossAccountMoveWiringLintTest {
             assertEquals("$name() must not fall back to moveToMailbox: an id of B sent to A (#92). Body was:\n$body", emptyList<String>(), codeLinesNaming(body, "moveToMailbox"))
             assertEquals(
                 "$name() must hand the repository exactly source, email, target, the folder id " +
-                    "AND the numbering that row was ticked under — `ticked[key]` from the " +
-                    "selection, an explicit `null` from the reader, which has no tick. Whole " +
-                    "line: dropping the fifth argument compiles (it defaults to null) and the " +
+                    "AND what the tick froze — `Frozen(ticked[key])` from the selection, an " +
+                    "explicit `NothingFrozen` from the reader, which has no tick. Whole line: " +
+                    "dropping the fifth argument compiles (it defaults to NothingFrozen) and the " +
                     "move then reads and bins under the folder's own record, which a background " +
-                    "pass realigned the moment it met the renumbering. Body was:\n$body",
+                    "pass realigned the moment it met the renumbering; unwrapping `ticked[key]` " +
+                    "would not compile, and re-wrapping it as NothingFrozen would restore the " +
+                    "defect whole. Body was:\n$body",
                 listOf(call),
                 codeLinesNaming(body, "repo.moveToAccount("),
             )
@@ -110,18 +118,30 @@ class CrossAccountMoveWiringLintTest {
         // What is lost if this line goes: nothing captures the stamp of the tick, the guard below
         // has no earlier fact to oppose, and the swap is invisible again.
         assertEquals(
-            "moveSelectedTo() must capture the stamps of the tick beside the keys. Body was:\n$one",
-            listOf("val ticked = tickedUnder"),
+            "moveSelectedTo() must take the stamps of the tick through the shared WAIT, which " +
+                "holds the gesture until the read started AT THE TICK has been published — never " +
+                "a re-read here, which would be the realigned number itself. Body was:\n$one",
+            listOf("val ticked = awaitTickedNumbering(keys)"),
             codeLinesNaming(one, "val ticked ="),
         )
-        // What is lost if the capture moves INSIDE the launch: moveSelectedToAccount calls
-        // clearSelection() at its head, the collector on _selectedKeys empties the field, and the
-        // captured map is empty — the guard passes everything and the loss is back whole.
-        assertTrue(
-            "…and BEFORE viewModelScope.launch: read a suspension later it is either empty (the " +
-                "clearSelection() at the head of moveSelectedToAccount) or the numbering of the " +
-                "very renumbering it exists to refuse. Body was:\n$one",
-            one.indexOf("val ticked = tickedUnder") < one.indexOf("viewModelScope.launch"),
+        // ⛔ AND IT IS THE FIRST LINE OF THE LAUNCH, which is what replaces the old rule ("capture
+        // OUTSIDE the launch"). The wait suspends, so it has to be inside; and it has to be first,
+        // because moveSelectedToAccount calls clearSelection() at its head — that wakes the
+        // collector on _selectedKeys, which empties the field, so a wait posted after it would
+        // race its own erasure and hand back an empty map. Pinned as the line that FOLLOWS the
+        // launch, not as an index comparison: a whole line, in a fixed position.
+        val gestureLines = one.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        assertEquals(
+            "…and it must be the FIRST statement inside viewModelScope.launch. Body was:\n$one",
+            "val ticked = awaitTickedNumbering(keys)",
+            gestureLines[gestureLines.indexOfFirst { it == "viewModelScope.launch {" } + 1],
+        )
+        // ⭐ And the KEYS are still captured outside it: they are what says WHICH selection the
+        // stamps are awaited for, and reading them a suspension later would await the wrong set.
+        assertLineOrder(
+            "the keys must still be captured before the launch — they say WHICH selection the " +
+                "stamps are awaited for. Body was:\n$one",
+            gestureLines, "val keys = _selectedKeys.value", "viewModelScope.launch {",
         )
         // ⛔ AND THE CAPTURE MUST BE HANDED ON. The capture above and the guard below are two
         // halves that only meet on THIS line, and nothing else in the repository reads it: pass
@@ -225,6 +245,7 @@ class CrossAccountMoveWiringLintTest {
      */
     @Test fun `what the cross-account move refused goes back into the selection, stamps first`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        val manyLines = codeLinesOf(many)
         assertEquals(
             "the refused rows must go back into the selection, still ticked, WITH THE STAMPS THEY " +
                 "WERE TICKED UNDER. Body was:\n$many",
@@ -238,11 +259,12 @@ class CrossAccountMoveWiringLintTest {
         )
         // What is lost if the two lines swap: see above — the second tap moves what the first
         // refused, and nothing on screen ever says so.
-        assertTrue(
+        assertLineOrder(
             "…and the stamps BEFORE the keys: nothing suspends between the two lines, which is " +
                 "the only reason the collector cannot slip in and re-read them. Body was:\n$many",
-            many.indexOf("tickedUnder = split.drifted.associate") <
-                many.indexOf("_selectedKeys.value = split.drifted"),
+            manyLines,
+            "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
+            "_selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
         )
         // What is lost without it: the keys are back but the selection bar is not, so there is
         // nothing on screen to act on them with.
@@ -253,11 +275,12 @@ class CrossAccountMoveWiringLintTest {
         )
         // What is lost if it moves earlier: clearSelection() runs at the head of this body, so a
         // re-selection written before the banner is wiped by the very gesture it belongs to.
-        assertTrue(
+        assertLineOrder(
             "⛔ and AFTER the banner, never before: clearSelection() is called at the head of " +
                 "this body. Body was:\n$many",
-            many.indexOf("val outcome = crossAccountBanner(results, skipped.size)") <
-                many.indexOf("if (split.drifted.isNotEmpty()) {"),
+            manyLines,
+            "val outcome = crossAccountBanner(results, skipped.size)",
+            "if (split.drifted.isNotEmpty()) {",
         )
     }
 
@@ -526,10 +549,31 @@ class CrossAccountMoveWiringLintTest {
     private fun keysOf(file: File): Set<String> =
         Regex("<(?:string|plurals)\\s+name=\"([^\"]+)\"").findAll(file.readText()).map { it.groupValues[1] }.toSet()
 
-    private fun codeLinesNaming(body: String, needle: String): List<String> =
+    private fun codeLinesOf(body: String): List<String> =
         body.lines().map { it.replace(Regex("""\s+"""), " ").trim() }
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
-            .filter { needle in it }
+            .filter { it.isNotEmpty() }
+
+    private fun codeLinesNaming(body: String, needle: String): List<String> =
+        codeLinesOf(body).filter { needle in it }
+
+    /**
+     * The order of two WHOLE code lines of [lines], with BOTH required to exist.
+     *
+     * ⛔ Why this is not an `indexOf` on the raw text, which is what every one of these rules used
+     * to be: `String.indexOf` answers -1 for a needle that has VANISHED, and `-1 < n` is true for
+     * ever. The assertion then stops asserting without ever going red — the rule dies silently at
+     * the exact moment the line it guards is renamed or removed, which is the moment it is needed.
+     * Whole lines, and the index demanded, so a disappearance is named in the message.
+     */
+    private fun assertLineOrder(what: String, lines: List<String>, first: String, then: String) {
+        val i = lines.indexOf(first)
+        val j = lines.indexOf(then)
+        assertTrue("$what — no code line reads exactly <$first>; the rule guards nothing", i >= 0)
+        assertTrue("$what — no code line reads exactly <$then>; the rule guards nothing", j >= 0)
+        assertTrue("$what — <$first> (line $i) must come BEFORE <$then> (line $j)", i < j)
+    }
+
 
     private fun codeLines(file: File): List<String> = file.readLines().mapNotNull { line ->
         val code = line.trimStart()

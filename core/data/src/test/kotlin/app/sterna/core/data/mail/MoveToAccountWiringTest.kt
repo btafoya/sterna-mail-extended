@@ -18,9 +18,13 @@ import org.junit.Test
  * — the bin, never a destroy — on the SOURCE account; and the refresh of B's folder. Any line added,
  * removed, reordered or lengthened reddens the list.
  *
- * ⭐ AND THE STAMP OF THE TICK, carried to the two steps that touch the SOURCE account's mail
- * (#189). `moveToAccount` takes the numbering the row was ticked under and hands it to the READ
- * and to the TRASH; every other step is the other account's business and must never see it. The
+ * ⭐ AND WHAT THE TICK FROZE, carried to the two steps that touch the SOURCE account's mail
+ * (#189). `moveToAccount` takes a [FrozenNumbering] — three states, not two: nothing frozen, a
+ * frozen number, a frozen ABSENCE — and hands it to the READ and to the TRASH; every other step is
+ * the other account's business and must never see it. ⛔ The third state is the volet: as a `Long?`
+ * it was spelled `null`, exactly like "nothing was frozen", so it silently took that case's
+ * fallback on the folder's record — the record a background pass realigns the moment it meets a
+ * renumbering. It is refused now, at both ends. The
  * ⚠ AND ONLY THAT. [ReadUnderTheNumberingItWasTickedUnderTest] drives `ImapMailService.fetchSource`
  * onto a scripted socket — the LAST LINK of the read, not the path the move takes to reach it —
  * and [MoveNeedsTheNumberingStatedNowTest] does the same for `move`. Neither runs a line of
@@ -48,6 +52,15 @@ class MoveToAccountWiringTest {
     private fun codeLinesNaming(text: String, needle: String): List<String> =
         codeLines(text).filter { needle in it }
 
+    private fun codeLinesNaming(text: String, needle: Regex): List<String> =
+        codeLines(text).filter { needle.containsMatchIn(it) }
+
+    /** Any mention of a numbering, under any spelling — the needle [ImapMoveUnderNumberingTest]
+     *  invented for this family of mutations, borrowed verbatim. ⛔ Case-INSENSITIVE on purpose:
+     *  a needle of `"frozen"` misses `FrozenNumbering.…` and `NothingFrozen`, which is most of the
+     *  vocabulary this rule now has to see. */
+    private val anyNumbering = Regex("(?i)(numbering|validity|frozen|recorded)")
+
     @Test fun `the whole body is these lines, and nothing else decides`() {
         val body = bodyOf("moveToAccount")
         assertEquals(
@@ -61,7 +74,7 @@ class MoveToAccountWiringTest {
                 "var messageId: String? = null",
                 "override fun checkSourceConfigured() = checkAccountStillConfigured(source.id, accountStore.accounts().map { it.id })",
                 "override fun checkTargetConfigured() = checkAccountStillConfigured(target.id, accountStore.accounts().map { it.id })",
-                "override suspend fun readSource(): ByteArray = rawSource(source, email.id, expectedUidValidity).also { messageId = messageIdOf(from, it) }",
+                "override suspend fun readSource(): ByteArray = rawSource(source, email.id, frozen).also { messageId = messageIdOf(from, it) }",
                 "override suspend fun writeTarget(bytes: ByteArray): String? {",
                 "if (target.protocol == MailProtocol.IMAP) {",
                 "val uid = imap.appendBytes(target, targetMailboxId, bytes, imapFlagsOf(from.keywords), internalDateOf(from.receivedAt))",
@@ -77,7 +90,7 @@ class MoveToAccountWiringTest {
                 "return uid?.let { ImapMailService.emailId(target.id, targetMailboxId, it) }",
                 "}",
                 "override fun markTargetLocalMove(targetId: String) = recentLocalMoves.mark(target.id, targetId)",
-                "override suspend fun trashSource() { delete(source, email.id, expectedUidValidity) }",
+                "override suspend fun trashSource() { delete(source, email.id, frozen) }",
                 "override suspend fun refreshTargetFolder() { refresh(target, targetMailboxId) }",
                 "}",
                 "return crossAccountMove(steps)",
@@ -133,15 +146,23 @@ class MoveToAccountWiringTest {
     }
 
     /**
-     * The signature, whole and in order — the stamp is the LAST parameter and it DEFAULTS TO
-     * NOTHING, on the model of `FolderDestroy`'s.
+     * The signature, whole and in order — what the tick froze is the LAST parameter and it DEFAULTS
+     * TO [FrozenNumbering.NothingFrozen].
      *
-     * ⛔ The default is what makes this safe to add: a caller with nothing frozen (the reader's
-     * single move, a row cached before the numbering column existed) passes `null`, and `null`
-     * means "fall back on the folder's record", which is the behaviour that shipped. A default of
-     * anything else, or a parameter promoted to non-null, turns every such move into a refusal —
-     * `mayDestroyUnderStatedNumbering(null, x)` is false, so the Trash half would fail 100 % of
-     * the time and every move would end "copied, not removed".
+     * ⛔ IT IS A TYPE, AND THAT IS THE VOLET (#189). As a `Long?` this parameter carried two
+     * incompatible intentions under one spelling: "no tick froze anything, fall back on the
+     * folder's record" (the reader's single move, a row cached before the numbering column existed)
+     * and "a tick froze this row's numbering, and there was none". Both were `null`, both took the
+     * fallback, and the second is the one that must be REFUSED: the record it falls back on is
+     * realigned by the first iteration of the loop that meets a renumbering, so it is compared with
+     * itself, agrees, and another message's octets go to B while a live message goes to A's bin.
+     * `MailRepository` now refuses that shape at both ends; [FrozenNumberingRefusalTest] runs the
+     * decision and pins the two consumptions.
+     *
+     * ⛔ The default still has to be "nothing frozen" and still has to mean the fallback: a default
+     * of anything else, or a parameter promoted to a bare number, turns every ordinary move into a
+     * refusal — `mayDestroyUnderStatedNumbering(null, x)` is false, so the Trash half would fail
+     * 100 % of the time and every move would end "copied, not removed".
      */
     @Test fun `the stamp of the tick is the last parameter, and defaults to nothing frozen`() {
         val signature = signatureOf("moveToAccount")
@@ -154,7 +175,7 @@ class MoveToAccountWiringTest {
                 "email: Email,",
                 "target: AccountCredentials,",
                 "targetMailboxId: String,",
-                "expectedUidValidity: Long? = null,",
+                "frozen: FrozenNumbering = FrozenNumbering.NothingFrozen,",
                 "): CrossAccountMove {",
             ),
             codeLines(signature),
@@ -184,10 +205,10 @@ class MoveToAccountWiringTest {
                 "touch the source account's mail — the read and the bin — and to nothing else. " +
                 "Body was:\n$body",
             listOf(
-                "override suspend fun readSource(): ByteArray = rawSource(source, email.id, expectedUidValidity).also { messageId = messageIdOf(from, it) }",
-                "override suspend fun trashSource() { delete(source, email.id, expectedUidValidity) }",
+                "override suspend fun readSource(): ByteArray = rawSource(source, email.id, frozen).also { messageId = messageIdOf(from, it) }",
+                "override suspend fun trashSource() { delete(source, email.id, frozen) }",
             ),
-            codeLinesNaming(body, "expectedUidValidity"),
+            codeLinesNaming(body, anyNumbering),
         )
     }
 

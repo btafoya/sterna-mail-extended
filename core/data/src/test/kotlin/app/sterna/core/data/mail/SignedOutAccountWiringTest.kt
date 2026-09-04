@@ -506,18 +506,9 @@ class SignedOutAccountWiringTest {
         )
     }
 
-    /** The lines that opened the blocks still open just before [index] — the guard's enclosure. */
-    private fun openBlocksAt(lines: List<String>, index: Int): List<String> {
-        val stack = ArrayDeque<String>()
-        lines.take(index).forEach { raw ->
-            val line = raw.trim()
-            if (line.startsWith("//") || line.startsWith("*") || line.startsWith("/*")) return@forEach
-            val delta = line.count { it == '{' } - line.count { it == '}' }
-            repeat(maxOf(0, -delta)) { stack.removeLastOrNull() }
-            repeat(maxOf(0, delta)) { stack.addLast(line) }
-        }
-        return stack.toList()
-    }
+    // ⭐ The guard's enclosure is asked of [openBlocksAt], which used to be a private member here
+    // and now lives in `SourceBlocks.kt` — the IMAP commands that carry a numbering need the same
+    // answer, and a second copy of a block walker drifts from the first in silence.
 
     @Test fun `the refusal is still a cancellation, in the shipped declaration`() {
         // Executed next door as a type check, but the declaration is what makes the four

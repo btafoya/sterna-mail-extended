@@ -113,14 +113,20 @@ class ImapMoveUnderNumberingTest {
      * new number with itself, agrees, and bins whatever holds that uid now. There is no Undo on
      * that path.
      *
-     * So the shape is `frozen ?: recorded`, and it is the shape both mistakes break:
+     * So the shape is `numbering ?: recorded`, where `numbering` is what `numberingToOppose`
+     * chose, and it is the shape both mistakes break:
      *
      *  - `recordedUidValidity(credentials, mb)` alone — the caller's stamp is dropped and the
      *    cross-account move bins a message nobody ticked, in silence;
-     *  - `expectedUidValidity` alone — every ordinary swipe-to-delete carries nothing, and
-     *    `mayDestroyUnderStatedNumbering(null, 42)` is FALSE, so deleting a message would fail
-     *    100 % of the time on IMAP. The fallback is not a convenience, it is what keeps the
-     *    ordinary gesture working.
+     *  - `numbering` alone — every ordinary swipe-to-delete carries `NothingFrozen`, which is
+     *    `Select(null)`, and `mayDestroyUnderStatedNumbering(null, 42)` is FALSE, so deleting a
+     *    message would fail 100 % of the time on IMAP. The fallback is not a convenience, it is
+     *    what keeps the ordinary gesture working.
+     *
+     * ⭐ AND THE THIRD CASE, which `Long?` could not say (#189): `Frozen(null)` is a row that WAS
+     * ticked and carries no numbering. It reaches `numberingToOppose` as a REFUSAL, raised here
+     * before the `UID MOVE` — never folded into the fallback above, which is the reader's and the
+     * swipe's. [FrozenNumberingRefusalTest] runs that decision and pins this consumption.
      */
     @Test fun `the bin opposes the stamp it was handed, falling back on the folder's record`() {
         val body = bodyOf("delete")
@@ -131,28 +137,34 @@ class ImapMoveUnderNumberingTest {
                 "still bins: it simply confirms nothing minutes after the gesture. Dropping the " +
                 "`?: recordedUidValidity(...)` refuses every swipe-to-delete on IMAP. " +
                 "Body was:\n$body",
-            listOf("val landed = imap.move(credentials, mb, uid, trash, expectedUidValidity ?: recordedUidValidity(credentials, mb))"),
+            listOf("val landed = imap.move(credentials, mb, uid, trash, numbering ?: recordedUidValidity(credentials, mb))"),
             codeLinesNaming(body, "imap.move("),
         )
         assertEquals(
-            "and delete must mention a numbering on exactly these two lines, under ANY name: the " +
-                "one that hands the opposed number to the wire, and the one that FREEZES what the " +
-                "move itself reported about the Trash (not a read — the server stated it in the " +
-                "same response as the uid, and a UID MOVE never SELECTs its destination). Any " +
-                "other is a second read at execution. Body was:\n$body",
+            "and delete must mention a numbering on exactly these five lines, under ANY name: the " +
+                "three that turn what the caller froze into what goes on the wire (a refusal " +
+                "included), the one that hands that number to the wire, and the one that FREEZES " +
+                "what the move itself reported about the Trash (not a read — the server stated it " +
+                "in the same response as the uid, and a UID MOVE never SELECTs its destination). " +
+                "Any other is a second read at execution. Body was:\n$body",
             listOf(
-                "val landed = imap.move(credentials, mb, uid, trash, expectedUidValidity ?: recordedUidValidity(credentials, mb))",
+                "val numbering = when (val verdict = numberingToOppose(frozen)) {",
+                "NumberingToOppose.Refuse -> throw ImapNumberingUnconfirmed(mb, null)",
+                "is NumberingToOppose.Select -> verdict.stamp",
+                "val landed = imap.move(credentials, mb, uid, trash, numbering ?: recordedUidValidity(credentials, mb))",
                 "lastImapMove[emailId] = ImapLoc(trash, it, landed.destinationUidValidity)",
             ),
             codeLinesNaming(body, anyNumbering),
         )
         val signature = signatureOf("delete")
         assertEquals(
-            "and it takes that stamp LAST and optional: the swipe, the notification action and " +
-                "the conversation delete all carry nothing, and `null` must keep meaning 'fall " +
-                "back on the record'. Signature was:\n$signature",
-            listOf("expectedUidValidity: Long? = null,"),
-            codeLinesNaming(signature, "expectedUidValidity"),
+            "and it takes what was frozen LAST and optional, AS A TYPE: the swipe, the " +
+                "notification action and the conversation delete all carry NothingFrozen by " +
+                "default, which must keep meaning 'fall back on the record'. A `Long?` here is " +
+                "the defect itself — it cannot tell that default apart from `Frozen(null)`, a " +
+                "ticked row with nothing to oppose, which must be refused. Signature was:\n$signature",
+            listOf("frozen: FrozenNumbering = FrozenNumbering.NothingFrozen,"),
+            codeLinesNaming(signature, anyNumbering),
         )
     }
 

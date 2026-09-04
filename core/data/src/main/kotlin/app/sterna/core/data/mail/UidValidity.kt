@@ -245,6 +245,14 @@ object UidValidity {
      * cases is the downstream half: [mayDestroyUnderStatedNumbering] destroys nothing when it has
      * no number to oppose.
      *
+     * ⚠ "PASSES HERE" IS NOT "PASSES EVERYWHERE", and the difference is the gesture, not the value.
+     * The move to another account (#189) is the one destructive path with no Undo, and there an
+     * absent stamp on a TICKED row is refused — `MailRepository.fetchRawSource` and
+     * `MailRepository.delete` oppose `FrozenNumbering.Frozen(null)` with
+     * `ImapNumberingUnconfirmed`, inside their `protocol == IMAP` branches. That refusal is
+     * possible there and impossible here for one reason: the caller of this function cannot say
+     * whether a tick happened, and this function is asked about JMAP rows too.
+     *
      * So a row leaves in [drifted] if and ONLY if both stamps are real and they disagree — the one
      * shape that means "this line is not the line that was ticked". Everything else stays in
      * [kept], in arrival order.

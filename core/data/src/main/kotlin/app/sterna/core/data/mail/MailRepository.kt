@@ -4222,13 +4222,13 @@ class MailRepository(
      * [fetchRawSource] into "Message has no blob id." on every synced message, so JMAP goes
      * through [openEmail], which returns the server's object.
      */
-    suspend fun rawSource(credentials: AccountCredentials, emailId: String, expectedUidValidity: Long? = null): ByteArray {
+    suspend fun rawSource(credentials: AccountCredentials, emailId: String, frozen: FrozenNumbering = FrozenNumbering.NothingFrozen): ByteArray {
         val email = if (credentials.protocol == MailProtocol.IMAP) {
             cachedEmail(credentials.id, emailId) ?: openEmail(credentials, emailId, markRead = false)
         } else {
             openEmail(credentials, emailId, markRead = false)
         }
-        return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId, expectedUidValidity))
+        return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId, frozen))
     }
 
     // ---- OpenPGP read path -------------------------------------------------------------------
@@ -4269,9 +4269,9 @@ class MailRepository(
         credentials: AccountCredentials,
         email: Email,
         emailId: String,
-        expectedUidValidity: Long? = null,
+        frozen: FrozenNumbering = FrozenNumbering.NothingFrozen,
     ): String {
-        rawSourceFromCache(expectedUidValidity) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }
+        rawSourceFromCache(credentials.protocol, frozen) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }
         val raw = if (credentials.protocol == MailProtocol.IMAP) {
             val mailboxId = emailDao.mailboxOf(credentials.id, emailId) ?: email.mailboxId
                 ?: error("Unknown mailbox for message.")
@@ -4285,7 +4285,19 @@ class MailRepository(
             // Trash refuses afterwards, which is "copied, not removed" — a permanent duplicate,
             // with no Undo on this path. Skipping the cache above without opposing anything here
             // is strictly worse than doing neither.
-            imap.fetchSource(credentials, mailboxId, uid, expectedUidValidity)
+            // ⛔ AND A TICK THAT FROZE NOTHING AT ALL IS REFUSED HERE, not handed the fallback
+            // (#189). This is the READ, and crossAccountMove runs it BEFORE writeTarget: refused
+            // here the move is a Failed and NOTHING IS WRITTEN ON THE TARGET ACCOUNT. Refused only
+            // at the bin, the copy is already on B under an APPEND that is never replayed, and the
+            // user keeps a permanent duplicate with no Undo. The refusal is raised INSTEAD of the
+            // call, so onMailbox is never entered — which is the point: a throw INSIDE it would be
+            // replayed by withSession and confused with ImapUidValidityChanged, which invalidates
+            // the folder (its cached bodies AND every pending purge snapshot it holds).
+            val numbering = when (val verdict = numberingToOppose(frozen)) {
+                NumberingToOppose.Refuse -> throw ImapNumberingUnconfirmed(mailboxId, null)
+                is NumberingToOppose.Select -> verdict.stamp
+            }
+            imap.fetchSource(credentials, mailboxId, uid, numbering)
         } else {
             val blobId = email.blobId ?: error("Message has no blob id.")
             val ctx = connect(credentials)
@@ -6112,17 +6124,29 @@ class MailRepository(
      *  when it has none at all — exactly as [archive] does, and never All Mail (a message left
      *  there is still in the list, so the delete would appear to do nothing).
      *
-     *  [expectedUidValidity] is the numbering the caller's id was read under, when the caller
-     *  froze one — [moveToAccount] freezes it at the TICK (#189), and by the time the original is
-     *  binned the folder's own record may already have been realigned by a background pass that
-     *  met the renumbering, so opposing that record would be opposing it to itself. `null`, the
-     *  default, is every ordinary delete (a swipe, a notification action, a conversation) and
-     *  falls back on the record, which is the right thing there: the id is read from the cache and
-     *  the move goes out in the same call, with nothing in between. */
+     *  [frozen] says which of THREE things the caller means, and they used to be two spellings
+     *  of one `Long?` (see [FrozenNumbering]):
+     *
+     *   - [FrozenNumbering.NothingFrozen], the default, is every ordinary delete — a swipe, a
+     *     notification action, a conversation — and it falls back on the folder's record, which is
+     *     the right thing there: the id is read from the cache and the `UID MOVE` goes out in the
+     *     same call, with nothing in between. ⛔ Turning this into a refusal would fail 100 % of
+     *     IMAP deletes, plainly because it would throw on every one of them — a separate fact from
+     *     `mayDestroyUnderStatedNumbering(null, 42)` being false, which is what makes the
+     *     `?: recordedUidValidity(...)` fallback below load-bearing;
+     *   - `Frozen(x)` is [moveToAccount]'s stamp OF THE TICK (#189), opposed on the wire, because
+     *     by the time the original is binned a background pass that met the renumbering may have
+     *     realigned the folder's record and opposing that record would be opposing it to itself;
+     *   - `Frozen(null)` — and `Frozen(0)` or a negative, which are not numberings either — is a
+     *     ticked row with NOTHING to oppose, and it is refused outright: [ImapNumberingUnconfirmed]
+     *     leaves the message in the folder it was in and drops no cached row. ⚠ Not "nothing
+     *     happened": the two best-effort steps above the IMAP branch have already run, so the id
+     *     is off any pending Empty-trash list ([unlistFromTrashPurge]) and, when the option is on,
+     *     a `UID STORE +FLAGS (\Seen)` may already have gone out. Neither loses mail. */
     suspend fun delete(
         credentials: AccountCredentials,
         emailId: String,
-        expectedUidValidity: Long? = null,
+        frozen: FrozenNumbering = FrozenNumbering.NothingFrozen,
     ): String? {
         // Same rule as every other mover (#99): a message the user acts on individually is no
         // longer part of a pending Empty-trash order.
@@ -6154,7 +6178,21 @@ class MailRepository(
                 // is opposed to what the server states in the SELECT the move goes out under, so a
                 // renumbered folder — or one whose numbering the server has stopped stating — is
                 // refused instead of having a live message thrown away (#99).
-                val landed = imap.move(credentials, mb, uid, trash, expectedUidValidity ?: recordedUidValidity(credentials, mb))
+                // ⛔ AND THE SECOND END OF THE SAME REFUSAL (#189). `Frozen(null)` is a row that
+                // WAS ticked and has no numbering to offer: nothing can confirm this uid still
+                // names the message the user pointed at, and this bin is the destructive half of
+                // the one path with no Undo. `NothingFrozen` — every swipe, every notification
+                // action, every conversation delete — is Select(null) and takes the `?:` below.
+                // ⛔ TWO SEPARATE FACTS, and folding them was a lie: refusing NothingFrozen here
+                // would break every one of those gestures because it would THROW on them; and the
+                // `?: recordedUidValidity(...)` has to stay because Select(null) alone reaches
+                // mayDestroyUnderStatedNumbering(null, 42), which is false. Neither implies the
+                // other, and the second is about the argument, not about the refusal.
+                val numbering = when (val verdict = numberingToOppose(frozen)) {
+                    NumberingToOppose.Refuse -> throw ImapNumberingUnconfirmed(mb, null)
+                    is NumberingToOppose.Select -> verdict.stamp
+                }
+                val landed = imap.move(credentials, mb, uid, trash, numbering ?: recordedUidValidity(credentials, mb))
                 landed.uids[uid]?.let {
                     lastImapMove[emailId] = ImapLoc(trash, it, landed.destinationUidValidity)
                     recentLocalMoves.mark(credentials.id, ImapMailService.emailId(credentials.id, trash, it))
@@ -6202,15 +6240,21 @@ class MailRepository(
      * The original leaves A through [delete] — the bin, with its own Undo — and B's folder is
      * reloaded as after an appended draft, so the copy shows without a pull-to-refresh.
      *
-     * [expectedUidValidity] is the numbering the row was ticked under, and it travels to the two
-     * steps that touch A's mail and to no other: the READ (through [rawSource], down to the SELECT
-     * the FETCH goes out on) and the BIN (through [delete]). B's folder has a numbering of its own
-     * that this number says nothing about. Refused on the read, the move is a `Failed` and nothing
-     * at all was written — which is why the read is where it has to land: refused only at the bin,
-     * the copy is already on B under an APPEND that is never replayed, and the user keeps a
-     * permanent duplicate. `null` is "nothing was frozen" and keeps main's behaviour: the reader's
-     * single move has no tick to freeze, and a row cached before the numbering column existed
-     * carries no stamp either.
+     * [frozen] is what the TICK froze, and it travels to the two steps that touch A's mail and to
+     * no other: the READ (through [rawSource], down to the SELECT the FETCH goes out on) and the
+     * BIN (through [delete]). B's folder has a numbering of its own that this number says nothing
+     * about. Refused on the read, the move is a `Failed` and NOTHING IS WRITTEN ON THE TARGET
+     * ACCOUNT before the refusal — which is why the read is where it has to land: refused only at
+     * the bin, the copy is already on B under an APPEND that is never replayed, and the user keeps
+     * a permanent duplicate.
+     *
+     * ⛔ It is a [FrozenNumbering] and not a `Long?` because those were THREE cases in two
+     * spellings. [FrozenNumbering.NothingFrozen] — the reader's single move, which has no tick —
+     * keeps main's behaviour exactly: both steps fall back on the folder's record.
+     * `Frozen(null)` — a row that WAS ticked and carries no numbering, because it was cached before
+     * the column existed, evicted since, or ticked in the window before the read of its stamp came
+     * back — is refused at both ends instead of silently falling back on a record that a
+     * renumbering has already realigned. Under `Long?` those two were the same argument.
      *
      * ⚠ [connect] keeps ONE context: connecting B for the import and then trashing on a JMAP A
      * fetches A's session again. Accepted — one extra session fetch per move between two JMAP
@@ -6221,14 +6265,14 @@ class MailRepository(
         email: Email,
         target: AccountCredentials,
         targetMailboxId: String,
-        expectedUidValidity: Long? = null,
+        frozen: FrozenNumbering = FrozenNumbering.NothingFrozen,
     ): CrossAccountMove {
         val from = withCachedFallback(email, cachedEmail(source.id, email.id))
         val steps = object : CrossAccountMoveSteps {
             var messageId: String? = null
             override fun checkSourceConfigured() = checkAccountStillConfigured(source.id, accountStore.accounts().map { it.id })
             override fun checkTargetConfigured() = checkAccountStillConfigured(target.id, accountStore.accounts().map { it.id })
-            override suspend fun readSource(): ByteArray = rawSource(source, email.id, expectedUidValidity).also { messageId = messageIdOf(from, it) }
+            override suspend fun readSource(): ByteArray = rawSource(source, email.id, frozen).also { messageId = messageIdOf(from, it) }
             override suspend fun writeTarget(bytes: ByteArray): String? {
                 if (target.protocol == MailProtocol.IMAP) {
                     val uid = imap.appendBytes(target, targetMailboxId, bytes, imapFlagsOf(from.keywords), internalDateOf(from.receivedAt))
@@ -6244,7 +6288,7 @@ class MailRepository(
                 return uid?.let { ImapMailService.emailId(target.id, targetMailboxId, it) }
             }
             override fun markTargetLocalMove(targetId: String) = recentLocalMoves.mark(target.id, targetId)
-            override suspend fun trashSource() { delete(source, email.id, expectedUidValidity) }
+            override suspend fun trashSource() { delete(source, email.id, frozen) }
             override suspend fun refreshTargetFolder() { refresh(target, targetMailboxId) }
         }
         return crossAccountMove(steps)

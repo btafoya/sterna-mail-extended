@@ -28,6 +28,7 @@ import app.sterna.core.data.db.OutboxLogic
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.mail.CrossAccountMove
 import app.sterna.core.data.mail.EmailKey
+import app.sterna.core.data.mail.FrozenNumbering
 import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.InboxRow
 import app.sterna.core.data.mail.MailRepository
@@ -1111,11 +1112,21 @@ class InboxViewModel(
      * added later, and it forgets a key the moment it is unticked — none of which five explicit
      * calls would do.
      *
-     * ⚠ A null value, and an absent key, both mean "nothing to oppose", and both PASS: every JMAP
-     * row has no numbering at all, a row evicted from the cache has none either, and the read below
-     * is suspending, so a key confirmed before that read comes back legitimately has no entry. None
-     * of the three is evidence of a swap. The refusal on absence lives downstream, in
-     * `UidValidity.mayDestroyUnderStatedNumbering`, where it costs a re-query instead of a protocol.
+     * ⚠ A null value, and an absent key, both mean "this row has no numbering to offer": every
+     * JMAP row has none at all, a row evicted from the cache has none either, and the read below is
+     * suspending, so a key confirmed before that read comes back legitimately has no entry. None of
+     * the three is evidence of a SWAP, so none of them is refused by the upstream split
+     * (`UidValidity.destroyableUnderTheNumberingItWasTickedUnder`) — refusing there would refuse
+     * 100 % of JMAP, which is protocol-agnostic code.
+     *
+     * ⛔ WHAT HAPPENS TO THEM AFTERWARDS DEPENDS ON THE GESTURE, and that is the #189 correction.
+     * On the held-back destroy they still merely PASS the split and are stopped downstream by
+     * `UidValidity.mayDestroyUnderStatedNumbering`, which confirms nothing without a number. On the
+     * move to another account — the one destructive path with no Undo — the value is wrapped in
+     * `FrozenNumbering.Frozen(...)` at the call site, absent value included, and
+     * `MailRepository` REFUSES it at both ends (the read and the bin). The difference is not the
+     * value, it is that a tick happened: `Frozen(null)` and "nothing was frozen" used to be the
+     * same `null`.
      *
      * ⛔ That last window is not a fixed few milliseconds and must not be described as one: a
      * "Select all" over a large folder writes the whole selection at once and the read behind it is
@@ -1123,7 +1134,16 @@ class InboxViewModel(
      * the destroy up meanwhile is the downstream half alone — which is the state of affairs this
      * whole field improves on, not a promise it keeps.
      */
-    private var tickedUnder: Map<EmailKey, Long?> = emptyMap()
+    private val tickedUnderFlow = MutableStateFlow<Map<EmailKey, Long?>>(emptyMap())
+
+    /** The same field, as the rest of this class has always written and read it. ⭐ It is a
+     *  property over [tickedUnderFlow] rather than a plain `var` for ONE reason: the two selection
+     *  gestures run in a different coroutine from the collector that fills it, so they need to be
+     *  able to WAIT for a write instead of sampling whatever is there. Every writer below keeps
+     *  publishing by assigning to this name; nothing else changes. */
+    private var tickedUnder: Map<EmailKey, Long?>
+        get() = tickedUnderFlow.value
+        set(value) { tickedUnderFlow.value = value }
 
     /** True when every selected message is already read — drives the read/unread toggle's icon. */
     private val _selectionAllRead = MutableStateFlow(false)
@@ -2182,12 +2202,13 @@ class InboxViewModel(
             val key = email.emailKey()
             dropSearchResults(setOf(key))
             val result = hidingThreadMembers(setOf(key)) {
-                // ⛔ NOTHING FROZEN, and said so out loud. This gesture starts on the message that
-                // is OPEN: there is no tick, so there is no earlier numbering to oppose, and null
-                // is what keeps main's behaviour — the read and the bin fall back on the folder's
-                // record. Written rather than left to the default so that this line and the
-                // selection's (which DOES carry a stamp) differ by a token a copy-paste changes.
-                runCatching { repo.moveToAccount(source, email, target, targetMailboxId, null) }
+                // ⛔ NOTHING FROZEN, and said so out loud IN THE TYPE. This gesture starts on the
+                // message that is OPEN: there is no tick, so there is no earlier numbering to
+                // oppose, and NothingFrozen is what keeps main's behaviour — the read and the bin
+                // fall back on the folder's record. It is NOT `Frozen(null)`: that shape means "a
+                // tick froze nothing at all" and is refused. Written rather than left to the
+                // default so that this line and the selection's differ by a token a paste changes.
+                runCatching { repo.moveToAccount(source, email, target, targetMailboxId, FrozenNumbering.NothingFrozen) }
                     .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
             }
             val folder = folderLabel(target.id, targetMailboxId)
@@ -2823,7 +2844,10 @@ class InboxViewModel(
      *
      * ⚠ The read suspends, so the selection can have moved on by the time it returns; only keys
      * STILL ticked are written back. A key ticked and confirmed inside that window keeps no stamp
-     * at all, and that is correct — an absent stamp opposes nothing and passes.
+     * at all — an absent stamp opposes nothing. It still passes the upstream split, which needs two
+     * real numbers to call a row swapped; on the move to another account it is carried as
+     * `FrozenNumbering.Frozen(null)` and refused there, because that path destroys without an Undo
+     * and a row with nothing to oppose cannot be confirmed.
      */
     private suspend fun rememberTickedNumbering(keys: Set<EmailKey>) {
         val known = tickedUnder.filterKeys { it in keys }
@@ -2837,6 +2861,28 @@ class InboxViewModel(
         val still = _selectedKeys.value
         tickedUnder = (known + read).filterKeys { it in still }
     }
+
+    /**
+     * THE ONE BARRIER, and both selection gestures go through it (#99, #189).
+     *
+     * [rememberTickedNumbering] above runs in a coroutine of its own and SUSPENDS; a "Select all"
+     * over a large folder writes the whole selection in one emission and publishes the stamps a
+     * dozen database queries later. A gesture that sampled the field instead of waiting for it got
+     * an empty or half-full map — which used to be a silent loss (a row with no stamp opposed
+     * nothing and went) and is now a refusal, because a ticked row with no numbering is refused at
+     * both ends of the move between accounts. That is why the wait is this branch's to add.
+     *
+     * ⛔ A WAIT, NEVER A RE-READ. What is awaited is the publication of the read STARTED AT THE
+     * TICK. Reading the rows again here would hand the guard the realigned number and make it
+     * decorative: a folder renumbered since the tick would be compared with itself, agree, and
+     * every line would travel.
+     *
+     * ⛔ ONE function, called from both gestures: a barrier posted on one side leaves the other
+     * open, and the two sides destroy the same mail. The rule and the bound are in
+     * [tickedNumberingWhenCovered], which a JVM test RUNS.
+     */
+    private suspend fun awaitTickedNumbering(keys: Set<EmailKey>): Map<EmailKey, Long?> =
+        tickedNumberingWhenCovered(keys, tickedUnderFlow)
 
     /**
      * Apply a bulk action to the selected messages; exits selection mode unless [clearAfter] is
@@ -3071,11 +3117,20 @@ class InboxViewModel(
      */
     fun deleteSelected() {
         val keys = _selectedKeys.value
-        // The numbering each ticked row carried WHEN IT WAS TICKED, captured beside the keys and
-        // OUTSIDE the launch: everything below suspends, and a background pass landing in one of
-        // those suspensions is exactly the event this opposes (#99).
-        val ticked = tickedUnder
         viewModelScope.launch {
+            // The numbering each ticked row carried WHEN IT WAS TICKED — AWAITED, not sampled, and
+            // FIRST INSIDE THE LAUNCH (#99, #189).
+            //
+            // ⛔ Why it is no longer taken outside the launch, which is what this used to say. The
+            // read that produces these stamps starts at the TICK, in another coroutine, and it
+            // suspends: a "Select all" publishes it a dozen queries later, so a tap in between
+            // sampled an empty or half-full map. Waiting suspends, so it has to be in here.
+            // ⛔ Why FIRST. Everything below either suspends or clears the selection, and clearing
+            // it wakes the collector, which empties the field: a wait posted any later would race
+            // its own erasure and hand back nothing.
+            // ⛔ Still never a re-read: this awaits the publication of the tick's own read. A
+            // re-read here IS the realigned number, and the guard would agree with itself.
+            val ticked = awaitTickedNumbering(keys)
             // Frozen AT THE GESTURE, and carried into the batch: an IMAP UID means something only
             // inside one numbering, and a bulk delete is a bulk MOVE to the Trash that runs after
             // the whole selection has been resolved (#99). Read at execution instead, it would be
@@ -3181,14 +3236,14 @@ class InboxViewModel(
      */
     fun moveSelectedTo(targetMailboxId: String, targetAccountId: String? = null) {
         val keys = _selectedKeys.value
-        // The numbering each ticked row carried WHEN IT WAS TICKED, captured beside the keys and
-        // OUTSIDE the launch, exactly as [deleteSelected] does (#99) — everything below suspends,
-        // and a background pass landing in one of those suspensions is the event this opposes.
-        // ⛔ Not inside [moveSelectedToAccount]: that body calls clearSelection() at its head,
-        // which wakes the collector on _selectedKeys and empties the field, so a read taken there
-        // would race its own erasure and oppose nothing.
-        val ticked = tickedUnder
         viewModelScope.launch {
+            // AWAITED, not sampled, and FIRST INSIDE THE LAUNCH — [deleteSelected]'s rule, and for
+            // its reasons (#99, #189). The one extra reason on this side: [moveSelectedToAccount]
+            // calls clearSelection() at its head, which wakes the collector on _selectedKeys and
+            // empties the field, so a wait posted below this line would race its own erasure.
+            // ⛔ The KEYS stay captured outside the launch: they say WHICH selection is awaited,
+            // and read a suspension later they would be another one.
+            val ticked = awaitTickedNumbering(keys)
             // The picker offered the SELECTION's account folders (see [selectionMailboxes]), so the
             // move targets that account: a unified selection of a secondary account now lands in its
             // OWN folders instead of being skipped for not being the active account (#73). Only that
@@ -3292,7 +3347,13 @@ class InboxViewModel(
                 // iteration that met the renumbering has already realigned: the record is then
                 // compared with itself, agrees, and every later row travels. `ticked[key]`, never
                 // a re-read: the re-read IS the realigned number.
-                runCatching { repo.moveToAccount(source, email, target, targetMailboxId, ticked[key]) }
+                // ⛔ AND IT IS WRAPPED IN `Frozen`, absent value included. A tick DID freeze here,
+                // so a `ticked[key]` of null means "frozen, and there was nothing" — refused at
+                // both ends downstream — and not "nothing was frozen", which is the reader's case
+                // and falls back on the record. Under a bare `Long?` those two were one argument,
+                // and the second silently borrowed the first's fallback: the octets of a message
+                // nobody ticked went to B and hers went to A's bin, with no Undo.
+                runCatching { repo.moveToAccount(source, email, target, targetMailboxId, FrozenNumbering.Frozen(ticked[key])) }
                     .getOrElseUnlessCancelled { CrossAccountMove.Failed(it.toString()) }
             }
             if (result !is CrossAccountMove.Moved) {

@@ -295,11 +295,18 @@ class ImapDestroyUnderNumberingTest {
             codeLinesNaming(body, "runCatching"),
         )
         assertEquals(
-            "and nowhere else in the repository: on the trash purge and on a selection destroy the " +
-                "same refusal must keep travelling up to `MessageDestroyWorker`, which bounds its " +
-                "own retries. Swallowed there, a purge the user confirmed would report success " +
-                "having destroyed nothing",
-            listOf("} catch (unconfirmed: ImapNumberingUnconfirmed) {"),
+            "and every OTHER mention in the repository is a RAISE, never a second catch: on the " +
+                "trash purge and on a selection destroy the same refusal must keep travelling up " +
+                "to `MessageDestroyWorker`, which bounds its own retries (swallowed there, a purge " +
+                "the user confirmed would report success having destroyed nothing), and the two " +
+                "raises of the move between accounts (#189) must reach `crossAccountMove`, which " +
+                "turns them into a `Failed` — caught here, the copy would go to account B and the " +
+                "original to A's bin under a numbering nothing confirmed.",
+            listOf(
+                "NumberingToOppose.Refuse -> throw ImapNumberingUnconfirmed(mailboxId, null)",
+                "NumberingToOppose.Refuse -> throw ImapNumberingUnconfirmed(mb, null)",
+                "} catch (unconfirmed: ImapNumberingUnconfirmed) {",
+            ),
             codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "ImapNumberingUnconfirmed"),
         )
     }

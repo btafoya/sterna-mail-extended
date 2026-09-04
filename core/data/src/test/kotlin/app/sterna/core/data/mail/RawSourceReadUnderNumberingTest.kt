@@ -83,15 +83,21 @@ class RawSourceReadUnderNumberingTest {
                 "Long? = null` here shadows the parameter, changes not one other line of this " +
                 "body, and quietly turns the move between accounts back into a read that opposes " +
                 "the folder's own realigned record. Body was:\n$body",
-            listOf("return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId, expectedUidValidity))"),
+            listOf("return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId, frozen))"),
             codeLinesNaming(body, anyNumbering),
         )
     }
 
     /**
-     * ⭐ THE TWO USES, AND THEY ARE BOTH THE POINT. `fetchRawSource` must spend the stamp twice:
-     * once to SKIP THE CACHE (a four-entry LRU keyed `accountId:emailId`, which holds no numbering
-     * and would answer before any SELECT), and once ON THE WIRE (the argument the SELECT opposes).
+     * ⭐ THE THREE USES, AND THEY ARE ALL THE POINT. `fetchRawSource` must spend what it was
+     * frozen three times: once to SKIP THE CACHE (a four-entry LRU keyed `accountId:emailId`, which
+     * holds no numbering and would answer before any SELECT), once on the DECISION (`Frozen(null)`
+     * — a tick that froze nothing at all — is refused here, before one byte is appended on the
+     * target account), and once ON THE WIRE (the argument the SELECT opposes).
+     *
+     * ⚠ "Before one byte is appended on the target account", not "before one octet is read": the
+     * cache detour above reads a whole message when nothing is frozen, and the refusal is about
+     * what gets WRITTEN on B, which is nothing.
      *
      * ⛔ Either one alone is worse than neither:
      *  - the cache skipped and the FETCH unopposed — what shipped — turns the case the user
@@ -112,8 +118,11 @@ class RawSourceReadUnderNumberingTest {
                 "record with itself; the octets of whatever holds that uid now are what gets " +
                 "appended on the other account. Body was:\n$body",
             listOf(
-                "rawSourceFromCache(expectedUidValidity) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }",
-                "imap.fetchSource(credentials, mailboxId, uid, expectedUidValidity)",
+                "rawSourceFromCache(credentials.protocol, frozen) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }",
+                "val numbering = when (val verdict = numberingToOppose(frozen)) {",
+                "NumberingToOppose.Refuse -> throw ImapNumberingUnconfirmed(mailboxId, null)",
+                "is NumberingToOppose.Select -> verdict.stamp",
+                "imap.fetchSource(credentials, mailboxId, uid, numbering)",
             ),
             codeLinesNaming(body, anyNumbering),
         )
@@ -139,11 +148,27 @@ class RawSourceReadUnderNumberingTest {
                 "the copy on B would be written before anything could refuse.",
             listOf(
                 "private val rawSourceCache = android.util.LruCache<String, String>(4)",
-                "rawSourceFromCache(expectedUidValidity) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }",
+                "rawSourceFromCache(credentials.protocol, frozen) { rawSourceCache.get(cryptoKey(credentials.id, emailId)) }?.let { return it }",
                 "rawSourceCache.put(cryptoKey(credentials.id, emailId), raw)",
                 "rawSourceCache.remove(cryptoKey(credentials.id, emailId))",
             ),
             codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "rawSourceCache"),
+        )
+        // ⛔ AND THE ANCHOR IS THE TYPE, NOT THE NAME — the hole the rule above still had. Every
+        // line of it names the FIELD, so a SECOND `android.util.LruCache` under any other name,
+        // read before the refusal, satisfies the whole list and hands back the octets of whatever
+        // holds that uid now. Those octets then go to account B under an APPEND that is never
+        // replayed, and only the bin refuses: a permanent duplicate, no Undo. So the file's caches
+        // are pinned whole, as a closed list of two.
+        assertEquals(
+            "the in-memory caches of MailRepository, whole and in order. A third one is a reader " +
+                "nobody has decided the numbering of — and if it holds message source, it answers " +
+                "in front of the refusal that this volet exists to reach.",
+            listOf(
+                "private val decryptedCache = android.util.LruCache<String, DecryptedEntry>(8)",
+                "private val rawSourceCache = android.util.LruCache<String, String>(4)",
+            ),
+            codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "android.util.LruCache"),
         )
     }
 
@@ -165,7 +190,7 @@ class RawSourceReadUnderNumberingTest {
                 "numbering of.",
             listOf(
                 "val raw = imap.fetchSource(credentials, mailboxId, uid)",
-                "imap.fetchSource(credentials, mailboxId, uid, expectedUidValidity)",
+                "imap.fetchSource(credentials, mailboxId, uid, numbering)",
                 "val raw = imap.fetchSource(credentials, cached.mailboxId, uid)",
             ),
             codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "imap.fetchSource("),

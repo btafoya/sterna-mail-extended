@@ -122,11 +122,20 @@ class ReadUnderTheNumberingItWasTickedUnderTest {
      * And a read that carries NOTHING keeps the behaviour every ordinary reader depends on: the
      * fallback on the folder's recorded number, inside [ImapMailService] `onMailbox`.
      *
-     * ⛔ This is why the stamp is carried as `Long?` and not made mandatory. Opening a message,
-     * viewing its headers, saving it as `.eml` and retrying an OpenPGP interaction all read the
-     * source with nothing frozen — a row cached before the numbering column existed, or one
-     * evicted and re-cached, carries no stamp at all — and refusing them would be "this app can no
-     * longer show mail".
+     * ⛔ This is why the stamp is carried as `Long?` DOWN HERE and not made mandatory. Opening a
+     * message, viewing its headers, saving it as `.eml` and retrying an OpenPGP interaction all
+     * read the source with nothing frozen — a row cached before the numbering column existed, or
+     * one evicted and re-cached, carries no stamp at all — and refusing them would be "this app can
+     * no longer show mail".
+     *
+     * ⚠ AND A "FROZEN BUT ABSENT" NEVER ARRIVES HERE (#189). Since the move between accounts
+     * carries a `FrozenNumbering`, `MailRepository.fetchRawSource` refuses `Frozen(null)` upstream
+     * of this layer and hands `ImapMailService` a number only when there is one to hand. So the
+     * `null` this test drives is exclusively "no tick froze anything", the fallback below is
+     * exclusively that case's, and this test no longer certifies the defect it used to sit beside.
+     * `ImapMailService` and `core/imap` are unchanged: the refusal is posted before them, never
+     * inside `onMailbox`, where a throw would be replayed by `withSession` and confused with
+     * `ImapUidValidityChanged` — which invalidates the folder.
      */
     @Test fun `a read that freezes nothing falls back on the record, exactly as before`() {
         val store = RememberedNumbering()

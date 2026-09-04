@@ -557,8 +557,10 @@ class ImapSession(private var socket: Socket) : Closeable {
      * destination folder, so all stating one numbering, and that one number is kept. When they
      * DISAGREE the destination was renumbered in the middle of the move and no single number is
      * true of the whole mapping: [ImapMoved.destinationUidValidity] is null then, which is safe
-     * because null is the REFUSING value everywhere it is later opposed
-     * (`UidValidity.mayDestroyUnderStatedNumbering` answers false for it). An Undo that cannot say
+     * because null is the REFUSING value ON THE PATH THIS VALUE TAKES — an Undo's move-back, whose
+     * `UidValidity.mayDestroyUnderStatedNumbering` answers false for it. ⛔ Not a statement about
+     * null everywhere: `onMailbox` reads a null `expectedUidValidity` as "fall back on the folder's
+     * record", which is what every ordinary read and every swipe depend on. An Undo that cannot say
      * which numbering its UIDs belong to must not move anything under either of them.
      *
      * The copy fallback leaves the originals to be erased, and how that is done depends on

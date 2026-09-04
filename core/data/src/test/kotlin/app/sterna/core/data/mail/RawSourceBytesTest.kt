@@ -58,9 +58,9 @@ class RawSourceBytesTest {
                 "is the ONE place the bytes are made, and where an empty source is refused. Lines found:",
             listOf(
                 "internal fun rawSourceBytes(emailId: String, raw: String): ByteArray {",
-                "suspend fun rawSource(credentials: AccountCredentials, emailId: String, expectedUidValidity: Long? = null): ByteArray {",
-                "return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId, expectedUidValidity))",
-                "override suspend fun readSource(): ByteArray = rawSource(source, email.id, expectedUidValidity).also { messageId = messageIdOf(from, it) }",
+                "suspend fun rawSource(credentials: AccountCredentials, emailId: String, frozen: FrozenNumbering = FrozenNumbering.NothingFrozen): ByteArray {",
+                "return rawSourceBytes(emailId, fetchRawSource(credentials, email, emailId, frozen))",
+                "override suspend fun readSource(): ByteArray = rawSource(source, email.id, frozen).also { messageId = messageIdOf(from, it) }",
             ),
             SourceText.codeLines(SourceText.read(REPOSITORY)).filter { "rawSource(" in it || "rawSourceBytes(" in it },
         )
