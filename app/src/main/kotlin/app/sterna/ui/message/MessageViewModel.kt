@@ -1309,17 +1309,26 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private fun credentials(): AccountCredentials? =
         accountId?.let { store.credentials(it) } ?: store.load()
 
-    /** Loads the conversation once per (id, account) pair (idempotent across recompositions).
-     *  Does NOT mark read — [onActiveChanged] does that when the pager settles on this page.
+    /** Loads the conversation once per (id, account) pair (idempotent across recompositions),
+     *  and ONLY for the page the pager has settled on. Does NOT mark read — [onActiveChanged]
+     *  does that when the pager settles on this page.
+     *
+     *  ⛔ [settled] carries no default, deliberately: the pager warms one page each side of the
+     *  one being read, so a load that forgets to ask fetches two messages nobody touched — and on
+     *  IMAP each fetched source imports its sender's announced key into OpenKeychain, which
+     *  nothing can undo. Both call sites must therefore say out loud which they are: the pager's
+     *  effect passes its page's `active`, the Retry button passes `true` because a tap is a
+     *  gesture. The whole decision lives in [MessagePaging.needsLoad], error state included — as
+     *  a separate `&& _state.value !is MessageState.Error` here it was an OR in disguise, and an
+     *  unsettled page showing an error loaded anyway.
      *
      *  The account is part of the guard, not just remembered: JMAP ids are per account, so the
      *  same id under another account is another message. Comparing the id alone made reopening
      *  it return immediately and leave the previous account's message on screen (#92) — even
-     *  though [MessageScreen]'s LaunchedEffect(emailId, accountId) had correctly asked again. */
-    fun load(emailId: String, accountId: String? = null) {
-        if (!MessagePaging.needsLoad(loadedId, this.accountId, emailId, accountId) &&
-            _state.value !is MessageState.Error
-        ) {
+     *  though [MessageScreen]'s LaunchedEffect had correctly asked again. */
+    fun load(emailId: String, accountId: String?, settled: Boolean) {
+        val failed = _state.value is MessageState.Error
+        if (!MessagePaging.needsLoad(settled, loadedId, this.accountId, emailId, accountId, failed)) {
             return
         }
         loadedId = emailId

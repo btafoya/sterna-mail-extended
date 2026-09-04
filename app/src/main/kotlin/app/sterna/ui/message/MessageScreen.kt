@@ -127,6 +127,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -434,16 +435,36 @@ private fun MessagePager(
     // publishes its ViewModel here on settle — so the bars' content (star state, actions,
     // bar visibility) switches on settle, never mid-gesture.
     var activeMessage by remember { mutableStateOf<ActiveMessage?>(null) }
+    // The page the reader has settled on, held as the MESSAGE and not as its rank.
+    // `PagerState.settledPage` is an index, and it is refreshed only around a scroll: when new
+    // mail is prepended to the list under an open reader, the pager re-anchors itself onto the
+    // same message (its pages are keyed by identity) while that index keeps its old number —
+    // which now names the neighbour ABOVE. That neighbour's page believed itself settled and
+    // LOADED: on IMAP a load fetches the whole source and files the sender's announced key in
+    // OpenKeychain, from a message nobody opened (bench G-décalage, 2026-09-04).
+    // ⛔ `currentPage` is read ONLY at rest. `isScrollInProgress` is true for the whole gesture,
+    // drag and fling alike, so a page merely brushed past still never counts — that is what
+    // `settledPage` was bought for, and the guard below is what keeps it. The initial value is
+    // the page the reader opened on, so that message loads without waiting for any gesture.
+    var settledEntry by remember { mutableStateOf(entryAt(pagerState.currentPage)) }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.isScrollInProgress to pagerState.currentPage }
+            .collect { (scrolling, page) ->
+                settledEntry = MessagePaging.settledEntry(settledEntry, entryAt(page), scrolling)
+            }
+    }
+    val settledKey = settledEntry?.let(::pagerKey)
     // Settling on a page whose entry hasn't loaded means there is no message: drop the published
     // one, or the fixed chrome would keep starring/deleting the message the user swiped away from.
     // The page republishes itself (MessagePage's onActivated) as soon as its entry arrives.
     // The settle is also the one moment the reading pane's anchor follows the pager (#103): a
-    // human gesture landed here, so the row painted current in the list moves with it. Never on
-    // currentPage — a page flicked past must not become "the current message".
-    LaunchedEffect(pagerState.settledPage) {
-        val settled = entryAt(pagerState.settledPage)
+    // human gesture landed here, so the row painted current in the list moves with it. It fires
+    // on the settled MESSAGE changing, never on a page number moving under it — a page flicked
+    // past, or a row inserted above, must not become "the current message".
+    LaunchedEffect(settledEntry) {
+        val settled = settledEntry
         if (settled == null) activeMessage = null
-        else onPageSettled?.invoke(settled.first, settled.second, pagerState.settledPage)
+        else onPageSettled?.invoke(settled.first, settled.second, pagerState.currentPage)
     }
     val scope = rememberCoroutineScope()
     // The finger's travel across the pager, watched without consuming anything, so the fling below
@@ -473,12 +494,20 @@ private fun MessagePager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize().then(pagerTravel.modifier),
                 // Key by entry identity — (account, id), never the bare id — so pages keep their
-                // identity when rows are inserted around them; warm one neighbour each side so a
-                // swipe reveals the adjacent body without a flash. The bare id made two messages
+                // identity when rows are inserted around them. The bare id made two messages
                 // of two same-server accounts ONE page for Compose, which then reused the page and
                 // its ViewModel and showed the other account's message (#92). Same granularity for
                 // a single account: the pair differs exactly where the id does.
                 key = { i -> entryAt(i)?.let(::pagerKey) ?: "page-$i" },
+                // One page composed each side of the one being read. ⛔ It no longer warms their
+                // BODIES, and this comment used to say it did: a page that is not the settled one
+                // does not call `load` at all (see MessagePage, and MessagePaging.needsLoad), so a
+                // neighbour shows its LoadingRing for the whole swipe and fills in once the pager
+                // settles on it. What is still bought here is the composition itself — the page,
+                // its ViewModel and its WebView exist before the finger arrives, so settling on it
+                // starts the fetch instead of starting the page. The body was given up on purpose:
+                // on IMAP, fetching it imports the sender's announced key into OpenKeychain from a
+                // message nobody opened, and no gesture can take that back.
                 beyondViewportPageCount = 1,
                 // Demand 25 dp of FINGER travel before a flick may change message: the library's
                 // own rule is velocity-only, so a 10-20 dp brush of the thumb turned the page. The
@@ -497,8 +526,15 @@ private fun MessagePager(
                     MessagePage(
                         emailId = entry.first,
                         accountId = entry.second,
-                        // Read-on-settle: only the page the user lands on marks its message read.
-                        active = pagerState.settledPage == page,
+                        // Settle-gating, and it governs TWO things, not one: the page the reader
+                        // lands on is the only one that marks its message read, and the only one
+                        // that LOADS at all. On IMAP a load fetches the whole source, which
+                        // imports the sender's announced key into OpenKeychain — so this single
+                        // argument is what keeps a warmed neighbour, never opened, from depositing
+                        // a key nothing can take back. ⛔ Compared by IDENTITY, never by page
+                        // number: an index goes stale the moment the list moves underneath a
+                        // motionless reader, and named the neighbour above (G-décalage).
+                        active = pagerKey(entry) == settledKey,
                         onActivated = { vm ->
                             activeMessage = ActiveMessage(entry.first, entry.second, vm)
                         },
@@ -591,7 +627,14 @@ private fun MessagePage(
         viewModelStoreOwner = owner,
         factory = viewModelFactory { initializer { MessageViewModel(app) } },
     )
-    LaunchedEffect(emailId, accountId) { viewModel.load(emailId, accountId) }
+    // ⛔ `active` is BOTH a key of this effect and the argument: as a key, because the page is
+    // composed before it settles and the effect must replay the moment it does (drop it and
+    // the message the reader tapped never loads); as the argument, because the pager warms a
+    // page each side of the one being read, and on IMAP loading one fetches its whole source,
+    // which imports the sender's announced key into OpenKeychain (MailRepository.openEmailImap).
+    // Ungated, opening a message deposits the keys of its two neighbours, untouched and
+    // irreversibly. The decision itself is MessagePaging.needsLoad.
+    LaunchedEffect(emailId, accountId, active) { viewModel.load(emailId, accountId, active) }
     LaunchedEffect(active) {
         viewModel.onActiveChanged(active)
         // Hand this page's ViewModel to the fixed chrome once the user has settled on it.
@@ -1639,7 +1682,7 @@ private fun MessageContent(
                     stringResource(R.string.message_load_error, s.message),
                     color = MaterialTheme.colorScheme.error,
                 )
-                Button(onClick = { viewModel.load(emailId, accountId) }) {
+                Button(onClick = { viewModel.load(emailId, accountId, settled = true) }) {
                     Text(stringResource(R.string.message_retry))
                 }
             }

@@ -3,6 +3,7 @@ package app.sterna.ui.message
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -158,44 +159,239 @@ class MessagePagingTest {
         assertEquals(ids.size, keys.toSet().size)
     }
 
-    // --- needsLoad: the reading view's load guard (#92) ---
+    // --- needsLoad: the reading view's load guard (settle-gating, then #92) ---
+    //
+    // ⛔ The first question is `settled`: the pager composes one page each side of the one being
+    // read, and on an IMAP account a load fetches the whole source, which imports the sender's
+    // announced key into OpenKeychain. A load on an unsettled page is a key deposited from a
+    // message nobody opened, and nothing in this app can take it back.
+
+    @Test fun `a page the reader has not settled on never loads, however new its id`() {
+        // The warmed neighbour: nothing loaded here yet, so every id-based rule says "load".
+        assertFalse(
+            MessagePaging.needsLoad(
+                settled = false,
+                loadedId = null,
+                loadedAccountId = null,
+                emailId = "M42",
+                accountId = "acct-a",
+                failed = false,
+            ),
+        )
+    }
+
+    @Test fun `an unsettled page in the error state does not load either`() {
+        // ⛔ The trap the old shape fell into: the guard read "no reload needed AND not in error",
+        // an OR in disguise, so an error state re-loaded whatever the page's status. A neighbour
+        // whose previous fetch failed is still a message nobody touched.
+        assertFalse(
+            MessagePaging.needsLoad(
+                settled = false,
+                loadedId = "M42",
+                loadedAccountId = "acct-a",
+                emailId = "M42",
+                accountId = "acct-a",
+                failed = true,
+            ),
+        )
+        // …and not even when the id is new as well: `settled` gates everything.
+        assertFalse(
+            MessagePaging.needsLoad(
+                settled = false,
+                loadedId = "M41",
+                loadedAccountId = "acct-a",
+                emailId = "M42",
+                accountId = "acct-a",
+                failed = true,
+            ),
+        )
+    }
+
+    @Test fun `the settled page loads a message it has not loaded yet`() {
+        assertTrue(
+            MessagePaging.needsLoad(
+                settled = true,
+                loadedId = null,
+                loadedAccountId = null,
+                emailId = "M42",
+                accountId = "acct-a",
+                failed = false,
+            ),
+        )
+    }
+
+    @Test fun `the settled page does not reload what it already holds`() {
+        assertFalse(
+            MessagePaging.needsLoad(
+                settled = true,
+                loadedId = "M42",
+                loadedAccountId = "acct-a",
+                emailId = "M42",
+                accountId = "acct-a",
+                failed = false,
+            ),
+        )
+    }
+
+    @Test fun `the settled page retries the message it failed to load`() {
+        // The Retry button, and the recomposition after a failure: same id, same account, but the
+        // last attempt ended in error, so asking again must go through.
+        assertTrue(
+            MessagePaging.needsLoad(
+                settled = true,
+                loadedId = "M42",
+                loadedAccountId = "acct-a",
+                emailId = "M42",
+                accountId = "acct-a",
+                failed = true,
+            ),
+        )
+    }
+
+    /** [MessagePaging.needsLoad] for a settled page whose last load did not fail — where the #92
+     *  cases below all live. It forwards its arguments and decides nothing. */
+    private fun settledOk(loadedId: String?, loadedAccountId: String?, emailId: String, accountId: String?) =
+        MessagePaging.needsLoad(
+            settled = true,
+            loadedId = loadedId,
+            loadedAccountId = loadedAccountId,
+            emailId = emailId,
+            accountId = accountId,
+            failed = false,
+        )
 
     @Test fun `nothing loaded yet always loads`() {
-        assertTrue(MessagePaging.needsLoad(null, null, "M42", "acct-a"))
-        assertTrue(MessagePaging.needsLoad(null, null, "M42", null))
+        assertTrue(settledOk(null, null, "M42", "acct-a"))
+        assertTrue(settledOk(null, null, "M42", null))
     }
 
     @Test fun `the same message under the same account does not reload`() {
-        assertFalse(MessagePaging.needsLoad("M42", "acct-a", "M42", "acct-a"))
-        assertFalse(MessagePaging.needsLoad("M42", null, "M42", null))
+        assertFalse(settledOk("M42", "acct-a", "M42", "acct-a"))
+        assertFalse(settledOk("M42", null, "M42", null))
     }
 
     @Test fun `the same id under another account reloads`() {
         // The reported defect: the guard saw the id alone, returned early, and left the
         // previously loaded account's message on screen.
-        assertTrue(MessagePaging.needsLoad("M42", "acct-a", "M42", "acct-b"))
+        assertTrue(settledOk("M42", "acct-a", "M42", "acct-b"))
     }
 
     @Test fun `switching between no account and an account reloads`() {
-        assertTrue(MessagePaging.needsLoad("M42", null, "M42", "acct-a"))
-        assertTrue(MessagePaging.needsLoad("M42", "acct-a", "M42", null))
+        assertTrue(settledOk("M42", null, "M42", "acct-a"))
+        assertTrue(settledOk("M42", "acct-a", "M42", null))
     }
 
     @Test fun `another id reloads whatever the account`() {
-        assertTrue(MessagePaging.needsLoad("M42", "acct-a", "M43", "acct-a"))
-        assertTrue(MessagePaging.needsLoad("M42", "acct-a", "M43", "acct-b"))
+        assertTrue(settledOk("M42", "acct-a", "M43", "acct-a"))
+        assertTrue(settledOk("M42", "acct-a", "M43", "acct-b"))
     }
 
-    @Test fun `the guard agrees with the page key`() {
-        // One rule, two uses: a reload is needed exactly when the entry key changes.
+    @Test fun `the guard agrees with the page key, once the page has settled`() {
+        // One rule, two uses: on the settled page, a reload is needed exactly when the entry key
+        // changes. ⛔ Unsettled, the two part company on purpose — see the tests above.
         fun agree(id1: String, acc1: String?, id2: String, acc2: String?) {
             val differentKey = MessagePaging.entryKey(id1, acc1) != MessagePaging.entryKey(id2, acc2)
-            assertEquals(differentKey, MessagePaging.needsLoad(id1, acc1, id2, acc2))
+            assertEquals(differentKey, settledOk(id1, acc1, id2, acc2))
         }
         agree("M42", "acct-a", "M42", "acct-a")
         agree("M42", "acct-a", "M42", "acct-b")
         agree("M42", "acct-a", "M43", "acct-a")
         agree("M42", null, "M42", null)
         agree("M42", null, "M42", "acct-a")
+    }
+
+    // --- settledEntry: which MESSAGE the reader is settled on (bench G-décalage, 2026-09-04) ---
+    //
+    // ⛔ The answer is an entry, never a page number. A page number is refreshed only around a
+    // scroll, so a list that moves underneath an open reader leaves it naming the neighbour above
+    // — which then loads, and on IMAP a load files that sender's announced key in OpenKeychain.
+
+    @Test fun `at rest the settled entry is the one under the reader's eyes`() {
+        assertEquals("b", MessagePaging.settledEntry(previous = "a", atRest = "b", scrolling = false))
+    }
+
+    @Test fun `a page merely brushed past while scrolling never becomes the settled one`() {
+        // G16: the finger crosses the neighbour's page mid-gesture. `isScrollInProgress` is true
+        // for the whole of it, drag and fling alike, so the previously settled message stands —
+        // this is the guard that carries the value of the old `settledPage`.
+        assertEquals("a", MessagePaging.settledEntry(previous = "a", atRest = "b", scrolling = true))
+        assertEquals("a", MessagePaging.settledEntry(previous = "a", atRest = null, scrolling = true))
+    }
+
+    @Test fun `at rest on an entry that is gone the settled entry is null, not the last one`() {
+        // The fixed chrome (star, delete, move) publishes itself from this: keeping the previous
+        // message here would leave those actions wired to a message no longer in the list.
+        assertNull(MessagePaging.settledEntry(previous = "a", atRest = null, scrolling = false))
+    }
+
+    @Test fun `nothing settled yet adopts the first entry seen at rest`() {
+        assertEquals("a", MessagePaging.settledEntry(previous = null, atRest = "a", scrolling = false))
+    }
+
+    /**
+     * What an insertion at the top of the mailbox does to a RANK and to an IDENTITY, played with
+     * the repository's own functions ([MessagePaging.mergeEntries], [MessagePaging.entryKey]) and
+     * nothing re-implemented here.
+     *
+     * GB-OPEN is open in the reader, GB-NEIGH sits directly above it and carries an `Autocrypt:`
+     * header. A new message merges in at the top; nothing is scrolled. After it, the page NUMBER
+     * the reader settled on names a different message (GB-NEIGH), while GB-OPEN's identity names
+     * a different number. That is the whole of the arithmetic behind the bench red: a stale page
+     * number pointed at the neighbour, whose page believed itself settled, loaded, and put that
+     * sender's key in OpenKeychain from a message nobody opened.
+     *
+     * ⚠ What this does NOT prove: that `PagerState` re-anchors itself onto the same message when
+     * the list moves under it. That is the library's behaviour, it is why the screen holds an
+     * entry rather than an index, and it is only measurable on a device — it was, on 2026-09-04,
+     * where the screen still showed GB-OPEN after the injection while its key import fired for
+     * GB-NEIGH.
+     */
+    @Test fun `mail injected at the top moves the rank, never the identity`() {
+        val neigh = "GB-NEIGH" to "acct-a"
+        val open = "GB-OPEN" to "acct-a"
+        val older = "GB-OLD" to "acct-a"
+        val injected = "GB-INJ" to "acct-a"
+        val idOf = { e: Pair<String, String?> -> MessagePaging.entryKey(e.first, e.second) }
+
+        val before = MessagePaging.mergeEntries(emptyList(), listOf(neigh, open, older), idOf)
+        // The reader settles on GB-OPEN: page 1 of [GB-NEIGH, GB-OPEN, GB-OLD].
+        val pageSettledOn = before.indexOfFirst { idOf(it) == idOf(open) }
+        assertEquals(1, pageSettledOn)
+
+        // New mail arrives and merges in at the top. No gesture of any kind.
+        val after = MessagePaging.mergeEntries(before, listOf(injected, neigh, open, older), idOf)
+        assertEquals(listOf(injected, neigh, open, older), after)
+
+        // BY RANK — the page number the reader settled on now names the message ABOVE hers. This
+        // is the bench red: GB-NEIGH's page believed itself settled, loaded, and its sender's key
+        // landed in OpenKeychain from a message nobody opened.
+        assertEquals(
+            "after an insertion above her, the settled page NUMBER names the neighbour",
+            neigh,
+            after[pageSettledOn],
+        )
+
+        // BY IDENTITY — GB-OPEN is still in the list, and it is no longer at that number. Holding
+        // the settled page as the entry is what survives the shift; holding it as a rank does not.
+        val whereOpenIsNow = after.indexOfFirst { idOf(it) == idOf(open) }
+        assertNotEquals(pageSettledOn, whereOpenIsNow)
+        assertEquals(open, after[whereOpenIsNow])
+    }
+
+    /**
+     * And the two ways the screen can then be driven, run through the shipped decision: at rest on
+     * the entry the pager re-anchored to, GB-OPEN stands; and if no emission comes at all (nothing
+     * moved for the pager to report), the previous answer is what the screen keeps.
+     */
+    @Test fun `the settled message survives the shift, whichever way the pager reports it`() {
+        val open = "GB-OPEN" to "acct-a"
+        val neigh = "GB-NEIGH" to "acct-a"
+
+        val atRestOnOpen = MessagePaging.settledEntry(previous = open, atRest = open, scrolling = false)
+        assertEquals(open, atRestOnOpen)
+
+        // A report that arrives WHILE the list is still moving must not be taken: the neighbour
+        // sitting at the old number is exactly what `scrolling` refuses.
+        assertEquals(open, MessagePaging.settledEntry(previous = open, atRest = neigh, scrolling = true))
     }
 }

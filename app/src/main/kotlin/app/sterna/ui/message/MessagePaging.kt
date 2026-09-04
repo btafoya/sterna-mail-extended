@@ -18,17 +18,61 @@ object MessagePaging {
     fun entryKey(emailId: String, accountId: String?): String = "${accountId.orEmpty()}\u0000$emailId"
 
     /**
-     * Whether the reading view must (re)load, i.e. whether the requested (id, account) pair
-     * differs from the loaded one. The account is part of the question: reopening the same id
-     * under another account is a DIFFERENT message (see [entryKey]), and an id-only guard
-     * returned early and left the previous account's message on screen (#92).
+     * Whether the reading view must (re)load: [settled] first, and everything else after it.
+     *
+     * ⛔ [settled] — "this page is the one the reader landed on, not a warmed neighbour" — is the
+     * whole reason this function takes it rather than the screen keeping a guard of its own. The
+     * pager composes one page each side of the one being read (`beyondViewportPageCount = 1`), so
+     * without it, opening ONE message loads three. On an IMAP account a load fetches the whole
+     * source, and a whole source hands the sender's announced public key to the OpenPGP provider
+     * (`MailRepository.openEmailImap` → `importAutocryptKey`): both neighbours would deposit their
+     * sender's key in OpenKeychain under the address it claims, from messages nobody opened,
+     * replied to, forwarded or decrypted — irreversibly, and against what ENCRYPTION.md:177-180
+     * and SECURITY.md say in those words.
+     *
+     * ⛔ And [failed] is IN HERE, not beside it, for the same reason it is an `&&` and not an
+     * `||`: the caller's guard used to read "no reload needed AND we are not in error", so a page
+     * left showing an error would reload whether or not it was settled. A warmed neighbour that
+     * failed its previous fetch is still a message nobody touched.
+     *
+     * The rest is unchanged (#92): the account is part of the identity question, because
+     * reopening the same id under another account is a DIFFERENT message (see [entryKey]), and an
+     * id-only guard returned early and left the previous account's message on screen.
      */
     fun needsLoad(
+        settled: Boolean,
         loadedId: String?,
         loadedAccountId: String?,
         emailId: String,
         accountId: String?,
-    ): Boolean = loadedId != emailId || loadedAccountId != accountId
+        failed: Boolean,
+    ): Boolean = settled && (failed || loadedId != emailId || loadedAccountId != accountId)
+
+    /**
+     * The entry the reader is SETTLED on: [previous] while the pager is [scrolling], [atRest]
+     * otherwise. The caller holds the answer as the MESSAGE, never as its rank.
+     *
+     * ⛔ Why identity and not a page number. `PagerState.settledPage` is an index, and it is
+     * refreshed only around a scroll. When new mail is prepended under an open reader (see
+     * [mergeEntries]), the pager re-anchors itself onto the same message — its pages are keyed by
+     * identity ([entryKey]) — while that index keeps its old number, which now names the
+     * neighbour ABOVE. That neighbour's page then believed itself settled and LOADED: on IMAP a
+     * load fetches the whole source and files the sender's announced key in OpenKeychain, from a
+     * message nobody opened, under the address it claims, with nothing this app can take back
+     * (bench G-décalage, 2026-09-04: a message injected at the top of the mailbox, the reader
+     * untouched, and the neighbour's key in the provider inside 30 s). A movement of the list is
+     * not a gesture, and only a gesture may load.
+     *
+     * ⛔ [scrolling] is the whole of what `settledPage` was bought for, and it is kept here: it is
+     * true for the entire gesture, drag and fling alike, so a page merely brushed past never
+     * becomes the settled one — [previous] stands until the pager comes to rest.
+     *
+     * ⚠ At rest the answer is [atRest] even when that is `null`: keeping [previous] there would
+     * leave the fixed chrome (star, delete, move) wired to a message that is no longer in the
+     * list, and acting on it is worse than showing nothing.
+     */
+    fun <T> settledEntry(previous: T?, atRest: T?, scrolling: Boolean): T? =
+        if (scrolling) previous else atRest
 
     /**
      * The page the pager should open on. Prefer the position of [anchorId] within the

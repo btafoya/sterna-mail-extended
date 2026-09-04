@@ -134,7 +134,12 @@ Once an account has OpenPGP turned on and a key chosen, Sterna attaches that
 key's public half to the messages that account sends, in a header. Nothing is
 attached before you have chosen a key, and turning OpenPGP off stops it. Only
 your public key travels, and only the identity of the account it belongs to:
-other identities on the same key stay in your OpenPGP app.
+other identities on the same key stay in your OpenPGP app. A message sent from
+an alias identity, that is with a **From** address other than the account's own,
+announces no key at all. And nothing is announced at all if Sterna could not
+read your public key back when you chose it, because your OpenPGP app was
+missing or locked at that moment: it tries again every time you open the
+composer, and starts announcing once one of those attempts succeeds.
 
 A few things behave differently while a message is set to either encrypting
 mode: it cannot be saved as a plaintext draft, and scheduled send is
@@ -164,11 +169,21 @@ body you will see the result:
 Sterna also reads legacy **inline PGP** messages, not just modern PGP/MIME.
 
 Several mail clients attach the sender's public key to every message they send,
-the same way Sterna does. When you **open** a message carrying one, that key is
-handed to your OpenPGP app, and you can encrypt back to that person without
-asking them for anything. It happens on the messages you open, not on everything
-that lands in the folder, so a correspondent you have never read is a
-correspondent whose key has not arrived yet.
+the same way Sterna does. That key is handed to your OpenPGP app, and you can
+encrypt back to that person without asking them for anything. When it reaches
+you depends on the account. On a **JMAP** account the keys of the newest Inbox
+messages arrive on their own, as Sterna fetches those messages ahead of you;
+opening a message brings its key too, unless it is signed or encrypted, and then
+only the first way works. On an **IMAP** account a key comes from any message
+whose full text Sterna had to fetch: one you open, reply to, forward or decrypt,
+and never from one it has not touched. Nothing arrives on its own from Spam,
+Trash or Archive.
+
+A key that is announced is not always taken: Sterna ignores it, and says nothing,
+when the date the server put on the message cannot be read, and when that date
+runs more than 24 hours ahead of your phone's clock. So a phone whose own clock
+is more than a day slow takes no key at all. Set the clock right, and the next
+message from that correspondent brings the key.
 
 A key that turns up this way is a convenience, not a proof of identity: it says
 what the sender's client claimed, and nothing about who is really at the other
@@ -181,8 +196,10 @@ signature badge keeps telling you whether you have done it.
   offers OpenKeychain, from
   [F-Droid](https://f-droid.org/packages/org.sufficientlysecure.keychain/).
 - **Can't turn on encryption for a recipient.** Their public key isn't in your
-  OpenPGP app yet. Open a message from them first: their client may attach it.
-  Failing that, import it (from a file they sent, or a key server) and try again.
+  OpenPGP app yet. Their client may attach it to their mail, in which case it
+  turns up on its own or when you open a message that is neither signed nor
+  encrypted (see above). Failing that, import it (from a file they sent, or a
+  key server) and try again.
 - **Grey signature badge.** You don't have the sender's public key. Import it to
   turn the check green (or yellow until you confirm it).
 - **No passphrase prompt / it stopped asking.** OpenKeychain caches your

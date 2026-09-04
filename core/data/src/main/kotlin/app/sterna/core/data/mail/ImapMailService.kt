@@ -1306,6 +1306,20 @@ class ImapMailService(
         onMailbox(credentials, mailboxId) { session, _ -> session.fetchSource(uid) }
 
     /**
+     * The SERVER's own delivery timestamp for one message (`INTERNALDATE`) in epoch millis, or
+     * `null` when the server answers nothing readable. On the model of [fetchAttachment], and like
+     * it costing a SELECT as well as the FETCH — [onMailbox] selects the folder every time. Its one
+     * caller pays that off the opening path, inside a background launch.
+     *
+     * ⛔ Not `EmailEntity.receivedAt`, which on this protocol is the message's `Date:` header
+     * (`toEntity`, from `ImapMessage.dateMillis`) and is written by whoever sent the mail. The one
+     * caller dates an Autocrypt key with this, and a sender-chosen date there is permanent inside
+     * the OpenPGP provider.
+     */
+    suspend fun fetchInternalDate(credentials: AccountCredentials, mailboxId: String, uid: Long): Long? =
+        onMailbox(credentials, mailboxId) { session, _ -> session.fetchInternalDate(uid) }
+
+    /**
      * The opening line of every message of [page] that has one and does not have one CACHED yet —
      * read here, INSIDE the folder read, on the session that has just SELECTed the folder (#187).
      *

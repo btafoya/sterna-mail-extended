@@ -211,10 +211,27 @@ Out of scope:
 - **Public keys travel in a message header** (Autocrypt Level 1 `Autocrypt:`), in both
   directions, and only that. Composing announces the sending account's own public key,
   minimized to that account's identity, on every message an account with OpenPGP enabled
-  and a key chosen sends; a send whose `From` is another mailbox announces nothing.
-  Reading an opened message hands any key it announces to the OpenPGP app, which files it
-  in the public keyring. No `prefer-encrypt` attribute is emitted and none is honoured, so
-  nothing here turns encryption on by itself; gossip headers and the Autocrypt Setup
+  and a key chosen sends; a send whose `From` is another mailbox announces nothing. What
+  travels is the public half CACHED on the account when the key was chosen, so a read that
+  failed then (no provider, or one asking to be unlocked) leaves that cache empty and the
+  account announces nothing at all; the composer retries on EVERY opening
+  (`pgpPublicKeyBackfill`) and writes only on `Success`, so an unavailable provider simply
+  postpones it again. Incoming, a key reaches the OpenPGP app's public keyring from the
+  paths that already hold a message's full headers, which is not the same set on the two
+  protocols. On JMAP: the inbox prefetch (Inbox only, and only the newest ids not already
+  cached, capped at `PREFETCH_COUNT`, so a refresh that brought no new mail imports
+  nothing), plus the origin read of an open, which `openMessage` reaches only for a
+  non-crypto message, since it returns on `cryptoKindOf` first, so opening a signed or
+  encrypted message imports NOTHING on JMAP. On IMAP: `openEmailImap`, reached by every path
+  that needs the whole source and not only by an open, namely `fetchEmail` (reply, forward,
+  notification quick reply), `decryptMessage` and the uncached fallback of `rawHeaders` /
+  `rawSource`, so any message whose source had to be fetched imports, crypto included, and
+  one nothing touched never does. Not every announced key is taken: the key is filed against
+  the server's own timestamp for the message (IMAP `INTERNALDATE`, JMAP `receivedAt`, never
+  the sender's `Date:`), and a timestamp that cannot be read, or that stands more than 24 h
+  ahead of the device clock, refuses the import outright, in silence, so a device clock more
+  than 24 h slow takes no key at all. No `prefer-encrypt` attribute is emitted and none is honoured,
+  so nothing here turns encryption on by itself; gossip headers and the Autocrypt Setup
   Message are not implemented. A key obtained this way is opportunistic and unconfirmed:
   it makes encryption possible and proves nothing about who is at the other end, and
   confirming it stays a deliberate act in the OpenPGP app.

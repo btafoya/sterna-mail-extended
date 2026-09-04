@@ -3846,7 +3846,7 @@ class MailRepository(
             // Autocrypt rides on the read that is already happening: no second round trip, and no
             // property added to EMAIL_BODY_PROPERTIES (a server that refuses one rejects the whole
             // Email/get, and then nothing opens at all on that account).
-            importAutocryptKey(headers, email.from.firstOrNull()?.email, email.receivedAt)
+            importAutocryptKey(headers, email.from.firstOrNull()?.email, { email.receivedAt })
             OriginRead(header = originalSenderHeaderOf(headers), succeeded = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -3860,21 +3860,98 @@ class MailRepository(
      * Give the OpenPGP provider the public key an incoming message announced, if it announced one
      * this app will take ([autocryptPeerImportOf] holds every rule; nothing is decided here).
      *
-     * ⛔ **Fire and forget, on [bgScope].** The three call sites are all on the path of OPENING a
-     * message, and reaching a foreign process over a binder can hang, fail or want the user. None
-     * of that may delay the body appearing, and none of it may fail the open: the coroutine is
-     * launched and dropped, `runCatching` swallows what comes out of it, and the reader is told
-     * nothing either way. A key that does not arrive costs a "no key" badge in the composer, which
-     * is the state the user was already in.
+     * ⛔ **Fire and forget, on [bgScope].** TWO of the three call sites sit on a path someone is
+     * waiting on ([originReadFor] behind a JMAP open, [openEmailImap] behind an IMAP open, reply,
+     * forward, notification quick reply or decrypt); the third ([originalSendersOf]) is background
+     * work of the JMAP inbox prefetch, where no one is waiting on a screen at all. In both places
+     * reaching a foreign process over a binder can hang, fail or want the user. None of that may
+     * delay the body appearing, none of it may fail the read it rides on, and none of it may cost
+     * the prefetch the bodies it went to fetch: the coroutine is launched and dropped,
+     * `runCatching` swallows what comes out of it, and the reader is told nothing either way. A key
+     * that does not arrive costs a "no key" badge in the composer, which is the state the user was
+     * already in.
      *
-     * ⛔ No new network call anywhere: every caller already holds the headers.
+     * ⚠ The reach of these three, because the public prose is written from it and no test states
+     * it: on JMAP, the prefetch covers the newest INBOX ids NOT already cached (capped by
+     * `PREFETCH_COUNT`, so a refresh that brought no new mail imports nothing), and it is the ONLY
+     * JMAP importer for a crypto message, since [openMessage] returns on `cryptoKindOf` before it
+     * reaches [originReadFor]. On IMAP, [openEmailImap] is reached by EVERY path that needs the
+     * whole source and not only by an open: [fetchEmail] (reply, forward, quick reply from the
+     * notification shade), [decryptMessage], and the uncached fallback of [rawHeaders] and
+     * [rawSource]. ENCRYPTION.md and SECURITY.md are written from this; narrowing or widening it
+     * here dates them both.
+     *
+     * ⛔ [receivedAt] is a PRODUCER, not a value, and that is the whole reason it is one: on IMAP
+     * the date has to be fetched from the server ([autocryptInternalDate]), and a value would have
+     * been computed at the call site — i.e. on the foreground path, making whoever asked for that
+     * message wait on a round trip for something only this background work reads. Called here, it
+     * is inside the launch, where its cost and its failure are as invisible as the provider call
+     * itself. The two JMAP sites hold their date already and their producer just hands it over.
+     *
+     * ⛔ THE one place `now` is read, and it stands for BOTH protocols: the date a key is filed
+     * against is the server's (IMAP `INTERNALDATE`, JMAP `receivedAt`), which nobody can forge but
+     * nothing bounds either, and `autocryptPeerImportOf` refuses one more than 24 h ahead of the
+     * clock passed here. The three call sites hand over no clock of their own — the parameter has
+     * no default, so a fourth site cannot silently skip the bound.
      */
     private fun importAutocryptKey(
         headers: List<Pair<String, String>>,
         fromAddress: String?,
-        receivedAt: String?,
+        receivedAt: suspend () -> String?,
     ) {
-        bgScope.launch { runCatching { importAutocryptPeer(pgpEngine, headers, fromAddress, receivedAt) } }
+        bgScope.launch {
+            runCatching {
+                importAutocryptPeer(pgpEngine, headers, fromAddress, receivedAt(), System.currentTimeMillis())
+            }
+        }
+    }
+
+    /**
+     * The SERVER's own timestamp for [uid] (`INTERNALDATE`), as the `receivedAt` an Autocrypt import
+     * dates a key with — and `null`, WITHOUT asking the server anything, for a message carrying no
+     * `Autocrypt` header at all.
+     *
+     * ⛔ Why not `envelope.receivedAt`, which was passed here until now: on IMAP that value is the
+     * message's own `Date:` header (`ImapClient.parseDate` over `ENVELOPE[0]`), so the SENDER writes
+     * it. A forged `From:` plus `Date: Sat, 1 Jan 2100` plus an `Autocrypt:` header filed the
+     * attacker's key under the impersonated peer with an effective date in 2100, after which no
+     * authentic key can ever win inside OpenKeychain — and this app has no way to undo it there.
+     * `INTERNALDATE` is stamped by the server on delivery and is not the sender's to choose.
+     *
+     * ⛔ The header guard is what keeps this off every message: without it, opening anything at all
+     * would buy a SELECT and a FETCH for a value nothing reads. EXACTLY one `Autocrypt` field, which
+     * is the same count `autocryptPeerImportOf` requires (`singleOrNull`) — a message carrying two is
+     * ignored whole, so fetching a date for it would be paid for nothing, and anyone could make every
+     * message they send cost a round trip. Compared without case, a field name being
+     * case-insensitive (RFC 5322 §1.2.2), over the `rawHeaders` list already in hand.
+     *
+     * ⛔ This runs INSIDE the `bgScope.launch` of [importAutocryptKey], never on the opening path:
+     * the reader never waits on it and a server having a bad day cannot slow an open, let alone fail
+     * one. The catch is still here, and still narrower than the `runCatching` around it, for the two
+     * things that one cannot do: rethrow a cancellation untouched (an `AccountGoneException` is one)
+     * and leave a TRACE. Without the log, a server whose `date-time` this app cannot read would turn
+     * Autocrypt off on that account for good, in total silence, and the composer would go on saying
+     * "no key" — the state the user was already in, and no way to tell the two apart.
+     *
+     * A swallowed failure answers null, and null means the import simply does not happen:
+     * `autocryptPeerImportOf` refuses a date it cannot read rather than dating a key "now".
+     */
+    private suspend fun autocryptInternalDate(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        headers: List<Pair<String, String>>,
+    ): String? {
+        if (headers.count { (name, _) -> name.trim().equals("Autocrypt", ignoreCase = true) } != 1) return null
+        val millis = try {
+            imap.fetchInternalDate(credentials, mailboxId, uid)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            android.util.Log.w("MailRepository", "INTERNALDATE unreadable; no Autocrypt key imported", failure)
+            null
+        }
+        return millis?.let { java.time.Instant.ofEpochMilli(it).toString() }
     }
 
     /**
@@ -3894,7 +3971,7 @@ class MailRepository(
         // against its OWN From and its own date.
         for (email in emails) {
             val headers = byId[email.id] ?: continue
-            importAutocryptKey(headers.map { it.name to it.value }, email.from.firstOrNull()?.email, email.receivedAt)
+            importAutocryptKey(headers.map { it.name to it.value }, email.from.firstOrNull()?.email, { email.receivedAt })
         }
         byId.mapValues { (_, headers) -> originalSenderHeaderOf(headers.map { it.name to it.value }) }
     } catch (cancelled: CancellationException) {
@@ -3983,10 +4060,21 @@ class MailRepository(
         val unsubscribe = unsubscribeHeadersOf(raw)
         val headers = MimeParser.rawHeaders(raw)
         // Autocrypt (the receiving half): the correspondent's key, off the source already in hand.
-        // ⛔ IMAP has no other place for it — a key does NOT arrive from a message that is never
-        // opened, and that is the accepted limit of this path, not a defect to go and fix with a
-        // header added to a list FETCH.
-        importAutocryptKey(headers, envelope.from.firstOrNull()?.email, envelope.receivedAt)
+        // ⛔ IMAP has no other place for it — a key arrives only from a message whose WHOLE source
+        // had to be fetched anyway, which is an open but also a reply, a forward, a quick reply
+        // from the notification shade and a decrypt (all of them reach here, through `fetchEmail`
+        // or `decryptMessage`). That is the accepted limit of this path, not a defect to go and
+        // fix with a header added to a list FETCH.
+        // ⛔ "AND NEVER FROM A MESSAGE NOTHING TOUCHED" IS NOT TRUE HERE — nothing on this line or
+        // above it makes it true. It is held at the other end of the app, by the reader's load
+        // guard: the pager warms one page each side of the one being read
+        // (`MessageScreen.kt`, `beyondViewportPageCount = 1`), and what stops those two warmed
+        // neighbours from being fetched — and their senders' keys from landing in OpenKeychain
+        // untouched — is `MessagePaging.needsLoad`'s `settled` argument, handed to
+        // `MessageViewModel.load` by `LaunchedEffect(emailId, accountId, active)`. Pinned by
+        // `LoadOnSettleCallSiteTest` and `MessagePagingTest`. Widen or bypass that guard and this
+        // line imports keys with no gesture, whatever this comment says.
+        importAutocryptKey(headers, envelope.from.firstOrNull()?.email, { autocryptInternalDate(credentials, mailboxId, uid, headers) })
         return envelope.withBody(body).copy(
             messageId = headerIds(MimeParser.headerOf(raw, "Message-ID")),
             references = headerIds(MimeParser.headerOf(raw, "References")),

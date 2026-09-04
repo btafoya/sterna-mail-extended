@@ -22,8 +22,10 @@ import java.io.File
  *    signal ("This prevents tracking pixels and read receipts on open"); a receipt proposed for a
  *    swipe contradicts that sentence word for word. Two things hold it: `settleMarking`, written in
  *    `maybeMarkRead` and nowhere else, and the ONE line that decides what "settled" means —
- *    `MessageScreen`'s `settledPage`, which is a `currentPage` away from being every message swiped
- *    past.
+ *    `MessageScreen`'s comparison of the page's entry with the settled MESSAGE, which is one
+ *    `pagerState.currentPage == page` away from being every message swiped past, and one
+ *    `pagerState.settledPage == page` away from being the neighbour a newly arrived mail pushed
+ *    under a stale page number (bench G-décalage, 2026-09-04).
  * 2. **Nothing but the reader may ask the repository to queue a receipt.** The short-circuit is
  *    real and one line long: `NotificationActionReceiver` already holds `container.mailRepository`.
  * 3. **`deliveredTo` is handed to `sendReadReceipt`**, so an account with several aliases does not
@@ -157,20 +159,24 @@ class ReadReceiptTriggerWiringTest {
     // -- 2. the single trigger --------------------------------------------------------------------
 
     /**
-     * ⭐ WHAT "SETTLED" MEANS, pinned in the one line that defines it.
+     * ⭐ WHAT "SETTLED" MEANS, pinned in the one line that defines it — and it is an IDENTITY,
+     * never a page number.
      *
-     * `pagerState.settledPage` → `pagerState.currentPage` compiles and leaves every other rule in
-     * this file green. `currentPage` flips DURING a drag, so a message merely SWIPED PAST becomes
-     * `active`, `maybeMarkRead` runs on it, `settleMarking` is written, and the question is put for
-     * a message nobody stopped on. That is the "swipe" the whole trigger exists to exclude, and the
-     * distance between the two is eight characters.
+     * Either rank comparison compiles and leaves every other rule in this file green.
+     * `pagerState.currentPage == page` flips DURING a drag, so a message merely SWIPED PAST
+     * becomes `active`, `maybeMarkRead` runs on it, `settleMarking` is written, and the question
+     * is put for a message nobody stopped on. `pagerState.settledPage == page` is worse still: it
+     * is refreshed only around a scroll, so mail arriving at the top of the mailbox leaves that
+     * number naming the NEIGHBOUR of the open message, which is then marked read and offered a
+     * receipt with the reader having touched nothing at all (bench G-décalage, 2026-09-04). Both
+     * are the "swipe" this trigger exists to exclude, one of them without any finger.
      */
-    @Test fun `active means the page the reader stopped on, not the one being dragged past`() {
+    @Test fun `active means the message the reader stopped on, not a page number`() {
         assertSoleLine(
             MESSAGE_SCREEN,
-            "active = pagerState.settledPage == page,",
+            "active = pagerKey(entry) == settledKey,",
             "the reader's definition of an active page",
-            "active = pagerState",
+            "active = ",
         )
     }
 

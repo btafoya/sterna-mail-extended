@@ -50,14 +50,16 @@ class AutocryptImportWiringTest {
         assertEquals(
             "a call site changed what it hands over. Each must pass THAT message's own headers, " +
                 "the address ITS From names (never the account's, or every key is filed under the " +
-                "reader's own address) and its own date.",
+                "reader's own address) and a date the SENDER does not choose.",
             listOf(
                 // JMAP, one message opened: the headers of the origin read already in flight.
-                "headers, email.from.firstOrNull()?.email, email.receivedAt",
+                "headers, email.from.firstOrNull()?.email, { email.receivedAt }",
                 // JMAP, the inbox prefetch: one grouped read, each message judged on its own.
-                "headers.map { it.name to it.value }, email.from.firstOrNull()?.email, email.receivedAt",
-                // IMAP, on opening: the headers come off the source that had to be fetched anyway.
-                "headers, envelope.from.firstOrNull()?.email, envelope.receivedAt",
+                "headers.map { it.name to it.value }, email.from.firstOrNull()?.email, { email.receivedAt }",
+                // IMAP, on opening: the headers come off the source that had to be fetched
+                // anyway, and the date off the SERVER (INTERNALDATE) — never `envelope.receivedAt`,
+                // which here is the message's own `Date:` header and is the sender's to choose.
+                "headers, envelope.from.firstOrNull()?.email, { autocryptInternalDate(credentials, mailboxId, uid, headers) }",
             ),
             callArguments(),
         )
@@ -69,27 +71,84 @@ class AutocryptImportWiringTest {
         assertEquals(
             listOf(
                 "val headers = MimeParser.rawHeaders(raw)",
-                "importAutocryptKey(headers, envelope.from.firstOrNull()?.email, envelope.receivedAt)",
+                "importAutocryptKey(headers, envelope.from.firstOrNull()?.email, { autocryptInternalDate(credentials, mailboxId, uid, headers) })",
             ),
             block(REPO_FILE, prefix = "val headers = MimeParser.rawHeaders(raw)", count = 2),
         )
     }
 
+    @Test fun `the IMAP date comes from the server, and is only asked for when there is a key`() {
+        // ⛔ The whole block, line for line — never `contains("INTERNALDATE")`. Two mutations this
+        // has to catch, and both make the code LONGER or merely REORDER it:
+        //  - the guard deleted (or inverted): a second round trip on EVERY message opened, for a
+        //    value nothing reads, on the opening path;
+        //  - the failure no longer swallowed: an `Autocrypt` header from a server having a bad day
+        //    would then stop the message from opening at all.
+        // And the reason the value is fetched rather than taken from the row: `envelope.receivedAt`
+        // is `Date:`, which whoever sent the message wrote — a key filed under a 2100 date can
+        // never be beaten inside OpenKeychain, and this app cannot undo anything there.
+        assertEquals(
+            listOf(
+                "private suspend fun autocryptInternalDate(",
+                "credentials: AccountCredentials,",
+                "mailboxId: String,",
+                "uid: Long,",
+                "headers: List<Pair<String, String>>,",
+                "): String? {",
+                "if (headers.count { (name, _) -> name.trim().equals(\"Autocrypt\", ignoreCase = true) } != 1) return null",
+                "val millis = try {",
+                "imap.fetchInternalDate(credentials, mailboxId, uid)",
+                "} catch (cancelled: CancellationException) {",
+                "throw cancelled",
+                "} catch (failure: Throwable) {",
+                "android.util.Log.w(\"MailRepository\", \"INTERNALDATE unreadable; no Autocrypt key imported\", failure)",
+                "null",
+                "}",
+                "return millis?.let { java.time.Instant.ofEpochMilli(it).toString() }",
+                "}",
+            ),
+            block(REPO_FILE, prefix = "private suspend fun autocryptInternalDate(", count = 17),
+        )
+    }
+
+    @Test fun `the service call in the middle fetches INTERNALDATE, and nothing else`() {
+        // ⛔ The one line of the whole chain that neither an executed test nor another lint can
+        // reach: `ImapMailService.fetchInternalDate` is a pass-through, so no JVM test constructs
+        // it and the on-the-wire test drives `ImapSession` directly, one layer below. Left
+        // unpinned, `-> session.fetchByUid(uid)?.dateMillis` compiles, keeps every other test
+        // green, and hands back the sender's `Date:` header — the whole defect, restored in one
+        // line. `-> null` turns the feature off just as quietly.
+        assertEquals(
+            listOf(
+                "suspend fun fetchInternalDate(credentials: AccountCredentials, mailboxId: String, uid: Long): Long? =",
+                "onMailbox(credentials, mailboxId) { session, _ -> session.fetchInternalDate(uid) }",
+            ),
+            block(IMAP_SERVICE_FILE, prefix = "suspend fun fetchInternalDate(", count = 2),
+        )
+    }
+
     @Test fun `the gesture is fire-and-forget, and cannot fail an open`() {
         assertEquals(
-            "importAutocryptKey changed shape. What the line is holding up: the work leaves the " +
-                "opening path onto bgScope, anything thrown is swallowed, and the engine is passed " +
-                "as it is — null included, which the pure function answers to by doing nothing.",
+            "importAutocryptKey changed shape. What the lines are holding up: the work leaves the " +
+                "opening path onto bgScope, anything thrown is swallowed, the engine is passed as " +
+                "it is — null included, which the pure function answers to by doing nothing — and " +
+                "the CLOCK is read here, the only place it is, for both protocols. Drop " +
+                "System.currentTimeMillis() and nothing compiles; hand over a clock from " +
+                "elsewhere (a date off the message, a constant) and a key can be filed at 2100.",
             listOf(
                 "private fun importAutocryptKey(",
                 "headers: List<Pair<String, String>>,",
                 "fromAddress: String?,",
-                "receivedAt: String?,",
+                "receivedAt: suspend () -> String?,",
                 ") {",
-                "bgScope.launch { runCatching { importAutocryptPeer(pgpEngine, headers, fromAddress, receivedAt) } }",
+                "bgScope.launch {",
+                "runCatching {",
+                "importAutocryptPeer(pgpEngine, headers, fromAddress, receivedAt(), System.currentTimeMillis())",
+                "}",
+                "}",
                 "}",
             ),
-            block(REPO_FILE, prefix = "private fun importAutocryptKey(", count = 7),
+            block(REPO_FILE, prefix = "private fun importAutocryptKey(", count = 11),
         )
     }
 
@@ -122,6 +181,7 @@ class AutocryptImportWiringTest {
     private companion object {
         const val NAME = "importAutocryptKey("
         const val REPO_FILE = "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt"
+        const val IMAP_SERVICE_FILE = "core/data/src/main/kotlin/app/sterna/core/data/mail/ImapMailService.kt"
         const val JMAP_FILE = "core/jmap/src/main/kotlin/app/sterna/core/jmap/JmapClient.kt"
     }
 }

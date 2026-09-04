@@ -60,15 +60,39 @@ private val KNOWN_ATTRIBUTES = setOf("addr", "keydata", "prefer-encrypt")
  * given for a peer, so a made-up date on an old message can make a stale key win over the current
  * one INSIDE OpenKeychain, where this app cannot undo it. Refusing costs a key we never had; the
  * other way costs a key the user does have (arbitration rule 1, the irreversible option first).
+ *
+ * ⛔ And a date more than [FUTURE_TOLERANCE_MILLIS] past [nowMillis] is the same refusal, for the
+ * same reason read from the other end. The date is the server's, not the sender's — IMAP's
+ * `INTERNALDATE`, JMAP's `receivedAt` — so it cannot be forged, but nothing BOUNDS it on either
+ * protocol. **Twenty-four hours is the real clock drift of a sending server; past that, the date is
+ * no longer information, it is a claim.** A key filed at 2100 beats every authentic key that peer
+ * will ever send for the next seventy-four years, inside OpenKeychain, where this app cannot undo
+ * it. Refusing costs a key we never had; the other way costs a key the user does have (arbitration
+ * rule 1, the irreversible option first).
+ *
+ * ⛔ [nowMillis] has NO default value, deliberately: every caller must say which clock it reads.
+ * `MailRepository` (`importAutocryptKey`) is the one place `now` is read, and it covers both
+ * protocols. ⚠ That is a prompt, not a guarantee — no default forces an ARGUMENT, not an honest
+ * clock, and a site passing `0` or the message's own date would be just as compiled. What actually
+ * holds the wiring up is `AutocryptImportWiringTest`, which pins the call whole.
+ *
+ * ⚠ The cost of this bound, written down rather than discovered later: a device whose own clock is
+ * more than 24 h SLOW refuses every legitimate key, in silence, and the refusal is not replayed —
+ * the body is cached, so reopening the message runs no import at all. It takes a new message from
+ * that correspondent. Accepted (arbitration rule 1) over a key that wins for decades in a provider
+ * this app cannot reach into, but it is not "no visible effect": the composer goes on saying
+ * "no key".
  */
 internal fun autocryptPeerImportOf(
     headers: List<Pair<String, String>>,
     fromAddress: String?,
     receivedAt: String?,
+    nowMillis: Long,
 ): AutocryptPeerImport? {
     val from = fromAddress?.trim()?.lowercase().orEmpty()
     if (from.isEmpty()) return null
     val effectiveDate = internalDateOf(receivedAt) ?: return null
+    if (effectiveDate > nowMillis + FUTURE_TOLERANCE_MILLIS) return null
     // singleOrNull, and it is the guard, not a convenience: zero and two both answer null.
     val value = headers
         .filter { (name, _) -> name.trim().equals(FIELD_NAME, ignoreCase = true) }
@@ -104,9 +128,16 @@ internal fun autocryptPeerImportOf(
 /** The field name, once. */
 private const val FIELD_NAME = "Autocrypt"
 
+/** How far ahead of the reader's own clock a server's date may still be: 24 h. */
+private const val FUTURE_TOLERANCE_MILLIS = 24L * 60 * 60 * 1000
+
 /**
  * Run [autocryptPeerImportOf] over one message's headers and, when it says so, hand the key to the
  * OpenPGP provider. Answers whether the provider took it — for the tests; the reader ignores it.
+ *
+ * ⛔ [nowMillis] is carried through untouched and has NO default here either, for the reason
+ * [autocryptPeerImportOf] gives: the clock is named by the caller or the future bound is one
+ * forgotten argument away from being off.
  *
  * ⛔ Every answer that is not [PgpResult.Success] is dropped in silence,
  * [PgpResult.UserInteractionRequired] included: this runs on the open path, which has no screen and
@@ -118,9 +149,10 @@ internal suspend fun importAutocryptPeer(
     headers: List<Pair<String, String>>,
     fromAddress: String?,
     receivedAt: String?,
+    nowMillis: Long,
 ): Boolean {
     if (engine == null) return false
-    val import = autocryptPeerImportOf(headers, fromAddress, receivedAt) ?: return false
+    val import = autocryptPeerImportOf(headers, fromAddress, receivedAt, nowMillis) ?: return false
     return engine.updateAutocryptPeer(import.peerId, import.keyData, import.effectiveDateMillis) is
         PgpResult.Success
 }

@@ -1247,6 +1247,33 @@ class ImapSession(private var socket: Socket) : Closeable {
         command("UID FETCH $uid (BODY.PEEK[])").bodyItem()
 
     /**
+     * The SERVER's own timestamp for one message (`INTERNALDATE`, RFC 3501 §2.3.3) in epoch
+     * millis, or `null` when the server answers nothing readable — no FETCH line, no
+     * `INTERNALDATE` item, or a `date-time` [imapDateTimeMillis] refuses.
+     *
+     * ⛔ Never confused with [ImapMessage.dateMillis], which is the `Date:` HEADER off
+     * `ENVELOPE[0]` and is therefore written by whoever sent the message. This value is the
+     * server's, stamped on delivery, and cannot be forged from the outside. That distinction is
+     * the whole reason this command exists: it dates an Autocrypt key, and a key dated in 2100 by
+     * its own sender can never be beaten by an authentic one afterwards.
+     *
+     * A command of its own, and one round trip, rather than a field on [ImapMessage]: every
+     * caller of the four list fetches would pay a column, a migration and a cache read for a value
+     * one path uses on the rare message that carries an `Autocrypt` header.
+     *
+     * ⛔ Not `BODY.PEEK` and not `BODY` — `INTERNALDATE` is not a body item and setting `\Seen`
+     * does not arise here.
+     */
+    fun fetchInternalDate(uid: Long): Long? {
+        val fetch = command("UID FETCH $uid (INTERNALDATE)").untagged
+            .firstOrNull { it.getOrNull(2) == "FETCH" } ?: return null
+        @Suppress("UNCHECKED_CAST")
+        val items = fetch.getOrNull(3) as? List<Any?> ?: return null
+        val raw = pairUp(items)["INTERNALDATE"] as? String ?: return null
+        return imapDateTimeMillis(raw)
+    }
+
+    /**
      * The body item of a FETCH answer, still transfer-encoded — the one reading shared by the three
      * body fetches above, so that a fourth cannot arrive with a reading of its own.
      *
@@ -1731,6 +1758,53 @@ internal fun imapDateTime(epochMs: Long): String {
 }
 
 private val IMAP_MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+/**
+ * The inverse of [imapDateTime]: an RFC 3501 §9 `date-time` read back as epoch millis, or `null`
+ * when [raw] is not one. What a server answers to `FETCH INTERNALDATE`.
+ *
+ * [raw] is the value AS THE PARSER HANDS IT OVER, i.e. a quoted-string with its quotes already
+ * removed ([ImapParser.readQuoted]) — `01-Jun-2026 10:00:00 +0000`. A value that still carries its
+ * `"` is not a `date-time` and answers null rather than being helpfully trimmed: the only way one
+ * gets here still quoted is a reader that took the wrong token.
+ *
+ * `date-day-fixed` is `(SP DIGIT) / 2DIGIT`, so the leading space of a single-digit day is part of
+ * the grammar and real servers send it (` 1-Jun-2026 …`); the unpadded `1-Jun-2026 …` is accepted
+ * too, since some send that. Month names are matched against [IMAP_MONTHS] under
+ * [java.util.Locale.ENGLISH] for the same reason [imapDateTime] writes them from that list: a
+ * device in a locale that re-cases ASCII differently must not change what this reads.
+ *
+ * ⛔ `null` on everything else — never `0L`, and above all never "now". This dates a correspondent's
+ * key: a made-up date lets a key win in the provider forever, and there is nothing in this app that
+ * can take it back (`autocryptPeerImportOf`, which refuses an unreadable date outright). An
+ * impossible calendar date (`32-Jun`, `25:00:00`) or an impossible zone answers null the same way —
+ * `java.time` refuses it and the refusal is kept, not defaulted.
+ */
+internal fun imapDateTimeMillis(raw: String): Long? {
+    val m = IMAP_DATE_TIME.matchEntire(raw) ?: return null
+    val g = m.groupValues
+    val month = IMAP_MONTHS.indexOfFirst {
+        it.lowercase(java.util.Locale.ENGLISH) == g[2].lowercase(java.util.Locale.ENGLISH)
+    }
+    if (month < 0) return null
+    val sign = if (g[7] == "-") -1 else 1
+    return runCatching {
+        java.time.OffsetDateTime.of(
+            g[3].toInt(), month + 1, g[1].toInt(),
+            g[4].toInt(), g[5].toInt(), g[6].toInt(), 0,
+            java.time.ZoneOffset.ofHoursMinutes(sign * g[8].toInt(), sign * g[9].toInt()),
+        ).toInstant().toEpochMilli()
+    }.getOrNull()
+}
+
+/**
+ * `date-day-fixed "-" date-month "-" date-year SP time SP zone`, unquoted — see [imapDateTimeMillis].
+ * The optional leading space is written `\x20` and not as a literal blank: it is the `(SP DIGIT)`
+ * half of `date-day-fixed`, and a space at the start of a pattern is invisible to a reader and to a
+ * reformat.
+ */
+private val IMAP_DATE_TIME =
+    Regex("""\x20?(\d{1,2})-([A-Za-z]{3})-(\d{4}) (\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})""")
 
 /**
  * The response code of [line] (RFC 5530): the first bracketed WORD, upper-cased —
