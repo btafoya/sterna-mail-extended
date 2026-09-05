@@ -28,6 +28,9 @@ import org.junit.Test
  *     the row can be gone while the picker still lists the chosen account's folders and the tap
  *     still moves there. What the picker lists and where the tap goes must come off the
  *     NEUTRALISED flow ([selectionMoveAccount]), not off `_moveAccountId`.
+ *  7. the selection's banner losing the branch that serves BOTH failure outcomes — `ALL_FAILED`
+ *     given a branch of its own that says nothing, which compiles and leaves a totally failed
+ *     batch on a silent screen.
  */
 class CrossAccountMoveWiringLintTest {
 
@@ -226,7 +229,7 @@ class CrossAccountMoveWiringLintTest {
                 "the move it was supposed to prevent.",
             listOf(
                 "if (key in refused) {",
-                "results += CrossAccountMove.Failed(\"renumbered since it was ticked: \${key.emailId}\")",
+                "outcomes[key] = CrossAccountMove.Failed(\"renumbered since it was ticked: \${key.emailId}\")",
                 "continue",
                 "}",
             ),
@@ -235,27 +238,78 @@ class CrossAccountMoveWiringLintTest {
     }
 
     /**
-     * What the split refused goes BACK under the user's eyes, still ticked, with the stamps of the
-     * tick — and the stamps first.
+     * What did NOT move goes BACK under the user's eyes, still ticked, with the stamps of the tick
+     * — and the stamps first.
+     *
+     * ⛔ INDEXED ON THE OUTCOME, NEVER ON A CLASS OF REFUSAL. Keyed on the rows the numbering split
+     * had refused, this give-back was empty by construction for the OTHER refusal of this path —
+     * the one `MailRepository` raises at the read and hands back as an ordinary
+     * `CrossAccountMove.Failed`: those lines did not travel, did not come back ticked, and nothing
+     * on screen said which ones, or that anything had happened. Read off the verdict, a refusal is
+     * given back whatever raised it. ⚠ That is not a promise that every refusal comes back: the
+     * cache condition of [crossAccountGiveBack] excludes some by construction, and a refusal that
+     * returns before any verdict is written is not seen at all — which is why the target account
+     * is read before the selection is cleared, two rules below.
+     *
+     * The decision itself is [crossAccountGiveBack], pure and EXECUTED by [CrossAccountPickerTest];
+     * what is pinned here is that this body ASKS it — with the outcomes of this batch and the rows
+     * still on screen — and writes back what it answers, rather than re-deciding on its own.
      *
      * Given back without their stamps, the collector on `_selectedKeys` sees keys it has never met,
      * reads their numbering AS IT IS NOW, and the second tap on Move sends to B exactly what the
-     * first tap saved: the guard would buy one tap. Dropped altogether, the refused messages leave
-     * the selection in silence and the screen agrees with a half-done gesture that has no Undo.
+     * first tap saved: the guard would buy one tap. Dropped altogether, the messages that did not
+     * move leave the selection in silence and the screen agrees with a half-done gesture that has
+     * no Undo.
      */
-    @Test fun `what the cross-account move refused goes back into the selection, stamps first`() {
+    @Test fun `what the cross-account move did not move goes back into the selection, stamps first`() {
         val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
         val manyLines = codeLinesOf(many)
+        // ⛔ WHICH KEY GOT WHICH VERDICT, COLLECTED AT THE THREE EXITS OF THE LOOP. A bare list of
+        // outcomes answers HOW MANY failed and never WHICH: `CrossAccountMove.Failed` carries a log
+        // string and nothing else — no key, no type, no throwable — and `results[i] ↔ movable[i]`
+        // is a positional invariant nothing writes down and nothing pins. Keyed, the give-back
+        // below can name the rows that stayed; unkeyed, it cannot exist at all.
         assertEquals(
-            "the refused rows must go back into the selection, still ticked, WITH THE STAMPS THEY " +
-                "WERE TICKED UNDER. Body was:\n$many",
+            "every outcome must be recorded UNDER ITS KEY, at all three exits of the loop, and the " +
+                "banner's list derived from that map: a bare list cannot say WHICH line did not " +
+                "move, and the give-back below would be back to guessing by position. Body was:\n$many",
             listOf(
-                "val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
-                "if (split.drifted.isNotEmpty()) {",
-                "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
-                "_selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
+                "val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(movable.size)",
+                "outcomes[key] = CrossAccountMove.Failed(\"no cached row for \${key.emailId}\")",
+                "outcomes[key] = CrossAccountMove.Failed(\"renumbered since it was ticked: \${key.emailId}\")",
+                "outcomes[key] = result",
+                "val results = outcomes.values.toList()",
+                "val givenBack = crossAccountGiveBack(outcomes, emails.keys)",
             ),
-            codeLinesNaming(many, "split.drifted"),
+            codeLinesNaming(many, "outcomes"),
+        )
+        // ⛔ AND THE ARGUMENTS ARE THESE TWO. Fed some other map the rule answers about a batch
+        // nobody ran; fed a `cached` set that is not the rows on screen it ticks lines the list
+        // does not show — and the call would still read as a call to the right function.
+        assertEquals(
+            "the give-back must be the pure decision, asked with the outcomes of THIS batch and " +
+                "the rows still in cache. Body was:\n$many",
+            listOf("val givenBack = crossAccountGiveBack(outcomes, emails.keys)"),
+            codeLinesNaming(many, "crossAccountGiveBack("),
+        )
+        // ⛔ AND THE STAMP ENTRY IS EXPLICIT, A NULL STAMP INCLUDED. `associateWith` writes one
+        // entry per key whatever `ticked[it]` holds. Filtered on a non-null stamp instead, a row
+        // ticked inside the read's own window comes back with NO entry at all, the collector on
+        // `_selectedKeys` treats it as new, reads the REALIGNED numbering, and the second tap on
+        // Move sends to B what this refusal just saved: it is the PRESENCE of the key that blocks
+        // the re-read, not its value. A row given back with a null stamp is refused again at the
+        // second tap and nothing is written on B — the danger is forgetting the entry, never
+        // putting a null one back.
+        assertEquals(
+            "what did not move must go back into the selection, still ticked, WITH THE STAMPS IT " +
+                "WAS TICKED UNDER — one entry per key, a null stamp included. Body was:\n$many",
+            listOf(
+                "val givenBack = crossAccountGiveBack(outcomes, emails.keys)",
+                "if (givenBack.isNotEmpty()) {",
+                "tickedUnder = givenBack.associateWith { ticked[it] }",
+                "_selectedKeys.value = givenBack.toMutableSet()",
+            ),
+            codeLinesNaming(many, "givenBack"),
         )
         // What is lost if the two lines swap: see above — the second tap moves what the first
         // refused, and nothing on screen ever says so.
@@ -263,8 +317,8 @@ class CrossAccountMoveWiringLintTest {
             "…and the stamps BEFORE the keys: nothing suspends between the two lines, which is " +
                 "the only reason the collector cannot slip in and re-read them. Body was:\n$many",
             manyLines,
-            "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
-            "_selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }",
+            "tickedUnder = givenBack.associateWith { ticked[it] }",
+            "_selectedKeys.value = givenBack.toMutableSet()",
         )
         // What is lost without it: the keys are back but the selection bar is not, so there is
         // nothing on screen to act on them with.
@@ -280,7 +334,86 @@ class CrossAccountMoveWiringLintTest {
                 "this body. Body was:\n$many",
             manyLines,
             "val outcome = crossAccountBanner(results, skipped.size)",
-            "if (split.drifted.isNotEmpty()) {",
+            "val givenBack = crossAccountGiveBack(outcomes, emails.keys)",
+        )
+    }
+
+    /**
+     * `split.drifted` is named ONCE in this body, and that once is the line that turns the
+     * numbering split into a refusal.
+     *
+     * ⛔ Why an equality on the whole list and not the word "refused". The give-back is keyed on
+     * the VERDICT of each row, never on a class of refusal — that is the whole of #189. A second
+     * reader of `split.drifted` added here is the first step back: it reintroduces a list of
+     * "the rows refused by the numbering" for something to be keyed on, and unless it happens to
+     * spell "refused" no other rule of this class would see it. Pinned as an equality, the second
+     * use is named the day it appears.
+     */
+    @Test fun `the drifted rows of the numbering split are read in one place only`() {
+        val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        assertEquals(
+            "`split.drifted` must be read in ONE line of this body — the one that turns the " +
+                "split into the set of refused keys. A second reader is a second list of " +
+                "refusals to key something on, and the give-back stops being indexed on the " +
+                "verdict without a single other rule going red. Body was:\n$many",
+            listOf("val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }"),
+            codeLinesNaming(many, "split.drifted"),
+        )
+    }
+
+    /**
+     * The loop runs over `movable` ENTIRE — the partition on the selection's account is the only
+     * filter this gesture has.
+     *
+     * ⛔ WHY THE HEAD OF THE LOOP IS PINNED AND NOT ONLY THE WRITES INSIDE IT. The give-back rule
+     * above pins that the three writes to `outcomes` EXIST in the text; none of them pins that the
+     * loop REACHES them. Narrow the head — `for (key in movable.filter { it in emails })` — and
+     * `outcomes[key] = Failed("no cached row…")` is still there, word for word, as dead code.
+     * What the user gets: five ticked lines from a search, two of them with no cached row, the two
+     * are never iterated, get no verdict, are absent from `outcomes` — so `results` holds three,
+     * the banner reads "3 moved" with no word of failure, and the two that never left account A
+     * come back UNTICKED with nothing on screen naming them. On a path with no Undo.
+     */
+    @Test fun `the cross-account move loops over the whole movable half`() {
+        val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        assertEquals(
+            "the loop must iterate `movable` whole: `for (key in movable) {`. Filtered at the " +
+                "head, the rows it skips get NO verdict — absent from `outcomes`, absent from " +
+                "`results`, absent from the give-back — so the banner counts a success it did " +
+                "not have and the lines that stayed on A come back unticked, unnamed, with no " +
+                "Undo. Body was:\n$many",
+            listOf(
+                "val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }",
+                "val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }",
+                "val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(movable.size)",
+                "for (key in movable) {",
+            ),
+            codeLinesNaming(many, "movable"),
+        )
+    }
+
+    /**
+     * The target account is read, and refused, BEFORE the selection is touched.
+     *
+     * ⛔ `store.credentials(targetAccountId)` answers null for an account signed out between the
+     * tap that opened the picker and the tap that chose the folder — a refusal that exists today,
+     * and one that returns from this body with nothing sent and no verdict written. Below
+     * `clearSelection()`, that return leaves the tick and `tickedUnder` already wiped and no
+     * give-back to run: the whole selection is dropped in silence, and the KDoc's promise — what
+     * wrote nothing on B comes back ticked — is false for it. Read first and nothing has been
+     * taken, so there is nothing to give back. `store.credentials` does not suspend, so moving it
+     * up costs the clear nothing.
+     */
+    @Test fun `the cross-account move refuses a vanished target before it clears the selection`() {
+        val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        assertLineOrder(
+            "the target account must be read AND refused before clearSelection(): that refusal " +
+                "returns without writing a single verdict, so no give-back can run behind it, " +
+                "and a selection cleared first is a selection lost in silence on a path with no " +
+                "Undo. Body was:\n$many",
+            codeLinesOf(many),
+            "val target = store.credentials(targetAccountId)",
+            "clearSelection()",
         )
     }
 
@@ -526,6 +659,63 @@ class CrossAccountMoveWiringLintTest {
                 codeLinesNaming(many, hardcoded),
             )
         }
+    }
+
+    /**
+     * ⛔ THE SHARED BRANCH IS THE ONLY PLACE `ALL_FAILED` EVER REACHES THE SCREEN. Which sentence
+     * goes with which outcome is [crossAccountSelectionFailedRes]'s, executed by
+     * [CrossAccountPickerTest] for BOTH failure values — but whether the total one is ever served
+     * at all is decided here, in the `when` of `moveSelectedToAccount`, and nothing else in the
+     * app names `CrossAccountOutcome.ALL_FAILED`.
+     *
+     * `CrossAccountOutcome.ALL_FAILED -> Unit` compiles (the `when` stays exhaustive), leaves the
+     * single call to `crossAccountSelectionFailedRes(` exactly where it was, and keeps every other
+     * rule in this file green — while a batch where NOT ONE message was confirmed written ends
+     * with no banner at all: the selection is cleared, handed back ticked, and the screen says
+     * nothing, on the one destroying gesture with no Undo. `ALL_FAILED -> getString(
+     * R.string.status_action_offline)` is the same hole one notch quieter: "You're offline." on a
+     * live link, and the rule that forbids that string lives in `moveToAccount`'s body, not here.
+     *
+     * So the two enum values AND the line that serves them are pinned as WHOLE lines, neither able
+     * to leave the branch alone, and the only hardcoded string this body may name is the
+     * vanished-target refusal that returns before the selection is touched.
+     */
+    @Test fun `the selection's failure line is served for BOTH failure outcomes, from one branch`() {
+        val many = body(INBOX_VIEW_MODEL, "moveSelectedToAccount")
+        val shared = "CrossAccountOutcome.PARTLY_FAILED, CrossAccountOutcome.ALL_FAILED ->"
+        val served = "_message.value = app.getString(checkNotNull(crossAccountSelectionFailedRes(outcome)))"
+        assertEquals(
+            "the four outcomes must reach the screen through exactly three branches, the two " +
+                "failures sharing one. A branch of its own for ALL_FAILED compiles and leaves " +
+                "every other rule here green, and a batch where nothing was confirmed written " +
+                "then ends with NO banner — cleared, given back ticked, and the screen silent, " +
+                "with no Undo. Body was:\n$many",
+            listOf(
+                "CrossAccountOutcome.ALL_MOVED ->",
+                "CrossAccountOutcome.SOME_COPIED_NOT_REMOVED -> {",
+                shared,
+            ),
+            codeLinesNaming(many, "CrossAccountOutcome."),
+        )
+        val lines = codeLinesOf(many)
+        val at = lines.indexOf(shared)
+        assertTrue("no code line reads exactly <$shared>; the rule guards nothing. Body was:\n$many", at >= 0)
+        assertEquals(
+            "…and that shared branch must serve the sentence on the line straight after it: the " +
+                "two values are together only if what follows them is the served line itself. " +
+                "Body was:\n$many",
+            listOf(shared, served),
+            lines.subList(at, minOf(at + 2, lines.size)),
+        )
+        assertEquals(
+            "no branch of that `when` may name a string of its own. The only hardcoded string in " +
+                "this body is the vanished-target refusal, which returns before the selection is " +
+                "touched; an `ALL_FAILED ->` serving status_action_offline would say \"You're " +
+                "offline.\" on a live link, and would be caught here and nowhere else. " +
+                "Body was:\n$many",
+            listOf("_message.value = app.getString(R.string.status_action_failed)"),
+            lines.filter { "R.string." in it || "R.plurals." in it },
+        )
     }
 
     @Test fun `the four strings of the move between accounts exist in the nine languages`() {

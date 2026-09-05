@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import app.sterna.R
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.mail.CrossAccountMove
+import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.jmap.model.Mailbox
 import java.text.Collator
 
@@ -452,19 +453,91 @@ internal fun isCrossAccountMove(targetAccountId: String?, ownerAccountId: String
     targetAccountId != null && targetAccountId != ownerAccountId
 
 /** The one banner a multi-message move between accounts ends on. */
-internal enum class CrossAccountOutcome { ALL_MOVED, SOME_COPIED_NOT_REMOVED, PARTLY_FAILED }
+internal enum class CrossAccountOutcome { ALL_MOVED, SOME_COPIED_NOT_REMOVED, PARTLY_FAILED, ALL_FAILED }
 
 /**
  * Which banner: a copy whose original STAYED is the most important truth to tell (the user now has
- * a duplicate, and would otherwise believe the message moved), so it wins over a failure; a
- * failure, or a message set aside because it belongs to another account ([skipped]), comes next;
- * "all moved" only when nothing else is true.
+ * a duplicate, and would otherwise believe the message moved), so it wins over a failure; then a
+ * batch where nothing was CONFIRMED written; then a partial failure, which is also where a message
+ * set aside because it belongs to another account ([skipped]) lands; "all moved" only when nothing
+ * else is true.
+ *
+ * ⚠ "NOTHING WAS CONFIRMED WRITTEN" IS ALL A BATCH OF [CrossAccountMove.Failed] SAYS, and this
+ * rule must not claim more: a lost answer to an APPEND and an import account B did store look the
+ * same from here, so a copy MAY exist on B. What is certain is that no original left A. The
+ * sentence served — "Couldn't complete the action." — says that much and nothing more.
+ *
+ * ⛔ "SOME messages couldn't be processed" IS A COUNT, AND IT WAS AN EXISTENTIAL TEST. `any {
+ * Failed }` is true for one failure out of forty and true for forty out of forty, so a batch where
+ * nothing was confirmed written ended on a line saying part of it had gone through — on the one
+ * destroying gesture with no Undo, where the user then has to work out by hand which half of a
+ * selection the screen no longer shows is on which account. The neighbour one file over has
+ * compared cardinalities from the start (`bulkOutcome`, in `BulkOutcome.kt`: `failed >= attempted
+ * -> TOTAL`), and `MailBySenderViewModel` already reuses these two very sentences for this very
+ * distinction.
+ *
+ * ⛔ THE ORDER OF THE TWO FAILURE BRANCHES IS THE DECISION. The existential one must come AFTER,
+ * or it catches every total failure on the way past and this can never be raised — it compiles,
+ * every name still reads the same, and the banner goes back to lying. [CrossAccountPickerTest]
+ * runs both directions.
+ *
+ * ⛔ AND [results] MUST BE NON-EMPTY. `all {}` is true of nothing: without that guard a batch that
+ * wrote no verdict at all — the race where nothing was attempted, already ruled out of scope —
+ * would flip from "0 messages moved" to "couldn't complete the action". It keeps shipping exactly
+ * as it did.
  */
 internal fun crossAccountBanner(results: List<CrossAccountMove>, skipped: Int): CrossAccountOutcome = when {
     results.any { it is CrossAccountMove.CopiedNotRemoved } -> CrossAccountOutcome.SOME_COPIED_NOT_REMOVED
+    results.isNotEmpty() && results.all { it is CrossAccountMove.Failed } -> CrossAccountOutcome.ALL_FAILED
     skipped > 0 || results.any { it is CrossAccountMove.Failed } -> CrossAccountOutcome.PARTLY_FAILED
     else -> CrossAccountOutcome.ALL_MOVED
 }
+
+/**
+ * Which keys of a selection's move between accounts go BACK under the tick (#189) — pure, and
+ * EXECUTED by [CrossAccountPickerTest], because this is the one destroying gesture with no Undo:
+ * what it silently drops cannot be taken back, and what it silently gives back can be sent twice.
+ *
+ * Given back: every key of [outcomes] whose verdict is NEITHER [CrossAccountMove.Moved] NOR
+ * [CrossAccountMove.CopiedNotRemoved] — that is, everything that wrote NOTHING on account B — and
+ * whose row is still in [cached], in [outcomes]' own iteration order.
+ *
+ * ⚠ THE CRITERION IS "NOTHING ON B", NOT "STAYED ON A". A [CrossAccountMove.CopiedNotRemoved]
+ * stayed on A too — its original is still there, that IS the verdict — and it is on B all the
+ * same. Read as "did not leave A" this rule would hand it back, and the next tap would copy it to
+ * B a second time, with no Undo to take either copy away.
+ *
+ * ⛔ INDEXED ON THE VERDICT, NEVER ON A CLASS OF REFUSAL. The first shape of this rule keyed
+ * the give-back on the rows the numbering split had refused, and it was empty by construction for
+ * the OTHER refusal of this path — the one raised at the read, which comes back as an ordinary
+ * `Failed`: those lines did not travel, did not come back ticked, and the user learned neither
+ * which ones had failed nor that any had. Read off the verdict, a refusal is given back whatever
+ * raised it, with no list of refusal kinds to be kept in step.
+ *
+ * ⚠ AND [cached] IS THE OTHER HALF OF THE RULE — this does NOT promise that every refusal comes
+ * back. A key absent from [cached] is never given back (a row the list does not draw must not be
+ * ticked), so a verdict raised BECAUSE the key is missing from that very set can never return
+ * here: the caller's `Failed("no cached row for …")` is empty by construction for this rule,
+ * exactly as the first shape was for the read's `Failed`. Neither does this see a refusal that
+ * returns before any verdict is written at all. Whether the caller's promise still holds is a
+ * question to ask again AT THE CALLER each time a refusal is added, not one this answers.
+ *
+ * The price is assumed: a batch that failed because the phone is offline now hands the whole
+ * selection back, which is exactly what the caller's KDoc has been promising all along.
+ *
+ * What is lost if this is undone:
+ *  - a give-back that includes [CrossAccountMove.CopiedNotRemoved] hands back a message that IS
+ *    already on B: the second tap copies it there a second time, with no Undo to take it back;
+ *  - a give-back that includes a key absent from [cached] ticks a row the screen does not show;
+ *  - a give-back keyed on one class of refusal drops every other one in silence — a move that
+ *    quietly dropped part of a selection, and a screen that agrees with it.
+ */
+internal fun crossAccountGiveBack(
+    outcomes: Map<EmailKey, CrossAccountMove>,
+    cached: Set<EmailKey>,
+): Set<EmailKey> = outcomes
+    .filterValues { it !is CrossAccountMove.Moved && it !is CrossAccountMove.CopiedNotRemoved }
+    .keys.filterTo(LinkedHashSet()) { it in cached }
 
 /** "Account › Folder", the way the banners name where a message went. */
 internal fun crossAccountTargetLabel(account: String, folder: String): String = "$account › $folder"
@@ -498,7 +571,8 @@ internal fun crossAccountMessageRes(move: CrossAccountMove, online: Boolean): In
  * The plural a SELECTION's banner counts with, for the two outcomes that count something (#189):
  * how many were moved, or how many were copied with their originals left behind.
  *
- * Null for [CrossAccountOutcome.PARTLY_FAILED], which counts nothing and is a plain string —
+ * Null for [CrossAccountOutcome.PARTLY_FAILED] and [CrossAccountOutcome.ALL_FAILED], which count
+ * nothing and are plain strings —
  * [crossAccountSelectionFailedRes]. Two functions and not one: a plural id and a string id are
  * both an `Int` and neither `getQuantityString` nor `getString` accepts the other's, so the split
  * is the resources API's, not a taste. Same reason as [mailboxRoleNameRes] for the nullability.
@@ -507,16 +581,27 @@ internal fun crossAccountMessageRes(move: CrossAccountMove, online: Boolean): In
 internal fun crossAccountSelectionPlural(outcome: CrossAccountOutcome): Int? = when (outcome) {
     CrossAccountOutcome.ALL_MOVED -> R.plurals.status_selection_moved
     CrossAccountOutcome.SOME_COPIED_NOT_REMOVED -> R.plurals.status_selection_copied_not_removed
-    CrossAccountOutcome.PARTLY_FAILED -> null
+    CrossAccountOutcome.PARTLY_FAILED, CrossAccountOutcome.ALL_FAILED -> null
 }
 
 /**
  * The plain line a SELECTION's banner ends on when the batch did not go through whole — null for
  * the two outcomes that COUNT ([crossAccountSelectionPlural]).
+ *
+ * ⛔ TWO OUTCOMES, TWO SENTENCES, AND NEVER ONE BRANCH FOR BOTH. "Some messages couldn't be
+ * processed" over a batch where NOTHING moved tells the user part of her selection travelled when
+ * none of it did, and this gesture has no Undo to find out with. Merging the two branches here
+ * compiles and reads fine, which is why the two expected ids are written out by hand in
+ * [CrossAccountPickerTest].
+ *
+ * `status_action_failed` is reused rather than translated: it exists in all nine languages and
+ * says exactly this. Same reuse, for the same distinction, as `MailBySenderViewModel`'s
+ * `deleteMessageRes`, whose [BulkOutcome] split this one mirrors.
  */
 @StringRes
 internal fun crossAccountSelectionFailedRes(outcome: CrossAccountOutcome): Int? = when (outcome) {
     CrossAccountOutcome.PARTLY_FAILED -> R.string.status_action_partly_failed
+    CrossAccountOutcome.ALL_FAILED -> R.string.status_action_failed
     CrossAccountOutcome.ALL_MOVED, CrossAccountOutcome.SOME_COPIED_NOT_REMOVED -> null
 }
 

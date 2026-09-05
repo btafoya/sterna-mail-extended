@@ -144,6 +144,129 @@ class CrossAccountPickerTest {
         assertEquals(CrossAccountOutcome.SOME_COPIED_NOT_REMOVED, crossAccountBanner(listOf(copied), skipped = 3))
     }
 
+    /**
+     * A batch where nothing was CONFIRMED written says so — "Couldn't complete the action", not
+     * "SOME messages couldn't be processed" (#189).
+     *
+     * ⚠ And that is the whole guarantee: `CrossAccountMove.Failed` also covers a lost answer to
+     * an APPEND, so a copy MAY exist on account B. What is certain is that no original left A,
+     * which is what the served sentence says.
+     *
+     * The banner was an existential test (`results.any { it is Failed }`) where its neighbour one
+     * file over compares cardinalities (`bulkOutcome`, in `BulkOutcome.kt`: `failed >= attempted
+     * -> TOTAL`): zero confirmed read as "partly", so the one destroying gesture with no Undo
+     * ended on a line telling the user part of her selection had gone through when none of it
+     * had. She then has to find out by hand which half of a selection the screen no longer shows
+     * is where.
+     *
+     * Every expected value here is written by hand, and the priorities are pinned BOTH ways: a
+     * failure next to a move is still PARTLY_FAILED, and a copy whose original stayed still wins
+     * over both. Turn the two branches around in the shipped `when` and the total case can never
+     * be raised again — which is what these six lines exist to see.
+     */
+    @Test
+    fun `a batch where nothing went through says so, not that some of it did`() {
+        val moved = CrossAccountMove.Moved
+        val copied = CrossAccountMove.CopiedNotRemoved("x")
+        val failed = CrossAccountMove.Failed("y")
+        assertEquals(CrossAccountOutcome.ALL_FAILED, crossAccountBanner(listOf(failed, failed), skipped = 0))
+        assertEquals(CrossAccountOutcome.ALL_FAILED, crossAccountBanner(listOf(failed), skipped = 0))
+        // Nothing was attempted for the ones set aside either: still "nothing went through".
+        assertEquals(CrossAccountOutcome.ALL_FAILED, crossAccountBanner(listOf(failed), skipped = 2))
+        // One that DID travel and the line goes back to "some": the existential branch stays.
+        assertEquals(CrossAccountOutcome.PARTLY_FAILED, crossAccountBanner(listOf(failed, moved), skipped = 0))
+        // And a copy whose original stayed is still the truth said first.
+        assertEquals(CrossAccountOutcome.SOME_COPIED_NOT_REMOVED, crossAccountBanner(listOf(failed, copied), skipped = 0))
+        // ⛔ NO VERDICT AT ALL IS NOT A TOTAL FAILURE, and this change must not turn it into one.
+        // An empty `results` is the race where the batch wrote nothing anywhere (already ruled
+        // out of scope): it stays exactly as it shipped.
+        assertEquals(CrossAccountOutcome.ALL_MOVED, crossAccountBanner(emptyList(), skipped = 0))
+        assertEquals(CrossAccountOutcome.PARTLY_FAILED, crossAccountBanner(emptyList(), skipped = 1))
+    }
+
+    /**
+     * WHICH lines go back under the tick when a move between accounts is over (#189) — the rule is
+     * EXECUTED here, and every expected answer is written out by hand. A test that re-derives the
+     * rule from the outcomes it feeds in is a copy of the shipped condition: invert the condition
+     * and the copy inverts with it, green throughout.
+     *
+     * This is the destructive half of a gesture with no Undo. A key wrongly given back is a message
+     * the second tap copies to B a second time; a key wrongly dropped is a message that never left
+     * A, that the screen stops showing as selected, and that nothing ever names.
+     */
+    @Test
+    fun `what did not move goes back ticked, whichever refusal it was`() {
+        val moved = EmailKey("A", "1")
+        val copied = EmailKey("A", "2")
+        val refusedAtTheRead = EmailKey("A", "3")
+        val refusedByTheNumbering = EmailKey("A", "4")
+        val outcomes = linkedMapOf(
+            moved to CrossAccountMove.Moved,
+            copied to CrossAccountMove.CopiedNotRemoved("the copy on B could not be named"),
+            // The refusal MailRepository raises at the read: an ordinary Failed, carrying a log
+            // string and nothing the caller can sort on. The give-back that used to be keyed on
+            // the numbering split never saw this one — the defect this test closes.
+            refusedAtTheRead to CrossAccountMove.Failed("ImapNumberingUnconfirmed"),
+            refusedByTheNumbering to CrossAccountMove.Failed("renumbered since it was ticked: 4"),
+        )
+        val cached = setOf(moved, copied, refusedAtTheRead, refusedByTheNumbering)
+
+        assertEquals(
+            "everything that wrote NOTHING on account B goes back ticked, whichever refusal " +
+                "produced it: the numbering split's, caught before the loop, and the read's, " +
+                "raised inside it. Both are a Failed. Not \"everything that stayed on A\" — a " +
+                "CopiedNotRemoved stayed on A too, and its copy is on B all the same",
+            setOf(refusedAtTheRead, refusedByTheNumbering),
+            crossAccountGiveBack(outcomes, cached),
+        )
+        assertEquals(
+            "and nothing that IS on B goes back: Moved is done with, and CopiedNotRemoved is " +
+                "already there — a second tap would copy it twice, with no Undo to take either back",
+            emptySet<EmailKey>(),
+            crossAccountGiveBack(
+                linkedMapOf(moved to CrossAccountMove.Moved, copied to CrossAccountMove.CopiedNotRemoved("x")),
+                cached,
+            ),
+        )
+        assertEquals(
+            "a row the list no longer holds is never ticked back either: the selection would sit " +
+                "on a line the screen does not draw",
+            setOf(refusedByTheNumbering),
+            crossAccountGiveBack(outcomes, cached = setOf(refusedByTheNumbering)),
+        )
+        assertEquals(
+            "nothing attempted, nothing given back",
+            emptySet<EmailKey>(),
+            crossAccountGiveBack(emptyMap(), cached),
+        )
+    }
+
+    /**
+     * …and in the order the batch tried them, which is the order the rows were ticked in.
+     *
+     * ⚠ NOT because a shuffle would show the user the wrong thing: the order of the rows on
+     * screen comes from the LIST, and the selection is only ever read by membership and by
+     * `.size`, so a sorted or shuffled give-back would look identical. What is kept here is
+     * determinism — one batch, one answer, and `tickedUnder` written from it in a fixed order —
+     * so that the two rules above name the same rows on every run instead of a different subset
+     * each time, and so a `Set` swapped for a hashing one is seen here and not in a bug report.
+     */
+    @Test
+    fun `the give-back keeps the order of the batch`() {
+        val ninth = EmailKey("A", "9")
+        val first = EmailKey("A", "1")
+        val fifth = EmailKey("A", "5")
+        val outcomes = linkedMapOf(
+            ninth to CrossAccountMove.Failed("offline"),
+            first to CrossAccountMove.Failed("offline"),
+            fifth to CrossAccountMove.Failed("offline"),
+        )
+        assertEquals(
+            listOf(ninth, first, fifth),
+            crossAccountGiveBack(outcomes, setOf(ninth, first, fifth)).toList(),
+        )
+    }
+
     @Test
     fun `the target is named account first, then folder`() {
         assertEquals("Work › Archive", crossAccountTargetLabel("Work", "Archive"))
@@ -195,9 +318,22 @@ class CrossAccountPickerTest {
         // Nothing to count: that line is a plain string, and it is the other function's.
         assertNull(crossAccountSelectionPlural(CrossAccountOutcome.PARTLY_FAILED))
 
+        // Nothing to count there either: a batch where nothing went through counts zero.
+        assertNull(crossAccountSelectionPlural(CrossAccountOutcome.ALL_FAILED))
+
         assertEquals(
             R.string.status_action_partly_failed,
             crossAccountSelectionFailedRes(CrossAccountOutcome.PARTLY_FAILED),
+        )
+        // ⛔ TWO OUTCOMES, TWO SENTENCES, AND NEVER ONE BRANCH FOR BOTH. Both expected ids are
+        // written out by hand: merge the two branches in the shipped `when` and one of these two
+        // lines goes red, which is the whole point of splitting them here. `status_action_failed`
+        // already exists in all nine languages (the same reuse, for the same distinction, as
+        // `MailBySenderViewModel.deleteMessageRes`), so this costs no translation.
+        assertNotEquals(R.string.status_action_failed, R.string.status_action_partly_failed)
+        assertEquals(
+            R.string.status_action_failed,
+            crossAccountSelectionFailedRes(CrossAccountOutcome.ALL_FAILED),
         )
         assertNull(crossAccountSelectionFailedRes(CrossAccountOutcome.ALL_MOVED))
         assertNull(crossAccountSelectionFailedRes(CrossAccountOutcome.SOME_COPIED_NOT_REMOVED))

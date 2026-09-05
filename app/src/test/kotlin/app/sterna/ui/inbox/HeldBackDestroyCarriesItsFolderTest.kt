@@ -385,13 +385,17 @@ class HeldBackDestroyCarriesItsFolderTest {
                 "split, `tickedUnder = { ticked[...] }`, which reads the local copy taken at the " +
                 "gesture. A writer beyond these three is a stamp written at a moment nobody chose. " +
                 "Listed in file order: collector, destroy (argument, then give-back), " +
-                "cross-account move (argument, then give-back).",
+                "cross-account move (argument, then give-back). ⛔ The two give-backs do NOT read " +
+                "alike and must not be aligned on each other: the destroy's is keyed on what the " +
+                "numbering split refused, the cross-account move's on every outcome that did not " +
+                "move (crossAccountGiveBack), because that path has a second refusal the split " +
+                "never sees.",
             listOf(
                 "tickedUnder = (known + read).filterKeys { it in still }",
                 "tickedUnder = { ticked[it.emailKey()] },",
                 "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
                 "tickedUnder = { ticked[it.emailKey()] },",
-                "tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }",
+                "tickedUnder = givenBack.associateWith { ticked[it] }",
             ),
             codeLinesNaming(INBOX_VIEW_MODEL.readText(), "tickedUnder ="),
         )

@@ -3289,6 +3289,13 @@ class InboxViewModel(
      * The partition is [moveSelectedTo]'s: only the messages of the selection's account go, the
      * others are set aside and counted. ⛔ No Undo (see [moveToAccount]). ONE banner at the end,
      * chosen by [crossAccountBanner]: a copy whose original stayed is the truth said first.
+     *
+     * And whatever wrote NOTHING on account B comes back ticked, stamps first
+     * ([crossAccountGiveBack]) — every outcome that is neither `Moved` nor `CopiedNotRemoved`,
+     * whichever refusal produced it, because a move that quietly dropped part of a selection would
+     * be a lie the screen agrees with and there is no Undo here to correct it with. Not "whatever
+     * did not leave A": a `CopiedNotRemoved` did not leave A either — its original stayed there,
+     * that IS the verdict — and handing it back would put a second copy on B at the next tap.
      */
     private suspend fun moveSelectedToAccount(
         keys: Set<EmailKey>,
@@ -3298,13 +3305,21 @@ class InboxViewModel(
         ticked: Map<EmailKey, Long?>,
     ) {
         val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }
-        clearSelection()
+        // ⛔ THE TARGET IS READ, AND REFUSED, BEFORE THE SELECTION IS TOUCHED. Account B can be
+        // signed out between the tap that opened the picker and the tap that chose the folder;
+        // `store.credentials` then answers null and this body returns with nothing sent and not one
+        // verdict written. Below `clearSelection()`, that return left the tick and `tickedUnder`
+        // already wiped and no give-back to run behind it — the whole selection dropped in
+        // silence, and the promise above false for a refusal that exists today. Read first and
+        // nothing has been taken, so there is nothing to give back. `store.credentials` does not
+        // suspend, so the clear loses nothing by waiting for it.
         val app = getApplication<Application>()
         val target = store.credentials(targetAccountId)
         if (target == null) {
             _message.value = app.getString(R.string.status_action_failed)
             return
         }
+        clearSelection()
         val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }
         // ⛔ THE HALF THAT CAN SEE A ROW SWAPPED UNDER A TICK, the one [deleteSelected] already
         // carries (#99). `recordedNumbering` answers what each row about to leave carries NOW —
@@ -3321,20 +3336,28 @@ class InboxViewModel(
             readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },
         )
         val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
-        val results = ArrayList<CrossAccountMove>(movable.size)
+        // ⛔ KEYED, AND FILLED AT EVERY EXIT OF THIS LOOP. `CrossAccountMove.Failed` carries a log
+        // string and nothing else — no key, no type, no throwable — so a bare list of verdicts
+        // answers HOW MANY did not move and never WHICH. The give-back at the end needs the WHICH,
+        // and `results[i]` matching `movable[i]` is a positional invariant nobody wrote down: one
+        // `continue` added above without its record and the two lists drift apart in silence, with
+        // no Undo behind the gesture that would then tick the wrong rows.
+        val outcomes = LinkedHashMap<EmailKey, CrossAccountMove>(movable.size)
         for (key in movable) {
             val source = credentialsFor(key)
             val email = emails[key]
             if (source == null || email == null) {
-                results += CrossAccountMove.Failed("no cached row for ${key.emailId}")
+                outcomes[key] = CrossAccountMove.Failed("no cached row for ${key.emailId}")
                 continue
             }
             // NOT ATTEMPTED: no copy on B, no Trash on A, and no search-result surgery either —
-            // the row on screen is not the row that was ticked. It counts as a failure, which is
-            // the verdict crossAccountBanner already turns into the existing partial-failure line;
-            // no new sentence, no ninth translation.
+            // the row on screen is not the row that was ticked. It counts as a failure, and
+            // crossAccountBanner turns that verdict into an existing line either way: the
+            // partial-failure one when something else in the batch did go through, the plain
+            // "couldn't complete the action" one when nothing did. No new sentence either way, no
+            // ninth translation.
             if (key in refused) {
-                results += CrossAccountMove.Failed("renumbered since it was ticked: ${key.emailId}")
+                outcomes[key] = CrossAccountMove.Failed("renumbered since it was ticked: ${key.emailId}")
                 continue
             }
             dropSearchResults(setOf(key))
@@ -3360,8 +3383,9 @@ class InboxViewModel(
                 android.util.Log.w("SternaInbox", "move to account, ${key.emailId}: $result")
                 restoreSearchResults(listOf(key))
             }
-            results += result
+            outcomes[key] = result
         }
+        val results = outcomes.values.toList()
         // Which line goes with which outcome is crossAccountSelectionPlural's and
         // crossAccountSelectionFailedRes's, both executed by a test; only the counts and the
         // labels are built here.
@@ -3378,25 +3402,36 @@ class InboxViewModel(
                     checkNotNull(crossAccountSelectionPlural(outcome)), copied, copied, where, accountLabel(ownerAccountId),
                 )
             }
-            CrossAccountOutcome.PARTLY_FAILED ->
+            CrossAccountOutcome.PARTLY_FAILED, CrossAccountOutcome.ALL_FAILED ->
                 _message.value = app.getString(checkNotNull(crossAccountSelectionFailedRes(outcome)))
         }
         if (results.any { it is CrossAccountMove.Failed }) refresh()
         // ⛔ LAST, after the banner and never before it: clearSelection() runs at the head of this
         // body, so a re-selection written earlier would be wiped by the gesture it belongs to.
-        // What was refused goes back under the user's eyes, still ticked — a move that quietly
+        // What did not move goes back under the user's eyes, still ticked — a move that quietly
         // dropped part of a selection would be a lie the screen agrees with, and this path has no
         // Undo to correct it with.
-        if (split.drifted.isNotEmpty()) {
+        // ⛔ AND IT IS INDEXED ON THE OUTCOME, NOT ON A CLASS OF REFUSAL ([crossAccountGiveBack],
+        // pure and executed by a test). Keyed on `split.drifted`, this give-back was empty by
+        // construction for the refusal raised at the READ, which comes back an ordinary `Failed`:
+        // those lines did not travel, did not come back ticked, and nothing said which ones — or
+        // that anything had happened at all. The rule is not re-written here; the decision is
+        // asked for, with the outcomes of this batch and the rows still in cache.
+        val givenBack = crossAccountGiveBack(outcomes, emails.keys)
+        if (givenBack.isNotEmpty()) {
             // ⛔ THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector on
             // _selectedKeys only reads keys it does not already know, so stamps written AFTER the
             // keys — or not at all — leave it looking at rows it has never seen: it reads their
             // numbering AS IT IS NOW, the second tap on Move compares the new number with itself,
             // agrees, and sends to B exactly what this refusal just saved. Nothing suspends
             // between these two lines, which is what makes the order enough.
-            tickedUnder = split.drifted.associate { it.emailKey() to ticked[it.emailKey()] }
+            // ⛔ AND THE ENTRY IS WRITTEN EVEN WHEN THE STAMP IS null: it is the PRESENCE of the
+            // key that stops the collector re-reading, not its value. A row given back with a null
+            // stamp is refused again at the second tap and nothing is written on B; a row given
+            // back with NO entry is re-stamped with the realigned numbering and travels.
+            tickedUnder = givenBack.associateWith { ticked[it] }
             _selectionActive.value = true
-            _selectedKeys.value = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
+            _selectedKeys.value = givenBack.toMutableSet()
         }
     }
 
