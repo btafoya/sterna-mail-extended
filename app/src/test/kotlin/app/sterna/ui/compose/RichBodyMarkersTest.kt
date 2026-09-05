@@ -1,11 +1,15 @@
 package app.sterna.ui.compose
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.style.TextDecoration
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.BlockKind
+import app.sterna.core.data.text.Inline
+import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
 import app.sterna.core.data.text.toggleBlock
@@ -151,6 +155,150 @@ class RichBodyMarkersTest {
         for (o in 0..raw.length) assertEquals("lost offset $o", o, map.transformedToOriginal(map.originalToTransformed(o)))
     }
 
+    // -- the body's ONE transformation: the styling AND the markers, together ----------------------
+
+    /**
+     * ⛔ Why these run `bodyTransformation` and not just `markedText`: the body field has exactly
+     * ONE `visualTransformation`, and since the value it is handed must stay FLAT (a span in
+     * there drops the IME's composing region on every keystroke — see `ComposeBodyWiringTest`),
+     * that one transformation has to carry the styling too. These execute it.
+     */
+    @Test fun `a styled body with no list is drawn with its spans, and nothing moves`() {
+        val rich = RichBody("abcdef", mapOf(Inline.BOLD to listOf(Span(2, 4))))
+
+        val out = bodyTransformation(rich, LINK).filter(AnnotatedString("abcdef"))
+
+        assertEquals("not a character is added: there is no list here", "abcdef", out.text.text)
+        assertEquals(
+            "the bold of the MODEL must be on the drawn text — it is the only place it can be " +
+                "now, the field's value carries none",
+            listOf(AnnotatedString.Range(SpanStyle(fontWeight = FontWeight.Bold), 2, 4)),
+            out.text.spanStyles,
+        )
+        for (o in 0..6) {
+            assertEquals("no marker, so offset $o must not move", o, out.offsetMapping.originalToTransformed(o))
+        }
+    }
+
+    /**
+     * The two halves at once, which is the whole point: a bold word INSIDE a bullet item. The
+     * span has to ride across the marker insertion, and the caret arithmetic has to be the
+     * markers' own, untouched.
+     */
+    @Test fun `a styled body inside a list is drawn with its spans shifted by the markers`() {
+        val rich = RichBody(
+            "abc\ndef",
+            mapOf(Inline.BOLD to listOf(Span(4, 7))),
+            listOf(Block(BlockKind.BULLET, 0..1)),
+        )
+
+        val out = bodyTransformation(rich, LINK).filter(AnnotatedString("abc\ndef"))
+
+        assertEquals("• abc\n• def", out.text.text)
+        assertEquals(
+            "⛔ \"def\" is 4..7 in the MODEL and 8..11 on screen: two bullets of two characters " +
+                "stand before it. A span laid after the markers were inserted, or markers " +
+                "inserted into a text that carried no span, would put the bold four characters " +
+                "to the left of the word",
+            listOf(AnnotatedString.Range(SpanStyle(fontWeight = FontWeight.Bold), 8, 11)),
+            out.text.spanStyles,
+        )
+        val map = out.offsetMapping
+        for (o in 0..7) {
+            assertEquals("the round trip lost offset $o — the styling must not touch the mapping", o, map.transformedToOriginal(map.originalToTransformed(o)))
+        }
+        assertEquals("the first character of the second item", 8, map.originalToTransformed(4))
+    }
+
+    /**
+     * ⭐ The case that catches a free path widened by mistake to `ranges.isEmpty()` alone: no
+     * family anywhere, one link. A body whose only styling is a link is exactly what the model
+     * refuses to call plain (`RichBody.isPlain` counts the links), and skipping it here would
+     * draw a hyperlink as ordinary text while the model still carries the address.
+     */
+    @Test fun `a body whose only styling is a link is still drawn as a link`() {
+        val rich = RichBody("site", emptyMap(), emptyList(), listOf(Link(Span(0, 4), "https://x")))
+
+        val out = bodyTransformation(rich, LINK).filter(AnnotatedString("site"))
+
+        assertEquals(
+            listOf(AnnotatedString.Range(SpanStyle(color = LINK, textDecoration = TextDecoration.Underline), 0, 4)),
+            out.text.spanStyles,
+        )
+    }
+
+    /**
+     * The free path, and it is not a nicety: this runs on every keystroke of a body this screen
+     * is sized to hold at 324 kB (see [ComposerResumeSlot]), in a field whose smoothness is the
+     * subject of #5, #6 and #26. A plain body must be handed straight back, not copied.
+     */
+    @Test fun `a plain body is handed back as the very same instance, not a copy`() {
+        val text = AnnotatedString("abcd")
+
+        assertSame(
+            "⛔ the very same AnnotatedString — no allocation at all on the frequent path",
+            text,
+            styledBody(text, RichBody.plain("abcd"), LINK),
+        )
+    }
+
+    /**
+     * ⛔ The free path is `ranges` AND `links`, NOT [RichBody.isPlain] — which also counts the
+     * blocks. A body in bullets with no bold, no italic and no link anywhere has nothing to lay
+     * on it, and `isPlain` there would send a 324 kB reply through `toAnnotatedString`, whose
+     * first act is `append(rich.text)`: a full copy of the body on every keystroke, in the field
+     * whose smoothness is #5, #6 and #26. The markers are inserted afterwards either way.
+     */
+    @Test fun `a body that is only a list, with no styling at all, is still handed straight back`() {
+        val text = AnnotatedString("abc\ndef")
+        val listOnly = RichBody("abc\ndef", emptyMap(), listOf(Block(BlockKind.BULLET, 0..1)))
+
+        assertSame(
+            "⛔ blocks are not styling: nothing is laid on this text, so it must come back as the " +
+                "very same instance. `isPlain` on this line copies the whole body every frame",
+            text,
+            styledBody(text, listOnly, LINK),
+        )
+    }
+
+    /**
+     * …and the same thing seen from the SITE OF THE CALL, which is what actually runs. An
+     * `assertSame` on [styledBody] alone is satisfied by
+     * `styledBody(AnnotatedString(text.text), …)` one layer up — the copy is simply moved, on the
+     * most frequent path of all: a plain body with no list, which is most of every message.
+     */
+    @Test fun `a plain body crosses the whole transformation without being copied once`() {
+        val text = AnnotatedString("abcd")
+
+        assertSame(
+            "⛔ end to end — `styledBody` hands it back, then `markedText`'s own free path hands " +
+                "it back. Not one copy of the body between the field and the screen",
+            text,
+            bodyTransformation(RichBody.plain("abcd"), LINK).filter(text).text,
+        )
+    }
+
+    /**
+     * The defensive guard. The field's value and the model it is drawn from are two pieces of
+     * state and can differ for the length of one frame. Laying spans of one text over another
+     * mismaps the caret at best and throws `IndexOutOfBounds` under the user's finger at worst;
+     * one frame without styling is the cheaper of the two.
+     */
+    @Test fun `a model whose text has drifted from the field's draws no style, and does not throw`() {
+        val text = AnnotatedString("abcdef")
+        // ⛔ THE SAME LENGTH, deliberately: a guard comparing `rich.text.length` instead of
+        // `rich.text` would pass a body of the right size and the wrong characters, and the bold
+        // would land on whatever happens to sit at 0..2 of the text on screen.
+        val stale = RichBody("zzzzzz", mapOf(Inline.BOLD to listOf(Span(0, 2))))
+
+        assertSame(
+            "a body carrying spans, but for ANOTHER text OF THE SAME LENGTH: hand the field's " +
+                "own text back untouched rather than lay 0..2 of \"zzzzzz\" over \"abcdef\"",
+            text,
+            styledBody(text, stale, LINK),
+        )
+    }
+
     // -- which button is lit ------------------------------------------------------------------------
 
     @Test fun `the cursor's own line decides, with nothing selected`() {
@@ -221,5 +369,10 @@ class RichBodyMarkersTest {
                 }
             }
         }
+    }
+
+    private companion object {
+        /** Any colour: what matters is that the one the caller passes is the one drawn. */
+        val LINK = Color(0xFF0066CC)
     }
 }

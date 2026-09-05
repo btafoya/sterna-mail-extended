@@ -11,7 +11,8 @@ import org.junit.Test
  * compose-ui-test here, so nothing can EXECUTE the body field's callbacks. The decisions they call
  * are executed elsewhere (`RichBodyTest` runs `remapAfterEdit`, `toggle`, `clear`, `stylesAt`,
  * `toggleBlock`; [RichBodyStyleTest] runs `toAnnotatedString`; [RichBodyMarkersTest] runs
- * `markedText` and `listKindAt`); this file pins the WIRING as whole trimmed lines
+ * `markedText`, `listKindAt`, `styledBody` and `bodyTransformation`); this file pins the WIRING as
+ * whole trimmed lines
  * (#131). A `contains` on a fragment is blind to a mutation that lengthens the line.
  *
  * ⛔ What it cannot see: that the callbacks fire, that the bar shows, that `pending` reaches the
@@ -253,23 +254,40 @@ class ComposeBodyWiringTest {
      */
     @Test fun `the list markers are drawn by the field's visual transformation`() {
         assertPinned(
-            "visualTransformation = markerTransformation(blocks),",
-            "the body field must draw its markers through `markerTransformation` — executed in " +
-                "[RichBodyMarkersTest] — fed by the live `blocks`. Removed, a list is invisible " +
-                "while it is being written; `VisualTransformation.None` there is the same thing.",
+            "visualTransformation = bodyTransformation(rich, MaterialTheme.colorScheme.primary),",
+            "⛔ ONE transformation, and it carries BOTH halves: the markers AND the inline " +
+                "styling (`bodyTransformation`, executed in [RichBodyMarkersTest]). A field has " +
+                "exactly one `visualTransformation`, so the two cannot be split across two of " +
+                "them; and the styling has nowhere else to go, because it may no longer be put " +
+                "in the field's VALUE (see the next test). Fed the live `rich` — text, blocks, " +
+                "spans and links in one object, so the drawn text and the offsets that go with " +
+                "it are computed from the same body. ⛔ `VisualTransformation.None` or a " +
+                "markers-only transformation there: a list is invisible while it is written, or " +
+                "every bold, italic, underline, strike and link is. And the link colour is handed " +
+                "in from the THEME here — a hard-coded one is unreadable in one of the two " +
+                "themes, and is also what would let `styledBody` stop being pure.",
         )
         assertPinned(
             "val rich = RichBody(body.text, ranges, blocks, links)",
-            "…and the body the field DRAWS carries the blocks AND the links too, so the bar can " +
-                "light the right button (`listKindAt(rich, …)`, `linkAt(rich, …)`) and " +
-                "`toAnnotatedString` can colour the anchors.",
+            "…and the body the field DRAWS carries the blocks AND the links too: it is what the " +
+                "transformation is fed, so a bullet is drawn and an anchor is coloured, and it is " +
+                "what lights the right button of the bar (`listKindAt(rich, …)`, `linkAt(rich, …)`).",
         )
         assertPinned(
-            "value = body.copy(annotatedString = toAnnotatedString(rich, MaterialTheme.colorScheme.primary)),",
-            "the field draws the body through `toAnnotatedString` — executed in " +
-                "[RichBodyStyleTest] — and the link colour is handed in from the THEME here. " +
-                "⛔ A hard-coded colour there is unreadable in one of the two themes, and it is " +
-                "also what would let that function stop being pure.",
+            "value = body,",
+            "⛔ the value handed to the field is FLAT and is `body` ITSELF, whole line: plain " +
+                "text, `body`'s own selection, `body`'s own composition. Nothing may be laid on " +
+                "it on the way in — see the next test for what a span in there costs.",
+        )
+        assertPinned(
+            "body = TextFieldValue(next.text, next.selection, next.composition)",
+            "⛔ …and the value written BACK carries `next.composition` — the OTHER half, and the " +
+                "necessary one. The flat value above is what stops Compose from throwing the " +
+                "composing region away; this argument is what hands it back. Dropped, the field " +
+                "answers `null` composition on every keystroke and the symptom returns for EVERY " +
+                "body, styled or not: suggestion strip blinking, autocorrect dead, CJK / voice / " +
+                "glide typing broken. ⚠ The two-argument `TextFieldValue(text, selection)` " +
+                "compiles on the default, silently.",
         )
         assertPinned(
             "activeList = listKindAt(rich, span(body.selection)),",
@@ -281,6 +299,50 @@ class ComposeBodyWiringTest {
             "…and the tap itself is `toggleBlock` (executed in `RichBodyTest`) on the LIVE body " +
                 "and the LIVE selection. ⚠ No `pending` and no empty-selection guard here, unlike " +
                 "the inline families: the caret's own line is the target.",
+        )
+    }
+
+    /**
+     * (f bis) THE rule this whole branch exists for: NOT ONE SPAN IN THE FIELD'S VALUE.
+     *
+     * Compose's editing buffer cannot hold a span — `EditingBuffer.toAnnotatedString()` is
+     * `AnnotatedString(toString())`, so what the buffer gives back is always bare text. And
+     * `EditProcessor.reset` compares the WHOLE `AnnotatedString`, not its text. So the moment the
+     * value carries one span, every keystroke on that body is classed as a text change, the
+     * composing region is dropped, and `TextInputServiceAndroid` calls `restartInput()`.
+     *
+     * ⛔ This is why the rule is written as "no line of code may NAME these", and not as "the
+     * value line looks right": `body.copy(annotatedString = …)`, `buildAnnotatedString { … }`
+     * assigned into the value, an `AnnotatedString` built two lines above and passed in — all
+     * three cost the same thing and none of them is the old line.
+     *
+     * ⛔ Handing `composition` back untouched (`onValueChange` does) is NECESSARY BUT NOT
+     * SUFFICIENT: the value has to carry no span, or Compose throws that composition away itself
+     * before the IME ever sees it.
+     */
+    @Test fun `no span is ever laid on the value the body field is handed`() {
+        // ⛔ CASE-INSENSITIVE, and that is the whole reach of this rule: `annotatedString =`,
+        // `toAnnotatedString(`, `AnnotatedString(` and `buildAnnotatedString {` are four spellings
+        // of the same mistake, and three of them are NOT the old line, so the whole-line pin above
+        // would let them through. No line of code on this screen has any business naming the type
+        // at all — the styling lives in `RichBodyStyle.kt` now.
+        val offenders = lines().filter { "annotatedstring" in it.lowercase() }
+        assertEquals(
+            "no line of CODE in $SCREEN may name an ANNOTATED STRING, in any spelling: a span " +
+                "in the body field's value destroys the IME's composing region on EVERY " +
+                "keystroke — the suggestion strip blinks, autocorrect stops applying, and a " +
+                "composing IME (CJK, voice input, glide typing) is broken outright. The styling " +
+                "belongs one layer down, in `bodyTransformation`, which the IME never sees.\n" +
+                "Offending line(s):",
+            emptyList<String>(),
+            offenders,
+        )
+        assertTrue(
+            "…and this rule is only honest because `lines()` cuts comments out: the KDoc above " +
+                "the field NAMES `toAnnotatedString` to explain why it is gone. If that stripping " +
+                "ever stops working, the prose alone would fail the rule above — so the presence " +
+                "of that comment is pinned here, and prose neither satisfies nor violates a rule.",
+            File(root, SCREEN).readLines().any { it.trim().startsWith("//") && "toAnnotatedString" in it },
         )
     }
 

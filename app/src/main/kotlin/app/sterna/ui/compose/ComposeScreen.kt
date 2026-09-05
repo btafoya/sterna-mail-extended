@@ -1761,11 +1761,24 @@ fun ComposeScreen(
           }
 
             // Body — no frame, fills the rest of the width and grows with content.
-            // ⚠ `body` holds PLAIN text; the styling is laid over it here at render time and the
-            // value handed back by the field is stored without its spans (#131). Selection and
-            // composition are `body`'s own, or the IME loses its composing region on every frame.
+            // ⛔ The value handed to the field is FLAT, and it is `body` itself: plain text, its
+            // own selection, its own composition. NOT ONE SPAN goes in there. The styling of #131
+            // AND the list markers are both drawn one layer down, by `bodyTransformation`.
+            // ⛔ Why, and it is not a preference. Compose's editing buffer cannot hold a span
+            // (`EditingBuffer.toAnnotatedString()` is `AnnotatedString(toString())`), while
+            // `EditProcessor.reset` — called on every recomposition — compares the WHOLE
+            // AnnotatedString and not its text. So a single span in the value classes every
+            // keystroke on that body as a text change: the composing region is set to null and
+            // Android is asked to restart the input. On screen, from the first bold word to the
+            // end of the message: the suggestion strip blinks, autocorrect stops applying, and a
+            // composing IME (CJK, voice input, glide typing) is broken outright.
+            // ⛔ Handing `composition` straight back, which `onValueChange` does below, is
+            // NECESSARY BUT NOT SUFFICIENT: Compose throws that composition away itself, before
+            // the IME ever sees it, as long as the value carries a span. Nothing may be laid on
+            // the value on the way in — `remember` does not help either, `TextFieldValue` equality
+            // is structural.
             BasicTextField(
-                value = body.copy(annotatedString = toAnnotatedString(rich, MaterialTheme.colorScheme.primary)),
+                value = body,
                 onValueChange = { next ->
                     // ⛔ Read HERE, not `rich`: that one is captured at composition, and two
                     // callbacks before a recomposition would remap from a stale body.
@@ -1785,11 +1798,15 @@ fun ComposeScreen(
                     }
                     body = TextFieldValue(next.text, next.selection, next.composition)
                 },
-                // ⛔ The list markers are drawn HERE and nowhere else (#131): in the text layer, by
-                // a transformation, so not one of their characters enters `body.text`. The mapping
-                // that comes with it is what keeps the caret, the selection and the IME in step —
-                // see [markedText].
-                visualTransformation = markerTransformation(blocks),
+                // ⛔ The list markers AND the inline styling are drawn HERE and nowhere else
+                // (#131): in the text layer, by the one transformation a field has, so not one
+                // marker character enters `body.text` and not one span enters the value above.
+                // Fed the live `rich` — text, blocks, spans and links in one object — so the drawn
+                // text and the offsets that go with it are computed from the same body. The
+                // mapping that comes with it is what keeps the caret, the selection and the IME in
+                // step — see [markedText]; the styling adds nothing to it, a span moves no
+                // character.
+                visualTransformation = bodyTransformation(rich, MaterialTheme.colorScheme.primary),
                 textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 // Capitalisation ONLY: no imeAction here on purpose, because the body is the only

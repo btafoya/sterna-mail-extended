@@ -1,5 +1,6 @@
 package app.sterna.ui.compose
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
@@ -14,7 +15,8 @@ import app.sterna.core.data.text.Span
  * block, `1. `, `2. `… on a numbered one, the numbering starting again at 1 for each block.
  *
  * ⛔ NOT A CHARACTER OF THIS ENTERS THE MODEL. `body.text` is what was typed; the markers exist in
- * the TEXT LAYER only, as a `VisualTransformation` handed to the `BasicTextField`. That is what
+ * the TEXT LAYER only, inside the `VisualTransformation` handed to the `BasicTextField`
+ * ([bodyTransformation]). That is what
  * makes the dirty check, the save, the send and the HTML see the same text they saw before a list
  * was ever toggled — and it is why an [OffsetMapping] is required: the caret, the selection, the
  * drag handles and the IME all speak in ORIGINAL offsets and must be moved across the markers.
@@ -47,10 +49,29 @@ fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
     return TransformedText(out.toAnnotatedString(), MarkerOffsets(starts, markers, text.length))
 }
 
-/** [markedText] as the `BasicTextField` takes it. */
-fun markerTransformation(blocks: List<Block>): VisualTransformation =
+/**
+ * THE body field's one and only `VisualTransformation`, and it carries BOTH halves (#131): the
+ * inline styling ([styledBody]) laid on the text, then the list markers ([markedText]) inserted
+ * in front of the lines.
+ *
+ * ⛔ Both halves, because a field has exactly ONE of these and the styling has nowhere else left
+ * to go: a span in the field's VALUE destroys the IME's composing region on every keystroke (the
+ * mechanism is written out over [styledBody]). So the styling came down here, to the layer the
+ * IME never sees.
+ *
+ * ⛔ The ORDER is not a taste. The spans are put on first, at the model's own offsets, and
+ * [markedText] then rebuilds the text out of `subSequence`s, which carries them across the
+ * markers: a bold word inside a bullet item stays bold and stays put. Laid the other way round,
+ * every span after the first marker would sit two or three characters to the left of its word.
+ *
+ * ⭐ And the styling adds NO arithmetic: a span moves no character, so the [OffsetMapping] is
+ * still `MarkerOffsets` (or the identity), untouched — the half that governs the caret, the drag
+ * handles and the IME keeps being pinned by exactly the same property test as before.
+ */
+fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
     object : VisualTransformation {
-        override fun filter(text: AnnotatedString): TransformedText = markedText(text, blocks)
+        override fun filter(text: AnnotatedString): TransformedText =
+            markedText(styledBody(text, rich, linkColor), rich.blocks)
     }
 
 /**
