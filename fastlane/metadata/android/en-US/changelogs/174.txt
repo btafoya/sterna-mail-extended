@@ -1,0 +1,44 @@
+Reading
+
+- On a window at least 600 dp wide, the inbox lays out in two panes: the list on the left, the open message on the right. From 1200 dp the folder drawer stays beside the list, with no hamburger. Below 600 dp nothing changes.
+- An IMAP account now groups its messages into conversations, like a JMAP one. The thread is rebuilt on the phone from the message's own References header. An existing folder stays flat until its next refresh, then groups.
+- The Message list preview setting now has an effect on IMAP: the row carries the opening line of the message. An older row gains it at its next sync, and there is no backfill of what is already there.
+- The quoted history at the end of a reply opens folded behind a "Quoted text" button, in HTML messages. One tap unfolds it, nothing is remembered, and plain text is untouched.
+- Tapping an attached message opens it in a sheet: its From, To, Cc, date, subject, its text and the names of its own attachments. It used to open an empty chooser.
+- Print, or save as PDF, from the reader's menu. The paper carries the header lines and the body as displayed, on white whatever the theme. Blocked remote images stay blocked.
+- Save a message as .eml, exactly as the server holds it, and save an attachment straight into a folder of your choosing. Neither passes through the app's cache, and a failed save deletes the file it had created rather than leaving an empty one behind.
+- Forward a message as an attachment, from the reader's menu.
+- The drawer keeps the folders you folded, across a rotation, a restart and an account being signed out. A folder of your own that has children now starts folded, and a folded folder carries the unread count of what it hides.
+- Deleting, archiving or moving a message takes its new-mail notification down with it, instead of leaving a banner that reopened a message no longer there.
+
+Writing
+
+- The composer can style what you write: bold, italic, underline, strikethrough, bulleted and numbered lists, and links, from a bar under the body. The message goes out with an HTML part alongside the plain text, a draft keeps its styling wherever it is parked, and pasting stays plain text.
+- A message being edited out of the outbox is parked instead of being sent behind your back. Closing the composer on a body the phone could not give back, or the app dying mid-edit, used to put the message back on the wire; the row now waits, red, with a reason, and Retry or Edit are the only ways it moves.
+- Save as draft is refused when the composer has lost its text and the outbox is still holding the message. That gesture used to write an empty draft over the only copy of what you had typed.
+- Edit is off on a queued message you chose to keep as a draft. Merely opening and closing it used to send it.
+- An outbox message that is still waiting now prints the last reason it recorded, under its state. It was written down and shown nowhere.
+- A draft that replies to a conversation opens in the composer from the Drafts folder, whether or not its row unfolds. It used to open the read-only reader with no way to edit it.
+- A signed or encrypted message no longer carries line endings that a hardened relay refuses. Those messages stayed in the outbox on some servers while the same message unsigned went out, and a long signed message could arrive with an invalid signature. Messages already queued go out as they were signed.
+
+Folders and moving
+
+- A message, or a selection, can be moved to a folder of another account. The source is copied to the target and only then trashed on the account it came from, and the original stays where it is if the copy cannot be confirmed.
+- On IMAP, a delete or a cross-account move now refuses a ticked row whose folder the server has renumbered under it. A row that gets renumbered while it is ticked no longer stands in for another message: it comes back ticked and counts as a failure.
+- An IMAP move whose answer never came back no longer falls through to copy-and-delete. Nothing is erased on the strength of a command whose outcome was never read.
+- A cross-account move that moves nothing now says so, instead of reporting a partial failure, and the lines it did not move come back ticked.
+
+Encryption
+
+- An account whose OpenPGP is on announces its public key on the mail it sends, and takes a correspondent's key from a message that carries one. This is Autocrypt Level 1: the key arrives with ordinary mail, and it is opportunistic and unconfirmed.
+- An encrypted message now repeats its subject inside the encrypted part, so a recipient's client can tell that the subject shown is the subject sent. The envelope still carries the subject in the clear, exactly as before.
+- A key arriving in the mail can no longer be pushed ahead of a real one by a forged date. On IMAP the date is taken from the server's own clock, a date more than a day ahead of the phone is refused, and the reader loads a message only once a finger has settled on it.
+
+Accounts
+
+- Adding an identity on a JMAP account now creates it on the server, instead of being a purely local note the server would refuse to send under. A refusal is reported on the first Save, with the server's own reason.
+- Sign-in refuses a discovery document that hands the tokens to another domain. The token endpoint must be on the host asked, on the address's domain, or under either.
+- A guessed host answering 403 or 401 no longer reads as a wrong password. Addresses whose provider answers that way, on a host Sterna guessed rather than one you typed, now reach the IMAP and SMTP fallback that works.
+- Coming back from an approval page draws one spinner, not two.
+- A delegated mailbox that the server stops listing and lists again keeps the settings it had: its notifications, its colour, its watched folders and its folded tree.
+- An IMAP account can be given a relay address for push. It registers only once you have asked, and the status line states when a wake last landed rather than a verdict on the relay's health.
