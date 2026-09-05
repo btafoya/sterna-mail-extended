@@ -499,15 +499,18 @@ private fun MessagePager(
                 // its ViewModel and showed the other account's message (#92). Same granularity for
                 // a single account: the pair differs exactly where the id does.
                 key = { i -> entryAt(i)?.let(::pagerKey) ?: "page-$i" },
-                // One page composed each side of the one being read. ⛔ It no longer warms their
-                // BODIES, and this comment used to say it did: a page that is not the settled one
-                // does not call `load` at all (see MessagePage, and MessagePaging.needsLoad), so a
-                // neighbour shows its LoadingRing for the whole swipe and fills in once the pager
-                // settles on it. What is still bought here is the composition itself — the page,
-                // its ViewModel and its WebView exist before the finger arrives, so settling on it
-                // starts the fetch instead of starting the page. The body was given up on purpose:
-                // on IMAP, fetching it imports the sender's announced key into OpenKeychain from a
-                // message nobody opened, and no gesture can take that back.
+                // One page composed each side of the one being read. ⛔ What composition buys is
+                // the page and its ViewModel, and NOT a WebView: this comment used to claim the
+                // WebView too, which is how removing the body warm-up looked free. A page whose
+                // state holds no body composes no ConversationBody, hence no WebView, so the
+                // entire render started at the finger — the ~1 s hourglass per swipe.
+                // The WebView is bought instead by MessagePage's warmFromCache effect, which
+                // paints the body from the LOCAL CACHE only. ⛔ A neighbour is still never
+                // `load`ed (see MessagePage, and MessagePaging.needsLoad): a load fetches the
+                // whole source on IMAP and imports the sender's announced key into OpenKeychain
+                // from a message nobody opened, and no gesture can take that back. A neighbour
+                // whose body is not cached, is crypto, or is still missing its inline images gets
+                // no warm-up and shows its LoadingRing until the pager settles on it.
                 beyondViewportPageCount = 1,
                 // Demand 25 dp of FINGER travel before a flick may change message: the library's
                 // own rule is velocity-only, so a 10-20 dp brush of the thumb turned the page. The
@@ -627,6 +630,18 @@ private fun MessagePage(
         viewModelStoreOwner = owner,
         factory = viewModelFactory { initializer { MessageViewModel(app) } },
     )
+    // The neighbours are made READY, from the local cache and from nothing else. Composition
+    // alone buys the page and its ViewModel; it does NOT buy a WebView, because a state with no
+    // body composes no ConversationBody — so the whole render (view creation, loadDataWithBaseURL,
+    // onPageFinished, the 30 × 32 ms height poll) used to start when the finger landed, which is
+    // the ~1 s hourglass at the end of each swipe.
+    // ⛔ No `active`, in the keys or the arguments: warming only the page already on screen buys
+    // nothing, and BOTH neighbours are what the pager composes. Idempotent — MessageViewModel
+    // does nothing here once `load` owns the page, and nothing at all on a cache miss, on a
+    // crypto body, or on one whose inline images are still missing (MessagePaging.warmable).
+    // ⛔ And it reaches no server: that is the whole difference with the warm-up 798a5fd1
+    // removed, which fetched IMAP sources and deposited their senders' keys in OpenKeychain.
+    LaunchedEffect(emailId, accountId) { viewModel.warmFromCache(emailId, accountId) }
     // ⛔ `active` is BOTH a key of this effect and the argument: as a key, because the page is
     // composed before it settles and the effect must replay the moment it does (drop it and
     // the message the reader tapped never loads); as the argument, because the pager warms a

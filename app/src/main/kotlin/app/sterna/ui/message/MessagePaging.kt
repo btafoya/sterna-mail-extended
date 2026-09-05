@@ -1,5 +1,7 @@
 package app.sterna.ui.message
 
+import app.sterna.core.imap.CryptoKind
+
 /** Pure helpers for paging between list entries in the reading view (unit-tested). */
 object MessagePaging {
     /**
@@ -47,6 +49,62 @@ object MessagePaging {
         accountId: String?,
         failed: Boolean,
     ): Boolean = settled && (failed || loadedId != emailId || loadedAccountId != accountId)
+
+    /**
+     * Whether a body already in the LOCAL cache may be put on a page the finger has not reached —
+     * the single decision behind `MessageViewModel.warmFromCache`, taken on values so it can be
+     * executed by a test rather than re-read.
+     *
+     * Why a warm-up exists at all: a page whose state holds no body composes no `ConversationBody`,
+     * so no `WebView`, so the whole rendering staircase (creating the view, `loadDataWithBaseURL`,
+     * `onPageFinished`, the height poll capped at 30 × 32 ms) starts only once the finger lands —
+     * the ~1 s hourglass at the end of every swipe. Warming from the cache moves all of it before
+     * the gesture. ⛔ It moves NOTHING onto the network: a fetch is what `798a5fd1` removed, and
+     * what ENCRYPTION.md:177-180 and SECURITY.md promise never happens on an unopened message.
+     *
+     * Three refusals, all about what the reader would SEE — or, for the last one, what the SENDER
+     * would see:
+     *
+     * ⛔ [cryptoKind] non-null — the body is OpenPGP. Rendering it warm would print the armour, in
+     * clear, on a page nobody has swiped to, before any decrypt has been offered. The kind comes
+     * from `MailRepository.cryptoKindOf`, the one place that detects PGP; ⛔ it is never
+     * re-derived here, or the UI and the repository would drift apart.
+     *
+     * ⛔ Inline images not settled. This is EXACTLY the condition under which
+     * `MailRepository.ensureInlineImages` returns the cached body untouched
+     * (`inlineImageParts().isEmpty() || inlineImages.isNotEmpty()`), and it is copied from there
+     * on purpose rather than approximated: anything wider warms a document whose images the
+     * settle will then download, `html` is memoised on `msg.inlineImages` (MessageScreen), the
+     * WebView RELOADS under the finger, and the swipe ends in a white flash — worse than the
+     * spinner this replaces. The JMAP prefetch is the case that makes it real: it persists bodies
+     * with `inlineImages = emptyMap()`.
+     *
+     * ⛔ [senderAllowedRemoteImages] — the sender is on the remote-image allowlist. This one is not
+     * about rendering at all, it is a NETWORK REQUEST, and it exists because warming created the
+     * path: a page that holds a body composes the `WebView`, and from there `MessageScreen` reads
+     * the sender out of the warmed state itself (`(state as? MessageState.Loaded)?.email?.from`,
+     * MessageScreen.kt:1581), `senderAllowed` follows (:1582), `showRemoteImages` needs nothing
+     * else on a neighbour since `manualShow` is false there (ReaderBody.kt:127), `blockRemote`
+     * becomes false (:1706) and `shouldInterceptRequest` lets the request out (:4863). The remote
+     * image — the tracking pixel among them — would then leave for a message NOBODY OPENED, and
+     * PRIVACY.md:288 publishes the opposite in those words: allow a sender only when you accept
+     * that "they learn you opened the message". Before the warm-up an unswiped page held no body,
+     * so no WebView and no request at all; this refusal is what keeps that true.
+     *
+     * ⚠ Its price is accepted, not overlooked: messages from an allowed sender keep the ~1 s
+     * hourglass at the end of the swipe. A spinner is recoverable, a pixel that has left is not.
+     * ⛔ The caller must compare LOWER-CASED, exactly as MessageScreen.kt:1582 does (the stored
+     * allowlist is lower-cased on write, SettingsRepository.kt:352-370): a sender written with a
+     * capital would otherwise miss this guard and be warmed with its images allowed.
+     */
+    fun warmable(
+        cryptoKind: CryptoKind?,
+        inlineParts: Int,
+        cachedInlineImages: Int,
+        senderAllowedRemoteImages: Boolean,
+    ): Boolean = cryptoKind == null &&
+        (inlineParts == 0 || cachedInlineImages > 0) &&
+        !senderAllowedRemoteImages
 
     /**
      * The entry the reader is SETTLED on: [previous] while the pager is [scrolling], [atRest]

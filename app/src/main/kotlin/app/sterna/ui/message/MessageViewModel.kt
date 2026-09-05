@@ -68,6 +68,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -1271,6 +1272,22 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     /** Owning account when opened from the unified inbox; null = current account. */
     private var accountId: String? = null
 
+    /**
+     * The (account, id) whose cached body [warmFromCache] has already painted on this page —
+     * ⛔ the PAIR, never the id alone: the unified inbox walks the pager across accounts, and two
+     * accounts of one server hand out the same message id (#92).
+     *
+     * ⛔ Deliberately NOT [loadedId]. That one is what `MessagePaging.needsLoad` reads to answer
+     * "already loaded?", and a warm-up writing it would mark a page loaded that was never
+     * fetched: a neighbour absent from the cache would then return early from the settle and sit
+     * blank forever, with no spinner and no error. These two fields are read by exactly one
+     * thing, the `warm` flag below, and they say only "there is a body on screen already".
+     *
+     * Instance fields, so they die with the page's disposable ViewModelStore (MessageScreen).
+     */
+    private var warmedId: String? = null
+    private var warmedAccountId: String? = null
+
     // Mark-as-read is deferred to "settle": the message pager composes neighbouring pages
     // while swiping, so reading on load() would mark messages read just by flicking past
     // them. [active] tracks whether this page is the one settled in front of the user;
@@ -1311,6 +1328,74 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private fun credentials(): AccountCredentials? =
         accountId?.let { store.credentials(it) } ?: store.load()
 
+    /**
+     * Paint this page's body from the LOCAL CACHE, before the finger reaches it — and from
+     * nothing else.
+     *
+     * The defect it answers: a page whose state carries no body composes no `ConversationBody`,
+     * hence no `WebView`, so creating the view, `loadDataWithBaseURL`, `onPageFinished` and the
+     * height poll (30 × 32 ms) all start AFTER the swipe settles. That is the ~1 s hourglass at
+     * the end of every swipe. The pager already composes one page each side of the one being
+     * read, so the body can be on screen before the gesture ends — provided it costs nothing.
+     *
+     * ⛔ AND IT COSTS NOTHING: `repo.cachedMessage` and no other repository call. The warm-up
+     * `798a5fd1` removed went through `openMessage`, which on IMAP fetches the whole source and
+     * hands the sender's announced key to the OpenPGP provider from a message nobody opened,
+     * irreversibly — ENCRYPTION.md:177-180 and SECURITY.md promise that never happens, and this
+     * function keeps that promise by never reaching the network at all. A cache miss is simply
+     * nothing done: no state, no trace, and the settle then loads as it does today.
+     *
+     * ⛔ It marks nothing read, forwards no settle, asks no read-receipt question. A warmed
+     * neighbour is a message nobody has looked at, and it stays unread.
+     *
+     * ⛔ It never writes [loadedId] — see the fields above for what that would cost.
+     */
+    fun warmFromCache(emailId: String, accountId: String?) {
+        if (loadedId != null) return
+        // The page's OWN account, so `credentials()` answers for this message and not for
+        // whatever account happens to be current (#92). `load` sets the same value.
+        this.accountId = accountId
+        viewModelScope.launch {
+            val credentials = credentials() ?: return@launch
+            val cached = runCatching { repo.cachedMessage(credentials.id, emailId) }.getOrNull() ?: return@launch
+            val warmable = MessagePaging.warmable(
+                cryptoKind = repo.cryptoKindOf(cached.email),
+                inlineParts = cached.email.inlineImageParts().size,
+                cachedInlineImages = cached.inlineImages.size,
+                // ⛔ Read and compared exactly as MessageScreen does it (:1581-1582), lower-cased
+                // against a list DataStore already stores lower-cased: a warmed body from an
+                // allowed sender composes a WebView whose remote images are not blocked, and the
+                // pixel leaves for a message nobody opened (PRIVACY.md:288).
+                // ⛔ AND IT IS THE DATASTORE FLOW, AWAITED — never the `imageAllowlist` StateFlow
+                // above. That one is `WhileSubscribed(5_000)` over `initialValue = emptySet()`, so
+                // `.value` answers "nobody is allowed" both before DataStore has replied AND
+                // whenever nothing is collecting it — and this warm-up runs at composition, which
+                // is exactly that moment. The page would be warmed on an empty list, the real list
+                // would arrive a frame later, `senderAllowed` would flip to true under a body
+                // already on screen, and the pixel would leave after all. `first()` suspends until
+                // the stored answer exists; if it never does, the warm-up simply does not happen
+                // and the reader gets today's spinner, which is the safe way to be wrong.
+                senderAllowedRemoteImages =
+                    cached.email.from.firstOrNull()?.email?.lowercase()?.let { it in settings.imageAllowlist.first() } == true,
+            )
+            if (!warmable) return@launch
+            // The settle may have overtaken the cache read: `load` owns the page from that moment
+            // on, and a warm body painted over a fetch in flight would be a second render.
+            if (loadedId != null) return@launch
+            _state.value = MessageState.Loaded(cached.email)
+            _messages.value = listOf(
+                ThreadMessage(
+                    id = cached.email.id,
+                    header = cached.email,
+                    body = cached.email,
+                    inlineImages = cached.inlineImages,
+                ),
+            )
+            warmedId = emailId
+            warmedAccountId = accountId
+        }
+    }
+
     /** Loads the conversation once per (id, account) pair (idempotent across recompositions),
      *  and ONLY for the page the pager has settled on. Does NOT mark read — [onActiveChanged]
      *  does that when the pager settles on this page.
@@ -1335,6 +1420,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         }
         loadedId = emailId
         this.accountId = accountId
+        // ⭐ Is there already a body on this page, put there by [warmFromCache] for THIS account
+        // and THIS id? If so the two lines that would erase it are skipped — and they are the
+        // whole volet: erased, the WebView leaves composition at the instant the finger lands and
+        // the reader watches it be rebuilt, which is the ~1 s hourglass. ⛔ Every other reset in
+        // this prologue stays unconditional: they guard against the PREVIOUS message's state.
+        val warm = warmedId == emailId && warmedAccountId == accountId
         // FIRST, before anything else and before the coroutine below: the unsubscribe of the
         // message we are leaving. Everything under it is a label that would merely look wrong on
         // the new message; this one is a BUTTON, and until the fetch returns it would still be
@@ -1355,8 +1446,10 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _moveAccountId.value = null
         anchorMarked = false
         settleMarking = null
-        _state.value = MessageState.Loading
-        _messages.value = emptyList()
+        if (!warm) {
+            _state.value = MessageState.Loading
+            _messages.value = emptyList()
+        }
         _mailboxRole.value = null
         _ownMessage.value = false
         _deliveredTo.value = null
@@ -1409,8 +1502,13 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             // JMAP (an email belongs to a *set* of mailboxes), so junk detection keys off this.
             val listEmail = runCatching { credentials()?.let { repo.cachedEmail(it.id, emailId) } }.getOrNull()
             listEmail?.let { cached ->
-                _messages.value = listOf(ThreadMessage(id = cached.id, header = cached))
-                _state.value = MessageState.Loaded(cached)
+                // ⛔ HEADER-ONLY (body = null): this repaint drops the WebView just as surely as
+                // the prologue does, so it is skipped when the warm-up already put the real body
+                // there. Everything below it is metadata and stays unconditional.
+                if (!warm) {
+                    _messages.value = listOf(ThreadMessage(id = cached.id, header = cached))
+                    _state.value = MessageState.Loaded(cached)
+                }
                 val role = repo.mailboxRole(cached.accountId ?: accountId, cached.mailboxId)
                 _mailboxRole.value = role
                 _ownMessage.value = isOwnMessage(cached, role)

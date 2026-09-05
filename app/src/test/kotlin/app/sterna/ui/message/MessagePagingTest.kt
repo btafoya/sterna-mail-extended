@@ -1,5 +1,6 @@
 package app.sterna.ui.message
 
+import app.sterna.core.imap.CryptoKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -393,5 +394,130 @@ class MessagePagingTest {
         // A report that arrives WHILE the list is still moving must not be taken: the neighbour
         // sitting at the old number is exactly what `scrolling` refuses.
         assertEquals(open, MessagePaging.settledEntry(previous = open, atRest = neigh, scrolling = true))
+    }
+
+    // --- warmable: may this cached body be put on screen before the finger arrives? ---
+    //
+    // ⭐ The decision is EXECUTED here, on values, never re-derived by the test. The call site
+    //    that feeds it (MessageViewModel.warmFromCache) is pinned separately, line for line, by
+    //    LoadOnSettleCallSiteTest: a pure function is green against any arguments at all.
+
+    @Test fun `a plain cached body with no inline image is warmed`() {
+        assertTrue(
+            MessagePaging.warmable(
+                cryptoKind = null,
+                inlineParts = 0,
+                cachedInlineImages = 0,
+                senderAllowedRemoteImages = false,
+            ),
+        )
+    }
+
+    @Test fun `an encrypted body is never warmed, whatever its images`() {
+        // ⛔ Warming one would paint the PGP armour, in clear, on a page nobody has swiped to.
+        assertFalse(
+            MessagePaging.warmable(
+                cryptoKind = CryptoKind.PGP_ENCRYPTED,
+                inlineParts = 0,
+                cachedInlineImages = 0,
+                senderAllowedRemoteImages = false,
+            ),
+        )
+        assertFalse(
+            MessagePaging.warmable(
+                cryptoKind = CryptoKind.PGP_ENCRYPTED,
+                inlineParts = 2,
+                cachedInlineImages = 2,
+                senderAllowedRemoteImages = false,
+            ),
+        )
+    }
+
+    @Test fun `a signed body is never warmed either`() {
+        assertFalse(
+            MessagePaging.warmable(
+                cryptoKind = CryptoKind.PGP_SIGNED,
+                inlineParts = 0,
+                cachedInlineImages = 0,
+                senderAllowedRemoteImages = false,
+            ),
+        )
+    }
+
+    @Test fun `inline armour is never warmed either`() {
+        assertFalse(
+            MessagePaging.warmable(
+                cryptoKind = CryptoKind.PGP_INLINE,
+                inlineParts = 0,
+                cachedInlineImages = 0,
+                senderAllowedRemoteImages = false,
+            ),
+        )
+    }
+
+    @Test fun `a body whose inline images are still missing is not warmed`() {
+        // The JMAP prefetch writes `inlineImages = emptyMap()`. Warming this builds a document
+        // with holes; settling on it downloads the images, `html` is rebuilt on `msg.inlineImages`
+        // and the WebView RELOADS — a white flash, worse than the spinner it replaced.
+        assertFalse(
+            MessagePaging.warmable(
+                cryptoKind = null,
+                inlineParts = 1,
+                cachedInlineImages = 0,
+                senderAllowedRemoteImages = false,
+            ),
+        )
+    }
+
+    @Test fun `a body whose inline images are already cached is warmed`() {
+        assertTrue(
+            MessagePaging.warmable(
+                cryptoKind = null,
+                inlineParts = 1,
+                cachedInlineImages = 1,
+                senderAllowedRemoteImages = false,
+            ),
+        )
+    }
+
+    @Test fun `the predicate is exactly the condition under which ensureInlineImages does nothing`() {
+        // MailRepository.ensureInlineImages returns the cached body untouched when
+        // `inlineImageParts().isEmpty() || inlineImages.isNotEmpty()`. Warming under anything
+        // WIDER is what makes the WebView reload; this pins the two halves and the corner where
+        // more images are cached than the body references.
+        assertTrue(MessagePaging.warmable(null, 0, cachedInlineImages = 3, senderAllowedRemoteImages = false))
+        assertTrue(MessagePaging.warmable(null, 3, cachedInlineImages = 1, senderAllowedRemoteImages = false))
+        assertFalse(MessagePaging.warmable(null, 3, cachedInlineImages = 0, senderAllowedRemoteImages = false))
+    }
+
+    /**
+     * ⛔ THE REFUSAL THIS VOLET OWES ITS EXISTENCE TO NOT BREAKING. Warming puts
+     * `MessageState.Loaded` on a page nobody swiped to, and a page that holds a body composes the
+     * `WebView`. From there `MessageScreen` reads the sender out of that very state
+     * (`(state as? MessageState.Loaded)?.email?.from`), the allowlist answers `senderAllowed`,
+     * `showRemoteImages` needs nothing else on a neighbour (`manualShow` is false there),
+     * `blockRemote` becomes false and `shouldInterceptRequest` returns null — the request LEAVES.
+     * A tracking pixel would then report a message nobody opened, and PRIVACY.md:288 publishes the
+     * opposite in those words: allowing a sender means "they learn you opened the message".
+     */
+    @Test fun `a body whose sender loads remote images automatically is never warmed`() {
+        assertFalse(
+            "an allowlisted sender's body warmed on an unswiped page fires its tracking pixel",
+            MessagePaging.warmable(
+                cryptoKind = null,
+                inlineParts = 0,
+                cachedInlineImages = 0,
+                senderAllowedRemoteImages = true,
+            ),
+        )
+        assertFalse(
+            "the refusal must not depend on the inline-image counts: they are a different question",
+            MessagePaging.warmable(
+                cryptoKind = null,
+                inlineParts = 2,
+                cachedInlineImages = 2,
+                senderAllowedRemoteImages = true,
+            ),
+        )
     }
 }

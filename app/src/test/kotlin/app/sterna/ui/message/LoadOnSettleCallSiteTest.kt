@@ -85,19 +85,156 @@ class LoadOnSettleCallSiteTest {
     }
 
     /**
-     * ⛔ The inventory: the whole of MessageScreen.kt may call `viewModel.load(` on exactly these
-     * two lines. A third is a load nobody audited — an effect keyed on something else, a
-     * lifecycle callback, a refresh — and every unaudited load on IMAP is an unopened key import.
-     * The retry button is pinned with them because it is the one call site that MUST pass
-     * `settled = true`: a tap on it is a gesture, and its page is by definition the one on screen.
+     * ⛔ The inventory, and it covers EVERY name by which this screen may put a message on a page,
+     * the cache warm-up included. Restricted to `viewModel.load(`, as it was, a method called
+     * `warmFromCache(` passed underneath it unseen and the whole rule became decoration: the
+     * warm-up is a second door into the same ViewModel, and it is opened on the neighbours.
+     *
+     * A fourth line is a load nobody audited — an effect keyed on something else, a lifecycle
+     * callback, a refresh — and every unaudited load on IMAP is an unopened key import. The retry
+     * button is pinned with them because it is the one call site that MUST pass `settled = true`:
+     * a tap on it is a gesture, and its page is by definition the one on screen.
      */
-    @Test fun `only these two lines load a message at all`() {
+    @Test fun `only these three lines put a message on a page at all`() {
         assertEquals(
-            "MessageScreen.kt may name `viewModel.load(` on exactly two lines, these, in this " +
-                "order: the pager's settle-gated effect and the Retry button. Fewer means a call " +
-                "site was deleted; more means a load that no rule here gates.",
-            listOf(LOAD_EFFECT, RETRY_CALL),
-            screenLines().filter { "viewModel.load(" in it },
+            "MessageScreen.kt may name a message-loading method of the page ViewModel on exactly " +
+                "three lines, these, in this order: the cache warm-up, the pager's settle-gated " +
+                "load, and the Retry button. Fewer means a call site was deleted; more means a " +
+                "way onto the page that no rule here gates — and on IMAP a load that nobody " +
+                "gated files the sender's announced key in OpenKeychain from a message nobody " +
+                "opened.",
+            listOf(WARM_EFFECT, LOAD_EFFECT, RETRY_CALL),
+            screenLines().filter { line -> PAGE_ENTRY_POINTS.any { it in line } },
+        )
+    }
+
+    /**
+     * The warm-up effect, whole, and ABOVE the load effect with nothing between them.
+     *
+     * ⛔ It must NOT take `active` as a key or as an argument: both neighbours are warmed, which
+     * is the entire point — a warm-up gated on `active` runs only on the page already on screen
+     * and buys nothing. And it must stay above the load effect: below it, the settled page's
+     * `load` would already have wiped `_messages` and the warm-up would then paint a body over a
+     * fetch in flight.
+     */
+    @Test fun `the cache warm-up stands directly above the load effect`() {
+        assertEquals(
+            "MessagePage must open on these two adjacent code lines, in this order: the cache " +
+                "warm-up, then the settle-gated load. ⚠ An empty `but was []` means the warm-up " +
+                "line is no longer in MessageScreen.kt in this exact form — and then every " +
+                "neighbour is back to a blank page and a ~1 s spinner at the end of each swipe, " +
+                "with the rest of this file green. A line appearing between them means the " +
+                "warm-up became conditional on something no rule here reads.",
+            listOf(WARM_EFFECT, LOAD_EFFECT),
+            adjacentBlock(screenLines(), WARM_EFFECT, 2),
+        )
+    }
+
+    /**
+     * ⛔ THE promise this volet is allowed to exist under: the warm-up reads the LOCAL CACHE and
+     * nothing else. Every name below reaches the network, and on IMAP a fetched source hands the
+     * sender's announced key to the OpenPGP provider (`importAutocryptKey`) from a message nobody
+     * opened — which is exactly why `798a5fd1` removed the previous warm-up, and what
+     * ENCRYPTION.md:177-180 and SECURITY.md promise in those words.
+     *
+     * The whole body of the function is inventoried, not its first lines: a helper called from it
+     * would move the fetch one frame away and leave this green, so the rule is stated on the
+     * names and a reviewer must keep the body flat.
+     */
+    @Test fun `the warm-up names no fetch of any kind`() {
+        assertEquals(
+            "MessageViewModel.warmFromCache may not name any of $FETCHING_NAMES. Each of them " +
+                "goes to the server for a body, and on IMAP the fetched source deposits the " +
+                "sender's announced key in OpenKeychain, irreversibly, for a message the reader " +
+                "has not swiped to. The warm-up is allowed to exist ONLY because it reads " +
+                "`repo.cachedMessage` and stops when the cache is empty.",
+            emptyList<String>(),
+            warmBodyLines().filter { line -> FETCHING_NAMES.any { it in line } },
+        )
+    }
+
+    /**
+     * ⛔ RISK Nº 1 OF THE VOLET, and it loses the message silently. `loadedId` is what
+     * [MessagePaging.needsLoad] reads to answer "already loaded?". If the warm-up writes it, a
+     * neighbour whose body is NOT in the cache is marked as loaded without ever being fetched:
+     * settling on it returns early from `load`, and the reader sits in front of an empty page
+     * for good, with no error and no spinner.
+     */
+    @Test fun `only load writes the identity that says a message is already loaded`() {
+        assertEquals(
+            "MessageViewModel.kt may assign `loadedId` on exactly one line: `load`'s own. A " +
+                "second assignment — the cache warm-up marking the page loaded — makes " +
+                "MessagePaging.needsLoad answer `false` for a message that was never fetched: " +
+                "settling on it loads NOTHING and the page stays blank forever. Every other rule " +
+                "in this file, and MessagePagingTest, stay green.",
+            listOf(LOADED_ID_WRITE),
+            bindingsOf(viewModelLines(), "loadedId"),
+        )
+    }
+
+    /**
+     * ⛔ The middle link of the warm-up, and the only place the decision becomes a refusal.
+     * [MessagePaging.warmable] is green against any arguments, so what counts is what is handed to
+     * it AND that its answer is acted on. Passing `null` for the crypto kind paints PGP armour on
+     * an unopened page; passing `cachedInlineImages = 1` unconditionally warms a body whose images
+     * are still missing; dropping the sender argument warms a body whose remote images the reader
+     * has already allowed, which fetches them from a page nobody swiped to; and deleting the
+     * `return@launch` throws all three answers away while every other rule here stays green.
+     */
+    @Test fun `the warm-up asks the decision with the cached body's own values, and obeys it`() {
+        assertEquals(
+            "MessageViewModel.warmFromCache must consult MessagePaging.warmable on exactly these " +
+                "code lines, adjacent and in this order, and RETURN on a refusal. ⚠ An empty " +
+                "`but was []` means the call was renamed, moved or reshaped. What the damage is, " +
+                "one line at a time. Without `if (!warmable) return@launch` the answer is " +
+                "computed and dropped: OpenPGP armour prints in clear on a page nobody swiped " +
+                "to, and a body from the JMAP prefetch (`inlineImages = emptyMap()`) is painted " +
+                "with its holes and RELOADS under the finger. Without the sender argument — " +
+                "lower-cased, against the allowlist as MessageScreen compares it — an allowed " +
+                "sender's body is warmed on an unswiped page, its WebView composes, its remote " +
+                "images are not blocked, and the tracking pixel reports a message nobody opened " +
+                "(PRIVACY.md:288). And `repo.cryptoKindOf` is the single source of PGP detection " +
+                "(⛔ never re-derived in the UI layer), while the two counts are exactly what " +
+                "`MailRepository.ensureInlineImages` reads to decide it has nothing to download.",
+            WARMABLE_CALL,
+            adjacentBlock(viewModelLines(), WARMABLE_CALL.first(), WARMABLE_CALL.size),
+        )
+    }
+
+    /**
+     * ⭐ THE VOLET ITSELF, and without these two blocks it corrects nothing at all. `load` erased
+     * the body in two places — the prologue, and the header-only repaint inside the coroutine. A
+     * warmed neighbour that is erased at the instant the finger lands takes its WebView out of
+     * composition, and the ~1 s spinner comes back unchanged while every other rule here stays
+     * green.
+     *
+     * ⛔ The condition is pinned WITH its binding: `val warm = warmedId == emailId &&
+     * warmedAccountId == accountId`. Dropping the account half re-opens #92 — two accounts of one
+     * server carry the same id, and the page would keep the OTHER account's warmed body.
+     */
+    @Test fun `load keeps a body the warm-up put there, for this account and this id`() {
+        assertEquals(
+            "`warm` must be bound on exactly this line. Bound on the id alone, a neighbour from " +
+                "another account of the same server keeps the wrong body (#92); bound to `false`, " +
+                "the warm-up is erased the moment the finger lands and the swipe spinner returns.",
+            listOf(WARM_BINDING),
+            bindingsOf(viewModelLines(), "warm"),
+        )
+        assertEquals(
+            "load()'s prologue must guard its two erasing lines with `if (!warm) {`. Unguarded, " +
+                "the settle wipes the warmed body and the WebView leaves composition exactly " +
+                "when the reader arrives — the whole defect, back, with this file otherwise green.",
+            PROLOGUE_ERASURE,
+            adjacentBlock(viewModelLines(), PROLOGUE_ERASURE.first(), PROLOGUE_ERASURE.size),
+        )
+        assertEquals(
+            "load()'s cached-row repaint must be guarded the same way: it rewrites `_messages` " +
+                "HEADER-ONLY (body = null), which drops the WebView just as surely as the " +
+                "prologue does. ⛔ Only these two lines are conditional — the mailbox role, the " +
+                "own-message flag, the delivered-to address, the cover subject and the mailbox id " +
+                "below them must stay unconditional.",
+            REPAINT_ERASURE,
+            adjacentBlock(viewModelLines(), REPAINT_ERASURE.first(), REPAINT_ERASURE.size),
         )
     }
 
@@ -324,6 +461,21 @@ class LoadOnSettleCallSiteTest {
     private fun viewModelLines(): List<String> = codeLines(viewModel().readText())
 
     /**
+     * The code lines of `fun warmFromCache(…)` only, from its declaration to the next member
+     * declared at class indentation. Empty when the function is gone, which reddens the rule that
+     * reads it rather than satisfying it against nothing.
+     */
+    private fun warmBodyLines(): List<String> {
+        val text = viewModel().readText()
+        val start = text.indexOf("fun warmFromCache(")
+        // ⛔ Named after a forbidden call on purpose: a vanished warm-up must redden the rule
+        // that reads this, not satisfy it against an empty list.
+        if (start < 0) return listOf("warmFromCache is gone from MessageViewModel.kt: openMessage(")
+        val end = NEXT_MEMBER.find(text, start + 1)?.range?.first ?: text.length
+        return codeLines(text.substring(start, end))
+    }
+
+    /**
      * Every code line of [lines] that BINDS the name [name] — a `val`/`var` declaration, a bare
      * assignment, or a named argument spelling it — never a comparison (`==` is excluded).
      *
@@ -377,6 +529,61 @@ class LoadOnSettleCallSiteTest {
     private companion object {
         const val LOAD_EFFECT =
             "LaunchedEffect(emailId, accountId, active) { viewModel.load(emailId, accountId, active) }"
+
+        const val WARM_EFFECT =
+            "LaunchedEffect(emailId, accountId) { viewModel.warmFromCache(emailId, accountId) }"
+
+        /** Every name by which MessageScreen.kt may put a message on a page's ViewModel. */
+        val PAGE_ENTRY_POINTS = listOf("viewModel.load(", "viewModel.warmFromCache(")
+
+        /** Every name in the repository that goes to the SERVER for a body. */
+        val FETCHING_NAMES = listOf(
+            "openMessage(",
+            "openEmail(",
+            "openEmailImap(",
+            "fetchEmail(",
+            "ensureInlineImages(",
+        )
+
+        const val LOADED_ID_WRITE = "loadedId = emailId"
+
+        const val WARM_BINDING = "val warm = warmedId == emailId && warmedAccountId == accountId"
+
+        /**
+         * The consultation of the pure warm/no-warm decision, argument by argument — AND the line
+         * that OBEYS it. ⛔ The obedience belongs in the same block, not in a rule of its own:
+         * pinning the call alone left `if (!warmable) return@launch` deletable with every rule in
+         * this file and every case in `MessagePagingTest` still green.
+         */
+        val WARMABLE_CALL = listOf(
+            "val warmable = MessagePaging.warmable(",
+            "cryptoKind = repo.cryptoKindOf(cached.email),",
+            "inlineParts = cached.email.inlineImageParts().size,",
+            "cachedInlineImages = cached.inlineImages.size,",
+            "senderAllowedRemoteImages =",
+            "cached.email.from.firstOrNull()?.email?.lowercase()?.let { it in settings.imageAllowlist.first() } == true,",
+            ")",
+            "if (!warmable) return@launch",
+        )
+
+        /** load()'s prologue erasure, anchored on the unique line above it. */
+        val PROLOGUE_ERASURE = listOf(
+            "settleMarking = null",
+            "if (!warm) {",
+            "_state.value = MessageState.Loading",
+            "_messages.value = emptyList()",
+        )
+
+        /** load()'s header-only repaint, anchored on the unique line that opens it. */
+        val REPAINT_ERASURE = listOf(
+            "listEmail?.let { cached ->",
+            "if (!warm) {",
+            "_messages.value = listOf(ThreadMessage(id = cached.id, header = cached))",
+            "_state.value = MessageState.Loaded(cached)",
+        )
+
+        /** The next member declared at class indentation, which is where a function ends. */
+        val NEXT_MEMBER = Regex("""\n {4}(private )?(suspend )?fun \w""")
 
         const val ACTIVE_ARGUMENT = "active = pagerKey(entry) == settledKey,"
 

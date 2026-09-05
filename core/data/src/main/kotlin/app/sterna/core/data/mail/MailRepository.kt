@@ -4250,8 +4250,15 @@ class MailRepository(
      * Structural check for OpenPGP content on an already-fetched [Email]. Both
      * protocols surface the PGP/MIME control parts as typed attachment parts
      * (JMAP natively; IMAP via MimeParser), and inline armor shows in the text.
+     *
+     * Public since the reader's cache warm-up has to ask the same question before it may paint a
+     * cached body on a page the finger has not reached: warming a crypto message would show its
+     * armour, in clear, with no decrypt offered. ⛔ It is exposed rather than reimplemented in the
+     * UI layer deliberately — two copies of "is this PGP?" drift, and the copy that says "no"
+     * first is the one that leaks. Pure and cheap: it reads parts and text already in hand, and
+     * touches neither the network nor the OpenPGP provider.
      */
-    private fun cryptoKindOf(email: Email): CryptoKind? {
+    fun cryptoKindOf(email: Email): CryptoKind? {
         val parts = email.attachments
         if (parts.any { it.type == "application/pgp-encrypted" }) return CryptoKind.PGP_ENCRYPTED
         if (parts.any { it.type == "application/pgp-signature" }) return CryptoKind.PGP_SIGNED
