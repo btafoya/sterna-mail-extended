@@ -230,11 +230,12 @@ Out of scope:
   the server's own timestamp for the message (IMAP `INTERNALDATE`, JMAP `receivedAt`, never
   the sender's `Date:`), and a timestamp that cannot be read, or that stands more than 24 h
   ahead of the device clock, refuses the import outright, in silence, so a device clock more
-  than 24 h slow takes no key at all. No `prefer-encrypt` attribute is emitted and none is honoured,
-  so nothing here turns encryption on by itself; gossip headers and the Autocrypt Setup
-  Message are not implemented. A key obtained this way is opportunistic and unconfirmed:
-  it makes encryption possible and proves nothing about who is at the other end, and
-  confirming it stays a deliberate act in the OpenPGP app.
+  than 24 h slow stops taking keys from mail that has just arrived. No `prefer-encrypt`
+  attribute is emitted and none is honoured, so nothing here turns encryption on by itself;
+  gossip headers and the Autocrypt Setup Message are not implemented. A key obtained this
+  way is opportunistic and unconfirmed: it makes encryption possible and proves nothing
+  about who is at the other end, and confirming it stays a deliberate act in the OpenPGP
+  app.
 - **Sterna does not verify who it is talking to.** Any installed app answering that
   service intent can be bound. One package is refused by the vendored api library
   itself, for an incompatible implementation of the interface rather than out of

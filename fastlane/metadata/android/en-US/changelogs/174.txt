@@ -5,10 +5,10 @@ Reading
 - The Message list preview setting now has an effect on IMAP: the row carries the opening line of the message. An older row gains it at its next sync, and there is no backfill of what is already there.
 - The quoted history at the end of a reply opens folded behind a "Quoted text" button, in HTML messages. One tap unfolds it, nothing is remembered, and plain text is untouched.
 - Tapping an attached message opens it in a sheet: its From, To, Cc, date, subject, its text and the names of its own attachments. It used to open an empty chooser.
-- Print, or save as PDF, from the reader's menu. The paper carries the header lines and the body as displayed, on white whatever the theme. Blocked remote images stay blocked.
+- Print, or save as PDF, from the reader's menu. The paper carries the header lines and the body you were reading, on white whatever the theme, with the quoted history printed in full. Blocked remote images stay blocked.
 - Save a message as .eml, exactly as the server holds it, and save an attachment straight into a folder of your choosing. Neither passes through the app's cache, and a failed save deletes the file it had created, wherever the folder you picked allows it, rather than leaving an empty one behind.
 - Forward a message as an attachment, from the reader's menu.
-- The drawer keeps the folders you folded, across a rotation, a restart and an account being signed out. A folder of your own that has children now starts folded, and a folded folder carries the unread count of what it hides.
+- The drawer keeps the folders you folded, across a rotation and a restart, and signing one account out leaves the other accounts' folds alone. On a JMAP account, a folder of your own that has children now starts folded, and a folded folder carries the unread count of what it hides. IMAP folder rows carry no unread count, so nothing folds itself there and only the chevrons you pressed are remembered.
 - Deleting, archiving or moving a message takes its new-mail notification down with it, instead of leaving a banner that reopened a message no longer there.
 
 Writing
@@ -32,7 +32,7 @@ Encryption
 
 - An account whose OpenPGP is on announces its public key on the mail it sends, and takes a correspondent's key from a message that carries one. This is Autocrypt Level 1: the key arrives with ordinary mail, and it is opportunistic and unconfirmed.
 - An encrypted message now repeats its subject inside the encrypted part, so a recipient's client can tell that the subject shown is the subject sent. The envelope still carries the subject in the clear, exactly as before.
-- A key arriving in the mail can no longer be pushed ahead of a real one by a forged date. On IMAP the date is taken from the server's own clock, a date more than a day ahead of the phone is refused, and the reader fetches a message from the server only once a finger has settled on it. A phone whose own clock is more than a day slow takes no key at all.
+- A key arriving in the mail can no longer be pushed ahead of a real one by a forged date. On IMAP the date is taken from the server's own clock, a date more than a day ahead of the phone is refused, and the reader fetches a message from the server only once a finger has settled on it. A phone whose own clock is more than a day slow stops taking keys from the mail that has just arrived.
 
 Accounts
 

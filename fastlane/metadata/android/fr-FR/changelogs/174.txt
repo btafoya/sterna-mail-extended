@@ -5,10 +5,10 @@ Lecture
 - Le réglage d'aperçu de la liste de courrier a maintenant un effet en IMAP : la ligne porte le début du message. Une ligne ancienne le gagne à sa prochaine synchronisation, et rien n'est rattrapé sur ce qui est déjà là.
 - L'historique cité en fin de réponse s'ouvre replié derrière un bouton « Texte cité », dans les messages HTML. Une tape le déplie, rien n'est mémorisé, et le mode texte brut est inchangé.
 - Taper un message joint l'ouvre dans une feuille : son expéditeur, ses destinataires, sa date, son sujet, son texte et les noms de ses propres pièces jointes. Cela ouvrait un sélecteur vide.
-- Imprimer un message, ou l'enregistrer en PDF, depuis le menu du lecteur. Le papier porte les lignes d'en-tête et le corps tel qu'il est affiché, sur blanc quel que soit le thème. Les images distantes bloquées le restent.
+- Imprimer un message, ou l'enregistrer en PDF, depuis le menu du lecteur. Le papier porte les lignes d'en-tête et le corps que vous lisiez, sur blanc quel que soit le thème, avec l'historique cité imprimé en entier. Les images distantes bloquées le restent.
 - Enregistrer un message en .eml, exactement tel que le serveur le conserve, et enregistrer une pièce jointe directement dans un dossier de votre choix. Ni l'un ni l'autre ne passe par le cache de l'application, et un enregistrement qui échoue efface le fichier qu'il avait créé, là où le dossier choisi le permet, au lieu de laisser un fichier vide.
 - Transférer un message en pièce jointe, depuis le menu du lecteur.
-- Le tiroir conserve les dossiers que vous avez repliés, à la rotation, au redémarrage et à la déconnexion d'un compte. Un dossier à vous qui a des enfants démarre désormais replié, et un dossier replié porte le compte de non-lus de ce qu'il cache.
+- Le tiroir conserve les dossiers que vous avez repliés, à la rotation et au redémarrage, et déconnecter un compte laisse intacts les replis des autres. Sur un compte JMAP, un dossier à vous qui a des enfants démarre désormais replié, et un dossier replié porte le compte de non-lus de ce qu'il cache. Les lignes de dossier IMAP ne portent aucun compte de non-lus, donc rien ne s'y replie tout seul et seuls les chevrons que vous avez pressés sont mémorisés.
 - Supprimer, archiver ou déplacer un message retire aussi sa notification de nouveau courrier, au lieu de laisser un bandeau qui rouvrait un message qui n'était plus là.
 
 Écriture
@@ -32,7 +32,7 @@ Chiffrement
 
 - Un compte dont OpenPGP est actif annonce sa clé publique sur le courrier qu'il envoie, et prend la clé d'un correspondant sur un message qui en porte une. C'est Autocrypt niveau 1 : la clé arrive avec le courrier ordinaire, et elle est opportuniste et non confirmée.
 - Un message chiffré répète désormais son sujet à l'intérieur de la partie chiffrée, pour que le client du destinataire puisse constater que le sujet affiché est celui qui a été envoyé. L'enveloppe porte toujours le sujet en clair, exactement comme avant.
-- Une clé arrivée par le courrier ne peut plus passer devant une vraie au moyen d'une date falsifiée. En IMAP la date est prise sur l'horloge du serveur, une date de plus d'un jour en avance sur le téléphone est refusée, et le lecteur ne va chercher un message sur le serveur qu'une fois le doigt posé dessus. Un téléphone dont l'horloge retarde de plus d'un jour ne prend plus aucune clé.
+- Une clé arrivée par le courrier ne peut plus passer devant une vraie au moyen d'une date falsifiée. En IMAP la date est prise sur l'horloge du serveur, une date de plus d'un jour en avance sur le téléphone est refusée, et le lecteur ne va chercher un message sur le serveur qu'une fois le doigt posé dessus. Un téléphone dont l'horloge retarde de plus d'un jour cesse de prendre les clés du courrier qui vient d'arriver.
 
 Comptes
 

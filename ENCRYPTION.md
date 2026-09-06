@@ -179,11 +179,12 @@ whose full text Sterna had to fetch: one you open, reply to, forward or decrypt,
 and never from one it has not touched. Nothing arrives on its own from Spam,
 Trash or Archive.
 
-A key that is announced is not always taken: Sterna ignores it, and says nothing,
-when the date the server put on the message cannot be read, and when that date
-runs more than 24 hours ahead of your phone's clock. So a phone whose own clock
-is more than a day slow takes no key at all. Set the clock right, and the next
-message from that correspondent brings the key.
+A key that is announced is not always taken: Sterna ignores it, and says
+nothing, when the date the server put on the message cannot be read, and when
+that date runs more than 24 hours ahead of your phone's clock. So a phone whose
+own clock is more than a day slow stops taking keys from the mail that has just
+arrived. Set the clock right, and the next message from that correspondent
+brings the key.
 
 A key that turns up this way is a convenience, not a proof of identity: it says
 what the sender's client claimed, and nothing about who is really at the other
