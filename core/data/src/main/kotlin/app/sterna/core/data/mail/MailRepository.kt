@@ -85,6 +85,7 @@ import app.sterna.core.jmap.buildAuthorizationUrl
 import app.sterna.core.imap.CryptoEnvelope
 import app.sterna.core.imap.CryptoKind
 import app.sterna.core.imap.ImapUidValidityChanged
+import app.sterna.core.imap.inlineArmorKind
 import app.sterna.core.imap.decodeMailboxPath
 import app.sterna.core.imap.MimeBody
 import app.sterna.core.imap.MimeParser
@@ -916,7 +917,7 @@ internal fun rawSourceBytes(emailId: String, raw: String): ByteArray {
  * (BODY.PEEK[<section>])` answers OK with no untagged `FETCH` line at all. `ImapClient.fetchSection`
  * (ImapClient.kt:1175-1176) reads that answer through `bodyItem()`, whose four early returns hand
  * back "" for a FETCH carrying no body item (ImapClient.kt:1267-1274), and `MimeParser.decodeBytes`
- * turns "" into an empty `ByteArray` WITHOUT throwing (MimeParser.kt:388-394), on every branch.
+ * turns "" into an empty `ByteArray` WITHOUT throwing (MimeParser.kt:421-427), on every branch.
  *
  * ⭐ `isEmpty()`, and deliberately NOT the blank-equivalent its neighbour [sourceCouldNotBeRead]
  * uses. The two judge different things. A source is a MESSAGE: one made of nothing but whitespace
@@ -4262,13 +4263,12 @@ class MailRepository(
         val parts = email.attachments
         if (parts.any { it.type == "application/pgp-encrypted" }) return CryptoKind.PGP_ENCRYPTED
         if (parts.any { it.type == "application/pgp-signature" }) return CryptoKind.PGP_SIGNED
-        val text = email.textContent().orEmpty()
-        if (text.contains("-----BEGIN PGP MESSAGE-----") ||
-            text.contains("-----BEGIN PGP SIGNED MESSAGE-----")
-        ) {
-            return CryptoKind.PGP_INLINE
-        }
-        return null
+        // ⛔ The two inline armour headers are NOT spelled here: this class needs Room and an
+        // Android context, so nothing inside it can be executed on a JVM bench, and while the
+        // literals lived here deleting one of them left the whole suite green — which is a
+        // message warmed onto a page nobody opened, armour printed in clear. The decision is
+        // `inlineArmorKind` (core/imap, beside [CryptoKind]) and `InlineArmorKindTest` RUNS it.
+        return inlineArmorKind(email.textContent().orEmpty())
     }
 
     /** The exact raw RFC 5322 source of a message (IMAP fetch or JMAP blob download). */

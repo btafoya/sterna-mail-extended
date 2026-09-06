@@ -62,8 +62,11 @@ object MessagePaging {
      * the gesture. ⛔ It moves NOTHING onto the network: a fetch is what `798a5fd1` removed, and
      * what ENCRYPTION.md:177-180 and SECURITY.md promise never happens on an unopened message.
      *
-     * Three refusals, all about what the reader would SEE — or, for the last one, what the SENDER
-     * would see:
+     * Three refusals, all three about what the READER would see on a page she has not swiped to:
+     * armour printed in clear, a document painted with holes, a body rebuilt under her finger.
+     * ⛔ None of them is what keeps an unopened page off the network — that is the `everActive`
+     * latch, named under the third refusal below. Read a refusal as a privacy guard and the guard
+     * is somewhere else.
      *
      * ⛔ [cryptoKind] non-null — the body is OpenPGP. Rendering it warm would print the armour, in
      * clear, on a page nobody has swiped to, before any decrypt has been offered. The kind comes
@@ -79,23 +82,47 @@ object MessagePaging {
      * spinner this replaces. The JMAP prefetch is the case that makes it real: it persists bodies
      * with `inlineImages = emptyMap()`.
      *
-     * ⛔ [senderAllowedRemoteImages] — the sender is on the remote-image allowlist. This one is not
-     * about rendering at all, it is a NETWORK REQUEST, and it exists because warming created the
-     * path: a page that holds a body composes the `WebView`, and from there `MessageScreen` reads
-     * the sender out of the warmed state itself (`(state as? MessageState.Loaded)?.email?.from`,
-     * MessageScreen.kt:1581), `senderAllowed` follows (:1582), `showRemoteImages` needs nothing
-     * else on a neighbour since `manualShow` is false there (ReaderBody.kt:127), `blockRemote`
-     * becomes false (:1706) and `shouldInterceptRequest` lets the request out (:4863). The remote
-     * image — the tracking pixel among them — would then leave for a message NOBODY OPENED, and
-     * PRIVACY.md:288 publishes the opposite in those words: allow a sender only when you accept
-     * that "they learn you opened the message". Before the warm-up an unswiped page held no body,
-     * so no WebView and no request at all; this refusal is what keeps that true.
+     * ⛔ [senderAllowedRemoteImages] — the sender is on the remote-image allowlist. The refusal
+     * stays; ⚠ its ORIGINAL reason does not, and the sentence it was written with is the mistake
+     * worth keeping in view. It read: before the warm-up an unswiped page held no body, so no
+     * WebView and no request at all, and "this refusal is what keeps that true". A refusal is a
+     * condition weighed at one instant, never an invariant — it holds only for the bodies it
+     * happens to be asked about, and every other route to a warmed body walks straight past it.
+     *
+     * ⭐ What keeps a page nobody opened from fetching anything is a LATCH, not this refusal:
+     * `MessagePage` holds `everActive`, seeded false and set only under the settle flag, one-way
+     * (MessageScreen.kt:671-674). BOTH producers of the remote-image answer are gated on it — the
+     * per-message override (`val manualShow = everActive && manualShowRaw`, MessageScreen.kt:1604)
+     * and the allowlist answer (`val senderAllowed = everActive && …`, :1618) — so a page that was
+     * only ever warmed answers `showRemoteImages` false whatever the allowlist and whatever was
+     * tapped on it, `blockRemote` stays true (:1742) and `shouldInterceptRequest` blocks (:4899).
+     * PRIVACY.md:288 is what that keeps: allow a sender only when you accept that "they learn you
+     * opened the message".
+     *
+     * ⛔ Read the two together, and that is why each names the other: alone, each reads as
+     * covered by the other and gets deleted. What is left to THIS refusal is COMFORT, and only
+     * that — warm an allowlisted sender's body and the settle flips `blockRemote`, which is half
+     * of the WebView's load key (MessageScreen.kt:4643), so the body RELOADS under the finger and
+     * the swipe ends in the white flash the warm-up exists to remove. ⚠ And it leaves a mark the
+     * reload does NOT clear: `imagesStrip` is memoised on `(full, plainText)`
+     * (MessageScreen.kt:1887) and `senderAllowed` is deliberately not one of its keys, so a warmed
+     * neighbour decides the strip PRESENT on any body carrying remote refs — the latch is still
+     * holding `senderAllowed` false, and that is the input `imagesStripPresent` reads — and
+     * at the settle `load` keeps the warmed body (MessageViewModel.kt:1457-1460 and :1516-1519),
+     * so `full` never changes, the `remember` is never re-run, and the reader is left with a
+     * ~49 dp row (MessageScreen.kt:1867) announcing pictures held back from the one sender whose
+     * pictures were never held back. Delete this refusal and every swipe onto an allowed sender
+     * flashes white AND keeps a dead strip; delete the latch and a pixel leaves. Both are bugs,
+     * only one is a promise broken.
      *
      * ⚠ Its price is accepted, not overlooked: messages from an allowed sender keep the ~1 s
-     * hourglass at the end of the swipe. A spinner is recoverable, a pixel that has left is not.
-     * ⛔ The caller must compare LOWER-CASED, exactly as MessageScreen.kt:1582 does (the stored
-     * allowlist is lower-cased on write, SettingsRepository.kt:352-370): a sender written with a
-     * capital would otherwise miss this guard and be warmed with its images allowed.
+     * hourglass at the end of the swipe.
+     * ⛔ The caller must compare LOWER-CASED, exactly as MessageScreen.kt:1618 does (the stored
+     * allowlist is lower-cased on write, SettingsRepository.kt:356 and :369). A sender written
+     * with a capital otherwise misses this guard and is warmed. Its images stay blocked all the
+     * same — the latch answers for that, not this comparison — so what a mismatch costs is
+     * exactly the comfort above: that reader's swipe flashes white and keeps a dead strip, on the
+     * senders she took the trouble to allow.
      */
     fun warmable(
         cryptoKind: CryptoKind?,

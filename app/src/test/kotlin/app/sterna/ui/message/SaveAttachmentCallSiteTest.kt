@@ -43,7 +43,7 @@ class SaveAttachmentCallSiteTest {
 
     /**
      * ⛔ And they are REFUSED when there are none of them. `MimeParser.decodeBytes("", …)` answers a
-     * zero-length ByteArray without throwing (MimeParser.kt:388-394), and its "" is what
+     * zero-length ByteArray without throwing (MimeParser.kt:421-427), and its "" is what
      * `ImapClient.bodyItem()` yields whenever a `UID FETCH (BODY.PEEK[…])` came back OK with no
      * untagged FETCH at all — measured on the test server for a UID destroyed server-side between
      * opening the message and the Save tap. Unguarded, `openOutputStream(…, "wt")` truncates the

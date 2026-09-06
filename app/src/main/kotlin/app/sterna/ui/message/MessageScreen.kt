@@ -655,10 +655,28 @@ private fun MessagePage(
         // Hand this page's ViewModel to the fixed chrome once the user has settled on it.
         if (active) onActivated(viewModel)
     }
+    // Has the reader EVER settled on this page? Composition alone does not count: the pager warms
+    // one page each side of the open message, and a warmed page keeps collecting the allowlist
+    // through its own ViewModel. Without this, "Always show images from this sender", tapped on
+    // the message she IS reading, flips `senderAllowed` on the NEIGHBOUR too — a message never put
+    // under her finger — which reloads its body with remote content allowed and hands the sender's
+    // tracking pixel the fact that it was opened. PRIVACY.md:288 promises exactly the opposite.
+    // ⛔ A latch, never a bare `!active`: `MessagePaging.settledEntry` deliberately answers null at
+    // rest, and in that window EVERY page is inactive, the one being read included — a bare
+    // reading would flip `blockRemote` under the reader, re-key the document and reload the
+    // message she is on, scroll position lost. It only ever goes false → true.
+    // ⛔ And it lives here, not as a ViewModel flow: there it would be reset by load()'s prologue,
+    // which runs BEFORE onActiveChanged (see ReaderStateResetOnLoadTest) — wrong by one frame,
+    // and that frame is the one that fetches.
+    var everActive by remember { mutableStateOf(false) }
+    if (active) {
+        everActive = true
+    }
     MessageContent(
         viewModel = viewModel,
         emailId = emailId,
         accountId = accountId,
+        everActive = everActive,
         onComposeTo = onComposeTo,
     )
 }
@@ -1543,6 +1561,8 @@ private fun MessageContent(
     viewModel: MessageViewModel,
     emailId: String,
     accountId: String?,
+    /** True once the reader has settled on this page — see the latch in [MessagePage]. */
+    everActive: Boolean,
     onComposeTo: (address: String) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -1570,7 +1590,18 @@ private fun MessageContent(
     val replyBarEnabled by viewModel.replyBar.collectAsStateWithLifecycle()
     // Per-message manual override (set from the fixed toolbar's menu, hence in the VM);
     // the sender allowlist auto-shows without it.
-    val manualShow by viewModel.manualShowImages.collectAsStateWithLifecycle()
+    // ⛔ Latched on `everActive` too, and for a reason the shape of the code hides: this is the
+    // SECOND producer of the remote-image answer — `showRemoteImages` takes `manualShow ||
+    // senderAllowed`, so closing the allowlist half below and leaving this one open closes
+    // nothing. Nothing gates it on its own: `onShowImages = viewModel::showImagesOnce` is wired
+    // with no `active` on it, down to a live button in the `ImagesStrip` that a WARMED page
+    // composes exactly like the open one, and the only reset lives in `load()`, which never runs
+    // on a page nobody settled on — so a `manualShow` raised on a neighbour would never come back
+    // down. That it is hard to raise with a finger today is not a guard, it is an accident.
+    // ⛔ On this `val`, never on the `showRemoteImages(...)` call below: ReaderBodyTest counts
+    // that line whole and demands exactly two of it, one per site.
+    val manualShowRaw by viewModel.manualShowImages.collectAsStateWithLifecycle()
+    val manualShow = everActive && manualShowRaw
     // Reading mode (#149), resolved exactly as the menu above resolves it: the stored setting, this
     // message's deviation from it, and the two answers — the one that picks the document, and the
     // one the remote-image question is decided against.
@@ -1579,7 +1610,12 @@ private fun MessageContent(
     val plainText = plainTextForBody(plainTextOverride, plainTextSetting)
     val imageMode = plainTextForImages(plainTextOverride, plainTextSetting)
     val senderEmail = (state as? MessageState.Loaded)?.email?.from?.firstOrNull()?.email
-    val senderAllowed = senderEmail?.lowercase()?.let { it in imageAllowlist } == true
+    // ⛔ `everActive` first, and on THIS line rather than on `blockRemote`: `senderAllowed` is the
+    // single producer of the answer, so gating it here closes the rendered page, the printed
+    // document and `shouldInterceptRequest` in one move. A page that was only ever WARMED must
+    // answer "not allowed" whatever the allowlist says — allowing a sender from the open message
+    // must not let the neighbour beside it fetch his pictures and report that it was opened.
+    val senderAllowed = everActive && senderEmail?.lowercase()?.let { it in imageAllowlist } == true
     val showRemote = showRemoteImages(imageMode, manualShow, senderAllowed)
     // The per-sender filter rule offered from the participants panel. The Trash is named from
     // the account's OWN cached folder list (no network), the script state is read once when the

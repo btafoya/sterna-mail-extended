@@ -491,18 +491,22 @@ class MessagePagingTest {
     }
 
     /**
-     * ⛔ THE REFUSAL THIS VOLET OWES ITS EXISTENCE TO NOT BREAKING. Warming puts
-     * `MessageState.Loaded` on a page nobody swiped to, and a page that holds a body composes the
-     * `WebView`. From there `MessageScreen` reads the sender out of that very state
-     * (`(state as? MessageState.Loaded)?.email?.from`), the allowlist answers `senderAllowed`,
-     * `showRemoteImages` needs nothing else on a neighbour (`manualShow` is false there),
-     * `blockRemote` becomes false and `shouldInterceptRequest` returns null — the request LEAVES.
-     * A tracking pixel would then report a message nobody opened, and PRIVACY.md:288 publishes the
-     * opposite in those words: allowing a sender means "they learn you opened the message".
+     * ⛔ THE REFUSAL, PINNED — but ⚠ NOT for the reason first written here. That reason was: a
+     * warmed page composes the `WebView`, the allowlist answers `senderAllowed`, "`manualShow` is
+     * false there", `blockRemote` goes false and the request leaves. The parenthesis was a
+     * coincidence, not a guard: nothing gated the manual override, whose "Show images" button a
+     * warmed page composes live and whose only reset sits in `load()`, which never runs there.
+     *
+     * ⭐ What holds the pixel now is `MessagePage`'s one-way `everActive` latch, which gates BOTH
+     * producers (`manualShow` and `senderAllowed`) — pinned line by line in
+     * [LoadOnSettleCallSiteTest], since neither can be reached from a JVM bench. This refusal is
+     * kept for COMFORT: without it the settle flips `blockRemote`, half of the WebView's load key,
+     * and the body reloads under the finger. The two guards cite each other on purpose; read
+     * either alone and it looks redundant. PRIVACY.md:288 rests on the latch, not on this.
      */
     @Test fun `a body whose sender loads remote images automatically is never warmed`() {
         assertFalse(
-            "an allowlisted sender's body warmed on an unswiped page fires its tracking pixel",
+            "an allowlisted sender's body warmed on an unswiped page reloads under the finger",
             MessagePaging.warmable(
                 cryptoKind = null,
                 inlineParts = 0,

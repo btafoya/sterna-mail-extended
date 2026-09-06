@@ -32,6 +32,39 @@ data class MimeBody(
 enum class CryptoKind { PGP_ENCRYPTED, PGP_SIGNED, PGP_INLINE }
 
 /**
+ * Legacy INLINE OpenPGP, recognised on an already-decoded body: the two armour headers a message
+ * carries when the ciphertext (or the clearsigned block) sits in the text itself rather than in a
+ * PGP/MIME part.
+ *
+ * ⛔ It is a confidentiality guard, not a convenience. `MailRepository.cryptoKindOf` answers
+ * `MessagePaging.warmable` with it, and the reader's cache warm-up paints a body on a page the
+ * finger has NOT reached: answering `null` for an inline-PGP message prints its armour, in clear,
+ * on a message nobody opened, with no decrypt offered. The same answer routes the OPENED message
+ * to decryption, so a `null` there also means an inline-PGP mail that offers none.
+ *
+ * ⭐ It lives here, beside [CryptoKind] and not in `MailRepository`, for one reason: the
+ * repository needs Room and an Android context, so nothing inside it can be RUN on a JVM bench —
+ * and until `InlineArmorKindTest` existed, deleting either literal below left the whole suite
+ * green. `core/data` already declares `api(project(":core:imap"))`.
+ *
+ * ⚠ [text] is the DISPLAYED body (`Email.textContent()`), not a raw source — [MimeParser] is
+ * where raw sources are read, and [MimeParser.detectCrypto] is the function for those.
+ *
+ * `contains`, never `startsWith`: real inline armour sits under a greeting and above a signature.
+ * And only these two headers — a quoted `-----BEGIN PGP PUBLIC KEY BLOCK-----` is nothing to
+ * decrypt or verify, and refusing to warm every message that quotes a key would be a bug of its
+ * own.
+ */
+fun inlineArmorKind(text: String): CryptoKind? =
+    if (text.contains("-----BEGIN PGP MESSAGE-----") ||
+        text.contains("-----BEGIN PGP SIGNED MESSAGE-----")
+    ) {
+        CryptoKind.PGP_INLINE
+    } else {
+        null
+    }
+
+/**
  * The OpenPGP-relevant pieces of a raw message, extracted without any crypto:
  * what to decrypt (armor) or verify (exact signed bytes + detached signature).
  */

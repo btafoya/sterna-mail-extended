@@ -123,6 +123,15 @@ internal fun readingModesDiffer(email: Email, derivedNotice: String, noContent: 
  * into a `remember` whose key must stay included in the key of the body's HTML document —
  * `plainText` is in that key and `imageMode` is not. Same verdict once DataStore has answered;
  * before that, the two guards differ on purpose (see the overflow menu in `MessageScreen`).
+ *
+ * ⛔ This function knows NOTHING about which page the reader is on, and must not be read as if it
+ * did. Elsewhere in this reader it has been cited for saying that a warmed neighbour is safe
+ * because `manualShow` is false there: it says no such thing. `manualShow` is only ever false on
+ * an unsettled page because `MessagePage`'s `everActive` latch makes it so — BOTH terms handed in
+ * from the page site are gated on that latch (MessageScreen.kt:1604 and :1618), the manual
+ * override every bit as much as the allowlist, since the "Show images" button of a warmed page is
+ * composed and live and `load()`, which holds the only reset, never runs there. Take the latch
+ * away and `false || true` fetches, on a message NOBODY OPENED.
  */
 internal fun showRemoteImages(plainText: Boolean, manualShow: Boolean, senderAllowed: Boolean): Boolean =
     !plainText && (manualShow || senderAllowed)

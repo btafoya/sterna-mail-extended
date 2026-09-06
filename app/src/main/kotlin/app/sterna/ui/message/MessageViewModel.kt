@@ -1362,17 +1362,25 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 cryptoKind = repo.cryptoKindOf(cached.email),
                 inlineParts = cached.email.inlineImageParts().size,
                 cachedInlineImages = cached.inlineImages.size,
-                // ⛔ Read and compared exactly as MessageScreen does it (:1581-1582), lower-cased
-                // against a list DataStore already stores lower-cased: a warmed body from an
-                // allowed sender composes a WebView whose remote images are not blocked, and the
-                // pixel leaves for a message nobody opened (PRIVACY.md:288).
+                // ⛔ Read and compared exactly as MessageScreen does it (`senderEmail`
+                // MessageScreen.kt:1612, `senderAllowed` :1618), lower-cased against a list
+                // SettingsRepository lower-cases on write (:356, :369). ⚠ What this argument buys
+                // is COMFORT, not the promise: a warmed body from an allowed sender fetches
+                // nothing either, because `everActive` holds `senderAllowed` false until the
+                // finger lands (MessageScreen.kt:671-674, :1618) — that latch is what keeps
+                // PRIVACY.md:288, and the whole of it is written at `MessagePaging.warmable`.
+                // Drop this argument and the settle flips `blockRemote`, half of the WebView's
+                // load key (MessageScreen.kt:4643): the body reloads under the finger, and the
+                // images strip memoised present on the warm body stays there, dead.
                 // ⛔ AND IT IS THE DATASTORE FLOW, AWAITED — never the `imageAllowlist` StateFlow
                 // above. That one is `WhileSubscribed(5_000)` over `initialValue = emptySet()`, so
                 // `.value` answers "nobody is allowed" both before DataStore has replied AND
                 // whenever nothing is collecting it — and this warm-up runs at composition, which
                 // is exactly that moment. The page would be warmed on an empty list, the real list
-                // would arrive a frame later, `senderAllowed` would flip to true under a body
-                // already on screen, and the pixel would leave after all. `first()` suspends until
+                // would arrive, and at the settle `senderAllowed` would flip to true under a body
+                // already on screen — no pixel (the latch held it back for the whole warm life of
+                // that page), but the reload and the dead strip this argument exists to avoid,
+                // on precisely the senders the reader allowed. `first()` suspends until
                 // the stored answer exists; if it never does, the warm-up simply does not happen
                 // and the reader gets today's spinner, which is the safe way to be wrong.
                 senderAllowedRemoteImages =
