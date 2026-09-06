@@ -22,7 +22,7 @@ data class WalkedPage(
 /**
  * What a windowed folder walk brings back — IDS and cursors, never messages.
  *
- * ⛔ There is no `emails` here, and that is the whole point of the shape. The walk hands each
+ * There is no `emails` here, and that is the whole point of the shape. The walk hands each
  * page's messages to its caller as the page lands and forgets them; what it keeps for the end is
  * one string per message. Holding the window's `Email` objects instead — twenty fields, eight of
  * them collections — is what made "Messages to sync = All" a memory problem rather than a network
@@ -51,7 +51,7 @@ data class WalkedPage(
  * from [ids] for a reason that is not the folder's", and the caller must not reconcile against it
  * — the JMAP twin of `ImapFolderWalk.moved`.
  *
- * ⛔ NO DEFAULT VALUE, deliberately. A default of `false` reads as "safe" and is the opposite: it
+ * NO DEFAULT VALUE, deliberately. A default of `false` reads as "safe" and is the opposite: it
  * says "you may DELETE every cached row outside [ids]" to any future construction site that forgot
  * the field — including a test fixture written for something else entirely. Every site must state
  * which kind of walk it describes.

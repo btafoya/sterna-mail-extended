@@ -12,7 +12,7 @@ import app.sterna.core.jmap.model.Email
  * written as a function so it can be RUN, and so that the single place allowed to take it is a
  * single call rather than a handful of `if`s grown into a ViewModel.
  *
- * ⛔ Nothing here sends anything, and nothing here draws anything. It answers "is there a question
+ * Nothing here sends anything, and nothing here draws anything. It answers "is there a question
  * to ask?" and hands back the very request that would be answered if the reader says yes.
  *
  * The two things it exists to keep apart:
@@ -34,7 +34,7 @@ import app.sterna.core.jmap.model.Email
  */
 enum class ReadReceiptSetting {
     /**
-     * DataStore has not answered yet. ⛔ NOT "off": nothing is offered, and nothing is remembered
+     * DataStore has not answered yet. NOT "off": nothing is offered, and nothing is remembered
      * either — the next message settled on asks the question again, by which time the answer has
      * arrived. Losing the offer costs a receipt that was never owed; treating this as "on" would
      * put the question in front of every reader who never asked for it.
@@ -45,7 +45,7 @@ enum class ReadReceiptSetting {
     OFF,
 
     /**
-     * Read and on: the app ASKS. ⛔ Not "sends" — there is deliberately no third position. Turning
+     * Read and on: the app ASKS. Not "sends" — there is deliberately no third position. Turning
      * the switch on is consent to be asked, never consent to answer.
      */
     ON,
@@ -55,7 +55,7 @@ enum class ReadReceiptSetting {
  * How a message came to be marked read. The parameter that carries "a person had it on screen",
  * which no boolean called `read` can carry.
  *
- * ⛔ Do not add a value that means "close enough". The eight non-reader ways a message becomes read
+ * Do not add a value that means "close enough". The eight non-reader ways a message becomes read
  * are all [OTHER], and they are indistinguishable from each other for this purpose: none of them
  * is a person reading.
  */
@@ -70,7 +70,7 @@ enum class ReadMarking {
     /**
      * The reader settled on a message that was ALREADY read. No transition, so nothing is
      * offered: reopening a message must not re-ask, which is what keeps this work free of a
-     * "already answered / already refused" column, its migration and its resync. ⚠ Accepted
+     * "already answered / already refused" column, its migration and its resync. Accepted
      * residual case: marking a message unread again and reopening it does ask again.
      */
     READER_SETTLE_ALREADY_READ,
@@ -108,19 +108,19 @@ data class ReadReceiptRequest(
  * What [email] would have answered, had it been read by a person, at [deliveredTo], about
  * [outgoingSubject].
  *
- * ⛔ THIS REQUEST LEAVES THE DEVICE. It becomes a `Subject:` header and a body line in a mail
+ * THIS REQUEST LEAVES THE DEVICE. It becomes a `Subject:` header and a body line in a mail
  * sent to an address the SENDER chose (`Disposition-Notification-To`), and a copy of it stays in
  * Sent. So the subject it carries is the one from the COVER — the envelope — handed in by the
  * caller, and never [Email.subject]: after a decrypt that field holds the PROTECTED subject the
  * ciphertext carried (RFC 9788, issue #128), and putting it here would post the real subject of an
  * encrypted message in clear to a stranger's mailbox. The outgoing paths that already get this
- * right read the stored row rather than the screen (`ComposeViewModel.kt:1268,1288`).
+ * right read the stored row rather than the screen (`ComposeViewModel`).
  *
- * ⭐ [outgoingSubject] has NO default on purpose: the default would be the mistake. A null one is
+ * [outgoingSubject] has NO default on purpose: the default would be the mistake. A null one is
  * safe — `readReceiptPreview` renders an untitled "Read" on a blank subject — so there is nothing
  * to fall back to.
  *
- * ⛔ Raises no question by itself: an empty [ReadReceiptRequest.receiptTo] is the normal answer for
+ * Raises no question by itself: an empty [ReadReceiptRequest.receiptTo] is the normal answer for
  * the overwhelming majority of mail, and [offeredReadReceipt] is what turns any of this into a
  * banner. Split out so the capture is executable on its own — this is where `deliveredTo` gets
  * into the request that will be handed to `sendReadReceipt`.
@@ -142,16 +142,16 @@ fun readReceiptRequest(
  * What the cover subject becomes after `openMessage` has answered: the [held] one, or the subject
  * of the [opened] message when that one is still the envelope.
  *
- * ⛔ [MessageCrypto.Decrypted] hands back [held] UNCHANGED. `MailRepository.openMessage` serves the
- * decrypt cache first (`MailRepository.kt:3489-3501`), so re-opening a message decrypted earlier in
+ * [MessageCrypto.Decrypted] hands back [held] UNCHANGED. `MailRepository.openMessage` serves the
+ * decrypt cache first, so re-opening a message decrypted earlier in
  * this process returns a body whose [Email.subject] is the PROTECTED one the ciphertext carried
  * (RFC 9788, issue #128) — read as a cover, it would leave the device in clear on the read receipt.
  *
- * ⭐ [MessageCrypto.Locked] is NOT excluded: nothing has been decrypted there, so its subject is
+ * [MessageCrypto.Locked] is NOT excluded: nothing has been decrypted there, so its subject is
  * still the envelope's, and it is the freshest read of it. Null [crypto] — ordinary mail, nearly
  * all of it — likewise.
  *
- * ⛔ A null subject never erases what is [held] (the cached row read a moment earlier), and null
+ * A null subject never erases what is [held] (the cached row read a moment earlier), and null
  * [held] stays null: `readReceiptPreview` renders an untitled receipt, and the only other candidate
  * is the subject this guard exists to keep back.
  */
@@ -170,13 +170,13 @@ internal fun coverSubjectAfterOpen(held: String?, opened: Email, crypto: Message
  *    ([ReadMarking.READER_SETTLE_ALREADY_READ]);
  *  - the message carries no such header at all (`request == null`);
  *  - the header is there but names no usable address ([ReadReceiptRequest.receiptTo] empty — see
- *    [ReadReceiptHeader.recipients], which answers empty for everything malformed). ⚠ Empty offers
+ *    [ReadReceiptHeader.recipients], which answers empty for everything malformed). Empty offers
  *    nothing and throws nothing: `enqueueSend` would refuse an empty recipient list, and this is
  *    the guard that means it is never reached.
  *  - the reader has ALREADY answered on this message ([answered]): said no, or said yes and had it
  *    queued. Replaying the decision is not forgetting the answer.
  *
- * ⭐ It is a function of the CURRENT state, not an event, and that is what lets it be replayed:
+ * It is a function of the CURRENT state, not an event, and that is what lets it be replayed:
  * whenever the setting changes, whenever the body lands, whenever the page settles. Turning the
  * switch on with a message open therefore raises the question, and turning it off takes it away,
  * through one decision rather than two that can disagree.
@@ -203,7 +203,7 @@ fun offeredReadReceipt(
  * offer is exactly what a refusal leaves behind. Told apart by nothing, turning the switch off and
  * on again would put back the question the reader had just declined.
  *
- * ⛔ It lives and dies with the page, like [ReadReceiptState] — this work remembers nothing across
+ * It lives and dies with the page, like [ReadReceiptState] — this work remembers nothing across
  * a reload, which is what keeps it free of a column, a migration and a resync.
  */
 enum class ReadReceiptAnswer {
@@ -226,7 +226,7 @@ enum class ReadReceiptAnswer {
  * will draw. Session-only, exactly like [UnsubscribeState], and for the same reason: remembering
  * it would be a column in the message table.
  *
- * ⚠ **There is no `Sent`.** [UnsubscribeState] has one because a one-click unsubscribe is an HTTP
+ * **There is no `Sent`.** [UnsubscribeState] has one because a one-click unsubscribe is an HTTP
  * POST this app watches complete. A receipt has one road only — the durable outbox — so the
  * furthest this app can honestly say is [Queued]. A state nothing can produce is a branch the
  * banner would have to draw and no test could ever reach; per WYSIWYG, the state shown is the
@@ -243,7 +243,7 @@ sealed interface ReadReceiptState {
      * In the outbox. Delivery, retry and the offline wait are the outbox's business from here.
      *
      * [preview] is what `MailRepository.sendReadReceipt` HANDED BACK — the subject and body of the
-     * row it queued. ⛔ Never rebuilt here: two sites deriving the same wording drift, and the day
+     * row it queued. Never rebuilt here: two sites deriving the same wording drift, and the day
      * they do the banner names one text while another leaves.
      */
     data class Queued(val preview: ReadReceiptPreview) : ReadReceiptState
@@ -264,7 +264,7 @@ fun readReceiptSendOutcome(preview: ReadReceiptPreview?): ReadReceiptState =
     if (preview == null) ReadReceiptState.Failed else ReadReceiptState.Queued(preview)
 
 /**
- * ⭐ **How TALL the strip is allowed to be, which outranks everything else about it.**
+ * **How TALL the strip is allowed to be, which outranks everything else about it.**
  *
  * The measured height of the reader's header is part of the key of the `remember` that builds the
  * body's HTML document, so a strip that changes size **cancels the body load in flight**: before
@@ -272,7 +272,7 @@ fun readReceiptSendOutcome(preview: ReadReceiptPreview?): ReadReceiptState =
  * after it she watches the message reload and lose her place. This strip lives in the header, and
  * every gesture it offers is made there — so its states have to be one height.
  *
- * ⛔ `heightIn(min = ButtonDefaults.MinHeight)` does NOT hold two different shapes level: it is a
+ * `heightIn(min = ButtonDefaults.MinHeight)` does NOT hold two different shapes level: it is a
  * FLOOR, and a `TextButton` stands well above it (Material3 wraps it in
  * `minimumInteractiveComponentSize()`, and its vertical inset grows with the font scale) while a
  * bare `Text` sits back down on it. Measured on the bench for the images strip (#153): the header
@@ -292,7 +292,7 @@ enum class ReadReceiptStripShape {
      * It is only ever reached AFTER a gesture the reader deliberately made (she tapped send and
      * the queueing failed), which is the same licence [UnsubscribeStripBody.FAILED] takes.
      *
-     * ⛔ It is NOT "no button": the button is drawn in every state, and in this one it is live
+     * It is NOT "no button": the button is drawn in every state, and in this one it is live
      * again — see [ReadReceiptStripBody.acts].
      */
     SENTENCE,
@@ -303,18 +303,18 @@ enum class ReadReceiptStripShape {
  * so a JVM test can RUN it, on the pattern of [UnsubscribeStripBody].
  *
  * [line] is what the row SAYS, and it is the only thing that changes between the three
- * [ReadReceiptStripShape.BUTTON_ROW] states. ⛔ None of these strings is what leaves the device:
+ * [ReadReceiptStripShape.BUTTON_ROW] states. None of these strings is what leaves the device:
  * the mail itself is fixed English built by `readReceiptPreview`, and `ReadReceiptMailTest` holds
  * it out of `strings.xml` on purpose. Only the interface is translated.
  */
 enum class ReadReceiptStripBody(
     @StringRes val line: Int,
     /**
-     * The BUTTON's own label, which changes with the state — ⛔ not a constant "Send" left greyed
+     * The BUTTON's own label, which changes with the state — not a constant "Send" left greyed
      * under a line saying the answer is already in the outbox. WYSIWYG: the state shown is the
      * state there is, and the button is the one thing the reader looks at.
      *
-     * ⛔ And the button itself never leaves: replacing it with a bare [String] once it is spent is
+     * And the button itself never leaves: replacing it with a bare [String] once it is spent is
      * the measured defect (a `Text` sits back down on the height floor a button stands above). The
      * label is what changes, never the shape.
      */
@@ -325,7 +325,7 @@ enum class ReadReceiptStripBody(
 ) {
     /**
      * The question: who asked to be told, a live button to answer, and a gesture to refuse.
-     * ⛔ The only state that sends anything from a standing question, and it sends nothing on its
+     * The only state that sends anything from a standing question, and it sends nothing on its
      * own.
      */
     ASK(
@@ -380,9 +380,9 @@ enum class ReadReceiptStripBody(
 
     /**
      * Whether the refusal is on offer. It exists only while the question stands untouched: once a
-     * receipt is queued there is nothing left to refuse, and ⛔ nothing this app can recall.
+     * receipt is queued there is nothing left to refuse, and nothing this app can recall.
      *
-     * ⛔ NOT extended to [FAILED], and that is deliberate rather than an oversight: taking the
+     * NOT extended to [FAILED], and that is deliberate rather than an oversight: taking the
      * refusal there would have to clear [ReadReceiptState.Failed] as well (the state, not the
      * offer, is what keeps that row on screen), which means teaching `declineReadReceipt` a second
      * job. The neighbour offers no dismissal on its failure either.
@@ -396,7 +396,7 @@ enum class ReadReceiptStripBody(
  * [named] is what [ReadReceiptStripBody.line]'s `%1$s` is filled with, and it is CARRIED rather
  * than looked up by the composable:
  *  - asking, it is who the receipt would go to — the one fact the reader decides on;
- *  - queued, it is the subject of the row `sendReadReceipt` actually put in the outbox, ⛔ handed
+ *  - queued, it is the subject of the row `sendReadReceipt` actually put in the outbox, handed
  *    back by the repository and never rebuilt here. Two sites deriving the same wording drift, and
  *    the day they do the strip names one text while another leaves (house precedent:
  *    `unsubscribePreview`).
@@ -408,7 +408,7 @@ data class ReadReceiptStrip(val body: ReadReceiptStripBody, val named: String)
  *
  * Null is the answer for very nearly every message, and it comes from [offer]: the question is
  * null while the setting has not loaded, null when the reader left the switch off, null for a
- * message nobody asked about, and null again once the reader has refused. ⛔ This function does
+ * message nobody asked about, and null again once the reader has refused. This function does
  * not re-derive any of that — [offeredReadReceipt] took that decision, and asking it twice is how
  * two guards end up disagreeing.
  */

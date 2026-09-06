@@ -20,7 +20,7 @@ import kotlin.coroutines.coroutineContext
  * deleted so no empty shell lingers in Drafts, nor reappears on sync") simply stopped being kept the
  * moment the draft went through the local row.
  *
- * ⚠ The mask is not total, and the correction does not depend on it being: `hidesServerRow` only
+ * The mask is not total, and the correction does not depend on it being: `hidesServerRow` only
  * hides a row that stands for ITSELF (`row.threadCount == 1`). A server draft that is the
  * representative of a conversation is drawn beside its local row — the accepted duplicate, decided
  * where that function is written, because hiding a representative hides the whole conversation.
@@ -45,13 +45,13 @@ data class EmptiedLocalDraftPlan(
 /**
  * The plan the emptying of a local row produces.
  *
- * ⛔ **The whole point is WHAT the order carries.** A destroy that reaches the worker without its
+ * **The whole point is WHAT the order carries.** A destroy that reaches the worker without its
  * folder or without the numbering it was frozen under destroys NOTHING, in silence, on both
  * protocols: on JMAP an absent `mailboxId` spares every id (#122), on IMAP an absent `uidValidity`
  * answers an empty destroyable list (#99). That failure looks exactly like success from the screen —
  * which is why this is a value a test can read, rather than a call a lint can see happen.
  *
- * ⭐ **[bodyIsLossy] keeps the server copy, and that beats the rule of #69.** The row's body is what
+ * **[bodyIsLossy] keeps the server copy, and that beats the rule of #69.** The row's body is what
  * this phone MANAGED to read of the draft: attachments never downloaded, HTML flattened. The user
  * empties what she SEES; destroying the server copy on the strength of it would destroy, for ever,
  * what she was never shown. The irreversible option loses (arbitration rule 1), so the copy stays
@@ -63,7 +63,7 @@ data class EmptiedLocalDraftPlan(
  * and means "nothing to oppose" on IMAP, where the worker then destroys nothing and the re-query
  * brings the draft back — the safe end of an order that cannot be checked.
  *
- * ⭐ **[addressingIsProvenEmpty] keeps it too, and for the same kind of damage** — see
+ * **[addressingIsProvenEmpty] keeps it too, and for the same kind of damage** — see
  * [emptiedLocalDraftKeepsServerCopy], where the term is argued. It is NOT computed here: the caller
  * reads it, exactly as it reads [mailboxId], because establishing it means asking the server.
  *
@@ -72,7 +72,7 @@ data class EmptiedLocalDraftPlan(
  *    for nothing at all. There is nothing to destroy, nothing to evict and nothing to say;
  *  - lossy, or an addressing not proven empty — the copy is kept, and said;
  *  - no folder ([draftDestroyFolder] answered neither) — an order with no folder would be enqueued,
- *    run, destroy nothing and evict the draft from the phone all the same. ⚠ Silent, unlike the
+ *    run, destroy nothing and evict the draft from the phone all the same. Silent, unlike the
  *    lossy case: the copy is kept and the screen says nothing. Known debt, not a second string.
  */
 fun planForEmptiedLocalDraft(
@@ -97,7 +97,7 @@ fun planForEmptiedLocalDraft(
  * Is the copy on the server KEPT by this gesture? — the one fact the app owes the reader about a
  * draft it is taking away, and it is owed TWICE.
  *
- * ⛔ **The two gestures ask it at two different moments, and the second one is the correction.**
+ * **The two gestures ask it at two different moments, and the second one is the correction.**
  * The empty-save asks it afterwards, to post the notice ([EmptiedLocalDraftPlan.tellServerCopyKept]).
  * The delete button has to ask it BEFORE the finger: its confirmation used to say "this draft hasn't
  * reached the server … this can't be undone" over a row that MASKS a server copy this phone never
@@ -106,11 +106,11 @@ fun planForEmptiedLocalDraft(
  * Drafts. The dialog was announcing the opposite of what the app does, and the only correction on
  * offer was a toast, after the fact, naming a gesture the user had not made.
  *
- * ⭐ A function, executed, and NOT an `if` inside the composable: `ComposeScreen` is a composable and
+ * A function, executed, and NOT an `if` inside the composable: `ComposeScreen` is a composable and
  * `ComposeViewModel` an `AndroidViewModel` — a decision left in either is a decision no JVM test
  * here ever runs, and this one decides whether a warning is shown before an irreversible tap.
  *
- * ⭐ **[addressingIsProvenEmpty] is the term the ordinary save has always had and this gesture had
+ * **[addressingIsProvenEmpty] is the term the ordinary save has always had and this gesture had
  * not.** A save may replace a server copy only once the replacement PROVABLY carries the addresses
  * the original was addressed to (`draftReplacementIsFaithful`, term `addressingIsCarried`); the
  * emptying, which destroys that copy and leaves not even the duplicate a save leaves, was deciding
@@ -119,7 +119,7 @@ fun planForEmptiedLocalDraft(
  * failed, an address the envelope gave back unreadable), so "the fields are empty on screen" says
  * nothing about the copy being destroyed.
  *
- * ⛔ **The unknown KEEPS.** `addressingIsProvenEmpty == false` covers "there were addresses" AND
+ * **The unknown KEEPS.** `addressingIsProvenEmpty == false` covers "there were addresses" AND
  * "the read did not answer", and the two are deliberately not distinguished: an unknown is not a
  * void. It is the same rule, in the same direction, as `draftAddressingIsCarried(original = null)`
  * answering false — the copy on the server is then the only thing still holding those recipients.
@@ -142,14 +142,14 @@ fun emptiedLocalDraftKeepsServerCopy(
  * Who gets the phone's own draft row back once a DELETION asked for is over (#95 × #127) — the row
  * to put from `EDITING` back to `PENDING`, or null when nobody may have it.
  *
- * ⛔ **The lease is a decision, not a field to blank.** Blanked up front — as this gesture was
+ * **The lease is a decision, not a field to blank.** Blanked up front — as this gesture was
  * written — the composer answered "I hold no row" to everything downstream: a `submit` that threw
  * left the row `EDITING` with nobody left to release it and the close gave nothing back, so the row
  * sat in the Drafts list as a ghost of a draft the user had just deleted — no sweep takes `EDITING`
  * back — and the first reopen-and-close handed it to the upload worker, which filed it in the
  * server's Drafts. The same defect `abandonPlan` was written to end, one gesture further along.
  *
- * ⭐ **The failure is atomic: nothing happened.** Everything that can throw sits IN FRONT of any
+ * **The failure is atomic: nothing happened.** Everything that can throw sits IN FRONT of any
  * destruction (resolving the account the row is leased under, `draftMailboxOf`, enqueuing
  * `destroyDurably`) and
  * [destroyThenConsumeEmptiedLocalDraft] consumes only after a destroy that came back. So:
@@ -171,7 +171,7 @@ fun localDraftLeaseAfterDelete(lease: String?, destroyed: Boolean): String? =
  * Make the destroy of the server draft DURABLE, take it off the phone, say what was kept, and only
  * then consume the local row it was standing behind.
  *
- * ⛔ **The order is the correction, and it is guaranteed here rather than promised in a comment** —
+ * **The order is the correction, and it is guaranteed here rather than promised in a comment** —
  * the same shape as `commitThenConsumeLocalDraft`, for the same reason. The local row is the ONLY
  * thing that still names the server draft: consumed first, a process death in the interval leaves
  * the server draft alive, unmasked, and nothing anywhere will ever destroy it. So [destroy] runs
@@ -189,7 +189,7 @@ fun localDraftLeaseAfterDelete(lease: String?, destroyed: Boolean): String? =
  * An empty plan — nothing was being replaced — consumes the row and does nothing else, which is what
  * the composer has always done and is already right.
  *
- * ⛔ **And the three acts are SHELTERED FROM CANCELLATION, together** — the shape
+ * **And the three acts are SHELTERED FROM CANCELLATION, together** — the shape
  * `commitThenConsumeLocalDraft` carries for the same reason, one gesture away. The caller is
  * `viewModelScope`, which dies with the `NavBackStackEntry` the composer is scoped to: the back
  * gesture, in the second this runs. Cancelled between the destroy and the consume, the server copy
@@ -199,7 +199,7 @@ fun localDraftLeaseAfterDelete(lease: String?, destroyed: Boolean): String? =
  * eviction and the consume, the same. Both halves of the window
  * are inside these three lines, so the shelter holds all three.
  *
- * ⛔ **And no wider.** A cancellation that arrives BEFORE anything is destroyed is honoured, and must
+ * **And no wider.** A cancellation that arrives BEFORE anything is destroyed is honoured, and must
  * be: nothing has gone, so the draft is exactly what has to survive — the row stays where the user
  * can still see it and the lease goes back to the upload worker ([localDraftLeaseAfterDelete]).
  * That boundary is read here rather than left to chance: [destroy] may not suspend at all (enqueuing
@@ -231,7 +231,7 @@ suspend fun destroyThenConsumeEmptiedLocalDraft(
  * Whose credentials destroy the SERVER draft a reopened local row stands in front of: the account
  * the ROW was leased under ([leasedUnderAccountId]), or null when there is nobody to act for.
  *
- * ⛔ **Never [composingAsAccountId].** The "From" picker offers the identities of EVERY account and
+ * **Never [composingAsAccountId].** The "From" picker offers the identities of EVERY account and
  * switching it changes nothing about the row: the server id being destroyed and the numbering it
  * was frozen under were both read off the draft of the account it was opened from. Handed the
  * writing account's credentials instead, the destroy went to a server that never issued that id and
@@ -241,12 +241,12 @@ suspend fun destroyThenConsumeEmptiedLocalDraft(
  * (#31): ids collide between two accounts of one server, so the wrong account does not even reliably
  * fail — it can destroy the neighbour's message.
  *
- * ⭐ [composingAsAccountId] is a parameter so that the refusal is EXECUTED, not merely read out of
- * the source by a lint: a rule taking the lease alone could be re-broken at the call site with no
- * test able to see it. It is never consulted, and that is the whole decision.
+ * [composingAsAccountId] is never consulted — `@Suppress("UNUSED_PARAMETER")` says so — and taking
+ * it all the same is the decision: a JVM test hands a writing account that differs from the lease
+ * and pins that nobody looked it up (`EmptiedLocalDraftTest`); which id fills which slot, a lint.
  *
  * Null is the safe end, and both roads to it destroy nothing: no row is held at all, or the account
- * that held it was removed from the phone during the edit. ⛔ There is NO fallback — the fallback is
+ * that held it was removed from the phone during the edit. There is NO fallback — the fallback is
  * the defect. The caller turns the null into the failure banner it already draws, which leaves a
  * draft that is still exactly a draft.
  */

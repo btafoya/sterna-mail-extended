@@ -8,13 +8,13 @@ import kotlinx.coroutines.flow.Flow
 /**
  * The drafts written on this phone and not yet on the server ([LocalDraftEntity]).
  *
- * ⛔ Every statement that reads or writes a DRAFT is scoped by `accountId`. Ids collide between two
+ * Every statement that reads or writes a DRAFT is scoped by `accountId`. Ids collide between two
  * accounts of the same server (#31), and a background write that outlived the account it belonged
  * to is exactly what #121 was: an unscoped `DELETE` here would throw away another account's unsent
  * text, and an unscoped `UPDATE` would hand a composer's open row to the upload worker. The scope
  * is in the SQL rather than in a caller's filter so no future call site can forget it.
  *
- * ⚠ One statement is deliberately not scoped, and it is the only one: [accountsWithDrafts], whose
+ * One statement is deliberately not scoped, and it is the only one: [accountsWithDrafts], whose
  * whole purpose is to say WHICH accounts have work. It returns account ids and nothing else — no
  * draft, no subject, no body — so a caller cannot read across accounts through it.
  */
@@ -34,7 +34,7 @@ interface LocalDraftDao {
     /**
      * The row this account already keeps for the SERVER draft [replacesEmailId], if any.
      *
-     * ⭐ The second key a draft is found by, and the one the reachable re-save needs. A draft
+     * The second key a draft is found by, and the one the reachable re-save needs. A draft
      * reopened from the server carries the server's id, which is not this table's `id`, so a lookup
      * by `id` alone always misses — and every re-save minted another row, another `Message-ID`,
      * another upload and another attempt to destroy the same original.
@@ -61,13 +61,13 @@ interface LocalDraftDao {
      * `UPLOADING` is included on purpose. It is the state a row is left in by a process that died
      * mid-upload, and leaving it out would strand exactly the draft whose upload we are least sure
      * about. `EDITING` is excluded for the reason [LocalDraftState.EDITING] gives, and
-     * ⛔ [LocalDraftState.STAGING] for its own: such a row's `attachmentsJson` is still "[]" while
-     * its files are being copied, so picking it up sends the draft amputated. ⛔ That exclusion
+     * [LocalDraftState.STAGING] for its own: such a row's `attachmentsJson` is still "[]" while
+     * its files are being copied, so picking it up sends the draft amputated. That exclusion
      * STAYS — a row whose copy is genuinely in flight is not the worker's. What keeps it from being
      * a dead end is [revertStagedToPendingLossy], which at the next start hands a `STAGING` row
      * that outlived its process back as `PENDING`, flagged so it cannot destroy an original.
      *
-     * ⛔ [nowMillis] is a PARAMETER, not a `strftime`/`CURRENT_TIMESTAMP` in the statement. A query
+     * [nowMillis] is a PARAMETER, not a `strftime`/`CURRENT_TIMESTAMP` in the statement. A query
      * that reads the clock itself cannot be tested at a chosen instant, and this one decides whether
      * a draft that just failed is retried now or in ten minutes — [LocalDraftEntity.notBeforeMillis]
      * is written by [recordAttempt] and would otherwise be a column nobody reads, i.e. a failing
@@ -83,7 +83,7 @@ interface LocalDraftDao {
      * The accounts holding at least one draft that is not on the server yet — so a startup re-arm
      * can find its work without any query reading across accounts. Ids of accounts, never mail.
      *
-     * ⛔ EVERY row counts, whatever its state, and a `WHERE` here would be the quietest way to undo
+     * EVERY row counts, whatever its state, and a `WHERE` here would be the quietest way to undo
      * the re-arm: this is its FIRST link, and an account left out is never asked about again. An
      * account whose only row is [LocalDraftState.STAGING] is precisely the one that needs it.
      * `LocalDraftDaoSqlTest` executes this statement rather than trusting the call site.
@@ -99,14 +99,14 @@ interface LocalDraftDao {
      * Bring back every row of ONE account left mid-upload by a process that died (#70's rule for the
      * outbox, applied here): the attempt is unrecoverable, the draft is not.
      *
-     * ⭐ **Why an [LocalDraftState.UPLOADING] row must come back, and why it is safe to bring it
+     * **Why an [LocalDraftState.UPLOADING] row must come back, and why it is safe to bring it
      * back blind.** It is what a process killed mid-upload leaves behind, so nobody is looking at it
      * any more: the worker that owned it died with the process, and no composer can have taken it in
      * the meantime — `localDraftMayBeTakenForEdit` refuses that state outright. Left alone the row
      * is frozen for ever: `pending` counts it as due, but nothing ever books a work item for it
      * again, so the draft never reaches the server and not a word is said.
      *
-     * ⛔ **[LocalDraftState.EDITING] is NOT here, and that is the decision this statement carries.**
+     * **[LocalDraftState.EDITING] is NOT here, and that is the decision this statement carries.**
      * The state means a composer HOLDS the row; flipping it hands the text being typed to the upload
      * worker, which on a successful upload calls `discardLocalDraft` — the row AND its attachment
      * directory deleted under the user, her "Save" landing on a fresh row, and two drafts on the
@@ -118,21 +118,21 @@ interface LocalDraftDao {
      * so neither the work items booked at startup nor the ones WorkManager replays can consume it.
      * The sweep has no race left to win because it no longer enters one.
      *
-     * ⚠ **What that does NOT say**: it does not say nothing else ever writes over `EDITING`. The
+     * **What that does NOT say**: it does not say nothing else ever writes over `EDITING`. The
      * upload worker reads a row and then calls `setState(UPLOADING)` unconditionally
      * (`MailRepository.uploadLocalDraft`), so a composer taking the row between those two steps is
      * still overwritten — a narrow read-then-write window this statement neither opens nor closes,
      * and which predates it (`findings/le-televerseur-ecrase-un-etat-qu-il-a-lu-avant.md`). What is
      * claimed here is only this: THIS sweep no longer touches the state.
      *
-     * ⛔ [LocalDraftState.STAGING] is not here either — it has its own statement,
+     * [LocalDraftState.STAGING] is not here either — it has its own statement,
      * [revertStagedToPendingLossy], because it cannot come back on the same terms. A row rescued
      * here is WHOLE: its `attachmentsJson` already describes files that exist, so it may replace
      * the server draft it names and let the original be destroyed. Merged into one statement, a
      * staged row would inherit that permission, and merging them back is the data loss that
      * statement's KDoc describes.
      *
-     * ⛔ Scoped, like every other write here. Unscoped, a re-arm triggered by one account signing in
+     * Scoped, like every other write here. Unscoped, a re-arm triggered by one account signing in
      * would reach another account's row — and that account's upload may be genuinely in flight in
      * this very process, in which case the state is not a leftover at all. [accountsWithDrafts] is
      * how a startup finds the accounts to call this for.
@@ -142,9 +142,9 @@ interface LocalDraftDao {
 
     /**
      * Bring ONE account's rows back from a process death mid-STAGING — to [LocalDraftState.PENDING]
-     * and ⛔ **flagged [LocalDraftEntity.bodyIsLossy]**.
+     * and **flagged [LocalDraftEntity.bodyIsLossy]**.
      *
-     * ⭐ Why such a row is re-armed at all: nothing else reaches it. [pending] skips it, the
+     * Why such a row is re-armed at all: nothing else reaches it. [pending] skips it, the
      * composer refuses it (`localDraftMayBeTakenForEdit`), and no gesture in the Drafts list
      * touches a local row — so it sat in the list for ever, drawn but unopenable, hiding the server
      * draft it names behind it, and the only way out was signing the account out, which deletes the
@@ -154,7 +154,7 @@ interface LocalDraftDao {
      * disposition — lived only in the composer's memory and died with the process. No column holds
      * it, so it cannot be re-staged.
      *
-     * ⛔ **And why it comes back LOSSY, which is the half that keeps this from destroying mail.**
+     * **And why it comes back LOSSY, which is the half that keeps this from destroying mail.**
      * Whether those attachments are lost depends on the row:
      * - a draft written from scratch — the bytes are gone whatever we do, the typed text is not,
      *   and an empty descriptor list is an attachment ABSENT, not a truncated one;
@@ -170,7 +170,7 @@ interface LocalDraftDao {
      * rescued row, including the from-scratch ones where it costs nothing, rather than on a
      * condition this statement would have to get right for ever.
      *
-     * ⛔ Scoped like the rest: another account's `STAGING` row may be a save running right now.
+     * Scoped like the rest: another account's `STAGING` row may be a save running right now.
      */
     @Query(
         "UPDATE local_drafts SET state = 'PENDING', bodyIsLossy = 1 " +
@@ -179,7 +179,7 @@ interface LocalDraftDao {
     suspend fun revertStagedToPendingLossy(accountId: String)
 
     /**
-     * Record a failed upload: what went wrong, when, and when to try again. ⚠ No state change to a
+     * Record a failed upload: what went wrong, when, and when to try again. No state change to a
      * terminal one and no cap — [LocalDraftEntity.attemptCount] only feeds the backoff.
      */
     @Query(

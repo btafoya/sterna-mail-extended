@@ -22,7 +22,7 @@ import kotlinx.coroutines.CancellationException
 object NotificationPreviews {
 
     /**
-     * ⭐ The wall clock for ONE ACCOUNT'S WHOLE PASS — every watched folder of it included, and not
+     * The wall clock for ONE ACCOUNT'S WHOLE PASS — every watched folder of it included, and not
      * per message, not per folder.
      *
      * Four seconds, against the 30 s a JMAP read is given: this runs while mail that has already
@@ -34,7 +34,7 @@ object NotificationPreviews {
     const val BUDGET_MS = 4_000
 
     /**
-     * ⭐ How many messages ONE ACCOUNT'S PASS may read for a preview — its watched folders sharing
+     * How many messages ONE ACCOUNT'S PASS may read for a preview — its watched folders sharing
      * the count, not one each.
      *
      * Six, which is how many children the group summary lists ([Notifications.notifyGroupSummary]
@@ -45,7 +45,7 @@ object NotificationPreviews {
     const val MAX_PER_PASS = 6
 
     /**
-     * ⭐⛔ THE SIX READS AND THE FOUR SECONDS OF ONE ACCOUNT'S PASS, held in one place so its
+     * THE SIX READS AND THE FOUR SECONDS OF ONE ACCOUNT'S PASS, held in one place so its
      * FOLDERS SHARE THEM.
      *
      * A diff pass is per folder ([NewMailNotifier.notifyDiff]), and a delivery pass walks the
@@ -56,14 +56,14 @@ object NotificationPreviews {
      * who may well have asked to spare their battery. One of these is made per account pass and
      * handed down: the second folder inherits what the first one left.
      *
-     * ⭐ The account, and not something wider, because that is exactly the unit of the mutex and of
+     * The account, and not something wider, because that is exactly the unit of the mutex and of
      * the wake-up: two accounts share neither connection nor lock, so each gets its own.
      *
-     * ⭐ The clock starts at the FIRST READ, not when this is built: the folder refresh that
+     * The clock starts at the FIRST READ, not when this is built: the folder refresh that
      * precedes the diffs is itself seconds of network, and a budget armed before it would already
      * be spent by the time the first opening line is asked for.
      *
-     * ⛔ Not suspending, and holding no lock: it is consulted between the gathering and the posting
+     * Not suspending, and holding no lock: it is consulted between the gathering and the posting
      * of a notification batch, where a suspension point is what would let a cancellation land
      * between the notifications and the baseline that remembers them.
      */
@@ -75,7 +75,7 @@ object NotificationPreviews {
          * The deadline the next read may have, in ms — or null when this account's pass may read
          * no more, either because the six are spent or because the four seconds are.
          *
-         * ⛔ Never zero and never negative: `budgetMs = 0` is `ImapBudget.NO_BUDGET`, i.e.
+         * Never zero and never negative: `budgetMs = 0` is `ImapBudget.NO_BUDGET`, i.e.
          * `soTimeout = 0`, i.e. block until the OS gives up. An exhausted budget stops the pass;
          * it is never handed on as "no timeout".
          */
@@ -94,24 +94,24 @@ object NotificationPreviews {
      * as far as [MAX_PER_PASS] and [BUDGET_MS] allow. Absent means "no preview": every caller has
      * to degrade to the subject alone, and none of them may treat it as a failure.
      *
-     * ⛔ NOTHING HAPPENS unless the user asked for [NotificationContent.BODY_PREVIEW]. Not one
+     * NOTHING HAPPENS unless the user asked for [NotificationContent.BODY_PREVIEW]. Not one
      * round trip, not one byte, not one read of the numbering: somebody who chose "no details" — or
      * who is on a battery saver — must not pay a round trip per message for a line they have said
      * they do not want to see.
      *
-     * ⛔ IT THROWS NOTHING but a cancellation, and that is the whole point of it. Its caller posts
+     * IT THROWS NOTHING but a cancellation, and that is the whole point of it. Its caller posts
      * notifications in a loop and only afterwards advances the folder's baseline: an exception
      * escaping from here would skip that baseline, the next pass would re-announce every message of
      * the folder, and a re-announcement MOVES MAIL server-side through `unarchiveThreadsOnReply`.
      * A failed preview costs the preview.
      *
-     * ⛔ AND IT STOPS DEAD at a renumbering. [numbering] is re-read after every fetch, because a
+     * AND IT STOPS DEAD at a renumbering. [numbering] is re-read after every fetch, because a
      * refused SELECT leaves no other trace: `fetchPreview` swallows it, and the invalidation
      * RECORDS the new numbering on its way out — so the next message of the same pass would pass
      * the check with a UID from the old numbering and put the opening of a stranger's mail on the
      * lock screen (Codeberg #99).
      *
-     * ⛔ AND IT READS NOTHING AT ALL when the numbering is unreadable or absent TO BEGIN WITH.
+     * AND IT READS NOTHING AT ALL when the numbering is unreadable or absent TO BEGIN WITH.
      * "Different from what it was" cannot be asked when there is no what-it-was: every later read
      * would compare equal, and the guard above would read as armed while being inert. Absent is
      * not a rarity either — `recorded` is null for a folder whose server states no UIDVALIDITY at
@@ -149,10 +149,10 @@ object NotificationPreviews {
     }
 
     /**
-     * Post [mail], each with the opening line [gather] found for it — ⛔ ALL of them gathered
+     * Post [mail], each with the opening line [gather] found for it — ALL of them gathered
      * BEFORE the first one is posted.
      *
-     * ⛔ THE ORDER IS THE POINT, and it is the whole reason this function exists rather than a
+     * THE ORDER IS THE POINT, and it is the whole reason this function exists rather than a
      * fetch inside the caller's loop:
      *
      *  - a fetch inside the loop puts a network round trip between two notifications, so an
@@ -162,7 +162,7 @@ object NotificationPreviews {
      *    the one way this feature can lose data;
      *  - and the budget would restart per message, so the four seconds would be four seconds EACH.
      *
-     * ⛔ Nothing is posted and then rewritten, either: a notification amended a second later
+     * Nothing is posted and then rewritten, either: a notification amended a second later
      * flickers, and mail announced late is no longer news. The opening line is waited for before
      * the notification, or it is not shown at all.
      *

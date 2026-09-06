@@ -29,7 +29,7 @@ data class ScheduledSendEntity(
      * in that hand-over, the send then destroys the draft under whatever numbering it finds at
      * delivery, and a Drafts folder renumbered meanwhile is expunged on another message.
      *
-     * ⛔ `null` destroys nothing — see [OutboxEntity.draftUidValidity].
+     * `null` destroys nothing — see [OutboxEntity.draftUidValidity].
      */
     val draftUidValidity: Long? = null,
     /**

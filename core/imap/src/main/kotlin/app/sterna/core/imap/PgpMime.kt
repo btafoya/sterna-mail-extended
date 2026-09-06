@@ -11,7 +11,7 @@ object PgpMime {
      * form — CRLF line endings. (Sterna's own entities are base64/7-bit clean, so
      * no trailing-space concerns.)
      *
-     * ⛔ **The bare CR is left EXACTLY as it is, and that is deliberate.** `"\r\r\n"` maps to
+     * **The bare CR is left EXACTLY as it is, and that is deliberate.** `"\r\r\n"` maps to
      * `"\r\n"` and back to `"\r\r\n"`: an entity signed before `dee4a346` carries such octets
      * INSIDE the bytes the signature was computed over, and straightening them would deliver a
      * message whose signature no longer verifies — "invalid signature" at the recipient. A bare LF
@@ -36,7 +36,7 @@ object PgpMime {
      * string that was signed (see [signablePayload]) — the wrapper adds the CRLF
      * that separates it from the boundary.
      *
-     * ⚠ [armoredSignature] comes from the OpenPGP provider (OpenKeychain / BouncyCastle's
+     * [armoredSignature] comes from the OpenPGP provider (OpenKeychain / BouncyCastle's
      * `ArmoredOutputStream`), which separates its lines with **bare LF**. This used to be spliced
      * in verbatim, on the unwritten assumption that a provider armor is CRLF — guaranteed by
      * nobody. It is canonicalised here so the assumption is now enforced instead of hoped for.
@@ -66,7 +66,7 @@ object PgpMime {
      * Wrap armored ciphertext as multipart/encrypted
      * (protocol="application/pgp-encrypted"): a version part + the payload.
      *
-     * ⚠ [armoredCiphertext] is provider output with bare-LF line endings, canonicalised here for
+     * [armoredCiphertext] is provider output with bare-LF line endings, canonicalised here for
      * the same reason as in [wrapSigned].
      */
     fun wrapEncrypted(armoredCiphertext: ByteArray, boundary: String): String = buildString {

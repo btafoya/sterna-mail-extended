@@ -313,7 +313,7 @@ fun AccountRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            // ⛔ PINNED BY SharedAccountScreenTest — the indent, statement by statement
+            // PINNED BY SharedAccountScreenTest — the indent, statement by statement
             .padding(
                 start = if (indented) 32.dp else 16.dp,
                 end = 16.dp,
@@ -350,7 +350,7 @@ fun AccountRow(
  *
  * Shaped on [AccountRow] above, and deliberately not on [SettingTextField]: a value nobody edits
  * does not belong in an edit box, where a stray keystroke silently changes what will be pasted
- * elsewhere. ⛔ And it is NOT a secret — a relay address is meant to be read and given away, so
+ * elsewhere. And it is NOT a secret — a relay address is meant to be read and given away, so
  * there is no mask and no reveal eye here to borrow.
  *
  * The value wraps rather than being cut with an ellipsis: an endpoint URL is long, and half a URL

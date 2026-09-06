@@ -15,7 +15,7 @@ const val IMAP_FOLDER_PAGE = 200
 /**
  * What one paginated walk of a folder brings back — UIDS and a verdict, never messages.
  *
- * ⛔ There is no `messages` here, and that is the point of the shape: the walk hands each page to
+ * There is no `messages` here, and that is the point of the shape: the walk hands each page to
  * its caller as it lands and forgets it. Holding the window's envelopes instead is what made
  * "Messages to sync = All" a memory problem rather than a network one.
  *
@@ -25,7 +25,7 @@ const val IMAP_FOLDER_PAGE = 200
  * message the moment the folder changes. A UID means one message for as long as UIDVALIDITY holds
  * (RFC 3501 §2.3.1.1).
  *
- * ⛔ [moved] is the whole IMAP-specific half of this walk, and the caller MUST honour it: true means
+ * [moved] is the whole IMAP-specific half of this walk, and the caller MUST honour it: true means
  * the folder changed under the walk, so the set of UIDs above is a set the walk cannot vouch for.
  * Reconciling the cache against it would DELETE messages the server still holds. See [folderMoved]
  * for what "changed" is read from, and for WHICH messages are at risk — it is not the ones between
@@ -35,7 +35,7 @@ data class ImapFolderWalk(
     val uids: List<Long>,
     val moved: Boolean,
     /**
-     * ⛔ Whether the `SELECT` this walk started from STATED that the folder holds nothing — an
+     * Whether the `SELECT` this walk started from STATED that the folder holds nothing — an
      * `* 0 EXISTS` the client actually parsed ([ImapMailboxStatus.existsObserved] and a count of
      * zero), and never the absence of an answer.
      *
@@ -46,7 +46,7 @@ data class ImapFolderWalk(
      * response — `ImapSession.messages` drops those silently), answers with no UID either, and
      * clearing its cache destroys mail the server still holds.
      *
-     * ⭐ False by default, the refusing direction: a fixture, or a future walk, that does not state
+     * False by default, the refusing direction: a fixture, or a future walk, that does not state
      * this cannot license a delete by omission.
      */
     val folderStatedEmpty: Boolean = false,
@@ -85,22 +85,22 @@ fun nextFolderPage(lowest: Int, highest: Int, previous: IntRange?, pageSize: Int
  * Whether these untagged response lines say the folder is no longer the one the walk started on,
  * which held [startedWith] messages.
  *
- * ⛔ THE GUARD THAT KEEPS THIS WALK FROM DELETING MAIL. A single `FETCH` sees a folder frozen; a
+ * THE GUARD THAT KEEPS THIS WALK FROM DELETING MAIL. A single `FETCH` sees a folder frozen; a
  * walk of several does not. TWO different messages can be lost, and neither of them is the one the
  * shape of the problem suggests:
  *
- * 1. ⭐ **The floor of the window slides out from under it.** `lowest` is computed ONCE, from the
+ * 1. **The floor of the window slides out from under it.** `lowest` is computed ONCE, from the
  *    `exists` the `SELECT` reported, and the walk stops there. An `EXPUNGE` moves every sequence
  *    number above it DOWN by one, so after k of them the folder's oldest messages sit k positions
  *    lower than they did — and the k messages that were at `lowest .. lowest+k-1` are now BELOW
  *    `lowest`, where this walk never looks. They belong to the window the user asked for, they are
  *    still on the server, and they are absent from the walk's UIDs: reconciling would delete them
- *    from the cache. ⚠ This is the ONLY way a message of the window goes unread, and it cannot
+ *    from the cache. This is the ONLY way a message of the window goes unread, and it cannot
  *    happen at all when `limit >= exists` — `lowest` is then 1, and nothing can slide below 1. So
  *    the "All" window, the one this work exists for, is arithmetically safe; the count windows
  *    (50/200/500) are not.
  *
- *    ⛔ It is NOT true that a message can fall between two pages. The shift is downwards and the
+ *    It is NOT true that a message can fall between two pages. The shift is downwards and the
  *    walk descends, so a renumbering makes the next range RE-READ what the previous one already
  *    had (hence the de-duplication by UID). There is no gap in the middle — only at the bottom.
  *

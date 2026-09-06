@@ -85,7 +85,7 @@ data class OutgoingAttachment(
 /**
  * Whether a built message writes its blind copies as a `Bcc:` header.
  *
- * ⛔ **A type, and not a `Boolean` — that IS the guard.** `build(m, true)` compiled and named
+ * **A type, and not a `Boolean` — that IS the guard.** `build(m, true)` compiled and named
  * nothing: a positional `true` puts the header into a message while the word "Bcc" appears nowhere
  * on the line, so a rule stated over source text cannot see it, and the one call site that must
  * never ask for it (the JMAP pre-built path, submitted verbatim) is written across several lines
@@ -126,7 +126,7 @@ data class OutgoingMessage(
      * A complete pre-built MIME entity (its own Content-Type headers + body) that
      * REPLACES the normal body/attachments. [body]/[html]/[attachments] are ignored when set.
      *
-     * ⭐ NOT a PGP field, despite where it came from. It is the seam through which any payload
+     * NOT a PGP field, despite where it came from. It is the seam through which any payload
      * this builder cannot express reaches the wire verbatim, apart from its line endings — those
      * are normalised to CRLF, the bare CR preserved (see [OutgoingMime.build]): PGP/MIME
      * (multipart/signed, multipart/encrypted — attachments already inside, signature computed over
@@ -138,7 +138,7 @@ data class OutgoingMessage(
      * came with it — so a caller handing an entity and no mode had it dropped in silence and the
      * message left as an empty shell. The name is the only thing that made that look sane.
      *
-     * ⚠ These octets come from OUTSIDE this builder — an OpenPGP provider's armor, or a file
+     * These octets come from OUTSIDE this builder — an OpenPGP provider's armor, or a file
      * written by an older version — so their line endings are not this module's to assume.
      * [OutgoingMime.build] canonicalises them; see the comment at that seam.
      */
@@ -160,7 +160,7 @@ data class OutgoingMessage(
      * folded: [OutgoingMime.build] folds it, because folding is a property of the wire format and
      * the JMAP path wants the same value flat.
      *
-     * ⛔ A ready value and not an account, deliberately: whether an account may announce its key —
+     * A ready value and not an account, deliberately: whether an account may announce its key —
      * PGP still enabled, a key cached for it, and the `From` being that account's own address and
      * not a delegated mailbox's — is decided in `app.sterna.core.data.account`'s
      * `autocryptHeaderValue`, where a JVM test can execute it. Nothing in this module knows what an
@@ -200,13 +200,13 @@ class SmtpClient {
      * left this blocked on a read for good: an outbox row stuck on "sending", with no error, nothing
      * to cancel and nothing to edit.
      *
-     * ⛔ Neither bounds a WRITE: Java exposes no write timeout, and `soTimeout` is a read option. The
+     * Neither bounds a WRITE: Java exposes no write timeout, and `soTimeout` is a read option. The
      * body — up to 200 MB of MIME with attachments — is therefore neither threatened nor protected
      * by these, and no value here should be chosen with it in mind. The read that FOLLOWS it is
      * unbounded on purpose, see [SMTP_BLOCKING_READ].
      *
      * Parameters with the shipped values as defaults, as `ImapClient.openSession` already does, so a
-     * test can shorten them. ⛔ Not fields: this client is one injected instance shared by every
+     * test can shorten them. Not fields: this client is one injected instance shared by every
      * account, and a field would mix two of them.
      */
     suspend fun send(
@@ -218,13 +218,13 @@ class SmtpClient {
         val connectTimeout = connectTimeoutMs.coerceAtLeast(0)
         val commandTimeout = commandTimeoutMs.coerceAtLeast(0)
         val plain = Socket()
-        // ⛔ What the finally closes, and STARTTLS reassigns it. Every way out of the dialogue has to
+        // What the finally closes, and STARTTLS reassigns it. Every way out of the dialogue has to
         // close the connection: the close used to be reachable only after a successful send, so a
         // rejected recipient leaked its socket — and so would every timeout added above.
         var socket: Socket = plain
         try {
             plain.connect(InetSocketAddress(config.host, config.port), connectTimeout)
-            // ⚠ Armed BEFORE the handshake, and it has to be: startHandshake() READS from this
+            // Armed BEFORE the handshake, and it has to be: startHandshake() READS from this
             // socket, so a server that accepts and then says nothing hangs it exactly as it hangs a
             // command read, and a bound set afterwards would never cover it.
             plain.soTimeout = commandTimeout
@@ -250,10 +250,10 @@ class SmtpClient {
                 var line = reader.readLine() ?: throw SmtpException("Connection closed")
                 lastResponse += line
                 // Skip continuation lines ("250-..."), keep reading until "250 ...".
-                // ⚠ The RETURN VALUE is the final line and nothing else: `expect` below compares a
+                // The RETURN VALUE is the final line and nothing else: `expect` below compares a
                 // prefix on it, fifteen times per send. The accumulator only observes.
                 while (line.length >= 4 && line[3] == '-') {
-                    // ⛔ A response that stops between two of its lines is NOT a response: the final
+                    // A response that stops between two of its lines is NOT a response: the final
                     // line never arrived, so the server never finished saying anything. Handing the
                     // last continuation back instead would pass `expect`'s prefix test — a cut EHLO
                     // would read as a success, its capabilities taken from a partial list, and the
@@ -278,18 +278,18 @@ class SmtpClient {
              * read back, and the CODE decides at the call site exactly as it does for a complete
              * reply: a cut `421-service closing` is still a failure.
              *
-             * ⛔ A cut BEFORE any line still throws, like everywhere else: an acknowledgement the
+             * A cut BEFORE any line still throws, like everywhere else: an acknowledgement the
              * server never began writing is not an acceptance, and counting it as one would lose
              * the message — irreversible the other way round.
              *
-             * ⛔ Why [read] keeps its refusal: there a truncated reply must stay a failure. A cut
+             * Why [read] keeps its refusal: there a truncated reply must stay a failure. A cut
              * EHLO returned as a success has its capabilities read off a PARTIAL list, and the
              * failure surfaces far later on a step that is not the cause.
              */
             fun readBodyAck(): String {
                 var line = reader.readLine() ?: throw SmtpException("Connection closed")
                 while (line.length >= 4 && line[3] == '-') {
-                    // ⭐ The tolerant exit, and the only one in this client. Its own `val` on
+                    // The tolerant exit, and the only one in this client. Its own `val` on
                     // purpose: `line = reader.readLine() ?: return line` hands back the OLD value
                     // while reading as if it handed back the new one, and this decision — send
                     // once, or send twice — has to be legible at a glance.
@@ -360,7 +360,7 @@ class SmtpClient {
                         write(base64(config.password))
                         expect("235", "AUTH password")
                     }
-                    // ⛔ The offered list, never the command: an exception is stored in the outbox and
+                    // The offered list, never the command: an exception is stored in the outbox and
                     // shown on screen, so a base64 credential in it would leak twice over.
                     null -> throw SmtpException(
                         "AUTH: no supported mechanism, server offers ${advertisedAuth.joinToString(" ")}",
@@ -380,7 +380,7 @@ class SmtpClient {
             write("DATA")
             expect("354", "DATA")
             val mime = buildMime(message)
-            // ⚠ INVARIANT: `mime` is CRLF-only, so splitting on "\r\n" yields the actual lines.
+            // INVARIANT: `mime` is CRLF-only, so splitting on "\r\n" yields the actual lines.
             // True by construction for everything OutgoingMime assembles, and it is `build`'s seam
             // for `prebuiltEntity` — octets from elsewhere — that has to keep it true: an armor
             // with bare LF endings collapses into ONE element here and goes out as a single
@@ -392,11 +392,11 @@ class SmtpClient {
             }
             out.write(".\r\n".toByteArray(Charsets.UTF_8))
             out.flush()
-            // ⭐ The regime changes here, and here only: what answers the body is the server's
+            // The regime changes here, and here only: what answers the body is the server's
             // queue, its DKIM signing and its virus scan. Minutes are normal, a short bound would
             // fail sends the server accepted, and OutboxWorker would send them a second time.
             //
-            // ⚠ BOTH sockets, not just the current one. `plain` was armed right after the connect
+            // BOTH sockets, not just the current one. `plain` was armed right after the connect
             // and the TLS socket layered on top of it was armed again: what is armed twice is
             // disarmed twice. Whether `SSLSocket.setSoTimeout` reaches the socket it wraps is an
             // implementation question, and betting on it costs, when the bet is lost, exactly what
@@ -405,7 +405,7 @@ class SmtpClient {
             // TWICE. A line of code is cheaper than the hypothesis.
             plain.soTimeout = SMTP_BLOCKING_READ
             socket.soTimeout = SMTP_BLOCKING_READ
-            // ⛔ Not `expect`: a reply cut after a `250-` is an ACCEPTED message here, and only
+            // Not `expect`: a reply cut after a `250-` is an ACCEPTED message here, and only
             // here — see [readBodyAck]. The prefix test stays, so the code still decides.
             val ack = readBodyAck()
             if (!ack.startsWith("250")) throw SmtpException("message body: $ack")
@@ -433,17 +433,17 @@ object OutgoingMime {
     /**
      * [blindCopies] says whether the blind-copy recipients are written as a `Bcc:` header.
      *
-     * ⛔ **[BlindCopies.OMITTED] by default, and that default IS the blind copy.** What this
+     * **[BlindCopies.OMITTED] by default, and that default IS the blind copy.** What this
      * function returns is fed to SMTP's `DATA` line by line, with no header filter of any kind
      * between here and the socket, so a `Bcc:` written for a submission hands every hidden
      * recipient to every visible one — the one mistake a mail client cannot take back. Over SMTP
      * the blind copies travel as `RCPT TO` envelope commands, and as nothing else.
      *
-     * ⭐ The ONE caller that asks for [BlindCopies.WRITTEN] is the Drafts-folder APPEND
+     * The ONE caller that asks for [BlindCopies.WRITTEN] is the Drafts-folder APPEND
      * (ImapMailService's `appendDraft`), whose bytes are transmitted to no recipient at all: they
      * are stored, and that header is the only place a Cci can survive until the draft is reopened.
      *
-     * ⚠ [BlindCopies] and not a `Boolean` since 2026-08-25: the parameter was a flag, and a
+     * [BlindCopies] and not a `Boolean` since 2026-08-25: the parameter was a flag, and a
      * positional `true` — which names neither the flag nor the header — put the disclosure back
      * into a submitted message with every guard still green. See the enum.
      */
@@ -468,21 +468,21 @@ object OutgoingMime {
             m.references?.let { append("References: ${headerSafe(it)}\r\n") }
             // Where a read receipt should be sent, if the recipient's client makes one at all
             // (RFC 8098). The address is the From, character for character — one mailbox, and the
-            // one the correspondent can see. ⭐ Written HERE, above the body, so it is carried by
+            // one the correspondent can see. Written HERE, above the body, so it is carried by
             // the PGP/MIME branch below too: that entity replaces the body, and a receipt emitted
             // inside it would leave every signed and every encrypted message asking for nothing.
             if (m.requestReceipt) append("Disposition-Notification-To: ${headerSafe(m.from)}\r\n")
             // This sender's own OpenPGP public key (Autocrypt Level 1 §2.1), when the account has
             // one to announce for THIS From — the rule is `autocryptHeaderValue`, in core/data.
             //
-            // ⭐ HERE, above the body, for the same reason the receipt is: a pre-built entity
+            // HERE, above the body, for the same reason the receipt is: a pre-built entity
             // ([OutgoingMessage.prebuiltEntity]) replaces the whole body below, and a header
             // written inside it would change the octets [PgpMime.signablePayload] was handed —
             // every signature this app has ever made covers those bytes exactly. Written above,
             // it costs the entity nothing and it also covers the JMAP signed/encrypted send,
             // which builds its raw message right here.
             //
-            // ⚠ It goes to every recipient, blind copies included: there is no header filter
+            // It goes to every recipient, blind copies included: there is no header filter
             // between this builder and the socket (see [blindCopies]). That is what a published
             // public key is for, but it is worth knowing that this line has no other reader.
             m.autocryptHeader?.let { append("${AutocryptHeader.NAME}: ${AutocryptHeader.fold(headerSafe(it))}\r\n") }
@@ -490,7 +490,7 @@ object OutgoingMime {
             // A pre-built entity (PGP/MIME, or a multipart/report receipt) replaces the whole
             // body construction — see [OutgoingMessage.prebuiltEntity].
             //
-            // ⭐ THE SEAM WHERE OCTETS FROM ELSEWHERE ENTER THE MESSAGE, and the only place that
+            // THE SEAM WHERE OCTETS FROM ELSEWHERE ENTER THE MESSAGE, and the only place that
             // also repairs the entities ALREADY sitting in files/outbox/<id>/prebuilt-entity.mime,
             // which nothing will ever rebuild. A PGP armor comes out of the provider with bare LF
             // line endings; everything downstream — the DATA loop below, the JMAP `raw` blob, the
@@ -499,7 +499,7 @@ object OutgoingMime {
             // signed or encrypted message never leaves the outbox while the same message unsigned
             // goes out.
             //
-            // ⛔ [PgpMime.canonicalize] and nothing stricter: it maps "\r\r\n" back to "\r\r\n",
+            // [PgpMime.canonicalize] and nothing stricter: it maps "\r\r\n" back to "\r\r\n",
             // leaving the bare CR alone. An entity signed before dee4a346 has such octets INSIDE
             // the bytes the signature covers; straightening them here would deliver a message
             // whose signature no longer verifies. Refused beats wrong.
@@ -523,11 +523,11 @@ object OutgoingMime {
      * the clear on the envelope ([build] above). The copy sealed in the ciphertext is what lets a
      * recipient catch an outer subject a relay rewrote.
      *
-     * ⛔ Null must produce the bytes this function produced before protected headers existed, in
+     * Null must produce the bytes this function produced before protected headers existed, in
      * all four branches — `OutgoingMime.build` calls it for every ordinary message, and a stray
      * header line here would land in every one of them.
      *
-     * ⚠ The parameter marks the TOP-LEVEL Content-Type and nothing below it. A sub-part carrying
+     * The parameter marks the TOP-LEVEL Content-Type and nothing below it. A sub-part carrying
      * `protected-headers="v1"` claims its own headers are the protected ones, which they are not;
      * the entity has exactly one protected header block, the one this function opens.
      */
@@ -583,7 +583,7 @@ object OutgoingMime {
                     append(subjectField)
                     append("Content-Type: multipart/mixed; boundary=\"$mixed\"$protectedParam\r\n\r\n")
                     append("--$mixed\r\n")
-                    // ⛔ The NESTED related is a sub-part: no protected-headers parameter here.
+                    // The NESTED related is a sub-part: no protected-headers parameter here.
                     append("Content-Type: multipart/related; type=\"$bodyType\"; boundary=\"$related\"\r\n\r\n")
                     appendRelatedParts(related, bodyType, bodyContent, inlineParts)
                     for (att in fileParts) {
@@ -647,7 +647,7 @@ object OutgoingMime {
      * MIME base64: 76-column lines separated by CRLF, which is what `Base64.getMimeEncoder()`
      * already produces on its own (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`).
      *
-     * ⛔ NOT `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`. That replace runs over
+     * NOT `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`. That replace runs over
      * separators that are ALREADY `\r\n` and turns every one of them into `\r\r\n` — a bare CR
      * inside the body, which a DATA payload may not contain (RFC 5321 § 2.3.8). Parsers shrug at
      * it, so it goes unnoticed on a plain message; on a SIGNED one the bare CR is part of the
@@ -666,7 +666,7 @@ object OutgoingMime {
      * Message-ID/References straight from a hostile incoming message, so this is the sink
      * that must be clean.
      *
-     * ⭐ Public, and ONE of it. A pre-built entity ([OutgoingMessage.prebuiltEntity]) is assembled
+     * Public, and ONE of it. A pre-built entity ([OutgoingMessage.prebuiltEntity]) is assembled
      * outside this file and can carry header-shaped lines of its own — RFC 8098's
      * `message/disposition-notification` part is nothing but fields, `Original-Message-ID` among
      * them, copied from a message a stranger wrote. That builder needs this exact filter, and a

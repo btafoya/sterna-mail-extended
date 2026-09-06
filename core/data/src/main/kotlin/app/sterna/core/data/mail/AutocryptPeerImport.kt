@@ -26,7 +26,7 @@ private val KNOWN_ATTRIBUTES = setOf("addr", "keydata", "prefer-encrypt")
  * `null` means "ignore, in silence": no banner, no error, the message opens exactly as it would
  * have. Nothing an incoming header says is worth failing an open over.
  *
- * ⛔ **[headers] must come from `MimeParser.rawHeaders` or JMAP's `headers` property, NEVER from
+ * **[headers] must come from `MimeParser.rawHeaders` or JMAP's `headers` property, NEVER from
  * `MimeParser.headerOf`.** That one is a Map keyed by field name, so it keeps the LAST occurrence of
  * a repeated field — and the very first rule below is that a message carrying TWO `Autocrypt`
  * headers is ignored whole. Fed a map, this function could not see the second one, and would import
@@ -52,16 +52,16 @@ private val KNOWN_ATTRIBUTES = setOf("addr", "keydata", "prefer-encrypt")
  *    998-octet line, hence always folded) arrives with spaces inside it, and JMAP hands back the
  *    raw value with the sender's CRLF+WSP still in place.
  *
- * ⛔ `prefer-encrypt` is READ AND THROWN AWAY. It is named in [KNOWN_ATTRIBUTES] only so that a
+ * `prefer-encrypt` is READ AND THROWN AWAY. It is named in [KNOWN_ATTRIBUTES] only so that a
  * header carrying it is not treated as unknown-critical and dropped. Whether this app starts
  * encrypting by itself is another decision, taken elsewhere or not at all.
  *
- * ⛔ A date that cannot be read is a refusal, not a "now". The provider keeps the newest key it was
+ * A date that cannot be read is a refusal, not a "now". The provider keeps the newest key it was
  * given for a peer, so a made-up date on an old message can make a stale key win over the current
  * one INSIDE OpenKeychain, where this app cannot undo it. Refusing costs a key we never had; the
  * other way costs a key the user does have (arbitration rule 1, the irreversible option first).
  *
- * ⛔ And a date more than [FUTURE_TOLERANCE_MILLIS] past [nowMillis] is the same refusal, for the
+ * And a date more than [FUTURE_TOLERANCE_MILLIS] past [nowMillis] is the same refusal, for the
  * same reason read from the other end. The date is the server's, not the sender's — IMAP's
  * `INTERNALDATE`, JMAP's `receivedAt` — so it cannot be forged, but nothing BOUNDS it on either
  * protocol. **Twenty-four hours is the real clock drift of a sending server; past that, the date is
@@ -70,13 +70,13 @@ private val KNOWN_ATTRIBUTES = setOf("addr", "keydata", "prefer-encrypt")
  * it. Refusing costs a key we never had; the other way costs a key the user does have (arbitration
  * rule 1, the irreversible option first).
  *
- * ⛔ [nowMillis] has NO default value, deliberately: every caller must say which clock it reads.
+ * [nowMillis] has NO default value, deliberately: every caller must say which clock it reads.
  * `MailRepository` (`importAutocryptKey`) is the one place `now` is read, and it covers both
- * protocols. ⚠ That is a prompt, not a guarantee — no default forces an ARGUMENT, not an honest
+ * protocols. That is a prompt, not a guarantee — no default forces an ARGUMENT, not an honest
  * clock, and a site passing `0` or the message's own date would be just as compiled. What actually
  * holds the wiring up is `AutocryptImportWiringTest`, which pins the call whole.
  *
- * ⚠ The cost of this bound, written down rather than discovered later: a device whose own clock is
+ * The cost of this bound, written down rather than discovered later: a device whose own clock is
  * more than 24 h SLOW refuses every legitimate key, in silence, and the refusal is not replayed —
  * the body is cached, so reopening the message runs no import at all. It takes a new message from
  * that correspondent. Accepted (arbitration rule 1) over a key that wins for decades in a provider
@@ -135,11 +135,11 @@ private const val FUTURE_TOLERANCE_MILLIS = 24L * 60 * 60 * 1000
  * Run [autocryptPeerImportOf] over one message's headers and, when it says so, hand the key to the
  * OpenPGP provider. Answers whether the provider took it — for the tests; the reader ignores it.
  *
- * ⛔ [nowMillis] is carried through untouched and has NO default here either, for the reason
+ * [nowMillis] is carried through untouched and has NO default here either, for the reason
  * [autocryptPeerImportOf] gives: the clock is named by the caller or the future bound is one
  * forgotten argument away from being off.
  *
- * ⛔ Every answer that is not [PgpResult.Success] is dropped in silence,
+ * Every answer that is not [PgpResult.Success] is dropped in silence,
  * [PgpResult.UserInteractionRequired] included: this runs on the open path, which has no screen and
  * no launcher for a provider's `PendingIntent`, and nothing here queues one for later. No engine at
  * all (no provider wired) is the same non-event.

@@ -20,7 +20,7 @@ object Outbox {
      * One unique work item per outbox id, so everything here books under ONE name and the policy
      * decides what happens to whatever was booked before.
      *
-     * ⭐ [keepExisting] is the whole reason this takes a policy instead of always replacing.
+     * [keepExisting] is the whole reason this takes a policy instead of always replacing.
      * `true` means "be the safety net, never the replacement": the startup re-arm cannot know
      * whether WorkManager has already restored this send's job, and that job may be delivering
      * right now. [ExistingWorkPolicy.REPLACE] would CANCEL it, the cancellation propagates into the
@@ -29,7 +29,7 @@ object Outbox {
      * interrupted. It also cancels the exponential backoff WorkManager had armed, so an offline
      * send restarts its wait from zero at every launch.
      *
-     * ⛔ `false` is the default and that is NOT timidity, it is the trap of this seam.
+     * `false` is the default and that is NOT timidity, it is the trap of this seam.
      * [OutboxWorker] re-books ITSELF for a HELD row (undo window, scheduled send) while it is
      * running, i.e. while the unique work is RUNNING: a global KEEP would see that and throw the
      * re-booking away, so no scheduled send would ever leave and the undo window would never close.

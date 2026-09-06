@@ -56,14 +56,14 @@ internal data class PageKey(
  * `SettingsRepository.setImageAllowed`) re-emitted an EQUAL key and rebuilt the pager. `cachedIn`
  * cannot help: it caches the flow, not the decision to build a new one.
  *
- * ⚠ The dedupe is only correct because all seven members of [PageKey] have value equality — `Sel` is
+ * The dedupe is only correct because all seven members of [PageKey] have value equality — `Sel` is
  * a sealed interface of a data class and two data objects, `unifiedScopes` and `unreadScopes` lists
  * of pairs, the rest primitives and an enum. A member added later WITHOUT it (a lambda, a repository
  * handle, any identity-compared object) would make every key distinct and quietly bring the rebuild
  * storm back; a member added with equality but not read here would stop the list rebuilding when it
  * must. `PageKeyFlowTest` pins both directions, member by member.
  *
- * ⚠ The typed `combine` stops at five flows, so the last two inputs are folded in with `copy` —
+ * The typed `combine` stops at five flows, so the last two inputs are folded in with `copy` —
  * which is why they are seeded with a placeholder in the first stage. A stage dropped from the chain
  * leaves its member frozen at that placeholder, and the member's own `PageKeyFlowTest` rule is what
  * says so.
@@ -99,8 +99,8 @@ internal fun pageKeyFlow(
  *  - a folder with a MARKED role (`~trash`, `MailRepository.UNELECTED_ROLE_MARK`), which means "this
  *    folder claimed trash and another folder was elected to it".
  *
- * ⚠ Say the second one plainly, because the excluded set is NOT what decides it. `MailboxMapper`
- * erases the mark on the way to [Mailbox] (`MailboxMapper.kt:38`, `unmarkedRole`), so a losing IMAP
+ * Say the second one plainly, because the excluded set is NOT what decides it. `MailboxMapper`
+ * erases the mark on the way to [Mailbox] (`unmarkedRole`), so a losing IMAP
  * trash arrives here with `role = null` and is included as a role-less folder — the marked spelling
  * in this filter never fires at all. The consequence is real and is not a belt: an account with a
  * personal `Trash` and a shared `Shared/…/Trash` has the shared one PAGED by this view, deleted mail
@@ -166,7 +166,7 @@ internal fun unreadRefreshTargets(
  * account's inbox [inboxId], and only if [refreshedIds] says it was really among the folders that
  * came back.
  *
- * ⛔ Never "the first refresh". The inbox being first is an invariant of another module, five hops
+ * Never "the first refresh". The inbox being first is an invariant of another module, five hops
  * away, and `FetchAndNotify.onInboxRefreshed` is not a read: it WRITES the folder's notification
  * baseline and runs `unarchiveThreadsOnReply` over the threads it finds new. Aimed at a folder that
  * is not the inbox, it either swallows that folder's notifications (its baseline advances without
@@ -182,13 +182,13 @@ internal fun refreshedInboxId(refreshedIds: List<String>, inboxId: String?): Str
     inboxId?.takeIf { it in refreshedIds }
 
 /**
- * ⭐ Whether THE LIST is filtered to unread — one answer, for the pager AND for "Select all".
+ * Whether THE LIST is filtered to unread — one answer, for the pager AND for "Select all".
  *
  * The toolbar's funnel ([toggle]) says what the reader asked for. [Sel.Unread] says what the view
  * IS: a scope called "Unread" must show unread mail whatever the funnel is set to (WYSIWYG), so it
  * forces the filter on and the funnel can only ever agree with it.
  *
- * ⛔ ONE function, called from both places, and that is the whole point of extracting it. The pager
+ * ONE function, called from both places, and that is the whole point of extracting it. The pager
  * forcing the filter while `selectAll` read the raw toggle is the destructive half of #126 rebuilt
  * from scratch: the list shows twelve unread rows, `MailRepository.selectableIds` is asked for the
  * folder UNFILTERED, and "Select all" then "Delete" sends to the Trash every READ message of the
@@ -202,7 +202,7 @@ internal fun listUnreadOnly(sel: Sel, toggle: Boolean): Boolean = listUnreadOnly
  * The same one decision, asked by the screen, which holds a flag and not a [Sel] ([MailUi] is public
  * and [Sel] is internal to this package, so the state cannot carry the selection itself).
  *
- * ⛔ An overload that DELEGATES, never a second spelling of `|| toggle`: the empty state and the
+ * An overload that DELEGATES, never a second spelling of `|| toggle`: the empty state and the
  * pager have to agree on what "filtered" means, or the list says "no unread messages" over rows it
  * is showing.
  */
@@ -212,12 +212,12 @@ internal fun listUnreadOnly(unreadView: Boolean, toggle: Boolean): Boolean = unr
  * The number the drawer's "unread" entry carries: the unread of the folders that view PAGES, summed
  * over the scope it is built from ([unreadViewScopes], through [PageKey.unreadScopes]).
  *
- * ⛔ Never a second exclusion rule written next to the first: the badge must offer exactly the
+ * Never a second exclusion rule written next to the first: the badge must offer exactly the
  * folders the list pages, and two predicates that merely look alike drift in silence — the day a
  * role is added to the excluded set, a count of its own would keep advertising mail the list no
  * longer shows. So the roles are not named here at all; the SCOPE is the argument.
  *
- * ⭐ What the number IS, exactly: the sum of [Mailbox.unreadForList] over the scope — the very
+ * What the number IS, exactly: the sum of [Mailbox.unreadForList] over the scope — the very
  * aggregate the folder rows under this entry are badged with, so the drawer cannot contradict
  * itself. That is a definition, not a row count, and it does not promise one:
  *
@@ -225,7 +225,7 @@ internal fun listUnreadOnly(unreadView: Boolean, toggle: Boolean): Boolean = unr
  *    view, unread messages in flat view) and, for IMAP accounts, the server's stored counter that
  *    `MailboxMapper` copies into it — a windowed cache cannot honestly aggregate what it has not
  *    got. Whichever it is, it is what the folder rows show, which is the property that matters here;
- *  - ⛔ in conversation view it can OVER-count against the list: the badge sums per-folder counts,
+ *  - in conversation view it can OVER-count against the list: the badge sums per-folder counts,
  *    while the list groups a thread over the whole scope, so a thread with unread messages in two
  *    folders of the scope is counted twice and drawn once. Counting it right needs a repository
  *    query over the scope, which this volet does not add — carried as debt in the batch journal.
@@ -273,7 +273,7 @@ internal data class EmptyScene(
  *    filtered, and it answers yes for the whole scope. One function, the same one the pager and
  *    "Select all" ask.
  *
- * ⛔ The action button is the asymmetry, and it is deliberate: it offers to lift the funnel, and in
+ * The action button is the asymmetry, and it is deliberate: it offers to lift the funnel, and in
  * the unread view there is no funnel to lift — the scope forces the filter on, so the same empty
  * list would stay on screen. It is offered for the TOGGLE alone, whatever the scope has been told.
  */
@@ -300,7 +300,7 @@ internal fun emptyListScene(
             else -> R.string.empty_inbox_title
         },
         body = when {
-            // ⛔ Before the funnel's arm, and it is not a nuance: empty_unread_body ends on "turn
+            // Before the funnel's arm, and it is not a nuance: empty_unread_body ends on "turn
             // off the unread filter to see all mail", and in this view there is no funnel on the
             // toolbar and no button under the text to turn off. Its own sentence says "your
             // folders" and never "all mail" — Trash and Junk are out of the scope on purpose.

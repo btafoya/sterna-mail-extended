@@ -430,9 +430,9 @@ class SharedAccountScreenTest {
         const val SCREEN_SIGNATURE = "internal fun SharedAccountScreen("
 
         const val GUARD_MARKER =
-            "// \u26d4 PINNED BY SharedAccountScreenTest \u2014 the guard, statement by statement"
+            "// PINNED BY SharedAccountScreenTest \u2014 the guard, statement by statement"
         const val INITIAL_STATE_MARKER =
-            "// \u26d4 PINNED BY SharedAccountScreenTest \u2014 what each row opens on"
+            "// PINNED BY SharedAccountScreenTest \u2014 what each row opens on"
 
         const val COLOUR_MARKER =
             "SettingsSection(stringResource(R.string.settings_account_colour_section)) {"
@@ -440,20 +440,20 @@ class SharedAccountScreenTest {
             "SettingsSection(stringResource(R.string.settings_account_notifications_section)) {"
 
         const val INDENT_MARKER =
-            "// \u26d4 PINNED BY SharedAccountScreenTest \u2014 the indent, statement by statement"
+            "// PINNED BY SharedAccountScreenTest \u2014 the indent, statement by statement"
 
         const val ACCOUNTS_LIST_MARKER =
-            "// \u26d4 PINNED BY SharedAccountScreenTest \u2014 the accounts list, statement by statement"
+            "// PINNED BY SharedAccountScreenTest \u2014 the accounts list, statement by statement"
 
         /** The line the NavHost's own arguments start after — the first entry is right below it. */
         const val NAV_HOST_MARKER = "navController = nav,"
 
         const val START_DESTINATION_MARKER =
-            "// \u26d4 PINNED BY SharedAccountScreenTest \u2014 the start destination, statement by statement"
+            "// PINNED BY SharedAccountScreenTest \u2014 the start destination, statement by statement"
         const val ACCOUNT_ROUTE_MARKER =
-            "// \u26d4 PINNED BY SharedAccountScreenTest \u2014 the account route, statement by statement"
+            "// PINNED BY SharedAccountScreenTest \u2014 the account route, statement by statement"
         const val SHARED_ROUTE_MARKER =
-            "// \u26d4 PINNED BY SharedAccountScreenTest \u2014 the shared route, statement by statement"
+            "// PINNED BY SharedAccountScreenTest \u2014 the shared route, statement by statement"
         const val ACCOUNTS_SCREEN_MARKER = "AccountsScreen("
         const val ACCOUNT_CHIP_MARKER = ".graphicsLayer { translationX = accountOffset.value }"
 

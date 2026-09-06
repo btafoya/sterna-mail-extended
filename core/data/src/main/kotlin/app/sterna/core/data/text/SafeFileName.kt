@@ -7,7 +7,7 @@ package app.sterna.core.data.text
  * surrogate pair: a lone high surrogate is not a character a provider can name a file with — and
  * [fallback] when nothing is left (null, empty, whitespace). No extension: the caller adds its own.
  *
- * ⛔ Not the `[^A-Za-z0-9._-]` regex of `StorageRepository.cacheAttachment` (and its five
+ * Not the `[^A-Za-z0-9._-]` regex of `StorageRepository.cacheAttachment` (and its five
  * siblings): that one names a cache file nobody reads, and it turns "Réunion décalée" into
  * `R_union_d_cal_e` — a name the user is meant to find in her Downloads. Those six regexes stay
  * where they are; this is a different job.

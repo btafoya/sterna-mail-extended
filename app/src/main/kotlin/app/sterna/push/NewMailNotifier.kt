@@ -67,7 +67,7 @@ object NewMailNotifier {
      * Reset a folder's baseline to [baselineIds] without notifying (first sight of a folder, or
      * when the user is opening the app anyway — the list itself shows what arrived).
      *
-     * ⚠ [baselineIds] is deliberately NOT "the ids of the messages that were diffed". It REPLACES
+     * [baselineIds] is deliberately NOT "the ids of the messages that were diffed". It REPLACES
      * the set, so it has to cover everything the caller read, including what the caller declined
      * to hydrate: an id that leaves this set is forgotten, and a forgotten id that comes back into
      * view announces as new mail — and, through `unarchiveThreadsOnReply`, moves mail out of the
@@ -185,7 +185,7 @@ object NewMailNotifier {
      * [FolderRefresh.previewSources]). Empty is a complete answer: the notifications are then the
      * sender and the subject, which is what every position but one shows anyway.
      *
-     * ⭐ [previewBudget] is the six reads and four seconds of the WHOLE ACCOUNT PASS, and a
+     * [previewBudget] is the six reads and four seconds of the WHOLE ACCOUNT PASS, and a
      * multi-folder caller MUST pass the same one to every folder it diffs ([FetchAndNotify.run]):
      * this function is called once per folder, so a budget of its own here would be four budgets
      * for an account watching three extra folders — 24 reads and up to 16 s of blocking IMAP work
@@ -252,7 +252,7 @@ object NewMailNotifier {
             // read a system list the pass's own cancels have not reached yet (#134).
             val live = Notifications.liveChildIdsAfter(active, credentials.id, readIds + departed, newMail.map { it.id })
             val summarised = Notifications.summaryShownFor(live.size)
-            // ⛔ The openings are read HERE, in one pre-pass, BEFORE the first notification is
+            // The openings are read HERE, in one pre-pass, BEFORE the first notification is
             // posted — never inside the loop below. A network round trip between two posts would
             // put an exception in the middle of a half-announced batch, and the [seed] at the
             // bottom of this function would be skipped: the folder's baseline would not move, the

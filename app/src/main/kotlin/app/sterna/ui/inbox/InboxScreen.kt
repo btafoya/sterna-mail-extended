@@ -1302,18 +1302,18 @@ fun InboxScreen(
                 // unfolded (and paged) the sibling account's homonymous conversation (#92).
                 val threadKey = viewModel.threadKeyOf(email)
                 val isExpanded = expandable && threadKey in expandedThreads
-                // ⭐ The role of the folder THIS ROW is filed in, not the one on screen: a list can
+                // The role of the folder THIS ROW is filed in, not the one on screen: a list can
                 // span several folders of one account, where "Delete permanently" and "Unarchive"
                 // are true of some rows and false of the ones beside them. Falls back to the view's
                 // role whenever the row's folder cannot be believed, so the single-folder and
                 // unified views answer exactly what they answered before ([rowFolderRole]).
                 val rowRole = rowFolderRole(email, ui, folderRoles, folderTrusted = !fromSearch)
-                // ⭐ And WHICH folder, in the one view that pages several of them: the unread view
+                // And WHICH folder, in the one view that pages several of them: the unread view
                 // shows the same object once per folder it is filed in (IMAP identities carry the
                 // folder), and those rows are all true. Naming the folder is what tells them apart
                 // — the rows are deliberately NOT deduplicated. Null everywhere else, and the
                 // account chip below wins whenever there is one: one slot, never two ([EmailListItem]).
-                // ⛔ `row.threadCount`, not 1: in conversation view — the DEFAULT — a row can stand
+                // `row.threadCount`, not 1: in conversation view — the DEFAULT — a row can stand
                 // for several messages of the list, filed in several folders, and one folder name
                 // under it would be a claim about an aggregate ([unreadRowFolder]).
                 val rowFolder = unreadRowFolder(email, ui, folderTrusted = !fromSearch, inViewCount = row.threadCount)
@@ -1360,7 +1360,7 @@ fun InboxScreen(
                     },
                     onClick = {
                         // The decision lives in [rowTapAction], executed by RowTapActionTest; this
-                        // `when` only acts on it. ⭐ A draft only this phone holds opens in the
+                        // `when` only acts on it. A draft only this phone holds opens in the
                         // composer like any other (#95) — `ComposeViewModel.prepare` routes a local
                         // id to the store that holds it and never asks a server about it. It is the
                         // FIRST argument and wins first: the selection branch would toggle a
@@ -1382,7 +1382,7 @@ fun InboxScreen(
                     onLongClick = {
                         if (expandable) viewModel.enterSelectionThread(email) else viewModel.enterSelection(email)
                     },
-                    // ⛔ The star is a gesture too, on every row, and reachable by TalkBack (#95):
+                    // The star is a gesture too, on every row, and reachable by TalkBack (#95):
                     // toggleFlag over a local id touches no row at all on IMAP (the star simply
                     // never fills) and raises "Action failed" on JMAP. A local draft gets no star
                     // rather than a dead one — an affordance that cannot do what it draws is the
@@ -1413,7 +1413,7 @@ fun InboxScreen(
                     // results are on screen. Simplify this to `true` some day and a selection can
                     // outlive the list it was taken from, at which point "Select all" takes the
                     // folder behind an empty result list and deletes it (#126).
-                    // ⛔ The other half is the swipe guard for a draft only this phone holds, and
+                    // The other half is the swipe guard for a draft only this phone holds, and
                     // it has to sit HERE, not further down (#95): commitSwipe plays the entire
                     // take-off — the row leaves by the edge, tilts and fades to nothing — and only
                     // THEN calls onSwipe, so performSwipe's refusal arrives after the row has been
@@ -1775,13 +1775,13 @@ fun InboxScreen(
                     // staleRows too, and it has to stay ABOVE the offline/error/empty scenes: on
                     // a switch that runs no refresh of its own, gating the rows branch alone falls
                     // through to them and the screen claims the folder is empty — or offline —
-                    // while its first page is still loading. ⚠ On a FRESH switch nobody refreshes
+                    // while its first page is still loading. On a FRESH switch nobody refreshes
                     // at all — select(), showInbox(), selectUnified(), selectUnread(),
                     // onAccountChanged() and init all go through refreshUnlessFresh(), which
                     // returns inside the freshness window — so ui.refreshing is false and the arm
                     // above does NOT catch. This arm catches (staleRows) and draws NOTHING:
                     // ringShowing is fed refreshLoading && !staleRows. The centre stays empty
-                    // until the new folder's first page arrives. ⛔ NOT bounded by the guard's
+                    // until the new folder's first page arrives. NOT bounded by the guard's
                     // give-up valve: that valve is `gaveUp && !refreshLoading` (RowsGuard.kt), and
                     // the very query being waited on holds refreshLoading true, so it is inert on
                     // this path. The silence lasts what the local page costs. It is still the
@@ -1862,7 +1862,7 @@ fun InboxScreen(
         }
         }
     }
-    // ONE drawer content, two envelopes. ⚠ `drawerState` is created above and closed from the
+    // ONE drawer content, two envelopes. `drawerState` is created above and closed from the
     // content in BOTH branches, deliberately: close() on a state that is already Closed does
     // nothing, so the six `scope.launch { drawerState.close() }` inside [DrawerContent] and the
     // ON_START snap higher up need no branch of their own and are left exactly as they were.
@@ -1926,7 +1926,7 @@ fun InboxScreen(
 /**
  * The ONE folder drawer, drawn by both envelopes (#103, volet 6): the modal sheet under 1 200 dp
  * and the permanent sheet from 1 200 dp. Moved here from inside `ModalDrawerSheet` unchanged —
- * ⛔ including its indentation, so the move reads as a move — with the carousel's three
+ * including its indentation, so the move reads as a move — with the carousel's three
  * `remember`s travelling with it: they belong to the sheet that is on screen, and a window
  * crossing 1 200 dp swaps envelopes, so an unfolded account list closing itself there is the
  * honest outcome rather than state kept alive for a sheet that no longer exists.
@@ -2103,7 +2103,7 @@ private fun DrawerContent(
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
                 }
-                // ⭐ Outside the guard above, deliberately: this is one account's unread mail across
+                // Outside the guard above, deliberately: this is one account's unread mail across
                 // its own folders, so it means exactly as much on a single-account install — where
                 // the drawer is the only way in.
                 val unreadLabel = if (ui.unreadViewCount > 0) {
@@ -2234,7 +2234,7 @@ private fun DrawerContent(
  * guard, both of which exist only in composition — the ViewModel never sees the pager's load state
  * nor the guard's verdict. So the stretch is held in `remember` beside its reader.
  *
- * ⛔ `instant = false` always, and there is no way to ask otherwise: this ring answers no gesture.
+ * `instant = false` always, and there is no way to ask otherwise: this ring answers no gesture.
  * The pull's answer is the tern at the top of the list, which the ViewModel drives.
  *
  * One wake-up per change, never a poll: the effect is keyed on [active], so a stretch that ended
@@ -2318,7 +2318,7 @@ private fun AccountChip(label: String, color: Color?, modifier: Modifier = Modif
 private fun SwipeableEmailRow(
     email: Email,
     /** Where this row comes from, for [EmailListItem]'s single chip: the owning ACCOUNT in the
-     *  unified inbox, the row's own FOLDER in the unread view ([unreadRowFolder]). ⛔ The two never
+     *  unified inbox, the row's own FOLDER in the unread view ([unreadRowFolder]). The two never
      *  coexist — one slot, one question. Null draws no chip. */
     originLabel: String?,
     originColor: Color?,
@@ -2364,7 +2364,7 @@ private fun SwipeableEmailRow(
     /** Is there a drawer to hand a drag to at all? False from 1 200 dp, where it is already
      *  beside the list. Passed as a VALUE and keyed on below, never read out of a captured
      *  State: the drag block runs outside composition and would keep the first one it saw.
-     *  See [DrawerGesture]. ⛔ No default: a third call site must ANSWER this question, and a
+     *  See [DrawerGesture]. No default: a third call site must ANSWER this question, and a
      *  default would let it forget silently — with the lint next door still counting its three
      *  `drawerCanOpen = !permanentDrawer,` and staying green over the row that has none. */
     drawerCanOpen: Boolean,
@@ -2823,13 +2823,13 @@ private fun visibleFolderRole(ui: MailUi): String? =
  * folders of one account, where the row under the finger may be in the Archive while the one above
  * it is in the Inbox.
  *
- * ⭐ [roles] is `InboxViewModel.folderRoles` — the (account, folder) → role map the folder cache
+ * [roles] is `InboxViewModel.folderRoles` — the (account, folder) → role map the folder cache
  * already publishes for every configured account, and which the screen already collects. It is
  * account-qualified, and that is not decoration: servers number mailboxes per account (#31/#121), so
  * a bare folder id would borrow a sibling account's role and offer to destroy a message sitting in
  * its Inbox.
  *
- * ⭐ The single fallback to [visibleFolderRole] is what makes this change behaviour-constant on the
+ * The single fallback to [visibleFolderRole] is what makes this change behaviour-constant on the
  * two existing views. It fires on everything [messageFolderRole] cannot answer:
  *
  *  - no `mailboxId`, or a blank one: a row drawn from the search index carries a folder frozen at
@@ -2842,12 +2842,12 @@ private fun visibleFolderRole(ui: MailUi): String? =
  *
  * In each of those the answer is exactly what shipped before this function existed.
  *
- * ⛔ ONE clause on purpose. A separate `takeIf { it.isNotBlank() }` guard for the blank `mailboxId`
+ * ONE clause on purpose. A separate `takeIf { it.isNotBlank() }` guard for the blank `mailboxId`
  * was written first and DELETED when a mutation survived it: [roles] is keyed on real folder rows,
  * so a blank id has no entry either and lands on the very same fallback. An unreachable guard is a
  * line no test can hold.
  *
- * ⛔ [folderTrusted] is FALSE for a search hit, and it is not optional. `SelectionTargets` says it
+ * [folderTrusted] is FALSE for a search hit, and it is not optional. `SelectionTargets` says it
  * in as many words: "a non-empty `Email.mailboxId` is not evidence of anything" — a row drawn from
  * the FTS index carries the folder it was crawled in, which the server may have contradicted since.
  * Believing it costs mail: a message archived, indexed, then moved to `Projets` from another client
@@ -2872,7 +2872,7 @@ internal fun rowFolderRole(
  *
  * The unread view pages every folder of one account, and on IMAP a message's identity CONTAINS its
  * folder (`imap:$acc:$mbox:$uid`), so one object filed in the Inbox and in the Archive is two rows
- * of `emails` and two rows on screen. ⛔ They are NOT deduplicated, deliberately: a single row would
+ * of `emails` and two rows on screen. They are NOT deduplicated, deliberately: a single row would
  * stand for N real messages, and a "delete" swipe on it would be a silent multi-folder delete. Both
  * rows are true; what was missing is which folder each one is.
  *
@@ -2887,29 +2887,29 @@ internal fun rowFolderRole(
  *  - [folderTrusted] false, i.e. a search hit: its `mailboxId` is the folder frozen at crawl time,
  *    which the server may have contradicted since. Same reason [rowFolderRole] refuses it — we do
  *    not name a folder we cannot believe.
- *  - ⚠ the row belongs to another account than [MailUi.accountId]. PORTING GUARD, not a formality:
+ *  - the row belongs to another account than [MailUi.accountId]. PORTING GUARD, not a formality:
  *    [MailUi.mailboxes] is ONE account's list and is not qualified by account, while servers number
  *    mailboxes per account (#31/#121) — so a bare id lookup would happily find the neighbouring
  *    account's homonymous folder and print the wrong name under the row.
- *    ⚠ It is a BELT, and it is worth saying what it does not prove: [MailUi.accountId] and
+ *    It is a BELT, and it is worth saying what it does not prove: [MailUi.accountId] and
  *    [MailUi.mailboxes] reach the state through two different flows, so a `combine` can in principle
  *    emit the new account beside the previous account's folder list. Today nothing gets drawn in that
  *    window — `onAccountChanged` moves the selection to `Sel.Folder` (so [MailUi.unreadView] is
  *    false) and empties `unreadScopes` (so the pager has no rows) — but that is THREE facts in
  *    another file holding it up, not this function's own. Give the folder list its account and the
  *    belt becomes a proof; until then, do not weaken it.
- *  - ⚠ [inViewCount] is not 1 — the row is a COLLAPSED CONVERSATION standing for several messages
+ *  - [inViewCount] is not 1 — the row is a COLLAPSED CONVERSATION standing for several messages
  *    of the list. Conversation view is the default, and there a thread unread in the Inbox and in
  *    the Archive is drawn ONCE, off its newest message: naming that one message's folder would
  *    assert a single origin for a row that has several, and hide the reader's Inbox message behind
- *    the word "Archive". ⭐ It costs #169 nothing: the rows the reporter sees stacked each count 1,
+ *    the word "Archive". It costs #169 nothing: the rows the reporter sees stacked each count 1,
  *    and a row that counts 1 still names its folder. IMAP folds into conversations too
  *    (`imapThreadKey`), so a collapsed IMAP row loses its folder label exactly as a JMAP one does,
  *    for the same reason — a row with several origins names none.
  *  - no account on screen, or a folder [MailUi.mailboxes] has no entry for: unknown folder, which
  *    is not the same thing as a folder without a role. We are quiet, we do not guess.
  *
- * ⛔ No guard of its own for a null or blank `mailboxId`, and that is on purpose — the same call
+ * No guard of its own for a null or blank `mailboxId`, and that is on purpose — the same call
  * [rowFolderRole] documents having deleted, for the same reason. [MailUi.mailboxes] is built from
  * real folder rows, so neither null nor "" has an entry in it and the lookup below already answers
  * null. A mutation removing such a guard survives every test, because there is nothing behind it.
@@ -3000,7 +3000,7 @@ private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext
 
 /** Dispatch a configured swipe action to the view model for [email]. */
 private fun performSwipe(action: SwipeAction, email: Email, viewModel: InboxViewModel, ui: MailUi, rowRole: String?) {
-    // ⛔ A draft only this phone holds is inert (#95): repo.delete / archive / moveToMailbox read a
+    // A draft only this phone holds is inert (#95): repo.delete / archive / moveToMailbox read a
     // UID out of an id that carries none — a silent no-op on IMAP, an error on JMAP — and none of
     // them removes the local row. Left through, a "delete" swipe would announce a deletion that did
     // not happen and offer an Undo over an untouched row. See [isLocalDraftRow].

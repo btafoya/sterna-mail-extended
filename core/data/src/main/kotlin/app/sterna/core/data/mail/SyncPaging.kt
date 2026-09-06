@@ -23,7 +23,7 @@ internal data class FolderSyncSizing(
  * How a folder refresh sizes itself, from the account's window ([windowLimit]) and the server's
  * per-request object limit ([serverCapacity], `JmapSession.getBatchSize()`).
  *
- * ⛔ The whole reason this returns a triple rather than a number: `SyncWindow.limit` plays TWO
+ * The whole reason this returns a triple rather than a number: `SyncWindow.limit` plays TWO
  * roles. It is the size of the request, and it is the RETENTION FLOOR handed to the prune ("keep
  * at least the newest N whatever their age", Codeberg #110). Only the first may be capped. Capping
  * both — which is what happens the moment the cap is applied at the call site, where one variable
@@ -50,7 +50,7 @@ internal fun folderSyncSizing(windowLimit: Int, serverCapacity: Int): FolderSync
  * the account, and only when there is none ([accountWindow] null — an account the store no longer
  * holds) the number [requestedByCaller] asked for.
  *
- * ⛔ The caller does not get to size this branch, and that is the whole point. A full query ends in
+ * The caller does not get to size this branch, and that is the whole point. A full query ends in
  * `EmailDao.replaceMailbox`, which DELETES every cached row it is not given. Two callers reach it
  * with a hardcoded 50 that has nothing to do with the user's setting — the push/worker pass
  * (`refreshAccountFolders`, `limit = 50`) and the unified inbox (`refreshAllInboxes`, `limit = 50`)
@@ -63,7 +63,7 @@ internal fun folderSyncSizing(windowLimit: Int, serverCapacity: Int): FolderSync
  * re-arm the cursor. The deltas then resume and never fetch backwards — 50 rows cached for a window
  * of 500, and the setting inert again, by the hand of the fix meant to apply it.
  *
- * ⚠ This sizes the WINDOW only. The per-request page stays what the server negotiated
+ * This sizes the WINDOW only. The per-request page stays what the server negotiated
  * ([requestPageSize]), and the retention floor keeps reading the window and never a request size —
  * capping that one is Codeberg #110 reopened ([folderSyncSizing]).
  */
@@ -75,7 +75,7 @@ internal fun fullQueryWindowTarget(accountWindow: Int?, requestedByCaller: Int):
  * set on the account — and only from [requestedByCaller] when there is no account row left to read
  * ([fullQueryWindowTarget]).
  *
- * ⛔ Why the whole sizing and not just the target. Sizing the window on the account while sizing the
+ * Why the whole sizing and not just the target. Sizing the window on the account while sizing the
  * REQUEST on the caller left the background passes asking for their own 50 messages per request on
  * a server admitting 500 ([requestPageSize] caps what is wanted; it cannot raise it). The target was
  * then right and the walk was ten times longer than it had to be: a 10 000-message window is 200
@@ -83,7 +83,7 @@ internal fun fullQueryWindowTarget(accountWindow: Int?, requestedByCaller: Int):
  * changed, because dropping the cursor is exactly what opens this branch. On the largest window
  * that is the difference between a long sync and one nobody waits for.
  *
- * ⚠ The server still has the last word on ONE request: the page is `min(window, capacity)`, never
+ * The server still has the last word on ONE request: the page is `min(window, capacity)`, never
  * the window itself. And the retention floor stays the window and never a request size — capping
  * that one is Codeberg #110 reopened ([folderSyncSizing]).
  */
@@ -96,7 +96,7 @@ internal fun fullQuerySizing(accountWindow: Int?, requestedByCaller: Int, server
  * row outside the set it is given, so "I cannot say" has to be expressible as something other than
  * an empty set.
  *
- * ⛔ The case this closes, and it needs no failure anywhere: an `Email/get` that answers `200 OK`
+ * The case this closes, and it needs no failure anywhere: an `Email/get` that answers `200 OK`
  * with no `list` key. `decodeList` returns an empty list WITHOUT raising, so the first page adds
  * nothing, [app.sterna.core.jmap.nextWindowPageLimit]'s anti-spin guard (`last.added <= 0`) ends
  * the walk by ordinary return, and the walk hands back an empty id list. "The walk finished" is
@@ -115,11 +115,11 @@ internal fun fullQuerySizing(accountWindow: Int?, requestedByCaller: Int, server
  *   arrived; the worst case becomes a cache holding more than the window, which is survivable,
  *   instead of a folder emptied by a refresh that learned nothing.
  *
- * ⚠ The refusal also swallows the rarer case where every listed message really was destroyed
+ * The refusal also swallows the rarer case where every listed message really was destroyed
  * between the query and the get. That folder keeps stale rows until the ghost sweep or the next
  * full query removes them — the survivable direction, deliberately.
  *
- * ⛔ THE THIRD REFUSAL, and it is FIRST in the `when`. A walk that lost its anchor mid-walk
+ * THE THIRD REFUSAL, and it is FIRST in the `when`. A walk that lost its anchor mid-walk
  * restarts once at an absolute index, one row behind the count it had accumulated
  * ([app.sterna.core.jmap.WindowWalk.resumedByPosition]) — which corrects for ONE row leaving the
  * list, the anchor's own. If the anchor and k messages of lower index left in the same instant,
@@ -129,12 +129,12 @@ internal fun fullQuerySizing(accountWindow: Int?, requestedByCaller: Int, server
  * cover them — they are DELETED; `putSyncState` runs immediately after, the deltas resume, and a
  * delta never re-sends a message that was neither added nor changed.
  *
- * ⛔ FIRST because a resumed walk almost always brings ids back. Placed under `ids.isNotEmpty()`
+ * FIRST because a resumed walk almost always brings ids back. Placed under `ids.isNotEmpty()`
  * this clause would be dead in exactly the case it exists for, and would still read as a fix.
  *
- * ⚠ What it costs, and it is not free: on the `COUNT_*` windows the reconcile is the ONLY cap on
+ * What it costs, and it is not free: on the `COUNT_*` windows the reconcile is the ONLY cap on
  * this folder's cache, so a refused pass leaves it holding more than the window — including rows
- * the server has destroyed. ⛔ And NOT just until the next refresh: `putSyncState` stores a cursor
+ * the server has destroyed. And NOT just until the next refresh: `putSyncState` stores a cursor
  * immediately after the refusal whatever this answered, so the deltas resume and no full query is
  * scheduled at all — the surplus sits there until one happens again for its own reasons (the
  * cursor dropped, or a delta the server cannot compute). That is exactly the posture

@@ -18,7 +18,7 @@ const val OAUTH_REDIRECT_HOST = "oauth"
 /**
  * The redirect the authorization server sends the browser back to.
  *
- * ⛔ Built from the [applicationId] it is given, never from the literal `app.sterna`. The test
+ * Built from the [applicationId] it is given, never from the literal `app.sterna`. The test
  * build (`-PtestApp`) is `app.sterna.test` and installs ALONGSIDE production: two packages
  * claiming one scheme make the return non-deterministic — Android picks, and the bench proves
  * nothing about the app under test. The manifest registers `android:scheme="${applicationId}"`
@@ -45,7 +45,7 @@ fun newOAuthState(): String = Pkce.newCodeVerifier(43)
 /**
  * The one authorization request in flight, held IN MEMORY only.
  *
- * ⛔ Nothing here is persisted (arbitration: KISS + irreversible-first). `codeVerifier` is the
+ * Nothing here is persisted (arbitration: KISS + irreversible-first). `codeVerifier` is the
  * proof that redeems a code; on disk it would outlive the browser trip it exists for, and it would
  * have to be wiped on every path out. So a process death while the browser is in front loses the
  * request, and the redirect that comes back finds nothing and says so — see
@@ -61,7 +61,7 @@ data class PendingAuthorization(
     val accountName: String,
 ) {
     init {
-        // ⛔ THE guard of this whole flow: no exchange without PKCE, ever. There is no fallback to
+        // THE guard of this whole flow: no exchange without PKCE, ever. There is no fallback to
         // a bare authorization code and no "the server didn't ask for a challenge" path, so a
         // request that could not prove possession cannot be built in the first place — the failure
         // lands on the developer who built it, never on a user's redirect.
@@ -80,7 +80,7 @@ sealed interface RedirectVerdict {
     /** Nothing was in flight: the process died during the browser trip, or this is a stale link. */
     data object NoPendingRequest : RedirectVerdict
 
-    /** The `state` is not the one we drew: not our sign-in. ⛔ The code is NOT exchanged. */
+    /** The `state` is not the one we drew: not our sign-in. The code is NOT exchanged. */
     data object StateMismatch : RedirectVerdict
 
     /** The server said no (`error=access_denied`, …): the user refused, or the client is unknown. */
@@ -129,7 +129,7 @@ data class TokenExchange(
  * What to POST for a redirect that earned an exchange — the PROVENANCE of the four arguments, as a
  * function a test can run.
  *
- * ⛔ The verifier is the one THIS request drew, and nothing else will do. "There is a verifier in
+ * The verifier is the one THIS request drew, and nothing else will do. "There is a verifier in
  * the call" is not the rule: a freshly drawn one (`Pkce.newCodeVerifier()`) is non-blank, passes
  * `PendingAuthorization`'s guard, reads perfectly well at the call site — and turns PKCE into
  * decoration, because the challenge the server holds was derived from the other one. That is why
@@ -152,7 +152,7 @@ fun tokenExchangeFor(verdict: RedirectVerdict.Exchange, redirectUri: String): To
  * request is cleared as soon as it has produced a verdict of its own — the second identical return
  * finds nothing in flight and exchanges nothing.
  *
- * ⚠ Except on the two verdicts that mean "this redirect was not our sign-in": with nothing armed
+ * Except on the two verdicts that mean "this redirect was not our sign-in": with nothing armed
  * there is nothing to clear, and on a state mismatch clearing would let anything able to open a
  * link cancel the user's real sign-in from outside.
  */

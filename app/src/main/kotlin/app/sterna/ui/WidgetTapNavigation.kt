@@ -23,11 +23,11 @@ enum class WidgetTapReturn {
  * `FLAG_ACTIVITY_CLEAR_TOP` cannot help: there is a single activity, and the reader is a navigation
  * destination inside it.
  *
- * ⛔ AND IT IS NOT UNCONDITIONAL — that is the whole reason this is a rule and not a `popBackStack`
+ * AND IT IS NOT UNCONDITIONAL — that is the whole reason this is a rule and not a `popBackStack`
  * call. Popping the COMPOSER out from under someone's hands to show them a number risks the draft
  * they are writing, and a lost draft does not come back. No counter is worth that.
  *
- * ⛔ AND IT IS DECIDED ON THE STACK, NEVER ON THE TOP ENTRY. This is the correction that matters,
+ * AND IT IS DECIDED ON THE STACK, NEVER ON THE TOP ENTRY. This is the correction that matters,
  * and it is not theoretical. The caller's move is `popBackStack("inbox", inclusive = false)`, which
  * does not mean "drop the reader": it drops EVERYTHING above the list. A rule that looked only at
  * `currentBackStackEntry` said BackToList for two stacks that are reachable today —
@@ -47,17 +47,17 @@ enum class WidgetTapReturn {
  * ROUTES, AND WHAT ELSE IS IN THAT LIST. The stack is read by the caller as
  * `nav.currentBackStack.value.map { it.destination.route }` (navigation 2.8.5:
  * `NavController.currentBackStack` is a `StateFlow<List<NavBackStackEntry>>`, read from the
- * library's own API — ⚠ not observed on a device by the session that wrote this). Each route is
+ * library's own API — not observed on a device by the session that wrote this). Each route is
  * the one DECLARED in the graph, arguments and all: the reader is
  * `message/{emailId}?accountId={accountId}&…`, the composer `compose?replyTo={replyTo}&…`. Hence
  * the comparison on the segment before the first `/` or `?` rather than on the whole string —
  * which also holds for a filled-in URL, should a caller ever hand one over.
  *
- * ⚠ The list also holds an entry that is NOT a screen: the NavGraph's own entry, first, put there
+ * The list also holds an entry that is NOT a screen: the NavGraph's own entry, first, put there
  * when the graph is set. `SternaApp` builds its `NavHost` with a `startDestination` and no `route`,
  * so that entry's route is **null**. It is not filtered out — it is simply not the list and not a
  * reader, and it sits BELOW the list, where this rule never looks. A null anywhere ABOVE the list
- * would be an unknown destination and is treated as one: [WidgetTapReturn.StayPut]. ⛔ Do not
+ * would be an unknown destination and is treated as one: [WidgetTapReturn.StayPut]. Do not
  * "clean up" by dropping nulls; dropping them is what would let an unrecognised entry be popped.
  */
 object WidgetTapNavigation {

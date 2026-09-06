@@ -97,14 +97,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     )
 
     /**
-     * ⛔ THE HOME SCREEN IS OUTSIDE THIS WINDOW, and both cells now take their colours from THIS
+     * THE HOME SCREEN IS OUTSIDE THIS WINDOW, and both cells now take their colours from THIS
      * setting rather than from the system's night mode (#117). Nothing else would bring the change
      * to them: the three redraw triggers there are — the system's own update, the tail of a
      * delivery pass and the pushed collections — are all fed by MAIL, and `updatePeriodMillis="0"`
      * means there is no timer by design. The reader would change theme, go back to the home screen,
      * and find the old colours there until the next message ARRIVED: on a quiet mailbox, days.
      *
-     * ⚠ The order is load-bearing, and it is the same at all three theme setters:
+     * The order is load-bearing, and it is the same at all three theme setters:
      * - the write comes FIRST and is AWAITED — both refreshes re-read these settings through
      *   `WidgetThemeReader.palette`, with `.first()` on the DataStore flows, so a redraw started
      *   before `dataStore.edit` returns would repaint the OLD theme and nothing would come back to
@@ -138,7 +138,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     )
 
     /**
-     * ⛔ THE HOME SCREEN CARRIES THIS SWITCH TOO, since the latest-messages cell started drawing the
+     * THE HOME SCREEN CARRIES THIS SWITCH TOO, since the latest-messages cell started drawing the
      * sender's initials at the head of every row (#112). The three redraw triggers there are fed by
      * MAIL and `updatePeriodMillis="0"` means there is no timer by design, so without these two
      * calls the reader takes the initials off, goes back to her home screen, and every row keeps its
@@ -151,7 +151,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * back to the last `RecentWidgetDrawing` it read when its own read times out, and that carrier
      * was projected under the OLD switch.
      *
-     * ⛔ AND NO `UnreadWidgetDraw.refresh` HERE — the one place this setter deliberately differs
+     * AND NO `UnreadWidgetDraw.refresh` HERE — the one place this setter deliberately differs
      * from its three theme neighbours. The counter draws a number and no badge at all, so waking it
      * would be a read of the account store and of Room for a cell that cannot have changed. A later
      * reader "aligning" this on the setters above is adding work to answer nothing.
@@ -212,7 +212,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * DataStore answers — here, unlike in the reader, that literal is only what a switch DRAWS
      * for a frame, and the stored default is what it is drawn against.
      *
-     * ⛔ The screen must not grow a third position. "Always send" is not a setting this app has.
+     * The screen must not grow a third position. "Always send" is not a setting this app has.
      */
     val askReadReceipt = settings.askReadReceipt.stateIn(
         scope = viewModelScope,
@@ -399,7 +399,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // switched the lock on to hide exactly that. SECURITY.md states the lock silences that
         // widget with no conditions attached, so this is what makes the sentence true.
         //
-        // ⛔ BOTH WIDGETS, and the counter is not an afterthought here. Enlarged, it draws a line
+        // BOTH WIDGETS, and the counter is not an afterthought here. Enlarged, it draws a line
         // per account, and an account's label falls back to its username — which is the reader's
         // own mail address. Its redraws are triggered by the COUNT moving (UnreadWidgetPush) and by
         // a delivery pass; flipping the lock moves no count, so without this line those addresses

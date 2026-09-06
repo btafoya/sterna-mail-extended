@@ -7,7 +7,7 @@ import kotlinx.coroutines.delay
 /**
  * WHAT the device-grant poll decided — the whole of it, and nothing about how it is said.
  *
- * ⛔ Deliberately NOT a new case of [DeviceTokenResult]. That vocabulary is what one exchange with
+ * Deliberately NOT a new case of [DeviceTokenResult]. That vocabulary is what one exchange with
  * the token endpoint answered; this is what a WHOLE WAIT concluded, and they are different facts:
  * a poll that reached nothing is a `Failed` down there and is not a verdict up here. Widening
  * `DeviceTokenResult` instead would have made `OAuthClient`'s `when` arms and the two Microsoft
@@ -30,11 +30,11 @@ sealed interface DevicePollVerdict {
  * itself could be seen. Here the decision runs, on an injected clock ([now], the idiom of
  * `OutboxLogic.badgeCount`), against a fake [poll] replaying a literal list of results.
  *
- * ⛔ [delay] STAYS AT THE HEAD of the loop. Moved to the foot it would let the first poll go out
+ * [delay] STAYS AT THE HEAD of the loop. Moved to the foot it would let the first poll go out
  * with no wait at all, and — now that an unreachable poll no longer ends the wait — would turn a
  * server that is down into a burst of retries for thirty minutes. The head is what bounds the rate.
  *
- * ⛔ This function CATCHES NOTHING: no `try`, no `runCatching`. That is what keeps
+ * This function CATCHES NOTHING: no `try`, no `runCatching`. That is what keeps
  * `CancellationException` passing — leaving the screen, tapping Cancel, the back gesture — and it
  * is the risk this fix is closest to. A `catch (t: Throwable) { continue }` written here would turn
  * Cancel into an immortal coroutine polling for thirty minutes behind a screen that is gone. The
@@ -70,12 +70,12 @@ suspend fun pollDeviceGrant(
                 everReachedAServer = true
                 interval += 5
             }
-            // ⭐ #55: `network_error` is the one `Failed` that is NOT a refusal. `OAuthClient`
+            // #55: `network_error` is the one `Failed` that is NOT a refusal. `OAuthClient`
             // answers it at its `catch (_: IOException)` — the exchange reached no server at all,
             // so nothing has been said about this sign-in and the device code is still good for the
             // rest of its half hour. Ending here is what killed the reporter's sign-in seconds
             // after the code appeared, on one poll going out over a link that had dropped.
-            // ⛔ It does NOT arm everReachedAServer: that is precisely what it failed to do.
+            // It does NOT arm everReachedAServer: that is precisely what it failed to do.
             is DeviceTokenResult.Failed ->
                 if (result.error != "network_error") return DevicePollVerdict.Refused(result)
         }

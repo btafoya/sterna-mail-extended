@@ -26,20 +26,20 @@ import kotlinx.coroutines.withTimeoutOrNull
  * happens to refetch. That is the very drift the held snapshot exists to prevent, and the colours
  * are no more exempt from it than the text is.
  *
- * ⭐ THE COLOURS ARE NULLABLE, and null is an answer rather than a missing value: the read never
+ * THE COLOURS ARE NULLABLE, and null is an answer rather than a missing value: the read never
  * came back, so nothing is known and nothing is posted. Inside them, [WidgetColours.palette] carries
  * a null of its own — post no colour, the compiled resources hold the right one, which is what an
  * app that does not diverge from the system asks for ([widgetFollowsResources]) — and every drawing
- * site treats that the same way, by omitting its colour lines. ⛔ Never defaulted on the way in or
+ * site treats that the same way, by omitting its colour lines. Never defaulted on the way in or
  * on the way out: a `?:` anywhere along this path bakes a literal colour into a `RemoteViews` that
  * has no `-night` resource behind it and nothing scheduled to redraw it.
  *
- * ⚠ THREE THINGS TRAVEL NOW, not two — the rows, the palette, and the tones a monogram badge is
+ * THREE THINGS TRAVEL NOW, not two — the rows, the palette, and the tones a monogram badge is
  * painted in — and they travel together for the reason above, unchanged: the two ends draw at
  * different moments. A badge is a BITMAP, so its tones are never withheld the way a palette is;
  * there is no `values-night` behind a bitmap.
  *
- * ⛔ NOT a field on [RecentWidgetSnapshot]. That type is what [RecentMailWidgetContent] returns —
+ * NOT a field on [RecentWidgetSnapshot]. That type is what [RecentMailWidgetContent] returns —
  * the output of the rule deciding what a row may SAY, under the notification-content setting and
  * the app lock — and a colour is not part of that decision. Widening it would make a palette an
  * argument to a rule that must not have one, at twenty call sites that have nothing to say about
@@ -99,13 +99,13 @@ internal object RecentMailWidgetDraw {
      * Read the setting, the lock, the accounts, the mail and the theme, and project them — the only
      * place that does.
      *
-     * ⛔ THE SETTINGS ARE READ FIRST AND WAITED FOR. `notificationContent` and `listMonogram` are
+     * THE SETTINGS ARE READ FIRST AND WAITED FOR. `notificationContent` and `listMonogram` are
      * DataStore flows: they answer asynchronously, and drawing before they do would put a subject
      * on the home screen of a reader who asked for NONE, or an initial on the rows of a reader who
      * removed initials, for as long as that first draw lasts. There is no default taken here, and
      * no draw happens without this function returning.
      *
-     * ⚠ Not bounded here: the caller bounds it. The provider has ~10 s of broadcast to spend and
+     * Not bounded here: the caller bounds it. The provider has ~10 s of broadcast to spend and
      * the factory is on a binder thread the launcher is waiting on; they hold different budgets and
      * they both use `withTimeoutOrNull`, never `withTimeout`.
      */
@@ -140,9 +140,9 @@ internal object RecentMailWidgetDraw {
         // res/values + res/values-night, i.e. from the system's night mode (#117). Read HERE, in
         // the one read, so the frame and the rows are painted from the same answer.
         //
-        // ⚠ It may be NULL, and null is carried as-is: the read did not answer, so nothing is
+        // It may be NULL, and null is carried as-is: the read did not answer, so nothing is
         // known — and the palette INSIDE it may be null too, meaning "post nothing, the resources
-        // are right", which is what an app that does not diverge from the system asks for. ⛔ No
+        // are right", which is what an app that does not diverge from the system asks for. No
         // `?:` here — a default would be this file deciding a colour, and it would freeze it into
         // a RemoteViews with no -night resource behind it.
         val colours = WidgetThemeReader.colours(app)
@@ -158,17 +158,17 @@ internal object RecentMailWidgetDraw {
      * carrying the cell's own id, and a `RemoteViews` shared between cells would point every list
      * at whichever id was built last.
      *
-     * ⛔ The background is set with `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * The background is set with `setBackgroundResource`, NEVER `setBackgroundColor`.
      * `View.setBackgroundColor(int)` throws the shape drawable away and replaces it with a flat
      * fill, so the cell comes out SQUARE among rounded neighbours — with every corner rule in this
      * package still green, because none of them can see a `RemoteViews`. `setBackgroundTintList`
      * would keep the shape but is API 31 and `minSdk` is 26; hence three pre-built drawables
      * ([WidgetThemeReader.background]).
      *
-     * ⛔ It READS nothing: [drawing] arrives decided, rows and palette together, so the frame drawn
+     * It READS nothing: [drawing] arrives decided, rows and palette together, so the frame drawn
      * here cannot come from a different moment than the rows the factory is serving.
      *
-     * ⭐ A NULL PALETTE POSTS NO COLOUR AT ALL — not a default one. The two lines it guards are a
+     * A NULL PALETTE POSTS NO COLOUR AT ALL — not a default one. The two lines it guards are a
      * background resource id and a `setTextColor(int)`, both FROZEN into a `RemoteViews` the
      * launcher caches, and the three `widget_surface_*.xml` have no `-night` twin. Skipped, the
      * frame keeps `@drawable/widget_unread_background` and `@color/widget_unread_label`, which the
@@ -199,7 +199,7 @@ internal object RecentMailWidgetDraw {
             // the two, so there is no second draw to keep in step with the factory's answer.
             views.setEmptyView(R.id.widget_recent_list, R.id.widget_recent_notice)
             manager.updateAppWidget(id, views)
-            // ⚠ AFTER updateAppWidget: it is what binds the adapter. Asking the older view to
+            // AFTER updateAppWidget: it is what binds the adapter. Asking the older view to
             // refetch changes nothing.
             manager.notifyAppWidgetViewDataChanged(id, R.id.widget_recent_list)
         }
@@ -215,7 +215,7 @@ internal object RecentMailWidgetDraw {
      * show it. The one caller is the tail of `FetchAndNotify.run`, the funnel every arrival goes
      * through, which is where the counter is redrawn from too.
      *
-     * ⛔ [withTimeoutOrNull] and NOT `withTimeout`: that caller wraps its steps in
+     * [withTimeoutOrNull] and NOT `withTimeout`: that caller wraps its steps in
      * `runCatching { … }.rethrowIfCancelled()` so a sign-out is never mistaken for a failed step,
      * and `withTimeout` reports a slow read as a [kotlinx.coroutines.CancellationException] — a
      * widget that took too long to draw would then cancel the pass that was delivering the mail.
@@ -235,7 +235,7 @@ internal object RecentMailWidgetDraw {
     /**
      * The intent the launcher binds the row factory with.
      *
-     * ⚠ THE DATA URI IS NOT DECORATION. `RemoteViews` compares adapter intents by `filterEquals`,
+     * THE DATA URI IS NOT DECORATION. `RemoteViews` compares adapter intents by `filterEquals`,
      * which ignores extras: two cells would otherwise hand in intents that compare equal, the
      * second would reuse the first's factory, and both lists would show the same cell's rows.
      * Encoding the whole intent (extras included) as the data makes them differ by id.
@@ -252,7 +252,7 @@ internal object RecentMailWidgetDraw {
      * the list is given this, each row is given a fill-in [Intent] of extras ([rowFillIn]), and the
      * launcher merges the two when a row is touched.
      *
-     * ⛔ THE ACTION IS LOAD-BEARING, and it is the same trap [UnreadWidgetDraw.tapIntent] documents
+     * THE ACTION IS LOAD-BEARING, and it is the same trap [UnreadWidgetDraw.tapIntent] documents
      * for the counter. A `PendingIntent`'s identity is `(requestCode, Intent compared by
      * filterEquals, flags)`, and `filterEquals` IGNORES EXTRAS. Every new-mail notification builds
      * `Intent(context, MainActivity::class.java)` with neither action nor data, and they are told
@@ -261,10 +261,10 @@ internal object RecentMailWidgetDraw {
      * can be reserved. Without an action of its own this template is filterEquals-identical to all
      * of them, and the first `childId` that lands on [ROW_TAP_REQUEST_CODE] has its extras
      * REWRITTEN by `FLAG_UPDATE_CURRENT`: the reader taps the banner announcing a message and the
-     * app opens another one. ⛔ A later reader "simplifying" this to a bare `Intent(context, …)`
+     * app opens another one. A later reader "simplifying" this to a bare `Intent(context, …)`
      * reintroduces exactly that, silently and for some users only.
      *
-     * ⚠ AND IT IS MUTABLE, deliberately. A fill-in intent is by definition the launcher writing
+     * AND IT IS MUTABLE, deliberately. A fill-in intent is by definition the launcher writing
      * into this one, which an immutable `PendingIntent` forbids: rows would open nothing at all.
      * It is the second `FLAG_MUTABLE` in the app, next to the quick-reply action in
      * `Notifications`, where `RemoteInput` demands one for the same kind of reason.
@@ -275,7 +275,7 @@ internal object RecentMailWidgetDraw {
      *     nothing the caller chooses;
      *  2. it carries an action of its own, so it is not confusable with any other of ours.
      *
-     * ⛔ What is NOT a bound, though it reads like one: "[rowFillIn] adds extras and nothing else".
+     * What is NOT a bound, though it reads like one: "[rowFillIn] adds extras and nothing else".
      * That is true of what WE fill in and says nothing about what a holder of the template may.
      * `Intent.fillIn` copies any field the base intent left unset, and this one sets component,
      * action and flags and leaves data, categories and package open. The reason that costs nothing
@@ -284,7 +284,7 @@ internal object RecentMailWidgetDraw {
      * The template hands out no authority that was not already public — which is the argument, and
      * it should be stated rather than a tighter one that is not true.
      *
-     * ⛔ Do not spend `FLAG_MUTABLE` on a third one without the same argument written out.
+     * Do not spend `FLAG_MUTABLE` on a third one without the same argument written out.
      *
      * `FLAG_UPDATE_CURRENT` for the ordinary reason: one template is kept and refreshed rather than
      * a new one stacked at every draw.
@@ -308,11 +308,11 @@ internal object RecentMailWidgetDraw {
      * These are the three extras a tapped new-mail notification already carries, so a row opens by
      * the route that has been carrying notification taps for releases — with the guards that route
      * already holds (an account that is gone, a folder that is unknown, a message purged from the
-     * cache). ⛔ No guard is added here and none is re-stated: a message that cannot be opened meets
-     * the app's own generic line, which names no cause (#159). ⚠ Offline, a listed message whose
+     * cache). No guard is added here and none is re-stated: a message that cannot be opened meets
+     * the app's own generic line, which names no cause (#159). Offline, a listed message whose
      * body is not cached is exactly that case, and it is not a defect.
      *
-     * ⛔ NO ACTION, NO DATA, NO COMPONENT. A fill-in intent is merged into the template by the
+     * NO ACTION, NO DATA, NO COMPONENT. A fill-in intent is merged into the template by the
      * launcher; anything beyond extras here is a caller writing into what this app starts, and it
      * is what keeps [rowTapTemplate]'s mutability bounded. The two nullable ids are put only when
      * present — [RecentMailWidgetTap] has already turned blank into absent.
@@ -335,9 +335,9 @@ internal object RecentMailWidgetDraw {
 
     /**
      * A constant, and a belt rather than the mechanism — the action above is the real defence.
-     * ⛔ It must not be the counter's `TAP_REQUEST_CODE`: aligned, the two templates would differ by
+     * It must not be the counter's `TAP_REQUEST_CODE`: aligned, the two templates would differ by
      * their action alone, and the day either action is touched the two become one `PendingIntent`
-     * rewriting the other's extras. ⛔ Do not "make it unique" against the notifications either — no
+     * rewriting the other's extras. Do not "make it unique" against the notifications either — no
      * number is, `childId` hashes over every `Int`.
      */
     private const val ROW_TAP_REQUEST_CODE = 1

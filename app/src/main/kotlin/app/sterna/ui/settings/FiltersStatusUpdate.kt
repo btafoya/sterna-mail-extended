@@ -7,7 +7,7 @@ import app.sterna.core.data.filter.rulesAreNotRunning
 /**
  * Fold a status read into the filters screen's state — the facts that describe the SERVER.
  *
- * ⚠ TWO reads, not one. Three of the facts come from [status] (`SieveScript/get`, one round
+ * TWO reads, not one. Three of the facts come from [status] (`SieveScript/get`, one round
  * trip); the two [foreignFromRulesRead] / [unreadableFromRulesRead] come from the RULES read,
  * which is a second round trip a moment earlier and can therefore describe a slightly different
  * server. They are OR-ed rather than merged: the answer leans towards the alarm, so a script that

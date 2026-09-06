@@ -195,12 +195,12 @@ private const val BODY_CACHE_CAP = 100
  * (soTimeout 0, a server that accepts TCP and then says nothing) leaves the text there in exactly
  * the state a process death loses it.
  *
- * ⚠ What it bounds, exactly — and what it does NOT: the deadline is taken inside
+ * What it bounds, exactly — and what it does NOT: the deadline is taken inside
  * [ImapMailService]'s `runWithRetry`, i.e. AFTER `withSession` has acquired the account's IMAP
  * mutex (`pooled.mutex.withLock { runWithRetry(...) }`). So it bounds the connect and the reads
  * themselves; it does not bound the WAIT for that mutex, and whatever holds it — a body fetch, a
  * sync pass, an APPEND made by the interactive save, all of them `NO_BUDGET` — is bounded by
- * nothing. (⭐ The one exception is the DEFERRED draft upload, which since #95 installs an
+ * nothing. (The one exception is the DEFERRED draft upload, which since #95 installs an
  * [ImapReadBudget] on its own coroutine — [LOCAL_DRAFT_UPLOAD_BUDGET_MS]; it was the worst of them,
  * a whole `APPEND` with no bound at all.) This constant
  * therefore shortens the window the composer's text can sit in RAM, it does not close it; closing
@@ -218,17 +218,17 @@ private const val SEND_PROOF_BUDGET_MS = 10_000
  * ([MailRepository.emptiedDraftAddressingIsProvenEmpty]) — same shape of read as the send's, one
  * SELECT and one envelope FETCH, so the same order of deadline.
  *
- * ⛔ **Its own name, and not [SEND_PROOF_BUDGET_MS] borrowed**, because `imapDraftAddressing` takes
+ * **Its own name, and not [SEND_PROOF_BUDGET_MS] borrowed**, because `imapDraftAddressing` takes
  * no default precisely so that each call site answers this question in the open. That constant's
  * reason is the send's ("nothing ever holds a send back"); this one's is the opposite end of the
  * app, and the two are free to diverge the day either gesture asks for it.
  *
- * ⛔ **And bounded rather than [ImapBudget.NO_BUDGET], which is what the ordinary save passes.** The
+ * **And bounded rather than [ImapBudget.NO_BUDGET], which is what the ordinary save passes.** The
  * emptying is reached by the gesture that exists BECAUSE there was no network (#95): a draft the
  * phone is keeping, emptied or deleted with the radio off. Unbounded, this read would put a socket
  * with no deadline in front of that gesture, holding the composer in `Sending` for as long as the
  * OS takes to give up — the very window the send's budget was written to shorten, reopened one
- * route along. ⛔ It does NOT touch the save's own `NO_BUDGET` read: that debt is older than this
+ * route along. It does NOT touch the save's own `NO_BUDGET` read: that debt is older than this
  * gesture and is not settled here.
  *
  * Safe in the only direction that matters: expiry throws, [draftAddressingIsCarried] reads a throw
@@ -261,23 +261,23 @@ internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean 
  * single open — that is issue #148's re-asked read-receipt question, on a message already read on
  * both sides.
  *
- * ⭐ Here, and not in the reader: the reader is handed the read state by two objects that arrive in
+ * Here, and not in the reader: the reader is handed the read state by two objects that arrive in
  * a non-deterministic order (the list row, whose `seen` is right, then the body that overwrites
  * it), so a rule placed there is placed twice and diverges by whichever wins the race. The body
  * served from a cache is the only one lying; it is corrected where it is made.
  *
- * ⛔ [rowSeen] null means the read state is UNKNOWN — no row, or a row that could not be read (see
+ * [rowSeen] null means the read state is UNKNOWN — no row, or a row that could not be read (see
  * [seenOrUnknown]). Nothing is invented: "not in the `emails` table" is not "read", and assuming
- * read would silently swallow a question that was owed. ⚠ The stated cost of that choice: on a
+ * read would silently swallow a question that was owed. The stated cost of that choice: on a
  * message whose `emails` row is gone while its cached body survives, the reopened body still says
  * what it said the day it was fetched, so a read-receipt question CAN still be re-asked there.
  * That case is accepted, not fixed.
  *
- * ⛔ `$seen` only. The other keywords of a cached body are stale in the same way, and correcting
+ * `$seen` only. The other keywords of a cached body are stale in the same way, and correcting
  * them is a separate piece of work with its own witnesses — not something to slip in under a fix
  * for the read state.
  *
- * ⚠ Reconciling is not read-only for the cache: a body with inline images goes on to
+ * Reconciling is not read-only for the cache: a body with inline images goes on to
  * `ensureInlineImages`, which re-persists this very [Email] once the images are fetched — so the
  * corrected `$seen` lands back in the row's JSON. That is the truth of that moment being written,
  * not a second source of it; the row of `emails` still decides on the next open.
@@ -291,7 +291,7 @@ internal fun reconcileCachedSeen(cached: MessageBody, rowSeen: Boolean?): Messag
  * The read state [read] reports, or null when it cannot be read at all — "unknown", which
  * [reconcileCachedSeen] already knows how to answer (it hands the body back untouched).
  *
- * ⭐ The guard is the point, and it is the irreversible-first rule: the two paths this sits on
+ * The guard is the point, and it is the irreversible-first rule: the two paths this sits on
  * return a body that is ALREADY in hand — one of them entirely from memory — and a message that
  * can no longer be opened is a far worse failure than a read-receipt question asked twice. A
  * locked or full database must therefore cost the reconciliation, never the open.
@@ -348,7 +348,7 @@ internal val NOT_SEARCHED_BASE_ROLES = setOf("trash", "junk", "spam")
  *    outside `:core:data` a folder that lost its claim carries NO ROLE — same icon, same name,
  *    same rank in the drawer, same ⋮ menu with Rename and Delete in it.
  *
- *    ⚠ What DOES cross is the FACT of the loss, as [isLostRoleClaim] → `Mailbox.lostRoleClaim`,
+ *    What DOES cross is the FACT of the loss, as [isLostRoleClaim] → `Mailbox.lostRoleClaim`,
  *    and it is the one field on which such a folder differs from the role-less one it used to be
  *    equal to. This paragraph used to promise "byte for byte the role-less folder it was", and it
  *    named the drawer in that promise: the loser stayed listed, which is what made excluding it
@@ -362,7 +362,7 @@ internal val NOT_SEARCHED_BASE_ROLES = setOf("trash", "junk", "spam")
  *    lookups, the snooze rule, `deleteWouldDestroy`), so a marked folder is never the destination
  *    of a delete and never answers as a trash.
  *
- * ⛔ Only the roles of [NOT_SEARCHED_BASE_ROLES] are ever marked ([imapMailboxEntity]) — a `~sent`
+ * Only the roles of [NOT_SEARCHED_BASE_ROLES] are ever marked ([imapMailboxEntity]) — a `~sent`
  * has no meaning anywhere and nothing would give it one.
  */
 internal const val UNELECTED_ROLE_MARK = "~"
@@ -391,7 +391,7 @@ internal fun unmarkedRole(role: String?): String? =
  * Pure and shared with [unmarkedRole] for the reason [unmarkedRole] is: ONE reading of the mark to
  * test, not two that can drift apart and disagree about the same stored row.
  *
- * ⛔ It answers a VISIBILITY question and never a routing one. It names no role, so nothing can
+ * It answers a VISIBILITY question and never a routing one. It names no role, so nothing can
  * resolve a destination through it.
  */
 internal fun isLostRoleClaim(role: String?): Boolean =
@@ -467,7 +467,7 @@ internal fun idsAlreadyIn(rows: List<EmailEntity>, ids: Set<String>, mailboxId: 
  * on the next folder walk and go again on the next pass: a flicker, not a list. And they are exactly
  * the rows the top of the list is made of.
  *
- * ⛔ It READS nothing and must not: this is the notification path, it has its own budget (six reads
+ * It READS nothing and must not: this is the notification path, it has its own budget (six reads
  * and four seconds for the whole account pass, `NotificationPreviews`) and it runs in the background
  * on battery. Filling a page of fifty here is the half-true list `BodyPreview` refuses, from the
  * other end. This only refuses to DESTROY.
@@ -476,7 +476,7 @@ internal fun idsAlreadyIn(rows: List<EmailEntity>, ids: Set<String>, mailboxId: 
  * the cached value is what it was about to overwrite. A row [cached] knows nothing about stays
  * blank, which is what the folder walk will read a body for.
  *
- * ⛔ It knows nothing about UIDVALIDITY, and it deliberately stays that way. A UID means something
+ * It knows nothing about UIDVALIDITY, and it deliberately stays that way. A UID means something
  * only inside one numbering (#99), so a value from a renumbered folder must never land on a row —
  * but the refusal belongs to the READ, not here: `EmailDao.cachedPreviews` is asked under the
  * numbering the page was read under, so a row of another numbering is simply not in [cached] and
@@ -504,11 +504,11 @@ internal data class ImapMoveOutcome(
  * returned lists keep the arrival order, because they are what the caller credits, what it fails,
  * and what the caller of THAT re-queries.
  *
- * ⛔ An empty [confirmedGone] means "nothing is confirmed", NEVER "nothing moved" — a server that
+ * An empty [confirmedGone] means "nothing is confirmed", NEVER "nothing moved" — a server that
  * states no `COPYUID` and refuses the probe has very probably moved everything, it simply handed
  * back no proof. So what is IN the set is proved and what is OUT of it is UNKNOWN, not "stayed".
  *
- * ⭐ And the unknown is treated as a failure, which is the whole point: keeping a row that did move
+ * And the unknown is treated as a failure, which is the whole point: keeping a row that did move
  * is undone by the very next sync, while un-indexing a message that did NOT move is not undone by
  * anything — nothing re-indexes a message the cache no longer holds (`EmailFtsDao.seedFromEmails`
  * only rewrites rows whose message is still cached, and there is no IMAP crawl to find it again),
@@ -544,7 +544,7 @@ internal fun imapMoveOutcome(uidToId: Map<Long, String>, confirmedGone: Set<Long
  *    scan can stop on its own cap.
  *  - [found] < [limit]: the answer did not fill the caller's cap, so the server had no more to give.
  *
- * ⚠ [scopeCoversAccount] is a fact about the account's FOLDER LIST, never about a list DERIVED from
+ * [scopeCoversAccount] is a fact about the account's FOLDER LIST, never about a list DERIVED from
  * it. "The cache told us nothing" and "the cache told us there is nothing to leave out" are two
  * different states, and an empty derived list cannot tell them apart: an account with no Trash and
  * no Junk folder has an empty exclusion list while its folder cache is perfectly populated, and
@@ -593,7 +593,7 @@ internal fun imapSearchComplete(
  * Either way the number on screen counts something other than what the screen says it shows — a
  * deleted message the app promised to keep out of results — so it may not be stated as a total.
  *
- * ⚠ [cachedFolders] is the RAW list from [MailboxDao.searchOrder], never the exclusion list derived
+ * [cachedFolders] is the RAW list from [MailboxDao.searchOrder], never the exclusion list derived
  * from it: an account with neither Trash nor Junk excludes nothing while its cache is complete, and
  * reading the emptiness off the derived list would deny that account a total forever. See the
  * warning on [searchAnswerIsTotal].
@@ -651,7 +651,7 @@ internal fun formatFromAddress(name: String?, email: String?): String? = when {
  * the mapping the app runs — [MailRepository.takeOutboxForEdit] otherwise only reaches it through
  * Room, and nothing could see a field silently left behind.
  *
- * ⚠ Every per-message choice the ROW holds has to be here. The row is the only copy of the message
+ * Every per-message choice the ROW holds has to be here. The row is the only copy of the message
  * while it waits, and the composer that reopens it commits a NEW row on send: a field missing from
  * this mapping is not "not filled yet", it is cancelled — the read receipt the user asked for, or
  * the PGP mode, gone because the message was edited once.
@@ -682,7 +682,7 @@ internal fun outboxDraftOf(
  * The Drafts-list row for a just-saved draft (#63), as a pure function so a JVM test can run the
  * mapping the app runs ([MailRepository.cacheSavedDraft] only hands it to `emailDao.upsertAll`).
  *
- * ⚠ Every addressing field the row HAS A COLUMN FOR must be here. The row is written by an
+ * Every addressing field the row HAS A COLUMN FOR must be here. The row is written by an
  * `@Upsert` that replaces the row whole, so a field left out is not "not filled yet": saving a
  * draft with people in copy would blank the `ccJson`/`bccJson` a previous save or sync had stored,
  * and reopening the draft would come back with the copies gone and the Cc row folded shut. That is
@@ -759,7 +759,7 @@ internal fun unsubscribeHeadersOf(raw: String): Pair<String?, String?> =
  * A named function for the same reason as [unsubscribeHeadersOf]: WHICH header is read is a
  * decision, and the repository around it cannot be reached from a JVM test.
  *
- * ⛔ The name is the one RFC 8098 §2.1 defines and nothing else. `Return-Receipt-To` and
+ * The name is the one RFC 8098 §2.1 defines and nothing else. `Return-Receipt-To` and
  * `X-Confirm-Reading-To` are pre-standard spellings this app deliberately neither writes nor
  * reads; adding them here would make Sterna answer requests it never agreed to recognise.
  *
@@ -780,14 +780,14 @@ internal fun readReceiptHeaderOf(raw: String): String? =
  * header is read is a decision, and the repository around it needs Room and an Android context, so
  * nothing inside it can be reached from a JVM test. Named, the choice is executable.
  *
- * ⛔ The rule is the SHAPE of the field name and never a list of vendors: name lowercased, it must
+ * The rule is the SHAPE of the field name and never a list of vendors: name lowercased, it must
  * BEGIN with `x-` AND CONTAIN `original-from`. That covers `X-AnonAddy-Original-From-Header`,
  * `X-Google-Original-From`, `X-SimpleLogin-Original-From` and the bare `X-Original-From` without
  * this app promising to chase whichever forwarding service ships next. Both halves are required:
  * `original-from` alone would admit any future standard field of that name, and `x-` alone admits
  * `X-Mailer`.
  *
- * ⭐ The FIRST occurrence, and ⛔ NOT because it is known to be the right one. On a chain of two
+ * The FIRST occurrence, and NOT because it is known to be the right one. On a chain of two
  * relays, WHICH of the two fields names the author is NOT established here: header fields are
  * prepended as a message travels, which would make the first one the OUTERMOST relay's — but no
  * message with two of these fields has ever been seen in this project, and the services that write
@@ -795,13 +795,13 @@ internal fun readReceiptHeaderOf(raw: String): String? =
  * same message always reads the same way, and because guessing a rule from a case nobody has
  * observed is worse than keeping a plain one.
  *
- * ⛔ Accepted debt, stated here rather than discovered later: a relay chain is reported by ONE of
+ * Accepted debt, stated here rather than discovered later: a relay chain is reported by ONE of
  * its hops, possibly the wrong one, and nothing on screen says there was a chain — the same kind of
  * debt [unsubscribeHeadersOf] writes down about duplicates. The label says "(unverified)" for this
  * reason among others.
  *
  * The value crosses [MimeParser.decodedHeaderValue] and is never handed over raw: it is entirely
- * sender-controlled and it is going to a screen. ⚠ `rawHeaders` has already run `decodeHeaderBytes`
+ * sender-controlled and it is going to a screen. `rawHeaders` has already run `decodeHeaderBytes`
  * over it and `decodeWords` runs it again; that is harmless, because `decodeHeaderBytes` returns
  * its input untouched as soon as it is pure ASCII or carries a character above `0xFF` — i.e. as
  * soon as it is not a byte container.
@@ -822,7 +822,7 @@ internal fun originalSenderHeaderOf(headers: List<Pair<String, String>>): String
  * was obtained — the decision `MailRepository.openMessage` runs before [MailRepository] persists
  * anything, as a pure function so the one case that costs the feature is EXECUTED by a test.
  *
- * ⛔ THE case. On JMAP the origin header is a separate best-effort read, and a null from it means
+ * THE case. On JMAP the origin header is a separate best-effort read, and a null from it means
  * two different things: "this message carries none" and "the read did not happen". Caching the
  * second as if it were the first writes a body that says "no origin" FOR EVER — `openMessage`
  * serves the cache before any network call, so nothing ever asks again. One second of bad network
@@ -833,7 +833,7 @@ internal fun originalSenderHeaderOf(headers: List<Pair<String, String>>): String
  * would poison the cache with a row that throws on every read." Here the poison is quieter — a row
  * that reads back fine and is simply wrong.
  *
- * ⭐ IMAP always caches: there the header was read off the message source that was already in hand
+ * IMAP always caches: there the header was read off the message source that was already in hand
  * ([originalSenderHeaderOf] over `MimeParser.rawHeaders`), so there is no separate read to fail and
  * its null is always the real answer.
  */
@@ -845,7 +845,7 @@ internal fun cachesBodyAfterOriginRead(protocol: MailProtocol, originReadSucceed
  * say". The decision of `MailRepository.imapDraftReceiptRequested`, as a pure function, so the
  * one case that costs data is EXECUTED by a test instead of being read as source text.
  *
- * ⛔ A blank source is an UNKNOWN, and this line is the whole reason the function exists.
+ * A blank source is an UNKNOWN, and this line is the whole reason the function exists.
  * `ImapClient.fetchSource` answers an empty string when the FETCH response carries no body item
  * at all (its `bodyItem` says so): a UID that has gone, a folder renumbered underneath, a server
  * answering `FETCH … ()`. Parsed, that empty string yields no header, no address, and the answer
@@ -871,25 +871,25 @@ internal fun receiptRequestedInProperty(header: String?, serverRefusesProperty: 
  * pure function so that the one case that costs data is EXECUTED by a test instead of being read as
  * source text (no JVM test can build a `MailRepository`: Room, a `Context` and a socket).
  *
- * ⛔ A blank source is NOT "an empty draft", it is "the message did not come back", and the whole
+ * A blank source is NOT "an empty draft", it is "the message did not come back", and the whole
  * point of the name is that the two must never be confused. Four live producers hand one back,
- * all four through `ImapClient.bodyItem`, which answers "" on purpose (ImapClient.kt:1163-1184):
+ * all four through `ImapClient.bodyItem`, which answers "" on purpose:
  * a FETCH answer carrying no body item at all (an unsolicited `* n FETCH (FLAGS …)` wins the
  * first-one-wins read), a `BODY[] NIL` (ImapParser tokenises NIL as a Kotlin null), a literal
- * over 32 MiB that `ImapParser.readLiteral` drains and reports as "" (ImapParser.kt:143-151),
+ * over 32 MiB that `ImapParser.readLiteral` drains and reports as "",
  * and an item list that puts `BODYSTRUCTURE` before `BODY[]` — the item is matched by PREFIX, so
  * the value taken is the structure's parenthesised list, which is not a String and comes back as
  * "" too. Parsed, that string yields no header, no address and no text — a blank composer that
  * looks usable, whose send destroys the server original behind an empty message.
  *
- * ⭐ `isBlank()` and not `isEmpty()`: every producer known today hands back exactly "", so
+ * `isBlank()` and not `isEmpty()`: every producer known today hands back exactly "", so
  * `isEmpty()` would do — and that is the reason NOT to write it. This guard must be at LEAST as
  * strong as the two that already treat present-but-unreadable as an unknown,
  * [receiptRequestedInSource] (whose KDoc carries the doctrine) and `copiedAddressesOrNull`; and a
  * source made of nothing but whitespace carries no header and no address, so it is not a message
  * either, whoever produced it.
  *
- * ⛔ It judges the SOURCE, never a parsed body: a message with headers and an empty text body is
+ * It judges the SOURCE, never a parsed body: a message with headers and an empty text body is
  * perfectly legitimate and must keep opening — every stored message carries a header block.
  */
 internal fun sourceCouldNotBeRead(raw: String): Boolean = raw.isBlank()
@@ -900,7 +900,7 @@ internal fun sourceCouldNotBeRead(raw: String): Boolean = raw.isBlank()
  * `fetchRawSource`'s KDoc), and a UTF-8 encoding would double every octet above 0x7F — the file
  * would no longer be the server's message, and a signature over it would not verify.
  *
- * ⛔ A source that [sourceCouldNotBeRead] refuses is an UNKNOWN, so this throws instead of
+ * A source that [sourceCouldNotBeRead] refuses is an UNKNOWN, so this throws instead of
  * returning zero bytes: an empty `.eml` looks like a saved message, and may be the only copy the
  * user thinks she has. Pure, so a test can execute it.
  */
@@ -915,18 +915,18 @@ internal fun rawSourceBytes(emailId: String, raw: String): ByteArray {
  * An attachment's octets never came back: zero of them. The measured producer is IMAP — the UID
  * destroyed server-side between opening the message and the Save tap, so `UID FETCH <uid>
  * (BODY.PEEK[<section>])` answers OK with no untagged `FETCH` line at all. `ImapClient.fetchSection`
- * (ImapClient.kt:1175-1176) reads that answer through `bodyItem()`, whose four early returns hand
- * back "" for a FETCH carrying no body item (ImapClient.kt:1267-1274), and `MimeParser.decodeBytes`
- * turns "" into an empty `ByteArray` WITHOUT throwing (MimeParser.kt:421-427), on every branch.
+ * reads that answer through `bodyItem()`, whose four early returns hand
+ * back "" for a FETCH carrying no body item, and `MimeParser.decodeBytes`
+ * turns "" into an empty `ByteArray` WITHOUT throwing, on every branch.
  *
- * ⭐ `isEmpty()`, and deliberately NOT the blank-equivalent its neighbour [sourceCouldNotBeRead]
+ * `isEmpty()`, and deliberately NOT the blank-equivalent its neighbour [sourceCouldNotBeRead]
  * uses. The two judge different things. A source is a MESSAGE: one made of nothing but whitespace
  * carries no header and no address, so it is not a message either, whoever produced it. An
  * attachment is a stream of arbitrary octets — a PDF, a photo, a fixed-width export padded with
  * spaces — and there is no content in it this code can judge. So the absence of octets is refused
  * and nothing else is: a file of nothing but spaces IS a file, and would have to keep saving.
  *
- * ⛔ And no size is compared here. "Too large" is a different answer with a sentence of its own
+ * And no size is compared here. "Too large" is a different answer with a sentence of its own
  * (`DownloadLimits.enforce` / `status_attachment_too_large`), and a short attachment is not a
  * broken one — a 12-byte text file is exactly 12 bytes.
  */
@@ -936,27 +936,27 @@ internal fun attachmentCouldNotBeRead(bytes: ByteArray): Boolean = bytes.isEmpty
  * Refuse to hand on an attachment that [attachmentCouldNotBeRead] — the twin of [rawSourceBytes],
  * for the octets of one part rather than of a whole message.
  *
- * ⛔ Why it throws instead of letting zero bytes past: a 0-byte `rapport.pdf` in her Downloads
+ * Why it throws instead of letting zero bytes past: a 0-byte `rapport.pdf` in her Downloads
  * LOOKS like a saved attachment, it carries the real name she chose, and the save path announces
  * `message_export_saved` with that name on the very next line. She would leave believing she has
  * the file.
  *
- * ⚠ `MessageUnavailableException` is reused for ONE wiring reason, and the wiring is what makes it
+ * `MessageUnavailableException` is reused for ONE wiring reason, and the wiring is what makes it
  * true: both save paths route their catch through `readFailureStringRes`
- * (MessageViewModel.kt:408-416), which maps this exception to `status_message_unavailable` —
- * already translated into the nine languages, so this adds no string and no translation. ⛔ Without
+ * (`MessageViewModel`), which maps this exception to `status_message_unavailable` —
+ * already translated into the nine languages, so this adds no string and no translation. Without
  * that mapping the text below does NOT stay technical: `saveAttachment` interpolates `t.message`
  * raw into `status_save_attachment_failed`, and a French reader would get this English sentence,
  * the part key and the message id on her screen — precisely what #159 forbids
- * (MessageViewModel.kt:399-402). The wording here stays technical and English BECAUSE it is meant
+ * (`MessageViewModel`). The wording here stays technical and English BECAUSE it is meant
  * for logcat and a bug report, never for the screen.
  *
- * ⭐ It answers `Unit` and not the bytes: unlike [rawSourceBytes] there is nothing to CONVERT here,
+ * It answers `Unit` and not the bytes: unlike [rawSourceBytes] there is nothing to CONVERT here,
  * the caller already holds the `ByteArray` it downloaded.
  *
- * ⭐ Public, unlike its two neighbours, and for the same reason `attachmentFileName` is: its one
+ * Public, unlike its two neighbours, and for the same reason `attachmentFileName` is: its one
  * caller is `MessageViewModel.saveAttachment`, which lives in `:app`, and Kotlin's `internal` does
- * not cross a Gradle module boundary (no friend paths in this build). ⛔ Narrowed back to
+ * not cross a Gradle module boundary (no friend paths in this build). Narrowed back to
  * `internal`, `:app` stops compiling — a build failure, loud and immediate, not a silent
  * regression. That is the cheap failure mode, and it is the reason nothing here needs a test.
  *
@@ -987,7 +987,7 @@ internal suspend fun <T> stageOrRollback(rollback: suspend () -> Unit, stage: su
  * Arm delivery of the outbox row [id] after [holdMs], and answer [id] whether or not the arming
  * worked — a failure is written through [note] instead of being thrown.
  *
- * ⛔ **Arming is not queueing, and this is the whole point.** By the time this runs the row is
+ * **Arming is not queueing, and this is the whole point.** By the time this runs the row is
  * inserted and its payload staged: the message is durable, it is in the Outbox, and
  * `unfinishedOutbox` re-arms every unfinished row at the next app start (`SternaApplication`). So a
  * scheduler that throws costs a DELAY, never the mail. Relaying that throw, which is what
@@ -995,7 +995,7 @@ internal suspend fun <T> stageOrRollback(rollback: suspend () -> Unit, stage: su
  * is queued and WILL go out — and the caller acts on it: a quick reply hands its text back and
  * keeps the notification (`quickReplyAct` with `queued = false`), so the same mail is sent twice.
  *
- * ⛔ Not to be confused with its neighbour [stageOrRollback], which is the OTHER half of the
+ * Not to be confused with its neighbour [stageOrRollback], which is the OTHER half of the
  * frontier and must keep behaving the opposite way: a staging failure destroys the row and relays,
  * because an orphan carrying `attachmentsJson "[]"` would be re-armed and sent amputated (#70).
  * Staging failed means the row is bad; arming failed means the row is good.
@@ -1022,14 +1022,14 @@ internal suspend fun armOrNote(
  * What an unarmed row is told to carry: why the worker could not be armed, and that the message is
  * still there.
  *
- * Diagnostic English on purpose, and ⛔ NOT a translated string — which is why it does NOT go on
+ * Diagnostic English on purpose, and NOT a translated string — which is why it does NOT go on
  * the row any more. The Outbox screen prints a waiting row's reason as a complement
  * (`outboxShowsWaitingReason`), so this sentence on screen would be English under eight other
  * locales; the row takes the sentinel `OutboxLogic.NOT_ARMED` instead, and the screen translates it
  * at display time. This text is now written to ONE place, the logcat line the call site emits — the
  * copy that reaches a bug report, and the one that was always the readable one.
  *
- * ⛔ It says the row STAYS, and deliberately does not promise when it leaves. The startup re-arm it
+ * It says the row STAYS, and deliberately does not promise when it leaves. The startup re-arm it
  * relies on (`SternaApplication`) walks the unfinished rows in an unguarded loop, so a scheduler
  * still broken at the next start stops that walk on its first row. Promising "it will be sent at
  * the next app start" would be writing a guarantee the layer above does not give.
@@ -1038,7 +1038,7 @@ internal suspend fun armOrNote(
  * by nothing names no candidate at all, and half of these will be `NullPointerException` and
  * `IllegalStateException` from a WorkManager that was never initialised.
  *
- * ⚠ Its opening is [OutboxLogic.NOT_ARMED_LEGACY_PREFIX], SHARED with the display-side decoding:
+ * Its opening is [OutboxLogic.NOT_ARMED_LEGACY_PREFIX], SHARED with the display-side decoding:
  * 1.5.2 and 1.5.3 wrote this whole sentence onto the row, those rows are still in users'
  * databases, and `outboxFailureReason` recognises them by that opening. Built from the constant so
  * the writer and the reader cannot drift apart — the text produced is unchanged.
@@ -1065,7 +1065,7 @@ internal data class OutboxPayload(
  * The two decisions [MailRepository.enqueueSend] makes about a pre-built entity, in one place that
  * a test can RUN — the call site can only be read.
  *
- * ⭐ **Storing the entity depends on the entity, and on nothing else.** It used to also demand a
+ * **Storing the entity depends on the entity, and on nothing else.** It used to also demand a
  * PGP mode (`prebuiltEntity != null && pgpMode != null && pgpMode != OFF`), which was invisible for
  * as long as PGP was the only thing that built an entity: hand one over without a mode and the file
  * was never written, the row kept a body the sender never wrote, and the message left as a shell —
@@ -1073,7 +1073,7 @@ internal data class OutboxPayload(
  * caller. [pgpMode] is still a parameter for one reason: it is what makes that mistake expressible
  * here, where a test catches it, instead of at a call site no test can execute.
  *
- * ⛔ **Blanking the row still depends on the mode, and must.** Only ciphertext may not be kept in
+ * **Blanking the row still depends on the mode, and must.** Only ciphertext may not be kept in
  * the clear at rest. A signed message keeps its body in the row (it is signed at compose time and
  * the body is public anyway), and so does a receipt: [OutboxEntity.textBody] is then the very text
  * the entity carries base64'd in its first part, which is what the Outbox screen shows.
@@ -1105,7 +1105,7 @@ internal fun prebuiltEntityAt(path: String?, readText: (String) -> String?): Str
 /**
  * The addresses a queued send teaches to the contact suggestions — all of them, or NONE.
  *
- * ⛔ [learn] is false on exactly one path, and it is a decision, not a saving: a read receipt
+ * [learn] is false on exactly one path, and it is a decision, not a saving: a read receipt
  * (RFC 8098) is queued by [MailRepository.sendReadReceipt] on a gesture that was addressed to
  * nobody. The reader opened a message; its sender had asked to be told. Learning that sender would
  * fill "people you write to" with whoever writes to HER — a newsletter, a notification robot, a
@@ -1118,7 +1118,7 @@ internal fun recipientsToLearn(recipients: List<String>, learn: Boolean): List<S
  * The name of the file a queued send's pre-built entity is written to, inside the item's own
  * durable directory.
  *
- * It was `pgp-entity.mime` while PGP was the only thing that built one. ⚠ Renaming it is safe
+ * It was `pgp-entity.mime` while PGP was the only thing that built one. Renaming it is safe
  * because nothing ever LOOKS the file up by name: [OutboxEntity.pgpEntityPath] stores the absolute
  * path that was written, and delivery reads that. A row queued by an older build keeps pointing at
  * its `pgp-entity.mime` and is delivered exactly as before; only new rows use the new name.
@@ -1288,7 +1288,7 @@ internal fun selectionIdsQuery(
  * The home-screen widget's read of the unified inbox, as one bounded statement — pure, so it is
  * unit-tested against real SQLite next to [pagingSql].
  *
- * ⛔ WHICH ROWS is not decided here: it is [listRowsWhereSql], the list's own predicate, with the
+ * WHICH ROWS is not decided here: it is [listRowsWhereSql], the list's own predicate, with the
  * unread funnel off. The widget therefore inherits the (account, folder) PAIR scope (#121 — a bare
  * `mailboxId IN (…)` would drag in a sibling account's inbox and a deleted account's orphans) and
  * the snooze filter, for free and for ever. A predicate copied here to look like the list's is
@@ -1311,7 +1311,7 @@ internal fun recentUnifiedSql(scopeCount: Int): String =
 /**
  * The most rows a widget read will ever ask SQLite for, whatever it was asked for.
  *
- * ⛔ Not defensive noise. The row count is the most natural thing for a widget to derive from its
+ * Not defensive noise. The row count is the most natural thing for a widget to derive from its
  * own height, and that arithmetic reaches 0 on a short cell and goes negative on a bad one — where
  * `LIMIT 0` answers "no messages" with a full inbox (a lie the drawer is entitled to print), and
  * `LIMIT -1` in SQLite is NOT a limit at all: every cached message of every inbox would be read
@@ -1333,7 +1333,7 @@ internal fun recentUnifiedQuery(scopes: List<Pair<String, String>>, limit: Int):
 /**
  * What a widget read answers: [rows], and whether there was anything to read them FROM.
  *
- * ⭐ [configured] is the difference between "no message" and "no answer", and it is carried in the
+ * [configured] is the difference between "no message" and "no answer", and it is carried in the
  * type so a caller cannot lose it. No scope means [AccountStore.allInboxScopes] was empty, which
  * happens in THREE ways, not two: no account is set up; the stored account blob failed to decode
  * (`AccountStore`'s guarded read falls back to an empty list); or an account exists but its inbox
@@ -1341,7 +1341,7 @@ internal fun recentUnifiedQuery(scopes: List<Pair<String, String>>, limit: Int):
  * the state every account restored from a backup starts in, and stays in while offline. In none of
  * the three is "the inbox is empty" a true statement.
  *
- * ⛔ So `configured = false` means "nothing to affirm" and NOTHING else. In particular a drawer may
+ * So `configured = false` means "nothing to affirm" and NOTHING else. In particular a drawer may
  * not render it as "no account — add one": the reader restoring a backup has three accounts and
  * would be told they have none. It is the state where the widget says nothing about mail at all.
  * `configured = true` with empty [rows] is the only case that IS an empty inbox, and may be drawn
@@ -1367,24 +1367,24 @@ internal inline fun recentUnifiedInboxFrom(
  * of its `combine` block so a JVM test can RUN it — the repository itself wants a `Context`, a
  * database and a session, and nothing in this module can build one.
  *
- * ⛔ A JMAP inbox is looked up by BOTH halves of its scope. Two accounts on the same server are
+ * A JMAP inbox is looked up by BOTH halves of its scope. Two accounts on the same server are
  * routinely handed the same mailbox id (Codeberg #121), so `it.mailboxId == inboxId` alone returns
  * whichever row Room listed first: both accounts would show one account's mail and the other's
  * would never be shown at all. Same rule as [folderScopeSql], for the same reason.
  *
- * ⛔ An IMAP inbox contributes [storedUnread] — the server counter kept in the account record —
+ * An IMAP inbox contributes [storedUnread] — the server counter kept in the account record —
  * and NOT the live aggregate, whose cache is a window: counting its rows would under-count, in
  * silence, by however much of the inbox is not cached.
  *
- * ⭐ The map is built from [scopes], so an account whose inbox is still unknown (dropped by
+ * The map is built from [scopes], so an account whose inbox is still unknown (dropped by
  * `UnifiedInbox.countedInboxes`) is ABSENT rather than present at 0. A 0 on a widget line affirms
  * "no unread mail" about an inbox the app has never seen.
  *
- * ⚠ That absence covers the UNKNOWN inbox and nothing else. A scoped inbox with no aggregate row
+ * That absence covers the UNKNOWN inbox and nothing else. A scoped inbox with no aggregate row
  * still counts 0 here, and it is not always true that it is cached and quiet: `clearAccountCache`
  * deletes the account's rows and leaves `inboxId` where it was, so between that and the next sync
  * the scope survives with nothing behind it. The total has always read 0 there; the breakdown now
- * shows that 0 on a line of its own, under the account's name. ⛔ Not something to paper over from
+ * shows that 0 on a line of its own, under the account's name. Not something to paper over from
  * here with an invented absence — the honest fix is upstream, in what a cleared cache leaves behind.
  */
 internal fun unreadByAccountFrom(
@@ -1636,14 +1636,14 @@ data class FolderRefresh(
      * The ids this folder is to REMEMBER, or NULL when this refresh cannot say what the folder
      * holds and the notifier must leave its baseline untouched ([watchedBaselineIds]).
      *
-     * ⛔ An empty list cannot carry that refusal, which is why there is a null here at all: the
+     * An empty list cannot carry that refusal, which is why there is a null here at all: the
      * empty list is the legitimate answer of a folder that really was emptied, and it is the one
      * value that MUST still clear a baseline. Spelling "I don't know" and "there is nothing" the
      * same way is the defect — `NewMailNotifier.seed` replaces, so an unknown taken as empty erases
      * the baseline, and the next pass announces the whole day's unread mail, one banner per thread.
      * The null-is-not-empty pattern is [reconcilableIds]', for exactly the same reason.
      *
-     * ⭐ NEVER null on JMAP: that branch reads the cache back ([notifyRead]) instead of trusting a
+     * NEVER null on JMAP: that branch reads the cache back ([notifyRead]) instead of trusting a
      * page, so it always knows what it holds.
      *
      * No default: a branch that forgot to say what it remembers would silently remember only
@@ -1656,7 +1656,7 @@ data class FolderRefresh(
      * cancels exactly these banners, so a message deleted from another client stops claiming it is
      * waiting (Codeberg #134).
      *
-     * ⛔ ALWAYS EMPTY ON IMAP, and that is written down rather than filled in: an IMAP refresh
+     * ALWAYS EMPTY ON IMAP, and that is written down rather than filled in: an IMAP refresh
      * re-reads the folder and replaces the cache with what it read, so nothing on that path ever
      * STATES that a message left — a row missing from a page is a row outside the page. Closing
      * #134 on IMAP needs a signal that does not exist here (an EXPUNGE/VANISHED read); inferring
@@ -1667,7 +1667,7 @@ data class FolderRefresh(
      * Where the opening line of each of these messages could be read from, keyed by cache id —
      * carried out of the sync page that already learned it (see [PreviewSource]).
      *
-     * ⛔ ALWAYS EMPTY ON JMAP, and for the opposite reason to [departedIds]: a JMAP envelope brings
+     * ALWAYS EMPTY ON JMAP, and for the opposite reason to [departedIds]: a JMAP envelope brings
      * `preview` with it, it is stored, and [Email.preview] is therefore already in the notifier's
      * hand — offline included. Filling this there would buy a round trip for a string it has.
      */
@@ -1789,7 +1789,7 @@ class MailRepository(
     private val mailboxUidValidityDao: MailboxUidValidityDao,
     private val outboxFilesDir: java.io.File,
     /**
-     * Where a local draft's attachment bytes are staged. ⛔ Its own tree, not [outboxFilesDir]: an
+     * Where a local draft's attachment bytes are staged. Its own tree, not [outboxFilesDir]: an
      * outbox item's files die with the send, a draft's wait as long as the draft does.
      */
     private val localDraftFilesDir: java.io.File,
@@ -1961,7 +1961,7 @@ class MailRepository(
      * authoritative statements about the message itself, which is what lets the notification layer
      * take a banner down on them (Codeberg #134).
      *
-     * ⛔ Nothing else may ever be added to it. A full-query reconcile drops rows merely outside the
+     * Nothing else may ever be added to it. A full-query reconcile drops rows merely outside the
      * page and the retention window drops rows the server still has: cancelling a banner on either
      * would hide unread mail from the user for good, which is worse than the defect being fixed.
      * Hence empty on the full-query branch, and empty whenever a pass fails — a failure names
@@ -2017,7 +2017,7 @@ class MailRepository(
         // Nothing cancels a sync when its account is signed out — the walk lives in the list
         // screen's scope, the sign-out in the settings screen's — so this is what stops it.
         //
-        // ⚠ THIS LINE ONLY REFUSES TO START. It covers nothing that happens after it: every branch
+        // THIS LINE ONLY REFUSES TO START. It covers nothing that happens after it: every branch
         // below asks again, immediately before each of its writes, because a network round-trip
         // (or a whole paginated walk) separates them from here.
         checkAccountStillConfigured(localAccountId, accountStore.accounts().map { it.id })
@@ -2029,7 +2029,7 @@ class MailRepository(
             val canApply = queryChanges.calculated && changes.calculated &&
                 !changes.hasMoreChanges && queryChanges.newQueryState != null && changes.newState != null
             if (canApply) {
-                // ⛔ Asked AGAIN here, and the entry check above is not enough: two network
+                // Asked AGAIN here, and the entry check above is not enough: two network
                 // round-trips have been and gone since it ran (`emailQueryChanges`,
                 // `emailChanges`), which is seconds, and everything below this line writes — an
                 // eviction, an upsert, and a CURSOR persisted under the id. A sign-out landing in
@@ -2062,7 +2062,7 @@ class MailRepository(
                 // the unread view (which syncs Archive too) and it left the Inbox, and the FTS
                 // index, for good. So the delete is bounded by what this folder still holds.
                 //
-                // ⛔ NOT `cachedIds` further down: that one is read AFTER the delete on purpose
+                // NOT `cachedIds` further down: that one is read AFTER the delete on purpose
                 // (it feeds `deltaFetches`, which must see the cache as the delta left it). This
                 // read has to happen BEFORE, and only when there is a candidate, so an ordinary
                 // delta still pays no extra query.
@@ -2121,7 +2121,7 @@ class MailRepository(
                 // doing its work: an existence check on an account whose deltas reported nothing.
                 // `moved=` counts the candidates NOT deleted because their cached row no longer
                 // sits in this folder: a message spared by [mailboxScopedEvictions] and said
-                // nowhere is indistinguishable from a delta that named nothing. ⛔ It is not only
+                // nowhere is indistinguishable from a delta that named nothing. It is not only
                 // moves — a `destroyed` id whose row has moved on is counted here too, and the
                 // field is named for the common case, not for all of it.
                 android.util.Log.i(
@@ -2150,7 +2150,7 @@ class MailRepository(
                 // `toRemove`, never `queryChanges.removed`, because a favourited message is
                 // reported removed-and-added by a reorder and its banner must survive that.
                 //
-                // ⚠ And `toRemove`, NOT `toDelete`: the two are deliberately different. The server
+                // And `toRemove`, NOT `toDelete`: the two are deliberately different. The server
                 // did say those ids left THIS mailbox, which is all a banner cancellation claims,
                 // and it is `confirmDepartures` that asks where they went. Only the local DELETE is
                 // bounded by the folder, because only it can destroy a row. Do not "harmonise" them.
@@ -2159,7 +2159,7 @@ class MailRepository(
         }
         // Cold cache, or the server can't compute changes — full query.
         //
-        // ⛔ ONE call, MANY writes, ONE delete. The walk ([JmapClient.queryEmailsWindow]) hands
+        // ONE call, MANY writes, ONE delete. The walk ([JmapClient.queryEmailsWindow]) hands
         // each network page over as it lands and keeps only ids; the rows are upserted page by
         // page, and the DELETE half of what `replaceMailbox` used to do runs ONCE at the end,
         // against every id the walk accumulated (`EmailDao.reconcileMailbox`). It used to be one
@@ -2169,14 +2169,14 @@ class MailRepository(
         // written down and enforced: nothing is deleted unless the walk RAN TO COMPLETION and
         // [reconcilableWindowIds] says it saw the folder. Nothing here may become a loop.
         //
-        // ⚠ ONE thing IS observable, and it is wanted. Each page's `upsertAll` invalidates the
+        // ONE thing IS observable, and it is wanted. Each page's `upsertAll` invalidates the
         // list's PagingSource, where there used to be a single atomic invalidation at the end: a
         // cold folder now fills in steps while the walk runs, with stale rows sitting next to fresh
         // ones until the reconcile at the end. That is the progress surface the lot decided not to
         // build, arriving for free — do not "fix" it by buffering the pages, which is exactly the
         // accumulation this branch was rewritten to get rid of.
         //
-        // ⛔ And this branch is sized on the ACCOUNT, not by its caller — BOTH numbers. It is the
+        // And this branch is sized on the ACCOUNT, not by its caller — BOTH numbers. It is the
         // branch that REPLACES the folder, so a background pass carrying its own 50 would truncate
         // the cache of an account set to 500 and re-arm the cursor on the truncation; and with the
         // target alone read off the account, that same 50 became the size of every REQUEST, so an
@@ -2356,7 +2356,7 @@ class MailRepository(
      * actually still have a banner, so the ordinary pass — no departure, or none on screen — costs
      * ZERO requests, and the question is only put when its answer changes something.
      *
-     * ⚠ A failed read confirms NOTHING and does not throw — the OPPOSITE of [idsStillOnlyIn], which
+     * A failed read confirms NOTHING and does not throw — the OPPOSITE of [idsStillOnlyIn], which
      * lets its failure propagate because it guards a destroy. Here the pass this rides on has new
      * mail to announce, so an offline or unreadable answer must leave the banners standing and let
      * the rest of the pass through. See [confirmedDepartures], which holds that rule.
@@ -2392,7 +2392,7 @@ class MailRepository(
      * there is none to be had — asked on behalf of the notification layer, exactly like
      * [confirmDepartures] and for the same reason: that layer must not grow a mail client of its own.
      *
-     * ⛔ [budgetMs] is the ONLY bound on this call and it has no default, here or below: the block
+     * [budgetMs] is the ONLY bound on this call and it has no default, here or below: the block
      * it reaches is blocking, holds the account's connection under its mutex and has no suspension
      * point, so a `withTimeout` from the caller would cancel the coroutine while the thread stayed
      * on the socket read — with the mutex taken, and every other IMAP operation of that account
@@ -2483,11 +2483,11 @@ class MailRepository(
      * [AccountStore.totalUnreadCount], which sums a server-side counter that stopped matching the
      * drawer when the unified header moved to the live per-inbox aggregates.
      *
-     * ⭐ It is a BREAKDOWN and not a total because a large widget cell shows a line per account.
+     * It is a BREAKDOWN and not a total because a large widget cell shows a line per account.
      * The breakdown REPLACES the total rather than sitting beside it: two derivations would be two
      * subscriptions to the same two global Room aggregates for the same information.
      *
-     * ⛔ An account whose inbox is still unknown is ABSENT from the map, not present at 0 — see
+     * An account whose inbox is still unknown is ABSENT from the map, not present at 0 — see
      * [unreadByAccountFrom]. Nothing here may turn that absence into a 0 for a caller's
      * convenience: a widget line reading "0" claims something the app does not know.
      *
@@ -2498,7 +2498,7 @@ class MailRepository(
      * funnel that `saveInboxMetaFor` and `adjustInboxUnread` both go through, so the stored counter
      * changing now re-runs the count — for the drawer and the widget alike.
      *
-     * ⛔ What it does NOT fix, on purpose: how FRESH that IMAP value is. Mail that arrives while the
+     * What it does NOT fix, on purpose: how FRESH that IMAP value is. Mail that arrives while the
      * app is closed writes Room rows, and the IMAP branch deliberately ignores them (a windowed
      * cache would under-count — see the note above). The drawer is already stale in that case; the
      * widget will be stale by exactly as much, never by more. That is a pre-existing defect with a
@@ -2512,7 +2512,7 @@ class MailRepository(
      * "All inboxes (N)" as ONE number — [observeUnifiedInboxUnreadByAccount] totalled, and nothing
      * observed a second time.
      *
-     * ⭐ That is the whole point of the breakdown replacing the sum. The drawer header and the
+     * That is the whole point of the breakdown replacing the sum. The drawer header and the
      * small widget cell want the total; a large widget cell wants a line per account. Two
      * derivations would be two `combine`s of the same two global Room aggregates, subscribed for
      * the life of the process and woken by the same invalidations, for the same information.
@@ -2531,7 +2531,7 @@ class MailRepository(
      * (account, folder) PAIR scope (#121 — never a sibling account's identically named inbox, never
      * a deleted account's orphans) and the same snooze filter. That much cannot drift.
      *
-     * ⛔ It is NOT "the first screen of All inboxes". The list is subject to settings this read
+     * It is NOT "the first screen of All inboxes". The list is subject to settings this read
      * deliberately ignores: `conversationView` is ON by default, so the app collapses threads while
      * this stays one row per message; the sort order is one of six; and the unread filter hides rows
      * shown here. Saying otherwise would promise an agreement the app does not offer — the two
@@ -2552,16 +2552,16 @@ class MailRepository(
      * delivery (#112). A message marked read in the app moved the database and nothing else: the
      * cell kept its unread dot until something happened to redraw it.
      *
-     * ⛔ It reuses [recentUnifiedQuery], the statement [recentUnifiedInbox] runs. A second SQL here
+     * It reuses [recentUnifiedQuery], the statement [recentUnifiedInbox] runs. A second SQL here
      * would have to be kept in step with the list's own predicate by hand, and #126 is what that
      * looks like when it stops being kept.
      *
-     * ⛔ The emitted value is a TRIGGER, not a snapshot to draw. The cell is projected by
+     * The emitted value is a TRIGGER, not a snapshot to draw. The cell is projected by
      * `RecentMailWidgetDraw.read`, which also reads the notification-content setting and the app
      * lock; drawing from here would put senders and subjects on a home screen whose owner has
      * hidden them. What the caller does with a value is redraw, and nothing else.
      *
-     * ⛔ It is a [RecentInbox] all the same, and not the bare rows: `configured` is what tells an
+     * It is a [RecentInbox] all the same, and not the bare rows: `configured` is what tells an
      * empty inbox from no account at all, and a trigger that dropped it would let a collector
      * de-duplicate those two states into one — the cell still saying "No messages" after the last
      * account was removed.
@@ -2976,7 +2976,7 @@ class MailRepository(
         // same role source as searchableFolderIds, so what the index holds and what a search may
         // surface can never diverge. Excluded server-side, so those headers never come down.
         val excluded = excludedSearchFolderIds(mailboxDao.searchOrder(credentials.id))
-        // ⛔ Bound ONCE and used for all three of "what to ask for", "how far to skip a failed
+        // Bound ONCE and used for all three of "what to ask for", "how far to skip a failed
         // page" and "was that page short?": HEADER_PAGE was a hardcoded 500 in all three, so on a
         // server admitting less every page was refused whole (RFC 8620 §5.1, the same rejection
         // that broke the folder sync) and the crawl gave up after MAX_CRAWL_ERRORS — with nothing
@@ -3092,7 +3092,7 @@ class MailRepository(
                 // Warm the body cache for the visible top of the inbox so opening is instant.
                 bgScope.launch { runCatching { prefetchInboxBodies(credentials, inbox.id) } }
             } catch (gone: AccountGoneException) {
-                // ⛔ ABOVE the cancellation catch, and it must stay there. This account was signed
+                // ABOVE the cancellation catch, and it must stay there. This account was signed
                 // out while this pass was walking it: not a failure (nothing is added to
                 // [failures], so the offline banner is not raised for a deliberate gesture), and
                 // not a reason to abandon the accounts AFTER it in the list.
@@ -3105,7 +3105,7 @@ class MailRepository(
                 // to be the current one. Skipping the account lets the pass finish normally, and
                 // the spinner falls with it.
                 //
-                // ⚠ Same two-faced exception as in `FetchAndNotify`: the guards read the store with
+                // Same two-faced exception as in `FetchAndNotify`: the guards read the store with
                 // `accounts()`, which answers an UNREADABLE blob with an empty list, so this fires
                 // with nobody having signed anything out. [accountGoneCause] decides what to claim,
                 // from a fresh `accountsUnreadable()` read; this line keeps what is its own — that
@@ -3147,11 +3147,11 @@ class MailRepository(
     }
 
     /**
-     * JMAP autodiscovery (RFC 8620 §2.2): probe the email domain's
-     * `/.well-known/jmap` (and conventional mail./jmap. subdomains) with the given
-     * credentials, returning the host whose session authenticates. A 401/403 from
-     * any reachable candidate means the server was found but the password is wrong
-     * — reported distinctly so the UI can give a precise error.
+     * JMAP autodiscovery (RFC 8620 §2.2): probe `/.well-known/jmap` on every host
+     * [Jmap.autodiscoverHosts] returns, each of them receiving these credentials in
+     * an `Authorization` header, and return the host whose session authenticates. A
+     * 401/403 from any reachable candidate means the server was found but the
+     * password is wrong — reported distinctly so the UI can give a precise error.
      *
      * The candidates are probed AT ONCE and under one [JMAP_DISCOVERY_BUDGET_MS] budget: one after
      * another, at the client's 20 s connect + 30 s read, a domain with no JMAP kept the sign-in
@@ -3305,7 +3305,7 @@ class MailRepository(
      * nothing) if the token doesn't authenticate or the user has no mail account.
      *
      * Returns true when THIS add is what created the account, false when it landed on one already
-     * stored under the same identity and refreshed it. ⛔ A fact, not a sentence: nothing here
+     * stored under the same identity and refreshed it. A fact, not a sentence: nothing here
      * chooses words or throws on a re-add — the screens above decide what to say (this layer has
      * no resources), and a re-add is a legitimate gesture that must succeed.
      */
@@ -3319,12 +3319,12 @@ class MailRepository(
         val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
         client.fetchSession(Jmap.sessionUrlFor(host), BearerAuth(tokens.accessToken)).mailAccountId()
             ?: error("This user has no JMAP mail account.")
-        // ⛔ [host] proved the tokens; it does not get to decide the identity WHEN THE APP IS WHAT
+        // [host] proved the tokens; it does not get to decide the identity WHEN THE APP IS WHAT
         // guessed it. The OAuth candidate list drops the apex, so a guessed host is `mail.<domain>`
         // where the password path stores `<domain>` — one mailbox added both ways then became two
         // accounts (#55). Resolve those the way the password path does and store THAT, falling back
         // on [host] when autodiscovery says nothing, so an add that used to work still works.
-        // ⛔ And only those. A host outside the guesses was typed into the manual form, whose
+        // And only those. A host outside the guesses was typed into the manual form, whose
         // password button stores that same field verbatim (ConnectViewModel.finishJmapConnect):
         // resolving it too would file the two buttons of one screen under two servers — #55 again,
         // out of the fix for #55. See oauthHostWasGuessed.
@@ -3337,7 +3337,7 @@ class MailRepository(
         } else {
             host
         }
-        // ⛔ Said out loud: the account is being written under the host we wanted to improve, so
+        // Said out loud: the account is being written under the host we wanted to improve, so
         // #55 is reproduced here exactly. On a server we do not own, that is otherwise
         // indistinguishable from a resolution that agreed. Host only, never the address.
         if (guessedHost && server == host) {
@@ -3345,7 +3345,7 @@ class MailRepository(
         }
         // Asked BEFORE the store writes, on the very values handed to it: addOAuth refreshes the
         // login already stored under this identity, so afterwards the answer is always "it exists".
-        // ⛔ On BOTH keys this route has written for this address, in the ORDER the store resolves
+        // On BOTH keys this route has written for this address, in the ORDER the store resolves
         // them: what this version stores, then what 1.5.0 and 1.5.1 stored (the document's host).
         // Asked on the first alone while addOAuth looks under both, the screen would announce an
         // account the store had just refreshed — the sentence 1.5.1 had only just put right.
@@ -3370,9 +3370,9 @@ class MailRepository(
         val credentials = accountStore.credentials(id) ?: error("Account could not be loaded after creation.")
         val meta = refresh(credentials)
         accountStore.saveInboxMeta(meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount)
-        // ⛔ ONLY on a real creation, like the two routes in ConnectViewModel. A re-add now lands on
+        // ONLY on a real creation, like the two routes in ConnectViewModel. A re-add now lands on
         // the login that was already there — with its shared sub-accounts — and eviction reads the
-        // RAW discovered list (AccountStore.kt:155): a session that lists the login's own account
+        // RAW discovered list (`AccountStore`): a session that lists the login's own account
         // but not the shares prunes every sub-account and purges its five tables, a real shared
         // mailbox deleted with its cache (#129).
         // Nothing is lost by the gate: this call is an optimisation reusing the cached session so
@@ -3457,7 +3457,7 @@ class MailRepository(
         } finally {
             runCatching { imap.disconnect("") }
         }
-        // ⚠ On the values the store is actually given: the IMAP host is the endpoint an IMAP
+        // On the values the store is actually given: the IMAP host is the endpoint an IMAP
         // account is keyed on, and `username` is the address the id_token named, not the typed one.
         val created = resolveExistingLogin(
             accountStore.accounts(),
@@ -3581,7 +3581,7 @@ class MailRepository(
         // then rethrows; the prune stays success-only.
         val sync = runCatching { syncMailbox(session, accountId, auth, target.id, sizing, credentials.id) }
         val syncError = sync.exceptionOrNull()
-        // ⛔ …but a signed-out account is NOT a server hiccup, and this `runCatching` absorbs its
+        // …but a signed-out account is NOT a server hiccup, and this `runCatching` absorbs its
         // refusal like any other failure. Carrying on would reach `mailboxDao.replaceAll(
         // credentials.id, …)` below and write the WHOLE FOLDER LIST under an id no account owns
         // any more — after the sign-out's orphan sweep has run. `MailboxDao` says of that table
@@ -3621,7 +3621,7 @@ class MailRepository(
      * ALREADY holds for a page of it — the lambda `ImapMailService` bounds its body reads with, or
      * null for "read none at all" (Codeberg #187).
      *
-     * ⭐ Built HERE because the decision needs the two things the IMAP layer has not and must not
+     * Built HERE because the decision needs the two things the IMAP layer has not and must not
      * grow: the settings, and the cache. [previewWantedInList] is the rule and it is CALLED, not
      * restated — the same function a JVM test executes over both enumerations. `cachedPreviews`
      * answers the page's already-filled rows, id AND value: the IMAP side fetches the ids that are
@@ -3632,7 +3632,7 @@ class MailRepository(
      * ([keepingCachedPreviews]), so "already filled" and "kept on the row" can never mean two
      * different things.
      *
-     * ⛔ AND IT TAKES THE NUMBERING FROM ITS CALLER, both halves of the key in one question. The
+     * AND IT TAKES THE NUMBERING FROM ITS CALLER, both halves of the key in one question. The
      * IMAP side hands in the page's ids and the UIDVALIDITY the SELECT that enumerated them stated;
      * this lambda invents neither. Putting the bound INSIDE the query is what keeps the two halves
      * moving together: a row of another numbering is absent from the answer, so the fetch asks for
@@ -3640,12 +3640,12 @@ class MailRepository(
      * dangerous direction the paragraph above names — a row counted as filled that the write then
      * blanks is a row nothing ever asks about again.
      *
-     * ⛔ No settings — the shape this repository is built in by tests — answers NULL, and so does
+     * No settings — the shape this repository is built in by tests — answers NULL, and so does
      * an account whose user wants no opening line anywhere (preview set to *None* AND notifications
      * without an extract). Null means no network read whatsoever, and it is the cheaper side of
      * being wrong on the WIRE — never a page of body fetches nobody asked for.
      *
-     * ⚠ It is not free, and the KDoc used to say it was. `@Upsert` replaces the whole row, so a
+     * It is not free, and the KDoc used to say it was. `@Upsert` replaces the whole row, so a
      * walk that reads no cache writes `preview = null` over the rows it just refreshed: the next
      * refresh does not merely fail to fill the column, it ERASES it for that page. Written down as
      * a debt rather than fixed, because nobody displays that column in this state — the setting
@@ -3653,7 +3653,7 @@ class MailRepository(
      * the walk that follows a return of the setting fills the page again. The price is one window's
      * worth of body reads on the day the user turns it back on, and that is the whole of it.
      *
-     * ⛔ And an UNREADABLE PREFERENCE answers the same NULL rather than throwing. Until #187 the
+     * And an UNREADABLE PREFERENCE answers the same NULL rather than throwing. Until #187 the
      * folder walk read no DataStore at all (`AccountStore` is backed by SharedPreferences); this
      * function put one on its path, DataStore raises the `IOException` of a failed read inside the
      * flow, and `SettingsRepository` catches none — so a corrupt preferences file would take down
@@ -3670,7 +3670,7 @@ class MailRepository(
     }
 
     /**
-     * The IMAP full re-query of one folder: ⛔ MANY writes, and at most ONE delete — none at all
+     * The IMAP full re-query of one folder: MANY writes, and at most ONE delete — none at all
      * when the walk cannot vouch for what it read.
      *
      * The same [fullQueryWriteThrough] the JMAP full query goes through, and deliberately so: the
@@ -3679,7 +3679,7 @@ class MailRepository(
      * pages, `ImapSession.walkFolder`) and one extra refusal of its own ([reconcilableIds] answering
      * null on a folder that moved under the walk), and with nothing else different.
      *
-     * ⚠ NOT "one walk", and the difference is worth stating: `ImapMailService.runWithRetry` catches
+     * NOT "one walk", and the difference is worth stating: `ImapMailService.runWithRetry` catches
      * a transport failure and replays the WHOLE block once, database writes included. So a walk can
      * run twice, and a failure in the middle of WRITING re-runs the entire network read too. It
      * stays safe — the second attempt re-SELECTs, re-reads `exists` and rebuilds its ids from
@@ -3690,7 +3690,7 @@ class MailRepository(
      * than the window until the next refresh — which re-queries the folder whole, as every IMAP
      * refresh does.
      *
-     * ⛔ [limit] is what the CALLER wants, and it does not get to size this. The window is read off
+     * [limit] is what the CALLER wants, and it does not get to size this. The window is read off
      * the account, exactly as the JMAP full query reads it ([fullQueryWindowTarget], the same
      * function): this function ends in a reconcile, and `refreshAllInboxes` reaches it with a
      * hard-coded 50 that means "how much new mail to look at", not "how much to keep". On an
@@ -3699,15 +3699,15 @@ class MailRepository(
      * removed every other one. Unlike JMAP there is no cursor here to make the damage stick, but
      * the cache is gone all the same, and with it offline reading and local search.
      *
-     * ⚠ Only the WINDOW is read here. The page size of an IMAP walk is this module's own constant
+     * Only the WINDOW is read here. The page size of an IMAP walk is this module's own constant
      * (`IMAP_FOLDER_PAGE`) and is negotiated with nothing, so there is no second number to derive —
      * which is why this is [fullQueryWindowTarget] and not `fullQuerySizing`.
      *
-     * ⛔ And every page is checked against the account list before it is written
+     * And every page is checked against the account list before it is written
      * ([checkAccountStillConfigured]): signing the account out mid-walk cancels nothing by itself,
      * and this walk would otherwise keep filing pages under an id no account owns any more.
      *
-     * ⚠ [fullQueryWriteThrough]'s `folderIds` bound — what keeps a full re-query from deleting the
+     * [fullQueryWriteThrough]'s `folderIds` bound — what keeps a full re-query from deleting the
      * mail that lands while it runs (Codeberg #165) — applies here only when the folder the walk
      * LANDED ON is the folder that was inventoried, and it is switched off in code rather than
      * hoped for. Two ways it can fail to be, both of them ordinary:
@@ -3721,7 +3721,7 @@ class MailRepository(
      *   that was asked for and the reconcile deletes in the inbox.
      *
      * In both cases the bound is passed as NULL, which means "no bound" and leaves this path
-     * exactly as it was. ⛔ Never `emptySet()`: an empty bound would mean "evict nothing", the
+     * exactly as it was. Never `emptySet()`: an empty bound would mean "evict nothing", the
      * reconcile would stop removing anything at all, and the IMAP cache would grow without limit.
      */
     private suspend fun imapWriteThrough(
@@ -3762,7 +3762,7 @@ class MailRepository(
         // refresh, so this set IS the folder's newest window as the server has it. Pruning it away
         // is what made a ten-message folder flash all ten and settle on two (Codeberg #110).
         //
-        // ⛔ And it is the SAME decision the reconcile took, called again rather than restated: on a
+        // And it is the SAME decision the reconcile took, called again rather than restated: on a
         // folder that moved under the walk it answers null, and `retentionEvictions` prunes nothing
         // for a caller that cannot say what was fetched. The prune deletes on the strength of that
         // set too, so it may not be more confident about it than the reconcile was.
@@ -3801,7 +3801,7 @@ class MailRepository(
      * The outcome of ONE best-effort origin read (#160): [header] is what was found — null when
      * the message carries no such field — and [succeeded] says whether the read HAPPENED at all.
      *
-     * ⛔ The two are not the same fact, and conflating them is what would cost the feature: a null
+     * The two are not the same fact, and conflating them is what would cost the feature: a null
      * that came from a failed read, written to the body cache, says "this message has no origin"
      * for ever, because `openMessage` serves that cache before any network call.
      * [cachesBodyAfterOriginRead] is what keeps them apart.
@@ -3812,22 +3812,22 @@ class MailRepository(
      * Read the origin header of one opened message, BEST EFFORT: a failure costs the line, never
      * the message.
      *
-     * ⭐ Called from [openMessage] and NOT from [openEmail], deliberately. `openEmail` has three
+     * Called from [openMessage] and NOT from [openEmail], deliberately. `openEmail` has three
      * callers and only one of them shows this line — `rawHeaders` and `decryptMessage` would each
      * pay a round trip for a value they discard, the second before an OpenPGP decrypt. And a
      * failure has to be visible from the site that decides whether to CACHE, which is `openMessage`.
      *
-     * ⭐ IMAP needs no read at all: `openEmailImap` lifted the field off the message source it had
+     * IMAP needs no read at all: `openEmailImap` lifted the field off the message source it had
      * to fetch anyway, so its answer is already on [email] and cannot have failed.
      *
-     * ⛔ NOT by adding `headers` to `EMAIL_BODY_PROPERTIES`: a server that refuses one requested
+     * NOT by adding `headers` to `EMAIL_BODY_PROPERTIES`: a server that refuses one requested
      * property rejects the WHOLE `Email/get`, so that would mean no message opening at all on that
      * account until a third nested fallback were built over `withUnsubscribeHeaderFallback` and
      * `withReceiptHeaderFallback` — and `JmapClient` states why those two are deliberately not
      * merged. The dedicated `getEmailHeaders` call has no such blast radius. The price, accepted:
      * ONE extra round trip per online JMAP open of an uncached message.
      *
-     * ⚠ `try`/`catch` and not `runCatching`, for the reason [openEmailImap] spells out: an
+     * `try`/`catch` and not `runCatching`, for the reason [openEmailImap] spells out: an
      * `AccountGoneException` IS a `CancellationException` in this code, and swallowing it would
      * both dress a sign-out up as "no origin header" and stop the cancellation from doing its job
      * upstream. It is rethrown untouched; everything else becomes a failed read.
@@ -3861,7 +3861,7 @@ class MailRepository(
      * Give the OpenPGP provider the public key an incoming message announced, if it announced one
      * this app will take ([autocryptPeerImportOf] holds every rule; nothing is decided here).
      *
-     * ⛔ **Fire and forget, on [bgScope].** TWO of the three call sites sit on a path someone is
+     * **Fire and forget, on [bgScope].** TWO of the three call sites sit on a path someone is
      * waiting on ([originReadFor] behind a JMAP open, [openEmailImap] behind an IMAP open, reply,
      * forward, notification quick reply or decrypt); the third ([originalSendersOf]) is background
      * work of the JMAP inbox prefetch, where no one is waiting on a screen at all. In both places
@@ -3872,7 +3872,7 @@ class MailRepository(
      * that does not arrive costs a "no key" badge in the composer, which is the state the user was
      * already in.
      *
-     * ⚠ The reach of these three, because the public prose is written from it and no test states
+     * The reach of these three, because the public prose is written from it and no test states
      * it: on JMAP, the prefetch covers the newest INBOX ids NOT already cached (capped by
      * `PREFETCH_COUNT`, so a refresh that brought no new mail imports nothing), and it is the ONLY
      * JMAP importer for a crypto message, since [openMessage] returns on `cryptoKindOf` before it
@@ -3882,14 +3882,14 @@ class MailRepository(
      * [rawSource]. ENCRYPTION.md and SECURITY.md are written from this; narrowing or widening it
      * here dates them both.
      *
-     * ⛔ [receivedAt] is a PRODUCER, not a value, and that is the whole reason it is one: on IMAP
+     * [receivedAt] is a PRODUCER, not a value, and that is the whole reason it is one: on IMAP
      * the date has to be fetched from the server ([autocryptInternalDate]), and a value would have
      * been computed at the call site — i.e. on the foreground path, making whoever asked for that
      * message wait on a round trip for something only this background work reads. Called here, it
      * is inside the launch, where its cost and its failure are as invisible as the provider call
      * itself. The two JMAP sites hold their date already and their producer just hands it over.
      *
-     * ⛔ THE one place `now` is read, and it stands for BOTH protocols: the date a key is filed
+     * THE one place `now` is read, and it stands for BOTH protocols: the date a key is filed
      * against is the server's (IMAP `INTERNALDATE`, JMAP `receivedAt`), which nobody can forge but
      * nothing bounds either, and `autocryptPeerImportOf` refuses one more than 24 h ahead of the
      * clock passed here. The three call sites hand over no clock of their own — the parameter has
@@ -3912,21 +3912,21 @@ class MailRepository(
      * dates a key with — and `null`, WITHOUT asking the server anything, for a message carrying no
      * `Autocrypt` header at all.
      *
-     * ⛔ Why not `envelope.receivedAt`, which was passed here until now: on IMAP that value is the
+     * Why not `envelope.receivedAt`, which was passed here until now: on IMAP that value is the
      * message's own `Date:` header (`ImapClient.parseDate` over `ENVELOPE[0]`), so the SENDER writes
      * it. A forged `From:` plus `Date: Sat, 1 Jan 2100` plus an `Autocrypt:` header filed the
      * attacker's key under the impersonated peer with an effective date in 2100, after which no
      * authentic key can ever win inside OpenKeychain — and this app has no way to undo it there.
      * `INTERNALDATE` is stamped by the server on delivery and is not the sender's to choose.
      *
-     * ⛔ The header guard is what keeps this off every message: without it, opening anything at all
+     * The header guard is what keeps this off every message: without it, opening anything at all
      * would buy a SELECT and a FETCH for a value nothing reads. EXACTLY one `Autocrypt` field, which
      * is the same count `autocryptPeerImportOf` requires (`singleOrNull`) — a message carrying two is
      * ignored whole, so fetching a date for it would be paid for nothing, and anyone could make every
      * message they send cost a round trip. Compared without case, a field name being
      * case-insensitive (RFC 5322 §1.2.2), over the `rawHeaders` list already in hand.
      *
-     * ⛔ This runs INSIDE the `bgScope.launch` of [importAutocryptKey], never on the opening path:
+     * This runs INSIDE the `bgScope.launch` of [importAutocryptKey], never on the opening path:
      * the reader never waits on it and a server having a bad day cannot slow an open, let alone fail
      * one. The catch is still here, and still narrower than the `runCatching` around it, for the two
      * things that one cannot do: rethrow a cancellation untouched (an `AccountGoneException` is one)
@@ -3961,7 +3961,7 @@ class MailRepository(
      * are siblings on purpose — a failure must mean the same thing on both paths, namely "no line
      * on these messages" and never "no message".
      *
-     * ⛔ Not twenty single calls: this runs on every inbox refresh, in [bgScope]. And ⛔ `null` on
+     * Not twenty single calls: this runs on every inbox refresh, in [bgScope]. And `null` on
      * failure rather than an empty map — see [cachesBodyAfterOriginRead] for what caching an
      * unmeasured null costs.
      */
@@ -3979,7 +3979,7 @@ class MailRepository(
         throw cancelled
     } catch (failure: Throwable) {
         android.util.Log.w("MailRepository", "origin headers of ${emails.size} prefetched messages unreadable", failure)
-        // ⛔ null, never emptyMap(): an empty map is indistinguishable from "none of them carries
+        // null, never emptyMap(): an empty map is indistinguishable from "none of them carries
         // one", and the caller would cache twenty bodies saying so — permanently, since the cache
         // is served before any network call.
         null
@@ -3988,22 +3988,22 @@ class MailRepository(
     /**
      * IMAP message open: fetch the raw source, parse the body, mark seen when [markRead].
      *
-     * ⭐ The envelope comes from the cache when there is one and FROM THE SERVER when there is not
+     * The envelope comes from the cache when there is one and FROM THE SERVER when there is not
      * (#159). A hit of a server-side search lives in a folder no sync ever walked, so no row exists
      * for it — and the open used to end there, on "Message is not in the cache." over a blank
      * screen, while the body two lines down was being read off the server anyway.
      *
-     * ⛔ No row of `emails` is written here. We go and get the envelope to show it, we do not file
+     * No row of `emails` is written here. We go and get the envelope to show it, we do not file
      * it: a row of a never-synced folder would be exposed to the next `reconcileMailbox` (which
      * deletes what its walk did not see), to the drawer counts and to the FTS index. The BODY is
      * another matter and is unchanged — [openMessage] caches it in `email_bodies` for this open
      * exactly as it does for any other.
      */
     private suspend fun openEmailImap(credentials: AccountCredentials, emailId: String, markRead: Boolean = true): Email {
-        // ⛔ FIRST, before the cache is even read. This is the sanction for an id that is not an
+        // FIRST, before the cache is even read. This is the sanction for an id that is not an
         // IMAP message at all, and until #159 what actually enforced it was the cache miss below —
         // which now goes to the SERVER instead. A `local-draft:` id sent down this path
-        // (LocalDraftReopen.kt:41, ComposeViewModel.kt:1093 both document that mistake) is the one
+        // (`LocalDraftReopen` and `ComposeViewModel` both document that mistake) is the one
         // copy of a text that exists nowhere else; it must not buy a SELECT of a folder named
         // after a UUID.
         val uid = ImapMailService.uidOf(emailId) ?: error("Not an IMAP message.")
@@ -4012,7 +4012,7 @@ class MailRepository(
         val fetched = if (cached != null) null else try {
             imap.fetchById(credentials, emailId)?.toEmail()
         } catch (cancelled: CancellationException) {
-            // ⛔ Rethrown as-is, which is why this is a `try` and not a `runCatching`:
+            // Rethrown as-is, which is why this is a `try` and not a `runCatching`:
             // AccountGoneException IS a CancellationException, and dressing a sign-out up as
             // "could not load this message" both lies to the reader and stops the cancellation
             // from doing its job upstream.
@@ -4025,7 +4025,7 @@ class MailRepository(
             ?: throw MessageUnavailableException("Message $emailId is not in the cache and the server did not return it.")
         val mailboxId = envelope.mailboxId ?: error("Unknown mailbox for message.")
         val raw = imap.fetchSource(credentials, mailboxId, uid)
-        // ⛔ Before the parse, because parsing "" succeeds: it yields a body with no header, no
+        // Before the parse, because parsing "" succeeds: it yields a body with no header, no
         // address and no text, which the composer paints as a blank but perfectly usable draft —
         // subject and recipients repainted from the cache, send button armed. A source that did
         // not come back is an UNKNOWN, never an empty message ([sourceCouldNotBeRead] names the
@@ -4055,18 +4055,18 @@ class MailRepository(
         // The unsubscribe headers ride along for FREE: the whole source is already in hand, so
         // this costs no extra round trip and no change to any FETCH command.
         //
-        // ⚠ `headerOf` is a Map, so a message carrying `List-Unsubscribe` TWICE keeps the last
+        // `headerOf` is a Map, so a message carrying `List-Unsubscribe` TWICE keeps the last
         // one. Accepted for this lot: both are the sender's own, and picking one of two is not
         // the failure mode worth a second parser.
         val unsubscribe = unsubscribeHeadersOf(raw)
         val headers = MimeParser.rawHeaders(raw)
         // Autocrypt (the receiving half): the correspondent's key, off the source already in hand.
-        // ⛔ IMAP has no other place for it — a key arrives only from a message whose WHOLE source
+        // IMAP has no other place for it — a key arrives only from a message whose WHOLE source
         // had to be fetched anyway, which is an open but also a reply, a forward, a quick reply
         // from the notification shade and a decrypt (all of them reach here, through `fetchEmail`
         // or `decryptMessage`). That is the accepted limit of this path, not a defect to go and
         // fix with a header added to a list FETCH.
-        // ⛔ "AND NEVER FROM A MESSAGE NOTHING TOUCHED" IS NOT TRUE HERE — nothing on this line or
+        // "AND NEVER FROM A MESSAGE NOTHING TOUCHED" IS NOT TRUE HERE — nothing on this line or
         // above it makes it true. It is held at the other end of the app, by the reader's load
         // guard: the pager warms one page each side of the one being read
         // (`MessageScreen.kt`, `beyondViewportPageCount = 1`), and what stops those two warmed
@@ -4180,7 +4180,7 @@ class MailRepository(
         val origin = originReadFor(credentials, emailId, email)
         val shown = email.copy(originalSender = origin.header)
         val inline = fetchInlineImages(credentials, shown, emailId)
-        // ⛔ The cache write is CONDITIONAL. A body cached after a failed read would say "no
+        // The cache write is CONDITIONAL. A body cached after a failed read would say "no
         // origin" for the life of the install: this cache is served before any network call, so
         // nothing ever asks again. Not caching costs a refetch on the next open — the same honest
         // price `persistBody` already accepts for an oversized body, and the alternative is the
@@ -4209,7 +4209,7 @@ class MailRepository(
 
     /**
      * The message exactly as the server holds it, for "Save as .eml": the raw RFC 5322 source
-     * over IMAP or JMAP (fetched/cached like any other read), as bytes. ⛔ Never the clear text of
+     * over IMAP or JMAP (fetched/cached like any other read), as bytes. Never the clear text of
      * an OpenPGP message: an encrypted message is saved as received, still encrypted (README:
      * "Decrypted content is never written to disk", with three named exceptions — an attachment
      * she opens, one she saves, and printing or saving a message as PDF, which hands the decrypted
@@ -4254,7 +4254,7 @@ class MailRepository(
      *
      * Public since the reader's cache warm-up has to ask the same question before it may paint a
      * cached body on a page the finger has not reached: warming a crypto message would show its
-     * armour, in clear, with no decrypt offered. ⛔ It is exposed rather than reimplemented in the
+     * armour, in clear, with no decrypt offered. It is exposed rather than reimplemented in the
      * UI layer deliberately — two copies of "is this PGP?" drift, and the copy that says "no"
      * first is the one that leaks. Pure and cheap: it reads parts and text already in hand, and
      * touches neither the network nor the OpenPGP provider.
@@ -4263,7 +4263,7 @@ class MailRepository(
         val parts = email.attachments
         if (parts.any { it.type == "application/pgp-encrypted" }) return CryptoKind.PGP_ENCRYPTED
         if (parts.any { it.type == "application/pgp-signature" }) return CryptoKind.PGP_SIGNED
-        // ⛔ The two inline armour headers are NOT spelled here: this class needs Room and an
+        // The two inline armour headers are NOT spelled here: this class needs Room and an
         // Android context, so nothing inside it can be executed on a JVM bench, and while the
         // literals lived here deleting one of them left the whole suite green — which is a
         // message warmed onto a page nobody opened, armour printed in clear. The decision is
@@ -4283,7 +4283,7 @@ class MailRepository(
             val mailboxId = emailDao.mailboxOf(credentials.id, emailId) ?: email.mailboxId
                 ?: error("Unknown mailbox for message.")
             val uid = ImapMailService.uidOf(emailId) ?: error("Not an IMAP message.")
-            // ⛔ THE STAMP GOES ON THE WIRE, and this argument is the whole read half of the
+            // THE STAMP GOES ON THE WIRE, and this argument is the whole read half of the
             // guard. Without it `onMailbox` selects under `null ?: recorded` — the folder's own
             // record, which the first iteration of a cross-account loop realigns the moment it
             // meets the renumbering — so the number is compared with itself, agrees, and the
@@ -4292,7 +4292,7 @@ class MailRepository(
             // Trash refuses afterwards, which is "copied, not removed" — a permanent duplicate,
             // with no Undo on this path. Skipping the cache above without opposing anything here
             // is strictly worse than doing neither.
-            // ⛔ AND A TICK THAT FROZE NOTHING AT ALL IS REFUSED HERE, not handed the fallback
+            // AND A TICK THAT FROZE NOTHING AT ALL IS REFUSED HERE, not handed the fallback
             // (#189). This is the READ, and crossAccountMove runs it BEFORE writeTarget: refused
             // here the move is a Failed and NOTHING IS WRITTEN ON THE TARGET ACCOUNT. Refused only
             // at the bin, the copy is already on B under an APPEND that is never replayed, and the
@@ -4417,9 +4417,9 @@ class MailRepository(
                         // reaches the Room row, the FTS index, a notification or the widget, so
                         // the list keeps the cover subject on purpose: nothing decrypted is
                         // persisted.
-                        // ⛔ And nothing OUTGOING may take its subject from here: a reply, a
+                        // And nothing OUTGOING may take its subject from here: a reply, a
                         // forward and a read receipt all leave the device, so all three read the
-                        // cover (`ComposeViewModel.kt:1268,1288` read the stored row;
+                        // cover (`ComposeViewModel` reads the stored row;
                         // `MessageViewModel.coverSubject` is captured before any decrypt). Sent
                         // from here, the real subject of an encrypted message would travel in
                         // clear.
@@ -4603,17 +4603,17 @@ class MailRepository(
             if (missing.isEmpty()) return
             val ctx = connect(credentials)
             val emails = client.getEmailsWithBody(ctx.session, ctx.accountId, missing, ctx.auth)
-            // ⭐ The origin header (#160) is posed HERE and not only in `openEmail`, because
+            // The origin header (#160) is posed HERE and not only in `openEmail`, because
             // `openMessage` answers from this cache BEFORE any network call — so for the twenty
             // newest messages of the inbox, which is exactly the case a relayed mail lands in,
             // `openEmail` is never reached and the reader's "Original sender" line would never
             // appear at all.
             //
-            // ⛔ One GROUPED call for the whole window, not one per message, and only on a prefetch
+            // One GROUPED call for the whole window, not one per message, and only on a prefetch
             // that already had work to do (`missing` is non-empty above): the cost is ONE extra
             // round trip per prefetch. Best effort — a failure costs these messages their line and
             // never the prefetch, and never the bodies.
-            // ⛔ `?: return` — a window whose origin read failed is NOT persisted. Twenty bodies
+            // `?: return` — a window whose origin read failed is NOT persisted. Twenty bodies
             // written with an unmeasured null would each say "no origin" for good, and these are
             // exactly the twenty messages a reader tries a new feature on. A skipped prefetch
             // costs latency on the next open; a poisoned one costs the feature.
@@ -4728,7 +4728,7 @@ class MailRepository(
      * them would cost a STATUS round trip per folder on every listing. The day that decision is
      * revisited, THIS line changes and the fold rule does not.
      *
-     * ⛔ One definition of "is the account with THIS ID an IMAP one", and it is [isImapAccount] —
+     * One definition of "is the account with THIS ID an IMAP one", and it is [isImapAccount] —
      * the only place in this class that asks the account store for a protocol by id. (The many
      * `credentials.protocol == MailProtocol.IMAP` tests elsewhere are a different question: they
      * branch on credentials already in hand, they read no store, and they carry no decision about
@@ -4831,19 +4831,19 @@ class MailRepository(
      * does it already sit in the Trash? The UI uses the answer to hold the destroy back behind an
      * Undo window instead of doing it immediately (Codeberg #23).
      *
-     * ⛔ An account with no Trash is NOT a destroy. This opened on `?: return true`, which was true
+     * An account with no Trash is NOT a destroy. This opened on `?: return true`, which was true
      * while [delete] refused to run without a bin; [delete] now resolves-or-CREATES the folder, so
      * that `true` sent the most ordinary gesture in the app — the swipe — into
      * `MessageDestroyWorker` and erased the message. The verdict, [deleteDestroysMessage], is a
      * function a JVM test executes; nothing decides here.
      *
-     * ⛔ It resolves the bin THE WAY [delete] FINDS IT, or the two stop asking the same question.
+     * It resolves the bin THE WAY [delete] FINDS IT, or the two stop asking the same question.
      * [delete] goes role → by-name on JMAP ([trashMailboxId]) and role on IMAP ([imapRoleFolder]);
      * asking `roleMailboxId` alone answered "not in the Trash" for a message sitting in a JMAP bin
      * that carries no role, so the delete moved it onto its own folder (a server-side no-op), the
      * row went, and the next sync brought it back: a Trash nothing could empty, message by message.
      *
-     * ⛔ And it NEVER creates a folder: answering a question must not write to the user's server.
+     * And it NEVER creates a folder: answering a question must not write to the user's server.
      * Where [delete] would go on to create the bin, this stops and reports "does not destroy" —
      * the delete that follows creates it, and if it cannot, it throws and the failure is announced.
      */
@@ -4876,7 +4876,7 @@ class MailRepository(
      * reachable-but-silent server spends all of it. The notification banner's Delete asks here
      * (`app.sterna.push.bannerDeleteAct`).
      *
-     * ⚠ It answers about the CACHE, so it says "no Trash" for an account whose folder list has
+     * It answers about the CACHE, so it says "no Trash" for an account whose folder list has
      * never been synced. That is why its caller pairs it with a folder role it already knows: a
      * known role is the proof the list was synced, and without one this answer decides nothing.
      */
@@ -4895,7 +4895,7 @@ class MailRepository(
      * the value that makes the guard pass on the mail it exists to save.
      *
      * The draft paths freeze it the same way, through [recordedUidValidityForDraft], called when
-     * the COMPOSER opens a draft and never again. ⚠ That closes the window between the composer and
+     * the COMPOSER opens a draft and never again. That closes the window between the composer and
      * the expunge, and only that one. It does NOT close the earlier one: the id is read off the
      * LIST, and a renumbering between the list row and the composer opening it is still unnoticed —
      * the freeze then simply records the new numbering, and the destroy is licensed under it.
@@ -4908,7 +4908,7 @@ class MailRepository(
      * held-back DESTROY freezes with the user's confirmation and opposes to the server minutes
      * later (Codeberg #99).
      *
-     * ⭐ THE ROWS, NOT THE FOLDER, and that difference is the whole point. [recordedUidValidity]
+     * THE ROWS, NOT THE FOLDER, and that difference is the whole point. [recordedUidValidity]
      * answers what `mailbox_uidvalidity` holds for the folder RIGHT NOW, and any background pass
      * that met the renumbering has already realigned it (`ImapMailService.loadWatchedFolders` →
      * `UidValidityStore.invalidate`) while the rows on screen still carry the UIDs of the old
@@ -4923,13 +4923,13 @@ class MailRepository(
      * Empty on JMAP, like [recordedUidValidity]'s null: an id there survives anything a mailbox can
      * go through, so there is nothing to number and nothing to check.
      *
-     * ⛔ Chunked ([byIdsChunked]): [emailIds] is a whole SELECTION — an "Empty this folder" style
+     * Chunked ([byIdsChunked]): [emailIds] is a whole SELECTION — an "Empty this folder" style
      * delete of a Trash holds thousands — and SQLite refuses past 999 bound variables below Android
      * 12. This read sits BEFORE the eviction and the enqueue, and outside any `runCatching`, so an
      * unbounded `IN (...)` would not fail the delete, it would crash it: the rows would stay, the
      * destroy would never be scheduled, and nothing on screen would say why.
      *
-     * ⭐ THE DECISION ITSELF LIVES IN [numberingStampsOfRows], and this is only the hand-over. It
+     * THE DECISION ITSELF LIVES IN [numberingStampsOfRows], and this is only the hand-over. It
      * was moved there because this class cannot be instantiated in a JVM test (Room, a `Context`,
      * an `LruCache` in a property initialiser), so the protocol guard and the stamp were shipped
      * with nothing executing them: inverting the `!=` or answering `null` per row made both #99
@@ -4948,7 +4948,7 @@ class MailRepository(
      * The numbering to FREEZE for the draft [emailId] — the value [discardDraft] and the
      * replace half of [saveDraft] oppose, much later, to what the server then states.
      *
-     * ⛔ CALL IT WHEN THE ID IS READ (the composer reopening a draft), NEVER WHEN SAVING. Called at
+     * CALL IT WHEN THE ID IS READ (the composer reopening a draft), NEVER WHEN SAVING. Called at
      * the save it answers the number a background pass recorded AFTER the folder was renumbered —
      * `ImapMailService.loadFolder` / `loadWatchedFolders` see the renumbering first and write it
      * through `UidValidityStore.invalidate`, while the id on screen still belongs to the old
@@ -4970,18 +4970,18 @@ class MailRepository(
     }
 
     /**
-     * The folder the SERVER draft [emailId] sits in — ⛔ **what a held-back destroy of it has to
+     * The folder the SERVER draft [emailId] sits in — **what a held-back destroy of it has to
      * carry, or it destroys nothing in silence**: on JMAP `destroyAll` checks the ids against that
      * folder wave by wave and spares everything when it is absent (#122).
      *
-     * ⛔ **The two Room reads only** — WHICH of them wins is [draftDestroyFolder], a pure function a
+     * **The two Room reads only** — WHICH of them wins is [draftDestroyFolder], a pure function a
      * JVM test executes, because nothing here is instantiable and a `?:` written in this body is a
      * rule that can be deleted with every suite still green. Resolved as [destroyDraft] and
      * [recordedUidValidityForDraft] resolve it (the cached row's own folder, else the account's
      * Drafts role), and account-scoped both times, because mailbox ids collide between two accounts
      * of one server (#31).
      *
-     * ⚠ Both reads happen, where the old `?:` short-circuited: one extra indexed lookup on a gesture
+     * Both reads happen, where the old `?:` short-circuited: one extra indexed lookup on a gesture
      * a user makes by hand, in exchange for a decision that can be run and mutated.
      */
     suspend fun draftMailboxOf(credentials: AccountCredentials, emailId: String): String? =
@@ -5151,7 +5151,7 @@ class MailRepository(
      * CAN OPPOSE. Ids whose UID can't be parsed, or the whole group if the command fails, are
      * marked failed.
      *
-     * ⛔ So is every id the move did not PROVE left [source] — [imapMoveOutcome] draws that line
+     * So is every id the move did not PROVE left [source] — [imapMoveOutcome] draws that line
      * from `ImapMoved.confirmedGone`, and it is drawn BEFORE anything local is dropped. An `OK`
      * says the command ran, not that any one message moved: a `UID MOVE` naming a uid that is
      * already gone (moved or destroyed from another client since the list was drawn) is a NO-OP
@@ -5160,7 +5160,7 @@ class MailRepository(
      * holds — offline search for it was lost for good. Keeping a row of a message that DID move
      * is put right by the next sync; nothing puts an index row back.
      *
-     * ⚠ `landed.destinationUidValidity` is NOT a numbering read: it is what the server stated in
+     * `landed.destinationUidValidity` is NOT a numbering read: it is what the server stated in
      * the very response that handed back these UIDs, and it is the only statement of [dest]'s
      * numbering this flow ever gets — a `UID MOVE` does not SELECT its destination (#99).
      *
@@ -5171,10 +5171,10 @@ class MailRepository(
      * three callers all have one to hand, and a default is a call site that silently stops
      * opposing anything.
      *
-     * ⚠ A refusal (`ImapNumberingUnconfirmed`) comes back through the `runCatching` below, which
+     * A refusal (`ImapNumberingUnconfirmed`) comes back through the `runCatching` below, which
      * catches `Throwable`, so the whole group lands in [failed] — which is what makes the caller
      * re-query, so the messages come back instead of vanishing from a list they never left.
-     * ⛔ Deliberately NOT caught by type here: `MailRepository` is held to exactly one
+     * Deliberately NOT caught by type here: `MailRepository` is held to exactly one
      * `catch (unconfirmed: ImapNumberingUnconfirmed)`, on the draft path (`ImapDestroyUnderNumberingTest`).
      */
     private suspend fun imapMoveGroup(
@@ -5390,7 +5390,7 @@ class MailRepository(
      *    there are recreated AFTER the sign-out's orphan sweep and show under a "deleted account"
      *    label until the next process start — the reported symptom.
      *
-     * ⚠ None of the three closes the race (see [checkAccountStillConfigured]); they narrow it from
+     * None of the three closes the race (see [checkAccountStillConfigured]); they narrow it from
      * a session's width to a write's.
      */
     suspend fun unarchiveThreadsOnReply(credentials: AccountCredentials, threadIds: Set<String>): List<Email> {
@@ -5410,12 +5410,12 @@ class MailRepository(
         unlistFromTrashPurge(credentials.id, members.map { it.id })
         // Protect the rows BEFORE the server call, so a sync firing mid-move can't evict them.
         members.forEach { markRecentlyMutated(credentials.id, it.id) }
-        // ⭐ Ask again, immediately before the SERVER write — the widest window of the three. The
+        // Ask again, immediately before the SERVER write — the widest window of the three. The
         // entry check above is a whole `connect` behind (fetchSession, jmapAccountIdFor,
         // reconcileLinkedAccounts, getIdentities, getMailboxes) plus a thread-members read, and a
         // sign-out landing inside it would un-archive the thread ON THE ACCOUNT: in the webmail, on
         // every other client, with no Undo — and the check before the re-file would then refuse the
-        // local half, leaving this phone with no trace of what it did. ⛔ Outside the runCatching
+        // local half, leaving this phone with no trace of what it did. Outside the runCatching
         // below, so its refusal is not counted as one more move that merely failed.
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         val result = runCatching {
@@ -5428,7 +5428,7 @@ class MailRepository(
         moved.forEach { recentLocalMoves.mark(credentials.id, it.id) }
         val refiled = moved.map { it.copy(mailboxId = inbox) }
         // Ask again: the entry check is on the far side of a session and a server move, and only a
-        // check HERE stands between a sign-out and rows written under an id no account owns. ⛔ It
+        // check HERE stands between a sign-out and rows written under an id no account owns. It
         // sits outside the `runCatching` above on purpose — folded into it, its refusal would be
         // swallowed with the move's own failures and this would go on writing.
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
@@ -5476,7 +5476,7 @@ class MailRepository(
      * failed here while deleting the same messages one at a time worked.
      *
      * [expectedUidValidity]: see [archiveAll] — the source folders' frozen numbering, by folder.
-     * ⭐ This is the gesture the guard is really for: a bulk "delete" is a bulk MOVE to the Trash,
+     * This is the gesture the guard is really for: a bulk "delete" is a bulk MOVE to the Trash,
      * and on the sender screen it sits behind a confirmation the user can hold open for a while.
      */
     suspend fun deleteAll(
@@ -5619,7 +5619,7 @@ class MailRepository(
 
     /** Report a whole selection as spam (move to Junk) in one batch.
      *
-     *  ⛔ [expectedUidValidity] is NOT optional in practice, whatever the default says: this is a
+     *  [expectedUidValidity] is NOT optional in practice, whatever the default says: this is a
      *  MOVE, so an empty map refuses the whole batch on IMAP — and `markReadOnMoveOutOfInbox` has
      *  already flagged the messages `\Seen` on the server by then. See [archiveAll] for the shape;
      *  the caller freezes at the gesture (#99). */
@@ -5873,19 +5873,19 @@ class MailRepository(
      * Re-fetch ONE account's folder list into the cache under a STATED [onlySubscribed] (#174) —
      * the door the "show only subscribed folders" switch comes in by.
      *
-     * ⭐ The value is an ARGUMENT, not a second reading of the store, and that is the whole point:
+     * The value is an ARGUMENT, not a second reading of the store, and that is the whole point:
      * `LSUB` only goes out on a listing that asked for it, so the tick has to reach the wire. Were
      * this to re-read the setting instead, the order of the switch's two steps (write, then sync)
      * would become load-bearing and any later reordering would list the folders under the OLD
      * value — no LSUB, nothing cached, the switch inert again.
      *
-     * ⚠ What it COSTS, measured on the wire (`SubscriptionToggleAsksTheServerTest`): `CAPABILITY`,
+     * What it COSTS, measured on the wire (`SubscriptionToggleAsksTheServerTest`): `CAPABILITY`,
      * `LIST`, `LSUB`, then a `SELECT` of the inbox, a `SEARCH UNSEEN UNDELETED` and one
      * `FETCH … (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)` whose rows are thrown away — plus
      * `reconcileNumbering`, which drops the inbox's cached BODIES if its UIDVALIDITY changed. Not
      * a bare listing, then. What IS true: no sync cursor is purged and no message body is cached
      * by this path (`onPage = {}`), so nothing has to be re-fetched afterwards.
-     * ⛔ Unknown account id: nothing happens, quietly. There is no account to list folders for.
+     * Unknown account id: nothing happens, quietly. There is no account to list folders for.
      */
     suspend fun refreshFolderList(accountId: String, onlySubscribed: Boolean) {
         val credentials = accountStore.credentials(accountId) ?: return
@@ -5900,10 +5900,10 @@ class MailRepository(
     private suspend fun refreshMailboxes(credentials: AccountCredentials, onlySubscribed: Boolean) {
         if (credentials.protocol == MailProtocol.IMAP) {
             // An empty `onPage` is this caller saying out loud that it caches no message: the
-            // walk's page is dropped on the floor. ⚠ It is not free and not silent on the wire
+            // walk's page is dropped on the floor. It is not free and not silent on the wire
             // either — the listing still SELECTs the inbox, counts its unseen, fetches one
             // envelope it discards, and reconciles that folder's numbering.
-            // ⛔ `cachedPreviewsFor = null`: this caller caches no message at all (`onPage = {}`),
+            // `cachedPreviewsFor = null`: this caller caches no message at all (`onPage = {}`),
             // so an opening line read here would be paid for on the radio and dropped with the page.
             val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onlySubscribed = onlySubscribed, onPage = {}, cachedPreviewsFor = null)
             mailboxDao.replaceAll(credentials.id, load.mailboxes)
@@ -5921,7 +5921,7 @@ class MailRepository(
      * The name match is cached into the context's role map so a bulk archive resolves it once
      * instead of making every message try (and fail) to create a duplicate archive folder.
      *
-     * ⛔ [ARCHIVE_FOLDER_NAMES] lives outside this class on purpose: `visibleFolders` runs the very
+     * [ARCHIVE_FOLDER_NAMES] lives outside this class on purpose: `visibleFolders` runs the very
      * same election to decide it may not hide this folder (#174). Two copies of the table would
      * drift, and the app would file mail where it refuses to look.
      */
@@ -5962,12 +5962,12 @@ class MailRepository(
      * so a bulk delete resolves it once instead of making every message try (and fail) to create a
      * duplicate bin.
      *
-     * ⚠ JMAP ONLY. The IMAP branch of [delete] resolves through `imapRoleFolder`, i.e.
+     * JMAP ONLY. The IMAP branch of [delete] resolves through `imapRoleFolder`, i.e.
      * `ImapClient.roleFromName`, whose own name table is untouched here: on an IMAP server that
      * states no role and names its bin something that table does not know, the delete still
      * creates a second folder beside the existing one.
      *
-     * ⛔ No `all` fallback, unlike [archiveMailboxId]: "all mail" is an acceptable archive, it is
+     * No `all` fallback, unlike [archiveMailboxId]: "all mail" is an acceptable archive, it is
      * not an acceptable bin — a message moved there stays in the list, so the delete would look
      * like it did nothing.
      */
@@ -6040,13 +6040,13 @@ class MailRepository(
             routes.forEach { route ->
                 // The undo of a move is a move, and the folder it SELECTs is the one the forward
                 // move landed the mail in — so that is the numbering to oppose, not the source it
-                // is going back to. ⛔ And it is OPPOSED FROM THE FREEZE, never read here: a
+                // is going back to. And it is OPPOSED FROM THE FREEZE, never read here: a
                 // `UID MOVE` does not SELECT its destination and nothing else in this flow does,
                 // so a read answers null on any folder the user has never opened — Undo after an
                 // ordinary delete was refused on every Trash nobody had browsed. What is opposed
                 // is what COPYUID stated when it handed back these very UIDs (#99).
                 //
-                // ⛔ THE TWO FOLDERS ARE NAMED IN THE CALL, never carried there by a local. They
+                // THE TWO FOLDERS ARE NAMED IN THE CALL, never carried there by a local. They
                 // are interchangeable `String`s, so swapping them compiles and reads fine — and it
                 // sends `UID MOVE <trash uids> "Trash"` while SELECTing the INBOX, which on two
                 // folders sharing a numbering throws LIVE INBOX MAIL into the Trash: #99 itself,
@@ -6137,7 +6137,7 @@ class MailRepository(
      *   - [FrozenNumbering.NothingFrozen], the default, is every ordinary delete — a swipe, a
      *     notification action, a conversation — and it falls back on the folder's record, which is
      *     the right thing there: the id is read from the cache and the `UID MOVE` goes out in the
-     *     same call, with nothing in between. ⛔ Turning this into a refusal would fail 100 % of
+     *     same call, with nothing in between. Turning this into a refusal would fail 100 % of
      *     IMAP deletes, plainly because it would throw on every one of them — a separate fact from
      *     `mayDestroyUnderStatedNumbering(null, 42)` being false, which is what makes the
      *     `?: recordedUidValidity(...)` fallback below load-bearing;
@@ -6146,7 +6146,7 @@ class MailRepository(
      *     realigned the folder's record and opposing that record would be opposing it to itself;
      *   - `Frozen(null)` — and `Frozen(0)` or a negative, which are not numberings either — is a
      *     ticked row with NOTHING to oppose, and it is refused outright: [ImapNumberingUnconfirmed]
-     *     leaves the message in the folder it was in and drops no cached row. ⚠ Not "nothing
+     *     leaves the message in the folder it was in and drops no cached row. Not "nothing
      *     happened": the two best-effort steps above the IMAP branch have already run, so the id
      *     is off any pending Empty-trash list ([unlistFromTrashPurge]) and, when the option is on,
      *     a `UID STORE +FLAGS (\Seen)` may already have gone out. Neither loses mail. */
@@ -6185,12 +6185,12 @@ class MailRepository(
                 // is opposed to what the server states in the SELECT the move goes out under, so a
                 // renumbered folder — or one whose numbering the server has stopped stating — is
                 // refused instead of having a live message thrown away (#99).
-                // ⛔ AND THE SECOND END OF THE SAME REFUSAL (#189). `Frozen(null)` is a row that
+                // AND THE SECOND END OF THE SAME REFUSAL (#189). `Frozen(null)` is a row that
                 // WAS ticked and has no numbering to offer: nothing can confirm this uid still
                 // names the message the user pointed at, and this bin is the destructive half of
                 // the one path with no Undo. `NothingFrozen` — every swipe, every notification
                 // action, every conversation delete — is Select(null) and takes the `?:` below.
-                // ⛔ TWO SEPARATE FACTS, and folding them was a lie: refusing NothingFrozen here
+                // TWO SEPARATE FACTS, and folding them was a lie: refusing NothingFrozen here
                 // would break every one of those gestures because it would THROW on them; and the
                 // `?: recordedUidValidity(...)` has to stay because Select(null) alone reaches
                 // mayDestroyUnderStatedNumbering(null, 42), which is false. Neither implies the
@@ -6255,7 +6255,7 @@ class MailRepository(
      * the bin, the copy is already on B under an APPEND that is never replayed, and the user keeps
      * a permanent duplicate.
      *
-     * ⛔ It is a [FrozenNumbering] and not a `Long?` because those were THREE cases in two
+     * It is a [FrozenNumbering] and not a `Long?` because those were THREE cases in two
      * spellings. [FrozenNumbering.NothingFrozen] — the reader's single move, which has no tick —
      * keeps main's behaviour exactly: both steps fall back on the folder's record.
      * `Frozen(null)` — a row that WAS ticked and carries no numbering, because it was cached before
@@ -6263,7 +6263,7 @@ class MailRepository(
      * back — is refused at both ends instead of silently falling back on a record that a
      * renumbering has already realigned. Under `Long?` those two were the same argument.
      *
-     * ⚠ [connect] keeps ONE context: connecting B for the import and then trashing on a JMAP A
+     * [connect] keeps ONE context: connecting B for the import and then trashing on a JMAP A
      * fetches A's session again. Accepted — one extra session fetch per move between two JMAP
      * accounts, and nothing else depends on which account the context last held.
      */
@@ -6811,7 +6811,7 @@ class MailRepository(
      * window to the server. Nothing is fetched here: the next pull-to-refresh, push, folder change
      * or cold start applies the new window.
      *
-     * ⚠ Those four really are four, which is why that branch sizes itself on the ACCOUNT
+     * Those four really are four, which is why that branch sizes itself on the ACCOUNT
      * ([fullQueryWindowTarget]) and not on whoever calls it: two of them — the push/worker pass and
      * the unified inbox — pass a hardcoded 50, and this drop is what makes them reach a branch that
      * REPLACES the folder. Sized by the caller, the first background pass after a window change
@@ -6989,19 +6989,19 @@ class MailRepository(
                 credentials, rekeyWatchedFolders(credentials.id, extraFolderIds), includeInbox, limit,
             )
             missing.forEach(onMissing)
-            // ⭐ And ask AGAIN, because everything above — the whole network read, seconds of it —
+            // And ask AGAIN, because everything above — the whole network read, seconds of it —
             // sits between the check at the entry and this write, and nothing cancels this pass
             // when the account goes (`signOut` never touches WorkManager, `PushService` only bumps
             // its generation). Left unguarded, up to `limit` messages PER WATCHED FOLDER land under
             // the removed id, AFTER the sign-out's orphan sweep has run, and stay in the unified
             // list under a "deleted account" chip until the process restarts (#121).
             //
-            // ⭐ One call, outside the loop, unlike the five other guarded paths: this branch alone
+            // One call, outside the loop, unlike the five other guarded paths: this branch alone
             // reads the folders whole and then writes them in one group, so a single refusal here
             // covers every write the `forEach` would make. Inside the lambda it would only repeat
             // the same answer once per folder.
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-            // ⛔ The rows are rebuilt before they are written, and folder by folder. `@Upsert`
+            // The rows are rebuilt before they are written, and folder by folder. `@Upsert`
             // replaces the WHOLE row and these rows carry no opening line (this pass reads none,
             // deliberately), so written as they came off the wire they BLANK the `preview` column
             // of the newest `limit` rows of every folder they touch — on every push pass and every
@@ -7027,7 +7027,7 @@ class MailRepository(
                     // no preview (`preview = null` in `toEntity` — it reads no body), so the
                     // opening line has to be READ, and the section to read it from is what this
                     // page already learned. Carried, never asked for again.
-                    // ⚠ "Builds", not "holds": what was just WRITTEN above keeps whatever opening
+                    // "Builds", not "holds": what was just WRITTEN above keeps whatever opening
                     // line the cache already had ([keepingCachedPreviews]), because the upsert
                     // replaces the whole row. This map is still the notifier's only source — a
                     // cached line belongs to the list, and this pass does not read the column back.
@@ -7040,14 +7040,14 @@ class MailRepository(
             ?: resolved.mailboxes.firstOrNull()
             ?: error("No mailboxes found.")
         val byId = resolved.mailboxes.associateBy { it.id }
-        // ⚠ INVARIANT, held five hops away in another module and stated here because this is where
+        // INVARIANT, held five hops away in another module and stated here because this is where
         // it is relied upon: on JMAP `targets` is NEVER empty, so at least one `syncMailbox` runs.
         // The only production caller is `FetchAndNotify.run`, and `includeInbox = false` is
         // produced in exactly one place — `MailFetchWorker` passing `includeInbox = pollInbox`,
         // after `if (!pollInbox && !pollExtras) continue`. `hasExtrasToPoll` answers
         // `isImap && watchedFolders.isNotEmpty()`, so on JMAP `pollExtras` is always false, hence
         // `pollInbox` is true, hence `includeInbox` is true and the inbox is always added.
-        // ⛔ It excuses nothing below: a non-empty `targets` only means the last question was asked
+        // It excuses nothing below: a non-empty `targets` only means the last question was asked
         // deep inside a `syncMailbox`, several steps before the folder-list write.
         val targets = buildList {
             if (includeInbox) add(inbox)
@@ -7088,7 +7088,7 @@ class MailRepository(
                 previewSources = emptyMap(),
             )
         }
-        // ⭐ The JMAP side of the same question the IMAP branch above asks twice, so the two
+        // The JMAP side of the same question the IMAP branch above asks twice, so the two
         // branches are now symmetrical (#121). `targets` is never empty here, so the last guard
         // this pass crossed is the one inside the last `syncMailbox` — and its ghost sweep, its
         // `putSyncState`, the `notifyRead` and the return all sit between that answer and this
@@ -7096,7 +7096,7 @@ class MailRepository(
         // removed account, in the table `MailboxDao` calls the place an orphan is seen earliest:
         // a full drawer of folders under an account the user has just deleted, written AFTER the
         // sign-out's orphan sweep, and still there until the process restarts.
-        // ⚠ Narrowed, not closed — see [checkAccountStillConfigured]: a check that passed
+        // Narrowed, not closed — see [checkAccountStillConfigured]: a check that passed
         // microseconds before the account left the store still writes. The sweep at process start
         // is what collects those.
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
@@ -7216,16 +7216,16 @@ class MailRepository(
     }
 
     /**
-     * Save a draft — ⭐ **on the phone first, then on the server, always** (#95).
+     * Save a draft — **on the phone first, then on the server, always** (#95).
      *
      * The row goes into `local_drafts` before the first byte leaves, and the upload is attempted in
      * the same call. It succeeds: the row is consumed, and everything below this line behaves as it
      * always did. It fails — offline, a dropped socket, a server that said no: the row STAYS, this
-     * returns [DraftSaveOutcome.KEPT_ON_DEVICE] and ⛔ **does not throw**, which is the whole of the
+     * returns [DraftSaveOutcome.KEPT_ON_DEVICE] and **does not throw**, which is the whole of the
      * reported symptom ("could not save the draft" plus the raw transport error, and the typed text
      * dying with the process).
      *
-     * ⛔ The upload failing changes nothing about the SERVER: [finishDraftSave] is inside the upload,
+     * The upload failing changes nothing about the SERVER: [finishDraftSave] is inside the upload,
      * so the draft this one replaces is only ever destroyed by an upload that went through. Offline
      * the original is intact, and it stays intact.
      *
@@ -7245,7 +7245,7 @@ class MailRepository(
         body: String,
         /**
          * The `text/html` alternative to store with [body] (#131) — the composer's styling, and
-         * null when the body carries none (`draftHtmlToSave`). ⛔ Not derived here and not derived
+         * null when the body carries none (`draftHtmlToSave`). Not derived here and not derived
          * anywhere below: only the screen knows which characters are bold, and a draft with no
          * styling must be written EXACTLY as it was before #131 — no local column, no `htmlBody`
          * part in the `Email/set`, no `text/html` in the APPEND.
@@ -7258,7 +7258,7 @@ class MailRepository(
         replacesEmailId: String? = null,
         /**
          * The IMAP numbering [replacesEmailId] belongs to, FROZEN by the caller when it read that
-         * id (#99). ⛔ No default on purpose: a call site that forgets it must fail to compile
+         * id (#99). No default on purpose: a call site that forgets it must fail to compile
          * rather than silently freeze null, which destroys nothing and leaves a duplicate draft.
          * Null is the honest answer on JMAP and on a folder never observed; it is never a stand-in
          * for "not read yet". Read at save time it would be the number recorded AFTER a
@@ -7268,7 +7268,7 @@ class MailRepository(
         attachments: List<EmailBodyPart> = emptyList(),
         bodyIsLossy: Boolean = false,
         /**
-         * Whether THIS COMPOSER lost the body it is handing over — ⛔ NOT [bodyIsLossy], and the two
+         * Whether THIS COMPOSER lost the body it is handing over — NOT [bodyIsLossy], and the two
          * must not be folded back together. [bodyIsLossy] is the composer's disjunction
          * (`editingDraftLossyOnOpen || composerBodyWasLost`): it is the licence to destroy a server
          * original (#63), it goes on the row, and it is true for EVERY server draft reopened with an
@@ -7276,24 +7276,24 @@ class MailRepository(
          * in silence, on a screen that said the draft was saved. This one says only what the
          * composer lost, and it is all the write guard weighs (see [localDraftBodyToWrite]).
          *
-         * ⛔ …and it weighs the WRITE, and nothing else: it has never stopped this row from being
+         * …and it weighs the WRITE, and nothing else: it has never stopped this row from being
          * DESTROYED. The same composer tapping Send instead of Save reaches `consumeLocalDraft`,
          * which takes the row and its staged files whatever this says. The refusal of that tap is
          * `composerMaySendBody`, in the composer, in front of both sends — nothing on this side of
          * the seam can see one coming.
          *
-         * ⛔ No default on purpose, as for [replacesUidValidity]: `true` would put the silent
+         * No default on purpose, as for [replacesUidValidity]: `true` would put the silent
          * refusal back at any call site that forgets it, `false` would let a future one delete the
          * only copy of a draft's text. Each caller states which of the two it is.
          */
         composerBodyWasLost: Boolean,
         /**
-         * Whether the composer had NOTHING TYPED — its own `body.text`, and ⛔ NOT `[body].isBlank()`,
+         * Whether the composer had NOTHING TYPED — its own `body.text`, and NOT `[body].isBlank()`,
          * which this function may not ask since #131: [body] is the plain-text PROJECTION of the
          * rich body (`toPlainText`), and a bullet tapped on an empty composer projects to `"- "`.
          * Read off [body], the lost-body guard (`localDraftKeepsTheStoredBody`) stands down on a
          * save that carries nothing, and those two characters are written over the only copy of a
-         * local draft. ⛔ No default, for the reason [composerBodyWasLost] has none: this is the
+         * local draft. No default, for the reason [composerBodyWasLost] has none: this is the
          * border where the derived value is born, and it is the one term that must never be guessed.
          */
         typedBodyIsBlank: Boolean,
@@ -7303,10 +7303,10 @@ class MailRepository(
         fromEmail: String? = null,
         /**
          * Whether the draft asks for a read receipt (RFC 8098). The server copy carries the header
-         * so it says what would be sent; ⛔ it is still NOT put back into the composer when the
+         * so it says what would be sent; it is still NOT put back into the composer when the
          * draft is reopened (D1) — the box comes back clear, which remains assumed debt.
          *
-         * ⭐ What is no longer debt (D2) is the destroy: the ORIGINAL's header is read from the
+         * What is no longer debt (D2) is the destroy: the ORIGINAL's header is read from the
          * server before the copy is thrown away, so a re-save that would silently drop the request
          * keeps the original instead of destroying it. Until the header could be read at all, this
          * field could not be part of the guard — see [draftReceiptRequestIsCarried].
@@ -7314,11 +7314,11 @@ class MailRepository(
         requestReceipt: Boolean = false,
     ): DraftSaveOutcome {
         val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
-        // ⭐ The row this save is about, minted or reloaded BEFORE anything is attempted. A re-save
+        // The row this save is about, minted or reloaded BEFORE anything is attempted. A re-save
         // lands on the row already holding the draft (one local row per draft), and keeps the id
-        // and the creation time it was written under. ⛔ NOT its `Message-ID`: that names the
+        // and the creation time it was written under. NOT its `Message-ID`: that names the
         // version of the text, and a save writes a new one (see `localDraftMessageId`).
-        // ⭐ Found by BOTH keys: `(accountId, id)` for the phone's own draft, and
+        // Found by BOTH keys: `(accountId, id)` for the phone's own draft, and
         // `(accountId, replacesEmailId)` for a server draft this phone already holds a row for —
         // without the second, every re-save of an edited server draft with no network added a row,
         // a Message-ID, an upload and an attempt to destroy the same original.
@@ -7328,7 +7328,7 @@ class MailRepository(
             forServerDraft = { localDraftDao.forServerDraft(credentials.id, it) },
         )
         val existing = target.existing
-        // ⛔ A local id is not a server id: it names nothing the server could be asked to destroy.
+        // A local id is not a server id: it names nothing the server could be asked to destroy.
         val serverReplaced = serverDraftReplacedBy(replacesEmailId)
         val row = localDraftRow(
             accountId = credentials.id,
@@ -7352,7 +7352,7 @@ class MailRepository(
             },
             bodyIsLossy = bodyIsLossy,
             composerBodyWasLost = composerBodyWasLost,
-            // ⛔ Handed DOWN, never re-derived here: `body` is the projection, and the answer this
+            // Handed DOWN, never re-derived here: `body` is the projection, and the answer this
             // guard needs is about the text the user typed (see the parameter's KDoc).
             typedBodyIsBlank = typedBodyIsBlank,
             requestReceipt = requestReceipt,
@@ -7361,7 +7361,7 @@ class MailRepository(
         )
         return saveDraftLocalFirst(
             row = row,
-            // ⛔ The row that was there BEFORE this save, and what the rollback of a failed staging
+            // The row that was there BEFORE this save, and what the rollback of a failed staging
             // turns on: `discard` takes the whole DRAFT away, files included, so run on a re-save
             // it deletes the text of the save that worked (see saveDraftLocalFirst).
             existing = existing,
@@ -7376,10 +7376,10 @@ class MailRepository(
                     attempt.atMillis, attempt.notBeforeMillis,
                 )
             },
-            // ⭐ And the draft's own work item, at the instant the attempt just wrote — the outbox's
+            // And the draft's own work item, at the instant the attempt just wrote — the outbox's
             // seam, copied. Without it a draft saved with no network waits for the next START of
             // the app, which is the promise of this volet unkept and nothing on screen says so.
-            // ⛔ NOT a suspending lambda, and `LocalDraftScheduler.schedule` is not one either: this
+            // NOT a suspending lambda, and `LocalDraftScheduler.schedule` is not one either: this
             // also runs from a coroutine the composer has just cancelled, where every suspension
             // point throws. A `localDraftDao.…` call added here would not compile — keep it so.
             schedule = { job -> localDraftScheduler?.schedule(job.accountId, job.id, job.delayMillis) },
@@ -7392,7 +7392,7 @@ class MailRepository(
     /**
      * One account's local drafts, newest edit first — what the Drafts list draws on top (#95).
      *
-     * ⛔ No state filter, and that is the decision: a `STAGING` row is shown like any other. Its text
+     * No state filter, and that is the decision: a `STAGING` row is shown like any other. Its text
      * is on the phone, and the whole point of the volet is that the user can see what she typed.
      */
     fun observeLocalDrafts(accountId: String): Flow<List<LocalDraftEntity>> =
@@ -7402,12 +7402,12 @@ class MailRepository(
      * Open one of this phone's own drafts in the composer (#95): hand back the row, and hold it out
      * of the upload worker's way while the composer has it ([LocalDraftState.EDITING]).
      *
-     * ⛔ **No network, and nothing from the cache.** The id names a row no server has ever heard of.
+     * **No network, and nothing from the cache.** The id names a row no server has ever heard of.
      * The whole reopen is the row, projected by [localDraftPrefill]; the decisions are executed in
      * `LocalDraftReopenTest`, this is only the Room they cannot reach.
      *
-     * ⛔ Whether the row may be taken at all is [localDraftMayBeTakenForEdit]'s answer, and a
-     * refused row is answered [LocalDraftEdit.Busy] without a single write. ⚠ Nothing here is
+     * Whether the row may be taken at all is [localDraftMayBeTakenForEdit]'s answer, and a
+     * refused row is answered [LocalDraftEdit.Busy] without a single write. Nothing here is
      * executable by any test — no `androidTest` exists in this repo and this class needs Room, a
      * Context and a live session — so `LocalDraftLeaseWiringTest` pins these lines as text.
      */
@@ -7427,7 +7427,7 @@ class MailRepository(
      * The row keeps whatever backoff it had: a draft whose last attempt failed is not made to retry
      * sooner because it was opened and closed.
      *
-     * ⛔ **And it is the ONLY way back out of [LocalDraftState.EDITING].** The startup sweep does not
+     * **And it is the ONLY way back out of [LocalDraftState.EDITING].** The startup sweep does not
      * touch that state any more ([LocalDraftDao.revertUploadingToPending]), so there is no net under
      * this: a path that leaves the composer without calling this leaves the row held for ever, i.e.
      * a draft that never reaches the server. `abandonPlan` decides who calls it, and every one of
@@ -7443,11 +7443,11 @@ class MailRepository(
         )
 
     /**
-     * Take one of this phone's own drafts away — ⛔ **the row AND the files staged with it** —
+     * Take one of this phone's own drafts away — **the row AND the files staged with it** —
      * because the composer has committed its text somewhere else (#95): a send now queued in the
      * outbox, a scheduled send now in its own table, or a draft the user emptied out (#69).
      *
-     * ⛔ **Only ever after that other row exists**, which is [commitThenConsumeLocalDraft]'s whole
+     * **Only ever after that other row exists**, which is [commitThenConsumeLocalDraft]'s whole
      * job; this is the Room half it cannot reach. Called before, or from a `finally`, it deletes
      * the only copy of the text on the failure this volet exists to survive.
      */
@@ -7456,11 +7456,11 @@ class MailRepository(
     /**
      * Bring ONE account's rows back from a process death mid-upload or mid-staging (#95).
      *
-     * ⛔ Per account, never a global `UPDATE`: another account's upload may be genuinely in flight in
+     * Per account, never a global `UPDATE`: another account's upload may be genuinely in flight in
      * this process, in which case `UPLOADING` is not a leftover at all. The scope is the DAO's; this
      * is only the name the app layer calls it by.
      *
-     * ⛔ **TWO statements, and they must not be merged.** A row rescued from `UPLOADING` is whole and
+     * **TWO statements, and they must not be merged.** A row rescued from `UPLOADING` is whole and
      * keeps the right to replace the server draft it names. A row rescued from `STAGING` carries
      * `attachmentsJson` "[]" it can never refill, so it comes back flagged `bodyIsLossy` — otherwise
      * the upload calls it a faithful replacement and destroys the original that still holds the
@@ -7468,7 +7468,7 @@ class MailRepository(
      * [LocalDraftDao.revertStagedToPendingLossy]. The single call site
      * (`AppContainer`/`SternaApplication`) does not need to know there are two.
      *
-     * ⛔ **And `EDITING` is not part of either, deliberately** — see
+     * **And `EDITING` is not part of either, deliberately** — see
      * [LocalDraftDao.revertUploadingToPending]. This runs from `appScope` at every start, i.e. while
      * Android is still restoring the back stack, BEFORE the composer killed with a draft open has
      * read its row back: nothing here can tell a held row from an abandoned one, so it lets the
@@ -7483,7 +7483,7 @@ class MailRepository(
     }
 
     /**
-     * Every row of one account still owed to the server — ⛔ **backed-off rows included**, which is
+     * Every row of one account still owed to the server — **backed-off rows included**, which is
      * what `Long.MAX_VALUE` is doing there.
      *
      * A startup re-arm is the safety net for the work items a reboot lost, so it has to see the rows
@@ -7509,7 +7509,7 @@ class MailRepository(
             row = localDraftDao.byId(credentials.id, id),
             nowMillis = now,
             markUploading = { localDraftDao.setState(credentials.id, id, LocalDraftState.UPLOADING) },
-            // ⭐ TWO bounds, at two levels, and neither replaces the other.
+            // TWO bounds, at two levels, and neither replaces the other.
             //  - the inner one is per READ ([LOCAL_DRAFT_UPLOAD_BUDGET_MS]): `appendDraft` names no
             //    budget of its own, so without it the socket blocks for ever on a link cut
             //    mid-APPEND. It is what lets the attempt finish PROPERLY, with the transport's own
@@ -7518,10 +7518,10 @@ class MailRepository(
             //    are not the only thing that blocks: the wait for the account's IMAP mutex has no
             //    budget at all, and 6 min 29 of it was measured behind a retrying `loadFolder` —
             //    row stuck UPLOADING, `attemptCount` frozen, no cause, no backoff, and the read
-            //    budget never even started. ⛔ It is [withLocalDraftAttemptBudget], not a bare
+            //    budget never even started. It is [withLocalDraftAttemptBudget], not a bare
             //    `withTimeout`: the expiry has to arrive here as an ORDINARY failure, or the
             //    `record` below is skipped exactly as it was before.
-            // ⛔ The interactive save (`saveDraftLocalFirst`) is bounded by neither: its reads stay
+            // The interactive save (`saveDraftLocalFirst`) is bounded by neither: its reads stay
             // blocking, as the debt already written there says.
             upload = { row ->
                 withLocalDraftAttemptBudget(LOCAL_DRAFT_ATTEMPT_BUDGET_MS) {
@@ -7547,7 +7547,7 @@ class MailRepository(
     /**
      * Consume a local draft: the row and the files staged with it, together.
      *
-     * ⛔ Best-effort on BOTH halves. This runs on the success path, i.e. after the draft is on the
+     * Best-effort on BOTH halves. This runs on the success path, i.e. after the draft is on the
      * server and after the original it replaced has been destroyed — a throw here would surface as
      * "couldn't save the draft" on a save that fully succeeded, which is the reported symptom of #95
      * with the network working. A row that outlives its upload is at worst a second copy in Drafts,
@@ -7585,15 +7585,15 @@ class MailRepository(
         if (credentials.protocol == MailProtocol.IMAP) {
             val drafts = mailboxDao.idForRole(credentials.id, "drafts") ?: error("This account has no Drafts folder.")
             val parts = imapDraftAttachments(attachments)
-            // ⭐ The bytes go out at most once per ATTEMPT, and a retry asks first: an APPEND whose
+            // The bytes go out at most once per ATTEMPT, and a retry asks first: an APPEND whose
             // answer was lost to a dead link leaves a copy the phone cannot see, and every later
             // attempt used to add another. The `Message-ID` searched for names this VERSION of the
             // text (`localDraftMessageId`), so "found" means the server holds what is about to be
-            // sent, not merely something that was once this draft. ⛔ A search that FAILS appends
+            // sent, not merely something that was once this draft. A search that FAILS appends
             // anyway, and so does a save the user makes after an earlier version got through: both
-            // cost a duplicate in Drafts rather than text that exists nowhere. ⛔ `appendDraft`
+            // cost a duplicate in Drafts rather than text that exists nowhere. `appendDraft`
             // itself does not replay inside its session — see it.
-            // ⛔ The answer is CAUGHT, and it is load-bearing: `false` means this attempt appended
+            // The answer is CAUGHT, and it is load-bearing: `false` means this attempt appended
             // NOTHING because the lookup found the id already there. The destroy guard below then
             // has no replacement of its own to weigh — it would be comparing what the composer
             // holds against what the original holds while the server's copy was written by some
@@ -7608,7 +7608,7 @@ class MailRepository(
                 append = {
                     imap.appendDraft(
                         credentials, drafts,
-                        // ⭐ Built from the ROW, so the `Message-ID` that reaches the server is the
+                        // Built from the ROW, so the `Message-ID` that reaches the server is the
                         // one the phone kept. Minted here instead, as it used to be, it named nothing.
                         localDraftOutgoing(row, credentials.username, parts, System.currentTimeMillis()),
                     )
@@ -7623,7 +7623,7 @@ class MailRepository(
             // cannot answer in the server's place about the very copy this is about to destroy.
             // Unknown (a failed read) is not empty, and it forbids the destroy.
             //
-            // ⛔ The Cc AND the Bcc, and until 2026-08-25 it was the Cc ALONE — read the reason
+            // The Cc AND the Bcc, and until 2026-08-25 it was the Cc ALONE — read the reason
             // before touching this, because the old rule was RIGHT and is what closed #63.
             // It said: OutgoingMime.build writes `From:`, `To:` and `Cc:` and no `Bcc:` at all, a
             // Bcc only ever reaching the RCPT TO of a send, so an address typed into the Bcc field
@@ -7631,12 +7631,12 @@ class MailRepository(
             // the measured loss with the guard green: the user re-types the Cc that came back
             // empty, puts it in Bcc, the replacement "carries" it, and the server copy that
             // actually held it is destroyed while the new one holds it nowhere.
-            // ⭐ ONE thing changed, and nothing else: the header IS written now. This APPEND builds
+            // ONE thing changed, and nothing else: the header IS written now. This APPEND builds
             // its MIME with `BlindCopies.WRITTEN` (see `ImapMailService.appendDraft`, pinned by
             // DraftAppendCarriesBccWiringTest), so the copy the server keeps carries a real `Bcc:`
             // and reopening it hands the address back. The Bcc is therefore carried IN FACT, and
             // leaving it out is what now costs a duplicate in Drafts on every save of a draft with
-            // a Cci. ⛔ If that argument ever goes off this APPEND, this line goes back to the Cc alone
+            // a Cci. If that argument ever goes off this APPEND, this line goes back to the Cc alone
             // the same day, or #63's loss returns through the Bcc field.
             val addressingIsCarried = draftAddressingIsCarried(
                 replacesEmailId = replacesEmailId,
@@ -7648,12 +7648,12 @@ class MailRepository(
                 //  - under the DEFERRED upload, the coroutine carries an ImapReadBudget (#95), and
                 //    an ambient budget cannot tell "I said nothing" from "I said zero on purpose":
                 //    this read is therefore bounded by LOCAL_DRAFT_UPLOAD_BUDGET_MS too.
-                // ⭐ That is wanted, and it is safe in the only direction that matters: an expired
+                // That is wanted, and it is safe in the only direction that matters: an expired
                 // read is UNKNOWN, `draftAddressingIsCarried` reads unknown as "not proven", and a
                 // destroy that is not proven does not happen — at worst a visible duplicate in
                 // Drafts. Left blocking it would have reproduced the very symptom the budget
                 // exists for, one read further along.
-                // ⛔ Only the SEND's read carries a deadline written at its own call site.
+                // Only the SEND's read carries a deadline written at its own call site.
                 originalAddressing = { id -> imapDraftAddressing(credentials, id, ImapBudget.NO_BUDGET) },
             )
             // The same question for the read receipt the original may have asked for: the header
@@ -7709,7 +7709,7 @@ class MailRepository(
             bcc = bccTrimmed.map { EmailAddress(email = it) },
             subject = row.subject,
             textBody = row.textBody,
-            // ⭐ Read off the ROW like everything else here: the styling the save stored (#131),
+            // Read off the ROW like everything else here: the styling the save stored (#131),
             // null for a plain draft — which keeps that draft's `Email/set` byte for byte what it
             // was. Dropped, a styled draft goes up as text and comes back from the server plain.
             htmlBody = row.htmlBody,
@@ -7723,7 +7723,7 @@ class MailRepository(
         // PagingSource) reflects it at once instead of waiting for a pull-to-refresh (#63).
         // Keyed on the server-returned id, so the next sync replaces it in place — no duplicate.
         //
-        // ⛔ Best-effort, like the IMAP branch's refresh() above and for a sharper reason: the
+        // Best-effort, like the IMAP branch's refresh() above and for a sharper reason: the
         // draft IS on the server by this line. A Room write that failed here used to propagate out
         // of the upload, be caught as KEPT_ON_DEVICE and keep the local row — so the next attempt
         // uploaded the same draft a second time. A missing cache row costs a pull-to-refresh.
@@ -7751,7 +7751,7 @@ class MailRepository(
         return finishDraftSave(
             credentials, replacesEmailId,
             faithful = draftReplacementIsFaithful(
-                // ⛔ The server's ANSWER, never the request. `client.saveDraft` does send an
+                // The server's ANSWER, never the request. `client.saveDraft` does send an
                 // `Email/set` create every single time — nothing on this path looks the draft up
                 // by `Message-ID` first, so nothing here is ever skipped the way the IMAP branch
                 // above can be — but "we sent a create" is not "the copy is there". That function
@@ -7761,7 +7761,7 @@ class MailRepository(
                 // unknown never authorises a destroy — the same rule the addressing and the
                 // receipt legs obey. The optimistic cache write a few lines above already tells
                 // the two apart (`if (savedId != null)`), so this verdict may as well.
-                // ⚠ On any RFC 8621-conforming server this is byte-for-byte the old behaviour: a
+                // On any RFC 8621-conforming server this is byte-for-byte the old behaviour: a
                 // create either returns its id or is refused. What changes is only the unreadable
                 // answer, where the user now gets a duplicate in Drafts plus the "original kept"
                 // notice instead of a silently destroyed original.
@@ -7809,7 +7809,7 @@ class MailRepository(
      * cache would answer "asks for nothing" both for a draft that asks for nothing and for one
      * whose header was never loaded, and the destroy decision must not see those two alike.
      *
-     * ⚠ It costs a full `FETCH` of the draft. Accepted: it happens only on an explicit save that
+     * It costs a full `FETCH` of the draft. Accepted: it happens only on an explicit save that
      * REPLACES a server draft, the message it downloads is the one just uploaded by the APPEND
      * above, and the only `HEADER.FIELDS` reader `core/imap` has is keyed on `References` alone
      * (`REFERENCES_ITEM`); a second one, for this single path, is not worth the parser it costs.
@@ -7824,7 +7824,7 @@ class MailRepository(
     /**
      * The same for a JMAP draft, through the one fetch that asks for the header property.
      *
-     * ⭐ The `refusesReceiptHeader` line is the whole subtlety: on a server that rejects that
+     * The `refusesReceiptHeader` line is the whole subtlety: on a server that rejects that
      * property, EVERY message comes back with the field null — including a draft that carries the
      * header. Reading that null as "asks for nothing" would authorise the destroy and lose the
      * request. On such a server the answer is unknown, and the original stays.
@@ -7844,7 +7844,7 @@ class MailRepository(
      * Bcc, and a read that fails is an unknown, which forbids the destroy
      * ([draftAddressingIsCarried] answers false for it).
      *
-     * ⭐ The Bcc counts here even though the outgoing message still writes no `Bcc:` header — it
+     * The Bcc counts here even though the outgoing message still writes no `Bcc:` header — it
      * writes none, that was true before 2026-08-25 and is still true, and a submission that wrote
      * one would hand every hidden recipient to every visible one. What carries it is the ENVELOPE:
      * the blind copies go out in the `RCPT TO` and the mail is delivered to them. So an original
@@ -7985,7 +7985,7 @@ class MailRepository(
      * save proves and the set the composer cannot vouch for: the To is typed and displayed, a Cc
      * may be on the server copy and on no screen.
      *
-     * ⛔ **`false` answers two different questions on purpose**: "it was addressed to somebody" and
+     * **`false` answers two different questions on purpose**: "it was addressed to somebody" and
      * "I could not find out". The composer cannot tell a draft that has no Cc from a Cc it never
      * managed to read — a cache row older than the v21 columns that no back-fill ever filled in, a
      * read that failed, an address the envelope gave back unreadable — and an emptying that
@@ -7994,10 +7994,10 @@ class MailRepository(
      * rule, in the same direction, as [draftAddressingIsCarried] answering false for
      * `original == null`, and the callers read a false as "keep the server copy, and say so".
      *
-     * ⛔ [EMPTIED_DRAFT_PROOF_BUDGET_MS], and NOT the [ImapBudget.NO_BUDGET] the interactive save
+     * [EMPTIED_DRAFT_PROOF_BUDGET_MS], and NOT the [ImapBudget.NO_BUDGET] the interactive save
      * passes: one of the two callers is the gesture reached with the radio off (#95), and an
      * unbounded socket there holds the composer in `Sending` until the OS gives up. See that
-     * constant. ⛔ The save's own unbounded read is a question of its own and is left exactly as it
+     * constant. The save's own unbounded read is a question of its own and is left exactly as it
      * was — answering it here, either way, would answer it for a gesture that never asked.
      */
     suspend fun emptiedDraftAddressingIsProvenEmpty(
@@ -8040,20 +8040,20 @@ class MailRepository(
      * through [recordedUidValidityForDraft]) — never a value looked up here, which would be the
      * number recorded after the renumbering this guard exists to catch.
      *
-     * ⛔ A REFUSAL IS NOT A FAILURE, and does not propagate. Three of them, all silent: the server
+     * A REFUSAL IS NOT A FAILURE, and does not propagate. Three of them, all silent: the server
      * stating no numbering at all ([ImapNumberingUnconfirmed]); the folder having been renumbered
      * since the freeze ([ImapUidValidityChanged], raised by the SELECT — the case this parameter
      * exists for); and the decision licensing an empty list, on a folder whose numbering was never
      * recorded, where [imapDestroyGroup] simply returns. In none of the three did a destroy go out
      * on the wire: THE MESSAGE IS INTACT ON THE SERVER, and there is nothing to report or retry.
-     * ⚠ The cache is not untouched on the renumbering one: the invalidation that precedes it has
+     * The cache is not untouched on the renumbering one: the invalidation that precedes it has
      * just dropped the cached BODIES of the whole Drafts folder, and the draft's list row survives
      * holding an id of a numbering the server has thrown away — which is why that catch re-reads
      * the folder. All three refusals say nothing, or none does; saying it would mean a new string
      * on screen, nine translations, and identical refusals behaving differently. What the caller
      * still hears about is every real failure below.
      *
-     * ⛔ KEEP THE BLOCK BODY, for the same reason `ImapMailService.ccAndBccOf` keeps its own: an
+     * KEEP THE BLOCK BODY, for the same reason `ImapMailService.ccAndBccOf` keeps its own: an
      * expression body has no braces, so the source rules of `ImapDestroyUnderNumberingTest` cannot
      * delimit it and this function drops silently out of every one of them — including the rule
      * forbidding it to look a numbering up for itself. Written as
@@ -8088,7 +8088,7 @@ class MailRepository(
             // numbering was never recorded at all, i.e. with nothing whatsoever to oppose. Same
             // decision as the held-back destroy: nothing to oppose licenses nothing, the draft
             // stays. A leftover draft is the cheap half of the trade; an expunge against whatever
-            // the folder numbers today is the expensive one. ⛔ A null numbering is NOT rescued
+            // the folder numbers today is the expensive one. A null numbering is NOT rescued
             // here: the decision below hands back an empty list and `imapDestroyGroup` returns.
             val destroyable = UidValidity.destroyableUnderNumbering(listOf(emailId), frozenUidValidity)
             try {
@@ -8100,7 +8100,7 @@ class MailRepository(
                 // recorded — has always been silent, and because `ComposeViewModel` puts any
                 // exception's message verbatim into the save-error banner: propagating this one
                 // would show the user a sentence of English IMAP jargon, untranslated, at the
-                // exact moment the guard saved their mail. ⛔ ONLY this type: a transport failure
+                // exact moment the guard saved their mail. ONLY this type: a transport failure
                 // must keep going up, or the composer closes over a draft that comes back.
             } catch (renumbered: ImapUidValidityChanged) {
                 // The refusal a FROZEN numbering makes reachable, and the one this fix is for:
@@ -8135,7 +8135,7 @@ class MailRepository(
         // `mailboxIds`). The folder is the draft's own, resolved by `draftDestroyFolder` exactly as
         // the emptied-local-draft route resolves it for its destroy of this same server copy.
         //
-        // ⚠ **What this folder is worth, exactly.** It is READ here, not frozen when the composer
+        // **What this folder is worth, exactly.** It is READ here, not frozen when the composer
         // read the id — the same live read the emptied-local-draft route has always opposed to its
         // own destroy of this same server copy. So it catches a move this phone has NOT learned
         // yet, and not one it has: let a background sync rewrite the cached row with the new folder
@@ -8145,7 +8145,7 @@ class MailRepository(
         // routes at once or it just moves the hole — see
         // `ai-work/issues/findings/finding-dossier-attendu-lu-au-lieu-d-etre-gele.md`.
         //
-        // ⛔ REFUSED IS NOT FAILED, and it is silent: the result is dropped, like the three IMAP
+        // REFUSED IS NOT FAILED, and it is silent: the result is dropped, like the three IMAP
         // refusals above. No new string, no new exception into the "could not save" banner. A
         // transport failure still throws, from the location read or from the destroy, and the
         // caller (`runCatching` in `performSend`, the composer's `submit`) decides as before.
@@ -8180,7 +8180,7 @@ class MailRepository(
         /**
          * A complete MIME entity that replaces the body on the wire, byte for byte
          * ([OutgoingMessage.prebuiltEntity]): PGP/MIME, or RFC 8098's `multipart/report` receipt.
-         * ⛔ NOT conditional on [pgpMode] — see [outboxPayload].
+         * NOT conditional on [pgpMode] — see [outboxPayload].
          */
         prebuiltEntity: String? = null,
         /** The saved draft this message was edited from (#63); destroyed once the send lands. */
@@ -8188,7 +8188,7 @@ class MailRepository(
         /**
          * The IMAP numbering [draftEmailId] was read under, frozen by whoever read it (#99).
          *
-         * ⛔ **No default, on purpose.** The destroy happens at delivery, hours or days later, and
+         * **No default, on purpose.** The destroy happens at delivery, hours or days later, and
          * `null` there means "destroy nothing": a default would let a new call site silently freeze
          * nothing (a draft duplicated in Drafts for ever) or — worse, were the default anything but
          * null — hand the expunge a number nobody froze. A site that has no draft to replace passes
@@ -8205,7 +8205,7 @@ class MailRepository(
         bodyIsLossy: Boolean = true,
         /** Ask for a read receipt (RFC 8098), per message; persisted so the worker still asks. */
         requestReceipt: Boolean = false,
-        /** Teach these addresses to the contact suggestions. ⛔ False for a receipt — [recipientsToLearn]. */
+        /** Teach these addresses to the contact suggestions. False for a receipt — [recipientsToLearn]. */
         learnRecipients: Boolean = true,
     ): Long {
         val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
@@ -8288,7 +8288,7 @@ class MailRepository(
         // diagnostic English and stays exactly where it was written to be read — the Log.w on the
         // line above, which is what reaches a bug report. The row is where the reason SURVIVES for
         // weeks; logcat is where its detail lives.
-        // ⛔ And the row is not touched otherwise: a destroy added into this lambda would take the
+        // And the row is not touched otherwise: a destroy added into this lambda would take the
         // message away while telling the caller it is queued — the typed text of a quick reply
         // lives nowhere else, so it would be lost outright. ArmingWiringTest pins this tail whole.
         return armOrNote(id, holdMs, outboxScheduler) { note ->
@@ -8411,10 +8411,10 @@ class MailRepository(
         val body: String,
         /**
          * The queued row's `text/html` part (#131), so a message taken back out of the Outbox
-         * reopens with the styling it was queued with instead of the flattened text. ⛔ No
+         * reopens with the styling it was queued with instead of the flattened text. No
          * default: the row is the only place it lives while the message waits, and a construction
          * site that skips it drops the styling silently — the same rule as [requestReceipt].
-         * ⚠ It is the SEND's html (signature substituted, forward appended), so it parses back to
+         * It is the SEND's html (signature substituted, forward appended), so it parses back to
          * spans only when it is ours; `richBodyFrom` decides, and falls back to [body].
          */
         val htmlBody: String?,
@@ -8497,7 +8497,7 @@ class MailRepository(
      * the server: the row must stay visible, and it must NOT leave on its own. Which state, and
      * why a value of its own, is [app.sterna.core.data.mail.draftSaveParksTheQueuedRowAs].
      *
-     * ⛔ The state, and NOTHING else. `attemptCount` is not forced to [OutboxLogic.MAX_ATTEMPTS] —
+     * The state, and NOTHING else. `attemptCount` is not forced to [OutboxLogic.MAX_ATTEMPTS] —
      * that was a ruse needed only while the parked state was FAILED, so [OutboxLogic.stateAfterEdit]
      * would keep it parked; a state of its own is not EDITING, so no reopen path looks at it at
      * all. And `lastError` is left alone: a row that genuinely failed to send BEFORE it was
@@ -8518,9 +8518,9 @@ class MailRepository(
      * of the message, and the close was made on the app's own advice — "Close this screen and reopen
      * the message" — so it must stay in the Outbox, visible and reopenable, and it must NOT leave.
      *
-     * ⛔ NOT [releaseOutboxEdit], and that is the whole fix: released, the row goes back to QUEUED
+     * NOT [releaseOutboxEdit], and that is the whole fix: released, the row goes back to QUEUED
      * and is re-armed at 0, and the message she was told to reopen is delivered in under a second.
-     * ⛔ No `schedule` here, for the same reason.
+     * No `schedule` here, for the same reason.
      *
      * Why [OutboxState.FAILED] at [OutboxLogic.MAX_ATTEMPTS] and not a state of its own: the cap is
      * the proxy [OutboxLogic.stateAfterEdit] already trusts (#70, #183) — "the count is at the cap
@@ -8549,7 +8549,7 @@ class MailRepository(
      * cap, with [OutboxLogic.EDIT_INTERRUPTED] as its reason — so that [unfinishedOutbox], which
      * runs right after and does not return FAILED, re-arms none of them.
      *
-     * ⛔ Not back to QUEUED, which is what this did: a row requeued here is booked at 0 by the
+     * Not back to QUEUED, which is what this did: a row requeued here is booked at 0 by the
      * re-arm and leaves on its own, and the composer Android restores afterwards holds the same
      * text and can send it again — two copies at the recipient's, which nothing takes back. Parked,
      * the row is listed in the Outbox in red with its reason, reopens, and Retry sends it; only a
@@ -8575,7 +8575,7 @@ class MailRepository(
         // not fail (and so re-fire) a sent mail; a failed delivery above throws first, leaving the
         // draft untouched.
         //
-        // ⛔ The numbering is CARRIED BY THE ROW, never looked up here (#99). This runs in a
+        // The numbering is CARRIED BY THE ROW, never looked up here (#99). This runs in a
         // headless worker whenever the network comes back, or at a scheduled send's hour — hours or
         // days after the composer read that draft's id. A read here answers whatever a background
         // sync last recorded, so a Drafts folder renumbered in between is compared with itself,
@@ -8691,12 +8691,12 @@ class MailRepository(
             ?: error("This account has no sending identity.")
         val identity = choice.identity
         // Trimmed, because the envelope below is: SubmissionIdentity matches on a trimmed address
-        // (StoredAccount.kt:132 dedupes that way, and the settings screen saves what was typed,
+        // (`StoredAccount` dedupes that way, and the settings screen saves what was typed,
         // spaces included), so leaving the header untrimmed would put " a@b " in From: against an
         // `a@b` MAIL FROM — the very mismatch this is here to remove.
         val from = if (!fromEmail.isNullOrBlank()) EmailAddress(name = fromName, email = fromEmail.trim())
         else EmailAddress(name = identity.name, email = identity.email)
-        // rcptTo carries to + cc + bcc, like the SMTP path's RCPT TO (SmtpClient.kt:334): RFC 8621
+        // rcptTo carries to + cc + bcc, like the SMTP path's RCPT TO (`SmtpClient`): RFC 8621
         // §7.5 makes both envelope fields mandatory, so an amputated list drops the copies instead
         // of falling back to the message's own recipients.
         val envelope = choice.envelopeMailFrom?.let {
@@ -8725,7 +8725,7 @@ class MailRepository(
             // report-type=disposition-notification and its message/disposition-notification part,
             // none of which survives being re-encoded by the server from Email/set fields. So the
             // FULL raw message is built client-side with the same builder the SMTP path uses, then
-            // imported + submitted as it stands. ⭐ The condition is the ENTITY, not the PGP mode: a
+            // imported + submitted as it stands. The condition is the ENTITY, not the PGP mode: a
             // receipt carries no mode, and routing on the mode would send it through Email/set,
             // where it would arrive as a two-part mail nobody's client reads as a receipt.
             val raw = OutgoingMime.build(
@@ -8901,7 +8901,7 @@ class MailRepository(
      * Queue the RFC 8098 read receipt answering [receiptTo] — the addresses
      * [ReadReceiptHeader.recipients] found in the message's `Disposition-Notification-To:`.
      *
-     * ⛔ **Nothing calls this yet.** No banner, no setting, no automatic trigger: a receipt tells a
+     * **Nothing calls this yet.** No banner, no setting, no automatic trigger: a receipt tells a
      * stranger when their mail was opened, and that is never sent without the reader saying so.
      *
      * Through the ordinary outbox, like the `mailto:` unsubscribe above: it retries, it survives a
@@ -9067,7 +9067,7 @@ class MailRepository(
      * time, and not one `Identity/set` ever left the phone (measured on the S7, 2026-08-31). So the
      * caller reads, and the ambiguity is gone: an empty answer here means the server holds nothing.
      *
-     * ⛔ It THROWS on failure, and that is the whole contract. A `runCatching` answering an empty
+     * It THROWS on failure, and that is the whole contract. A `runCatching` answering an empty
      * list would tell the caller "the server holds no identity" — the opposite instruction — and
      * every offline Save would post its addresses against a server whose list nobody read.
      * [refreshServerIdentities] keeps its own `runCatching` for [connect]'s sake, deliberately:
@@ -9100,7 +9100,7 @@ class MailRepository(
      * account, so reaching here with IMAP credentials means a caller bypassed that rule. A silent
      * no-op would make such a caller look like it worked; this is a belt, and a belt that says so.
      *
-     * ⛔ It does NOT write [app.sterna.core.data.account.StoredAccount.serverIdentities] itself: it
+     * It does NOT write [app.sterna.core.data.account.StoredAccount.serverIdentities] itself: it
      * RE-READS the list from the server ([refreshServerIdentities]). The server stays the source
      * for that list; building it here would pin an address locally that the server may not have
      * kept, and the server assigns the identity's id itself — the id the settings row is then keyed
@@ -9269,7 +9269,7 @@ class MailRepository(
      * Best-effort — a fetch failure must not break the caller, [connect] first of all: a signed-in
      * account with an unreadable identity list is still a usable account.
      *
-     * ⚠ [accountId] is the JMAP account the identities belong to; [localAccountId] is the id of the
+     * [accountId] is the JMAP account the identities belong to; [localAccountId] is the id of the
      * record they are stored under in [accountStore]. Both are String and they are NOT the same
      * value — swapped, the read asks the server about an id it does not know and the write lands on
      * nobody's account, in silence, inside the runCatching.

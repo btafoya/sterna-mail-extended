@@ -22,20 +22,20 @@ enum class OutboxState {
      * for it (#95 × #70). The row stays so the message is still somewhere the user can see it, and
      * the send worker never picks it up again on its own: they asked for a save, not for a send.
      *
-     * ⛔ Not [FAILED], although it behaves like it in three places out of four. Nothing failed —
+     * Not [FAILED], although it behaves like it in three places out of four. Nothing failed —
      * the save the user asked for succeeded, on the phone — and FAILED is not just a state: it
      * lights the Inbox's "Some messages didn't send. Tap to review." banner right across the list
      * and paints the row in the error colour, a claim nothing would ever retract, because there is
      * no deferred upload that could take it back down.
      *
-     * ⛔ Not [EDITING] either, which was the defect: an [EDITING] row is on no screen at all
+     * Not [EDITING] either, which was the defect: an [EDITING] row is on no screen at all
      * ([OutboxLogic.isWaitingInOutbox] hides it and [OutboxLogic.activeCount] does not count it),
      * and the next launch used to hand it back to the queue and deliver the PRE-EDIT text with
      * no undo window (it now parks it, [OutboxDao.parkAllEditingAsInterrupted] — still the wrong
      * answer for a save that worked, see [FAILED] above).
      *
-     * ⭐ It costs no migration: the `state` column is `TEXT NOT NULL` and Room stores the constant's
-     * NAME, so an older build simply never wrote this word. ⚠ A row in this state read back by an
+     * It costs no migration: the `state` column is `TEXT NOT NULL` and Room stores the constant's
+     * NAME, so an older build simply never wrote this word. A row in this state read back by an
      * OLDER build would fail to map — irrelevant here (downgrades are not a supported path) but
      * worth knowing before this value is written anywhere else.
      */
@@ -56,22 +56,22 @@ enum class OutboxState {
      * [SENDING] when the worker picks it up again is a run that never came back: the message may
      * have left, and nobody on this phone can know.
      *
-     * ⛔ Re-delivering it is the defect this state exists for. Measured on the bench: reply, kill
+     * Re-delivering it is the defect this state exists for. Measured on the bench: reply, kill
      * the process 1.2 s later, reopen — the recipient gets the same message twice, 46 s apart,
      * under two different Message-Ids, and the outbox ends up empty with nothing left to say so.
      * A duplicate cannot be recalled; a parked row can be sent by hand with one tap on Retry.
      *
-     * ⛔ Not [FAILED], for the same reason [KEPT_AS_DRAFT] is not. FAILED lights the Inbox's "Some
+     * Not [FAILED], for the same reason [KEPT_AS_DRAFT] is not. FAILED lights the Inbox's "Some
      * messages didn't send. Tap to review." banner ([OutboxLogic.needsFailureBanner]), paints the
      * row in the error colour, and means "auto-retry is exhausted". Here nothing failed and no
      * attempt was ever counted ([attemptCount] is untouched by the parking): the message was quite
      * possibly delivered. "Didn't send" would be a claim across the whole Inbox that nothing could
      * ever retract.
      *
-     * ⛔ Not [QUEUED] either, which is today's behaviour and the bug: the row is due, the worker
+     * Not [QUEUED] either, which is today's behaviour and the bug: the row is due, the worker
      * takes it, and the send happens a second time.
      *
-     * ⭐ It costs no migration: the `state` column is `TEXT NOT NULL` and Room stores the
+     * It costs no migration: the `state` column is `TEXT NOT NULL` and Room stores the
      * constant's NAME, so an older build simply never wrote this word.
      */
     INTERRUPTED,
@@ -115,18 +115,18 @@ data class OutboxEntity(
      * so an entity queued by an older version is repaired on its way out without disturbing the
      * octets a signature covers.
      *
-     * ⚠ **The column name is narrower than what it holds, and that is on purpose.** It was born
+     * **The column name is narrower than what it holds, and that is on purpose.** It was born
      * for PGP/MIME and is still spelled `pgpEntityPath` in SQLite; it now also carries RFC 8098's
      * `multipart/report` read receipt, which has no PGP anywhere near it. Renaming the column would
      * cost a Room migration — a new schema version, a table rebuild, another migration test — and
-     * buy nothing but a better word. ⛔ So do not read it as "this row is PGP": the mode is
+     * buy nothing but a better word. So do not read it as "this row is PGP": the mode is
      * [pgpMode], and that is the only field that says so.
      *
      * For ENCRYPT items textBody/htmlBody/attachmentsJson are emptied: the outbox never stores
      * plaintext of an encrypted message. A SIGNED item, or a receipt, keeps its body in the row —
      * signed text is public, and a receipt's body is the human-readable half of its own entity.
      *
-     * ⚠ The path is absolute and stored as written. Nothing looks the file up by name, which is why
+     * The path is absolute and stored as written. Nothing looks the file up by name, which is why
      * the file could be renamed from `pgp-entity.mime` to
      * [app.sterna.core.data.mail.PREBUILT_ENTITY_FILE] without touching rows queued by an older
      * build: they still point at theirs.
@@ -148,23 +148,23 @@ data class OutboxEntity(
      * between, the guard compares the new number with itself, says "same", and expunges a UID from
      * the OLD numbering — i.e. destroys another message in Drafts, silently.
      *
-     * ⛔ **On IMAP, `null` destroys nothing**, and that is the safe half of the trade: a row queued
+     * **On IMAP, `null` destroys nothing**, and that is the safe half of the trade: a row queued
      * before v23 leaves its draft in place, because nothing can be shown to still mean anything. A
      * duplicate in Drafts is visible and can be deleted; an expunge under an unknown numbering
      * cannot be undone.
      *
      * On JMAP it is ALWAYS null, because there is no numbering there to oppose: an `Email/set`
-     * destroy names the message by id, and a JMAP id does not change with the folder. ⛔ Do not
+     * destroy names the message by id, and a JMAP id does not change with the folder. Do not
      * read the null as "JMAP drafts are left behind": they are not, and "fixing" that is fixing a
      * non-bug.
      *
-     * ⛔ Nor as "nothing is opposed on JMAP". That an id survives a move is the reason a destroy
+     * Nor as "nothing is opposed on JMAP". That an id survives a move is the reason a destroy
      * fired days later can take the draft out of the folder someone moved it INTO (#122), so
      * `destroyDraft`'s JMAP branch goes through `destroyAll` and opposes the FOLDER: the server is
      * asked where the id is, and an id it does not report in the expected folder ALONE is spared,
      * in silence.
      *
-     * ⚠ **And be exact about what that folder is worth.** It is `draftMailboxOf`, i.e. the cached
+     * **And be exact about what that folder is worth.** It is `draftMailboxOf`, i.e. the cached
      * row's own mailbox falling back on the Drafts role — READ at the moment of the destroy, not
      * frozen when the composer read the id. So it catches the move this phone has not learned yet,
      * and NOT the move it has already synced: once a background sync has rewritten the cached row

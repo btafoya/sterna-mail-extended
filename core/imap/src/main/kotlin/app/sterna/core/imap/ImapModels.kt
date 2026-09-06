@@ -107,12 +107,12 @@ data class ImapMessage(
     /**
      * Envelope `Bcc` (index 7): the blind copies.
      *
-     * ⚠ Practically always empty on a received message — a server does not tell a recipient who
+     * Practically always empty on a received message — a server does not tell a recipient who
      * else was blind-copied — and empty too on the mail THIS app SENT, whose bytes are built with
      * [BlindCopies.OMITTED]: a header there would hand the hidden recipients to everyone the
      * message names.
      *
-     * ⭐ The drafts THIS app APPENDs are the one exception, and they DO carry a `Bcc:` since
+     * The drafts THIS app APPENDs are the one exception, and they DO carry a `Bcc:` since
      * 2026-08-25: the ENVELOPE mirrors the headers of whatever was APPENDed, and `appendDraft`
      * asks [OutgoingMime.build] for [BlindCopies.WRITTEN]. That header is the only place a Cci
      * survives a save — a draft is reopened from the server's copy, not from what the composer
@@ -122,7 +122,7 @@ data class ImapMessage(
      * nothing (the ENVELOPE is already fetched whole) and because a field that is never read is a
      * field one starts believing is lost somewhere else.
      *
-     * ⛔ Its own list, never merged into [cc]: that merge is how a blind copy stops being blind.
+     * Its own list, never merged into [cc]: that merge is how a blind copy stops being blind.
      */
     val bcc: List<ImapAddress> = emptyList(),
     /** Epoch millis from the envelope date (0 if unparseable). */
@@ -145,7 +145,7 @@ data class ImapMessage(
      * not this one, so every list fetch asks for it as an extra item,
      * `BODY.PEEK[HEADER.FIELDS (REFERENCES)]` — see [ImapSession.fetchUids] and its three twins.
      *
-     * ⭐ Raw and whole: the ids are not split here, and nothing in this module reads it. It is
+     * Raw and whole: the ids are not split here, and nothing in this module reads it. It is
      * carried so that a thread rebuilt on the client can be rooted at its FIRST id.
      */
     val references: String? = null,
@@ -153,7 +153,7 @@ data class ImapMessage(
      * Where this message's readable text is, per the BODYSTRUCTURE that came with the envelope, or
      * null when it has no `text/…` part (and when the server sent no structure at all).
      *
-     * ⭐ Additive and nullable: nothing that lists, searches or restores a message reads it. It is
+     * Additive and nullable: nothing that lists, searches or restores a message reads it. It is
      * kept ONLY so that a later, deliberate read — the notification preview — can name a section
      * without asking the server to describe the message a second time. The structure was already
      * fetched and already thrown away; see [firstTextPart].
@@ -167,7 +167,7 @@ data class ImapMailboxStatus(
     val uidValidity: Long,
     val uidNext: Long,
     /**
-     * ⛔ Whether [exists] is a number THE SERVER STATED, or merely the value it is initialised to.
+     * Whether [exists] is a number THE SERVER STATED, or merely the value it is initialised to.
      *
      * `SELECT` is required to answer `* n EXISTS` (RFC 3501 §6.3.1), and when it does not — the line
      * absent, or an `n` that will not parse (`* NIL EXISTS`) — [exists] stays 0, which reads exactly
@@ -175,7 +175,7 @@ data class ImapMailboxStatus(
      * asks for no page at all, comes back with no UID, and the reconcile above would then take the
      * empty result as "the folder is empty" and DELETE every cached row of it.
      *
-     * ⭐ False by default, and the default is the refusing one on purpose: a value that has to be
+     * False by default, and the default is the refusing one on purpose: a value that has to be
      * asserted to license a delete cannot be forgotten into existence. `false` costs a cache that
      * keeps more than the window until the next refresh; `true` costs the folder.
      */
@@ -191,7 +191,7 @@ data class ImapMailboxStatus(
  * per-message Undo positioning is lost.
  *
  * [destinationUidValidity] is the DESTINATION folder's numbering as that same `COPYUID` stated it
- * — the first token of the response code, which this client used to discard. ⭐ It is a FROZEN
+ * — the first token of the response code, which this client used to discard. It is a FROZEN
  * fact, not a reading: the numbering in force at the instant those destination UIDs were assigned,
  * stated by the server in the same breath as the UIDs themselves. Nothing else in a move ever
  * learns it, because a `UID MOVE` does not SELECT its destination — so on a Trash the user has
@@ -213,12 +213,12 @@ data class ImapMailboxStatus(
  * caller that counts a whole batch as moved because the command did not throw therefore reports
  * mail as moved that never moved.
  *
- * ⛔ Empty means "nothing is confirmed", NEVER "nothing moved". A server that reports no `COPYUID`
+ * Empty means "nothing is confirmed", NEVER "nothing moved". A server that reports no `COPYUID`
  * and refuses the probe has very probably moved everything; this field simply holds no proof of
  * it. Read the other way round it destroys working moves on a whole class of servers. What is IN
  * the set is proved; what is out of it is unknown, and the next sync is what settles the rest.
  *
- * ⛔ Reporting all this refuses nothing here: `core/imap` states what the server said and decides
+ * Reporting all this refuses nothing here: `core/imap` states what the server said and decides
  * nothing from it, exactly as [ImapFolder.unelectedRole] does.
  */
 data class ImapMoved(

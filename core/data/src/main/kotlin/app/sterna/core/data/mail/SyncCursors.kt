@@ -36,7 +36,7 @@ interface SyncCursorStore {
  * So the sibling ids are taken into account and the LONGEST matching id wins: a key claimed by a
  * longer sibling id belongs to that sibling, never to [accountId].
  *
- * ⚠ "Longest wins" is a tie-break, NOT a proof, and it is not symmetric. Account `"1"` asking for
+ * "Longest wins" is a tie-break, NOT a proof, and it is not symmetric. Account `"1"` asking for
  * its keys will not touch `"12inbox"` — but account `"12"` asking for ITS keys WILL take it, even
  * though it could just as well be account `"1"`'s mailbox `"2inbox"`. Nothing in the key can tell
  * those apart. So the short id fails safe (its cursor survives, the setting stays inert, which is
@@ -70,7 +70,7 @@ fun cursorKeysOfAccount(
  * (when wired) so cursors survive process death — vital once pushes wake a dead process
  * (issue #17); a cold start then still runs a cheap delta.
  *
- * ⚠ Every operation touches BOTH halves. Dropping a cursor only in memory looks right until the
+ * Every operation touches BOTH halves. Dropping a cursor only in memory looks right until the
  * next cold start, when [load] reads the stale one back off disk and the folder resumes a delta
  * it was supposed to have forgotten.
  */

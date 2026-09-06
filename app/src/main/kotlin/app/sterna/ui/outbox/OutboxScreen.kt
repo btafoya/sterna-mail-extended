@@ -135,7 +135,7 @@ fun OutboxScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    // ⛔ What the row says, and in which colour, is decided in OutboxRowText and
+                    // What the row says, and in which colour, is decided in OutboxRowText and
                     // only EXECUTED here. A `when (item.state)` written back into this composable
                     // is unreachable from every test in this module — and its `else ->` is exactly
                     // how a state with no branch of its own inherited another one's sentence: a
@@ -166,10 +166,10 @@ fun OutboxScreen(
                     // of the first attempts, or an arming that never happened — and that reason was
                     // stored and shown nowhere, so Retry was pressed against a silent screen. It is
                     // a LINE OF ITS OWN, under the state sentence, which stays untouched and true:
-                    // the row is waiting, it has not failed. ⛔ Hence onSurfaceVariant and not
+                    // the row is waiting, it has not failed. Hence onSurfaceVariant and not
                     // colorScheme.error, and no "Failed" anywhere — red belongs to FAILED alone, and
                     // nothing would ever repaint a red put here once the message goes out.
-                    // ⛔ FRAMED as history, never printed bare: lastError is the LAST reason recorded
+                    // FRAMED as history, never printed bare: lastError is the LAST reason recorded
                     // and not necessarily the current one — a re-arm that succeeded does not clear
                     // it, and an offline row carries an online failure's reason for days.
                     if (outboxShowsWaitingReason(item.state, item.lastError)) {

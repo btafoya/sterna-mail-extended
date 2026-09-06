@@ -20,11 +20,11 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * The rows of the latest-messages widget, served to the launcher.
  *
- * ⛔ A LIST IN A WIDGET NEEDS THIS SERVICE at `minSdk 26`: `RemoteViews.RemoteCollectionItems`, the
+ * A LIST IN A WIDGET NEEDS THIS SERVICE at `minSdk 26`: `RemoteViews.RemoteCollectionItems`, the
  * modern way of shipping items inside the `RemoteViews` itself, is API 31+. Below that the launcher
  * binds a [RemoteViewsService] in this app's process and pulls each row from it.
  *
- * ⛔ AND THE MANIFEST GUARDS IT WITH `android:permission="android.permission.BIND_REMOTEVIEWS"`.
+ * AND THE MANIFEST GUARDS IT WITH `android:permission="android.permission.BIND_REMOTEVIEWS"`.
  * That permission is held by the system alone, so only the widget host reaches this factory.
  * Without it any installed app could bind this service and read, on demand, the sender and subject
  * of every message in every inbox — whatever the notification-content setting says, and with no
@@ -37,7 +37,7 @@ class RecentMailWidgetService : RemoteViewsService() {
 }
 
 /**
- * ⛔ PLUMBING ONLY. Every decision this draws was taken in [RecentMailWidgetContent] and can be run
+ * PLUMBING ONLY. Every decision this draws was taken in [RecentMailWidgetContent] and can be run
  * in a JVM test; nothing below chooses a word. A `RemoteViewsFactory` cannot be executed in that
  * suite, so anything it decided would be decided where nothing can check it.
  */
@@ -51,15 +51,15 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
      * The colours [getViewAt] paints those rows in — set from the SAME [RecentWidgetDrawing] as
      * [rows], never fetched here, and dropped by [onDestroy] exactly as [rows] is.
      *
-     * ⚠ NULL IS A REAL STATE and it is left uncoloured on purpose. [onDataSetChanged] returns early
+     * NULL IS A REAL STATE and it is left uncoloured on purpose. [onDataSetChanged] returns early
      * when neither its own read nor the held drawing answers, so the launcher can ask for rows
      * before anything has been read. A row drawn with no `setTextColor` keeps the colour its layout
      * froze in (`@color/widget_row_primary` / `@color/widget_unread_label`, resolved through
      * `values-night`): the widget's behaviour before this change, i.e. stale rather than wrong, and
-     * not a regression. ⛔ A hard-coded default palette here would be the opposite — this file
+     * not a regression. A hard-coded default palette here would be the opposite — this file
      * deciding a colour, on the one path where nothing is known.
      *
-     * ⭐ THAT PARAGRAPH IS NOW THE RULE FOR THE WHOLE PANE, not this file's own arrangement.
+     * THAT PARAGRAPH IS NOW THE RULE FOR THE WHOLE PANE, not this file's own arrangement.
      * [WidgetThemeReader.palette] itself returns null on two paths — a read that timed out, and
      * an app that does not diverge from the system ([widgetFollowsResources]) — and the counter's
      * `render` and the frame's `draw` skip their colour lines on it exactly as [getViewAt] does
@@ -74,11 +74,11 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
      * The tones a row's monogram badge is painted in — from the SAME [RecentWidgetDrawing] as
      * [rows] and [palette], and dropped by [onDestroy] with them.
      *
-     * ⛔ NULL HERE MEANS "THE COLOUR READ DID NOT ANSWER", and nothing else. It does NOT mean "use
+     * NULL HERE MEANS "THE COLOUR READ DID NOT ANSWER", and nothing else. It does NOT mean "use
      * the default palette": [WidgetColours.monogramRamps] is not itself nullable, precisely because
      * a badge is a BITMAP and there is no `res/values-night` behind a bitmap to fall back on. So
      * null is drawn as NO BADGE — a row one refresh behind, never a badge in a palette this file
-     * chose. ⛔ A hard-coded ramp here would be the one thing the whole pane forbids: a colour
+     * chose. A hard-coded ramp here would be the one thing the whole pane forbids: a colour
      * decided at the drawing site, on the one path where nothing is known.
      */
     @Volatile
@@ -90,13 +90,13 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
      * The launcher's "refetch" — called on a binder thread, and allowed to block, which is what
      * makes a database read legal here at all.
      *
-     * ⛔ [withTimeoutOrNull] and not `withTimeout`: the second reports a slow read as a
+     * [withTimeoutOrNull] and not `withTimeout`: the second reports a slow read as a
      * `CancellationException`, and this runs on a thread the launcher is waiting on. On a read that
      * does not answer, the rows already held are KEPT — the cell goes on showing what it showed,
-     * which is honest about being out of date. ⛔ Never an empty list on failure: that is the cell
+     * which is honest about being out of date. Never an empty list on failure: that is the cell
      * saying the mail is gone.
      *
-     * ⛔ Nothing escapes. An exception thrown from a binder callback takes the process with it.
+     * Nothing escapes. An exception thrown from a binder callback takes the process with it.
      */
     override fun onDataSetChanged() {
         val app = context.applicationContext as? Application ?: return
@@ -109,7 +109,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         // Failing that, whatever the last read left behind — the provider may have filled it a
         // moment ago on a process the launcher has only just bound. Failing THAT, nothing is drawn.
         //
-        // ⛔ ROWS AND COLOURS COME OUT OF THE SAME DRAWING, in one expression. Reading the palette
+        // ROWS AND COLOURS COME OUT OF THE SAME DRAWING, in one expression. Reading the palette
         // on its own line from RecentMailWidgetDraw.drawing would let a read that landed in between
         // hand this factory the colours of one moment and the rows of another.
         val drawing = read ?: RecentMailWidgetDraw.drawing ?: return
@@ -136,7 +136,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         // The launcher can ask for a position from a list we have since replaced; that is a normal
         // race, not a fault, and an out-of-range read here would throw on a binder thread.
         //
-        // ⛔ The blank row is written blank, rather than returned untouched. A RemoteViews with no
+        // The blank row is written blank, rather than returned untouched. A RemoteViews with no
         // setTextViewText leaves the launcher's recycled view showing the row it last drew there —
         // so a list that shrank between getCount() and here would keep a sender and a subject on
         // screen under a row that no longer exists, and there is no setting under which that is
@@ -146,7 +146,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
             views.setTextViewText(R.id.widget_recent_row_primary, "")
             views.setTextViewText(R.id.widget_recent_row_secondary, "")
             views.setTextViewText(R.id.widget_recent_row_date, "")
-            // ⛔ The badge is CLEARED, not merely hidden. setImageViewBitmap posts a null where the
+            // The badge is CLEARED, not merely hidden. setImageViewBitmap posts a null where the
             // launcher's recycled ImageView holds the disc of whatever row it last drew, so a list
             // that shrank between getCount() and here would leave a correspondent's colour and
             // initial under a blank line — the same fault as the three empty strings above, one
@@ -163,9 +163,9 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
             return views
         }
         val row = item.drawn
-        // The app's own theme, from the same read as the rows (#112, #117). ⛔ The sender takes
+        // The app's own theme, from the same read as the rows (#112, #117). The sender takes
         // `rowPrimary` (Material onSurface, what the message list draws a sender in) and the two
-        // quieter lines take `label`: swapped, the date shouts and the name recedes. ⛔ And the
+        // quieter lines take `label`: swapped, the date shouts and the name recedes. And the
         // account dot below is NOT painted from here — its colour says which mailbox the message
         // came from, which no theme role may overwrite.
         val colours = palette
@@ -183,9 +183,9 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         views.setTextViewText(R.id.widget_recent_row_date, weighted(row.date, row.unread))
         // The badge, as a Bitmap because a RemoteViews has no other way to carry a coloured letter.
         //
-        // ⛔ INVISIBLE and never GONE, exactly like the dot below: the two hold the row's head
+        // INVISIBLE and never GONE, exactly like the dot below: the two hold the row's head
         // column, and a GONE one would start this row's sender at a different x from its
-        // neighbours'. ⛔ And the bitmap is posted on BOTH paths — a null clears whatever disc the
+        // neighbours'. And the bitmap is posted on BOTH paths — a null clears whatever disc the
         // recycled view was holding, which is what makes the INVISIBLE honest.
         val badge = monogramFor(row)
         views.setImageViewBitmap(R.id.widget_recent_row_monogram, badge)
@@ -196,7 +196,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         // Which account this line came from, as a colour and never as a name — the list interleaves
         // several mailboxes by date and nothing else on the row says which is which.
         //
-        // ⛔ setColorFilter and NOT setBackgroundColor: the second replaces the drawable with a flat
+        // setColorFilter and NOT setBackgroundColor: the second replaces the drawable with a flat
         // fill and the dot stops being a circle. The two lines are straight, with no `?.let`,
         // because the view is INVISIBLE whenever the colour is null — a leftover filter under it
         // draws nothing.
@@ -220,11 +220,11 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
      * states in which a row names nobody at all. An initial is a name reduced to one letter, and
      * SECURITY.md's promise is that a locked home screen names neither sender nor subject.
      *
-     * `monogramRamps == null` is the COLOUR read's: it did not answer, so no badge is drawn. ⛔ Not
+     * `monogramRamps == null` is the COLOUR read's: it did not answer, so no badge is drawn. Not
      * a default ramp — a badge is a bitmap and there is no `res/values-night` behind a bitmap to
      * make a wrong colour merely stale, so the row goes one refresh without its disc instead.
      *
-     * ⚠ Nothing in the JVM suite executes this: it ends in a `Bitmap`. The two guards are pinned as
+     * Nothing in the JVM suite executes this: it ends in a `Bitmap`. The two guards are pinned as
      * text next door, and what the disc LOOKS like is a bench claim.
      */
     private fun monogramFor(row: RecentWidgetRow): Bitmap? {
@@ -238,30 +238,30 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
      * and the same one the message list inside the app has used for releases (EmailListItem
      * shows unread by weight and deliberately NOT by a status dot).
      *
-     * ⛔ ALL THREE FIELDS GO THROUGH IT: sender, subject and date. That is the project's written
+     * ALL THREE FIELDS GO THROUGH IT: sender, subject and date. That is the project's written
      * rule, not a preference — DESIGN.md:58, "Unread is shown by weight, never by a status dot:
-     * sender, time and subject go bold" — and the list bolds the three (EmailListItem.kt:289, :311,
-     * :319). A cell that weighted only two of them would draw, on an unread message, a bold sender
+     * sender, time and subject go bold" — and the list bolds the three (`EmailListItem`).
+     * A cell that weighted only two of them would draw, on an unread message, a bold sender
      * and a bold time above a plain subject: the home screen and the list it opens saying two
      * different things about the same message, which is the very contradiction this row exists to
      * remove.
      *
-     * ⚠ Under the SENDER_ONLY position of the notification-content setting the second line is not a
+     * Under the SENDER_ONLY position of the notification-content setting the second line is not a
      * subject at all but the generic stand-in ("New message"), and it is bolded like the rest — it
      * occupies THE SUBJECT'S PLACE on the row, and the weight states the message's read state, not
      * what the line happens to say. Leaving it plain there would mark a row half unread.
      *
-     * ⚠ `RemoteViews` HAS NO WAY TO SET A TYPEFACE. There is no `setTypeface` on `TextView` that
+     * `RemoteViews` HAS NO WAY TO SET A TYPEFACE. There is no `setTypeface` on `TextView` that
      * takes one parcelable argument, so `setInt(…, "setTypeface", …)` compiles and does nothing.
      * The weight therefore travels INSIDE the text: `setTextViewText` takes a `CharSequence`, and a
      * `StyleSpan` is a `ParcelableSpan`, so the span survives the binder hop into the launcher's
      * process and is applied there.
      *
-     * ⛔ Not two alternating TextViews, one bold and one not, switched by visibility: that is a
+     * Not two alternating TextViews, one bold and one not, switched by visibility: that is a
      * second view and a second id per field, four views for two lines, and every rule that touches
      * a row would then have to touch both halves and stay consistent between them.
      *
-     * ⚠ NOTHING IN THIS SUITE EXECUTES THIS FUNCTION — `RemoteViews` is not on the JVM classpath
+     * NOTHING IN THIS SUITE EXECUTES THIS FUNCTION — `RemoteViews` is not on the JVM classpath
      * and there is no Robolectric here. That a row actually LOOKS bold on a home screen is a bench
      * claim; what the tests hold is that both fields go through this call.
      */

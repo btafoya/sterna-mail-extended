@@ -238,7 +238,7 @@ class SettingsRepository(context: Context) {
      *  decides, and the decision is `PgpProviders.resolve`. Only ever set from the Settings row
      *  that appears when two or more providers are installed — with one, there is nothing to pick.
      *
-     *  ⛔ Deliberately absent from [SettingsBackup]: a package name is a fact about ONE device.
+     *  Deliberately absent from [SettingsBackup]: a package name is a fact about ONE device.
      *  Restored onto a phone that does not have that app, it would name a provider that cannot be
      *  bound, and the honest answer there is to let discovery decide again. */
     val pgpProvider: Flow<String?> = dataStore.data.map { it[KEY_PGP_PROVIDER] }
@@ -330,13 +330,13 @@ class SettingsRepository(context: Context) {
 
     /**
      * Whether an opened message that asks for a read receipt (RFC 8098's
-     * `Disposition-Notification-To:`) may raise the question at all — ⛔ **off by default**.
+     * `Disposition-Notification-To:`) may raise the question at all — **off by default**.
      *
-     * ⛔ Two positions, never three: off, and the app ignores the header entirely; on, and it
+     * Two positions, never three: off, and the app ignores the header entirely; on, and it
      * ASKS. There is no "always send", under any name. Turning this on is not consent to answer
      * anybody — it is consent to be asked, one message at a time.
      *
-     * ⚠ Whoever reads this flow drives an ACTION rather than shows a value, and DataStore answers
+     * Whoever reads this flow drives an ACTION rather than shows a value, and DataStore answers
      * a beat late: a reader that treats "not answered yet" as `false` is safe by coincidence of
      * the default, and a reader that treats it as `true` asks the question of the overwhelming
      * majority who never turned it on. See the caller's own unloaded state
@@ -648,12 +648,12 @@ internal fun pureBlackFrom(prefs: Preferences): Boolean = prefs[KEY_PURE_BLACK] 
 internal val KEY_ASK_READ_RECEIPT = booleanPreferencesKey("ask_read_receipt")
 
 /**
- * ⛔ **Off**, and this is the one value in this file that must never be flipped by a refactor: a
+ * **Off**, and this is the one value in this file that must never be flipped by a refactor: a
  * read receipt tells a stranger that a person opened their mail, at a time, on a device.
  * `SECURITY.md` promises none of that leaves on open. On by default, every install would start
  * asking that question of readers who never heard of it.
  *
- * ⛔ It is also only two positions: off ignores the header, on ASKS. Turning it on is consent to be
+ * It is also only two positions: off ignores the header, on ASKS. Turning it on is consent to be
  * asked, never consent to answer, and there is no third value anywhere for "always send".
  *
  * One definition, read by [askReadReceiptFrom] and by the settings screen's initial value.
@@ -665,7 +665,7 @@ const val ASK_READ_RECEIPT_DEFAULT = false
  *
  * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
  * the whole [Preferences] there is nothing left to pre-empt, and the test can hand it an empty
- * store, a store with the switch on, and one with it off. ⚠ Whoever READS the flow has a second
+ * store, a store with the switch on, and one with it off. Whoever READS the flow has a second
  * problem this function cannot solve — DataStore answers a beat late, and "not answered yet" is not
  * "off"; see `app.sterna.ui.message.ReadReceiptSetting`.
  */

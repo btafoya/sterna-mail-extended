@@ -16,7 +16,7 @@ internal enum class RefreshNotice {
 /**
  * Which of the three a refresh landed on, from the connectivity flag and the last refresh error.
  *
- * ⛔ Why this is not `offline || error != null`, which is what the screen did: being offline is a
+ * Why this is not `offline || error != null`, which is what the screen did: being offline is a
  * claim about the DEVICE, and the app already knows better. A rejected password, a 403, a TLS
  * failure, a folder that no longer exists, a JMAP request the server refuses — none of them are a
  * network outage, `isNetworkFailure` does not recognise them as one, so connectivity stays TRUE

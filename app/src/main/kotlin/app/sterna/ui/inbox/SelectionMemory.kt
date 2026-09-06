@@ -13,7 +13,7 @@ import app.sterna.widget.AllInboxesView
  * Inbox" on every launch. This is the same idea, written where a JVM test can run it: the store
  * only ever holds an opaque string, so everything that can be got wrong is here.
  *
- * ⛔ The stored value carries the ACCOUNT ID next to the selection, never a bare folder id. Two
+ * The stored value carries the ACCOUNT ID next to the selection, never a bare folder id. Two
  * accounts on the same server number their mailboxes independently, so a bare id read back under
  * another account opens a sibling's folder under the current account's header (#92 / #121).
  *
@@ -30,7 +30,7 @@ import app.sterna.widget.AllInboxesView
  * The string to store for [sel] under [accountId], or `null` when there is nothing worth
  * remembering — which the caller stores as `null`, i.e. "fall back on the Inbox next time".
  *
- * ⭐ `Sel.Folder(null)` is one of those: a selection with no folder id is the state a never-synced
+ * `Sel.Folder(null)` is one of those: a selection with no folder id is the state a never-synced
  * account is in, and storing it would reopen on a list with no folder instead of landing on the
  * Inbox as soon as its id is known.
  */
@@ -54,7 +54,7 @@ internal fun encodeSelection(accountId: String?, sel: Sel): String? {
  *   (`AllInboxesView.existsFor`). A restored unified view on a single-account install would have no
  *   drawer entry to come back to and a title naming a view that is not on offer.
  *
- * ⛔ A folder that was deleted, renamed or unsubscribed is NOT judged here: `selectionIsUnreachable`
+ * A folder that was deleted, renamed or unsubscribed is NOT judged here: `selectionIsUnreachable`
  * already answers that from the folder list, once it has one, and it takes a loaded list to tell
  * "taken away" from "not known yet". Doubling it here, with no list in hand, could only guess.
  */
@@ -90,7 +90,7 @@ internal fun restoreSelection(
  * `store.currentId()` against `store.inboxMailboxId()` is one keystroke apart: the day they drift,
  * the list reopens on one view and the rest of the app reasons about another.
  *
- * ⛔ It decides NOTHING. The rule stays [restoreSelection], pure and run by `SelectionMemoryTest`;
+ * It decides NOTHING. The rule stays [restoreSelection], pure and run by `SelectionMemoryTest`;
  * this only reads the store, which is why it is the one thing here no JVM test can execute.
  * `SelectionMemoryWiringLintTest` pins its signature and takes two counts over the whole module,
  * bench source sets included: one call to [restoreSelection], and one read of `storedView()` —
@@ -105,7 +105,7 @@ internal fun restoredSelection(store: AccountStore): Sel? = restoreSelection(
 /**
  * What the top bar shows: the account line, the mailbox name, and the badge's count.
  *
- * ⭐ Lives HERE, at the top level of the package, rather than nested in `InboxViewModel` where it
+ * Lives HERE, at the top level of the package, rather than nested in `InboxViewModel` where it
  * was born: the header a RESTORED view can honestly claim is decided by [restoredMeta] and
  * [restoredFolderMeta] below, and a `private` type nested in a class no JVM test can build puts
  * that decision out of reach. Same type, same three fields, every `Meta(…)` call site unchanged —
@@ -116,7 +116,7 @@ internal data class Meta(val accountName: String, val mailboxName: String, val u
 /**
  * The internal label the unified inbox's [Meta] carries, in both its name fields.
  *
- * ⛔ ONE literal, moved out of `InboxViewModel`'s companion rather than copied: it is never shown
+ * ONE literal, moved out of `InboxViewModel`'s companion rather than copied: it is never shown
  * as it stands — `InboxScreen` swaps it for the translated string on `ui.unified`, and
  * `UnifiedTitleWiringLintTest` pins that — so a second copy here would be an English title in nine
  * locales the day the two drift. It sits next to [Meta] because [restoredMeta] needs to name it
@@ -133,7 +133,7 @@ internal const val UNIFIED_LABEL = "All inboxes"
  * reopened folder was titled "Inbox" over that folder's messages — and in airplane mode it stayed
  * that way, because the only other writer of the header is the SUCCESS path of a refresh.
  *
- * ⚠ How much of the screen this actually moves, measured rather than assumed:
+ * How much of the screen this actually moves, measured rather than assumed:
  *  - the NAME — once the folder list has arrived, `InboxScreen` titles the bar with
  *    `mailboxDisplayName(role, ui.mailboxName)`, which answers a localized label for every
  *    special-use role. Trash, Sent, Archive, Drafts and Junk therefore already had a correct title
@@ -149,13 +149,13 @@ internal const val UNIFIED_LABEL = "All inboxes"
  * The three arms:
  *  - [Sel.Unified] — what `selectUnified()` already writes. The label is the internal
  *    [UNIFIED_LABEL] the screen translates, and the total is the store's own sum, no network.
- *  - [Sel.Unread] — ⭐ EXACTLY what `selectUnread()` already writes, unchanged. That view's title
- *    is `R.string.inbox_unread_view` and never reads `mailboxName` — ⛔ but ONLY on the
+ *  - [Sel.Unread] — EXACTLY what `selectUnread()` already writes, unchanged. That view's title
+ *    is `R.string.inbox_unread_view` and never reads `mailboxName` — but ONLY on the
  *    `ui.unreadView` arm, and the placeholder that stands in until the first emission has to SAY
  *    so. What had to be corrected for this arm was that flag, not the name: `InboxViewModel`'s
  *    `initialValue` did not carry `unreadView`, took the field's default `false`, and sent a
  *    restored unread view down the folder arm — the Inbox's raw name over the whole account.
- *  - [Sel.Folder] that is not the Inbox — ⛔ NO name rather than a false one, and no count either
+ *  - [Sel.Folder] that is not the Inbox — NO name rather than a false one, and no count either
  *    (see above for what each is worth). The name is filled in from the CACHED folder list a
  *    moment later ([restoredFolderMeta]), which is a database read and works offline.
  *
@@ -185,7 +185,7 @@ internal fun restoredMeta(
  * @property settled the one shot is spent: stop waiting for a list, whatever [meta] holds.
  * @property meta the header to write, or `null` when nothing must be written at all.
  *
- * ⚠ Two `null`s would have been one `null` too few. "No list yet" and "decided, nothing to write"
+ * Two `null`s would have been one `null` too few. "No list yet" and "decided, nothing to write"
  * are the SAME `Meta?` and the opposite instruction: collapsing them lets the empty-list guard be
  * deleted without a single test noticing, since an empty list finds no folder and answers `null`
  * on its own.
@@ -239,17 +239,17 @@ internal fun restoredFolderMeta(
  * excluded from the extraction rules): what is corrected here is a false promise about the local
  * disk.
  *
- * ⛔ The key is GLOBAL — ONE entry for the whole app, the last view shown, whichever account it
+ * The key is GLOBAL — ONE entry for the whole app, the last view shown, whichever account it
  * belonged to. So it is dropped only when it names a removed account: removing it unconditionally
  * would erase a SURVIVING account's memory every time a neighbour is signed out.
  *
- * ⭐ Decided on the FIRST field alone, not on a well-formed value. An account id cannot hold a
+ * Decided on the FIRST field alone, not on a well-formed value. An account id cannot hold a
  * `"\n"` ([AccountStore] mints them with `UUID.randomUUID()`) but a folder id can — an IMAP path
  * decoded from modified UTF-7 — so a four-field value, already refused at read time by
  * [restoreSelection], still carries a real account id in front, and is precisely the shape that
  * holds a folder name in cleartext. It has to be pruned too.
  *
- * ⛔ It does NOT replace [restoreSelection]'s account guard. That one keeps another account's view
+ * It does NOT replace [restoreSelection]'s account guard. That one keeps another account's view
  * off the SCREEN; this one keeps a removed account's view off the DISK. Both, not one instead of
  * the other.
  */

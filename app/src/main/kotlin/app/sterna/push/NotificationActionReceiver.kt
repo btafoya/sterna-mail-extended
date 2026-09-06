@@ -33,7 +33,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * It never destroys either way — what it performs is a move to Trash, and permanent deletion lives
  * in the list behind its cancelable Undo window (Codeberg #23).
  *
- * ⚠ That refusal owns the BUTTON, not the banner's lifetime, and only ON A LIVE ACCOUNT does
+ * That refusal owns the BUTTON, not the banner's lifetime, and only ON A LIVE ACCOUNT does
  * something else own the rest: nothing on this path takes the banner down, but a background pass
  * will, on its own — once a sync reports the message gone from the watched folder and the server
  * confirms where it went, NewMailNotifier takes the banner down (Codeberg #134). For a message the
@@ -49,7 +49,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * that has nothing left to act with: AccountsViewModel.signOut cancels them as it tears the
  * account down.
  *
- * ⚠ Signing out is the only way in that does. An account can lose its credentials without ever
+ * Signing out is the only way in that does. An account can lose its credentials without ever
  * passing through it — a linked sub-account pruned on reconcile (Codeberg #31), a secret that no
  * longer decrypts — and its banners then stand until the user swipes them away, since nothing
  * here takes them down and no background pass revisits the account. Accepted: leaving a banner
@@ -165,7 +165,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             // and it decides how much of the message that banner may name (the subject used to go
             // out whatever the user had chosen).
             //
-            // ⚠ GUARDED, and that is not decoration: this read is the first thing on this arm that
+            // GUARDED, and that is not decoration: this read is the first thing on this arm that
             // can throw. The DataStore is declared with no corruption handler (SettingsRepository),
             // so a truncated preferences file surfaces as a throw from `first()` — which onReceive's
             // `catch (_: Throwable)` then swallows, leaving the banner unposted. The text the user
@@ -188,7 +188,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
      * abandoned on a budget, and whatever it did not bring back is simply not put on the message. A
      * reply that goes out with no In-Reply-To beats a reply that never goes out.
      *
-     * ⚠ Known and accepted: the cached row carries neither Cc nor Message-Id/References — the
+     * Known and accepted: the cached row carries neither Cc nor Message-Id/References — the
      * columns do not exist (EmailEntity/EmailMapper) — so a quick reply lands OUTSIDE its thread
      * whenever the server does not answer within the budget. Adding those columns is a schema
      * migration and belongs to another change.
@@ -230,7 +230,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
      * to the very socket the budget exists to escape — and the budget is spent on await(), which IS
      * a suspension point. On expiry the job is cancelled and we go and queue the message.
      *
-     * ⚠ Accepted: cancelling does not close the socket, so the orphaned thread may block until the
+     * Accepted: cancelling does not close the socket, so the orphaned thread may block until the
      * OS gives up on it. A leaked thread in a receiver that is about to be killed anyway costs less
      * than a lost message.
      */
@@ -254,7 +254,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         emailId: String,
         notifId: Int,
     ) {
-        // ⭐ The shade is read BEFORE the cancel below, not after. `cancel` returns once the
+        // The shade is read BEFORE the cancel below, not after. `cancel` returns once the
         // system has queued the work, and `getActiveNotifications` does not drain that queue: a
         // read taken afterwards still shows the banner just taken down, and the summary refresh
         // would put it straight back on screen (#134). Read first, then subtract what leaves.

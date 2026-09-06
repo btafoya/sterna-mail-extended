@@ -122,7 +122,7 @@ data class Email(
      * `List-Unsubscribe` (RFC 2369), raw — the way out of a mailing list the sender offers.
      * Requested only by the two body-bearing fetches, so no list view pays for it.
      *
-     * ⚠ The `@SerialName` is what makes this field EXIST: the JMAP property is literally named
+     * The `@SerialName` is what makes this field EXIST: the JMAP property is literally named
      * `header:List-Unsubscribe:asText`, and `DefaultJson` is `ignoreUnknownKeys = true`, so
      * without it kotlinx drops the server's answer without a word and the reader silently never
      * offers the button. Same for [listUnsubscribePost].
@@ -140,15 +140,15 @@ data class Email(
      * Requested only by the two body-bearing fetches, like [listUnsubscribe]: a folder page must
      * not pay for a header only an opened message reads.
      *
-     * ⚠ Same invariant as [listUnsubscribe], and the same silent failure: the `@SerialName` IS the
+     * Same invariant as [listUnsubscribe], and the same silent failure: the `@SerialName` IS the
      * field. `DefaultJson` is `ignoreUnknownKeys = true`, so a wrong or missing name makes kotlinx
      * drop the server's answer without a word, and every message then looks like one asking for
      * nothing.
      *
-     * ⭐ `asText` and not `asAddresses` — deliberately the same type as the IMAP path hands over
+     * `asText` and not `asAddresses` — deliberately the same type as the IMAP path hands over
      * (`MimeParser.headerOf`), so ONE parser ([app.sterna.core.data.mail.ReadReceiptHeader])
      * decides on both protocols and a malformed header cannot be read two different ways
-     * depending on which server the account is on. ⛔ Not to be confused with the `asAddresses`
+     * depending on which server the account is on. Not to be confused with the `asAddresses`
      * property [app.sterna.core.jmap.JmapClient.sendEmail] SETS when composing: that one writes
      * the header, this one reads it.
      */
@@ -159,7 +159,7 @@ data class Email(
      * read off an `X-…-Original-From…` field when the message carries one (#160). Null for very
      * nearly every message; the `From` above is NEVER replaced by it.
      *
-     * ⛔ No `@SerialName`, deliberately, and that is the difference from the three fields above:
+     * No `@SerialName`, deliberately, and that is the difference from the three fields above:
      * this is NOT a JMAP property and is never requested from a server. It is filled by the
      * repository on both protocols — off the source already in hand on IMAP, off the dedicated
      * `getEmailHeaders` call on JMAP — so a name matching a wire property would be a claim the

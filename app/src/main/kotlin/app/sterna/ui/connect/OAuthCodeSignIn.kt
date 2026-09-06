@@ -51,7 +51,7 @@ sealed interface OAuthCodeOutcome {
  * the code would never be exchanged. On success the account is added and a toast is shown, so it
  * works even if nobody is watching the connect screen any more.
  *
- * ⛔ Nothing this class draws is logged: not the verifier, not the state, not the code, not a
+ * Nothing this class draws is logged: not the verifier, not the state, not the code, not a
  * token. The only things that ever reach the screen are the closed vocabulary of
  * [oauthFailureSpec] and this file's own sentences.
  */
@@ -82,12 +82,12 @@ class OAuthCodeSignIn(
      */
     fun start(host: String, metadata: OAuthMetadata, email: String, accountName: String) {
         if (job?.isActive == true) return
-        // ⛔ An explicit start REPLACES whatever was in flight, and drops it even if the URL below
+        // An explicit start REPLACES whatever was in flight, and drops it even if the URL below
         // cannot be built. Refusing while something is armed locked the flow for the life of the
         // process: a request abandoned by the Back key (browser opened, nothing approved) can
         // never complete, nothing expires it, and the next visit to Add account reopened the dead
         // request's browser panel. Double-taps are held by rememberLeaveOnce on the screen.
-        // ⛔ This is NOT the one-shot rule — that one lives on the return, in the slot.
+        // This is NOT the one-shot rule — that one lives on the return, in the slot.
         slot.disarm()
         val verifier = Pkce.newCodeVerifier()
         val state = newOAuthState()
@@ -161,7 +161,7 @@ class OAuthCodeSignIn(
                 // it stores the token endpoint and client id per account, so the refresher is
                 // generic and knows nothing about which grant created the account.
                 val created = repo.addOAuthAccount(request.host, request.email, request.metadata, tokens, request.accountName)
-                // ⛔ "Account added" is no longer the only thing this can say: the add resolves
+                // "Account added" is no longer the only thing this can say: the add resolves
                 // onto an account already stored under the same identity and refreshes it, and
                 // this toast is all the reader gets. WHICH sentence is accountAddedToast's, not
                 // this driver's — nothing here can be executed by a test.

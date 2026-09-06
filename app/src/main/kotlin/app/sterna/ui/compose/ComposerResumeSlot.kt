@@ -30,13 +30,13 @@ import java.util.concurrent.atomic.AtomicLong
  * baseline go into an app-private file under `filesDir`. The token proves the parcel and the file
  * are talking about the same record — it has no security role whatsoever.
  *
- * ⛔ ONE FILE PER COMPOSER, not one per app. Two composers ARE reachable: `MainActivity` is
+ * ONE FILE PER COMPOSER, not one per app. Two composers ARE reachable: `MainActivity` is
  * singleTask, `onNewIntent` feeds `pendingMailto`, and the host navigates to `compose` unguarded,
  * so a mailto: link or a share arriving with the composer open stacks a SECOND composer on the
  * first. On a single shared file, closing the one on top erased the record of the one underneath
  * and the long reply came back blank — a loss this whole change would have CREATED.
  *
- * ⛔ THE FILE IS NOT AN AUTOSAVE. It is the same lifetime the parcel had: written when the screen
+ * THE FILE IS NOT AN AUTOSAVE. It is the same lifetime the parcel had: written when the screen
  * is saved, consumed by the restore that follows, erased when that composer closes for good.
  * A composer typing an ENCRYPTED message keeps its cleartext there like any other, so it must
  * never be allowed to outlive its screen.
@@ -74,14 +74,14 @@ class ComposerResumeSlot(private val file: File) {
      * [token], and says whether it got there; `false` means nothing could be written (a full disk,
      * an `IOException`) and no half-written file was left behind.
      *
-     * ⛔ THE TOKEN IS AN ARGUMENT, never minted here. The saver runs TWICE per activity
+     * THE TOKEN IS AN ARGUMENT, never minted here. The saver runs TWICE per activity
      * recreation — `SaveableStateHolderImpl.saveAll()` parcels a COPY of the saved states, then
      * `SaveableStateProvider`'s `onDispose` calls `saveTo` again on the live map as the
      * composition is torn down — so a token minted per write put the file under a name the parcel,
      * already built, could no longer ask for. On the bench that was a rotation coming back with an
      * EMPTY body, at any size, with no exception and no word. See [ComposerResumeState.token].
      *
-     * ⛔ Written to a NEIGHBOURING temporary and then renamed over the real file, never in place: an
+     * Written to a NEIGHBOURING temporary and then renamed over the real file, never in place: an
      * in-place write that dies halfway leaves a file whose header still promises the old lengths,
      * and the next restore would either refuse it or, worse, hand back an amputated draft.
      */
@@ -114,7 +114,7 @@ class ComposerResumeSlot(private val file: File) {
                 out.write(body)
                 out.write(baseline)
             }
-            // ⛔ `false`, and it matters as much as the `catch` below: a refused rename reported as
+            // `false`, and it matters as much as the `catch` below: a refused rename reported as
             // success hands back a token for a file that is not there, the inline fallback is
             // never reached, and the composer comes back EMPTY at any size — the very defect this
             // whole slot exists to remove.
@@ -129,7 +129,7 @@ class ComposerResumeSlot(private val file: File) {
      * Reads back what [write] parked under [token], or `null` when the file is missing, unreadable,
      * truncated, or was written under a DIFFERENT token.
      *
-     * ⭐ A successful read ERASES the file: a resume is consumed once. A refused read leaves it
+     * A successful read ERASES the file: a resume is consumed once. A refused read leaves it
      * alone — the token that does match may still be about to ask for it.
      */
     fun read(token: String): Resume? = try {
@@ -161,11 +161,11 @@ class ComposerResumeSlot(private val file: File) {
     // the record whole, like a bad header. A `/1` file (the build before #131) has no styling
     // line and still reads, with no styling.
     //
-    // ⛔ THE SHAPE OF THE LINE IS READ, NEVER ASSUMED FROM THE VERSION — and that is not
+    // THE SHAPE OF THE LINE IS READ, NEVER ASSUMED FROM THE VERSION — and that is not
     // pedantry, it is the ONE thing this format got wrong once. TWO builds of #131 shipped a
     // `sterna-composer-resume/3` and they did not write the same line: the lists build wrote SIX
     // groups a side (`b;i;u;s;U;O`), the links build FIVE sections (`b;i;u;s;a`). Either one read
-    // with the other's parser is refused, and ⛔ a refused record is not a cosmetic loss: the
+    // with the other's parser is refused, and a refused record is not a cosmetic loss: the
     // composer comes back EMPTY over a draft the parcel says was parked, `ComposeDirty` answers
     // "unchanged", and the next save destroys the server copy in favour of a bodiless one. So the
     // form is decided by the number of sections AND the letter that opens them
@@ -182,7 +182,7 @@ class ComposerResumeSlot(private val file: File) {
     // was made. The two texts are separated by nothing at all — a delimiter would have to be
     // escaped out of a body that can contain anything, including newlines and \r\n.
     //
-    // ⛔ NOT DataOutputStream.writeUTF: it caps a string at 64 kB and the body that caused this
+    // NOT DataOutputStream.writeUTF: it caps a string at 64 kB and the body that caused this
     // whole change is 324 kB. Encoding is UTF-8, named explicitly at both ends.
 
     private fun header(token: String, start: Int, end: Int, bodyLen: Int, baseLen: Int): String =
@@ -206,7 +206,7 @@ class ComposerResumeSlot(private val file: File) {
             val second = text.indexOf('\n', newline + 1)
             if (second < 0) return null
             val line = text.substring(newline + 1, second)
-            // ⛔ The shape comes from the line itself, not from the version alone: two builds
+            // The shape comes from the line itself, not from the version alone: two builds
             // wrote a `/3`. An unknown shape refuses the record, exactly like an unreadable span.
             val shape = stylingShapeOf(head[0], line) ?: return null
             styling = decodeRanges(line, bodyLen, baseLen, shape) ?: return null
@@ -231,7 +231,7 @@ class ComposerResumeSlot(private val file: File) {
         /**
          * Erases EVERY composer slot in [dir], and only those (the prefix is the whole test).
          *
-         * ⭐ Sweeping them all is SAFER than sweeping one name, not less so. It is called from a
+         * Sweeping them all is SAFER than sweeping one name, not less so. It is called from a
          * launch with no saved state, where no `rememberSaveable` exists anywhere that could still
          * name a slot, so every file present is the orphan of a crash. With one file per composer
          * entry, a sweep that knew only a single name would leave the others' cleartext under
@@ -249,7 +249,7 @@ class ComposerResumeSlot(private val file: File) {
         private const val MAGIC = "sterna-composer-resume/4"
 
         /**
-         * ⛔ AMBIGUOUS ON PURPOSE, and read as such. Two builds of #131 shipped a `/3` and wrote
+         * AMBIGUOUS ON PURPOSE, and read as such. Two builds of #131 shipped a `/3` and wrote
          * DIFFERENT lines under it — six groups for the lists, five sections for the links — so
          * this number alone says nothing about the shape. Read, never written.
          */
@@ -261,7 +261,7 @@ class ComposerResumeSlot(private val file: File) {
         /** The format before #131: no styling line at all. Read, never written. */
         private const val MAGIC_V1 = "sterna-composer-resume/1"
 
-        /** ⛔ Written: [MAGIC] only. Read: the three older ones too, or a composer parked by the
+        /** Written: [MAGIC] only. Read: the three older ones too, or a composer parked by the
          *  build being replaced comes back empty on the first rotation after the update. */
         private val READABLE_MAGIC = setOf(MAGIC, MAGIC_V3, MAGIC_V2, MAGIC_V1)
 
@@ -271,7 +271,7 @@ class ComposerResumeSlot(private val file: File) {
          * and the shape are a pair some build actually wrote together, which no `/3` alone can
          * say. The parcel has no header and uses the other face directly.
          *
-         * ⭐ Pure, and exercised as such: this is the decision, not a comment about it.
+         * Pure, and exercised as such: this is the decision, not a comment about it.
          */
         internal fun stylingShapeOf(magic: String, line: String): StylingShape? {
             val shape = stylingShapeOfLine(line) ?: return null
@@ -310,7 +310,7 @@ class ComposerResumeState(
     /**
      * Names the record this composer parks, and it is minted ONCE — here — never per write.
      *
-     * ⛔ THE ROTATION DEFECT LIVES HERE. The saver runs twice for every activity recreation: once
+     * THE ROTATION DEFECT LIVES HERE. The saver runs twice for every activity recreation: once
      * when the parcel is built (`SaveableStateHolderImpl.saveAll()`, which parcels a COPY) and
      * once at teardown (`SaveableStateProvider`'s `onDispose`, which calls `saveTo` again on the
      * live map). With a token minted inside [ComposerResumeSlot.write], the second run renamed the
@@ -318,7 +318,7 @@ class ComposerResumeState(
      * back with an empty body on EVERY rotation, at any size, in complete silence. Pressing HOME
      * never showed it: HOME does not tear the composition down.
      *
-     * ⚠ Held for the life of ONE state object, and no longer: a restore builds a new composer with
+     * Held for the life of ONE state object, and no longer: a restore builds a new composer with
      * a name of its own. Carrying the old name across the restore was tried and taken back out —
      * nothing could be made to depend on it, and a line that cannot be falsified is a comment
      * pretending to be code.
@@ -328,7 +328,7 @@ class ComposerResumeState(
      * Whether THIS composer has already lost a body on its way into a parcel — a disk write that
      * failed on a text too big for the inline fallback (see [saveComposerResume]).
      *
-     * ⛔ A `val`, and that is the whole of its design: it is raised at construction, by the restore
+     * A `val`, and that is the whole of its design: it is raised at construction, by the restore
      * that reads the mark out of the parcel, and there is nowhere it can be lowered. What comes
      * back after a loss is NOT what was lost, so a later save that parks perfectly must keep
      * saying so — a flag that could fall would be clean again one rotation later, and the save
@@ -348,7 +348,7 @@ class ComposerResumeState(
     /**
      * Raised when the composer closes FOR GOOD (sent, saved, scheduled, deleted, abandoned).
      *
-     * ⛔ Do not "simplify" this into a bare `clear()` at the exit. `SaveableStateProvider` saves a
+     * Do not "simplify" this into a bare `clear()` at the exit. `SaveableStateProvider` saves a
      * navigation entry as it LEAVES the composition, so a `clear()` in the exit callback is
      * followed by a re-WRITE of the file when the screen tears down, and the user's cleartext —
      * including a composer that was encrypting — stays on disk. The flag makes the saver return
@@ -373,18 +373,18 @@ class ComposerResumeState(
  *  - `l:` — THE LOSS. On its own when neither of the two above could carry anything, and as a
  *    PREFIX on either of them (`l:t:…`, `l:v:…`) once this composer has lost a body.
  *
- * ⛔ Why the fallback is not optional. A failed write used to return `null`, so the saver parcelled
+ * Why the fallback is not optional. A failed write used to return `null`, so the saver parcelled
  * nothing: the composer came back EMPTY over an `applied` that had survived in the parcel,
  * `draftReopenView` drew that blank editor as if it were the draft, and `ComposeDirty` seeing no
  * change let the back gesture leave without a word. A short body never depended on a disk before,
  * and it must not start now.
  *
- * ⛔ Why it is bounded. [INLINE_LIMIT] characters is ~64 kB of UTF-16 parcel — far under the 1 MB
+ * Why it is bounded. [INLINE_LIMIT] characters is ~64 kB of UTF-16 parcel — far under the 1 MB
  * transaction buffer, and less than this screen was already sending yesterday. Above it there is
  * nothing safe left to CARRY: forcing the text into the parcel is the very kill this whole change
  * exists to prevent, so the text is dropped.
  *
- * ⛔ AND THE LOSS IS MARKED, BECAUSE THE FALLBACK IS NOT HARMLESS. The sentence that used to close
+ * AND THE LOSS IS MARKED, BECAUSE THE FALLBACK IS NOT HARMLESS. The sentence that used to close
  * this comment — "the fallback can never make anything worse" — was false, and it cost a draft.
  * It compared this refusal with the crash it replaced, but `TransactionTooLargeException` took the
  * WHOLE parcel with it, `applied` included: the composer came back unprimed, the prefill replayed
@@ -395,10 +395,10 @@ class ComposerResumeState(
  * `draftReplacementIsFaithful` never compares bodies: the server copy is destroyed and a bodiless one
  * takes its place. Irreversible, in silence, on a plain screen rotation.
  *
- * ⭐ So `l:` travels instead of the text, and it is STICKY: every later save of this composer keeps
+ * So `l:` travels instead of the text, and it is STICKY: every later save of this composer keeps
  * it, even the ones that park perfectly. What came back after the loss is not what was lost.
  *
- * ⛔ `l:`, not `x:` — `x:whatever` is pinned in the list of values that must restore to nothing.
+ * `l:`, not `x:` — `x:whatever` is pinned in the list of values that must restore to nothing.
  */
 internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResumeSlot): String? {
     if (state.closed) return null
@@ -434,7 +434,7 @@ internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResume
         // loss itself, and the ONLY thing left to do about it is to say so.
         else -> null
     }
-    // ⛔ Never `null` from here on — the one `null` this function still returns is `state.closed`
+    // Never `null` from here on — the one `null` this function still returns is `state.closed`
     // above. A parcel with no value at all restores no state, and a restore that yields no state
     // takes the flag down with it.
     if (state.bodyWasLost || carried == null) return LOST_FORM + carried.orEmpty()
@@ -455,44 +455,44 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
         // all. A fresh composer is the only honest answer, and it is never an exception.
         else -> null
     }
-    // ⛔ A RECORD THE PARCEL NAMES AND THAT CAME BACK `null` IS A LOSS, NOT AN ABSENCE. `t:<token>`
+    // A RECORD THE PARCEL NAMES AND THAT CAME BACK `null` IS A LOSS, NOT AN ABSENCE. `t:<token>`
     // is a promise that a body WAS parked; [ComposerResumeSlot.read] collapses five different
     // causes into one `null` — the file no longer there, a header truncated by a crash or a full
     // disk, a foreign token (one slot per navigation entry, so a token that does not match means a
     // NEWER record took the place of the one the parcel names), an `IOException`, an unparsable
-    // head — and not one of them means "there was nothing to restore". ⚠ WHAT takes the file away
+    // head — and not one of them means "there was nothing to restore". WHAT takes the file away
     // in ordinary use is not established: on the bench the deletion was provoked. The five causes
     // are read here, the mechanism that fires them is not, and neither is claimed. On the bench a
     // 20 112 character server draft came back with an empty body, `To` and `Subject` intact, and
     // one tap on the still-lit Save icon left a 317 byte bodiless row where 21 260 bytes had been.
     // A site that cannot prove fidelity says `true`.
     //
-    // ⛔ The bound is the EMPTY token, and only that: `t:` on its own names nothing, so it must
+    // The bound is the EMPTY token, and only that: `t:` on its own names nothing, so it must
     // still restore to nothing, or a parcel that never promised a body arms the loss on a composer
-    // that never parked one. ⚠ A `t:` carrying any token at all IS treated as a promise, including
+    // that never parked one. A `t:` carrying any token at all IS treated as a promise, including
     // one minted by an older build — the wrong side to err on is the other one, where the server
     // copy is destroyed.
     //
-    // ⛔ And it is `resume == null` that says "lost", never an empty body that came back. An empty
+    // And it is `resume == null` that says "lost", never an empty body that came back. An empty
     // body is a VALUE — the composer whose recipient is typed before its first word — and reading
     // the emptiness instead would arm the destroy licence on the most ordinary screen in the app
     // (pinned by `an empty body that was parked and read back whole has lost nothing`).
-    // ⛔ AND THE SAME SENTENCE FOR `v:`, for the same reason and with the same bound. `v:<…>`
+    // AND THE SAME SENTENCE FOR `v:`, for the same reason and with the same bound. `v:<…>`
     // is a promise that a body WAS carried; a `v:` whose styling line is a shape this build cannot
     // read, or whose fields are truncated, collapses to the same `null`, and none of those causes
     // means "there was nothing to restore". Left as an absence it is the quietest data loss in
-    // this file: not even the mark travels, so the composer comes back empty AND clean. ⛔ The
+    // this file: not even the mark travels, so the composer comes back empty AND clean. The
     // bound is the EMPTY form, and only that: `v:` on its own names nothing.
     val unreadable = resume == null && (
         (form.startsWith(TOKEN_FORM) && form.length > TOKEN_FORM.length) ||
             (form.startsWith(INLINE_FORM) && form.length > INLINE_FORM.length)
         )
-    // ⛔ `null` ONLY when there was no mark either. With the mark there, returning `null` would
+    // `null` ONLY when there was no mark either. With the mark there, returning `null` would
     // drop the loss along with the text: `rememberSaveable` would fall back to its factory, the
     // composer would come back empty AND clean, and the next save would destroy the server copy of
     // a draft whose body is gone. An empty state carrying the flag is the whole fix.
     if (resume == null && !lost && !unreadable) return null
-    // ⛔ A name of its own, not the one just read: `read` has CONSUMED the file, so the composer
+    // A name of its own, not the one just read: `read` has CONSUMED the file, so the composer
     // rebuilt here parks a new record from scratch. What matters is that every save of THAT
     // composer names the same one — see [ComposerResumeState.token].
     return ComposerResumeState(
@@ -529,7 +529,7 @@ private fun parseInlineResume(saved: String): ComposerResumeSlot.Resume? {
     val bodyLen = saved.substring(b + 1, c).toIntOrNull() ?: return null
     val payload = saved.substring(d + 1)
     if (bodyLen < 0 || bodyLen > payload.length) return null
-    // ⛔ THE PARCEL CARRIES OLD FORMS TOO, and the sentence that used to stand here — "written
+    // THE PARCEL CARRIES OLD FORMS TOO, and the sentence that used to stand here — "written
     // and read by the SAME build" — was false. It contradicted [ComposerResumeSlot.READABLE_MAGIC]
     // four hundred lines up, which exists precisely because a parked composer CROSSES an update:
     // the disk write fails (full disk, an unwritable `filesDir` — both measured on the bench), the
@@ -555,7 +555,7 @@ private fun parseInlineResume(saved: String): ComposerResumeSlot.Resume? {
 
 private val LETTER_OF = mapOf(Inline.BOLD to 'b', Inline.ITALIC to 'i', Inline.UNDERLINE to 'u', Inline.STRIKE to 's')
 
-/** ⛔ Upper case, so a block group can never be mistaken for an inline one by a sloppy parser. */
+/** Upper case, so a block group can never be mistaken for an inline one by a sloppy parser. */
 private val BLOCK_LETTER_OF = mapOf(BlockKind.BULLET to 'U', BlockKind.NUMBER to 'O')
 
 /** The one section that is not a family and not a block: the links. */
@@ -565,7 +565,7 @@ private const val LINK_LETTER = 'a'
  * WHICH sections one side of a styling line holds, in the one order they are ever written:
  * the four inline families, then the two block groups, then the links.
  *
- * ⛔ A NAMED SHAPE, and never a `Boolean` with a default. The links build carried
+ * A NAMED SHAPE, and never a `Boolean` with a default. The links build carried
  * `withLinks: Boolean = true` and the default was the trap: the next format added a section, the
  * calls that had not been touched kept compiling, and a file read in the wrong shape is refused —
  * which is a composer that comes back EMPTY over a draft it was told had been parked. Both callers
@@ -596,11 +596,11 @@ internal enum class StylingShape(val sections: Int, val hasBlocks: Boolean, val 
  *     6 sections   …;U;O             the families and the block groups
  *     7 sections   …;U;O;a           all three — what is written today
  *
- * ⛔ EVERYTHING ELSE IS `null`, and the caller refuses the record: five sections whose fifth opens
+ * EVERYTHING ELSE IS `null`, and the caller refuses the record: five sections whose fifth opens
  * `U`, six whose fifth opens `a`, eight of anything, are lines no build of this app ever wrote,
  * and answering a shape for one of them hands back a draft that is not what the user wrote.
  *
- * ⚠ Only the body side is measured — [decodeRanges] then holds BOTH sides to that one shape, so a
+ * Only the body side is measured — [decodeRanges] then holds BOTH sides to that one shape, so a
  * line whose two sides disagree is refused there. The four family letters are not checked here
  * either: [decodeFamilies] refuses a wrong one, whatever shape was named.
  */
@@ -644,7 +644,7 @@ private fun encodeSide(rich: RichBody): String =
     rich.links.joinToString(",") { "${it.span.start}-${it.span.end}-" + encodeLinkUrl(it.url) }
 
 /**
- * ⛔ Percent-encoding of everything outside `A-Za-z0-9._~`, over the UTF-8 bytes — and the `-` is
+ * Percent-encoding of everything outside `A-Za-z0-9._~`, over the UTF-8 bytes — and the `-` is
  * encoded WITH the rest, because it separates the two bounds from the URL. What must not survive
  * raw is not only the `:` and the `\n` the line cannot hold: `|`, `;`, `,` and `-` each cut this
  * line somewhere, and a URL is free to contain all of them.
@@ -704,7 +704,7 @@ internal data class DecodedStyling(
  * `length + 1` lines, and a run past the end is dropped by `RichBody` anyway), every link
  * `start-end-URL` with the same bounds and a URL the STRICT face of the guard accepts.
  *
- * ⛔ BOTH SIDES ARE HELD TO THE ONE SHAPE: a line whose baseline side has a different number of
+ * BOTH SIDES ARE HELD TO THE ONE SHAPE: a line whose baseline side has a different number of
  * sections than its body side is a line no build wrote. Anything else is `null`, and the caller
  * refuses the whole record: a guessed styling is a draft that is not what the user wrote, and a
  * guessed URL is an address the user never typed.
@@ -783,13 +783,13 @@ private fun decodeBlocks(groups: List<String>, length: Int): List<Block>? {
 }
 
 /**
- * ⛔ THE THIRD BORDER OF THE URL GUARD. What comes out of here is a `Link` the composer hands
+ * THE THIRD BORDER OF THE URL GUARD. What comes out of here is a `Link` the composer hands
  * straight to the next send, which writes it as `<a href="…">` into the message — so this file is
  * as much a border as [app.sterna.core.data.text.fromHtml] is, and it uses the same STRICT face:
- * the scheme must be there and be one we allow. ⛔ Never `normalizeLinkUrl`: this border did not
+ * the scheme must be there and be one we allow. Never `normalizeLinkUrl`: this border did not
  * watch anyone type, so it may not invent a scheme either.
  *
- * ⚠ No hostile producer is claimed — the file lives in `filesDir`. What is claimed is that the
+ * No hostile producer is claimed — the file lives in `filesDir`. What is claimed is that the
  * guard is at EVERY border, and a border with no guard makes that sentence false.
  */
 private fun decodeLinks(section: String, length: Int): List<Link>? {
@@ -821,12 +821,12 @@ fun composerResumeSaver(slot: ComposerResumeSlot): Saver<ComposerResumeState, St
  *  bytes), so the composer rebuilt after a process death still knows which file is its own. */
 fun newComposerSlotId(): String = shortId(SLOT_IDS)
 
-/** Names one composer's parked RECORD. ⛔ Distinct per composer, and the same for every save of
+/** Names one composer's parked RECORD. Distinct per composer, and the same for every save of
  *  the same one — see [ComposerResumeState.token] for the rotation that taught us the difference. */
 fun newComposerToken(): String = shortId(TOKENS)
 
 /**
- * The file one composer uses. ⛔ Through `applicationContext`, never the activity's own `Context`:
+ * The file one composer uses. Through `applicationContext`, never the activity's own `Context`:
  * this object is built inside a composition that is torn down and rebuilt, and holding the activity
  * from a `remember` is how an activity leak starts.
  */
@@ -852,7 +852,7 @@ private const val INLINE_LIMIT = 16_384
 
 private val SLOT_IDS = AtomicLong(0)
 
-/** ⛔ Not `Math.random()`: two composers opened in the same millisecond must not be able to collide,
+/** Not `Math.random()`: two composers opened in the same millisecond must not be able to collide,
  *  and a counter is the only thing that says so with certainty. */
 private val TOKENS = AtomicLong(0)
 

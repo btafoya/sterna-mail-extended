@@ -19,7 +19,7 @@ object OrphanedAccountCache {
     /**
      * The cached account ids in [cachedAccountIds] that [knownAccountIds] does not contain.
      *
-     * ⛔ AN EMPTY [knownAccountIds] PURGES NOTHING, and that is the whole point of this function
+     * AN EMPTY [knownAccountIds] PURGES NOTHING, and that is the whole point of this function
      * existing separately from a `DELETE … WHERE accountId NOT IN (…)`. "No accounts" is not only
      * the state of a user who has signed out of everything: it is also what
      * `AccountStore.accounts()` returns when the stored JSON fails to decode, and what any caller

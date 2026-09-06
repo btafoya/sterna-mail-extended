@@ -35,18 +35,18 @@ interface OutboxDao {
     /**
      * Items still in flight (not parked), e.g. to re-arm workers at startup.
      *
-     * ⛔ `'SENDING'` stays in this list ON PURPOSE, and removing it is a defect however wrong it
+     * `'SENDING'` stays in this list ON PURPOSE, and removing it is a defect however wrong it
      * looks: a SENDING row is a delivery whose WorkManager job may be gone (reboot, restore, a job
      * WorkManager dropped). Re-arming it is what lets [app.sterna.send.OutboxWorker] come and PARK
      * it as [OutboxState.INTERRUPTED] ([OutboxLogic.parkOnPickup]) — the worker re-delivers nothing
      * it finds in SENDING. Taken out of this query, such a row would read "Sending…" on the Outbox
      * screen forever, with nobody ever coming to look at it again.
      *
-     * ⛔ And [OutboxState.INTERRUPTED] is NOT here: it is already parked and has already been
+     * And [OutboxState.INTERRUPTED] is NOT here: it is already parked and has already been
      * looked at. Adding it would call the worker back on a row that has nothing left to do but
      * wait for the user's Retry.
      *
-     * ⛔ [OutboxState.KEPT_AS_DRAFT] is out for the older reason (#95): re-arming it delivers the
+     * [OutboxState.KEPT_AS_DRAFT] is out for the older reason (#95): re-arming it delivers the
      * PRE-EDIT message the user asked to keep as a draft.
      */
     @Query("SELECT * FROM outbox WHERE state IN ('HELD', 'QUEUED', 'SENDING') ORDER BY createdAtMillis ASC")

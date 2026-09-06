@@ -51,7 +51,7 @@ sealed interface ConnectState {
         val verificationUriComplete: String?,
         /**
          * The address the user typed, for the approval page to pre-fill (#55) — null when there is
-         * none to give. ⛔ It travels in the STATE and not in the screen: `ConnectScreen` cannot
+         * none to give. It travels in the STATE and not in the screen: `ConnectScreen` cannot
          * tell the two producers apart, so reading the composable's own `username` would hand the
          * hint to Microsoft as well, which is not what was asked for.
          */
@@ -81,7 +81,7 @@ internal data class AddedAccount(val id: String, val created: Boolean)
  * then said "Account added" over an account nobody added, and four said nothing at all: the state
  * on screen has to be true about what just happened, so a re-add says it was a re-add.
  *
- * ⛔ Written here rather than as an `if` in the six routes, and that is the point. No test in this
+ * Written here rather than as an `if` in the six routes, and that is the point. No test in this
  * module can build `ConnectViewModel`, `OAuthCodeSignIn` or `OutlookSignIn` (an Application, a
  * container, a repository), so a branch written in a route is held by NOTHING — the two resources
  * could be swapped and the whole suite would stay green. Same reasoning, same shape, as
@@ -143,7 +143,7 @@ internal data class PrimedAccount(val id: String, val primeFailure: Throwable? =
  *     never build them, so no path can pass a blank one, and a fourth path added later inherits
  *     the guarantee by construction.
  *
- * ⛔ A FAILED PRIMING KEEPS THE ACCOUNT. Step 1 is what protects the user from a half-add: nothing
+ * A FAILED PRIMING KEEPS THE ACCOUNT. Step 1 is what protects the user from a half-add: nothing
  * is persisted until the credentials are proven, so a mistyped password still leaves nothing
  * behind. Once they ARE proven, taking the account back out on a network hiccup costs more than it
  * saves:
@@ -191,26 +191,26 @@ internal suspend fun addAccountThenPrime(
  * On IMAP nothing else can write it (`FetchAndNotify.onInboxRefreshed` returns on its first line
  * for IMAP), so for the routes that come through here the add is the only place left.
  *
- * ⚠ THE ROUTES THAT COME THROUGH HERE, and not every way an account is born. This closes the three
+ * THE ROUTES THAT COME THROUGH HERE, and not every way an account is born. This closes the three
  * that prime in [ConnectViewModel.primeInbox]; the OAuth device flow, the OAuth code flow, the
  * Outlook IMAP sign-in and both K-9 import sign-ins prime inside `MailRepository` instead
  * (`addOAuthAccount`, `signInImportedOAuth`), which is in a module that cannot reach this notifier,
  * and they still seed nothing. Read, listed and left out on purpose — see
  * `ai-work/issues/findings/un-compte-oauth-n-annonce-pas-son-premier-courrier.md`.
  *
- * ⛔ [NotifyRead.baselineIds], and NEVER `read.emails.map { it.id }`. `emails` is hydrated and
+ * [NotifyRead.baselineIds], and NEVER `read.emails.map { it.id }`. `emails` is hydrated and
  * therefore CAPPED (`NOTIFY_CANDIDATE_MAX`); `baselineIds` is bounded by the age floor alone.
  * `NewMailNotifier.seed` REPLACES the set, so an id that falls out of it is forgotten — and a
  * forgotten id that comes back into view announces as new mail and, through
  * `unarchiveThreadsOnReply`, drags its thread back out of the Archive server-side. The asymmetry is
  * written down in `MailRepository.notifyRead` and in the KDoc of `NewMailNotifier.seed`.
  *
- * ⛔ [hasBaseline] → null, meaning "touch nothing". An add that finds a baseline already there is a
+ * [hasBaseline] → null, meaning "touch nothing". An add that finds a baseline already there is a
  * re-authentication or the re-add of an account that is already set up here; overwriting a LIVE
  * baseline would swallow every arrival it had not announced yet — the very defect this function
  * closes, one screen further along.
  *
- * ⛔ An EMPTY [NotifyRead.baselineIds] → null too, and this one is the dangerous half. It reads like
+ * An EMPTY [NotifyRead.baselineIds] → null too, and this one is the dangerous half. It reads like
  * "a brand-new account with an empty inbox", and sometimes it is — but on IMAP it is also what a
  * page that could not say anything looks like: a SELECT that never stated a count leaves `exists`
  * at 0, "which reads exactly like an empty folder" (`ImapMailService.pageVouchesForEmpty`), and
@@ -308,7 +308,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      * address step's own button ([advanceFromAddress]). Leaving the screen kills the ViewModel and
      * the job with it.
      *
-     * ⛔ [MailAutoconfigResult.NotFound] still changes nothing the user can see — no state, no
+     * [MailAutoconfigResult.NotFound] still changes nothing the user can see — no state, no
      * spinner, no error — but it is no longer dropped on the floor: "this domain publishes nothing"
      * and "the probe has not finished" are the two answers the walk's address step chooses between,
      * and they used to be the same absence of a value.
@@ -319,7 +319,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         preset: PresetForm,
         email: String,
     ) {
-        // ⛔ ONE read of the link, for both decisions below. Read twice, the guard can refuse for
+        // ONE read of the link, for both decisions below. Read twice, the guard can refuse for
         // want of a network and the refusal be recorded as though the network were there — the
         // fabricated NotFound this volet exists to remove, on a window nothing can reproduce.
         val online = hasUsableNetwork(app)
@@ -335,11 +335,11 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         imapDiscoveryJob?.cancel()
         imapDiscoveryEmail = address
         imapDiscoveryJob = viewModelScope.launch {
-            // ⛔ No runCatching around the cascade: it owns its failures (they become NotFound
+            // No runCatching around the cascade: it owns its failures (they become NotFound
             // inside) and RETHROWS cancellation, which must keep unwinding through here — a
             // cancelled probe is the user leaving, not a verdict.
             //
-            // ⛔ The two probes run CONCURRENTLY, each under its own budget: chained they would
+            // The two probes run CONCURRENTLY, each under its own budget: chained they would
             // cost this step both budgets — 20 s instead of 10 — for everyone, including the
             // majority whose server has no OAuth at all. [probeAddressTogether] is where that is
             // executed by a test on a virtual clock; nothing here can be made to prove it.
@@ -348,7 +348,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 oauth = { probeOAuthFor(address) },
             )
             val result = probe.settings
-            // ⛔ The OAuth answer BEFORE the verdict the walk steps on: the credentials step is
+            // The OAuth answer BEFORE the verdict the walk steps on: the credentials step is
             // drawn the instant _discovery lands, and drawn without this it would flash the
             // password field of a server that wants a browser.
             _oauthDiscovery.value = probe.oauth
@@ -364,23 +364,23 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      * is a plain GET), which is what lets this run at the address step, where there is nothing else
      * to go on.
      *
-     * ⛔ IT RIDES WITH EVERY CASCADE, on every step, and gating it on the step is the defect this
+     * IT RIDES WITH EVERY CASCADE, on every step, and gating it on the step is the defect this
      * spelling fixes. The settings verdict was never gated, so a pass from another step recorded a
      * `Found` with NO OAuth answer beside it — and the credentials step then drew a bare wheel for
      * an address that could never be probed again. The extra requests a manual-form pass now
      * makes are credential-free GETs to the reader's own domain; that is the price of the two
      * answers always travelling together.
      *
-     * ⛔ It always ANSWERS: `chosen == null` is "nothing published OAuth here", which is a fact the
+     * It always ANSWERS: `chosen == null` is "nothing published OAuth here", which is a fact the
      * credentials step acts on (the password field). "Nobody asked" is no longer expressible.
      *
-     * ⛔ WHICH hosts it may ask is [mailOAuthCandidates]' call and NOT the four raw candidates: the
+     * WHICH hosts it may ask is [mailOAuthCandidates]' call and NOT the four raw candidates: the
      * first of those is the organisation's website, and its OAuth document sent the reader to a
      * browser, onto a sign-in page that had nothing to do with her mail. The manual fallback's
      * button keeps all four ([connectOAuth]), because there she asked for OAuth herself.
      */
     private suspend fun probeOAuthFor(address: String): OAuthDiscovery {
-        // ⛔ The address' bare domain BOUNDS what the discovery document may name (it is the only
+        // The address' bare domain BOUNDS what the discovery document may name (it is the only
         // owner besides the host asked — `OAuthClient.discoverMetadata`). Read from
         // `Jmap.autodiscoverHosts`, the one normalisation of an address in the app, and the very
         // list `mailOAuthCandidates` derives from: a second one here could drift from it. A
@@ -406,7 +406,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      *    recomposing, so a value captured when the button was drawn is the link as it was before
      *    she left the network — which is exactly the case being fixed.
      *
-     * ⛔ No side effect: this is also what the button's `enabled` is computed from, i.e. it runs
+     * No side effect: this is also what the button's `enabled` is computed from, i.e. it runs
      * during composition. What offline SAYS is [reportOffline], called from the tap alone.
      */
     internal fun advanceFromAddress(email: String): AddressAdvance =
@@ -417,7 +417,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      * sign-in routes' own guards ([connect], [connectAuto]…): `R.string.connect_offline`, which
      * already lives in all nine locales.
      *
-     * ⛔ It is a REPORT, not a step: the walk stays on the address step. The whole defect was that
+     * It is a REPORT, not a step: the walk stays on the address step. The whole defect was that
      * an offline tap moved the user into the manual form — protocol chips, hosts, ports — with
      * nothing said about why the app had stopped looking.
      */
@@ -550,7 +550,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             // Re-adding the same mailbox (whatever email was typed) resolves to the same
             // server + adopted address: the store refreshes that account in place, never a
             // duplicate. Asked BEFORE the network round-trip, and only to know what to SAY —
-            // ⛔ not filtered on authType any more: the same address added by password and then by
+            // not filtered on authType any more: the same address added by password and then by
             // token is one account, and the old filter made the token re-add mint a second one.
             val stored = container.accountStore.accounts()
             val created = resolveExistingLogin(stored, accountKeyOf(MailProtocol.JMAP, resolved, "", address)) == null
@@ -574,7 +574,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             warnIfNotPrimed(added)
             // Surface linked sub-accounts before navigating, like the password path (#31):
             // a token login's sub-accounts resolve Bearer auth via the login.
-            // ⛔ ONLY on a real creation. See [finishJmapConnect] for why a re-add must not.
+            // ONLY on a real creation. See [finishJmapConnect] for why a re-add must not.
             if (created) container.mailRepository.reconcileLinkedAccountsAfterAdd(added.id)
             accountAddedToast(created, null)?.let { toast(it) }
             _state.value = ConnectState.Connected
@@ -608,10 +608,10 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         val candidates = if (server.isNotBlank()) listOf(server.trim()) else Jmap.autodiscoverHosts(emailTrim)
         _state.value = ConnectState.Discovering
         oauthJob = viewModelScope.launch {
-            // ⚠ COLLECT, don't stop at the first answer, and WHICH answer ends the search is
+            // COLLECT, don't stop at the first answer, and WHICH answer ends the search is
             // collectOAuthHosts' call, not this screen's — it is the rule a fake probe can run.
             //
-            // ⛔ Unless the address step has already asked, for this very address and with no
+            // Unless the address step has already asked, for this very address and with no
             // server typed by hand: its answer stands ([reusableOAuth]). Searching again, seconds
             // later and on the path the reader did not choose, means a host that answers once but
             // not twice is reported as "this server doesn't support OAuth sign-in" — false, and
@@ -668,7 +668,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 )
                 return@launch
             }
-            // ⚠ emailTrim travels on: the approval page can pre-fill it (#55) instead of asking
+            // emailTrim travels on: the approval page can pre-fill it (#55) instead of asking
             // for the address the user typed one screen ago.
             _state.value = ConnectState.AwaitingApproval(
                 device.userCode, device.verificationUri, device.verificationUriComplete, emailTrim,
@@ -680,7 +680,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     /**
      * Wait for approval, then say what the wait concluded.
      *
-     * ⛔ The waiting itself is [pollDeviceGrant]'s, not this function's, and that is what makes it
+     * The waiting itself is [pollDeviceGrant]'s, not this function's, and that is what makes it
      * testable at all: nothing in this repo can build this ViewModel, so while the loop lived here
      * it was executed by no test. This body is the mapping from verdict to screen, and nothing else.
      */
@@ -693,12 +693,12 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     ) {
         // A poll the client could not read at all rises instead of passing for a dead network (it
         // used to be swallowed into `Failed("network error")`). It must not leave this coroutine:
-        // an uncaught throw in viewModelScope takes the app down mid sign-in. ⛔ The guard is HERE
+        // an uncaught throw in viewModelScope takes the app down mid sign-in. The guard is HERE
         // and not inside the loop: pollDeviceGrant catches nothing, so cancelling the screen still
         // ends the wait instead of leaving it alive for the rest of the device code's half hour.
         val verdict = try {
             pollDeviceGrant(
-                // ⛔ No clamp here: the one-second floor is pollDeviceGrant's, where a test runs it.
+                // No clamp here: the one-second floor is pollDeviceGrant's, where a test runs it.
                 intervalSeconds = device.interval.toLong(),
                 expiresInSeconds = device.expiresIn.toLong(),
             ) { container.mailRepository.pollDeviceToken(metadata, device.deviceCode) }
@@ -735,7 +735,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 // Not every terminal poll is a refusal by the reader: say what the server said.
                 _state.value = ConnectState.Error(oauthFailureMessage(getApplication<Application>(), verdict.failure))
             }
-            // WHICH END went quiet, and both sentences already exist in nine languages. ⛔ The
+            // WHICH END went quiet, and both sentences already exist in nine languages. The
             // choice is oauthRanOutMessage's, not this screen's: written here as an `if`, it was
             // held by nothing — no test can build this ViewModel, so the two resources could be
             // swapped back and the whole suite stayed green.
@@ -752,7 +752,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
      */
     fun connectOutlookOAuth(email: String, accountName: String) {
         if (busy()) return
-        // ⛔ The two facts below outrank being offline, and are checked first on purpose: an
+        // The two facts below outrank being offline, and are checked first on purpose: an
         // unconfigured build and an empty address stay wrong once the network is back, so saying
         // "you're offline" there would send the user off to fix the one thing that is not broken.
         if (!OAuthProvider.MICROSOFT.isConfigured) {
@@ -778,7 +778,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 _state.value = when (p) {
                     OutlookProgress.Idle -> return@collect
                     OutlookProgress.Starting -> ConnectState.Discovering
-                    // ⛔ No login hint on this one: the Microsoft device page is out of #55's
+                    // No login hint on this one: the Microsoft device page is out of #55's
                     // scope, and OutlookProgress carries no address to give it anyway.
                     is OutlookProgress.AwaitingApproval ->
                         ConnectState.AwaitingApproval(
@@ -1092,7 +1092,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     private fun toast(@StringRes resId: Int) {
         Toast.makeText(app, string(resId), Toast.LENGTH_LONG).show()
     }
-    // ⛔ Two lines, and both are pinned whole by ConnectPrimingWiringTest: this helper is the last
+    // Two lines, and both are pinned whole by ConnectPrimingWiringTest: this helper is the last
     // stretch between accountAddedToast's answer and the reader. Naming a resource here instead of
     // showing [resId] puts the same sentence on every add again — the defect, one floor lower.
 
@@ -1125,7 +1125,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         container.accountStore.saveInboxMetaFor(
             credentials.id, meta.mailboxId, meta.mailboxName, meta.accountName, meta.unreadCount,
         )
-        // ⛔ LAST, and therefore only after a refresh that SUCCEEDED: `refresh` throws on failure
+        // LAST, and therefore only after a refresh that SUCCEEDED: `refresh` throws on failure
         // and [addAccountThenPrime] catches that into `primeFailure`, so an add whose inbox never
         // loaded seeds nothing. Nothing above this line may move below it, and no `runCatching` /
         // `try` may wrap it — a partial seed would mark the folder known while holding only part
@@ -1177,11 +1177,11 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             // Surface linked sub-accounts before navigating, so the accounts list the flow
             // lands on is already complete (#31).
             //
-            // ⛔ ONLY when this add CREATED the account. A re-add now lands on the login that was
+            // ONLY when this add CREATED the account. A re-add now lands on the login that was
             // already there — with its sub-accounts — instead of minting a second one, and it may
             // have just moved that login from OAuth to a password. Reconciling there hands
             // `diffLinkedAccounts` a session of the other auth family, and eviction reads the RAW
-            // discovered list (AccountStore.kt:155): a session that lists the login's own account
+            // discovered list (`AccountStore`): a session that lists the login's own account
             // but not the shares would prune every sub-account and purge its five tables — a real
             // shared mailbox deleted, which is the destruction #129 exists to prevent.
             //

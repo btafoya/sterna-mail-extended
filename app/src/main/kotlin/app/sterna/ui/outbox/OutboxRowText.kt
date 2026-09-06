@@ -10,7 +10,7 @@ import app.sterna.core.data.db.OutboxState
  * execute (`OutboxScreen` is a composable, this module has no Robolectric and no instrumented
  * tests, so a `when` written inside the composable is unreachable from every test we have).
  *
- * ⛔ The three answers are separate on purpose, and collapsing any two of them back into one is the
+ * The three answers are separate on purpose, and collapsing any two of them back into one is the
  * defect this file was extracted for. `OutboxScreen` used to carry a single `val failed =
  * item.state == OutboxState.FAILED` that decided the wording, the substituted reason AND the tint
  * at once, under an `else ->` that swept every other state into "waiting". A state that is neither
@@ -43,7 +43,7 @@ fun outboxStateLabel(state: OutboxState): Int = when (state) {
  * Whether [outboxStateLabel]'s string takes the row's `lastError` as its one argument — true for
  * the single state whose wording is "Failed: <reason>".
  *
- * ⚠ It is asked separately from [outboxStateIsError] even though both answer "FAILED" today: one is
+ * It is asked separately from [outboxStateIsError] even though both answer "FAILED" today: one is
  * about the string's format arguments, the other about a colour. A row that carries a `lastError`
  * from a real send failure BEFORE it was reopened and saved as a draft (#95 × #70) keeps that text
  * on the row — deliberately, it is the cause of a thing that really happened — and must not have it
@@ -63,24 +63,24 @@ fun outboxStateShowsReason(state: OutboxState): Boolean = when (state) {
  * substitutes the reason into "Failed: %1$s". This one adds a second line and changes neither the
  * state's words nor its colour: a row that waits is not a row that failed.
  *
- * ⛔ `!lastError.isNullOrBlank()` is THE GUARD OF THE NORMAL CASE, not a null-check for tidiness.
+ * `!lastError.isNullOrBlank()` is THE GUARD OF THE NORMAL CASE, not a null-check for tidiness.
  * Offline — the majority of what is ever seen in this screen — the `NetworkType.CONNECTED`
  * constraint (`app/src/main/kotlin/app/sterna/send/Outbox.kt`) means no attempt runs at all, so a
  * QUEUED row carries NO reason. Without the guard every waiting row would grow an empty
  * complement, or "sending couldn't be scheduled" under a message nothing has yet tried to send.
  *
- * ⛔ BLANK counts as no reason, and that is the same guard on a value the producer really writes:
+ * BLANK counts as no reason, and that is the same guard on a value the producer really writes:
  * `OutboxWorker` stores `t.message ?: t.javaClass.simpleName`, and a Throwable's message can be
  * the empty string — `MailRepository.unarmedNote` protects itself from exactly that with
  * `takeIf { it.isNotBlank() }`. On `null` alone, such a row prints the frame of
  * [outboxWaitingReasonLabel] followed by nothing.
  *
- * ⛔ [OutboxState.KEPT_AS_DRAFT] is excluded ON PURPOSE. A row that carried the reason of a real
+ * [OutboxState.KEPT_AS_DRAFT] is excluded ON PURPOSE. A row that carried the reason of a real
  * send failure BEFORE it was reopened and saved as a draft (#95 × #70) keeps that text, and
  * printing it under a save that did exactly what was asked hands the reason to a state that is not
  * its own.
  *
- * ⛔ [OutboxState.INTERRUPTED] and [OutboxState.SENDING] are excluded for the same family of
+ * [OutboxState.INTERRUPTED] and [OutboxState.SENDING] are excluded for the same family of
  * reason: the first has a whole sentence of its own that is careful about what it claims (the
  * delivery may already have got through), the second has a delivery in flight. [OutboxState.FAILED]
  * is excluded because it already prints its reason, inside its own line.
@@ -96,7 +96,7 @@ fun outboxShowsWaitingReason(state: OutboxState, lastError: String?): Boolean = 
  * The string a WAITING row's complement is FRAMED with — "Last error: %1$s", the reason substituted
  * into it.
  *
- * ⛔ The frame exists because `lastError` is the LAST reason recorded on the row, not necessarily
+ * The frame exists because `lastError` is the LAST reason recorded on the row, not necessarily
  * the reason it is waiting now. Nothing clears it: a re-arm that SUCCEEDS — at app start
  * (`SternaApplication`) or when an edit is released (`MailRepository.releaseOutboxEdit`) — leaves
  * the old text in place, and an offline row can carry the reason of an online failure for days.
@@ -104,7 +104,7 @@ fun outboxShowsWaitingReason(state: OutboxState, lastError: String?): Boolean = 
  * and the server's own words from attempts 1 to 4 (#183) are still shown, which is what the screen
  * is for.
  *
- * ⛔ It does NOT say "Failed": the row has not failed, it is queued and waiting. That word, and the
+ * It does NOT say "Failed": the row has not failed, it is queued and waiting. That word, and the
  * error colour, belong to [OutboxState.FAILED] alone. And it promises nothing about when the
  * message leaves — see [app.sterna.core.data.mail.unarmedNote] for why nobody at this level can.
  *
@@ -145,14 +145,14 @@ sealed class OutboxFailureReason {
  * them: "Failed: %1$s" on a failed row, [outboxWaitingReasonLabel]'s "Last error: %1$s" on the
  * complement of a waiting one. None of them is ever printed on its own.
  *
- * ⛔ [OutboxLogic.NOT_ARMED_LEGACY_PREFIX] is the SAME EVENT under the words 1.5.2 and 1.5.3 wrote:
+ * [OutboxLogic.NOT_ARMED_LEGACY_PREFIX] is the SAME EVENT under the words 1.5.2 and 1.5.3 wrote:
  * those versions stored `unarmedNote`'s whole English sentence on the row instead of the sentinel.
  * No migration rewrites those rows — a display defect does not earn an irreversible write — so a
  * row still QUEUED on a phone that ran either version is decoded HERE, by its opening, and comes
  * out as the same words as the sentinel. Unrecognised, it prints English under a translated
  * "Waiting to send" in eight locales.
  *
- * ⛔ The server's words (#183) are of ANOTHER nature and unchanged: they are what the server said,
+ * The server's words (#183) are of ANOTHER nature and unchanged: they are what the server said,
  * they were never ours to translate, and they are printed as they came — including a reason that
  * merely starts with the same first word. A null reason keeps the fallback it always had.
  */
@@ -170,12 +170,12 @@ fun outboxFailureReason(lastError: String?): OutboxFailureReason = when {
 /**
  * Whether the line is painted in the error colour.
  *
- * ⛔ [OutboxState.KEPT_AS_DRAFT] is not an error (#95): the user asked for a draft and got one. Red
+ * [OutboxState.KEPT_AS_DRAFT] is not an error (#95): the user asked for a draft and got one. Red
  * here would say the save went wrong, and nothing would ever repaint it — there is no deferred
  * upload whose success could take the colour back. Same reasoning as
  * [app.sterna.core.data.db.OutboxLogic.needsFailureBanner] one screen up.
  *
- * ⛔ [OutboxState.INTERRUPTED] is not an error either: red says the send went wrong, and this one
+ * [OutboxState.INTERRUPTED] is not an error either: red says the send went wrong, and this one
  * may have gone through — the row is parked precisely because the phone cannot tell.
  */
 fun outboxStateIsError(state: OutboxState): Boolean = when (state) {
@@ -189,14 +189,14 @@ fun outboxStateIsError(state: OutboxState): Boolean = when (state) {
  * The body of the delete confirmation for a row in [state] — the sentence read at the one moment
  * the only copy of a message is about to be destroyed.
  *
- * ⛔ [R.string.outbox_delete_body] opens with "It hasn't been sent", and over
+ * [R.string.outbox_delete_body] opens with "It hasn't been sent", and over
  * [OutboxState.INTERRUPTED] that is a claim this phone cannot make: the row is parked precisely
  * because the delivery may have reached the server before the run was killed. Told the message
  * never left, the reader deletes it — and if it did leave, she has just destroyed her only trace of
  * a message the recipient has. Hence a body of its own, which says it may already be gone and still
  * says what deleting costs.
  *
- * ⚠ Seen and LEFT: [OutboxState.SENDING] and [OutboxState.KEPT_AS_DRAFT] take the default body too,
+ * Seen and LEFT: [OutboxState.SENDING] and [OutboxState.KEPT_AS_DRAFT] take the default body too,
  * and neither is quite true of them either (a send is in flight; a draft copy does exist on the
  * phone). That wording is older than this fix and out of its scope — it is named here so the next
  * reader knows it was looked at, not missed.

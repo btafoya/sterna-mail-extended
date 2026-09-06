@@ -21,7 +21,7 @@ sealed interface PushStatus {
      * Woken by a relay the user pasted this account's address into (#177), with the time the last
      * wake really arrived — 0 never reaches here, since only a delivery arms a relay.
      *
-     * ⛔ It carries a TIMESTAMP and not a verdict, and the difference is the whole point. The relay
+     * It carries a TIMESTAMP and not a verdict, and the difference is the whole point. The relay
      * is not ours: it is a stranger's script or service, we never talk to it, and nothing in this
      * app can tell a relay that died last week from one that simply has no mail to announce. What
      * is knowable is when the last wake landed, so that is what the screen says. Reading "push is
@@ -52,10 +52,10 @@ sealed interface PushStatus {
  * Single decision point for push transports (issue #17). Every place that used to
  * start/stop [PushService] calls [apply] instead: it kicks the UnifiedPush state
  * machine for eligible accounts and runs the foreground service only while some
- * account still needs a direct connection. Selection is automatic and never
- * user-facing (UX rule): JMAP with working UnifiedPush → no connection of ours
- * (and with no direct account left, no foreground service or permanent
- * notification at all); JMAP otherwise → EventSource; IMAP → IDLE.
+ * account still needs a direct connection. [transportFor] picks, in order: linked sub-account →
+ * PERIODIC; UnifiedPush ACTIVE (JMAP or IMAP relay alike) → UNIFIED_PUSH; battery saver →
+ * PERIODIC; JMAP → EventSource; else IMAP IDLE. The transport is never shown nor settable,
+ * unlike the relay address one of those branches rides on (`RelayAddressSection`).
  */
 object PushController {
 
@@ -73,9 +73,9 @@ object PushController {
      * otherwise set it a beat too late. (`switchAccount()` also clears it explicitly; that line is
      * redundant with the seed and kept on purpose — see `RestoredViewWiringLintTest`.)
      *
-     * ⚠ ITS INITIAL VALUE IS NOT THE COLD START'S ANSWER, and used to be read as though it were.
+     * ITS INITIAL VALUE IS NOT THE COLD START'S ANSWER, and used to be read as though it were.
      * Since the drawer reopens on the view you left (#179) a launch can land straight in the
-     * unified inbox, hence that seed. ⛔ The seed is placed BEFORE the arm because the value must
+     * unified inbox, hence that seed. The seed is placed BEFORE the arm because the value must
      * be right when the arm reads it, which is not necessarily in the same call stack: [apply]
      * decides inline on its worker branch, but on the direct branch it only asks
      * `startForegroundService` for a service, which reads this flag later and on its own coroutine
@@ -192,7 +192,7 @@ object PushController {
      * — `allCredentials()` is a `mapNotNull` and drops an account whose secret failed to decrypt,
      * silently. Only the last branch is a CHOICE: accounts, credentials, and notifications off.
      *
-     * ⚠ The third sentence says "for the watched set" and not "for all of them" on purpose: with
+     * The third sentence says "for the watched set" and not "for all of them" on purpose: with
      * "push for all accounts" off, the watched set is the current account alone, so [stored] can be
      * three while exactly one credential was ever asked for.
      *
@@ -222,7 +222,7 @@ object PushController {
      * construction, so every JMAP account whose handle is held is skipped entirely, with nothing in
      * logcat between the worker starting and its SUCCESS.
      *
-     * ⛔ "A handle is HELD", never "a connection is open", and the difference is the same one
+     * "A handle is HELD", never "a connection is open", and the difference is the same one
      * [armSummary] spells out nine lines above: `PushService.isConnected` answers true for a
      * [java.io.Closeable] we believe in, and a socket that died without telling us still answers
      * true (said again in [shouldPollInbox]'s own KDoc). A line claiming an open connection would
@@ -230,7 +230,7 @@ object PushController {
      *
      * The facts that carried the decision are printed rather than summarised: the protocol, because
      * it is what makes the watched extras irrelevant on JMAP and relevant on IMAP, and their
-     * [watchedFolders] count. ⚠ The sentence says those folders are LEFT TO the handle, not that
+     * [watchedFolders] count. The sentence says those folders are LEFT TO the handle, not that
      * there are none and not that they were fetched: on JMAP they are left to the handle whatever
      * their number, on IMAP this line only prints when the number is zero.
      *
@@ -253,7 +253,7 @@ object PushController {
      *
      * Worded apart from [pollSkippedLine] because the two are different events and a logcat reader
      * has only the sentence: there, nothing was fetched at all; here, the watched extras were, and
-     * only the inbox was left out. Same ⛔ on "held" versus "open" as above.
+     * only the inbox was left out. Same on "held" versus "open" as above.
      */
     fun inboxSkippedLine(accountId: String, protocol: MailProtocol, watchedFolders: Int): String =
         "Fallback poll left account $accountId's inbox unfetched: a push connection handle is held " +
@@ -314,7 +314,7 @@ object PushController {
             // — leaving the screen reading "Push: UnifiedPush (…)" for an address a stranger's
             // relay may have stopped posting to weeks ago.
             //
-            // ⛔ And above NotWatched too, which is where it used to sit. The comment that put it
+            // And above NotWatched too, which is where it used to sit. The comment that put it
             // there said "an account nothing watches is not woken by anyone, relay or not", and
             // that is simply false: a POST on the relay address reaches onMessage, which enqueues
             // [PushFetchWorker], and that worker gates on notificationsEnabled ALONE — never on

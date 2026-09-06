@@ -67,7 +67,7 @@ class SendOutbox(private val scope: CoroutineScope) {
          * numbering its draft id belongs to. Dropped here, the next send freezes nothing and the
          * draft it replaces is left behind in Drafts.
          *
-         * ⛔ **No default**, unlike the fields above it and for the reason this class is dangerous:
+         * **No default**, unlike the fields above it and for the reason this class is dangerous:
          * a construction site that leaves it out compiles, reads as complete, and silently answers
          * `null`. The Outbox screen's Edit is exactly such a site, and nothing but the compiler
          * watches it — so the compiler is what watches it. Same rule as
@@ -156,7 +156,7 @@ class SendOutbox(private val scope: CoroutineScope) {
  * can run the mapping the app runs: `OutboxViewModel.edit` is an `AndroidViewModel` method behind
  * WorkManager and Room, so nothing could otherwise see a field left behind here.
  *
- * ⚠ The hand-over is the whole risk. Re-editing a queued message enqueues a NEW row from the
+ * The hand-over is the whole risk. Re-editing a queued message enqueues a NEW row from the
  * composer's state, so any per-message choice this mapping drops is not merely absent from the
  * screen — it is cancelled. That is the PGP mode, the draft being replaced, and the read receipt.
  */
@@ -166,10 +166,10 @@ internal fun composeDraftOf(draft: MailRepository.OutboxDraft): SendOutbox.Compo
     // original appended) and an imported HTML signature do not parse, and the row's plain text is
     // what comes back — which is what happened to every message before #131.
     //
-    // ⚠ AND SINCE THE LISTS, THAT FALLBACK CARRIES THE MARKERS AS LETTERS. The row's text column is
+    // AND SINCE THE LISTS, THAT FALLBACK CARRIES THE MARKERS AS LETTERS. The row's text column is
     // the text/plain part about to be delivered, and that part spells lists out (`- milk`), so a
     // queued FORWARD holding a list reopens with two literal dashes in the body instead of a list.
-    // ⛔ Arbitrated, not overlooked: the alternative was to store the raw text beside the delivered
+    // Arbitrated, not overlooked: the alternative was to store the raw text beside the delivered
     // one — a column, a migration, and a second truth about the same message — for a path that was
     // ALREADY lossy before the lists (the styling went the same way), and where the dashes at least
     // keep the information the vanished list carried. Rules 1 then 5.

@@ -51,7 +51,7 @@ const val MAIL_AUTOCONFIG_BUDGET_MS = 10_000L
 
 /**
  * The two — and ONLY two — URLs a domain may publish its configuration at, in the order they are
- * asked (Thunderbird autoconfig format). ⛔ Both are on the user's own domain: the privacy policy
+ * asked (Thunderbird autoconfig format). Both are on the user's own domain: the privacy policy
  * promises the app contacts nobody else, so no Mozilla ISPDB and no DNS SRV walk may ever be
  * appended here.
  */
@@ -77,7 +77,7 @@ fun substitutedUsername(raw: String, emailAddress: String): String {
  * The HTTP client the published-config tiers fetch with — local to this file, like the
  * unsubscribe one, and NOT the JMAP client (whose code path attaches an Authorization header).
  *
- * ⛔ It follows NO redirect on its own: OkHttp's built-in following pins the scheme but not the
+ * It follows NO redirect on its own: OkHttp's built-in following pins the scheme but not the
  * HOST, so one 302 from `autoconfig.<domain>` would carry the fetch — up to 20 hops — to a third
  * party (`autoconfig.thunderbird.net`, the ISPDB), and the privacy policy promises the app talks
  * to nobody but the user's own server. 3xx answers are walked by [fetchPublishedConfig] by hand
@@ -113,7 +113,7 @@ private const val TLS_PROBE_TIMEOUT_MS = 5_000
 
 /**
  * The real TLS probe behind a guessed host: connect, handshake, and — the part that carries the
- * guard — verify the certificate FOR THAT NAME. ⚠ A bare [SSLSocket] does not check the hostname
+ * guard — verify the certificate FOR THAT NAME. A bare [SSLSocket] does not check the hostname
  * at all; `endpointIdentificationAlgorithm = "HTTPS"` is what makes "the handshake succeeded"
  * mean "a certificate valid for this exact name", i.e. what keeps a wildcard-DNS catch-all or a
  * spoofed host from being prefilled as the server the password will go to.
@@ -158,7 +158,7 @@ suspend fun discoverMailAutoconfig(emailAddress: String): MailAutoconfigResult =
  * a blocking OkHttp/socket call ignores cancellation until its own timeout.
  *
  * [autoconfigUrls], [httpClient] and [tlsProbe] are seams; production passes none of them.
- * ⛔ Cancellation retraverses: leaving the sign-in cancels this, and no catch here turns that
+ * Cancellation retraverses: leaving the sign-in cancels this, and no catch here turns that
  * into a [MailAutoconfigResult.NotFound] (the lesson `probeOfFailure` paid for).
  */
 suspend fun discoverMailSettings(
@@ -207,7 +207,7 @@ private suspend fun runCascade(
 
 /**
  * Fetch ONE published-config URL and read it, or answer null for "this tier said nothing".
- * ⛔ An HTTP 200 is NOT a verdict — the verdict is [parsePublishedConfig]'s, taken on the XML
+ * An HTTP 200 is NOT a verdict — the verdict is [parsePublishedConfig]'s, taken on the XML
  * root: catch-all reverse proxies (masto.top, live case) answer 200 with an HTML page on both
  * autoconfig paths.
  *
@@ -215,7 +215,7 @@ private suspend fun runCascade(
  * [MAX_AUTOCONFIG_REDIRECTS] hops: a domain may park the well-known path behind a 3xx (#54/#137
  * arbitration), but each hop must either stay on the very origin this fetch already reached — a
  * path-only redirect opens no new connection — or pass [redirectAllowed], i.e. https on the
- * user's own domain. ⛔ A refused redirect ends the tier with null and the refused target is
+ * user's own domain. A refused redirect ends the tier with null and the refused target is
  * never contacted at all.
  */
 private suspend fun fetchPublishedConfig(
@@ -283,7 +283,7 @@ internal fun parsePublishedConfig(body: InputStream, emailAddress: String): Mail
 
 /**
  * One `<incomingServer>`/`<outgoingServer>` element as a stored endpoint, or null to reject it —
- * and with it the tier. ⛔ `socketType` is an allow-list: `SSL` and `STARTTLS`, nothing else.
+ * and with it the tier. `socketType` is an allow-list: `SSL` and `STARTTLS`, nothing else.
  * `plain` — or any value this build does not recognise — is NOT mapped to
  * [ConnectionSecurity.NONE]: an unauthenticated XML fetch does not get to decide that a password
  * may travel in cleartext.

@@ -163,17 +163,17 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
         }
 
         /**
-         * Destroy [folders] as soon as there is a network, ⛔ **without taking the account's unique
+         * Destroy [folders] as soon as there is a network, **without taking the account's unique
          * work slot** — for a gesture that has no undo window of its own (emptying a draft the phone
          * kept, #95 × #69).
          *
-         * ⛔ NOT [schedule]: that one enqueues under `destroyWorkName(accountId)` with
+         * NOT [schedule]: that one enqueues under `destroyWorkName(accountId)` with
          * `ExistingWorkPolicy.REPLACE`, so it would silently DROP a permanent delete the user
          * confirmed seconds earlier and is still inside the undo window of. This is [flushNow]'s
          * shape — the same [destroyRequests], no delay — minus its `cancelDestroy`, which is the
          * other half of the same hazard.
          *
-         * ⭐ Suspends until WorkManager has WRITTEN the request: the caller's next act destroys the
+         * Suspends until WorkManager has WRITTEN the request: the caller's next act destroys the
          * only local trace of what is being destroyed, so "enqueued" has to mean "on disk". A bare
          * `enqueue` returns before the write and a process death in that window loses the order.
          */

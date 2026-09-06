@@ -24,7 +24,7 @@ data class MailEndpoint(
  * How an account authenticates. API_TOKEN is a server-generated Bearer token
  * (e.g. a Fastmail API token), stored encrypted in the password slot; JMAP-only.
  *
- * ⛔ These three names ARE the stored format: they go by name into every account record
+ * These three names ARE the stored format: they go by name into every account record
  * ([StoredAccount.authType]), the account list is one blob, and a name this build cannot resolve
  * stops the WHOLE list from decoding — no accounts on screen, and no write until a build that knows
  * the name is installed ([AccountBlobGate], mechanism in full under [SyncWindow.ALL]). Never rename,
@@ -371,7 +371,7 @@ class AccountStore(context: Context) {
      * this parameter, which is looked up AFTER the current one and never instead of it. Blank
      * means "this route has no earlier key", which is the case of the Microsoft OAuth IMAP path.
      *
-     * ⚠ It only means anything for a JMAP add. The inherited key goes through
+     * It only means anything for a JMAP add. The inherited key goes through
      * [accountEndpointOf], which under [MailProtocol.IMAP] keys on [imapHost] and DROPS
      * [documentHost] without a word — so a non-blank value passed with `protocol = IMAP` builds
      * the account's own current key over again, not an older one. Harmless today because no call
@@ -433,7 +433,7 @@ class AccountStore(context: Context) {
      *
      * Why here and not in a ViewModel. Six creation routes write an account and only one guarded
      * itself; worse, a route reads the account list BEFORE its network validation and persists
-     * AFTER it (`ConnectViewModel` :461 then :478), so a guard up there leaves a window in which
+     * AFTER it (`ConnectViewModel`), so a guard up there leaves a window in which
      * two adds both see "not there yet". This is the only atomic floor: [add] and [addOAuth] are
      * `@Synchronized`, and a seventh route inherits the guard by construction.
      *
@@ -703,7 +703,7 @@ class AccountStore(context: Context) {
     /**
      * Persist the account's OpenPGP settings. No-op if the id is unknown.
      *
-     * ⛔ [publicKey] travels with [signKeyId] and is never optional: the cached public key is a
+     * [publicKey] travels with [signKeyId] and is never optional: the cached public key is a
      * fact about THAT key id (see [StoredAccount.pgpPublicKey]). A default here would let a caller
      * change the key and leave the previous key's bytes behind without ever naming them — which is
      * exactly the mistake this parameter exists to make impossible. Callers that only flip the two
@@ -1069,7 +1069,7 @@ class AccountStore(context: Context) {
     /** (account id, inbox id) pairs across every account — for reads that must stay
      *  account-scoped even when same-server accounts' mailbox ids collide. The rule itself is
      *  [UnifiedInbox.scopes], which this only feeds the stored list: one copy, one place to break.
-     *  ⛔ There is no bare-id twin of this any more (it was Codeberg #121 waiting for a caller);
+     *  There is no bare-id twin of this any more (it was Codeberg #121 waiting for a caller);
      *  a reader outside this module — the home-screen widget — does not reach [UnifiedInbox] at
      *  all, since it is `internal` to `core:data`: it asks
      *  `MailRepository.observeUnifiedInboxUnread()` for the finished number. */
@@ -1204,7 +1204,7 @@ class AccountStore(context: Context) {
      * down with it. The [runCatching] is the other half of the same rule: a failed encode must not
      * throw out of [removeCascading], between the password wipe and [saveAccounts].
      *
-     * ⛔ Losing this blob entirely costs today's behaviour and never an account. That asymmetry is
+     * Losing this blob entirely costs today's behaviour and never an account. That asymmetry is
      * why it is allowed to fail quietly, and why nothing here is worth a crash path.
      */
     private fun saveLinkedMemory(memory: Map<String, List<StoredAccount>>) {

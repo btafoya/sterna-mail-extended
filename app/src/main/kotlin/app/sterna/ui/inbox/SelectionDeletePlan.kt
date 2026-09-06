@@ -27,7 +27,7 @@ internal data class SelectionDeletePlan(
  * in [SelectionDeletePlan.untreated] for the caller to count and announce. [hasTrash] answers that
  * question without looking at any row's folder, and is asked once per account.
  *
- * ⚠ `deleteWouldDestroy` no longer answers "destroy" for want of a Trash — it answers the one
+ * `deleteWouldDestroy` no longer answers "destroy" for want of a Trash — it answers the one
  * question it names, "is this row already in the Trash?" — so the destroy leg is now trusted rows
  * genuinely IN the bin, and nothing else.
  *

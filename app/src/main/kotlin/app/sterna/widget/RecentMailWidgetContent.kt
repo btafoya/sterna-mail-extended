@@ -20,35 +20,35 @@ import java.util.Locale
  * already decided. [secondary] is null when nothing is drawn on the second line — the widget row
  * rule's own way of saying "there is nothing you may write here".
  *
- * ⛔ It carries no account id, no mailbox id and no message id. Those exist on [RecentEmailRow], they
+ * It carries no account id, no mailbox id and no message id. Those exist on [RecentEmailRow], they
  * ORDER the list and they are what a tap opens — and they travel in [RecentRowTap], beside this
  * type and never inside it. Under the app lock a row must name nothing at all, and the cheapest way
  * to hold that is for the drawn shape to be unable to carry a name in the first place: an id on
  * this type would be one `setTextViewText` away from an unlocked home screen.
  *
- * ⭐ [accountColor] is the ONE exception, and it is one because a colour NAMES NOBODY. It is an
+ * [accountColor] is the ONE exception, and it is one because a colour NAMES NOBODY. It is an
  * ARGB `Int` the reader picked in the account editor, it is derived from no string, and it is
  * carried so that a list which interleaves several accounts by date can say which one a line came
  * from. `SECURITY.md` promises that under the lock a row "names neither sender nor subject", and a
  * dot keeps that promise where an account name would break it — which is why the name is NOT here.
  * null = no dot is drawn.
  *
- * ⚠ The lint next door looks for literals like `"acct-alpha"` in [toString] and does NOT cover this
+ * The lint next door looks for literals like `"acct-alpha"` in [toString] and does NOT cover this
  * field: the guard on it is the TYPE — an `Int` cannot hold a name — and not that search. A later
  * reader turning it into a `String` walks straight past both.
  *
- * ⭐ [monogram] IS THE SECOND EXCEPTION, and it is a narrower one. It is null under the app lock and
+ * [monogram] IS THE SECOND EXCEPTION, and it is a narrower one. It is null under the app lock and
  * null at NONE — the two states in which the row names nobody — so nothing is added where nothing
  * may be said. When it is NOT null the row's [primary] line is ALREADY the sender's name, in full:
  * an initial taken from that name reveals nothing the line above it has not revealed.
  *
- * ⚠ It is null on a THIRD state too, and that one is not about privacy at all: the sender-initials
+ * It is null on a THIRD state too, and that one is not about privacy at all: the sender-initials
  * switch (#144) turned off. The reader who took the initials off her message list must not find
  * them on her home screen, where there is no switch to take them off again.
  *
- * ⛔ And the [RecentRowMonogram.slot] is NOT the address. It is two small indices — one of three
+ * And the [RecentRowMonogram.slot] is NOT the address. It is two small indices — one of three
  * families, one of six tones, eighteen values in all — computed from the address and not
- * invertible: eighteen buckets identify nobody, an address identifies exactly one person. ⛔ The
+ * invertible: eighteen buckets identify nobody, an address identifies exactly one person. The
  * seed must never reach this type, whatever a later reader needs it for; it is read in [row] and
  * left behind there.
  */
@@ -91,7 +91,7 @@ internal sealed interface RecentWidgetCell {
     data object EmptyInbox : RecentWidgetCell
 
     /**
-     * Nothing may be affirmed about mail. ⛔ Not "no account": see the three causes above. The cell
+     * Nothing may be affirmed about mail. Not "no account": see the three causes above. The cell
      * names the app and stops there — which is what the layout already showed before the first
      * draw, so the reader sees no change of claim.
      */
@@ -101,7 +101,7 @@ internal sealed interface RecentWidgetCell {
 /**
  * One line of the list, both halves of it: what it DRAWS and what it OPENS.
  *
- * ⛔ Two fields and not one flat row, deliberately. [RecentWidgetRow] may carry nothing that names
+ * Two fields and not one flat row, deliberately. [RecentWidgetRow] may carry nothing that names
  * anybody, which is what makes a locked home screen structurally silent; [RecentRowTap] is nothing
  * but names. Merged, the guard would become a promise: an identifier sitting on the drawn type is
  * one `setTextViewText` away from the home screen, and the reader who switched the app lock on
@@ -119,12 +119,12 @@ internal data class RecentWidgetSnapshot(val cell: RecentWidgetCell, val rows: L
  * (there is no Robolectric here), so what the widget draws is decided HERE, with no Android type
  * in sight, and the factory that spends it holds nothing but plumbing.
  *
- * ⛔ EVERY drawn line goes through [MailNotificationText.widgetRow]. A `row.fromName` written
+ * EVERY drawn line goes through [MailNotificationText.widgetRow]. A `row.fromName` written
  * straight into a `RemoteViews` would be the notification-content setting and the app lock no
  * longer governing the home screen — the two things SECURITY.md says govern it — and nothing on
  * screen would say so: the widget looks the same either way to whoever set the setting years ago.
  *
- * ⛔ And no address book. The list inside the app names a sender by `fromName` falling back to
+ * And no address book. The list inside the app names a sender by `fromName` falling back to
  * `fromEmail` (`EmailListItem`), and so does this: a widget that resolved a contact would show, on
  * an unlocked home screen, a name the message itself never carried.
  */
@@ -135,7 +135,7 @@ internal object RecentMailWidgetContent {
      * decision is about the SHAPE of the cell and must not be able to look at a subject.
      */
     fun cell(configured: Boolean, hasRows: Boolean): RecentWidgetCell = when {
-        // ⛔ First arm, deliberately: a read that knows no inbox says nothing, whatever else is
+        // First arm, deliberately: a read that knows no inbox says nothing, whatever else is
         // true. Folding this into "no rows" is the defect — three restored accounts, still
         // syncing, and the home screen tells their owner their mail is empty.
         !configured -> RecentWidgetCell.NothingToSay
@@ -147,7 +147,7 @@ internal object RecentMailWidgetContent {
      * The single line drawn INSTEAD of the list, as a string resource, or null when the list is
      * what the cell shows.
      *
-     * ⛔ [RecentWidgetCell.NothingToSay] resolves to the app's own name — a word that makes no
+     * [RecentWidgetCell.NothingToSay] resolves to the app's own name — a word that makes no
      * claim about mail — and NEVER to the empty-inbox line. That is the whole difference between
      * the two silent-looking states, and it is pinned by a test rather than by this paragraph.
      */
@@ -163,18 +163,18 @@ internal object RecentMailWidgetContent {
      *
      * Two guards folded into one answer, both of them "draw nothing":
      *
-     *  1. ⛔ ONE ACCOUNT, NO DOT. The bound is [AllInboxesView.existsFor], the same one the counter
+     *  1. ONE ACCOUNT, NO DOT. The bound is [AllInboxesView.existsFor], the same one the counter
      *     consults ([UnreadWidgetContent]), and it is shared for the same reason: the drawer only
      *     offers "All inboxes" from two accounts up, and one account means the SAME dot on every
-     *     single row: it tells nothing apart, while looking exactly like a marker that does. ⚠ It
+     *     single row: it tells nothing apart, while looking exactly like a marker that does. It
      *     is not the 16 dp that the guard saves — the view stays INVISIBLE and never GONE, so the
      *     column is spent either way; what it saves the reader is a colour that means nothing.
-     *  2. ⛔ NO COLOUR CHOSEN, NO DOT. `StoredAccount.color` is null on the "auto" position of the
+     *  2. NO COLOUR CHOSEN, NO DOT. `StoredAccount.color` is null on the "auto" position of the
      *     picker, which is what every account starts on. Inventing one here (a hash of the address,
      *     the app's accent) would put on the home screen a colour the account editor never shows,
      *     and the reader would have no way to learn what it means.
      *
-     * ⚠ Accounts the map does not mention draw no dot, not a default one — see [RecentWidgetRow].
+     * Accounts the map does not mention draw no dot, not a default one — see [RecentWidgetRow].
      */
     fun accountColors(accounts: List<StoredAccount>): Map<String, Int> =
         if (!AllInboxesView.existsFor(accounts)) emptyMap()
@@ -220,12 +220,12 @@ internal object RecentMailWidgetContent {
             secondary = drawn.secondary,
             date = MailDates.formatListDate(row.receivedAt, zone, today, locale),
             unread = !row.seen,
-            // ⛔ THE BADGE IS DRAWN ONLY WHERE THE ROW ALREADY NAMES ITS SENDER, and that answer
+            // THE BADGE IS DRAWN ONLY WHERE THE ROW ALREADY NAMES ITS SENDER, and that answer
             // comes from the rule above — the only place that has seen the app lock fold the
             // position onto NONE. An initial is a letter of somebody's name; a badge on a locked
             // home screen would be the lock's promise broken in one character.
             //
-            // ⛔ TWO CONDITIONS, AND THEY STAY TWO. `namesSender` is a PROMISE (SECURITY.md, the
+            // TWO CONDITIONS, AND THEY STAY TWO. `namesSender` is a PROMISE (SECURITY.md, the
             // app lock, the notification-content setting); [listMonogram] is a TASTE, the switch
             // #144 added to the message list for the reader whose correspondents have no avatar
             // and whose column was "a stack of identical circles". Folded into one variable the
@@ -321,7 +321,7 @@ internal object RecentMailWidgetContent {
      * the message list's own order (`EmailListItem`: `seed = (recipient ?: from)?.email ?:
      * senderName`), and it is that order and not this row's that matters.
      *
-     * ⛔ NOT [sender]. The two differ by which of the name and the address comes first, and that
+     * NOT [sender]. The two differ by which of the name and the address comes first, and that
      * difference is the whole point: an address is stable while a display name is whatever the last
      * server wrote, so seeding on the name repaints a correspondent the reader had learnt to
      * recognise — and paints them a different colour here than in the list, which is the report

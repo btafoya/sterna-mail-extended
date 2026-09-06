@@ -27,17 +27,17 @@ enum class WidgetTapStep {
  * order then stayed `true` in the activity for good, so every later tap was a `true → true`
  * assignment: no state change, no recomposition, no navigation.
  *
- * ⚠ THE WARM INTERMITTENCE IS READ, NOT MEASURED. A flag left up by an earlier cold start
+ * THE WARM INTERMITTENCE IS READ, NOT MEASURED. A flag left up by an earlier cold start
  * explains a tap that does nothing, and a recomposition arriving from elsewhere explains the stale
  * order firing later; the alternation the bench reported on 2026-08-17 fits that, but nobody has
- * watched the two halves happen. ⛔ Not to be published as the cause — the bench cell is what says.
+ * watched the two halves happen. Not to be published as the cause — the bench cell is what says.
  *
- * ⛔ SO THE ORDER IS CONSUMED FIRST AND HELD, never "waited for in place". Consuming is what forces
+ * SO THE ORDER IS CONSUMED FIRST AND HELD, never "waited for in place". Consuming is what forces
  * the recomposition in which the list exists; holding is what stops that consumption from throwing
  * the tap away. It is the shape `pendingFolderOpen` already uses next door for the notification
  * path, for exactly the same cold-start reason.
  *
- * ⚠ WHAT "HELD" DOES AND DOES NOT MEAN. The hold is passive. [Hold] writes the same two values on
+ * WHAT "HELD" DOES AND DOES NOT MEAN. The hold is passive. [Hold] writes the same two values on
  * every frame that follows, equal writes notify nobody, and this rule therefore does not re-run
  * itself. What re-runs it is the list appearing — `listViewModel` turning non-null is a key of the
  * caller's effect. The held order is simply still there when that happens, instead of having been

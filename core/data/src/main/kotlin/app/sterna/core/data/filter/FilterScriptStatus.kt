@@ -179,7 +179,7 @@ enum class ForeignScriptNotice {
  * - anything else foreign and active: the generic line, which claims nothing about whose it is.
  *
  * ONE line out of these three, never two: they all sit above one button, and two red sentences
- * over one button is how both stop being read. ⚠ That promise is about THIS decision only. The
+ * over one button is how both stop being read. That promise is about THIS decision only. The
  * filters screen also carries [FilterScriptWarning.RULES_NOT_RUNNING] above it, from a different
  * fact, and during an absence the two DO stack — truthfully: the rules are stopped, and saving
  * would stop the auto-reply.

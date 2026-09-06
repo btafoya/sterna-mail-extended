@@ -90,7 +90,7 @@ class AppContainer(context: Context) {
      * carries (`resumeOutboxRow`): taken before the sweep, the row it just marked EDITING would be
      * parked FAILED under the open composer.
      *
-     * ⛔ A Job to join, never a `runBlocking` in `onCreate`: this touches Room, and on the first
+     * A Job to join, never a `runBlocking` in `onCreate`: this touches Room, and on the first
      * launch of a version that migrates the database, blocking the main thread on it is an ANR.
      */
     val outboxRecovery: Job
@@ -160,7 +160,7 @@ class AppContainer(context: Context) {
             }.onFailure { android.util.Log.w("Sterna", "body-cache upgrade purge failed; retried next start", it) }
         }
         // Re-arm any send left mid-flight (WorkManager persists jobs, but re-checking is a safety
-        // net). ⛔ `keepExisting = true`: this runs while WorkManager may ALREADY have restored the
+        // net). `keepExisting = true`: this runs while WorkManager may ALREADY have restored the
         // job, possibly mid-delivery. A REPLACE would cancel a healthy send in flight, and since
         // the worker parks a row it finds in SENDING, the user would read "interrupted, may
         // already have been sent" at every cold start on a send nothing interrupted. It would
@@ -182,13 +182,13 @@ class AppContainer(context: Context) {
         // was written and the job was not leaves a draft waiting on nothing — and unlike a send,
         // nothing else will ever come and ask about it.
         //
-        // ⛔ What the rescue picks up, and it is TWO states and no more: a row left UPLOADING by a
+        // What the rescue picks up, and it is TWO states and no more: a row left UPLOADING by a
         // process that died mid-attempt (nobody is looking at it any more, and no composer can have
         // taken it — `localDraftMayBeTakenForEdit` refuses that state), and a row left STAGING mid
         // file-copy, which comes back flagged `bodyIsLossy` so it cannot destroy the server original
         // it names.
         //
-        // ⛔ **And NOT an EDITING row — do not "repair" that back in.** This runs from appScope
+        // **And NOT an EDITING row — do not "repair" that back in.** This runs from appScope
         // while Android is still restoring the back stack, i.e. BEFORE the composer that was killed
         // with a draft open has read its row back (it takes EDITING again on purpose). Flipping it
         // to PENDING here hands the text being typed to the upload worker, which deletes the row and
@@ -198,7 +198,7 @@ class AppContainer(context: Context) {
         // back. (It is not claimed that nothing else ever overwrites the state — the upload worker
         // still writes UPLOADING after reading the row, which is its own, older window.)
         //
-        // ⛔ Per account, and the rescue BEFORE the scheduling — a row still UPLOADING when the
+        // Per account, and the rescue BEFORE the scheduling — a row still UPLOADING when the
         // queue is read gets a work item that finds it already in flight. The rows come back
         // backed-off ones included, each with its own delay: nothing here gives up on a draft, it
         // only asks about it less often.
@@ -221,19 +221,19 @@ class AppContainer(context: Context) {
         // copy of the message, and nothing else ever comes and asks about it. An overdue row is
         // re-armed like any other, at a delay of zero: it leaves LATE rather than never.
         //
-        // ⛔ NOT a restore: `allowBackup` is false and `sterna.db` is excluded from backup and from
+        // NOT a restore: `allowBackup` is false and `sterna.db` is excluded from backup and from
         // device transfer, so a restore brings back neither the row nor the job. What is readable
         // here is that the table and WorkManager's jobs are two different files, so one survives
         // the other; and that `ComposeViewModel.scheduleSend` writes the row and books its job as
         // two operations, so a death between them leaves a row nothing is attached to.
         //
-        // ⚠ And it gives `ScheduledSendWorker`'s departure check a caller it did not have: a row
+        // And it gives `ScheduledSendWorker`'s departure check a caller it did not have: a row
         // belonging to an account that is PROVABLY gone used to sit here unfired for ever, and is
         // now taken at the next start and dropped, silently. That is the same verdict the worker
         // has always reached at firing time — this only makes it arrive sooner, and only on a
         // departure `accountDepartureIsProven` accepts; an unreadable account keeps its row.
         //
-        // ⛔ `keepExisting = true`, the same trap as the outbox above and one notch worse here:
+        // `keepExisting = true`, the same trap as the outbox above and one notch worse here:
         // ScheduledSendWorker deposits the message in the outbox and THEN deletes the scheduled
         // row, and the two are not one transaction. A REPLACE landing on a worker between them
         // cancels it, the deletion never runs, the row survives — and the replacement job, whose
@@ -252,7 +252,7 @@ class AppContainer(context: Context) {
         // foreground refresh. Wiring those call sites one by one is the alternative, and it is a
         // list that would go out of date the first time a gesture is added.
         //
-        // ⛔ Gated on a widget being PLACED, and that gate is the point: collecting the unified
+        // Gated on a widget being PLACED, and that gate is the point: collecting the unified
         // total for the life of every process subscribes two global Room aggregates on behalf of
         // the large majority who will never place a widget. UnreadWidgetPresence follows the
         // system's own onEnabled/onDisabled, so the gate opens and closes without a restart, and
@@ -261,7 +261,7 @@ class AppContainer(context: Context) {
         // rethrowIfCancelled: a draw that fails is a stale cell and nothing more, but the app
         // scope being cancelled must not be counted as one more failed draw.
         //
-        // ⛔ accountStore.accountsFlow is the SECOND arm, and it is what makes the cell's LABEL —
+        // accountStore.accountsFlow is the SECOND arm, and it is what makes the cell's LABEL —
         // and the target of a tap on it — follow an account arriving or leaving. Both are decided
         // on the account count (AllInboxesView), while the breakdown is keyed on countedInboxes,
         // which drops any account whose inboxId is still null: an imported account is written
@@ -286,20 +286,20 @@ class AppContainer(context: Context) {
         // settings writes that tighten what a row may say), and none of them follows a message
         // being read, deleted, moved, or an account being removed.
         //
-        // ⛔ Its own launch and its own gate: RecentMailWidgetPresence is seeded from THIS
+        // Its own launch and its own gate: RecentMailWidgetPresence is seeded from THIS
         // provider's placed cells, and sharing the counter's would let each widget's presence
         // decide the other one's freshness.
         //
-        // ⛔ forget() BEFORE refresh(), as at both settings writes: the row factory falls back to
+        // forget() BEFORE refresh(), as at both settings writes: the row factory falls back to
         // the last snapshot it managed to read when its own read times out, and that snapshot is
         // the mail as it WAS. Without dropping it, a slow read repaints exactly the rows this
         // redraw exists to replace.
         //
-        // ⛔ The emitted rows are not drawn. The cell is projected by RecentMailWidgetDraw.read,
+        // The emitted rows are not drawn. The cell is projected by RecentMailWidgetDraw.read,
         // which consults the notification-content setting and the app lock; drawing the rows from
         // here would put senders and subjects on a home screen that has hidden them.
         //
-        // ⛔ accountStore.accountsFlow is the SECOND arm, and it is what makes the coloured dots
+        // accountStore.accountsFlow is the SECOND arm, and it is what makes the coloured dots
         // follow an account arriving or leaving. The dots exist only above AllInboxesView.existsFor,
         // and on an account that owns none of the 25 latest rows the inbox read does not move — so
         // without this arm the cell keeps (or keeps missing) every dot, for days, since

@@ -242,25 +242,25 @@ fun ComposeScreen(
     // about unsaved changes, it is about removing the draft itself — the message the user came here
     // to edit — and the Undo it leaves behind restores the SERVER copy, not the screen.
     //
-    // ⭐ A flag lives where what it acts on lives, so it is the ViewModel's and not a `remember`
+    // A flag lives where what it acts on lives, so it is the ViewModel's and not a `remember`
     // here: a rotation recreates MainActivity and a bare `remember` fell back to false, taking the
-    // dialog off screen without a word. ⛔ And not `rememberSaveable` either — see the field's own
+    // dialog off screen without a word. And not `rememberSaveable` either — see the field's own
     // KDoc: that one outlives the process, while the draft this dialog names does not. The flag's
     // real lifetime is this composer's NAVIGATION ENTRY — see the field's KDoc before quoting it.
     val pendingDraftDelete by viewModel.pendingDraftDelete.collectAsStateWithLifecycle()
-    // The leave dialog (#35, #127) and the two chained pre-send guards. ⭐ All three are the
+    // The leave dialog (#35, #127) and the two chained pre-send guards. All three are the
     // ViewModel's for exactly the reason above: a rotation recreates MainActivity, the composition
     // restarts, and a bare `remember` fell back to false — the question left the screen without a
-    // word, as if it had been answered. ⛔ Not `rememberSaveable` either; the fields' KDoc says what
+    // word, as if it had been answered. Not `rememberSaveable` either; the fields' KDoc says what
     // their real lifetime is, the composer's NAVIGATION ENTRY. The local names stay what the rest of
     // this file already calls them.
     val showDiscard by viewModel.pendingDiscard.collectAsStateWithLifecycle()
     val showForgotAttachment by viewModel.pendingForgotAttachment.collectAsStateWithLifecycle()
     val showManyRecipients by viewModel.pendingManyRecipients.collectAsStateWithLifecycle()
     // The "pick date and time" pair (#161), the menu's fifth entry: the calendar, then the clock,
-    // and the day already chosen between the two. ⭐ All three are the ViewModel's for the reason
+    // and the day already chosen between the two. All three are the ViewModel's for the reason
     // above — and the DAY especially: a rotation between the two dialogs would otherwise lose it
-    // and bring the clock back over nothing. ⛔ Not `rememberSaveable` either, same KDoc, same
+    // and bring the clock back over nothing. Not `rememberSaveable` either, same KDoc, same
     // NAVIGATION-ENTRY lifetime.
     val pendingScheduleDay by viewModel.pendingScheduleDay.collectAsStateWithLifecycle()
     val pendingScheduleTime by viewModel.pendingScheduleTime.collectAsStateWithLifecycle()
@@ -315,11 +315,11 @@ fun ComposeScreen(
 
     // Whether the body ON SCREEN already carries the reply's quoted original.
     //
-    // ⚠ Declared HERE, away from the other `rememberSaveable`s further down, because the effect
+    // Declared HERE, away from the other `rememberSaveable`s further down, because the effect
     // right below reads it and Kotlin does not read ahead — this position is a compile constraint,
     // not a preference.
     //
-    // ⚠ `rememberSaveable`, and NOT a ViewModel field or flow — same reason as `requestReceipt`
+    // `rememberSaveable`, and NOT a ViewModel field or flow — same reason as `requestReceipt`
     // and `applied` below, and the idiom `primingHandled` already follows in this file. The only
     // case it exists for is the app being KILLED with the composer open: the ViewModel dies with
     // the process, `prepared` is an ordinary field so `prepare()` runs again on a brand new one,
@@ -429,10 +429,10 @@ fun ComposeScreen(
     // saveables cost 4 bytes of parcel per character of body. They go through an app-private file
     // instead, and the parcel carries only its short token. See [ComposerResumeSlot].
     //
-    // ⚠ Declared HERE, well above `body` which delegates to it, because the four exits below
+    // Declared HERE, well above `body` which delegates to it, because the four exits below
     // close it and Kotlin does not read ahead — this position is a compile constraint, not a
     // preference. Same reason `quoteLanded` sits where it does.
-    // ⛔ ONE SLOT PER NAVIGATION ENTRY, named by an id that is itself parcelled (a dozen bytes).
+    // ONE SLOT PER NAVIGATION ENTRY, named by an id that is itself parcelled (a dozen bytes).
     // Two composers ARE reachable — MainActivity is singleTask, onNewIntent feeds pendingMailto,
     // and the host navigates to `compose` unguarded — so a mailto: link or a share arriving with
     // the composer open stacks a SECOND composer on the first. Sharing one file, closing the one on
@@ -442,7 +442,7 @@ fun ComposeScreen(
     val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot)) {
         ComposerResumeState(TextFieldValue(), "")
     }
-    // ⛔ THE BODY DID NOT COME BACK, AND THE SAVE MUST BE TOLD. Above the inline bound a failed
+    // THE BODY DID NOT COME BACK, AND THE SAVE MUST BE TOLD. Above the inline bound a failed
     // disk write parks nothing, so the saver carries the LOSS instead of the text. Everything else
     // on this screen comes back from saveables of its own — `applied`, `to`, `cc`, `subject` — so
     // the editor is redrawn looking like the draft with an empty body, `initialBody` is empty too
@@ -451,7 +451,7 @@ fun ComposeScreen(
     // `draftReplacementIsFaithful` never compares bodies, so the server copy is destroyed and a
     // bodiless one takes its place. On a rotation. Without a word.
     //
-    // ⚠ An EFFECT into the view model, not an argument on `saveDraft`/`send`/`schedule`: FOUR
+    // An EFFECT into the view model, not an argument on `saveDraft`/`send`/`schedule`: FOUR
     // routes destroy (the interactive save, the deferred upload the worker finishes, the discard,
     // the send) and all four read one field, `editingDraftLossy`. Threading a per-call argument
     // through them is four chances to forget one, and the one forgotten is the lost draft.
@@ -483,7 +483,7 @@ fun ComposeScreen(
 
     // A draft the phone was keeping has just been deleted: leave the way the X leaves — a bare
     // popBackStack() onto the Drafts list this composer was opened from, which is where the row was
-    // showing. ⛔ NOT through ComposeState.Done, which this branch used to end on: that plays the
+    // showing. NOT through ComposeState.Done, which this branch used to end on: that plays the
     // tern's flight above, an animation written for a message that went OUT, and then lands on the
     // inbox. The signal comes from the ViewModel and not from the tap, because the destroy has to be
     // durable, the server copy evicted and the row consumed first — a deletion that throws keeps
@@ -534,9 +534,9 @@ fun ComposeScreen(
     // selected; `null` = no instruction, the sticky rule of `remapAfterEdit` decides. Transient
     // on purpose: it is a gesture in flight, not a value worth parking across a rotation.
     var pending by remember { mutableStateOf<Set<Inline>?>(null) }
-    // Whether the link dialog is up (#131). ⚠ `rememberSaveable`, like the flags of the composer's
+    // Whether the link dialog is up (#131). `rememberSaveable`, like the flags of the composer's
     // own dialogs: a rotation with it open brings the DIALOG back rather than dropping the gesture.
-    // ⛔ It says nothing about what was typed INSIDE it: the two fields are plain `remember`s in
+    // It says nothing about what was typed INSIDE it: the two fields are plain `remember`s in
     // `LinkDialog`, so an address half typed is lost to a rotation. Measured and accepted at the
     // bench pass — the box is reopened and retyped — not claimed here as though it were held.
     var linkDialog by rememberSaveable { mutableStateOf(false) }
@@ -544,7 +544,7 @@ fun ComposeScreen(
     var applied by rememberSaveable { mutableStateOf(false) }
     // "Ask for a read receipt" (RFC 8098), per message, from the overflow menu.
     //
-    // ⚠ rememberSaveable, and NOT a ViewModel flow like the padlock beside it. The padlock survives
+    // rememberSaveable, and NOT a ViewModel flow like the padlock beside it. The padlock survives
     // a process death only because it is re-derived from a default setting; this box has no setting
     // to be reborn from, so a ViewModel field would come back CLEAR after the app was killed with
     // the composer open — the screen would then show "not asked for" while the user had asked, and
@@ -610,14 +610,14 @@ fun ComposeScreen(
                 )
                 body = TextFieldValue(it.body, TextRange(caret ?: 0))
                 // …with the styling the prefill carried (#131): a reopened draft brings its own
-                // spans, every other opening brings none. ⛔ `emptyMap()` here, as it was, opens a
+                // spans, every other opening brings none. `emptyMap()` here, as it was, opens a
                 // styled draft with its bold gone from the screen — and the next save stores that.
                 ranges = it.bodyRanges
                 // …and its lists, on the same terms: `emptyList()` here opens a draft that HELD a
                 // list without it, and the next save writes that removal.
                 blocks = it.bodyBlocks
                 // …and its LINKS, the last statement between the four reopen routes and the
-                // screen. ⛔ `emptyList()` here is not "no link yet": the draft is judged
+                // screen. `emptyList()` here is not "no link yet": the draft is judged
                 // reproducible because its anchor parsed, so the next save expunges the server
                 // original and stores this removal in its place.
                 links = it.bodyLinks
@@ -662,7 +662,7 @@ fun ComposeScreen(
     // prefill — never over text the user has started typing — and re-baseline so it isn't seen as an
     // unsaved edit. The caret stays at the top, above the quote, exactly as a fresh reply opens.
     LaunchedEffect(replyQuote) {
-        // ⛔ THE re-entry guard, and it became load-bearing with the consume below: retiring the
+        // THE re-entry guard, and it became load-bearing with the consume below: retiring the
         // quote writes `null` into the flow, which is a NEW value, so this effect is relaunched
         // once more with `replyQuote == null`. Drop this `?:` and that second pass carries an
         // empty quote into the branch below with `applied` true and the body still equal to the
@@ -682,14 +682,14 @@ fun ComposeScreen(
             // Dropped in exactly once, AFTER the write: the activity is recreated by a rotation, a
             // theme flip, a language change or a multi-window resize while the ViewModel survives,
             // and an unconsumed quote replays here and puts the caret back at offset 0 over the
-            // selection just restored. ⚠ The write-then-retire ORDER guards nothing today — no
+            // selection just restored. The write-then-retire ORDER guards nothing today — no
             // line between the two suspends, so cancellation cannot land there. It is the repo's
-            // order (ConnectScreen.kt:318-325) and it is pinned so that a suspending call added
+            // order (`ConnectScreen`) and it is pinned so that a suspending call added
             // between them later cannot empty the flow before the quote has landed.
             viewModel.consumeReplyQuote()
             // The body now carries the quote, and this is the ONLY place that may say so: the flag
             // is saved, so after the app is killed and the composer rebuilt it is what tells the
-            // fresh ViewModel to keep quiet about a quote that is already here. ⛔ Never posted at
+            // fresh ViewModel to keep quiet about a quote that is already here. Never posted at
             // the top of this effect nor in the toast branch below — it would then mean "the effect
             // ran", and a reply that genuinely has no quote would go out without one and without a
             // word, which is the very thing the B6 toast exists to prevent.
@@ -702,7 +702,7 @@ fun ComposeScreen(
             // toast again, and they stack up in LENGTH_LONG.
             viewModel.consumeReplyQuote()
         }
-        // ⛔ No consume on the third way out (the quote came back before the header prefill
+        // No consume on the third way out (the quote came back before the header prefill
         // landed): nothing has posted it and nothing has announced it, so retiring it there would
         // lose it in silence.
     }
@@ -813,20 +813,20 @@ fun ComposeScreen(
         )
     }
 
-    // The menu's fifth entry, in two steps: a calendar, then a clock (#161). ⛔ Drawn HERE, at the
+    // The menu's fifth entry, in two steps: a calendar, then a clock (#161). Drawn HERE, at the
     // top level of the composable with the four other dialogs, and NOT inside the toolbar's Box:
     // that Box sits under `if (reopen is DraftReopenView.Editor)`, so a reopened draft that fails
-    // its read underneath would take the dialog off screen mid-choice. ⚠ The reason CHANGED with
+    // its read underneath would take the dialog off screen mid-choice. The reason CHANGED with
     // #164 and the rule did not: the Box used to sit under `if (draftSaveAllowed(pgpMode))` too,
     // where closing the padlock was the way it vanished. The padlock no longer removes this Box —
     // the reopen gate still does, and one gate is enough to keep the dialogs out of here.
     //
-    // ⛔ Both locks against a send into the PAST are in this pair, because there is none further
+    // Both locks against a send into the PAST are in this pair, because there is none further
     // down: `ScheduledSends.enqueue` coerces a negative delay to zero, so a lapsed instant would
     // fire the message at once, and a send cannot be recalled. No wording says so — a greyed-out
     // button is the whole message.
     if (pendingScheduleDay) {
-        // ⛔ In LANDSCAPE the calendar's GRID does not fit. `DatePickerDialog` lays its surface out
+        // In LANDSCAPE the calendar's GRID does not fit. `DatePickerDialog` lays its surface out
         // at `requiredWidth(ContainerWidth).heightIn(max = ContainerHeight)`, i.e. 360 dp wide and
         // at most 568 dp tall — a MAX, never a min. Turned, the real ceiling is the SCREEN's
         // 411 dp, and Material's own content box has no scroll of its own, so whatever the month
@@ -838,18 +838,18 @@ fun ComposeScreen(
         // So the typed entry, which is Material's own answer to a constrained height — the very
         // same decision the clock takes below, on the very same rule.
         //
-        // ⛔ And the typed face does not fit inside `DatePickerDialog` EITHER, once the keyboard
+        // And the typed face does not fit inside `DatePickerDialog` EITHER, once the keyboard
         // is up — which it is on the first touch, the face being a text field. Measured on `emu`
         // in landscape at 914×411 dp, 2026-08-21: the `ime` inset started at y=502, the Cancel/OK
         // row was announced at y=492..618, and a tap in the middle of `OK` did nothing at all — it
         // landed on the numeric keypad drawn there, and the clock never opened.
-        // ⚠ It is NOT the weight: `DatePickerDialog` already gives its content box a
+        // It is NOT the weight: `DatePickerDialog` already gives its content box a
         // `weight(1f, fill = false)` and its action row none, so the row is measured FIRST there
         // just as it is in [SchedulePickerDialog] — that weight is the CLOCK's mechanism, not this
         // one. What differs is `usePlatformDefaultWidth = false`, which the grid needs for its
         // 360 dp: at `false`, `DialogLayout.internalOnMeasure` throws away the constraints the
         // window handed it and re-measures against `AT_MOST(displayWidth) × AT_MOST(displayHeight)`
-        // — the whole display, keyboard included. ⚠ The chain from there to the 44 dp of overlap
+        // — the whole display, keyboard included. The chain from there to the 44 dp of overlap
         // measured is NOT established; what is established is the reading above, and that the
         // clock's shell, measured green with the keyboard up the same day, does not have it.
         //
@@ -865,7 +865,7 @@ fun ComposeScreen(
         // Two bounds, one apiece, and they are not interchangeable. `yearRange` decides which
         // years the chevron DRAWS: Material's default is 1900..2100, which put a hundred and
         // twenty-six dead years in front of this one. `isSelectableDate` is the lock — the only
-        // thing refusing a past DAY. ⛔ No upper bound of ours: no horizon exists anywhere in the
+        // thing refusing a past DAY. No upper bound of ours: no horizon exists anywhere in the
         // scheduled-send code and inventing one here would be a limit to carry forever.
         val dayState = rememberDatePickerState(
             yearRange = scheduleFirstYear(System.currentTimeMillis(), ZoneId.systemDefault())..DatePickerDefaults.YearRange.last,
@@ -875,7 +875,7 @@ fun ComposeScreen(
                     scheduleDaySelectable(utcTimeMillis, System.currentTimeMillis(), ZoneId.systemDefault())
             },
         )
-        // ⚠ `rememberDatePickerState` SAVES its displayMode: the restored state comes back on the
+        // `rememberDatePickerState` SAVES its displayMode: the restored state comes back on the
         // face it was opened with, and `initialDisplayMode` above is never consulted again. Without
         // this effect the defect's OWN gesture survives the fix — open in portrait, then turn, and
         // the cut-off grid is redrawn. Keyed on the shape of the window and on nothing else: it is
@@ -884,7 +884,7 @@ fun ComposeScreen(
             dayState.displayMode = if (dayAsInput) DisplayMode.Input else DisplayMode.Picker
         }
         // Both faces answer with the SAME two buttons, so their bodies exist once and are handed to
-        // whichever shell is drawn. ⚠ They are `@Composable` slots, not values: each shell calls
+        // whichever shell is drawn. They are `@Composable` slots, not values: each shell calls
         // them where its own action row is.
         val dayOk: @Composable () -> Unit = {
             TextButton(
@@ -908,7 +908,7 @@ fun ComposeScreen(
             SchedulePickerDialog(
                 onDismissRequest = { viewModel.clearScheduleDay() },
                 picker = {
-                    // ⛔ The calendar is composed here ONLY on the typed face, and this guard is
+                    // The calendar is composed here ONLY on the typed face, and this guard is
                     // not the same test as the branch above. `rememberDatePickerState` restores the
                     // face it was SAVED on, so the first frame after a rotation taken on the grid
                     // comes back `DisplayMode.Picker` while the window is already landscape — the
@@ -919,7 +919,7 @@ fun ComposeScreen(
                     // list open brings it back open. Without this guard the app STOPS on that frame
                     // instead of merely being clipped, and is one tap from it otherwise. One empty
                     // frame in a rare gesture is the price.
-                    // ⛔ `showModeToggle = false` is the other half: Material's default of `true`
+                    // `showModeToggle = false` is the other half: Material's default of `true`
                     // draws a pencil that is one tap into that same crash.
                     if (dayState.displayMode == DisplayMode.Input) {
                         DatePicker(state = dayState, showModeToggle = false)
@@ -930,7 +930,7 @@ fun ComposeScreen(
         } else {
             DatePickerDialog(
                 onDismissRequest = { viewModel.clearScheduleDay() },
-                // ⛔ `usePlatformDefaultWidth = false` is not an addition of ours: it is
+                // `usePlatformDefaultWidth = false` is not an addition of ours: it is
                 // `DatePickerDialog`'s OWN default being put back. Handing it a `DialogProperties`
                 // replaces the whole object, and that flag defaults to `true`, which caps the window
                 // at the platform's dialog width — under the 360 dp the surface REQUIRES, so the
@@ -943,7 +943,7 @@ fun ComposeScreen(
                 confirmButton = dayOk,
                 dismissButton = dayCancel,
             ) {
-                // ⚠ Material's own face toggle stays exactly as Material puts it on THIS branch:
+                // Material's own face toggle stays exactly as Material puts it on THIS branch:
                 // the grid fits here, so nothing is taken away on the commonest gesture there is.
                 // It is the shell above that hides it, because there the pencil leads into a crash.
                 DatePicker(state = dayState, showModeToggle = true)
@@ -956,30 +956,30 @@ fun ComposeScreen(
         // 0L is 1970 — a day that is never STRICTLY ahead, so a clock that somehow opened with no
         // day behind it can only refuse.
         val day = scheduleDay ?: 0L
-        // ⛔ NOT Material's default of midnight. For TODAY, midnight is an hour long gone, so the
+        // NOT Material's default of midnight. For TODAY, midnight is an hour long gone, so the
         // dial would open on precisely the state the OK button below refuses — greyed out, and by
         // design there is no wording anywhere to explain it. An hour ahead is the answer, EXCEPT
         // late in the evening on today: past 23:00 an hour ahead has rolled over to tomorrow, and
         // keeping only its hour and minute pasted them back onto today, which reopened that same
         // dead dialog roughly a day in the past. The fallback is then the last minute today still
-        // has. ⚠ In the final minute of the day even that is gone and OK is honestly grey.
+        // has. In the final minute of the day even that is gone and OK is honestly grey.
         val opensAt = scheduleClockOpensAt(day, System.currentTimeMillis(), zone)
-        // ⛔ The device's own 12/24-hour setting, not a forced 24 h: this dial is read by whoever
+        // The device's own 12/24-hour setting, not a forced 24 h: this dial is read by whoever
         // set that preference.
         val timeState = rememberTimePickerState(
             initialHour = opensAt.hour,
             initialMinute = opensAt.minute,
             is24Hour = android.text.format.DateFormat.is24HourFormat(context),
         )
-        // ⛔ In LANDSCAPE Material lays its own dial out BESIDE the time display, wider than the
+        // In LANDSCAPE Material lays its own dial out BESIDE the time display, wider than the
         // dialog. Measured on `emu` at 914×411 dp, 2026-08-20: the right half of the dial was off
-        // screen, its digits drew over the AM/PM selector, and `PM` was unreachable. ⚠ Scrolling is
+        // screen, its digits drew over the AM/PM selector, and `PM` was unreachable. Scrolling is
         // not the answer and the shell below does not make it one: the cut is HORIZONTAL, and the
         // vertical scroll added since moves nothing sideways. So the keyboard entry there, which is
         // Material's own answer to a constrained height, on Material's own threshold.
         val configuration = LocalConfiguration.current
         val clockAsInput = schedulePickerAsInput(configuration.screenHeightDp, configuration.screenWidthDp)
-        // ⛔ [SchedulePickerDialog], a shell of ours, and NOT Material's `AlertDialog`: what makes
+        // [SchedulePickerDialog], a shell of ours, and NOT Material's `AlertDialog`: what makes
         // the difference is the SOFTWARE KEYBOARD, and Material puts the focus in `TimeInput`'s
         // hour field, so the keys come up on their own — at the rotation and at the first touch
         // alike. The reading that bought that shell, and what each of its lines does, are written
@@ -999,28 +999,28 @@ fun ComposeScreen(
                     // dial turns.
                     enabled = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, System.currentTimeMillis()) != null,
                     onClick = {
-                        // ⚠ Asked AGAIN, with a fresh clock. A button lit at composition and tapped
+                        // Asked AGAIN, with a fresh clock. A button lit at composition and tapped
                         // after the minute turned would otherwise schedule into the past, which is
                         // to say send at once, irreversibly. Two reads cost one line.
                         val millis = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, System.currentTimeMillis())
-                        // ⛔ The dialog closes only on the way that SCHEDULES something. When the
+                        // The dialog closes only on the way that SCHEDULES something. When the
                         // minute turned between composition and the tap, closing here would take
                         // the clock off screen having scheduled nothing and said nothing. Left up,
-                        // the choice is still there to correct. ⚠ And it is only correcting it
+                        // the choice is still there to correct. And it is only correcting it
                         // that greys the button: `enabled` above reads the wall clock, which is
                         // not snapshot state, so a tap alone recomposes nothing and the button
                         // stays lit until the dial or the fields are touched. That window is at
                         // most the tail of one minute, and never on a day with hours left in it.
                         if (millis != null) {
                             viewModel.clearScheduleTime()
-                            // ⛔ The confirmation belongs to the schedule, not to the tap: the view
+                            // The confirmation belongs to the schedule, not to the tap: the view
                             // model answers `false` on every refusal it owns (the PGP/attachment
                             // choke point, and a body this composer LOST, which the two greyed-out
                             // buttons do not cover once the guard is real). Announced regardless,
                             // "Scheduled — …" is a sentence about a message that was not scheduled,
                             // immediately contradicted by the notice saying why.
                             if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)) {
-                                // ⛔ The INSTANT, formatted exactly as the Scheduled list formats
+                                // The INSTANT, formatted exactly as the Scheduled list formats
                                 // it — never a preset label, a sentence about another time.
                                 val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
                                 Toast.makeText(
@@ -1038,7 +1038,7 @@ fun ComposeScreen(
 
     // The day is dropped once the CLOCK is closed, whichever way out was taken (Cancel, a tap
     // outside, the system Back, or the confirmed schedule), so the next opening starts clean.
-    // ⚠ Keyed on the flag rather than written into those ways out: a ROTATION is none of them, and
+    // Keyed on the flag rather than written into those ways out: a ROTATION is none of them, and
     // the day has to survive it — on a recreation this effect restarts with the flag still raised
     // and forgets nothing.
     LaunchedEffect(pendingScheduleTime) { if (!pendingScheduleTime) viewModel.forgetScheduleDay() }
@@ -1060,13 +1060,13 @@ fun ComposeScreen(
             // per-sender rule dialogs.
             text = {
                 Text(
-                    // ⛔ One title, two BODIES, because the object is not the same one (#95). The
+                    // One title, two BODIES, because the object is not the same one (#95). The
                     // server draft "goes to the Trash"; a draft the phone is keeping has never
                     // reached a server, so there is no Trash for it to go to and no Undo behind
                     // it — it and its files go at once. Saying "goes to the Trash" over it would
                     // be the app promising a way back that does not exist.
                     //
-                    // ⛔ And the local body states ONLY what is true of all three local cases: the
+                    // And the local body states ONLY what is true of all three local cases: the
                     // copy this phone holds, and its attachments, go straight away. It used to add
                     // "this draft hasn't reached the server … this can't be undone", which is the
                     // opposite of what happens when the row masks a server copy this phone never
@@ -1108,7 +1108,7 @@ fun ComposeScreen(
                         // the guard refuses must not have consumed the draft on its way to being
                         // ignored.
                         //
-                        // ⛔ THE FOURTH EXIT, and the one that was missed. A SERVER draft leaves
+                        // THE FOURTH EXIT, and the one that was missed. A SERVER draft leaves
                         // through the host's popBackStack(), not through Done, not through
                         // localDraftDeleted and not through `cancel` — so nothing closed the slot,
                         // and the entry's teardown wrote the file back out with `closed` still
@@ -1300,7 +1300,7 @@ fun ComposeScreen(
                         // Box, not IconButton: an IconButton has no long press. The 48 dp size and
                         // the circular clip are what an IconButton was giving for free — the
                         // minimum touch target, and a ripple that is round rather than square.
-                        // ⛔ `enabled = !sending` sits on the clickable, so NEITHER gesture acts
+                        // `enabled = !sending` sits on the clickable, so NEITHER gesture acts
                         // while a send is in flight, as before.
                         Box {
                             Icon(
@@ -1309,7 +1309,7 @@ fun ComposeScreen(
                                     R.string.compose_pgp_toggle_desc,
                                     stringResource(pgpModeLabel(pgpMode)),
                                 ),
-                                // ⛔ The alpha is what IconButton gave for free. Neither gesture
+                                // The alpha is what IconButton gave for free. Neither gesture
                                 // acts while a send is in flight, and a padlock at full strength
                                 // would say the opposite (WYSIWYG).
                                 tint = (
@@ -1366,7 +1366,7 @@ fun ComposeScreen(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.compose_send))
                     }
-                    // ⭐ FOUR SLOTS AT MOST, AND THE TITLE GETS THE REST (#164). This bar carried
+                    // FOUR SLOTS AT MOST, AND THE TITLE GETS THE REST (#164). This bar carried
                     // up to EIGHT 48 dp slots (X, padlock, paperclip, delete, save, schedule, send,
                     // overflow) and there was nothing left for its own title: on a narrow screen at
                     // a large font scale it was clipped in the middle of a word. Save, "send later"
@@ -1381,11 +1381,11 @@ fun ComposeScreen(
                         var moreMenu by remember { mutableStateOf(false) }
                         var scheduleMenu by remember { mutableStateOf(false) }
                         // The instant the preset list below is DRAWN for, stamped when the PRESETS
-                        // open — ⛔ NOT when this overflow opens. Stamped at the ⋮, the whole time
+                        // open — NOT when this overflow opens. Stamped at the ⋮, the whole time
                         // spent reading the menu is added to the presets' expiry: a lapsed entry
                         // reaches `ScheduledSends.enqueue`, the delay is coerced to zero, and the
                         // message goes out AT ONCE and irreversibly while the banner announces a
-                        // schedule. ⚠ State, not a call in the composition: the wall clock is not
+                        // schedule. State, not a call in the composition: the wall clock is not
                         // snapshot state, so a tap recomposes nothing on its own (the free picker
                         // above says the same about its `enabled`). Re-stamping it is what redraws
                         // the menu after a refused tap and takes the lapsed entry off screen.
@@ -1410,7 +1410,7 @@ fun ComposeScreen(
                                 // and its table carries no attachments: disabled for a SIGN/ENCRYPT
                                 // message or one with attachments, which would otherwise go out
                                 // unsigned or amputated (A2/A3). The tap closes this menu and opens
-                                // the presets beside it — ⛔ no submenu nested inside an overflow.
+                                // the presets beside it — no submenu nested inside an overflow.
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.compose_schedule_send)) },
                                     onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },
@@ -1453,20 +1453,20 @@ fun ComposeScreen(
                                 DropdownMenuItem(
                                     text = { Text(label) },
                                     onClick = {
-                                        // ⚠ Decided AGAIN at the tap, against a fresh clock — the
+                                        // Decided AGAIN at the tap, against a fresh clock — the
                                         // same two reads as the free picker above. The composer can
                                         // sit in the background for minutes with this menu up: an
                                         // entry drawn at 5:55 PM still reads "This evening, 6 PM"
                                         // when tapped at 6:05, and that lapsed instant reaching
                                         // `ScheduledSends.enqueue` is coerced to a zero delay — the
                                         // message goes out AT ONCE, irreversibly, while the banner
-                                        // announces a schedule. ⛔ Deciding is not re-computing:
+                                        // announces a schedule. Deciding is not re-computing:
                                         // only "In 1 hour" is re-read, the three absolute entries
                                         // keep the instant they were drawn for or are refused —
                                         // re-computing them would move them a day at midnight. The
                                         // rule is [presetMillisAtTap], pure and unit-tested.
                                         val sendAt = presetMillisAtTap(preset, drawnAt, System.currentTimeMillis(), java.time.ZoneId.systemDefault())
-                                        // ⛔ Closing, scheduling and confirming happen together or
+                                        // Closing, scheduling and confirming happen together or
                                         // not at all. On the refused path the menu STAYS UP and is
                                         // redrawn from a new stamp: the lapsed entry vanishes under
                                         // the finger, and that is the message. Deliberately no new
@@ -1474,7 +1474,7 @@ fun ComposeScreen(
                                         // translations do not buy a window a few seconds wide.
                                         if (sendAt != null) {
                                             scheduleMenu = false
-                                            // ⛔ Scheduled AND confirmed, or neither: the view model
+                                            // Scheduled AND confirmed, or neither: the view model
                                             // answers `false` on the refusals it owns (PGP and
                                             // attachments, and a body this composer LOST), and the
                                             // banner below is a sentence about a message that would
@@ -1513,7 +1513,7 @@ fun ComposeScreen(
         },
     ) { padding ->
       Box(Modifier.fillMaxSize().padding(padding)) {
-        // ⭐ The editor is drawn or it is not. Every rememberSaveable above (`applied` first of
+        // The editor is drawn or it is not. Every rememberSaveable above (`applied` first of
         // all), and both LaunchedEffects that apply the prefill, stay OUTSIDE this `when` and
         // unconditional: the success path must land exactly as it does today, and `applied` must
         // keep surviving rotation and process death. Only the drawing moves.
@@ -1761,10 +1761,10 @@ fun ComposeScreen(
           }
 
             // Body — no frame, fills the rest of the width and grows with content.
-            // ⛔ The value handed to the field is FLAT, and it is `body` itself: plain text, its
+            // The value handed to the field is FLAT, and it is `body` itself: plain text, its
             // own selection, its own composition. NOT ONE SPAN goes in there. The styling of #131
             // AND the list markers are both drawn one layer down, by `bodyTransformation`.
-            // ⛔ Why, and it is not a preference. Compose's editing buffer cannot hold a span
+            // Why, and it is not a preference. Compose's editing buffer cannot hold a span
             // (`EditingBuffer.toAnnotatedString()` is `AnnotatedString(toString())`), while
             // `EditProcessor.reset` — called on every recomposition — compares the WHOLE
             // AnnotatedString and not its text. So a single span in the value classes every
@@ -1772,7 +1772,7 @@ fun ComposeScreen(
             // Android is asked to restart the input. On screen, from the first bold word to the
             // end of the message: the suggestion strip blinks, autocorrect stops applying, and a
             // composing IME (CJK, voice input, glide typing) is broken outright.
-            // ⛔ Handing `composition` straight back, which `onValueChange` does below, is
+            // Handing `composition` straight back, which `onValueChange` does below, is
             // NECESSARY BUT NOT SUFFICIENT: Compose throws that composition away itself, before
             // the IME ever sees it, as long as the value carries a span. Nothing may be laid on
             // the value on the way in — `remember` does not help either, `TextFieldValue` equality
@@ -1780,7 +1780,7 @@ fun ComposeScreen(
             BasicTextField(
                 value = body,
                 onValueChange = { next ->
-                    // ⛔ Read HERE, not `rich`: that one is captured at composition, and two
+                    // Read HERE, not `rich`: that one is captured at composition, and two
                     // callbacks before a recomposition would remap from a stale body.
                     val current = RichBody(body.text, ranges, blocks, links)
                     if (next.text != body.text) {
@@ -1798,7 +1798,7 @@ fun ComposeScreen(
                     }
                     body = TextFieldValue(next.text, next.selection, next.composition)
                 },
-                // ⛔ The list markers AND the inline styling are drawn HERE and nowhere else
+                // The list markers AND the inline styling are drawn HERE and nowhere else
                 // (#131): in the text layer, by the one transformation a field has, so not one
                 // marker character enters `body.text` and not one span enters the value above.
                 // Fed the live `rich` — text, blocks, spans and links in one object — so the drawn
@@ -1838,7 +1838,7 @@ fun ComposeScreen(
                             .padding(horizontal = 16.dp)
                             .padding(top = 12.dp, bottom = 16.dp),
                     ) {
-                        // ⛔ …and no list either: a bullet tapped on an empty composer is drawn
+                        // …and no list either: a bullet tapped on an empty composer is drawn
                         // at the start of the first line, exactly where the placeholder sits, and
                         // the two overprint each other until the first keystroke.
                         if (body.text.isEmpty() && blocks.isEmpty()) {
@@ -1852,7 +1852,7 @@ fun ComposeScreen(
                     }
                 },
             )
-            // The formatting bar, only while the body has the focus (#131). ⛔ No `imePadding()`
+            // The formatting bar, only while the body has the focus (#131). No `imePadding()`
             // and no inset of its own: the Column above already pads for the keyboard or the nav
             // bar, whichever is taller, and a second inset here would double it (#26).
             if (bodyFocused) {
@@ -1874,7 +1874,7 @@ fun ComposeScreen(
                         }
                     },
                     onToggleList = { kind ->
-                        // ⚠ No `pending` and no empty-selection branch, unlike the four families
+                        // No `pending` and no empty-selection branch, unlike the four families
                         // above: a block is a run of LINES, so the caret alone already names one
                         // (`toggleBlock`), and the tap applies at once — the gesture in Gmail.
                         val current = RichBody(body.text, ranges, blocks, links)
@@ -1888,7 +1888,7 @@ fun ComposeScreen(
                 )
             }
             if (linkDialog) {
-                // ⛔ The body AND the caret go back into the composer's own state: `setLink` can
+                // The body AND the caret go back into the composer's own state: `setLink` can
                 // INSERT the label, so the text changes here as it does under a keystroke, and the
                 // caret must land after what was inserted or the next letter lands inside the link.
                 LinkDialog(
@@ -1936,17 +1936,17 @@ fun ComposeScreen(
  * with a keyboard over it — `AlertDialogContent` gives its `text` slot neither a scroll nor a
  * weight, so the picker takes the height it wants and the actions spill off the bottom.
  *
- * ⛔ Measured on `emu` in landscape at 914×411 dp with the CLOCK in Material's `AlertDialog`,
+ * Measured on `emu` in landscape at 914×411 dp with the CLOCK in Material's `AlertDialog`,
  * 2026-08-21: the `ime` inset covered [132,502][2400,1080], the platform SLID the window 167 px —
  * just enough to clear the focused field — and stopped there, leaving the Cancel/OK row announced
- * at y=531..584, under the top of the keys at y=502. ⛔ The tap did not miss in silence either:
+ * at y=531..584, under the top of the keys at y=502. The tap did not miss in silence either:
  * touching `OK` typed a digit into the hour field (02 became 03) instead of confirming. With the
  * keyboard closed everything was correct again.
  *
  * Three lines carry the fix, and none of them works alone:
  *  - `decorFitsSystemWindows = false`: with the default the platform slides the window and stops at
  *    the focused field; at `false` there is no sliding left and the keyboard becomes an INSET.
- *    ⚠ On Android 12+ this is the only mechanism there is: `DialogWrapper.updateParameters` sets a
+ *    On Android 12+ this is the only mechanism there is: `DialogWrapper.updateParameters` sets a
  *    `softInputMode` only below API 31.
  *  - `safeDrawingPadding()`: what SUBTRACTS that inset. The window stays `wrap_content` and
  *    CENTRED, so taking the keyboard's height off the bottom lifts the dialog above the keys by
@@ -1960,11 +1960,11 @@ fun ComposeScreen(
  * against keys at y=502, the picker scrolling once the height ran out, and `OK` confirming instead
  * of typing a digit.
  *
- * ⛔ [picker] is composed inside a `verticalScroll`, i.e. in INFINITE height: nothing lazy and
+ * [picker] is composed inside a `verticalScroll`, i.e. in INFINITE height: nothing lazy and
  * VERTICAL may be handed to it. A `LazyVerticalGrid` measured that way throws, which is why the
  * calendar's grid face keeps `DatePickerDialog` and is guarded out of this shell.
  *
- * ⚠ The second slot is [buttons] and NOT `actions`: `DraftReopenWiringTest` pins the gate on the
+ * The second slot is [buttons] and NOT `actions`: `DraftReopenWiringTest` pins the gate on the
  * top bar by taking the FIRST `actions = {` line of this file, and a second one declared above it
  * makes that lint read this dialog instead — which is exactly what it did, once.
  */
@@ -1994,11 +1994,11 @@ private fun SchedulePickerDialog(
                 ) {
                     picker()
                 }
-                // ⛔ A FLOW row, not a plain one, because Material's `AlertDialogFlowRow` —
+                // A FLOW row, not a plain one, because Material's `AlertDialogFlowRow` —
                 // which this shell replaces — wraps its actions onto a second line. At 360 dp
                 // with the font scaled up, "Abbrechen" or "Annuleren" beside "OK" does not fit
                 // on one line, and a plain Row would put OK off the edge instead of under it.
-                // ⚠ And the SECOND line needs air under the first: `AlertDialogFlowRow` spaces
+                // And the SECOND line needs air under the first: `AlertDialogFlowRow` spaces
                 // its rows by 12 dp, a `FlowRow` by nothing at all. Left out, the two buttons
                 // touch on exactly the screens that make them wrap — German or Dutch at 360 dp
                 // with the font scaled up — and read as one block.
@@ -2526,7 +2526,7 @@ private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
  * The eight formatting buttons under the body (#131): the four inline families, the two lists, the
  * link, then "clear". Placed DOWN HERE on purpose: `DraftReopenWiringTest` reads the FIRST `actions = {`
  * line of this file as the top bar (nothing here declares one), and `ScheduleMenuWiringTest` reads
- * `schedulePresets` below to the END of the file, so nothing may follow it. ⚠ Nothing focusable
+ * `schedulePresets` below to the END of the file, so nothing may follow it. Nothing focusable
  * beyond the buttons themselves: a bar that takes the focus hides itself.
  */
 @Composable
@@ -2539,12 +2539,12 @@ private fun FormattingBar(
     onToggleList: (BlockKind) -> Unit,
     onClear: () -> Unit,
 ) {
-    // ⛔ SCROLLABLE, since the bar went from five buttons to eight: 8 × 48 dp + 8 = 392 dp of fixed
+    // SCROLLABLE, since the bar went from five buttons to eight: 8 × 48 dp + 8 = 392 dp of fixed
     // width. It no longer fits even a 360 dp phone, let alone a side-by-side multi-window pane (this
     // screen is rebuilt by exactly that resize, see the token comment above) nor a large "display
     // size" setting — where the last button, "clear formatting", would simply be off the screen
     // with no way to reach it. Scrolling is also what Gmail's own bar does when it runs out of room
-    // (rule 4). ⚠ A scroll container, not a focusable one: the bar must never take the focus, or it
+    // (rule 4). A scroll container, not a focusable one: the bar must never take the focus, or it
     // hides itself.
     Row(
         Modifier
@@ -2624,7 +2624,7 @@ private fun FormattingButton(
  * zone is read here and the decision itself is [schedulePresetsAt]'s, which is pure and unit-tested:
  * this only resolves the labels, so the menu can never show an entry the rule dropped.
  *
- * ⛔ The clock is an ARGUMENT and never read in this body. The caller stamps it when the menu opens
+ * The clock is an ARGUMENT and never read in this body. The caller stamps it when the menu opens
  * and holds it in state, so a refused tap can re-stamp it and have the list redrawn; a clock read
  * here would instead tie the shown list to recomposition, which a tap does not cause.
  *

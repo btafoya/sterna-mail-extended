@@ -40,7 +40,7 @@ internal sealed interface RefreshOutcome {
  * this bound fixes is "never", not "slow", so it has to sit well clear of a sync that is merely
  * having a bad day on a train.
  *
- * ⚠ It is NOT "above the worst legitimate case", and claiming so would be false: the unified inbox
+ * It is NOT "above the worst legitimate case", and claiming so would be false: the unified inbox
  * walks the accounts IN SERIES (`MailRepository.refreshAllInboxes`), so its worst legitimate case
  * is N times one account's, and 180 s is under that from about three slow accounts on. When the
  * bound fires there, the accounts still ahead in the walk are not refreshed at all — the list says
@@ -48,7 +48,7 @@ internal sealed interface RefreshOutcome {
  * DEBT, accepted knowingly rather than a property: a tern that spins a lie for five minutes is
  * worse than a refresh cut short, and per-account bounding is a different change.
  *
- * ⛔ This is NOT a `callTimeout` and it has no business in `JmapClient`. The push connection's
+ * This is NOT a `callTimeout` and it has no business in `JmapClient`. The push connection's
  * client is derived from the shared one (`JmapClient.kt`, `httpClient.newBuilder()` for the event
  * source), so a global call timeout there would cut the event stream at a fixed interval — push
  * would drop and reconnect for ever, which is a worse bug than the one being fixed.
@@ -58,7 +58,7 @@ internal const val REFRESH_BUDGET_MS = 180_000L
 /**
  * Run [work] under [budgetMs] and answer with which of the three ends it reached.
  *
- * ⛔ **`withTimeoutOrNull(budgetMs) { work() }` does NOT do this.** That form JOINS its block: the
+ * **`withTimeoutOrNull(budgetMs) { work() }` does NOT do this.** That form JOINS its block: the
  * budget only bounds a body that notices cancellation, and a refresh sits in a blocking OkHttp
  * `execute()` which ignores it until its own socket gives up. The naive form would hand the main
  * thread back only after the socket's own delays — and #130 is precisely the case where the socket
@@ -74,21 +74,21 @@ internal const val REFRESH_BUDGET_MS = 180_000L
  * thread is still out there and may return long after; it can no longer say anything, because the
  * only writer of the status is this envelope's return value.
  *
- * ⛔ At the deadline, a verdict that has ALREADY LANDED wins over the clock. The work completes
+ * At the deadline, a verdict that has ALREADY LANDED wins over the clock. The work completes
  * from an IO thread while the deadline goes off on Main, so the two genuinely race: reading the
  * clock alone would tell the reader a refresh failed while its mail is already in the database,
  * and would skip `reportSuccess()`, leaving a stale offline banner up. Same doctrine as
  * `verdictAtBudget` in `JmapDiscovery` — "an answer that landed is not held back by a black hole".
  * A [work] that landed on a CANCELLATION is not a verdict and stays [RefreshOutcome.AbandonedAtBudget].
  *
- * ⛔ A [CancellationException] out of [work] is not something the refresh said. It leaves for the
+ * A [CancellationException] out of [work] is not something the refresh said. It leaves for the
  * caller unchanged (the deferred is completed exceptionally AND it is rethrown), so
  * `InboxViewModel.refresh`'s `catch (c: CancellationException) { throw c }` keeps deciding exactly
  * as it did — a superseding refresh must not stomp the status of the one that replaced it.
  */
 internal suspend fun refreshWithin(
     /**
-     * ⛔ Defaulted on purpose, and production passes nothing, so the shipped bound lives in exactly
+     * Defaulted on purpose, and production passes nothing, so the shipped bound lives in exactly
      * ONE place — [REFRESH_BUDGET_MS], which a test pins. Spelled at the call site it would be a
      * second copy no JVM test can reach (`InboxViewModel` is not instantiable there): the call
      * could be handed `Long.MAX_VALUE` with the whole suite still green, i.e. #130 back in full.

@@ -37,7 +37,7 @@ sealed interface BannerDeleteAct {
  *    a pending Empty-trash order and, with `markReadOnDelete` on, marked it read. The banner's
  *    catch swallows the throw, so those two writes are all the user gets.
  *
- * ⭐ The second case needs [cachedRole] to be non-null, and that is not decoration: a known role is
+ * The second case needs [cachedRole] to be non-null, and that is not decoration: a known role is
  * the proof that this account's folder list HAS been synced. Without it a cache that was never
  * filled reads exactly like an account with no Trash, and a perfectly ordinary Delete would be
  * refused.
@@ -48,12 +48,12 @@ sealed interface BannerDeleteAct {
  * unelected trash is stored marked (`"~trash"`), it is not THE trash, and a delete really does
  * move out of it.
  *
- * ⚠ And the same staleness the other way round, equally accepted: a Trash created server-side since
+ * And the same staleness the other way round, equally accepted: a Trash created server-side since
  * the last folder sync is not in the cache, so an ordinary Delete on such an account is refused
  * although `delete()` — which resolves the role live — would have moved the message. Nothing is
  * lost by it: the banner stays, and the gesture waits in the list.
  *
- * ⚠ Residual hole, accepted rather than hidden: a Trash that was never synced holds no cached rows
+ * Residual hole, accepted rather than hidden: a Trash that was never synced holds no cached rows
  * at all, so a message deleted in the app and then Deleted again from its banner falls through the
  * "no cached row" arm and the defect survives there. It is narrower than the defect, it loses no
  * data, and closing it would cost the network round trip this rule exists to avoid.

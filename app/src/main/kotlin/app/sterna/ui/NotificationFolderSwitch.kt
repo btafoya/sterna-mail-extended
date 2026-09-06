@@ -42,7 +42,7 @@ object NotificationFolderSwitch {
      *    leaves the unified view alone for the same reason, so the two halves agree.
      */
     /*
-     * ⚠ A FIFTH case, judged by the caller and not here: a folder the account's "show subscribed
+     * A FIFTH case, judged by the caller and not here: a folder the account's "show subscribed
      * folders only" setting hides (#174). It is deliberately not this function's business — the
      * answer below is a folder id, and whether one may be parked in it is one rule shared with the
      * setting's own fallback ([app.sterna.ui.inbox.notificationFolderToShow]). Do not select this

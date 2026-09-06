@@ -21,12 +21,12 @@ enum class PgpMode { OFF, SIGN, ENCRYPT, ENCRYPT_UNSIGNED }
  *  - the recipients' public keys are looked up, and the composer's missing-key warnings with them
  *    (`ComposeViewModel.updateRecipientKeys`, `keysReady`, `missingKeyFor`).
  *
- * ⛔ A fifth encrypting mode MUST come through here instead of being compared by name at the call
+ * A fifth encrypting mode MUST come through here instead of being compared by name at the call
  * sites. `== PgpMode.ENCRYPT` was written at six of them; a mode added beside it answered "not
  * encrypted" at every single one, and the failures are silent ones: the plaintext goes up to the
  * server as a draft, and stays in the outbox row at rest.
  *
- * ⚠ It is deliberately NOT the same question as `!= PgpMode.OFF` ("any PGP at all"), which is what
+ * It is deliberately NOT the same question as `!= PgpMode.OFF` ("any PGP at all"), which is what
  * gates scheduling and local attachment staging. Do not swap one for the other.
  */
 val PgpMode.encrypts: Boolean get() = this == PgpMode.ENCRYPT || this == PgpMode.ENCRYPT_UNSIGNED
@@ -119,18 +119,18 @@ interface PgpEngine {
      * transferable public key (signatures stripped, and user ids narrowed to [ownAddress]), in
      * BINARY — no ASCII armor is requested.
      *
-     * ⛔ [ownAddress] is not decoration and not a hint: it is the account's own address
+     * [ownAddress] is not decoration and not a hint: it is the account's own address
      * (`StoredAccount.username`), and it is what keeps the export down to the ONE identity this
      * account may announce. A keyring holding several user ids — a private address, a former
      * employer, a pseudonym — would otherwise put all of them in the `Autocrypt:` header of every
      * message to every correspondent.
      *
-     * ⛔ Raw bytes, like every other payload on this interface. What gets STORED is base64, and the
+     * Raw bytes, like every other payload on this interface. What gets STORED is base64, and the
      * one encoder is `pgpPublicKeyCacheValue` in the account package: keeping it out of the
      * provider binding means both call sites that persist a key encode it the same way, and a
      * caller that wants the bytes (a header, a file) is not made to decode them back.
      *
-     * ⚠ Expect [PgpResult.UserInteractionRequired] here as anywhere else — the provider may want to
+     * Expect [PgpResult.UserInteractionRequired] here as anywhere else — the provider may want to
      * be unlocked, or may not hold the key. That is precisely why the answer is cached on the
      * account: a caller with no screen cannot take that branch.
      */
@@ -149,13 +149,13 @@ interface PgpEngine {
      * The key lands in the public keyring, which is the whole point: [findKeys] then finds it with
      * no other call, and the composer stops saying the recipient has no key.
      *
-     * ⛔ No `interactionResult`, unlike every other method here, and none can be added usefully:
+     * No `interactionResult`, unlike every other method here, and none can be added usefully:
      * this runs while a message is being OPENED, from a repository that has no screen and no way to
      * launch a [PgpResult.UserInteractionRequired] intent (the only launcher in the app is a
      * `@Composable`). Every answer that is not [PgpResult.Success] is dropped in silence by the
      * caller.
      *
-     * ⛔ Never mutual. Autocrypt's `prefer-encrypt` is read off the header and thrown away: whether
+     * Never mutual. Autocrypt's `prefer-encrypt` is read off the header and thrown away: whether
      * this app starts encrypting by itself is a separate decision, and it is not this one.
      */
     suspend fun updateAutocryptPeer(

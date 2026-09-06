@@ -31,7 +31,7 @@ import kotlin.math.abs
  * file is that floor, and nothing else: the velocity threshold, the snap animation and
  * `snapPositionalThreshold` all stay the library's.
  *
- * ⚠ WHERE THE TRAVEL IS READ, and why it is not the pager's offset. The first cut of this file
+ * WHERE THE TRAVEL IS READ, and why it is not the pager's offset. The first cut of this file
  * measured `currentPageOffsetFraction × pageSize`, i.e. what the pager had already SCROLLED. That
  * is the finger's travel minus everything the pager never saw — its own touch slop, and whatever
  * the body `WebView`'s `AndroidView` interop handle held back before letting go. On a 360 dp bench
@@ -43,7 +43,7 @@ import kotlin.math.abs
  *
  * Everything below is in px, as the pointer reports it: the composable converts the dp, so the two
  * decisions — the floor and the travel machine — need no `Density` and are executed off-device by
- * `PagerFlingDistanceTest`. ⚠ What they are FED is another matter: the three lines that join the
+ * `PagerFlingDistanceTest`. What they are FED is another matter: the three lines that join the
  * observer to the guard (the getter below, the call site inside the loop, and the `remember` in
  * `MessageScreen`) execute nowhere in a JVM test and are only held by the source lint of
  * `PagerFlingWiringTest`, which reads text and watches nothing happen.
@@ -70,7 +70,7 @@ internal const val MIN_FLING_DISTANCE_DP = 25
  * own 400 dp/s, so `LazyListSnapLayoutInfoProvider` falls back to `ClosestItem` and the page settles
  * on `snapPositionalThreshold` (0.5 by default) — i.e. the SLOW drag keeps working, unchanged, by
  * the library's own path. Refusing the fling outright would mean re-writing that path here. This is
- * what keeps the fix small. ⚠ `snapPositionalThreshold` governs that slow path only; it has never
+ * what keeps the fix small. `snapPositionalThreshold` governs that slow path only; it has never
  * had any say over a fast fling, and no comment here should suggest otherwise.
  *
  * At the floor exactly, and above it, the velocity passes through UNCHANGED, sign included: the
@@ -101,12 +101,12 @@ internal data class PointerTravel(
 /**
  * One pointer event folded into the travel being tracked.
  *
- * ⭐ The travel is NOT cleared when the finger lifts; it is cleared by the next PRESS EVENT. The
+ * The travel is NOT cleared when the finger lifts; it is cleared by the next PRESS EVENT. The
  * fling runs after the release, so the only travel it can read is the one the gesture that just
  * ended left behind — clear it at the lift and the guard always sees 0 px and no flick ever changes
  * message again.
  *
- * ⭐ The reset hangs on [isPress] — the EVENT — and never on our own [PointerTravel.fingerDown].
+ * The reset hangs on [isPress] — the EVENT — and never on our own [PointerTravel.fingerDown].
  * A gesture can end without any "no pointer is pressed" event ever reaching this node: the
  * notification shade or the system back gesture takes the touch, the stream is cancelled, and the
  * flag stays true. Keyed on the flag, the NEXT gesture would then be measured from the OLD origin —
@@ -115,10 +115,10 @@ internal data class PointerTravel(
  * gesture left behind, the next press starts from a fresh origin. Nothing here assumes Compose
  * restarts the block after a cancellation; nobody on this project can check that.
  *
- * ⭐ Which is also why a stale travel can never be read: a fling needs a drag, a drag needs a press,
- * and a press has already zeroed the travel.
+ * No stale travel can be read out of the TOUCH stream: a fling needs a drag, a drag needs a press,
+ * and a press has zeroed the travel. A fling with no press before it reads the last finger's.
  *
- * ⭐ The travel kept is SIGNED and FINAL — `x_up − x_down`, not the furthest point reached. That is
+ * The travel kept is SIGNED and FINAL — `x_up − x_down`, not the furthest point reached. That is
  * what `ViewPager` compared, and it closes the there-and-back gesture on the way: leave 60 dp to the
  * left, come back next to the starting point, and the travel is short, so the page does not change.
  *
@@ -126,7 +126,7 @@ internal data class PointerTravel(
  * final position, whatever the touch slop swallowed and however the events were batched, so it is
  * written in before the gesture is closed.
  *
- * ⚠ This function is pure and runs off-device, and `PagerFlingDistanceTest` executes it. The STATE
+ * This function is pure and runs off-device, and `PagerFlingDistanceTest` executes it. The STATE
  * it is fed, on the other hand — which event, which coordinate, which boolean — is only ever proven
  * by the source lint in `PagerFlingWiringTest`, which reads text and watches nothing happen.
  *
@@ -150,16 +150,16 @@ internal fun advanceTravel(
 /**
  * The finger's travel across the pager, read from the pointer stream and held for the fling.
  *
- * ⛔ The observer CONSUMES NOTHING — no `change.consume()`, ever. It watches
+ * The observer CONSUMES NOTHING — no `change.consume()`, ever. It watches
  * [PointerEventPass.Initial], which runs before the pager's own drag handling, so consuming there
  * would take the gesture away from the pager, from the body `WebView`'s interop handle and from
  * everything #152 / #97 / #10 settled about who owns a drag. Watching without consuming leaves that
  * chain exactly as it was.
  *
- * ⚠ [state] is a plain `var`, deliberately NOT a `mutableStateOf`: nothing reads it during
+ * [state] is a plain `var`, deliberately NOT a `mutableStateOf`: nothing reads it during
  * composition and nothing should recompose when a finger moves. It is read once, at fling time.
  *
- * ⚠ The coordinate read is `changes.firstOrNull()`'s, whichever pointer that is: nothing here
+ * The coordinate read is `changes.firstOrNull()`'s, whichever pointer that is: nothing here
  * checks `change.id`, and [advanceTravel]'s `anyPressed` stays true while ANY finger is down. So a
  * second finger landing mid-gesture emits a Press, which RESTARTS the measurement on it — the
  * travel is then that second finger's, from its own origin. Left as is, on purpose: a two-finger
@@ -176,7 +176,7 @@ internal class PagerTouchTravel {
     /**
      * The travel of the gesture that just ended, signed, in px.
      *
-     * ⚠ Nothing executing can see this getter. Return [PointerTravel.downX] instead — also a
+     * Nothing executing can see this getter. Return [PointerTravel.downX] instead — also a
      * `Float`, also compiles without a warning — and the guard is handed the absolute x of the
      * touch down, 0 to 720 px on a 360 dp bench, which clears the 50 px floor almost everywhere:
      * every flick passes and the 2026-08-18 report is back, whole, with a green suite. That is why

@@ -6,12 +6,12 @@ package app.sterna.core.data.db
  * `emails` — a JMAP id is unique only inside its account, #31), plus [sortKey] and [mailboxId],
  * which the caller needs to order and to name the folder it came from.
  *
- * ⛔ There is deliberately NO `preview` here, and this type exists mainly to make that absence
+ * There is deliberately NO `preview` here, and this type exists mainly to make that absence
  * structural. [EmailEntity] carries one, and a widget sits on an UNLOCKED home screen in front of
  * whoever is holding the phone: the body of a message must never reach it, under any setting.
  * Returning the entity would put the column one `row.preview` away from being drawn by a later
  * reader who never read this comment; not carrying it across means no such reader can exist.
- * ⛔ Do not add the column here "for a subtitle" — that is the same decision, re-taken by accident.
+ * Do not add the column here "for a subtitle" — that is the same decision, re-taken by accident.
  */
 data class RecentEmailRow(
     val id: String,

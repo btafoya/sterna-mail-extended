@@ -66,12 +66,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class MailUi(
-    /** The CURRENT account — the one [mailboxes] belongs to — whatever view is on screen. ⛔ Not
+    /** The CURRENT account — the one [mailboxes] belongs to — whatever view is on screen. Not
      *  "the account of the list": the unified inbox spans every account and still has a current one
      *  here. Null only while no account is configured, and null is also what a fixture that does not
      *  care gets, so nothing already written has to name it.
      *
-     *  ⚠ It is what makes [app.sterna.ui.inbox.unreadRowFolder] able to look a row's folder up in
+     *  It is what makes [app.sterna.ui.inbox.unreadRowFolder] able to look a row's folder up in
      *  [mailboxes] AT ALL: that list is one account's, not qualified by account, and servers number
      *  their mailboxes per account (#31/#121) — a bare id would find a neighbour's homonym. That is
      *  also why the lookup compares this field to the ROW's account before trusting the answer. */
@@ -102,7 +102,7 @@ data class MailUi(
     /** The SAME list minus what the account's "subscribed folders only" setting hides (#174,
      *  [visibleFolders]) — what the drawer draws, and nothing else.
      *
-     *  ⛔ A second field, never a replacement for [mailboxes]: that one is read to find a folder's
+     *  A second field, never a replacement for [mailboxes]: that one is read to find a folder's
      *  children before a delete ([InboxViewModel.subfolderIdsOf] — a hidden child left behind is
      *  mail nobody can reach), to tell a DELETED folder from a hidden one (#89), and to name a
      *  row's folder and its role. Filtering at the source poisons all three. */
@@ -174,7 +174,7 @@ private const val SERVER_SEARCH_LIMIT = 200
  * The Undo window of a local removal: how long the message can be put back, and therefore how long
  * its notification banner outlives the gesture.
  *
- * ⭐ THE only clock. The snackbar is `SnackbarDuration.Indefinite` (`InboxScreen.kt`) and is taken
+ * THE only clock. The snackbar is `SnackbarDuration.Indefinite` (`InboxScreen.kt`) and is taken
  * down by this deadline clearing `_undo`, so what the bar shows IS this window. It used to be the
  * other way round — a `Short` bar beside a `delay` here — and the two drifted apart on three
  * reachable paths (a rotation restarts the bar's four seconds, the "Time to take action"
@@ -185,7 +185,7 @@ private const val SERVER_SEARCH_LIMIT = 200
  *
  * Four seconds of bar plus the margin the old `Short` window used to get for free (its clock only
  * started when Compose showed the bar, this one starts at the server acknowledgement).
- * ⛔ Not a setting: a knob here is the decision handed to the reader.
+ * Not a setting: a knob here is the decision handed to the reader.
  */
 private const val UNDO_BANNER_DISMISS_MS = 6_000L
 
@@ -194,7 +194,7 @@ private const val UNDO_BANNER_DISMISS_MS = 6_000L
  * ([InboxViewModel.refreshUnreadScope]). The default of
  * `MailRepository.refreshAccountFolders`, spelled out because this caller passes it deliberately.
  *
- * ⛔ NOT the account's sync window, and the difference is not a preference — it is the heap. That
+ * NOT the account's sync window, and the difference is not a preference — it is the heap. That
  * refresh syncs N folders in ONE pass, and its IMAP branch reads each folder as a single
  * `fetchPage(offset = 0, limit = limit)` whose envelopes are all held until every folder has been
  * read (`MailRepository.kt` writes after the loop). `ImapClient` and `ImapFolderWalk` both say in
@@ -203,13 +203,13 @@ private const val UNDO_BANNER_DISMISS_MS = 6_000L
  * fleet — and it would ALSO downgrade the inbox, which reaches this view through the same one-shot
  * page instead of the write-as-you-go walk `repo.refresh` uses.
  *
- * ⭐ Bounding it truncates NOTHING that was kept before, which is the only reason a bound is safe
+ * Bounding it truncates NOTHING that was kept before, which is the only reason a bound is safe
  * here: on JMAP the caller does not size the retained set at all — `SyncPaging.fullQuerySizing`
  * reads the account's window from the store and says so explicitly — and on IMAP this path only
  * upserts, it deletes nothing. The number means "how much recent mail to LOOK AT per folder", not
  * "how much to keep".
  *
- * ⚠ The cost, stated: in a folder that was never opened, only the 50 most recent messages enter the
+ * The cost, stated: in a folder that was never opened, only the 50 most recent messages enter the
  * cache per pull, so an older unread message is not in this view yet. That is already what the push
  * pass does for a watched folder, with this very same default.
  */
@@ -258,7 +258,7 @@ private const val PANE_THREAD = "pane.thread"
  * Built by the framework through `SavedStateViewModelFactory` — what `viewModel(entry)` on a
  * `NavBackStackEntry` uses — which knows the `(Application, SavedStateHandle)` signature. The
  * handle is the "inbox" entry's own and survives process death; it carries the reading pane's
- * anchor (#103) and nothing else here. ⛔ Nothing in `app/src` instantiates this class by hand.
+ * anchor (#103) and nothing else here. Nothing in `app/src` instantiates this class by hand.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class InboxViewModel(
@@ -305,7 +305,7 @@ class InboxViewModel(
     /**
      * Whether any outbox item is parked as failed (drives the failure banner).
      *
-     * ⛔ Through [OutboxLogic.needsFailureBanner], never by testing a state here: the banner sits
+     * Through [OutboxLogic.needsFailureBanner], never by testing a state here: the banner sits
      * across the Inbox and tints the outbox dot red, and it is cleared by nothing. A row saved as a
      * draft on the phone (#95) is deliberately NOT one of these — it is listed and counted, but
      * nothing failed, so nothing shouts.
@@ -358,7 +358,7 @@ class InboxViewModel(
      *  (#99). Null, or simply missing, on JMAP, on a row cached before the column existed and on a
      *  row no longer cached: all three mean "nothing to oppose", which destroys nothing.
      *
-     *  ⭐ Per MESSAGE and no longer per (account, folder): the folder's record is realigned by any
+     *  Per MESSAGE and no longer per (account, folder): the folder's record is realigned by any
      *  background pass that meets a renumbering, while the ids on screen still belong to the old
      *  numbering — opposed to itself it reads SAME and the expunge falls on other messages. The
      *  row's stamp comes from the SELECT that enumerated it, so it cannot drift from its own UID.
@@ -456,7 +456,7 @@ class InboxViewModel(
     /**
      * Empties the pane; true if it was showing something. The boolean is the guard against a
      * second tap on Archive / Delete / Move in the pane's own bar: the first tap empties the pane
-     * and acts, the second finds nothing to act on. ⛔ Never "the next message" here: the settle
+     * and acts, the second finds nothing to act on. Never "the next message" here: the settle
      * marks a message read, and nothing may happen to a message nobody chose to open
      * (`SECURITY.md`).
      */
@@ -473,7 +473,7 @@ class InboxViewModel(
 
     /**
      * A switch of scope empties the pane, on the same line the threads are collapsed and for the
-     * same reason: what was open belongs to the list it was opened in. ⛔ Not from a collector on
+     * same reason: what was open belongs to the list it was opened in. Not from a collector on
      * [selection] — the restored selection is emitted at start-up and would erase the restored
      * anchor — and not on the folder a notification came from (`applyNotificationFolder`), which
      * lands AFTER the anchor that notification posted.
@@ -841,7 +841,7 @@ class InboxViewModel(
      * which is what this flow always held, and still holds whenever the memory is empty, another
      * account's, or names a view this install does not offer.
      *
-     * ⛔ Through [restoredSelection], never a store read written out here: `RootViewModel` needs the
+     * Through [restoredSelection], never a store read written out here: `RootViewModel` needs the
      * same answer before this ViewModel exists at all (the push arm, the notification switch), and
      * two copies of that read are two answers waiting to disagree about the view the app reopened
      * on. The bound it hands over is `AllInboxesView.existsFor`, the line that follows the drawer's
@@ -869,7 +869,7 @@ class InboxViewModel(
      * The last folder list [mailboxes] delivered, WITH the account it belonged to — the raw list,
      * unfiltered.
      *
-     * ⚠ This exists because two different things must re-derive the "unread" view's scope: a new
+     * This exists because two different things must re-derive the "unread" view's scope: a new
      * folder list, and the setting being toggled. [mailboxes] carries side effects (#91's parked
      * notification folder, #89's vanished-folder fallback) and must be collected ONCE, so the
      * setting cannot be combined into it — the scope is derived from this record instead, and the
@@ -901,11 +901,11 @@ class InboxViewModel(
      * folders" and this one is not among them (#174). The decision is [selectionIsUnreachable]'s,
      * which a JVM test runs; this only feeds it and acts on the answer.
      *
-     * ⛔ Derived from [folderSnapshot], never from a second collection of [mailboxes]: that flow
+     * Derived from [folderSnapshot], never from a second collection of [mailboxes]: that flow
      * carries side effects (#91's parked notification folder) and a second collector would replay
      * them every time the box is ticked.
      *
-     * ⚠ The setting half reverses what #174 first shipped ("hidden is not deleted"), on the bench
+     * The setting half reverses what #174 first shipped ("hidden is not deleted"), on the bench
      * pass of 2026-08-25 and on rule 3, WYSIWYG: the list stayed titled `Vieux`, showing `Vieux`,
      * while the setting claimed only subscribed folders were shown and neither the drawer nor
      * "move to" would still offer it — and leaving it was a one-way trip.
@@ -924,7 +924,7 @@ class InboxViewModel(
      * The header the list opens on, for the view [selection] was RESTORED to — decided by
      * [restoredMeta], which a JVM test runs.
      *
-     * ⚠ Reads `selection.value`, so it has to stay declared AFTER [selection]; it is a plain
+     * Reads `selection.value`, so it has to stay declared AFTER [selection]; it is a plain
      * initialiser and the order is the whole guarantee it is not null here.
      *
      * It used to be the Inbox's name and count, written flat, which was true while every cold
@@ -952,7 +952,7 @@ class InboxViewModel(
      * argument and live in `RefreshIndicatorGrace.kt` and `RefreshFreshness.kt`, where plain JVM
      * tests run them on a virtual clock.
      *
-     * ⛔ `elapsedRealtime`, and this line is pinned by `RefreshIndicatorWiringLintTest` — because
+     * `elapsedRealtime`, and this line is pinned by `RefreshIndicatorWiringLintTest` — because
      * every other candidate is one word away and wrong in a way no test here can see:
      *  - `System.currentTimeMillis` is a WALL clock. NTP or a hand-set time moves it, while the
      *    `delay` that schedules the wake-ups is monotonic, so a correction landing mid-refresh
@@ -997,7 +997,7 @@ class InboxViewModel(
      * The message a tapped notification posted in the reading pane, kept so the account switch that
      * same notification asks for can put it back ([openFromNotification], [onAccountChanged]).
      *
-     * ⛔ It is a park for ONE switch and nothing reads it as a flag: [applyNotificationFolder] has
+     * It is a park for ONE switch and nothing reads it as a flag: [applyNotificationFolder] has
      * the notification's message id of its own ([notificationFolder]) and judges the pane against
      * that, because this field is already spent by the time the folder list arrives (#103).
      */
@@ -1017,7 +1017,7 @@ class InboxViewModel(
 
     // The drawer shows the CURRENT account's folders: the cache now keeps every account's
     // rows side by side, so the flow re-scopes when the user switches accounts.
-    // ⛔ This flow carries SIDE EFFECTS and is collected exactly once — a second collector
+    // This flow carries SIDE EFFECTS and is collected exactly once — a second collector
     // would replay them. Everything judged in here is therefore judged when a folder LIST
     // ARRIVES and at no other moment, which is why the Inbox fallback is not here but hangs
     // off the recorded snapshot instead ([inboxFallback]): ticking "show only subscribed
@@ -1029,7 +1029,7 @@ class InboxViewModel(
         // request here until the folder list it has to be judged against actually exists — see
         // [showFolderFromNotification]. It is handed `folders`, the WHOLE list, and only ever on
         // the arrival of one.
-        // ⛔ It can no longer select a folder the setting hides ([notificationFolderToShow]): the
+        // It can no longer select a folder the setting hides ([notificationFolderToShow]): the
         // ORDER of these two lines protects nothing at all, because [inboxFallback] collects
         // asynchronously and resumes after this whole body — it would read the selection this line
         // just made and bounce it to the Inbox. Intermittently, on top of that, since
@@ -1037,7 +1037,7 @@ class InboxViewModel(
         // in a folder no list offers.
         applyNotificationFolder(folders)
         // The restored view's missing folder name, filled in from this cached list (volet C).
-        // ⛔ AFTER the line above, and the order is the guard: a tapped notification has already
+        // AFTER the line above, and the order is the guard: a tapped notification has already
         // written the header through select(), and [restoredFolderMeta]'s selection check then
         // lets it win. Called from INSIDE this onEach and never from a second collection of
         // [mailboxes], which carries side effects (#91).
@@ -1065,7 +1065,7 @@ class InboxViewModel(
      * back to the pre-#115 rule. Switching accounts does not emit here and does not need to: the
      * map covers every configured account, whichever one is selected.
      *
-     * ⛔ NEVER add `replayExpirationMillis = 0` to this timeout either — banned here for exactly
+     * NEVER add `replayExpirationMillis = 0` to this timeout either — banned here for exactly
      * the reason it is banned on [localDraftRows] downstream, and by transitivity through it: on
      * the way back to the screen this map would restart at `emptyMap`, the local-row flow would
      * read no Drafts role, and the phone's own drafts would blink out of the list while the server
@@ -1107,19 +1107,19 @@ class InboxViewModel(
      * This is the only place the earlier fact can live, because the selection is the only thing
      * that spans the two moments.
      *
-     * ⛔ Written from ONE place, the collector on `_selectedKeys` in `init`. A collector IS "every
+     * Written from ONE place, the collector on `_selectedKeys` in `init`. A collector IS "every
      * write of the selection", so it covers the five sites that add to it, the ones that will be
      * added later, and it forgets a key the moment it is unticked — none of which five explicit
      * calls would do.
      *
-     * ⚠ A null value, and an absent key, both mean "this row has no numbering to offer": every
+     * A null value, and an absent key, both mean "this row has no numbering to offer": every
      * JMAP row has none at all, a row evicted from the cache has none either, and the read below is
      * suspending, so a key confirmed before that read comes back legitimately has no entry. None of
      * the three is evidence of a SWAP, so none of them is refused by the upstream split
      * (`UidValidity.destroyableUnderTheNumberingItWasTickedUnder`) — refusing there would refuse
      * 100 % of JMAP, which is protocol-agnostic code.
      *
-     * ⛔ WHAT HAPPENS TO THEM AFTERWARDS DEPENDS ON THE GESTURE, and that is the #189 correction.
+     * WHAT HAPPENS TO THEM AFTERWARDS DEPENDS ON THE GESTURE, and that is the #189 correction.
      * On the held-back destroy they still merely PASS the split and are stopped downstream by
      * `UidValidity.mayDestroyUnderStatedNumbering`, which confirms nothing without a number. On the
      * move to another account — the one destructive path with no Undo — the value is wrapped in
@@ -1128,7 +1128,7 @@ class InboxViewModel(
      * value, it is that a tick happened: `Frozen(null)` and "nothing was frozen" used to be the
      * same `null`.
      *
-     * ⛔ That last window is not a fixed few milliseconds and must not be described as one: a
+     * That last window is not a fixed few milliseconds and must not be described as one: a
      * "Select all" over a large folder writes the whole selection at once and the read behind it is
      * chunked, so the gesture with the most to lose is the one whose stamps land last. What holds
      * the destroy up meanwhile is the downstream half alone — which is the state of affairs this
@@ -1136,7 +1136,7 @@ class InboxViewModel(
      */
     private val tickedUnderFlow = MutableStateFlow<Map<EmailKey, Long?>>(emptyMap())
 
-    /** The same field, as the rest of this class has always written and read it. ⭐ It is a
+    /** The same field, as the rest of this class has always written and read it. It is a
      *  property over [tickedUnderFlow] rather than a plain `var` for ONE reason: the two selection
      *  gestures run in a different coroutine from the collector that fills it, so they need to be
      *  able to WAIT for a write instead of sampling whatever is there. Every writer below keeps
@@ -1269,7 +1269,7 @@ class InboxViewModel(
                     }
                 }
                 Sel.Unread -> {
-                    // ⭐ The unread filter is [listUnreadOnly]'s answer, not the key's raw toggle:
+                    // The unread filter is [listUnreadOnly]'s answer, not the key's raw toggle:
                     // this scope is called "Unread" and forces it on whatever the funnel says
                     // (WYSIWYG). The three branches ask the SAME function, and [selectAll] asks it
                     // too — a filter decided twice is the destructive half of #126.
@@ -1287,16 +1287,16 @@ class InboxViewModel(
      * Drafts folder (#95). The decision, and the flow itself, are [localDraftRowsFlow]'s, which a
      * JVM test executes; this only hands it the real inputs.
      *
-     * ⛔ The role comes from [folderRoles] rather than from [mailboxes]: that one carries `onEach`
+     * The role comes from [folderRoles] rather than from [mailboxes]: that one carries `onEach`
      * side effects (a notification's folder, the vanished-folder fallback), so a second collector
      * would re-run them. [folderRoles] is already shared and answers exactly the same question.
      *
-     * ⛔ Shared as a `StateFlow` because [selectAll] has to READ IT AT THE TAP, not collect it: the
+     * Shared as a `StateFlow` because [selectAll] has to READ IT AT THE TAP, not collect it: the
      * server rows these local drafts replace are hidden from the list, and a bulk action that still
      * counted them would delete a message that was never on screen — the destructive half of #126,
      * re-opened by our own hiding.
      *
-     * ⭐ `WhileSubscribed(5_000)` and not `Eagerly`, and it is safe for a reason worth writing down:
+     * `WhileSubscribed(5_000)` and not `Eagerly`, and it is safe for a reason worth writing down:
      * the ONLY synchronous reader of `.value` is [selectAll], which nothing but `InboxScreen` can
      * reach (the tap is on its selection bar), and that screen is collecting [pagedListRows] — this
      * flow's own downstream — for the whole LIFE OF THE SCREEN, and not merely while somebody is
@@ -1307,7 +1307,7 @@ class InboxViewModel(
      * last collector, and an eager one downstream pinned that Room query subscribed for the entire
      * life of the ViewModel.
      *
-     * ⛔ NEVER add `replayExpirationMillis = 0` to "tidy up" the timeout. Without it the last value
+     * NEVER add `replayExpirationMillis = 0` to "tidy up" the timeout. Without it the last value
      * is kept while nobody collects; with it the cache drops back to an empty [LocalDraftRows], and
      * a [selectAll] landing in the re-subscription window subtracts NOTHING — "Select all" then
      * "Delete" sends to the Trash a server draft the list was hiding and the user never saw. That
@@ -1325,11 +1325,11 @@ class InboxViewModel(
         ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LocalDraftRows())
 
     /**
-     * ⭐ **What the LIST screen pages, and nothing else may.** [pagedEmails] with the phone's own
+     * **What the LIST screen pages, and nothing else may.** [pagedEmails] with the phone's own
      * drafts on top and the server copies they replace taken out — see [withLocalDrafts] for why
      * this is strictly downstream of `cachedIn` and why it is a `combine` and not a `map`.
      *
-     * ⛔ `MessageScreen` keeps paging [pagedEmails]. Handing the reader this one puts a local-draft
+     * `MessageScreen` keeps paging [pagedEmails]. Handing the reader this one puts a local-draft
      * id in its pager, where a sideways swipe opens a page that cannot load and a swipe-delete
      * announces a deletion IMAP never performed.
      */
@@ -1391,7 +1391,7 @@ class InboxViewModel(
             selectedMailboxId = (sel as? Sel.Folder)?.id,
             unified = sel is Sel.Unified,
             unreadView = sel is Sel.Unread,
-            // ⛔ The rule lives in [isAtInbox] and is NOT restated here: atInbox true means the
+            // The rule lives in [isAtInbox] and is NOT restated here: atInbox true means the
             // system Back gesture LEAVES THE APP, and the inline form that answered null == null
             // for any non-folder selection did exactly that from a view the reader chose.
             atInbox = isAtInbox(sel) { store.inboxMailboxId() },
@@ -1416,7 +1416,7 @@ class InboxViewModel(
      *
      * The count is [unreadViewCount]'s, run by `UnreadViewCountTest`, and it
      * is handed the same scope the pager is built from — so the entry offers the folders the list
-     * pages, and carries the same aggregate as the folder rows under it. ⛔ Not "the number of rows
+     * pages, and carries the same aggregate as the folder rows under it. Not "the number of rows
      * you will see": in conversation view a thread unread in two folders of the scope is summed
      * twice here and drawn once. See [unreadViewCount].
      */
@@ -1460,7 +1460,7 @@ class InboxViewModel(
             unreadCount = meta.value.unread,
             selectedMailboxId = (selection.value as? Sel.Folder)?.id,
             unified = selection.value is Sel.Unified,
-            // ⛔ NOT the field's default: this placeholder is a SECOND SITE of every rule the
+            // NOT the field's default: this placeholder is a SECOND SITE of every rule the
             // combine above states, and it is what the reader sees until the first emission. Left
             // out, a RESTORED unread view starts on `unreadView = false`, so InboxScreen takes the
             // FOLDER arm and titles a list spanning the whole account with mailboxName — i.e. the
@@ -1469,7 +1469,7 @@ class InboxViewModel(
             atInbox = isAtInbox(selection.value) { store.inboxMailboxId() },
             mailboxes = emptyList(),
             refreshing = true,
-            // ⛔ Spelled out, not left to the field's default: this placeholder is a SECOND SITE of
+            // Spelled out, not left to the field's default: this placeholder is a SECOND SITE of
             // every rule the combine above states. 'refreshing = true' just above is the TRUTH and
             // stays — it empties the centre while the first fetch is out (#63) — and this is the
             // DISPLAY, which must not light before the grace has passed, cold start included (#178).
@@ -1504,7 +1504,7 @@ class InboxViewModel(
         // RootViewModel.switchAccount(), which calls accountStore.setCurrent(id) BEFORE InboxScreen's
         // LaunchedEffect(currentAccountId) gets to onAccountChanged() — so by the time the new
         // selection is written, store.currentId() already answers the account being switched to.
-        // ⚠ That leaves a window: between setCurrent(B) and onAccountChanged(), the store already
+        // That leaves a window: between setCurrent(B) and onAccountChanged(), the store already
         // says B while [selection] still holds a view of A, so a refreshFolder() landing inside it
         // would store (B, a folder id B's own server returned) — an id valid in B, i.e. a memory
         // that can be stale but never crossed between accounts, with restoreSelection's account
@@ -1584,7 +1584,7 @@ class InboxViewModel(
     fun onAccountChanged() {
         collapseThreads()
         // The pane empties with the account, on the same line the threads are collapsed and by the
-        // SAME door as the four other switches of scope (#103). ⛔ Never "keep it when the anchor
+        // SAME door as the four other switches of scope (#103). Never "keep it when the anchor
         // is already the arriving account's": in the unified inbox a row of account B is opened
         // while A is current, and switching to B by the drawer would then keep a message that may
         // be in no folder the new list shows, with A's paging index still on it.
@@ -1621,7 +1621,7 @@ class InboxViewModel(
      * buttons. Its indicator is the answer to the gesture, so it is drawn at once, with none of the
      * grace that keeps the tern off a folder tap's 80 ms fetch (#178).
      *
-     * ⛔ The flag is raised BEFORE the call and not after: `viewModelScope` is `Main.immediate`, so
+     * The flag is raised BEFORE the call and not after: `viewModelScope` is `Main.immediate`, so
      * the body of refresh()'s `launch` has already begun by the time refresh() returns — there is
      * no safe instant "after". It is cleared by the refresh that consumes it, so the next
      * background reconcile is graced again.
@@ -1638,14 +1638,14 @@ class InboxViewModel(
      * tap fired a full reconcile she never asked for. The register is persisted and the decision is
      * [isFresh]'s, run by `RefreshFreshnessTest`; this only reads the store and the clock.
      *
-     * ⛔ This door is for the SIX reconciles that merely accompany a change of view. It is never
+     * This door is for the SIX reconciles that merely accompany a change of view. It is never
      * put in front of [onReconnected] — the only thing that ever clears a FAILED reachability,
      * which reads [refreshJob] straight after each call and would stop at its first attempt with
      * the offline banner up (#65) — nor in front of [refreshRequested] (the pull and the two Retry
      * buttons: a gesture is always answered), nor [forceRefresh], nor any of the reconciles that
      * follow a write. `RefreshFreshnessWiringLintTest` holds that list.
      *
-     * ⭐ The stale error is dropped FIRST, unconditionally: a change of view never inherits the
+     * The stale error is dropped FIRST, unconditionally: a change of view never inherits the
      * failure of the view before it. A fresh view returns above [refresh]'s opening line, the one
      * that resets [status] whole, so one account's failed reconcile kept its red notice over
      * another account's correct, up-to-date rows for the 30 s of the window — and over a folder
@@ -1679,7 +1679,7 @@ class InboxViewModel(
         refreshRun.value = startRefreshRun(refreshRun.value, clock(), instant)
         status.value = Status(refreshing = true, error = null)
         refreshJob = viewModelScope.launch {
-            // ⚠ Read HERE, not in the Delivered arm: the selection can move while this refresh is
+            // Read HERE, not in the Delivered arm: the selection can move while this refresh is
             // in flight (a folder tap, a tapped notification, an account switch), and stamping a
             // folder this refresh never read is exactly how a stale list would pass for fresh.
             val reconciled = currentScopes()
@@ -1712,7 +1712,7 @@ class InboxViewModel(
                         connectivity.reportFailure(cause)
                     }
                     RefreshOutcome.AbandonedAtBudget -> {
-                        // ⛔ No connectivity.reportFailure here, deliberately: nothing has said the
+                        // No connectivity.reportFailure here, deliberately: nothing has said the
                         // device is offline — the refresh simply never came back — and the offline
                         // banner on a phone that is plainly online IS defect #65. An abandoned wait
                         // is an error, with its own wording, which is what RefreshNotice expects.
@@ -1752,47 +1752,47 @@ class InboxViewModel(
      * Pull-to-refresh in the "unread" view: the account's inbox AND every other folder the view
      * pages, in one pass.
      *
-     * ⭐ Why every folder. This view pages the `emails` cache, and that cache only ever holds the
+     * Why every folder. This view pages the `emails` cache, and that cache only ever holds the
      * inbox, the folders the user has actually VISITED, and the IMAP watched ones. A user folder
      * never opened is simply not in it, so a refresh that synced the inbox alone would leave the
      * view true by construction and false in fact: it would show nothing from a folder it never
      * asked the server about, under a title promising the account's unread mail.
      *
-     * ⭐ ONE call, [app.sterna.core.data.mail.MailRepository.refreshAccountFolders], because it is
+     * ONE call, [app.sterna.core.data.mail.MailRepository.refreshAccountFolders], because it is
      * the only entry point that covers both protocols — IMAP through `imap.loadWatchedFolders`,
      * JMAP through one `syncMailbox` per target — and both write the same `emails` cache the pager
      * reads. A JMAP-only path written here would be a second thing to keep in step with the first.
      *
-     * ⛔ The `limit` is [UNREAD_SCOPE_FOLDER_LIMIT] and NOT the account's sync window, unlike
+     * The `limit` is [UNREAD_SCOPE_FOLDER_LIMIT] and NOT the account's sync window, unlike
      * [refreshFolder]'s, because it does not mean the same thing here: one folder's window is "how
      * much of it to keep", this one is "how much recent mail to LOOK AT in each of N folders read
      * in a single pass that holds them all". The whole reason, and why bounding it truncates
      * nothing, is written on the constant.
      *
-     * ⛔ It does NOT write [selection] and it does NOT write [meta], and that is the whole reason it
+     * It does NOT write [selection] and it does NOT write [meta], and that is the whole reason it
      * is a separate function rather than a call to [refreshFolder]: that one ends on
      * `selection.value = Sel.Folder(updated.mailboxId)`, so the first pull-to-refresh in this view
      * would drop the user into the Inbox folder — the view ejecting the reader who opened it. The
      * cache is what this fills; the pager reacts to the cache on its own.
      *
-     * ⛔ `onMissing` is left at its no-op default. Its production caller ([FetchAndNotify]) uses it
+     * `onMissing` is left at its no-op default. Its production caller ([FetchAndNotify]) uses it
      * to prune the account's WATCHED flag for a folder the server no longer lists — that flag is a
      * user intent about push, not this view's business, and turning it off because a list built for
      * a different purpose could not find the folder would be the view spending somebody else's
      * setting. The folder simply drops out of the scope on the next folder sync.
      *
-     * ⚠ Two things this deliberately does NOT do, both of which [refreshFolder] does. It writes no
+     * Two things this deliberately does NOT do, both of which [refreshFolder] does. It writes no
      * `saveInboxMeta` (`refreshAccountFolders` returns folder pages, not an unread count — the count
      * on the account row stays whatever the last inbox sync left, and the drawer's own counters are
      * written by the repository). And it applies no AGE PURGE: `pruneBefore` is a parameter of
-     * `repo.refresh` and there is none here. ⛔ That is not the same as "this path deletes nothing"
+     * `repo.refresh` and there is none here. That is not the same as "this path deletes nothing"
      * — on JMAP `syncMailbox` removes rows by three routes of its own (a server-stated deletion, the
      * ghost sweep, the mailbox reconcile), and what it RETAINS is sized by the account's window read
      * from the store, never by [UNREAD_SCOPE_FOLDER_LIMIT] (`SyncPaging.fullQuerySizing`).
      */
     private suspend fun refreshUnreadScope() {
         val credentials = store.load() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
-        // ⚠ [refreshAccountFolders] opens on `rekeyWatchedFolders`, which PERSISTS the account (a
+        // [refreshAccountFolders] opens on `rekeyWatchedFolders`, which PERSISTS the account (a
         // `saveAccounts`, hence an `accountsFlow` emission) for every id whose `decodeMailboxPath`
         // differs from itself. Nearly always none: the IMAP ids in the folder cache are already that
         // same function's output (`ImapClient.parseListFolders`) and JMAP ids carry no `&`. A cache
@@ -1811,7 +1811,7 @@ class InboxViewModel(
         // as [refreshFolder] and [refreshUnified] do — with the app in the foreground this is the
         // path new mail arrives by, so leaving it out would stop the re-file for as long as the
         // reader stays in this view, and say nothing.
-        // ⛔ The inbox is CHOSEN out of what came back ([refreshedInboxId]), not taken as the first
+        // The inbox is CHOSEN out of what came back ([refreshedInboxId]), not taken as the first
         // refresh: that ordering is an invariant of another module, and this hook writes — a wrong
         // aim advances another folder's notification baseline and re-files its threads. Same
         // question `refreshFolder` asks at its own hook, asked of a list.
@@ -1859,13 +1859,13 @@ class InboxViewModel(
      * Threads are collapsed like every other switch of scope: an unfolded conversation belongs to
      * the list it was unfolded in, and its members are streamed for that list's folders.
      *
-     * ⭐ [meta] is REWRITTEN, and the account label is the whole reason. This view keeps the top
+     * [meta] is REWRITTEN, and the account label is the whole reason. This view keeps the top
      * bar's second line — it is a view of one account and that line is the only thing on screen
      * saying which — while `meta.accountName` holds the internal literal `UNIFIED_LABEL` for as long
      * as the unified inbox was the last thing shown. Arriving here from it, the subtitle would read
      * "All inboxes", in English, under a title that promises one account's mail.
      *
-     * ⛔ The scope itself is NOT recomputed here. It is written in one place, the [mailboxes]
+     * The scope itself is NOT recomputed here. It is written in one place, the [mailboxes]
      * `onEach`, from the folder list that flow was scoped to, and it is already current — a second
      * resolution, from whatever the store says at this instant, is the #121 mistake and would be a
      * third writer of a value `PageKeyWiringLintTest` pins to two.
@@ -1931,12 +1931,12 @@ class InboxViewModel(
             unifiedView = selection.value is Sel.Unified,
             knownMailboxIds = folders.map { it.id },
         )
-        // ⛔ [NotificationFolderSwitch.resolve] gets the WHOLE list — a folder the setting hides is
+        // [NotificationFolderSwitch.resolve] gets the WHOLE list — a folder the setting hides is
         // not a folder it does not know, and its "unknown" branch means deleted. It is its RESULT
         // that is judged, by the same rule the fallback runs ([notificationFolderToShow]): the flag
         // is the current account's, which the guard two lines up is what makes true.
         val show = notificationFolderToShow(target, folders, showOnlySubscribed.value) ?: return
-        // ⛔ Not a flat `emptyPane = false`, and no longer "was a message parked?" either — that
+        // Not a flat `emptyPane = false`, and no longer "was a message parked?" either — that
         // question is answered by a park the ACCOUNT SWITCH spends, so a notification for another
         // account read `null` here and emptied the very message it had just posted. The rule below
         // asks the only order-proof question instead: is what the pane holds MY message? Applied
@@ -1951,7 +1951,7 @@ class InboxViewModel(
      * [restoredFolderMeta]'s, which a JVM test runs; this only feeds it, spends the one shot when
      * it says the question is settled, and writes what it hands back.
      *
-     * ⚠ Known and deliberately unguarded: should Room's FIRST [mailboxes] emission land AFTER a
+     * Known and deliberately unguarded: should Room's FIRST [mailboxes] emission land AFTER a
      * successful [refreshFolder], this overwrites that refresh's header with `folder.unreadEmails`
      * where it wrote `updated.unreadCount` — the selection check cannot see it, both readings come
      * out of the same database, and the count is drawn nowhere today. No guard for it (rules 5, 6).
@@ -2068,7 +2068,7 @@ class InboxViewModel(
      * opposes to the server (#99). An empty folder key means the cached row named no folder: the
      * destroy then has nothing to verify its order with, and destroys nothing — the safe end.
      *
-     * ⭐ The split itself is [UidValidity.imapDestroyRoutes], a pure function, so the rule can be
+     * The split itself is [UidValidity.imapDestroyRoutes], a pure function, so the rule can be
      * RUN by a test instead of restated by one: this class needs an `Application` and a Room
      * database, and a routing nothing executes is a routing a mutation walks through. Two rows of
      * ONE folder read under two numberings therefore become two requests, each opposing its own
@@ -2086,7 +2086,7 @@ class InboxViewModel(
 
     /** The IMAP numbering every message in [targets] was READ under — the stamp on its own cached
      *  row, read at the confirmation, which is the only moment this may be read (see
-     *  [pendingDeleteNumbering]). ⛔ Not the folder's record: a background pass that met a
+     *  [pendingDeleteNumbering]). Not the folder's record: a background pass that met a
      *  renumbering has already realigned that one, and opposing it to itself licenses the expunge
      *  this exists to refuse (#99). One read per account, not per message; a row the cache no
      *  longer holds is absent from the answer, i.e. nothing to oppose. */
@@ -2177,7 +2177,7 @@ class InboxViewModel(
      * Move ONE message into a folder of ANOTHER account (#189): the copy is confirmed on B, then
      * the original goes to A's bin ([MailRepository.moveToAccount]); nothing is ever destroyed.
      *
-     * ⛔ No Undo, and none to come (A3): taking it back would be a second two-sided operation,
+     * No Undo, and none to come (A3): taking it back would be a second two-sided operation,
      * with the original in A's bin and the copy on B, both of them on screen. So `_undo` is never
      * written here — ONE banner says what happened, in the words of the verdict:
      *  - [CrossAccountMove.Moved]: "Moved to B › folder";
@@ -2202,7 +2202,7 @@ class InboxViewModel(
             val key = email.emailKey()
             dropSearchResults(setOf(key))
             val result = hidingThreadMembers(setOf(key)) {
-                // ⛔ NOTHING FROZEN, and said so out loud IN THE TYPE. This gesture starts on the
+                // NOTHING FROZEN, and said so out loud IN THE TYPE. This gesture starts on the
                 // message that is OPEN: there is no tick, so there is no earlier numbering to
                 // oppose, and NothingFrozen is what keeps main's behaviour — the read and the bin
                 // fall back on the folder's record. It is NOT `Frozen(null)`: that shape means "a
@@ -2492,24 +2492,24 @@ class InboxViewModel(
      * The gesture is the ONLY thing that knows a message departed on the user's own instruction: a
      * local removal reaches no sync signal that is authoritative about it (`FolderRefresh
      * .departedIds` is empty by construction on IMAP, late and spare-shadowed on JMAP), and
-     * ⛔ `departedIds` may not be fed from here — see `Notifications.departuresToCancel`'s KDoc. So
+     * `departedIds` may not be fed from here — see `Notifications.departuresToCancel`'s KDoc. So
      * the banner is cancelled BESIDE the sync, from the gesture, on the keys captured at the
      * gesture ([undoBannerKeys]).
      *
-     * ⛔ In `viewModelScope`, not in an effect of the screen. `clearUndo()` has one caller — the
+     * In `viewModelScope`, not in an effect of the screen. `clearUndo()` has one caller — the
      * snackbar's "no Undo" branch — and when the list leaves the composition that `LaunchedEffect`
      * is cancelled and NEITHER branch runs; hung there, a message deleted just before leaving the
      * list keeps its banner for good.
      *
-     * ⛔ And the PREVIOUS gesture's deadline is deliberately not cancelled here. A new gesture
+     * And the PREVIOUS gesture's deadline is deliberately not cancelled here. A new gesture
      * replaces the [UndoAction] on screen, but it does not undo the old one: that message did
      * depart, so its banner must still come down. Only [undo] cancels, and only the deadline of the
      * action it is reversing.
      *
-     * ⚠ That [undoDepartureJob] is that same action's deadline holds because EVERY writer of
+     * That [undoDepartureJob] is that same action's deadline holds because EVERY writer of
      * `_undo` that can put a bar on screen calls this function on the line right after: the two
      * swipes and [bulkBatched]. The one that does not is [bulk], and it is only reachable through
-     * `snoozeSelected`, which passes no `undoLabelRes` — so `_undo` is never written there. ⛔ Give
+     * `snoozeSelected`, which passes no `undoLabelRes` — so `_undo` is never written there. Give
      * [bulk] a labelled caller and this stops being true twice over: its bar would be `Indefinite`
      * with nothing to close it, and this field would name someone else's deadline.
      */
@@ -2691,7 +2691,7 @@ class InboxViewModel(
             if (accountId != null && sel.id != null) listOf(accountId to sel.id) else emptyList()
         }
         Sel.Unified -> store.allInboxScopes()
-        // ⚠ The LIVE value, and it can differ from the one the pager on screen was built with:
+        // The LIVE value, and it can differ from the one the pager on screen was built with:
         // the `mailboxes` onEach rewrites it as soon as a folder list arrives, while the pager is
         // still being rebuilt. So a gesture landing in that window acts over a folder that appeared
         // seconds ago and is not yet drawn. That is accepted, and it is only acceptable because
@@ -2745,7 +2745,7 @@ class InboxViewModel(
     // ---- multi-select ----
 
     fun enterSelection(email: Email) {
-        // ⛔ A draft only this phone holds is not selectable: every action a selection leads to
+        // A draft only this phone holds is not selectable: every action a selection leads to
         // (delete, archive, move, mark read) is a no-op or an error over an id no server knows,
         // and none of them removes the local row. See [isLocalDraftRow].
         if (isLocalDraftRow(email.id)) return
@@ -2802,7 +2802,7 @@ class InboxViewModel(
      * read message of the folder too — the second half of #126, and the destructive half: select
      * all + delete moved messages that were never on screen to the Trash.
      *
-     * ⛔ And the same half again, re-opened from our own side by #95: a server draft that a local
+     * And the same half again, re-opened from our own side by #95: a server draft that a local
      * one is standing in for is TAKEN OUT of the list but is still filed in `emails`, so
      * [selectableIds] hands it over like any other. [selectableKeysMinusHidden] subtracts it — the
      * counter must not say N+1, and "Delete" must not reach a row nobody was shown.
@@ -2810,7 +2810,7 @@ class InboxViewModel(
     fun selectAll() {
         _selectionActive.value = true
         val search = searchState.value
-        // ⭐ The SAME decision the pager was built with ([listUnreadOnly]), never the raw toggle:
+        // The SAME decision the pager was built with ([listUnreadOnly]), never the raw toggle:
         // in a scope that forces the filter on, reading the funnel here asks selectableIds for the
         // folders UNFILTERED and hands "Delete" every read message of every folder in scope — mail
         // that was never on screen, which is the destructive half of #126.
@@ -2842,7 +2842,7 @@ class InboxViewModel(
      * message: a select-all of a large folder would otherwise be thousands of database reads on
      * every tick.
      *
-     * ⚠ The read suspends, so the selection can have moved on by the time it returns; only keys
+     * The read suspends, so the selection can have moved on by the time it returns; only keys
      * STILL ticked are written back. A key ticked and confirmed inside that window keeps no stamp
      * at all — an absent stamp opposes nothing. It still passes the upstream split, which needs two
      * real numbers to call a row swapped; on the move to another account it is carried as
@@ -2872,12 +2872,12 @@ class InboxViewModel(
      * nothing and went) and is now a refusal, because a ticked row with no numbering is refused at
      * both ends of the move between accounts. That is why the wait is this branch's to add.
      *
-     * ⛔ A WAIT, NEVER A RE-READ. What is awaited is the publication of the read STARTED AT THE
+     * A WAIT, NEVER A RE-READ. What is awaited is the publication of the read STARTED AT THE
      * TICK. Reading the rows again here would hand the guard the realigned number and make it
      * decorative: a folder renumbered since the tick would be compared with itself, agree, and
      * every line would travel.
      *
-     * ⛔ ONE function, called from both gestures: a barrier posted on one side leaves the other
+     * ONE function, called from both gestures: a barrier posted on one side leaves the other
      * open, and the two sides destroy the same mail. The rule and the bound are in
      * [tickedNumberingWhenCovered], which a JVM test RUNS.
      */
@@ -3121,14 +3121,14 @@ class InboxViewModel(
             // The numbering each ticked row carried WHEN IT WAS TICKED — AWAITED, not sampled, and
             // FIRST INSIDE THE LAUNCH (#99, #189).
             //
-            // ⛔ Why it is no longer taken outside the launch, which is what this used to say. The
+            // Why it is no longer taken outside the launch, which is what this used to say. The
             // read that produces these stamps starts at the TICK, in another coroutine, and it
             // suspends: a "Select all" publishes it a dozen queries later, so a tap in between
             // sampled an empty or half-full map. Waiting suspends, so it has to be in here.
-            // ⛔ Why FIRST. Everything below either suspends or clears the selection, and clearing
+            // Why FIRST. Everything below either suspends or clears the selection, and clearing
             // it wakes the collector, which empties the field: a wait posted any later would race
             // its own erasure and hand back nothing.
-            // ⛔ Still never a re-read: this awaits the publication of the tick's own read. A
+            // Still never a re-read: this awaits the publication of the tick's own read. A
             // re-read here IS the realigned number, and the guard would agree with itself.
             val ticked = awaitTickedNumbering(keys)
             // Frozen AT THE GESTURE, and carried into the batch: an IMAP UID means something only
@@ -3146,7 +3146,7 @@ class InboxViewModel(
                 hasTrash = { email -> credentialsFor(email)?.let { c -> runCatching { repo.accountHasTrash(c) }.getOrDefault(false) } ?: false },
                 wouldDestroy = { email -> credentialsFor(email)?.let { c -> runCatching { repo.deleteWouldDestroy(c, email) }.getOrDefault(false) } ?: false },
             )
-            // ⛔ THE UPSTREAM HALF OF #99, and the only half that can see a row SWAPPED UNDER A
+            // THE UPSTREAM HALF OF #99, and the only half that can see a row SWAPPED UNDER A
             // TICK. `recordedNumbering` answers what each row to be destroyed carries NOW — per
             // row, grouped per account, the same read the hold-back freezes with. Opposed to the
             // stamp the tick was taken under, a disagreement means the line was replaced since the
@@ -3171,7 +3171,7 @@ class InboxViewModel(
                 // Mixed destroy+move: only the held-back destroy offers Undo (see deleteThread).
                 // The whole selection travels with the delegation — the destroyed messages were
                 // attempts too — so the single message it prints is about the whole delete.
-                // ⚠ The question is whether a destroy is actually PENDING, i.e. `split.kept`, and
+                // The question is whether a destroy is actually PENDING, i.e. `split.kept`, and
                 // not whether one was planned: a destroy leg the split refused whole shows no bar
                 // at all, and reading `plan.destroy` there would withhold the move's Undo in
                 // favour of a snackbar nobody is going to see.
@@ -3191,13 +3191,13 @@ class InboxViewModel(
                     BulkOutcome.PARTIAL -> _message.value = getApplication<Application>().getString(R.string.status_action_partly_failed)
                 }
             }
-            // ⛔ LAST, after the branch above and never before it: `bulkBatched` calls
+            // LAST, after the branch above and never before it: `bulkBatched` calls
             // clearSelection() synchronously at the call, so a re-selection written earlier would
             // be wiped by the very delegation that follows it. What was refused goes back under the
             // user's eyes, still ticked — a destruction that quietly dropped part of a confirmed
             // selection would be a lie the screen agrees with.
             if (split.drifted.isNotEmpty()) {
-                // ⛔ THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector
+                // THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector
                 // above only reads keys it does not already know, so stamps written AFTER the keys
                 // — or not written at all — leave it looking at rows it has never seen: it reads
                 // their numbering AS IT IS NOW, the second tap compares the new number with
@@ -3213,7 +3213,7 @@ class InboxViewModel(
     /** Archive the selection. A block, not an expression body: freezing the source folders'
      *  numbering is a suspending read, and it has to happen HERE, at the tap (#99).
      *
-     *  ⚠ The selection is cleared SYNCHRONOUSLY, before that read. `bulkBatched` clears it too,
+     *  The selection is cleared SYNCHRONOUSLY, before that read. `bulkBatched` clears it too,
      *  but it now runs a suspension later: leaving the bar up in between lets a second tap fire
      *  the whole batch again, on the same keys. */
     fun archiveSelected() {
@@ -3241,7 +3241,7 @@ class InboxViewModel(
             // its reasons (#99, #189). The one extra reason on this side: [moveSelectedToAccount]
             // calls clearSelection() at its head, which wakes the collector on _selectedKeys and
             // empties the field, so a wait posted below this line would race its own erasure.
-            // ⛔ The KEYS stay captured outside the launch: they say WHICH selection is awaited,
+            // The KEYS stay captured outside the launch: they say WHICH selection is awaited,
             // and read a suspension later they would be another one.
             val ticked = awaitTickedNumbering(keys)
             // The picker offered the SELECTION's account folders (see [selectionMailboxes]), so the
@@ -3287,7 +3287,7 @@ class InboxViewModel(
      * The selection into a folder of ANOTHER account (#189), one message after the other through
      * [MailRepository.moveToAccount] — each a copy confirmed on B, then the original to A's bin.
      * The partition is [moveSelectedTo]'s: only the messages of the selection's account go, the
-     * others are set aside and counted. ⛔ No Undo (see [moveToAccount]). ONE banner at the end,
+     * others are set aside and counted. No Undo (see [moveToAccount]). ONE banner at the end,
      * chosen by [crossAccountBanner]: a copy whose original stayed is the truth said first.
      *
      * And whatever wrote NOTHING on account B comes back ticked, stamps first
@@ -3305,7 +3305,7 @@ class InboxViewModel(
         ticked: Map<EmailKey, Long?>,
     ) {
         val (movable, skipped) = keys.partition { it.accountId == ownerAccountId }
-        // ⛔ THE TARGET IS READ, AND REFUSED, BEFORE THE SELECTION IS TOUCHED. Account B can be
+        // THE TARGET IS READ, AND REFUSED, BEFORE THE SELECTION IS TOUCHED. Account B can be
         // signed out between the tap that opened the picker and the tap that chose the folder;
         // `store.credentials` then answers null and this body returns with nothing sent and not one
         // verdict written. Below `clearSelection()`, that return left the tick and `tickedUnder`
@@ -3321,12 +3321,12 @@ class InboxViewModel(
         }
         clearSelection()
         val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }
-        // ⛔ THE HALF THAT CAN SEE A ROW SWAPPED UNDER A TICK, the one [deleteSelected] already
+        // THE HALF THAT CAN SEE A ROW SWAPPED UNDER A TICK, the one [deleteSelected] already
         // carries (#99). `recordedNumbering` answers what each row about to leave carries NOW —
         // per row, grouped per account. Opposed to the stamp of the tick, a disagreement means the
         // line was replaced since the user pointed at it: same UID text, another message, and this
         // move would copy it to B and put the original in A's bin, with no Undo to take it back.
-        // ⛔ Not the folder's own record: a background pass that met the renumbering has already
+        // Not the folder's own record: a background pass that met the renumbering has already
         // realigned that one, and opposing it to itself licenses exactly what this refuses.
         val crossAccountTargets = emails.values.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
         val now = recordedNumbering(crossAccountTargets)
@@ -3336,7 +3336,7 @@ class InboxViewModel(
             readUnderNow = { email -> credentialsFor(email)?.let { now[it.id to email.id] } },
         )
         val refused = split.drifted.mapTo(mutableSetOf()) { it.emailKey() }
-        // ⛔ KEYED, AND FILLED AT EVERY EXIT OF THIS LOOP. `CrossAccountMove.Failed` carries a log
+        // KEYED, AND FILLED AT EVERY EXIT OF THIS LOOP. `CrossAccountMove.Failed` carries a log
         // string and nothing else — no key, no type, no throwable — so a bare list of verdicts
         // answers HOW MANY did not move and never WHICH. The give-back at the end needs the WHICH,
         // and `results[i]` matching `movable[i]` is a positional invariant nobody wrote down: one
@@ -3362,7 +3362,7 @@ class InboxViewModel(
             }
             dropSearchResults(setOf(key))
             val result = hidingThreadMembers(setOf(key)) {
-                // ⛔ AND THE STAMP GOES DOWN THE WIRE. The split above refuses the rows whose
+                // AND THE STAMP GOES DOWN THE WIRE. The split above refuses the rows whose
                 // numbering had ALREADY drifted when the loop reached them; this carries the same
                 // stamp into the two gestures that touch A's mail, so a folder renumbered WHILE
                 // the loop runs is refused too — by the server, in the SELECT the read and the bin
@@ -3370,7 +3370,7 @@ class InboxViewModel(
                 // iteration that met the renumbering has already realigned: the record is then
                 // compared with itself, agrees, and every later row travels. `ticked[key]`, never
                 // a re-read: the re-read IS the realigned number.
-                // ⛔ AND IT IS WRAPPED IN `Frozen`, absent value included. A tick DID freeze here,
+                // AND IT IS WRAPPED IN `Frozen`, absent value included. A tick DID freeze here,
                 // so a `ticked[key]` of null means "frozen, and there was nothing" — refused at
                 // both ends downstream — and not "nothing was frozen", which is the reader's case
                 // and falls back on the record. Under a bare `Long?` those two were one argument,
@@ -3406,12 +3406,12 @@ class InboxViewModel(
                 _message.value = app.getString(checkNotNull(crossAccountSelectionFailedRes(outcome)))
         }
         if (results.any { it is CrossAccountMove.Failed }) refresh()
-        // ⛔ LAST, after the banner and never before it: clearSelection() runs at the head of this
+        // LAST, after the banner and never before it: clearSelection() runs at the head of this
         // body, so a re-selection written earlier would be wiped by the gesture it belongs to.
         // What did not move goes back under the user's eyes, still ticked — a move that quietly
         // dropped part of a selection would be a lie the screen agrees with, and this path has no
         // Undo to correct it with.
-        // ⛔ AND IT IS INDEXED ON THE OUTCOME, NOT ON A CLASS OF REFUSAL ([crossAccountGiveBack],
+        // AND IT IS INDEXED ON THE OUTCOME, NOT ON A CLASS OF REFUSAL ([crossAccountGiveBack],
         // pure and executed by a test). Keyed on `split.drifted`, this give-back was empty by
         // construction for the refusal raised at the READ, which comes back an ordinary `Failed`:
         // those lines did not travel, did not come back ticked, and nothing said which ones — or
@@ -3419,13 +3419,13 @@ class InboxViewModel(
         // asked for, with the outcomes of this batch and the rows still in cache.
         val givenBack = crossAccountGiveBack(outcomes, emails.keys)
         if (givenBack.isNotEmpty()) {
-            // ⛔ THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector on
+            // THE STAMPS GO BACK FIRST, and they are the stamps OF THE TICK. The collector on
             // _selectedKeys only reads keys it does not already know, so stamps written AFTER the
             // keys — or not at all — leave it looking at rows it has never seen: it reads their
             // numbering AS IT IS NOW, the second tap on Move compares the new number with itself,
             // agrees, and sends to B exactly what this refusal just saved. Nothing suspends
             // between these two lines, which is what makes the order enough.
-            // ⛔ AND THE ENTRY IS WRITTEN EVEN WHEN THE STAMP IS null: it is the PRESENCE of the
+            // AND THE ENTRY IS WRITTEN EVEN WHEN THE STAMP IS null: it is the PRESENCE of the
             // key that stops the collector re-reading, not its value. A row given back with a null
             // stamp is refused again at the second tap and nothing is written on B; a row given
             // back with NO entry is re-stamped with the realigned numbering and travels.
@@ -3475,7 +3475,7 @@ class InboxViewModel(
         val newId = repo.renameFolder(c, mailboxId, newName)
         // IMAP ids are paths: the repo re-keyed the watch flags; follow with the baseline.
         if (newId != mailboxId) NewMailNotifier.rename(getApplication(), c.id, mailboxId, newId)
-        // ⭐ The fold registry IS re-read here, because the repo now re-keys it exactly like the
+        // The fold registry IS re-read here, because the repo now re-keys it exactly like the
         // watch flags (`AccountStore.replaceCollapsedFolder`, IMAP ids are paths). Without the
         // re-read the flow still holds the OLD key, the renamed folder reads as "nobody decided"
         // and the DEFAULT folds it on the spot — the folder the user just unfolded closes itself
@@ -3585,7 +3585,7 @@ class InboxViewModel(
     // Initialised inline for the same reason as [_collapsedFolders] above: init runs before this
     // declaration's initialiser.
     //
-    // ⛔ `false` with no current account, and that is the SAFE side, not the familiar one. `false`
+    // `false` with no current account, and that is the SAFE side, not the familiar one. `false`
     // means "fold nothing by itself"; `true` means "fold, hiding mail behind a row that may have no
     // badge". `AccountStore.accounts()` answers an EMPTY list both when there is no account AND
     // when the stored blob failed to decode (see `AccountStillConfigured`), so this fallback is
@@ -3610,7 +3610,7 @@ class InboxViewModel(
      * per-account entries into the same decision and both must move together on a switch — a
      * second refresher called from the same three places is a way for one of them to be forgotten.
      *
-     * ⛔ The account id is read ONCE. Every `store.` call here decodes the whole account blob
+     * The account id is read ONCE. Every `store.` call here decodes the whole account blob
      * afresh (`AccountBlobGate` memoises nothing) and this runs on the main thread at every tap of
      * a chevron, so asking twice for the same id is work paid on every account, IMAP or not.
      */
@@ -3623,7 +3623,7 @@ class InboxViewModel(
     /**
      * Store the drawer's fold/unfold choice for one folder, then re-read it.
      *
-     * ⛔ Nothing else is armed: this is a display state and no push, notifier or sync depends on
+     * Nothing else is armed: this is a display state and no push, notifier or sync depends on
      * it. [collapsed] is written both ways — writing false is a CHOICE, not the absence of one.
      */
     fun setFolderCollapsed(mailboxId: String, collapsed: Boolean) {
@@ -3866,7 +3866,7 @@ internal fun selectionAccount(keys: Set<EmailKey>): String? =
  * main's behaviour there — it takes the retained account's messages and counts the others as
  * skipped, under "Some messages couldn't be processed." (spec.md § 1, mixed selection out of
  * scope) — while [moveOwnerAccountId] has no selection account to work from and falls back to the
- * ACTIVE one (`InboxViewModel.kt:990-992`). Handed that fallback as its owner, the picker would
+ * ACTIVE one. Handed that fallback as its owner, the picker would
  * offer every account, and "B › Archive" would announce a move half the selection never makes.
  */
 internal fun selectionAllowsAnotherAccount(keys: Set<EmailKey>): Boolean = selectionAccount(keys) != null
@@ -3876,7 +3876,7 @@ internal fun selectionAllowsAnotherAccount(keys: Set<EmailKey>): Boolean = selec
  * selection allows another account, none at all otherwise.
  *
  * Returning an empty list is enough to draw nothing: [MoveAccountRow] returns straight away when
- * `pickerAccounts(...)` holds fewer than two entries (`MoveAccountRow.kt:48-49`), so a mixed
+ * `pickerAccounts(...)` holds fewer than two entries, so a mixed
  * selection gets back exactly the picker it had before #189.
  */
 internal fun selectionPickerAccounts(

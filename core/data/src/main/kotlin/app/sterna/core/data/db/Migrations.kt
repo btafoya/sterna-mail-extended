@@ -345,7 +345,7 @@ val MIGRATION_18_19 = object : Migration(18, 19) {
  * "no Reply-To" — the pre-v20 behaviour. No backfill: the header is not held locally, so an old
  * row gains it at its next sync.
  *
- * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`, so an unhandled schema bump wipes the whole database —
  * the outbox included, i.e. mail written and never sent.
  */
@@ -371,7 +371,7 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
  * "no copies" — the pre-v21 behaviour. No backfill: the addresses are not held locally, so an old
  * row gains them at its next sync.
  *
- * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`, so an unhandled schema bump wipes the whole database —
  * the outbox included, i.e. mail written and never sent.
  */
@@ -391,7 +391,7 @@ val MIGRATION_20_21 = object : Migration(20, 21) {
  * becomes an outbox row when its worker fires. A column on one table alone drops the request in
  * the handover, silently, and the mail goes out asking nothing.
  *
- * ⚠ These two tables are the ones that hold UNSENT MAIL. `SternaDatabase` ends its builder with
+ * These two tables are the ones that hold UNSENT MAIL. `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`, so this step missing from
  * [SternaDatabase.ALL_MIGRATIONS] — written but not registered — does not degrade anything: Room
  * finds no 21→22 path and DROPS every table, the queued messages included.
@@ -430,13 +430,13 @@ val MIGRATION_21_22 = object : Migration(21, 22) {
  * `requestReceipt INTEGER NOT NULL DEFAULT 0`: the entity field is a `Long?`, and Room's
  * `TableInfo` compares affinity and nullability at open time.
  *
- * ⛔ **No backfill, deliberately.** Rows already queued read back `NULL`, and `null` DESTROYS
+ * **No backfill, deliberately.** Rows already queued read back `NULL`, and `null` DESTROYS
  * NOTHING. There is nothing honest to backfill from: nobody knows which numbering those rows were
  * enqueued under, and inventing the folder's current one is precisely the read this fix removes.
  * The cost of `NULL` is a draft left behind in Drafts once — visible, and one tap to delete; the
  * cost of guessing is an expunge under a numbering nobody can confirm, which is not recoverable.
  *
- * ⚠ Written AND registered in [SternaDatabase.ALL_MIGRATIONS]: unregistered, Room finds no 22→23
+ * Written AND registered in [SternaDatabase.ALL_MIGRATIONS]: unregistered, Room finds no 22→23
  * path and `fallbackToDestructiveMigration()` DROPS every table — the outbox and the scheduled
  * sends with it, i.e. mail the user wrote that never left the phone.
  */
@@ -452,7 +452,7 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
  * not yet on the server (#95). Kept as ONE constant, on the model of [OUTBOX_CREATE_SQL], so the
  * 23→24 migration and the JVM test build the exact same table instead of two copies that drift.
  *
- * ⭐ Every column of the entity is here, the ones the first volet does not read included. The table
+ * Every column of the entity is here, the ones the first volet does not read included. The table
  * is created EMPTY, so no `DEFAULT` is needed to add a NOT NULL column — and none is written, which
  * keeps this shape identical to the one Room's own `createAllTables` gives a fresh install. The
  * entity declares no `@ColumnInfo(defaultValue = …)` either: a Kotlin default is not a column
@@ -505,12 +505,12 @@ const val LOCAL_DRAFTS_CREATE_SQL: String =
  * install coming from v23 has no draft that was ever kept locally, because there was nowhere to
  * keep one.
  *
- * ⚠ Why the table exists at all rather than a flagged row in `emails`: four cache-pruning paths
+ * Why the table exists at all rather than a flagged row in `emails`: four cache-pruning paths
  * delete a row `emails` holds that the server does not know about — the reconcile, the ghost sweep
  * (which takes the body too), the retention prune — and the only shield any of them honours is a
  * 45-second recently-mutated window that no draft path arms. See [LocalDraftEntity].
  *
- * ⛔ Written is not registered. This step missing from [SternaDatabase.ALL_MIGRATIONS] does not
+ * Written is not registered. This step missing from [SternaDatabase.ALL_MIGRATIONS] does not
  * degrade anything: `SternaDatabase.build` ends with `fallbackToDestructiveMigration()`, so Room
  * finds no 23→24 path and DROPS every table — `outbox` and `scheduled_sends` included, i.e. mail
  * the user wrote and that never left the phone.
@@ -536,10 +536,10 @@ val MIGRATION_23_24 = object : Migration(23, 24) {
  * than folded into a released migration (rewriting one breaks the installs that replay the older
  * statements and fails Room's identity check on the next launch). Nullable with no default: every
  * existing row keeps its data and reads back as "no numbering to oppose", which destroys nothing.
- * ⛔ No backfill, deliberately — writing the folder's CURRENT number into old rows would license
+ * No backfill, deliberately — writing the folder's CURRENT number into old rows would license
  * precisely the expunge this column exists to refuse.
  *
- * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`, so this step missing from [SternaDatabase.ALL_MIGRATIONS] —
  * written but not registered — has Room find no 24→25 path and DROP every table: `outbox`,
  * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left.
@@ -560,7 +560,7 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
  * than folded into a released migration (rewriting one breaks the installs that replay the older
  * statements and fails Room's identity check on the next launch).
  *
- * ⭐ `INTEGER NOT NULL DEFAULT 1`, and the `1` is not cosmetic. The entity field is a non-null
+ * `INTEGER NOT NULL DEFAULT 1`, and the `1` is not cosmetic. The entity field is a non-null
  * `Boolean`, so SQLite requires a default to add the column to a populated table — but the VALUE
  * of that default is the decision: a folder cached before v26 was cached by a build that never
  * asked the server about subscription, so what it holds is not "unsubscribed", it is UNKNOWN, and
@@ -571,7 +571,7 @@ val MIGRATION_24_25 = object : Migration(24, 25) {
  * `@ColumnInfo(defaultValue = …)`, and a Kotlin default is not one (b/136515305) — so the `1` here
  * is safe, exactly as the `0` of [MIGRATION_21_22] is.
  *
- * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`, so this step missing from [SternaDatabase.ALL_MIGRATIONS] —
  * written but not registered — has Room find no 25→26 path and DROP every table: `outbox`,
  * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left.
@@ -600,7 +600,7 @@ val MIGRATION_25_26 = object : Migration(25, 26) {
  * ON left the list blank for a second or two on mail already cached and with no sync running; with
  * the view OFF the same switch was instant.
  *
- * ⚠ What this step does NOT close, and it is the honest half: the `threadTotal` sub-query of
+ * What this step does NOT close, and it is the honest half: the `threadTotal` sub-query of
  * `conversationSql` carries no folder scope at all, so it still groups the WHOLE table, every
  * account and every folder, and no index can help it as written. It was measured to cost little
  * once this one is in place, but "the list no longer re-reads the folder to collapse it" is the
@@ -612,12 +612,12 @@ val MIGRATION_25_26 = object : Migration(25, 26) {
  * frozen v16 shape every install coming from v15 replays, and rewriting a released migration breaks
  * exactly those installs.
  *
- * ⭐ The NAME is not decoration: `index_emails_accountId_mailboxId_sortKey` is what Room derives
+ * The NAME is not decoration: `index_emails_accountId_mailboxId_sortKey` is what Room derives
  * from `@Entity(indices = [Index(value = ["accountId", "mailboxId", "sortKey"])])` on a FRESH
  * install. An updated install must end up with the same name, or Room's `validateMigration` sees an
  * index the entity never declared and refuses to open the database on every launch.
  *
- * ⚠ Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
+ * Skipping this migration is not a cosmetic loss: `SternaDatabase` ends its builder with
  * `fallbackToDestructiveMigration()`, so this step missing from [SternaDatabase.ALL_MIGRATIONS] —
  * written but not registered — has Room find no 26→27 path and DROP every table: `outbox`,
  * `scheduled_sends` and `local_drafts` included, i.e. mail the user wrote that never left.

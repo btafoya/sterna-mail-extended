@@ -518,7 +518,7 @@ internal fun discardChoices(mayKeepDraft: Boolean, hasContent: Boolean): List<Di
  *  - [localDraftHeld]: this composer holds the lease on a draft the phone is KEEPING and no server
  *    has ever seen (#95). It has no cached row and never will, so [draftInHand] is false for it
  *    for ever — and until this term existed the only way out of such a draft was to empty it by
- *    hand and save, which nothing on screen said. ⛔ Not `draftOpenRoute(draftId) == LOCAL`: on a
+ *    hand and save, which nothing on screen said. Not `draftOpenRoute(draftId) == LOCAL`: on a
  *    row the upload worker consumed between the list being drawn and the finger landing, the route
  *    still answers LOCAL while the ViewModel holds nothing. The LEASE is the truth.
  *
@@ -633,7 +633,7 @@ internal fun draftFieldsOf(o: Email, cached: Email?): DraftFields {
     val to = draftRecipientField(o.to, cached?.to)
     val cc = draftRecipientField(o.cc, cached?.cc)
     val bcc = draftRecipientField(o.bcc, cached?.bcc)
-    // ⛔ The genuine `text/html` part FIRST, and NOT through [bodySource] (#131): that one takes
+    // The genuine `text/html` part FIRST, and NOT through [bodySource] (#131): that one takes
     // `textBody[0]` whenever it is non-blank, and a draft this app saved has BOTH parts — the text
     // one holding the same letters with the styling stripped. Read that way, a styled draft
     // reopened from the server comes back plain, every time, in silence. An HTML that is not ours
@@ -822,22 +822,22 @@ internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<Schedul
  * What a tap on [preset] at [nowMillis] is worth, given [drawnMillis] — the instant that entry was
  * DRAWN for when the menu opened — or null when the tap must be REFUSED.
  *
- * ⛔ The same danger as [pickedScheduleMillis], one tap earlier. The menu can stand open for
+ * The same danger as [pickedScheduleMillis], one tap earlier. The menu can stand open for
  * minutes with the composer in the background: an entry drawn at 5:55 PM still reads "This evening,
  * 6 PM" when it is tapped at 6:05. That instant handed to `ScheduledSends.enqueue` becomes a delay
  * coerced to zero, which is to say the message goes out AT ONCE while the confirmation still names
  * the evening — and a send has no way back. Hence a refusal, never a correction.
  *
- * ⚠ ONE preset is asked again and THREE are not, and the difference is what each entry promised:
+ * ONE preset is asked again and THREE are not, and the difference is what each entry promised:
  *  - [SchedulePreset.IN_1_HOUR] is RELATIVE — "an hour from the finger". Only re-reading the rule
  *    with the tap's clock keeps that promise, and it can never lapse.
  *  - the three others are ABSOLUTE — 6 PM, or 8 AM tomorrow, OF THE DAY THE ENTRY WAS DRAWN. Their
- *    answer is [drawnMillis] itself. ⛔ Re-reading them does not correct them, it moves them by a
+ *    answer is [drawnMillis] itself. Re-reading them does not correct them, it moves them by a
  *    whole day at midnight: a menu drawn on the 18th at 11:50 PM shows "Tomorrow, 8 AM" for the
  *    19th, and re-read five minutes later, on the 19th, that same entry means the 20th. The user
  *    reads 8 AM and the message leaves 32 hours later.
  *
- * ⛔ The refusal of an absolute preset is read on [drawnMillis], NEVER on the preset still being in
+ * The refusal of an absolute preset is read on [drawnMillis], NEVER on the preset still being in
  * a fresh [schedulePresetsAt] list. That list happily offers THIS_EVENING to an entry drawn
  * yesterday morning, and scheduling it would hand over an instant fourteen hours gone — the
  * immediate send back through the side door. The drawn instant answers "behind us", which is true.
@@ -864,14 +864,14 @@ internal fun presetMillisAtTap(
  * The instant a hand-picked day + time is worth in [zone], or null when it is not STRICTLY after
  * [nowMillis] (#161).
  *
- * ⛔ A lapsed instant must NEVER reach the schedule: `ScheduledSends.enqueue` coerces a negative
+ * A lapsed instant must NEVER reach the schedule: `ScheduledSends.enqueue` coerces a negative
  * delay to zero, so a time already gone fires the message AT ONCE, and a send has no way back.
  * Nothing between the menu and that coercion looks at whether the instant is ahead, so the refusal
  * is here — one function, so the greyed-out confirm button and the instant actually scheduled read
  * the same decision and cannot drift apart. The screen calls it TWICE: once for `enabled`, once
  * inside the tap with a fresh clock, because the minute can turn between the two.
  *
- * ⚠ [dayUtcMidnightMillis] is what Material's `DatePicker` hands back: UTC midnight, never local
+ * [dayUtcMidnightMillis] is what Material's `DatePicker` hands back: UTC midnight, never local
  * midnight (`SearchScreen` says the same about its own picker). So the CIVIL day is read off it in
  * UTC and rebuilt in [zone]; comparing that millis to a local instant is the trap — east of UTC it
  * makes today look like yesterday for the first hours of every night, west of UTC it does the
@@ -894,7 +894,7 @@ internal fun pickedScheduleMillis(
  * hour ahead, or the last minute the chosen day still has when an hour ahead is not an instant
  * that day can take.
  *
- * ⛔ Material's default of midnight is what this exists to avoid, and the naive fix reopened the
+ * Material's default of midnight is what this exists to avoid, and the naive fix reopened the
  * same wound at the other end of the day. Taking only the HOUR and MINUTE of `now + 1 h` and
  * pasting them onto the chosen day throws the roll over to tomorrow away: at 23:20 the clock opened
  * on 00:20 TODAY, some twenty-three hours in the past, [pickedScheduleMillis] refused it, and OK
@@ -902,7 +902,7 @@ internal fun pickedScheduleMillis(
  * — the greyed button IS the message — so the user was left in front of a dead dialog with nothing
  * to read.
  *
- * ⛔ Hence the one invariant, and it is asked of [pickedScheduleMillis] ITSELF rather than
+ * Hence the one invariant, and it is asked of [pickedScheduleMillis] ITSELF rather than
  * reasoned about here: what comes out of this function, handed straight back with the same day,
  * zone and clock, is accepted. A rule of our own — "clamp when the civil date rolls over" — looked
  * equivalent and was not: on the night the clocks GO BACK, `now + 1 h` stays on the same civil
@@ -911,16 +911,16 @@ internal fun pickedScheduleMillis(
  * dialog was back. Asking the very function the OK button asks is the only formulation that cannot
  * drift from it.
  *
- * ⛔ 23:59, not "now + 1 minute", for the fallback: a minute from now goes stale in sixty seconds,
+ * 23:59, not "now + 1 minute", for the fallback: a minute from now goes stale in sixty seconds,
  * while the last minute of the day is the same answer for the whole evening — up to 23:58, where
  * the two finally meet and the day is nearly out anyway.
  *
- * ⚠ In the very last minute of a day (23:59:xx) the chosen day has no future minute left at all,
+ * In the very last minute of a day (23:59:xx) the chosen day has no future minute left at all,
  * so OK is grey and stays grey. That is honest and it is left alone: the only way out would be to
  * move the send to a day the user did not pick. Same for the 1970 a clock opened over no day at
  * all is handed.
  *
- * ⚠ The UTC-midnight trap of [pickedScheduleMillis] is not repeated here, and must not be: the day
+ * The UTC-midnight trap of [pickedScheduleMillis] is not repeated here, and must not be: the day
  * is passed through untouched, in the language Material's `DatePicker` speaks it.
  */
 internal fun scheduleClockOpensAt(dayUtcMidnightMillis: Long, nowMillis: Long, zone: ZoneId): LocalTime {
@@ -936,22 +936,22 @@ internal fun scheduleClockOpensAt(dayUtcMidnightMillis: Long, nowMillis: Long, z
  * are the nicer faces and stay the default. One rule for the two dialogs, because one shape of
  * window breaks them both.
  *
- * ⛔ The comparison is not ours and must not be replaced by a dp constant: it is character for
+ * The comparison is not ours and must not be replaced by a dp constant: it is character for
  * character the one `TimePicker_androidKt.getDefaultTimePickerLayoutType` makes, read from the
  * Material 1.3.1 bytecode — height below width and Material lays its own dial out `Horizontal`,
  * i.e. the dial BESIDE the time display. That layout is far wider than the dialog, so whatever
- * does not fit is simply not on screen. ⚠ And a scroll does not save it — the clock's shell has one
+ * does not fit is simply not on screen. And a scroll does not save it — the clock's shell has one
  * now, and it is VERTICAL, while this cut is sideways. Any other threshold puts the two decisions
  * out of step and either brings the clipping back or takes the dial away from a screen that shows
  * it perfectly.
  *
- * ⚠ The CLOCK's damage, measured on `emu` in landscape at 914×411 dp, 2026-08-20: the dial's
+ * The CLOCK's damage, measured on `emu` in landscape at 914×411 dp, 2026-08-20: the dial's
  * right HALF was off screen, and the digits still drawn (12, 11, 10, 9, 8, 7, 6) landed on top of
  * the AM/PM selector — "8" over "PM". The `uiautomator` dump was down to `[12, 28, AM, Cancel,
  * OK]`: `PM` had no node at all, so half the day was unreachable, and two hour positions of twelve
  * were left. Nothing on screen said a word about it; only Cancel and OK still answered.
  *
- * ⚠ The CALENDAR's damage, same bench, 2026-08-21, opening the picker and THEN turning:
+ * The CALENDAR's damage, same bench, 2026-08-21, opening the picker and THEN turning:
  * `DatePickerDialog` asks for `requiredWidth(ContainerWidth).heightIn(max = ContainerHeight)` —
  * 360 dp wide and at most 568 dp tall, a MAX and never a min — so turned, the ceiling is the
  * SCREEN's 411 dp instead, and Material's content box has no scroll of its own: what the month
@@ -960,14 +960,14 @@ internal fun scheduleClockOpensAt(dayUtcMidnightMillis: Long, nowMillis: Long, z
  * Cancel/OK were 37 px tall instead of 53, drawn over the 23–29 row. Nothing scrolled: a swipe up
  * uncovered neither the 30th nor the 31st.
  *
- * ⛔ Scrolling is not the answer for either, and was rejected twice over. For the clock the cut is
+ * Scrolling is not the answer for either, and was rejected twice over. For the clock the cut is
  * HORIZONTAL and a vertically scrolling slot moves nothing sideways. For the calendar's GRID a
  * `verticalScroll` would measure the year chevron's `LazyVerticalGrid` in infinite height, which
- * THROWS — a clipped grid traded for the app stopping. ⚠ That is why the shell both TYPED faces
+ * THROWS — a clipped grid traded for the app stopping. That is why the shell both TYPED faces
  * are drawn in, which does scroll, is guarded against ever composing that grid. Nor is widening
  * either dialog past Material's default with geometry of our own.
  *
- * ⚠ `screenHeightDp >= screenWidthDp` keeps the dial and the grid, equality included: a square
+ * `screenHeightDp >= screenWidthDp` keeps the dial and the grid, equality included: a square
  * screen is where Material still lays out `Vertical`, and both fit there.
  */
 internal fun schedulePickerAsInput(screenHeightDp: Int, screenWidthDp: Int): Boolean =
@@ -978,10 +978,10 @@ internal fun schedulePickerAsInput(screenHeightDp: Int, screenWidthDp: Int): Boo
  * This is the FIRST of the two locks in front of a send into the past; the second is
  * [pickedScheduleMillis], which alone covers "today, at an hour already gone".
  *
- * ⛔ Lower bound only. No horizon exists anywhere in the scheduled-send code, and inventing one
+ * Lower bound only. No horizon exists anywhere in the scheduled-send code, and inventing one
  * here would be a limit to carry forever.
  *
- * ⚠ Same UTC-midnight trap as [pickedScheduleMillis], and this is where it bites hardest: both
+ * Same UTC-midnight trap as [pickedScheduleMillis], and this is where it bites hardest: both
  * sides are reduced to a CIVIL day, the candidate in UTC (the picker's language) and "now" in
  * [zone]. Comparing the candidate's millis to a local day boundary is wrong by a whole day
  * whenever the zone offset is not zero — in Los Angeles after 5 PM it would refuse TODAY.
@@ -994,18 +994,18 @@ internal fun scheduleDaySelectable(dayUtcMidnightMillis: Long, nowMillis: Long, 
 /**
  * The FIRST year the "pick date and time" calendar offers in its year list, read in [zone] (#161).
  *
- * ⚠ A DISPLAY bound, not a lock. Nothing here refuses a send into the past — that is
+ * A DISPLAY bound, not a lock. Nothing here refuses a send into the past — that is
  * [scheduleDaySelectable]'s job, day by day, and it stays where it is. What this closes is a
  * different damage, measured on `emu` 2026-08-20: tapping the year chevron opened the list on
  * 1900 and the user had to scroll a hundred and twenty-six dead years to reach the current one.
  * Material's `DatePickerDefaults.YearRange` is 1900..2100 and it, not the selectable-dates object,
  * decides which years are DRAWN.
  *
- * ⛔ Lower bound only, like [scheduleDaySelectable]: the upper end stays exactly Material's. No
+ * Lower bound only, like [scheduleDaySelectable]: the upper end stays exactly Material's. No
  * horizon exists anywhere in the scheduled-send code and inventing one here would be a limit to
  * carry forever.
  *
- * ⚠ The year is read in [zone] and nowhere else. On 31 December at 23:00 west of UTC the UTC year
+ * The year is read in [zone] and nowhere else. On 31 December at 23:00 west of UTC the UTC year
  * has ALREADY turned: reading it there would strike the year the user is still living in off the
  * list, and the calendar would open on a year the user cannot pick a December day in. East of UTC
  * on 1 January the mirror image — UTC is still on the 31st, and the list would start on a year
@@ -1019,7 +1019,7 @@ internal fun scheduleFirstYear(nowMillis: Long, zone: ZoneId): Int =
  * against [draftSaveAllowed] — closing the lock by hand must forbid the draft exactly as the
  * account default does (#35).
  *
- * ⛔ THREE STOPS, and [PgpMode.ENCRYPT_UNSIGNED] is not one of them: a short tap must not walk
+ * THREE STOPS, and [PgpMode.ENCRYPT_UNSIGNED] is not one of them: a short tap must not walk
  * anyone into sending unsigned mail they did not ask for. That mode is reached only by choosing it
  * in the long-press menu. It still has a branch here because a tap must always be able to get OUT
  * of it, and out means OFF — the same exit [PgpMode.ENCRYPT] has.
@@ -1035,13 +1035,13 @@ internal fun nextPgpMode(current: PgpMode): PgpMode = when (current) {
  * The face each mode wears, in the top bar AND in the long-press menu — one function, so the icon
  * the menu offers is the icon the bar will show.
  *
- * ⛔ [PgpMode.ENCRYPT_UNSIGNED] does NOT wear `Icons.Outlined.Lock`, the obvious "same padlock as
+ * [PgpMode.ENCRYPT_UNSIGNED] does NOT wear `Icons.Outlined.Lock`, the obvious "same padlock as
  * [PgpMode.ENCRYPT], hollow". It was tried and MEASURED: compose's `Icons.Filled.LockOpen` — the
  * face of [PgpMode.OFF] — is itself an outline-bodied drawing, so the outlined padlock differed
  * from "not encrypted at all" by 82 rasterised pixels out of 9216, a notch in the shackle. The
  * hollow padlock does not read as "encrypted, unsigned"; it reads as "off".
  *
- * ⚠ So the unsigned mode wears a KEY: the message is just as encrypted, and what is missing is the
+ * So the unsigned mode wears a KEY: the message is just as encrypted, and what is missing is the
  * signature — which is not drawn at all. The absence of the signature is told by the absence of the
  * padlock's pen, never by a fainter padlock. [PgpModeIconFacesTest] executes this function and
  * measures that the four faces stay pairwise distinct.
@@ -1058,7 +1058,7 @@ internal fun pgpModeIcon(mode: PgpMode): ImageVector = when (mode) {
  * derived from one another: [signKeyId] is who signs (null = do not sign at all), and
  * [recipientKeyIds] is who can decrypt.
  *
- * ⛔ The account's own key plays BOTH roles today, and that is the whole reason this is a function.
+ * The account's own key plays BOTH roles today, and that is the whole reason this is a function.
  * It is the signing key, and it is also a recipient — the encrypt-to-self that keeps the copy filed
  * in Sent readable. Making the signer nullable and filtering "the sign key" out of the recipients
  * would take the sender's own key out of [recipientKeyIds] and make every unsigned encrypted
@@ -1092,7 +1092,7 @@ internal data class PgpEncryptArgs(val signKeyId: Long?, val recipientKeyIds: Lo
  * Pure, and called with the composer's live mode, so the decision the send makes is the decision a
  * JVM test executes.
  *
- * ⛔ A non-encrypting [mode] is a programming error and says so. Answering "no signer" for
+ * A non-encrypting [mode] is a programming error and says so. Answering "no signer" for
  * [PgpMode.OFF] or [PgpMode.SIGN] would be the quiet kind of wrong: the send site reaches this only
  * from its encrypting branch, so a mode arriving here that does not encrypt means the mode moved
  * under the send, and the honest answer to that is a crash, not an unsigned message.
@@ -1113,11 +1113,11 @@ internal fun pgpEncryptArgs(mode: PgpMode, selfKeyId: Long, recipientKeys: List<
  * envelope, exactly as before, and nothing here hides it — [OutgoingMime.build] still writes the
  * real `Subject:` at the top of the message. What the copy sealed inside the ciphertext adds is
  * that a relay rewriting the outer subject can be caught: the recipient's client compares the two.
- * ⛔ Do not turn this into subject masking (`hp-legacy-display`, RFC 9788 § 5.2.2): the composer's
+ * Do not turn this into subject masking (`hp-legacy-display`, RFC 9788 § 5.2.2): the composer's
  * note tells the user the subject is not encrypted, and it stays true.
  *
  * Two conditions, both necessary:
- *  - [mode] ENCRYPTS. ⛔ Asked through [encrypts] and never `== PgpMode.ENCRYPT` — the unsigned
+ *  - [mode] ENCRYPTS. Asked through [encrypts] and never `== PgpMode.ENCRYPT` — the unsigned
  *    encrypting mode must protect its subject too, and the six call sites that compared by name
  *    are exactly the bug that property exists to prevent. A SIGN-only message must get NOTHING:
  *    its entity is what gets signed AND is what the recipient reads, so an inner `Subject:` there
@@ -1332,17 +1332,17 @@ internal fun htmlBodyWithSignature(
 }
 
 /**
- * Whether nothing the user laid over the body — no style range of any family, ⭐ and no LINK
+ * Whether nothing the user laid over the body — no style range of any family, and no LINK
  * (#131) — reaches into `[start, end)` of [body]; half-open on both sides, so a range ending
  * exactly at [start] or starting exactly at [end] does not count. Pure, so the decision is
  * executed by `ComposeSignatureTest` and not re-derived there.
  *
- * ⛔ The links belong here for the same reason the ranges do, and their absence would be worse:
+ * The links belong here for the same reason the ranges do, and their absence would be worse:
  * the verbatim substitution REPLACES those characters with the stored HTML, so a link the user put
  * on a word of the signature block would simply not be in the message — the address gone, with the
  * text still on screen exactly as she left it.
  *
- * ⚠ The list BLOCKS are NOT counted here, and this volet did not change that: they were left out
+ * The list BLOCKS are NOT counted here, and this volet did not change that: they were left out
  * when the lists landed and nothing about the links makes that call again. What a block over the
  * signature does to the substituted html is the lists' question, not this one.
  */
@@ -1362,7 +1362,7 @@ internal fun signatureBlockIsIntact(body: RichBody, start: Int, end: Int): Boole
  * a mailing list, a `support@` behind a `no-reply@`, a ticketing alias. Answering the From instead
  * writes to the address the sender deliberately set aside, often one nobody reads.
  *
- * ⛔ Never both: the From is precisely what a `Reply-To` displaces (K-9 and Thunderbird do the
+ * Never both: the From is precisely what a `Reply-To` displaces (K-9 and Thunderbird do the
  * same). A `Reply-To` holding nothing but blanks is no `Reply-To`, and falls back to the From
  * rather than leaving a reply with no recipient at all.
  *
@@ -1488,12 +1488,12 @@ internal fun composeOpening(mode: String?): ComposeOpening = when (mode) {
  *
  * Two sentences rather than one, because they ask for different things: offline, the draft's text
  * is on the other side of a connection and what is needed is to come back with one; over a live
- * link, all we know is that the text did not arrive. ⛔ Neither sentence names a CAUSE: no server
+ * link, all we know is that the text did not arrive. Neither sentence names a CAUSE: no server
  * was even contacted on the "no credentials" path, and a captive portal, a refused certificate, a
  * 401 and a local exception all land here identically. We do not state a mechanism we have not
  * observed.
  *
- * ⛔ And neither promises a recovery that does not exist: `_draftLoadFailed` is never cleared and
+ * And neither promises a recovery that does not exist: `_draftLoadFailed` is never cleared and
  * nothing re-runs the fetch, so coming back online changes nothing until the screen is left and the
  * draft opened again (KISS: no retry state machine). Both sentences therefore ask for exactly that
  * — open it again — which is the one thing that does work.
@@ -1534,7 +1534,7 @@ internal sealed interface DraftReopenView {
  * ([failureNotice], null while nothing has failed) — and from the one thing the SCREEN knows:
  * [prefillApplied], whether this screen has already put the draft in front of the reader.
  *
- * ⭐ [prefillApplied] WINS OVER BOTH, and it is not an exception grudgingly bolted on. It is the
+ * [prefillApplied] WINS OVER BOTH, and it is not an exception grudgingly bolted on. It is the
  * fact "this screen has already shown the draft". A screen that has shown it cannot lie by showing
  * it again; what it WOULD hide, by drawing a spinner or a dead end over it, is the reader's own
  * typing. That is a real path, not a hypothetical: `body`, `initialBody` and this very flag are
@@ -1547,10 +1547,10 @@ internal sealed interface DraftReopenView {
  * what `applied == false` says. It is the same flag that already stops a replayed prefill from
  * overwriting restored text: one notion read in two places, not two rules to keep in agreement.
  *
- * ⭐ Wanted side effect: `carryDraftAttachments` runs AFTER `_prefill` is emitted and BEFORE the
+ * Wanted side effect: `carryDraftAttachments` runs AFTER `_prefill` is emitted and BEFORE the
  * `finally` that lowers [loading]. With this argument the editor comes back as soon as the text is
  * there, instead of sitting behind a bare spinner through the download AND the re-upload of an
- * attachment of several MB (in JMAP `stageOutgoing` is a full network round trip). ⛔ What keeps
+ * attachment of several MB (in JMAP `stageOutgoing` is a full network round trip). What keeps
  * that window safe is NOT that the id is missing from it — it is armed before the coroutine, so it
  * is there from the first frame. It is that the LICENCE is missing: `editingDraftLossy` is armed
  * `true` at the same moment and lowered only by the last statement of the branch, after the carry
@@ -1561,7 +1561,7 @@ internal sealed interface DraftReopenView {
  * an earlier attempt must never be read as the verdict of the one now in flight, and while the
  * fetch is out there is no verdict to read.
  *
- * ⭐ The answer CARRIES the string id rather than leaving the screen to pick a sentence from a
+ * The answer CARRIES the string id rather than leaving the screen to pick a sentence from a
  * boolean. That is the whole reason [DraftReopenView.DeadEnd] holds a value instead of being a
  * second `data object`: what the reader ends up seeing is then a value this function RETURNED, so a
  * JVM test can execute the decision and pin the very resource that lands on screen. Were the
@@ -1629,7 +1629,7 @@ internal data class StagedAttachmentSweep(
  * with a raw English detail in nine locales, and no draft written. Swept on the way back to the
  * screen, the chip goes instead, and the composer says so.
  *
- * ⛔ ONLY PATHS UNDER [outgoingRoot] ARE ASKED ABOUT, and that guard is the whole difficulty. A
+ * ONLY PATHS UNDER [outgoingRoot] ARE ASKED ABOUT, and that guard is the whole difficulty. A
  * `partId` exists only for a part staged on this phone — IMAP, or JMAP once PGP is on. Plain JMAP
  * uploads a blob and comes back with `partId = null` (`MailRepository.uploadAttachment`), and a
  * reopened draft or outbox item rebuilds its parts from the same descriptors
@@ -1638,9 +1638,9 @@ internal data class StagedAttachmentSweep(
  * list of a composer that has lost nothing whatsoever. Anything this function is not sure about is
  * KEPT: a chip that is a little stale is a nuisance, a chip silently deleted is the user's file.
  *
- * ⛔ AN INLINE PART THAT CARRIES A `cid` IS KEPT WHATEVER THE FILESYSTEM SAYS, and not even asked
+ * AN INLINE PART THAT CARRIES A `cid` IS KEPT WHATEVER THE FILESYSTEM SAYS, and not even asked
  * about. On a forward, inline images are staged like any other attachment and enter the list with
- * `disposition = "inline"` and a `cid` (`ComposeViewModel.kt:2063-2075`), while the forwarded HTML
+ * `disposition = "inline"` and a `cid` (`ComposeViewModel`), while the forwarded HTML
  * that references them through `<img src="cid:…">` is built ONCE, from `carriedCids`, and reused
  * as-is at send. Taking such a part off the list would leave a `cid:` pointing at nothing and the
  * recipient would get a broken image; before this sweep existed the send simply REFUSED
@@ -1648,7 +1648,7 @@ internal data class StagedAttachmentSweep(
  * chip therefore stays, and that refusal is what the user meets — the pre-existing behaviour for
  * this case, unchanged. Rebuilding the forwarded HTML would be a new mechanism for an edge case.
  *
- * ⛔ It does NOT touch the filesystem itself: [exists] is handed in, so the decision can be executed
+ * It does NOT touch the filesystem itself: [exists] is handed in, so the decision can be executed
  * on the JVM rather than described by a test that recomputes it (`StagedAttachmentSweepTest`).
  *
  * This says nothing about the moment of saving. Bytes can still go away between this sweep and the

@@ -24,17 +24,17 @@ import androidx.room.Index
  * folder with the conversation view on left the list blank for a second or two on mail already
  * cached, with no sync running.
  *
- * ⛔ They did not re-scan the table, and it is worth not saying they did:
+ * They did not re-scan the table, and it is worth not saying they did:
  * `ConversationIndexPlanSqlTest.withoutTheStepThePlanFallsBackToTheMailboxIdAlone` keeps the old
  * plan as a witness, and the two sub-queries are a SEARCH in it. On a single-account install the
  * mailbox id alone already selected exactly the folder, so what this index buys THERE is the
  * representative join and nothing else.
  *
- * ⚠ The column ORDER is the whole of it: the same three columns in any other order is an index
+ * The column ORDER is the whole of it: the same three columns in any other order is an index
  * that costs a write on every cached row and answers none of the three accesses. `Index("mailboxId")`
  * stays beside it — dropping it would need its own `DROP INDEX` step and buys nothing here.
  *
- * ⛔ Changing this line without adding a migration step breaks UPDATED installs only, and at open
+ * Changing this line without adding a migration step breaks UPDATED installs only, and at open
  * time: a fresh install builds its schema from here, an updated one from the `CREATE INDEX` of the
  * migration, and Room compares the two on every launch.
  */
@@ -109,7 +109,7 @@ data class EmailEntity(
      * and reopened used to come back with the field emptied and the Cc/Bcc row folded shut, so
      * the recipient was gone and nothing said so.
      *
-     * ⚠ A separate column from [ccJson] on purpose, and never merged with it for display: the
+     * A separate column from [ccJson] on purpose, and never merged with it for display: the
      * whole point of a blind copy is that it is not shown to the other recipients.
      *
      * Null on rows cached before v21 and on every message without blind copies; both decode to

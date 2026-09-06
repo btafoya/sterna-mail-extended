@@ -40,7 +40,7 @@ data class StoredAccount(
      * (#174): a mailbox left behind but never opened is still a mailbox the server lists, and a
      * long-lived account ends up with a folder list nobody can read.
      *
-     * ⛔ Defaults to FALSE, and that is load-bearing, not a taste: this is the setting that makes
+     * Defaults to FALSE, and that is load-bearing, not a taste: this is the setting that makes
      * folders DISAPPEAR from the lists. A record written before this field existed — i.e. every
      * record on every phone — decodes to "show everything", which is the behaviour it was written
      * under. Any other default would hide folders on the update, on installs whose owner never
@@ -58,7 +58,7 @@ data class StoredAccount(
      * (JMAP id / IMAP path): true = they folded it, false = they unfolded it. A key that is ABSENT
      * means nobody has decided anything for that folder, and the drawer takes its own default.
      *
-     * ⛔ A `Map`, and NOT the set of the collapsed ones, on purpose. A set can only record "folded":
+     * A `Map`, and NOT the set of the collapsed ones, on purpose. A set can only record "folded":
      * unfolding a folder would have to REMOVE its key, which is indistinguishable from never having
      * touched it, so any default other than "everything unfolded" re-applies on the next launch and
      * folds back a folder the user opened by hand. Writing false must WRITE false.
@@ -120,11 +120,11 @@ data class StoredAccount(
      * Empty when nothing has been read yet, which is the state of every account configured before
      * this field existed — [pgpPublicKeyBackfill] is what fills those in.
      *
-     * ⭐ It exists because the key can only be READ at a screen: the provider may answer
+     * It exists because the key can only be READ at a screen: the provider may answer
      * USER_INTERACTION_REQUIRED, and launching its PendingIntent needs an Activity. A worker
      * writing a header hours later has no screen, so what it emits has to already be here.
      *
-     * ⛔ Bound to [pgpSignKeyId], and to nothing else: every change of the key id empties it (see
+     * Bound to [pgpSignKeyId], and to nothing else: every change of the key id empties it (see
      * [withoutPgpSignKeys] and [withCachedPgpPublicKey]). A cache surviving a key change would
      * announce, under the new key's id, the bytes of the old one.
      *
@@ -239,7 +239,7 @@ data class StoredAccount(
          * sign-in — `AccountStore.importAccounts` keeps the [loginId] of the copy it marks pending
          * — which would otherwise be drawn twice: once to connect, once as a live row.
          *
-         * ⭐ THE ORPHAN FALL-BACK. A delegated account that was hung under NO login — a [loginId]
+         * THE ORPHAN FALL-BACK. A delegated account that was hung under NO login — a [loginId]
          * naming an account this list does not hold, or one that is itself [importPending], or one
          * that is itself a DELEGATE (a shared mailbox opens no group of its own: it is drawn as a
          * child row, and a child row hosts no child, so a delegate of a delegate hangs under

@@ -16,7 +16,7 @@ import app.sterna.R
  * Keyed on http/https, both of those would be announced as "nothing remote here" while the load
  * was in fact being refused — the reader would see a hole in the message and be told nothing.
  *
- * ⚠ **It is an admitted heuristic, and it is allowed to be one.** It reads `src` attributes out of
+ * **It is an admitted heuristic, and it is allowed to be one.** It reads `src` attributes out of
  * the HTML as text: it therefore MISSES `url(...)` in CSS and in a `style=`, `@import`, `srcset`,
  * the legacy `background=`, `poster=`, anything hidden behind an HTML entity or assembled by
  * script, and anything in a part it is not handed. It counts no `<a href>` — a link is not a
@@ -70,7 +70,7 @@ private val SCHEME = Regex("""^([a-zA-Z][a-zA-Z0-9+.\-]*):""")
  *
  * It is answered on [plainText] — the reading mode the BODY is rendered in
  * (`plainTextForBody`) — and deliberately NOT on the image-side mode (`plainTextForImages`).
- * ⚠ The house rule written at the overflow menu ("guarded on `imageMode`, NOT on `plainText`")
+ * The house rule written at the overflow menu ("guarded on `imageMode`, NOT on `plainText`")
  * is about a menu that recomposes freely; it does not extend to a presence held the way this one
  * is. Changing this answer mid-read costs TWO loads of the body's document, because the strip's
  * own height feeds the key that document is built on — the full mechanism is written at the call
@@ -79,7 +79,7 @@ private val SCHEME = Regex("""^([a-zA-Z][a-zA-Z0-9+.\-]*):""")
  * loads with no gesture behind them; [plainText] only changes when the reader asks for the other
  * rendering, which reloads and re-tops the message anyway.
  *
- * ⚠ The debt that buys, stated rather than hidden: the two modes disagree while DataStore has not
+ * The debt that buys, stated rather than hidden: the two modes disagree while DataStore has not
  * answered (`PLAIN_TEXT_DEFAULT` is false, `PLAIN_TEXT_UNLOADED_FOR_IMAGES` is true). In that
  * window this says "strip", `showRemoteImages` says "hold the pictures back", and the button is
  * live and does nothing — the reported defect, for a few frames, for every reader rather than for
@@ -97,7 +97,7 @@ internal fun imagesStripPresent(plainText: Boolean, senderAllowed: Boolean, html
  * What the images strip SAYS, and whether it can still be pressed — the decision taken out of the
  * `@Composable` so a JVM test can RUN it, on the pattern of [UnsubscribeStripBody].
  *
- * ⭐ **The two states are not two shapes: they are one button wearing one label or the other**,
+ * **The two states are not two shapes: they are one button wearing one label or the other**,
  * live in [ACTION] and greyed in [SHOWN]. That is not tidiness, it is the whole risk of this
  * feature: the measured height of the header is part of the key of the `remember` that builds the
  * body's HTML document, so a strip that changes size **cancels the body load in flight**. Before

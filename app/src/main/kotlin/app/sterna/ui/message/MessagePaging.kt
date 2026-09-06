@@ -22,7 +22,7 @@ object MessagePaging {
     /**
      * Whether the reading view must (re)load: [settled] first, and everything else after it.
      *
-     * ⛔ [settled] — "this page is the one the reader landed on, not a warmed neighbour" — is the
+     * [settled] — "this page is the one the reader landed on, not a warmed neighbour" — is the
      * whole reason this function takes it rather than the screen keeping a guard of its own. The
      * pager composes one page each side of the one being read (`beyondViewportPageCount = 1`), so
      * without it, opening ONE message loads three. On an IMAP account a load fetches the whole
@@ -32,7 +32,7 @@ object MessagePaging {
      * replied to, forwarded or decrypted — irreversibly, and against what ENCRYPTION.md:177-180
      * and SECURITY.md say in those words.
      *
-     * ⛔ And [failed] is IN HERE, not beside it, for the same reason it is an `&&` and not an
+     * And [failed] is IN HERE, not beside it, for the same reason it is an `&&` and not an
      * `||`: the caller's guard used to read "no reload needed AND we are not in error", so a page
      * left showing an error would reload whether or not it was settled. A warmed neighbour that
      * failed its previous fetch is still a message nobody touched.
@@ -59,21 +59,21 @@ object MessagePaging {
      * so no `WebView`, so the whole rendering staircase (creating the view, `loadDataWithBaseURL`,
      * `onPageFinished`, the height poll capped at 30 × 32 ms) starts only once the finger lands —
      * the ~1 s hourglass at the end of every swipe. Warming from the cache moves all of it before
-     * the gesture. ⛔ It moves NOTHING onto the network: a fetch is what `798a5fd1` removed, and
+     * the gesture. It moves NOTHING onto the network: a fetch is what `798a5fd1` removed, and
      * what ENCRYPTION.md:177-180 and SECURITY.md promise never happens on an unopened message.
      *
      * Three refusals, all three about what the READER would see on a page she has not swiped to:
      * armour printed in clear, a document painted with holes, a body rebuilt under her finger.
-     * ⛔ None of them is what keeps an unopened page off the network — that is the `everActive`
+     * None of them is what keeps an unopened page off the network — that is the `everActive`
      * latch, named under the third refusal below. Read a refusal as a privacy guard and the guard
      * is somewhere else.
      *
-     * ⛔ [cryptoKind] non-null — the body is OpenPGP. Rendering it warm would print the armour, in
+     * [cryptoKind] non-null — the body is OpenPGP. Rendering it warm would print the armour, in
      * clear, on a page nobody has swiped to, before any decrypt has been offered. The kind comes
-     * from `MailRepository.cryptoKindOf`, the one place that detects PGP; ⛔ it is never
+     * from `MailRepository.cryptoKindOf`, the one place that detects PGP; it is never
      * re-derived here, or the UI and the repository would drift apart.
      *
-     * ⛔ Inline images not settled. This is EXACTLY the condition under which
+     * Inline images not settled. This is EXACTLY the condition under which
      * `MailRepository.ensureInlineImages` returns the cached body untouched
      * (`inlineImageParts().isEmpty() || inlineImages.isNotEmpty()`), and it is copied from there
      * on purpose rather than approximated: anything wider warms a document whose images the
@@ -82,43 +82,43 @@ object MessagePaging {
      * spinner this replaces. The JMAP prefetch is the case that makes it real: it persists bodies
      * with `inlineImages = emptyMap()`.
      *
-     * ⛔ [senderAllowedRemoteImages] — the sender is on the remote-image allowlist. The refusal
-     * stays; ⚠ its ORIGINAL reason does not, and the sentence it was written with is the mistake
+     * [senderAllowedRemoteImages] — the sender is on the remote-image allowlist. The refusal
+     * stays; its ORIGINAL reason does not, and the sentence it was written with is the mistake
      * worth keeping in view. It read: before the warm-up an unswiped page held no body, so no
      * WebView and no request at all, and "this refusal is what keeps that true". A refusal is a
      * condition weighed at one instant, never an invariant — it holds only for the bodies it
      * happens to be asked about, and every other route to a warmed body walks straight past it.
      *
-     * ⭐ What keeps a page nobody opened from fetching anything is a LATCH, not this refusal:
+     * What keeps a page nobody opened from fetching anything is a LATCH, not this refusal:
      * `MessagePage` holds `everActive`, seeded false and set only under the settle flag, one-way
-     * (MessageScreen.kt:671-674). BOTH producers of the remote-image answer are gated on it — the
-     * per-message override (`val manualShow = everActive && manualShowRaw`, MessageScreen.kt:1604)
-     * and the allowlist answer (`val senderAllowed = everActive && …`, :1618) — so a page that was
+     * (`MessageScreen`). BOTH producers of the remote-image answer are gated on it — the
+     * per-message override (`val manualShow = everActive && manualShowRaw`)
+     * and the allowlist answer (`val senderAllowed = everActive && …`) — so a page that was
      * only ever warmed answers `showRemoteImages` false whatever the allowlist and whatever was
-     * tapped on it, `blockRemote` stays true (:1742) and `shouldInterceptRequest` blocks (:4899).
+     * tapped on it, `blockRemote` stays true and `shouldInterceptRequest` blocks.
      * PRIVACY.md:288 is what that keeps: allow a sender only when you accept that "they learn you
      * opened the message".
      *
-     * ⛔ Read the two together, and that is why each names the other: alone, each reads as
+     * Read the two together, and that is why each names the other: alone, each reads as
      * covered by the other and gets deleted. What is left to THIS refusal is COMFORT, and only
      * that — warm an allowlisted sender's body and the settle flips `blockRemote`, which is half
-     * of the WebView's load key (MessageScreen.kt:4643), so the body RELOADS under the finger and
-     * the swipe ends in the white flash the warm-up exists to remove. ⚠ And it leaves a mark the
+     * of the WebView's load key, so the body RELOADS under the finger and
+     * the swipe ends in the white flash the warm-up exists to remove. And it leaves a mark the
      * reload does NOT clear: `imagesStrip` is memoised on `(full, plainText)`
-     * (MessageScreen.kt:1887) and `senderAllowed` is deliberately not one of its keys, so a warmed
+     * and `senderAllowed` is deliberately not one of its keys, so a warmed
      * neighbour decides the strip PRESENT on any body carrying remote refs — the latch is still
      * holding `senderAllowed` false, and that is the input `imagesStripPresent` reads — and
-     * at the settle `load` keeps the warmed body (MessageViewModel.kt:1457-1460 and :1516-1519),
+     * at the settle `load` keeps the warmed body (`MessageViewModel`),
      * so `full` never changes, the `remember` is never re-run, and the reader is left with a
-     * ~49 dp row (MessageScreen.kt:1867) announcing pictures held back from the one sender whose
+     * ~49 dp row announcing pictures held back from the one sender whose
      * pictures were never held back. Delete this refusal and every swipe onto an allowed sender
      * flashes white AND keeps a dead strip; delete the latch and a pixel leaves. Both are bugs,
      * only one is a promise broken.
      *
-     * ⚠ Its price is accepted, not overlooked: messages from an allowed sender keep the ~1 s
+     * Its price is accepted, not overlooked: messages from an allowed sender keep the ~1 s
      * hourglass at the end of the swipe.
-     * ⛔ The caller must compare LOWER-CASED, exactly as MessageScreen.kt:1618 does (the stored
-     * allowlist is lower-cased on write, SettingsRepository.kt:356 and :369). A sender written
+     * The caller must compare LOWER-CASED, exactly as `MessageScreen` does (the stored
+     * allowlist is lower-cased on write, `SettingsRepository`). A sender written
      * with a capital otherwise misses this guard and is warmed. Its images stay blocked all the
      * same — the latch answers for that, not this comparison — so what a mismatch costs is
      * exactly the comfort above: that reader's swipe flashes white and keeps a dead strip, on the
@@ -137,7 +137,7 @@ object MessagePaging {
      * The entry the reader is SETTLED on: [previous] while the pager is [scrolling], [atRest]
      * otherwise. The caller holds the answer as the MESSAGE, never as its rank.
      *
-     * ⛔ Why identity and not a page number. `PagerState.settledPage` is an index, and it is
+     * Why identity and not a page number. `PagerState.settledPage` is an index, and it is
      * refreshed only around a scroll. When new mail is prepended under an open reader (see
      * [mergeEntries]), the pager re-anchors itself onto the same message — its pages are keyed by
      * identity ([entryKey]) — while that index keeps its old number, which now names the
@@ -148,11 +148,11 @@ object MessagePaging {
      * untouched, and the neighbour's key in the provider inside 30 s). A movement of the list is
      * not a gesture, and only a gesture may load.
      *
-     * ⛔ [scrolling] is the whole of what `settledPage` was bought for, and it is kept here: it is
+     * [scrolling] is the whole of what `settledPage` was bought for, and it is kept here: it is
      * true for the entire gesture, drag and fling alike, so a page merely brushed past never
      * becomes the settled one — [previous] stands until the pager comes to rest.
      *
-     * ⚠ At rest the answer is [atRest] even when that is `null`: keeping [previous] there would
+     * At rest the answer is [atRest] even when that is `null`: keeping [previous] there would
      * leave the fixed chrome (star, delete, move) wired to a message that is no longer in the
      * list, and acting on it is worse than showing nothing.
      */

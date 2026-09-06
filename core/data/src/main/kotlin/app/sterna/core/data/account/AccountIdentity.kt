@@ -7,10 +7,10 @@ package app.sterna.core.data.account
  * (or did not compare) its own way. This file holds the comparison itself, as a pure function, so
  * a route decides by CALLING it rather than by re-deriving it.
  *
- * ⛔ [authType] is deliberately NOT part of the key: the same address added by password and then by
+ * [authType] is deliberately NOT part of the key: the same address added by password and then by
  * OAuth is the same account, and a key that separated them would let the list lie again.
  *
- * ⛔ Nothing here is persisted or migrated. Normalisation happens when the key is COMPUTED;
+ * Nothing here is persisted or migrated. Normalisation happens when the key is COMPUTED;
  * [AccountStore] keeps writing exactly what it wrote before.
  */
 
@@ -25,11 +25,11 @@ data class AccountKey(
  * An endpoint reduced to what actually identifies the server: trimmed, lower-cased, with an
  * `http://` / `https://` scheme and any trailing `/` removed.
  *
- * ⭐ The scheme is not cosmetic. The OAuth routes store the RAW candidate the user typed
+ * The scheme is not cosmetic. The OAuth routes store the RAW candidate the user typed
  * (`https://mail.example.test`) where the token route stores what discovery resolved
  * (`mail.example.test`); compared as-is, those two are different servers and the duplicate gets in.
  *
- * ⛔ A PATH IS KEPT, deliberately, and this is where the guard stops. `mail.example.test` and
+ * A PATH IS KEPT, deliberately, and this is where the guard stops. `mail.example.test` and
  * `mail.example.test/jmap/session` stay two different endpoints, so the same mailbox reached once
  * by autodiscovery and once by a pasted session URL is still two accounts. Stripping the path
  * would merge them — and would equally merge two genuinely different JMAP servers hosted under one
@@ -79,7 +79,7 @@ fun resolveExisting(accounts: List<StoredAccount>, key: AccountKey?): StoredAcco
  * The stored LOGIN recognised by [key], or null. [resolveExisting] narrowed to standalone records
  * (`loginId == null`).
  *
- * ⭐ Not decoration. A linked sub-account BORROWS its login's secret ([StoredAccount.loginKey] hands
+ * Not decoration. A linked sub-account BORROWS its login's secret ([StoredAccount.loginKey] hands
  * back `loginId ?: id`), so resolving an add onto one would file the new password or refresh token
  * under an id nothing ever reads, while that account went on borrowing somebody else's. The two
  * writing routes ([AccountStore.add], [AccountStore.addOAuth]) create a login and never a
@@ -93,7 +93,7 @@ fun resolveExistingLogin(accounts: List<StoredAccount>, key: AccountKey?): Store
  * nothing (see [resolveExistingLogin]), so a route may hand over a key it could not build without
  * losing the keys after it.
  *
- * ⭐ Why here and not inside [accountKeyOf]. A stored account has ONE key and must keep exactly
+ * Why here and not inside [accountKeyOf]. A stored account has ONE key and must keep exactly
  * one: `mail.example.test` and `jmap.example.test` are two endpoints, and two genuinely different
  * mailboxes served under them would recognise each other the day the key itself grew a family of
  * hosts — [AccountStore.writePassword] would then overwrite a secret that has no second copy
@@ -101,19 +101,19 @@ fun resolveExistingLogin(accounts: List<StoredAccount>, key: AccountKey?): Store
  * choosing, for its own add and no one else's. It looks under each key in turn and lets
  * [refreshedWith] put `server` right on the way past.
  *
- * ⛔ What is NOT checked here is PROVENANCE. This compares keys and does nothing else: the extra
+ * What is NOT checked here is PROVENANCE. This compares keys and does nothing else: the extra
  * key recognises whatever login happens to sit under that host, whether this route filed it, the
  * manual password form did, or the API-token route did. Nothing asks. What keeps the reach narrow
  * is not a check but what a caller may offer — both keys carry the SAME address, and the two hosts
  * are ones `Jmap.autodiscoverHosts` produced for that ONE domain — so the login found under the
  * older key is the same mailbox by every field the store has.
  *
- * ⛔ Without it, an OAuth account added by 1.5.0 or 1.5.1 — filed under the host the OAuth document
+ * Without it, an OAuth account added by 1.5.0 or 1.5.1 — filed under the host the OAuth document
  * came from, `mail.<domain>` — is invisible to the host this version resolves, `<domain>`. The
  * first re-authentication after the update (the routine gesture when a refresh token expires)
  * would take a SECOND line: the fix for #55 manufacturing the duplicate of #55.
  *
- * ⛔ The ORDER is the decision, not a detail. The key this version writes comes first, so when both
+ * The ORDER is the decision, not a detail. The key this version writes comes first, so when both
  * lines happen to exist an add lands on the one this version maintains.
  */
 fun resolveExistingLoginAmong(accounts: List<StoredAccount>, keys: List<AccountKey?>): StoredAccount? =
@@ -122,7 +122,7 @@ fun resolveExistingLoginAmong(accounts: List<StoredAccount>, keys: List<AccountK
 /**
  * [existing] brought up to date with what an add has just PROVED, and with nothing else.
  *
- * ⛔ Written as `existing.copy(...)` on purpose, never as `proven.copy(...)`. The two read the same
+ * Written as `existing.copy(...)` on purpose, never as `proven.copy(...)`. The two read the same
  * today and diverge the day a field is added to [StoredAccount]: starting from [existing] KEEPS it,
  * starting from [proven] silently resets it to whatever a fresh sign-in form happened to build.
  * Rule 1 of this project — the option that cannot lose data wins.
@@ -136,7 +136,7 @@ fun resolveExistingLoginAmong(accounts: List<StoredAccount>, keys: List<AccountK
  * name she gave it; overwriting color, watchedFolders or the identities loses settings the add
  * never even asked about.
  *
- * ⭐ Coming back with a password after OAuth DOES clear oauth* and put authType back to BASIC, and
+ * Coming back with a password after OAuth DOES clear oauth* and put authType back to BASIC, and
  * that is wanted: `AccountStore.writePassword` writes the password into the very slot that held the
  * refresh token, so leaving the tokens behind would make the record describe a credential the
  * account no longer has.

@@ -29,7 +29,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
      * The rows whose cancellation is still running, so a second tap on the same X cannot start a
      * second one (#170).
      *
-     * ⛔ Load-bearing since the deposit came first. The row now leaves the screen only after
+     * Load-bearing since the deposit came first. The row now leaves the screen only after
      * `saveDraft` returns, and that call attempts the upload inline — a dropped socket keeps the X
      * on screen, and inviting for seconds. A second tap re-reads the same row, files it under a
      * fresh local draft id (`replacesEmailId` is null by design, so nothing joins them) and the
@@ -47,7 +47,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
      * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its
      * job — and say which of the three things happened (#170).
      *
-     * ⛔ **On `appScope`, not `viewModelScope`.** The X is at the end of a row and this screen is
+     * **On `appScope`, not `viewModelScope`.** The X is at the end of a row and this screen is
      * left the moment it is tapped; the screen's own scope dies with its `NavBackStackEntry`, and
      * a deposit cancelled halfway leaves the message in neither Drafts nor the schedule. The
      * ordering and the cancellation shelter live in [cancelScheduledSend]; the scope is the half
@@ -62,9 +62,9 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                     id = id,
                     row = { repo.scheduledSend(it) },
                     credentials = { app.container.accountStore.credentials(it) },
-                    // ⛔ A `null` from `credentials` is not proof: the store answers null for an
+                    // A `null` from `credentials` is not proof: the store answers null for an
                     // unreadable secret too, and an unreadable blob makes `accounts()` empty —
-                    // which is what `accountsUnreadable()` exists to say (`AccountStore.kt:304`).
+                    // which is what `accountsUnreadable()` exists to say.
                     // The two verdicts are read here; what they MEAN is decided in one executable
                     // place, shared with the worker that fires these messages.
                     accountIsGone = {
@@ -88,7 +88,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             bcc = d.bcc,
                             inReplyTo = d.inReplyTo,
                             references = d.references,
-                            // ⛔ Nothing to replace, said out loud: naming the server draft this
+                            // Nothing to replace, said out loud: naming the server draft this
                             // message was edited from (`row.draftEmailId`) would let the save
                             // DESTROY it, and the deposit flattens the HTML body — a fidelity we
                             // cannot prove. A duplicate in Drafts is recoverable, a destroyed
@@ -103,7 +103,7 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             // has no default, and it must not be: `true` here would silently refuse
                             // to deposit a message whose body is genuinely empty.
                             composerBodyWasLost = false,
-                            // ⛔ Only ever READ when `composerBodyWasLost` is true, which this
+                            // Only ever READ when `composerBodyWasLost` is true, which this
                             // route never is (line above). It is answered from the text being
                             // deposited because that is the only text this route has ever had —
                             // the scheduled row's own, and there is no composer to ask.

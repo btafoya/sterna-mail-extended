@@ -34,7 +34,7 @@ data class LinkDialogFields(
     /** The label to show: the selected words, or what the link covers, or empty. */
     val text: String,
     /**
-     * Whether the label may be typed. ⛔ False whenever characters are already involved — a
+     * Whether the label may be typed. False whenever characters are already involved — a
      * selection, or a link being edited: the words are in the body, and letting the box rewrite
      * them would be a second, invisible way to edit the message.
      */
@@ -66,20 +66,20 @@ fun linkDialogFields(body: RichBody, selection: Span): LinkDialogFields {
  * What OK produces: [url] through the guard, then `setLink` — or `null` when the guard refuses it,
  * which is what puts the error under the field and keeps the dialog open.
  *
- * ⛔ [normalizeLinkUrl] HERE and not in `setLink`: the model stores what it is given, and this is
+ * [normalizeLinkUrl] HERE and not in `setLink`: the model stores what it is given, and this is
  * one of the two borders where a raw string becomes a URL (the other is `fromHtml`).
  *
- * ⭐ **An empty label is the ADDRESS ITSELF**, and that is not a nicety — without it the fourth
+ * **An empty label is the ADDRESS ITSELF**, and that is not a nicety — without it the fourth
  * arm of `setLink` is reachable from the dialog: a bare cursor, no link under it and nothing typed
  * in the label box gives back the body UNCHANGED, `onApply` runs, the dialog closes and nothing at
  * all has happened, with no message to say so. Gmail writes the address in that case (rule 4), and
  * `toPlainText` already treats that exact shape apart — "the label IS the URL" is written once,
  * not as `https://x <https://x>` — so both ends of the message agree about it.
  *
- * ⚠ It only ever bites on that arm: a real selection makes `setLink` ignore the label outright,
+ * It only ever bites on that arm: a real selection makes `setLink` ignore the label outright,
  * and a cursor inside a link returns before the label is looked at.
  *
- * ⚠ The LISTS need nothing here and that is not an oversight: inserting a label goes through
+ * The LISTS need nothing here and that is not an oversight: inserting a label goes through
  * `setLink`, which routes the insertion through `remapAfterEdit`, so the item the caret sits in
  * stays an item. This function never touches `body.blocks` itself.
  */
@@ -92,7 +92,7 @@ fun linkApplied(body: RichBody, selection: Span, url: String, text: String): Ric
  * The dialog itself: an address, a label, and three buttons. [onApply] receives the body OK made,
  * [onRemove] the body with the link taken off, and both close the dialog.
  *
- * ⛔ Material `TextField`s, never `BasicTextField`: three source lints count the composer's own
+ * Material `TextField`s, never `BasicTextField`: three source lints count the composer's own
  * `BasicTextField(` call sites and read the file's structure around them, and this dialog is not
  * one of the composer's fields. It also lives in its own file for that reason.
  */

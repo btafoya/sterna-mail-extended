@@ -52,7 +52,7 @@ internal fun deltaEvictions(
  * (which removes it) — the order the folders happened to be synced in decided whether mail
  * survived.
  *
- * ⚠ What this deliberately spares as well: a `destroyed` id whose row has already moved on. The
+ * What this deliberately spares as well: a `destroyed` id whose row has already moved on. The
  * message really is gone server-side, so the row it leaves behind is a ghost — but only a ghost,
  * and the existence sweep of the folder it now sits in ([ghostEvictions]) removes it, whereas
  * telling the two shapes apart here would mean trusting `changes.destroyed` with a folderless
@@ -81,7 +81,7 @@ internal fun mailboxScopedEvictions(
  * server no longer has, and those are gone for real. It is a supplier rather than a client so this
  * decision — including its failure behaviour — can be executed by a JVM test.
  *
- * ⚠ THE SIGN OF THE ERROR IS THE OPPOSITE OF THE DESTROY PATH'S, and this is the only place in
+ * THE SIGN OF THE ERROR IS THE OPPOSITE OF THE DESTROY PATH'S, and this is the only place in
  * this file where that is true. `MailRepository.idsStillOnlyIn` deliberately lets a failed location
  * read PROPAGATE: it destroys mail, so "the server never answered" may not be read as "go ahead".
  * Here the action is cosmetic and the pass it rides on has new mail to announce, so a failed or
@@ -252,7 +252,7 @@ internal fun retentionEvictions(
  * Which cached ids a FULL-QUERY reconcile drops, in batches no single statement can choke on —
  * `EmailDao.replaceMailbox`'s decision, extracted here to be executed in a JVM test.
  *
- * ⛔ Why a complement and not a `NOT IN (:keepIds)`: SQLite binds at most 999 variables below
+ * Why a complement and not a `NOT IN (:keepIds)`: SQLite binds at most 999 variables below
  * Android 12 ([MAX_CHANGES] is this file's bound for exactly that reason, Codeberg #29), and a
  * full sync window is up to 10 000 ids (it was 1 000 when this was written, and for a while it was
  * a whole folder) — so the reconcile of a big window bound MORE variables
@@ -260,7 +260,7 @@ internal fun retentionEvictions(
  * next refresh took the same full query again: the closed loop the paging fix had just opened,
  * one layer down. Unreachable before that fix (the request failed earlier), reachable after it.
  *
- * ⛔ And why the complement is computed ONCE, against the WHOLE [keepIds]: chunking a
+ * And why the complement is computed ONCE, against the WHOLE [keepIds]: chunking a
  * `NOT IN (:keepIds)` into several statements would delete everything outside each chunk in turn,
  * i.e. the entire folder. The set to delete is decided first and only then cut up; each batch is
  * then a plain list of ids to remove, and cutting it differently can never change what goes.
@@ -280,7 +280,7 @@ internal fun reconcileEvictions(
  * Which of the rows a reconcile just read it is ALLOWED to consider for eviction — the bound that
  * makes a full re-query safe against writes it is racing (Codeberg #165).
  *
- * ⛔ The problem this exists for, and why it is a filter on the CACHED side rather than one more
+ * The problem this exists for, and why it is a filter on the CACHED side rather than one more
  * thing added to the keep set. `EmailDao.reconcileMailboxRows` re-reads the folder itself, inside
  * its transaction, AFTER the walk is over: [cachedIds] is therefore a snapshot from a moment the
  * caller never saw. Everything that landed in the folder between the caller's own reading of it
@@ -292,11 +292,11 @@ internal fun reconcileEvictions(
  * [evictableIds] is the folder as it stood BEFORE the walk started. A row that was not there then
  * cannot have been described by the walk, so nothing this reconcile knows can justify deleting it;
  * a row that WAS there and that no page named is stale exactly as it always was, and still goes.
- * ⭐ Which is why this is one filter and not an addition to the keep set: an addition would have to
+ * Which is why this is one filter and not an addition to the keep set: an addition would have to
  * be computed from a second read, and that read is on the wrong side of the transaction — there is
  * no moment at which the caller can enumerate what the DAO is about to see.
  *
- * ⛔ NULL means NO BOUND, i.e. exactly the behaviour that shipped before this existed: everything
+ * NULL means NO BOUND, i.e. exactly the behaviour that shipped before this existed: everything
  * the folder holds is a candidate. It is not the same thing as an empty set, and the difference is
  * the whole risk of this argument — an EMPTY bound means "evict nothing, ever", which silently
  * turns the reconcile off: the cache then grows without limit and a message destroyed on the server

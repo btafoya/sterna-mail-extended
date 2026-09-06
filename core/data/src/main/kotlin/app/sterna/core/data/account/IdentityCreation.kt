@@ -23,10 +23,10 @@ package app.sterna.core.data.account
  *  - **The server's list could not be read** (`serverIdentities == null`): nothing is told apart in
  *    that state — a brand new address and one the server already holds look identical — and posting
  *    blind fabricates duplicates. Worse, in exactly that state the editor MAKES UP a row carrying
- *    the account's own address (`SettingsScreen.kt:1428-1448`), which reaches this function looking
+ *    the account's own address (`SettingsScreen`), which reaches this function looking
  *    like something the user typed, so a Save that only renamed a display name would post a durable
  *    identity nobody asked for. Rule 1: never the option that writes what was not asked.
- *    ⛔ It is the PARAMETER that says this, never `before.serverIdentities.isEmpty()`. That field is
+ *    It is the PARAMETER that says this, never `before.serverIdentities.isEmpty()`. That field is
  *    only ever written by `MailRepository.connect`, which neither adding an account, nor Test
  *    connection, nor a sync runs — so on a freshly added account it is empty because nobody has
  *    read it, and inferring "never read" from "empty" refused every creation for good, in silence
@@ -40,20 +40,20 @@ package app.sterna.core.data.account
  *  - **The account's own login address counts as already known while [StoredAccount.identities] is
  *    EMPTY.** In exactly that state the account screen MAKES UP one identity row carrying
  *    [StoredAccount.username] so the Identities section does not open empty
- *    (`SettingsScreen.kt:1428-1448`). Nobody typed it; it reaches here through
- *    `AccountEditorSave.kt:35-38` looking like any other row, and a Save that only renamed the
+ *    (`SettingsScreen`). Nobody typed it; it reaches here through
+ *    `AccountEditorSave` looking like any other row, and a Save that only renamed the
  *    display name of a freshly added account would post a durable `Identity/set` for an address
  *    nobody asked to publish (rule 1: never the option that cannot be undone) — and, offline,
  *    would name that address in the failure message, in nine languages.
- *    ⭐ The condition is `before.identities.isEmpty()`, no wider and no narrower, because it is the
+ *    The condition is `before.identities.isEmpty()`, no wider and no narrower, because it is the
  *    PRODUCER's condition: the editor fabricates when
  *    `normalizeManualIdentities(account.identities, account.serverIdentities)` is empty AND
  *    `account.serverIdentities` is empty; with an empty server list that call collapses to
- *    `manual.distinctBy(…)` (`StoredAccount.kt:247-259`), which is empty only when `manual` is.
- *    ⛔ Once ONE manual identity is stored the editor fabricates nothing, so a row carrying the
+ *    `manual.distinctBy(…)` (`StoredAccount`), which is empty only when `manual` is.
+ *    Once ONE manual identity is stored the editor fabricates nothing, so a row carrying the
  *    login address has been TYPED and leaves like any other. Do not widen this to "always skip the
  *    login address".
- *    ⭐ It also closes a mutation no test could see: `SettingsScreen.kt:1437`,
+ *    It also closes a mutation no test could see: `SettingsScreen`,
  *    `if (account.serverIdentities.isEmpty())` → `if (true)`. Compose does not run in a JVM test,
  *    so nothing read that line, and the safety of this decision used to depend on it. It no longer
  *    does: whatever the editor seeds on an account with no stored identity, nothing leaves.
@@ -89,7 +89,7 @@ fun identitiesToCreate(
  * is the super-set of the candidates — a server that holds something can only filter more — so a
  * `false` here can never hide a case, and a `true` is only a permission to go and look.
  *
- * ⛔ Without it the caller would open a session on EVERY Save, including on an IMAP account, where
+ * Without it the caller would open a session on EVERY Save, including on an IMAP account, where
  * this whole path must stay inert (`MailRepository.serverIdentities` throws on IMAP by design).
  */
 fun mayCreateIdentities(before: StoredAccount, edited: List<StoredIdentity>): Boolean =

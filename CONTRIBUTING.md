@@ -124,6 +124,22 @@ See [ARCHITECTURE.md](ARCHITECTURE.md). In short:
 ## Conventions
 
 - Kotlin official code style (`kotlin.code.style=official`).
+- **A comment says only what the code cannot**: an invariant, a trap, or a decision and what I ruled
+  out. Write only what a machine can contradict, or what no reading of the code will give you;
+  naming a symbol in backticks is encouraged, precisely because a machine can contradict it. What
+  not to write, worst first:
+  - a `File.kt:NNN` reference. Line numbers drift silently and most of the ones this tree used to
+    carry had come to name the wrong line, while not one symbol named in backticks has gone missing.
+  - the story of what the code used to do. Git carries that, and git does not drift.
+  - warning glyphs and shouted capitals. They belong to the procedure files, not to a source.
+  - a paraphrase of the line below it.
+  - the reason an extraction pattern exists, recopied into every file that uses it. It is worth
+    writing once, in one place.
+
+  Two kinds of comment are not what this is aimed at, and I want them kept. A source lint's
+  self-documenting header stays required, as above: a header that says what the lint does not cover
+  is a trap and a decision at once. And the reason a guard exists goes in the source, because the
+  source is the only place that outlives the branch that added it.
 - Keep `:core:jmap` free of Android dependencies so it stays testable on the JVM.
 - **FOSS dependencies only.** Every library must be free/open-source
   (OSI/FSF-approved, GPLv3-compatible). No proprietary or closed-source libraries,

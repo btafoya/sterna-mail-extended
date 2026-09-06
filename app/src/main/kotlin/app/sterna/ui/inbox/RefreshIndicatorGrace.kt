@@ -15,11 +15,11 @@ import kotlinx.coroutines.flow.flow
  * blinked it for nothing. A refresh that lands inside this grace is one the reader never needed to
  * be told about: the rows simply arrive.
  *
- * ⛔ This is the DISPLAY only. "A refresh is running" is [MailUi.refreshing] and is
+ * This is the DISPLAY only. "A refresh is running" is [MailUi.refreshing] and is
  * not delayed by a millisecond: it still empties the centre of the screen so "this folder is empty"
  * cannot lie during a fetch (#63), and it is still the seed of the state flow.
  *
- * ⚠ A FRESH view runs no refresh at all (`refreshUnlessFresh` returns inside its window), so on the
+ * A FRESH view runs no refresh at all (`refreshUnlessFresh` returns inside its window), so on the
  * common folder switch nothing empties the centre by that path any more. Emptying it there is the
  * screen's own arm: it catches on `refreshLoading || staleRows` and draws only on
  * `refreshLoading && !staleRows`.
@@ -63,7 +63,7 @@ private fun showAt(run: RefreshRun): Long =
 /**
  * Start a stretch at [now], or extend the one already running.
  *
- * ⛔ A refresh starting ON TOP of a stretch still in flight extends it instead of opening a new
+ * A refresh starting ON TOP of a stretch still in flight extends it instead of opening a new
  * one. Opening a new one restarts both the grace and the floor, and the app cancels-and-replaces
  * refreshes readily (a reconnect walk, an account switch, a folder tap while the previous fetch is
  * still out) — so a cascade would either keep the indicator permanently just-about-to-appear, or
@@ -73,7 +73,7 @@ private fun showAt(run: RefreshRun): Long =
  * pulls while a background reconcile is already running, the pull deserves its answer now, and the
  * grace it was serving is no longer anybody's silence to keep.
  *
- * ⛔ A stretch that has ENDED but is STILL DRAWN — serving its floor — is reopened, not replaced.
+ * A stretch that has ENDED but is STILL DRAWN — serving its floor — is reopened, not replaced.
  * Replacing it was the first version of this rule, and it defeated the floor at the only moment
  * the floor is for: shown at 250, landed at 300, a second folder tapped at 400 gave a NEW stretch,
  * so the indicator went dark at 400 and came back at 650. Dark for a quarter of a second between
@@ -95,7 +95,7 @@ internal fun startRefreshRun(previous: RefreshRun?, now: Long, instant: Boolean)
 /**
  * Whether the indicator is drawn at [now].
  *
- * ⛔ The nominal case of #178 is the FIRST rule below, and it is the one a naive implementation
+ * The nominal case of #178 is the FIRST rule below, and it is the one a naive implementation
  * gets wrong: a stretch that ended before it was ever due to be shown is never shown AT ALL. A
  * floor applied blindly to it would light the tern from 250 ms to 750 ms for a refresh that had
  * already been over for 170 ms — the very blink this file exists to remove.
@@ -115,7 +115,7 @@ internal fun refreshIndicatorShowing(run: RefreshRun?, now: Long): Boolean {
  * The next instant at which [refreshIndicatorShowing] answers differently, or null when it never
  * will again — the single wake-up [refreshIndicatorVisibility] schedules per emission.
  *
- * ⛔ Null, not `showAt`, for a stretch that ended inside its grace: that one has no visible future
+ * Null, not `showAt`, for a stretch that ended inside its grace: that one has no visible future
  * at all, and booking a wake-up for it would put the screen back on the scheduler once per folder
  * tap to change nothing.
  */

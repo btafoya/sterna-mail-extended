@@ -221,7 +221,7 @@ fun SettingsScreen(
     // answer, and NavHost keys its graph on (route, startDestination, builder) — so the graph was
     // rebuilt underneath a user standing on one of its destinations. Keyed on [initialAccountId]
     // alone: the deep link's target is the only thing that may ever re-open the question.
-    // ⛔ PINNED BY SharedAccountScreenTest — the start destination, statement by statement
+    // PINNED BY SharedAccountScreenTest — the start destination, statement by statement
     val startDestination = remember(initialAccountId) {
         if (initialAccountId != null) {
             settingsRouteFor(initialAccountId, accountsViewModel.accounts.value)
@@ -301,7 +301,7 @@ fun SettingsScreen(
         // and therefore overwrites the secret of EVERY account grouped under that login. That is the
         // loss of access this batch exists to make impossible, so the id is asked one last time
         // HERE, with the SAME pure function, never a second wording of the guard.
-        // ⛔ PINNED BY SharedAccountScreenTest — the account route, statement by statement
+        // PINNED BY SharedAccountScreenTest — the account route, statement by statement
         composable("account/{id}") { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()
@@ -337,7 +337,7 @@ fun SettingsScreen(
         // The two settings a DELEGATED account genuinely owns, and nothing else (issue #31). It
         // gets its own destination rather than a mode of "account/{id}": that screen edits the
         // credential of the LOGIN this account borrows, which is not this account's to edit.
-        // ⛔ PINNED BY SharedAccountScreenTest — the shared route, statement by statement
+        // PINNED BY SharedAccountScreenTest — the shared route, statement by statement
         composable("sharedAccount/{id}") { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             SharedAccountScreen(
@@ -1025,7 +1025,7 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
                 )
             }
             // Next to the remote content it belongs with: both are "what does this message get to
-            // learn about me?". ⛔ ONE switch, and it asks — there is no third position that sends
+            // learn about me?". ONE switch, and it asks — there is no third position that sends
             // on its own, under any name.
             SettingsSection(stringResource(R.string.settings_read_receipt_section)) {
                 SettingSwitch(
@@ -1280,7 +1280,7 @@ private fun syncWindowLabel(context: Context, window: SyncWindow): String = when
     SyncWindow.COUNT_50 -> context.getString(R.string.settings_sync_50_messages)
     SyncWindow.COUNT_200 -> context.getString(R.string.settings_sync_200_messages)
     SyncWindow.COUNT_500 -> context.getString(R.string.settings_sync_500_messages)
-    // ⛔ WYSIWYG: "Everything" now caches 10 000 messages and no more, so it is shown as such.
+    // WYSIWYG: "Everything" now caches 10 000 messages and no more, so it is shown as such.
     // Between lowering the label and raising the code, the label goes down (CLAUDE.md's grid,
     // rule 3) — otherwise an account left on this window promises a whole mailbox offline while
     // the cache holds ten thousand. The member and the string are both untouched; only the arm
@@ -1344,7 +1344,7 @@ private fun AccountsScreen(
             // shared-account screen, which holds the two it does own. Which screen that is, is
             // [settingsRouteFor]'s decision, not this list's; nothing here promises a shared mailbox
             // a sign-out it cannot honour (discovery restores it on the next connect).
-            // ⛔ PINNED BY SharedAccountScreenTest — the accounts list, statement by statement
+            // PINNED BY SharedAccountScreenTest — the accounts list, statement by statement
             items(StoredAccount.accountsScreenRows(accounts), key = { it.account.id }) { row ->
                 val account = row.account
                 AccountRow(
@@ -2143,11 +2143,11 @@ private fun AccountDetailScreen(
             SettingsSection(stringResource(R.string.settings_sync_section)) {
                 SettingChoiceRow(
                     title = stringResource(R.string.settings_messages_to_sync_title),
-                    // ⛔ The list comes from `syncWindowChoices()` and is not written out here: the
+                    // The list comes from `syncWindowChoices()` and is not written out here: the
                     // retired windows (50 / 200 / 500 / "Everything") still exist and still decode,
                     // and a list spelled out on this screen is how one of them gets offered again.
                     options = syncWindowChoices(),
-                    // ⛔ The window the account CARRIES, never one picked out of the offer. A
+                    // The window the account CARRIES, never one picked out of the offer. A
                     // retired window is not in `options`, so the dialog shows no ticked circle for
                     // it — that is the accepted cost. Substituting the nearest offered value here
                     // would make the row state a number the cache does not hold, permanently and
@@ -2160,7 +2160,7 @@ private fun AccountDetailScreen(
                         onAccountsChanged()
                     },
                 )
-                // ⛔ HERE, and not in the `if (isImap)` block above where the "Upload sent messages"
+                // HERE, and not in the `if (isImap)` block above where the "Upload sent messages"
                 // switch legitimately sits. That one switches off a second WRITE that only IMAP
                 // sending performs; this one is about what the folder lists SHOW, and both
                 // protocols carry the subscription (IMAP LSUB, JMAP Mailbox.isSubscribed, RFC 8621
@@ -2183,7 +2183,7 @@ private fun AccountDetailScreen(
             }
             SettingsSection(stringResource(R.string.settings_storage_section)) {
                 StorageStatRow(stringResource(R.string.settings_cached_messages), "$cacheCount")
-                // ⛔ BEFORE the button, as the global one has it (`settings_clear_cache_help`), and
+                // BEFORE the button, as the global one has it (`settings_clear_cache_help`), and
                 // it is not decoration: the attachment cache is ONE flat directory shared by every
                 // account, so this button deletes the downloaded attachments of all of them. There
                 // is no confirmation dialog (decided against), so this line is the only warning the
@@ -2354,7 +2354,7 @@ private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel)
     // The rest re-reads on the same 500 ms tick as the status line just above, and for the same
     // reason: the distributor answers asynchronously, so an address that lands while this screen is
     // open was shown nowhere until the screen was left and re-entered — with the block reading
-    // "Waiting for an address…" while the address was already in hand. ⛔ THIS read is
+    // "Waiting for an address…" while the address was already in hand. THIS read is
     // SharedPreferences only, served from memory once loaded, exactly like the statusFor read that
     // loop already does; no DataStore, no runBlocking and no PackageManager may join it.
     var relay by remember(accountId) { mutableStateOf(viewModel.relayAddress(accountId)) }
@@ -2393,7 +2393,7 @@ private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel)
         ) { Text(stringResource(R.string.settings_push_relay_remove)) }
     } else if (relay.requested) {
         RelayAddressNote(title, stringResource(R.string.settings_push_relay_waiting))
-        // ⛔ This state can be FINAL, so it gets the way out of it. For an account outside the
+        // This state can be FINAL, so it gets the way out of it. For an account outside the
         // watched set (push-all off, not the current account) the tap above is the only
         // ensureRegistered of its life — PushController.apply and MailFetchWorker both filter on
         // that set — so a registration that fails, or a distributor picker the reader dismisses,
@@ -2544,7 +2544,7 @@ private fun PgpAccountSection(
     // about, and a row offering a choice of one is noise; with none, the explainer above already
     // says what to do (#151).
     //
-    // ⛔ No fallback for a null provider-in-use, deliberately: `?: pgpProviders.first()` would
+    // No fallback for a null provider-in-use, deliberately: `?: pgpProviders.first()` would
     // name and tick a provider chosen by the sort order while the engine binds another one, which
     // is the row saying something false. The two states are published together, so a null here
     // means nothing is resolved yet; showing no row at all until then is the honest answer.
@@ -2559,7 +2559,7 @@ private fun PgpAccountSection(
         )
     }
 
-    // ⛔ REMEMBERED ON THE PACKAGE. Reading a provider's own name is a package-manager query plus
+    // REMEMBERED ON THE PACKAGE. Reading a provider's own name is a package-manager query plus
     // the loading of a third-party APK's resources; called bare in the subtitle below it would run
     // on the main thread on EVERY recomposition, where the same query is deliberately kept off it
     // in the view model. Keyed on the package, it costs one query per change of provider.
@@ -2651,12 +2651,12 @@ private fun pgpProviderLabel(context: Context, packageName: String): String =
     )
 
 /**
- * ⛔ THE FALLBACK THAT ACTUALLY SHIPS. What an OpenPGP app is called on screen — in the provider
+ * THE FALLBACK THAT ACTUALLY SHIPS. What an OpenPGP app is called on screen — in the provider
  * row and in the "Use OpenPGP" subtitle — when it declares no name of its own.
  *
  * The answer is its PACKAGE NAME. "Sign, encrypt and read mail with org.sufficientlysecure.keychain"
  * is ugly, and it is TRUE: it is the app that is bound, named by its only other name, which is what
- * the system itself falls back to. ⛔ Never a hard-coded app name here — `?: "OpenKeychain"` would
+ * the system itself falls back to. Never a hard-coded app name here — `?: "OpenKeychain"` would
  * put one particular app back onto the screen of someone signing with another one, which is the
  * whole defect this change removes (#151), and it would look like a tidy-up.
  */
@@ -2668,7 +2668,7 @@ internal fun pgpProviderDisplayName(declaredName: String?, packageName: String):
  * providers only appears from two installed apps on, so with a single one this subtitle is the
  * only place on screen that names the app actually in use (#151).
  *
- * ⚠ [label] IS NEVER NULL IN PRODUCTION, and this function's own fallback therefore guards a state
+ * [label] IS NEVER NULL IN PRODUCTION, and this function's own fallback therefore guards a state
  * the app does not produce: `pgpProviderLabel` always returns something (see
  * [pgpProviderDisplayName]), and `refreshPgpAvailable` publishes the provider in use together with
  * `pgpAvailable`, which is what gates this branch. It exists because the type is nullable and an
@@ -2678,7 +2678,7 @@ internal fun pgpProviderDisplayName(declaredName: String?, packageName: String):
 internal fun pgpSubtitleProviderName(label: String?): String = label ?: "OpenPGP"
 
 /**
- * ⛔ HELD TOGETHER WITH `settings_pgp_install`, which names OpenKeychain in all nine languages.
+ * HELD TOGETHER WITH `settings_pgp_install`, which names OpenKeychain in all nine languages.
  * The button is allowed to name one app precisely because it opens that app's page; change either
  * side alone and the button promises one thing and delivers another.
  */

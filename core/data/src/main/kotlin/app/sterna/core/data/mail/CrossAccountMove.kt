@@ -53,7 +53,7 @@ interface CrossAccountMoveSteps {
     /** Tell the next refresh of B that this arrival is our own move, not new mail to announce. */
     fun markTargetLocalMove(targetId: String)
 
-    /** Move A's original to A's bin; throws when that could not be done. ⛔ Never a destroy. */
+    /** Move A's original to A's bin; throws when that could not be done. Never a destroy. */
     suspend fun trashSource()
 
     /** Reload B's folder so the copy shows at once; best-effort, its failure is not the move's. */
@@ -133,7 +133,7 @@ fun jmapKeywordsOf(keywords: Map<String, Boolean>): Set<String> =
 /**
  * The INTERNALDATE an APPEND on B takes for A's [receivedAt] (an RFC 3339 date, as both the
  * JMAP server and the IMAP cache row write it): epoch millis, or null when there is no date or it
- * cannot be read. ⛔ Never an exception: an unreadable date is "no date" — B stamps the moment of
+ * cannot be read. Never an exception: an unreadable date is "no date" — B stamps the moment of
  * the copy — not a failed move.
  */
 fun internalDateOf(receivedAt: String?): Long? =

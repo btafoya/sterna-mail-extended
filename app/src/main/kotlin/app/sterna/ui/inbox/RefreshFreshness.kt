@@ -8,16 +8,16 @@ package app.sterna.ui.inbox
  * account switch and every folder tap fired a full reconcile she never asked for. A view that
  * came back a moment ago is not going to have changed, so it is not fetched again.
  *
- * ⭐ The register is PERSISTED (`AccountStore.refreshFreshness`), on purpose: her case IS the cold
+ * The register is PERSISTED (`AccountStore.refreshFreshness`), on purpose: her case IS the cold
  * start — the phone kills the app, she reopens it seconds later — and an in-memory register dies
  * with the process, i.e. covers exactly none of it. The public promise on that thread says so in
  * so many words: "including when the phone killed the app and you reopen it right after".
  *
  * Two shapes are borrowed from [SelectionMemory], for the reasons written there:
- *  - ⛔ the key carries the ACCOUNT ID next to the folder id, never a bare folder id. Two accounts
+ *  - the key carries the ACCOUNT ID next to the folder id, never a bare folder id. Two accounts
  *    on the same server number their mailboxes independently, and a bare id would let one
  *    account's freshly-read folder pass for its sibling's (#92 / #121);
- *  - ⛔ a folder id can hold ANY character — an IMAP path decoded from modified UTF-7 carries
+ *  - a folder id can hold ANY character — an IMAP path decoded from modified UTF-7 carries
  *    whatever the name held, line feeds and tabs included — so an entry that cannot be written
  *    without ambiguity is REFUSED rather than mis-split. A refused entry is simply not remembered,
  *    which costs one extra refresh; the error is taken on the side that fetches too much, never on
@@ -58,7 +58,7 @@ private fun FreshScope.isStorable(): Boolean =
 /**
  * Whether [this] entry still answers for its view at [now].
  *
- * ⛔ The LOWER bound matters as much as the upper one. The clock at the call site is
+ * The LOWER bound matters as much as the upper one. The clock at the call site is
  * `SystemClock.elapsedRealtime` (see the clock in `InboxViewModel`), which RESTARTS at a reboot: a
  * stamp written before one then lies in the future, and a stamp in the future must read as STALE
  * or the list would never reconcile again — for the whole uptime, or for ever. Reading it as stale
@@ -106,7 +106,7 @@ internal fun encodeFreshness(entries: List<FreshScope>): String? {
  * been reconciled inside the window. One stale account in the unified inbox is a stale unified
  * inbox.
  *
- * ⛔ An EMPTY [scopes] is never fresh. That is the state of an account that has never synced (no
+ * An EMPTY [scopes] is never fresh. That is the state of an account that has never synced (no
  * folder id yet), and calling it fresh would skip the very first fetch and freeze an empty list on
  * screen — with nothing but a pull gesture to get out of it.
  */
@@ -146,11 +146,11 @@ internal fun recordFresh(
  * every entry is keyed on (account, folder), so a removed account's folder ids — IMAP paths the
  * reader named herself — stayed on the disk with nobody left to read them.
  *
- * ⛔ A FILTER, never a wipe. [recordFresh] prunes by TIME only and there is no other pruning in
+ * A FILTER, never a wipe. [recordFresh] prunes by TIME only and there is no other pruning in
  * this file; clearing the whole register would cost every SURVIVING account one full reconcile it
  * did not need, which is the exact refresh #178 exists to avoid.
  *
- * ⛔ The `accountId` decides, never the `mailboxId`: two accounts on the same server number their
+ * The `accountId` decides, never the `mailboxId`: two accounts on the same server number their
  * mailboxes independently (#92 / #121), so a survivor's entry may carry the same folder id as a
  * removed account's and must stay.
  */

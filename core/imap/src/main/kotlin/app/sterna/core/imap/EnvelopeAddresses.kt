@@ -5,7 +5,7 @@ package app.sterna.core.imap
  * ENVELOPE — turned into the addresses the app carries. The four slots were four copies of this
  * block; the decision lives here once so it can be RUN by a test instead of being read.
  *
- * ⛔ This function does not know WHICH slot it was handed. Picking the slot stays at the call
+ * This function does not know WHICH slot it was handed. Picking the slot stays at the call
  * site, where the comments explaining the indices are: filling `cc` from slot 7 would publish
  * blind copies, and nothing here could tell.
  *
@@ -26,11 +26,11 @@ package app.sterna.core.imap
  * with the copy line collapsed and the save disabled. So it yields ONE entry carrying the group's
  * name and no address ([ImapAddress.email] is null) — exactly what the header says.
  *
- * ⭐ The guard is "not followed by a MEMBER", not "followed by a group end", and the difference is
+ * The guard is "not followed by a MEMBER", not "followed by a group end", and the difference is
  * a data loss both ways:
  *
  *  - A start with NO end is carried too — a start at the end of the list, or before another
- *    start. ⚠ HYPOTHETICAL, and named as such: it is the defence for a server that would hand a
+ *    start. HYPOTHETICAL, and named as such: it is the defence for a server that would hand a
  *    group back half-spelled. It is NOT what was measured. On `emu`/Stalwart, 2026-08-26, a bare
  *    atom (`Cc: undisclosed-recipients`, the `:;` not rebuilt) does not come back at all — the
  *    server answers `cc = NIL` and nothing reaches this function. That is why the APPEND now
@@ -42,12 +42,12 @@ package app.sterna.core.imap
  *    the end marker would emit the group name beside it, putting in the field a recipient nobody
  *    wrote. So "member" here is the SAME test the loop uses to emit — one definition, not two.
  *
- * ⚠ Assumed price, arbitrated: a malformed address with no domain (`To: bob`, i.e.
+ * Assumed price, arbitrated: a malformed address with no domain (`To: bob`, i.e.
  * `(NIL NIL "bob" NIL)`) also stops vanishing silently and comes out as an entry with a name and
  * no address. That is the intended direction — the composer shows the string back instead of
  * dropping it.
  *
- * ⛔ The name is taken from the mailbox field (index 2), never index 0, which a group start
+ * The name is taken from the mailbox field (index 2), never index 0, which a group start
  * leaves NIL — and it is decoded with [decodeWords] like every other display name, because a
  * group name is header text and can arrive as an encoded-word.
  *

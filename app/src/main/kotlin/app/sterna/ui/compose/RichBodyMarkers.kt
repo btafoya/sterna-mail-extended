@@ -14,19 +14,19 @@ import app.sterna.core.data.text.Span
  * What the body field DRAWS in front of a list's lines (#131): `• ` on every line of a bullet
  * block, `1. `, `2. `… on a numbered one, the numbering starting again at 1 for each block.
  *
- * ⛔ NOT A CHARACTER OF THIS ENTERS THE MODEL. `body.text` is what was typed; the markers exist in
+ * NOT A CHARACTER OF THIS ENTERS THE MODEL. `body.text` is what was typed; the markers exist in
  * the TEXT LAYER only, inside the `VisualTransformation` handed to the `BasicTextField`
  * ([bodyTransformation]). That is what
  * makes the dirty check, the save, the send and the HTML see the same text they saw before a list
  * was ever toggled — and it is why an [OffsetMapping] is required: the caret, the selection, the
  * drag handles and the IME all speak in ORIGINAL offsets and must be moved across the markers.
  *
- * ⛔ No `ParagraphStyle` / `TextIndent` (arbitrated, spec § 4): their boundaries fall on the `\n`,
+ * No `ParagraphStyle` / `TextIndent` (arbitrated, spec § 4): their boundaries fall on the `\n`,
  * which Compose renders as a phantom empty line. A wrapped line coming back to the margin is the
  * price paid, deliberately.
  */
 fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
-    // ⭐ FIRST LINE, and that is the whole of it: a body with no list is handed straight back with
+    // FIRST LINE, and that is the whole of it: a body with no list is handed straight back with
     // the identity mapping, so nothing in the field's caret arithmetic changes and NOTHING is
     // walked. Placed after `lineStarts`, this "free" path scanned every character of the body and
     // allocated a list per line on every recomposition — on a 324 kB reply (the body this screen
@@ -40,7 +40,7 @@ fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
     val out = AnnotatedString.Builder()
     for (line in starts.indices) {
         out.append(markers[line])
-        // ⭐ A SUBSEQUENCE of the original, never its plain `text`: the inline styling (#131) rides
+        // A SUBSEQUENCE of the original, never its plain `text`: the inline styling (#131) rides
         // along on its own, so a bold word inside a list item stays bold and stays put.
         val from = starts[line]
         val to = if (line + 1 < starts.size) starts[line + 1] else text.length
@@ -54,17 +54,17 @@ fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
  * inline styling ([styledBody]) laid on the text, then the list markers ([markedText]) inserted
  * in front of the lines.
  *
- * ⛔ Both halves, because a field has exactly ONE of these and the styling has nowhere else left
+ * Both halves, because a field has exactly ONE of these and the styling has nowhere else left
  * to go: a span in the field's VALUE destroys the IME's composing region on every keystroke (the
  * mechanism is written out over [styledBody]). So the styling came down here, to the layer the
  * IME never sees.
  *
- * ⛔ The ORDER is not a taste. The spans are put on first, at the model's own offsets, and
+ * The ORDER is not a taste. The spans are put on first, at the model's own offsets, and
  * [markedText] then rebuilds the text out of `subSequence`s, which carries them across the
  * markers: a bold word inside a bullet item stays bold and stays put. Laid the other way round,
  * every span after the first marker would sit two or three characters to the left of its word.
  *
- * ⭐ And the styling adds NO arithmetic: a span moves no character, so the [OffsetMapping] is
+ * And the styling adds NO arithmetic: a span moves no character, so the [OffsetMapping] is
  * still `MarkerOffsets` (or the identity), untouched — the half that governs the caret, the drag
  * handles and the IME keeps being pinned by exactly the same property test as before.
  */
@@ -78,7 +78,7 @@ fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
  * The list kind covering EVERY line the selection touches, or null — what the two list buttons
  * show as `selected`.
  *
- * ⚠ Like [app.sterna.core.data.text.toggleBlock] and unlike the inline styles, an EMPTY selection
+ * Like [app.sterna.core.data.text.toggleBlock] and unlike the inline styles, an EMPTY selection
  * is not "nothing": the cursor's own line is the target, because that is the gesture in Gmail.
  * The two must agree line for line, or the lit button would not be the one that turns the list
  * off; `RichBodyMarkersTest` pins that agreement by running both.
@@ -166,5 +166,5 @@ private fun lineOf(starts: List<Int>, offset: Int): Int {
 private fun kindOfLine(blocks: List<Block>, line: Int): BlockKind? =
     blocks.firstOrNull { line in it.lines }?.kind
 
-/** ⛔ Two characters, marker plus one space, exactly like the `- ` of `toPlainText`. */
+/** Two characters, marker plus one space, exactly like the `- ` of `toPlainText`. */
 private const val BULLET_MARKER = "• "

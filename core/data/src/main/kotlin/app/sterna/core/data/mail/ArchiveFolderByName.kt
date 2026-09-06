@@ -9,13 +9,13 @@ import app.sterna.core.jmap.model.Mailbox
  * across Sterna's locales, never the app's own labels — the mailbox is named once, on the server,
  * and the phone's language has no say in reading it.
  *
- * ⛔ It lives OUT of `MailRepository` (which needs Room, a `Context` and a socket) so that one list
+ * It lives OUT of `MailRepository` (which needs Room, a `Context` and a socket) so that one list
  * answers both questions the app asks about an archive: where the Archive button files mail
  * ([archiveFolderByName]) and whether the folder lists may hide that folder
  * ([isRoutingTargetByName]). A second copy of these names would drift, and the day it drifted the
  * app would file mail into a folder it refuses to show (#174).
  *
- * ⚠ `lowercase()` with no argument: a phone in Turkish maps 'I' onto 'ı' under a locale-sensitive
+ * `lowercase()` with no argument: a phone in Turkish maps 'I' onto 'ı' under a locale-sensitive
  * lowercasing and "ARCHIVE" would stop matching.
  */
 val ARCHIVE_FOLDER_NAMES = listOf(
@@ -29,11 +29,11 @@ val ARCHIVE_FOLDER_NAMES = listOf(
  * EXECUTES. Null when nothing among [mailboxes] looks like an archive, which is what sends the
  * caller to create one.
  *
- * ⛔ [mailboxes] must be THE ACCOUNT'S OWN folders, never the global folder cache (which holds the
+ * [mailboxes] must be THE ACCOUNT'S OWN folders, never the global folder cache (which holds the
  * last-synced account only): from the unified inbox, archiving another account's message would
  * otherwise aim at a folder id that does not exist for it, and the move would no-op in silence.
  *
- * ⚠ JMAP ONLY — the IMAP path reads names through `ImapClient.roleFromName`, which this does not
+ * JMAP ONLY — the IMAP path reads names through `ImapClient.roleFromName`, which this does not
  * touch.
  */
 fun archiveFolderByName(mailboxes: List<Mailbox>): String? =

@@ -15,7 +15,7 @@ import app.sterna.core.data.db.RowNumbering
  * GUARDS OPPOSE comes out of here; inverting the protocol test, or dropping the value, made both
  * of them decorative and no test in the repository noticed. [NumberingStampsTest] runs it.
  *
- * ⛔ Not every stamp in the app: [MailRepository.recordedUidValidity] makes a SECOND one, at
+ * Not every stamp in the app: [MailRepository.recordedUidValidity] makes a SECOND one, at
  * FOLDER level and opposed just as late (`MailBySenderViewModel.askDelete` →
  * `PendingDelete.numbering` → `deleteAll(credentials, ids, pending.numbering)`). It is a different
  * value with a different lifetime, and nothing here says anything about it.
@@ -33,11 +33,11 @@ import app.sterna.core.data.db.RowNumbering
  *   read sits BEFORE the eviction and the enqueue and OUTSIDE any `runCatching`, so an unbounded
  *   `IN (...)` would not fail the delete, it would crash it.
  *
- * ⚠ An id with no cached row is ABSENT from the answer; a row whose `uidValidity` is null is
+ * An id with no cached row is ABSENT from the answer; a row whose `uidValidity` is null is
  * PRESENT with a null value. Both read as "nothing to oppose" at the guard, and the difference
  * matters to nobody but a mutation that turns the second into the first.
  *
- * ⛔ The ACCOUNT SCOPE lives in the [read] the caller supplies (`emailDao.numberingOfRows(
+ * The ACCOUNT SCOPE lives in the [read] the caller supplies (`emailDao.numberingOfRows(
  * credentials.id, chunk)`, Codeberg #31: two accounts on one server carry identical ids). Nothing
  * here can check that; `NumberingStampsSourceTest` pins that call line whole.
  */

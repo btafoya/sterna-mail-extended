@@ -28,7 +28,7 @@ internal object WidgetThemeReader {
      * EVERYTHING one reading of the colours learns — the palette override to post, and the tones a
      * monogram badge is painted in — or NULL, meaning the read never answered at all.
      *
-     * ⭐ THERE ARE TWO KINDS OF NULL HERE NOW, and they are not the same claim.
+     * THERE ARE TWO KINDS OF NULL HERE NOW, and they are not the same claim.
      *
      *  1. THIS FUNCTION returning null: the read TIMED OUT. Nothing whatever is known, so nothing
      *     is posted and no badge is drawn — the cell stays exactly as it was drawn last, which is
@@ -40,7 +40,7 @@ internal object WidgetThemeReader {
      *     that function's own KDoc; it is what keeps a reader on the DEFAULT settings from watching
      *     the system go dark at dusk while both cells stay light until the next message.
      *
-     * ⛔ AND THAT SECOND ONE NO LONGER SHORT-CIRCUITS THE FUNCTION. It used to be a
+     * AND THAT SECOND ONE NO LONGER SHORT-CIRCUITS THE FUNCTION. It used to be a
      * `return@withTimeoutOrNull null` and it now decides the PALETTE FIELD alone, because it would
      * otherwise take the badge tones with it. `values` / `values-night` answer for TEXT; a BITMAP
      * has no resource behind it, so tones withheld are a badge not drawn — and the row that
@@ -52,25 +52,25 @@ internal object WidgetThemeReader {
      * keeps the colour its layout froze in … not a regression" — and that sentence is the rule for
      * the whole pane rather than one file's special case.
      *
-     * ⛔ [withTimeoutOrNull] AND NEVER `withTimeout`. Three DataStore `first()` calls answer late
+     * [withTimeoutOrNull] AND NEVER `withTimeout`. Three DataStore `first()` calls answer late
      * on a cold process, and this runs on two paths that a `CancellationException` would wreck:
      * inside `UnreadWidgetProvider.onUpdate`'s `goAsync()` window, whose `PendingResult` must be
      * finished or the system kills the process; and at the tail of `FetchAndNotify.run`, whose
      * `runCatching { … }.rethrowIfCancelled()` would turn a slow colour read into a cancelled mail
      * delivery. It is the guard the rest of this package already writes down at every boundary.
      *
-     * ⛔ All three are READ, every draw, and none of them may become a constant. The widget used to
+     * All three are READ, every draw, and none of them may become a constant. The widget used to
      * take its colours from `res/values` + `res/values-night`, i.e. from the SYSTEM's day/night
      * mode: a reader who forced the app to light on a dark phone got a dark cell, and the pure
      * black option never reached the home screen at all (#117).
      *
-     * ⚠ The night mode comes from [Configuration.UI_MODE_NIGHT_MASK] and NOT from
+     * The night mode comes from [Configuration.UI_MODE_NIGHT_MASK] and NOT from
      * `AppCompatDelegate.getDefaultNightMode()`: `setDefaultNightMode` is never called anywhere in
      * this repository — the app's dark theme is a Compose scheme, not a platform mode — so that
      * call would answer `MODE_NIGHT_FOLLOW_SYSTEM` for ever. And only `ThemeMode.SYSTEM` gets to
      * consult it, which is [widgetIsDark]'s whole job.
      *
-     * ⚠ `dynamicColor &&` is not decoration. Material You is OPT-IN in this app and off by
+     * `dynamicColor &&` is not decoration. Material You is OPT-IN in this app and off by
      * default; a cell that followed the wallpaper while the app wears its own palette is the same
      * defect this whole pane fixes, turned inside out. `dynamicDarkColorScheme` /
      * `dynamicLightColorScheme` are ordinary functions, not composables, so they are readable from
@@ -100,7 +100,7 @@ internal object WidgetThemeReader {
      * The palette half of [colours], and NOTHING ELSE — one projection, no second read of anything.
      *
      * It is what the counter still calls ([UnreadWidgetDraw]), whose behaviour must not have moved
-     * by a hair: same settings, same bound, same two null paths. ⛔ A settings read reinstalled
+     * by a hair: same settings, same bound, same two null paths. A settings read reinstalled
      * here would answer from a different moment than the rows', and would spend a second DataStore
      * open inside a `goAsync()` window.
      */

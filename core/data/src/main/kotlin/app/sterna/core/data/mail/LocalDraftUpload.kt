@@ -16,7 +16,7 @@ import kotlin.coroutines.cancellation.CancellationException
  * as functions a JVM test can execute: the worker is a `CoroutineWorker`, the store is Room and the
  * scheduler is WorkManager, so none of the three can be reached from one.
  *
- * ⛔ **Three things this deliberately does NOT have, and they are the whole point.** The outbox has
+ * **Three things this deliberately does NOT have, and they are the whole point.** The outbox has
  * all three (`OutboxLogic.MAX_ATTEMPTS`, `OutboxState.FAILED`, `deleteOutbox`) because an
  * undeliverable message has a recipient waiting and has to stop being retried:
  *  - **no attempt cap.** A phone can be weeks away from the network its account is on;
@@ -32,10 +32,10 @@ import kotlin.coroutines.cancellation.CancellationException
 const val LOCAL_DRAFT_RETRY_BASE_MILLIS: Long = 30_000L
 
 /**
- * ⭐ **How long one deferred attempt may hold a socket** — the `ImapReadBudget` the upload runs
+ * **How long one deferred attempt may hold a socket** — the `ImapReadBudget` the upload runs
  * under, and the only thing that ends an `APPEND` whose peer stopped answering.
  *
- * ⛔ Without it the attempt's reads are `soTimeout = 0`: the link dies mid-`APPEND`, the thread sits
+ * Without it the attempt's reads are `soTimeout = 0`: the link dies mid-`APPEND`, the thread sits
  * in a `read()` that never returns, the row stays `UPLOADING` with `attemptCount` frozen, no backoff
  * is ever armed and the account's IMAP mutex is held by a thread nobody can interrupt. Cancelling
  * the coroutine does not help — that is measured, not feared.
@@ -45,22 +45,22 @@ const val LOCAL_DRAFT_RETRY_BASE_MILLIS: Long = 30_000L
  * worker is stopped whatever it is doing — the attempt has to finish, record its failure and book
  * its own retry INSIDE its own run, or the row is left exactly as this constant exists to prevent.
  *
- * ⛔ A bound on the WAIT, never a cap on attempts: an expiry is an ordinary failure, and
+ * A bound on the WAIT, never a cap on attempts: an expiry is an ordinary failure, and
  * [localDraftAttemptAfterFailure] writes it on the row like any other.
  */
 const val LOCAL_DRAFT_UPLOAD_BUDGET_MS: Int = 60_000
 
 /**
- * ⭐ **How long one deferred attempt may spend UPLOADING** — five minutes, wall clock, from
+ * **How long one deferred attempt may spend UPLOADING** — five minutes, wall clock, from
  * `upload(row)` being entered to it returning.
  *
- * ⛔ **NOT from the row being marked in flight**, which is what this said and it was false. The
+ * **NOT from the row being marked in flight**, which is what this said and it was false. The
  * budget is installed inside the `upload` seam alone (`MailRepository.uploadLocalDraft`), so the
  * `localDraftDao.byId` that reads the row and the `markUploading` that flags it both run BEFORE it
  * and are bounded by nothing. Two Room writes, small — but outside the bound, and said so rather
  * than rounded in.
  *
- * ⛔ **This is not a third read budget, it is a bound one level up, and that is the point.** Three
+ * **This is not a third read budget, it is a bound one level up, and that is the point.** Three
  * separate blocking primitives have been found under this one attempt and bounded one by one — an
  * IMAP read ([LOCAL_DRAFT_UPLOAD_BUDGET_MS]), the session exit (`LOGOUT_READ_BUDGET_MS`), and then
  * the WAIT FOR THE ACCOUNT'S IMAP MUTEX, which is where 6 min 29 was measured: a `loadFolder`
@@ -74,7 +74,7 @@ const val LOCAL_DRAFT_UPLOAD_BUDGET_MS: Int = 60_000
  * worker is stopped whatever it is doing — leaving room to record the failure and re-book the retry
  * inside the same run.
  *
- * ⛔ It is a bound on the WAIT, never a cap on attempts: [withLocalDraftAttemptBudget] converts an
+ * It is a bound on the WAIT, never a cap on attempts: [withLocalDraftAttemptBudget] converts an
  * expiry into an ordinary failure, which [localDraftAttemptAfterFailure] writes on the row like any
  * refusal from the server.
  */
@@ -83,7 +83,7 @@ const val LOCAL_DRAFT_ATTEMPT_BUDGET_MS: Long = 5L * 60 * 1000
 /**
  * What an attempt that ran out of [LOCAL_DRAFT_ATTEMPT_BUDGET_MS] is written down as.
  *
- * ⛔ **An ordinary [Exception], deliberately NOT a [CancellationException].** The whole conversion
+ * **An ordinary [Exception], deliberately NOT a [CancellationException].** The whole conversion
  * exists because `withTimeout` throws a [TimeoutCancellationException], which IS one: left as it is,
  * [uploadLocalDraftOnce] reads it as "the worker is being stopped", rethrows it untouched, and the
  * row stays `UPLOADING` with no counter, no cause and no backoff — the exact symptom that was
@@ -96,30 +96,30 @@ class LocalDraftAttemptExpired(budgetMs: Long, cause: Throwable? = null) :
  * Run one deferred upload [attempt] under a wall-clock bound of [budgetMs], and turn running out of
  * it into an ORDINARY failure (#95).
  *
- * ⛔ **`withTimeout` JOINS its block, so this bounds the ANNULABLE waits and nothing else.** What it
+ * **`withTimeout` JOINS its block, so this bounds the ANNULABLE waits and nothing else.** What it
  * really closes is the wait this volet was written for — the account's IMAP mutex, a `Mutex.lock()`
  * suspension, which gives way the instant its coroutine is cancelled — and every other suspending
- * wait under the attempt. ⛔ It does NOT end a blocking call already engaged on a thread, and two
+ * wait under the attempt. It does NOT end a blocking call already engaged on a thread, and two
  * such calls under this very attempt carry no bound of their own:
- *  - **name resolution**, `core/imap/src/main/kotlin/app/sterna/core/imap/ImapClient.kt:61-62`: the
+ *  - **name resolution**, `ImapClient`: the
  *    connect timeout is a socket option, and no socket option covers the lookup that precedes it;
- *  - **the JMAP call**, `core/jmap/src/main/kotlin/app/sterna/core/jmap/JmapClient.kt:2750-2752`:
+ *  - **the JMAP call**, `JmapClient`:
  *    OkHttp is built with `connectTimeout` and `readTimeout` and NO `callTimeout`, so a response
  *    that trickles in for ever is bounded by neither of them.
  * On either of those the coroutine comes back on the deadline and the THREAD keeps waiting: what is
- * bounded is the ATTEMPT, not the socket. ⛔ Never write "whatever it waits on" here — the same
- * reading is already argued at `app/src/main/kotlin/app/sterna/ui/inbox/BoundedRefresh.kt:61` and
- * `core/data/src/main/kotlin/app/sterna/core/data/mail/ImapMailService.kt:997`.
+ * bounded is the ATTEMPT, not the socket. Never write "whatever it waits on" here — the same
+ * reading is already argued at `BoundedRefresh` and
+ * `ImapMailService`.
  *
- * ⛔ **Only the expiry is converted.** A real cancellation — WorkManager stopping the worker — must
+ * **Only the expiry is converted.** A real cancellation — WorkManager stopping the worker — must
  * stay a cancellation all the way out: it is what makes [uploadLocalDraftRebooking] re-book the run
  * with `onlyIfNothingBooked = true`. Catching [CancellationException] in general instead would
  * record a system stop as a failed attempt, push the backoff out, and take away the one path that
  * re-books a stopped worker.
  *
- * ⚠ `withTimeout` cancels the scope it makes for [attempt], and NOT the coroutine calling this — so
+ * `withTimeout` cancels the scope it makes for [attempt], and NOT the coroutine calling this — so
  * the caller is still active afterwards and the `record` that follows the throw really runs, **as
- * long as the expiry arrives on its own**. ⛔ It often does not: the worker runs under a network
+ * long as the expiry arrives on its own**. It often does not: the worker runs under a network
  * constraint, and losing the network is at once the likeliest reason the attempt ran out of time and
  * WorkManager's reason to stop the worker. A stop landing there cancels the CALLER, and then the
  * suspending `record` throws before it writes anything — which is why [uploadLocalDraftOnce] writes
@@ -136,7 +136,7 @@ suspend fun <T> withLocalDraftAttemptBudget(budgetMs: Long, attempt: suspend () 
 /**
  * The longest a draft ever waits between two attempts: six hours.
  *
- * ⛔ A cap on the DELAY, never on the number of attempts. Without it the doubling runs away and the
+ * A cap on the DELAY, never on the number of attempts. Without it the doubling runs away and the
  * fiftieth failure would book a wake-up years out, which is an attempt cap wearing a clock. With it,
  * a phone that has been offline for a fortnight still asks four times a day, forever.
  */
@@ -170,17 +170,17 @@ data class LocalDraftAttempt(
 /**
  * The row's next state after [failure], at [nowMillis].
  *
- * ⚠ [LocalDraftEntity.attemptCount] is read off the row and incremented here rather than counted by
+ * [LocalDraftEntity.attemptCount] is read off the row and incremented here rather than counted by
  * the caller: the save and the worker both fail into this, and a counter kept by either would reset
  * every time the other one ran. **Between two deferred attempts** the count therefore accumulates,
  * and the wait doubles with it.
  *
- * ⭐ **A re-save starts the count again, and that is the shipped behaviour.** `localDraftRow` builds
+ * **A re-save starts the count again, and that is the shipped behaviour.** `localDraftRow` builds
  * a fresh entity every time the user saves, so the row handed here after a re-save carries a count
  * of zero and the wait goes back to [LOCAL_DRAFT_RETRY_BASE_MILLIS]. It is defensible and it is
  * kept: the user has just touched this draft, so asking the server again promptly is what she would
  * expect, and the backoff exists to spare the battery of a phone nobody is holding — not to punish
- * a draft that is being worked on. ⛔ It is stated here because the opposite was written and was
+ * a draft that is being worked on. It is stated here because the opposite was written and was
  * false; the risk it carries is bounded by the fact that nothing here is ever given up on anyway.
  */
 fun localDraftAttemptAfterFailure(
@@ -199,7 +199,7 @@ fun localDraftAttemptAfterFailure(
     )
 }
 
-/** What one upload attempt concluded. ⛔ None of the four is "give up": there is no such outcome. */
+/** What one upload attempt concluded. None of the four is "give up": there is no such outcome. */
 enum class LocalDraftUploadStep {
     /** The draft is on the server and the local row has been consumed. */
     UPLOADED,
@@ -217,7 +217,7 @@ enum class LocalDraftUploadStep {
 /**
  * The verdict of one attempt, and the instant to come back at — `null` meaning "book nothing".
  *
- * ⛔ A null [retryAtMillis] never means "this draft is finished with". It means there is nothing for
+ * A null [retryAtMillis] never means "this draft is finished with". It means there is nothing for
  * a TIMER to do: the row is gone, or it is open in a composer, whose own save re-arms it.
  */
 data class LocalDraftUploadResult(val step: LocalDraftUploadStep, val retryAtMillis: Long?)
@@ -239,7 +239,7 @@ fun localDraftUploadIsDue(state: LocalDraftState, notBeforeMillis: Long, nowMill
     }
 
 /**
- * ⭐ **One deferred attempt at one draft, and the order is the whole of it.**
+ * **One deferred attempt at one draft, and the order is the whole of it.**
  *
  * 1. no row at all — it reached the server already, or the user threw it away: nothing to do;
  * 2. not its turn ([localDraftUploadIsDue]) — come back when its backoff runs out, and book NOTHING
@@ -259,14 +259,14 @@ fun localDraftUploadIsDue(state: LocalDraftState, notBeforeMillis: Long, nowMill
  *    destroying the original (#63, #99). This function knows nothing about servers;
  * 5. on success, and ONLY on success, consume the row and its staged files;
  * 6. on failure, [record] the attempt: the counter, the cause, and the instant the backoff moves the
- *    row to, ⛔ **under [NonCancellable]** — a stop landing on that write is not rare, it is the
- *    ordinary case (see the note at the call). ⛔ The row itself is not touched otherwise — same
+ *    row to, **under [NonCancellable]** — a stop landing on that write is not rare, it is the
+ *    ordinary case (see the note at the call). The row itself is not touched otherwise — same
  *    text, same attachments, same id.
  *
- * ⛔ [discard] is on the success path and nowhere else. In a `finally`, or before the outcome is
+ * [discard] is on the success path and nowhere else. In a `finally`, or before the outcome is
  * known, it deletes the typed text on exactly the failure this whole chantier exists to survive.
  *
- * ⛔ A failure does NOT reach the caller and is not a reason to stop: it is written on the row and
+ * A failure does NOT reach the caller and is not a reason to stop: it is written on the row and
  * reported as [LocalDraftUploadStep.KEPT_FOR_LATER]. A [CancellationException] is not a failure —
  * the worker is being stopped — so it is rethrown and the row keeps the state it had, which the next
  * startup's `revertUploadingToPending` rescues.
@@ -294,7 +294,7 @@ internal suspend fun uploadLocalDraftOnce(
         throw cancelled
     } catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
         val attempt = localDraftAttemptAfterFailure(row, failure, nowMillis)
-        // ⛔ [NonCancellable], the same motif `saveDraftLocalFirst` already applies to the writes it
+        // [NonCancellable], the same motif `saveDraftLocalFirst` already applies to the writes it
         // cannot leave half done. [record] is a SUSPENDING Room write, and the two events arrive
         // together by construction: the worker runs under a network constraint, so losing the
         // network is at once the likeliest reason the attempt failed and WorkManager's own reason to
@@ -302,7 +302,7 @@ internal suspend fun uploadLocalDraftOnce(
         // writing anything — no counter, no cause, no backoff — and the ordinary failure this branch
         // exists to write down is requalified as a stop, leaving the row UPLOADING exactly as the
         // measured symptom did.
-        // ⛔ The WRITE only. The `discard` on the success path and the other callers of
+        // The WRITE only. The `discard` on the success path and the other callers of
         // `discardLocalDraft` are a separate, already-written debt; widening this would start
         // running deletes inside a coroutine that is going away.
         withContext(NonCancellable) { record(attempt) }
@@ -313,11 +313,11 @@ internal suspend fun uploadLocalDraftOnce(
 }
 
 /**
- * ⭐ **What a deferred attempt books for itself, including when it is not allowed to finish** (#95).
+ * **What a deferred attempt books for itself, including when it is not allowed to finish** (#95).
  *
  * Three outcomes, and the first is the one that was missing:
  *  1. a [CancellationException] — WorkManager stopped the worker mid-upload (ten minutes elapsed,
- *     the network constraint dropped, the process is going away). ⛔ **Nothing else can re-book
+ *     the network constraint dropped, the process is going away). **Nothing else can re-book
  *     here**: every suspending call in a cancelled coroutine throws at once, so the `record` that
  *     arms the row's own backoff never runs and the row keeps whatever state it had. So the retry
  *     is booked FIRST, from [rebook] — deliberately NOT a suspending function, which is why it can
@@ -325,25 +325,25 @@ internal suspend fun uploadLocalDraftOnce(
  *  2. a result carrying a [LocalDraftUploadResult.retryAtMillis] — the ordinary re-booking the
  *     worker already did, moved here so a test can execute it;
  *  3. a result carrying none — the row is gone, or a composer holds it and its own save re-arms it.
- *     ⛔ Booking "just in case" here is what turns a row a composer is holding into a wake-up every
+ *     Booking "just in case" here is what turns a row a composer is holding into a wake-up every
  *     few seconds for as long as the user keeps typing.
  *
- * ⛔ [LOCAL_DRAFT_RETRY_BASE_MILLIS] on the cancellation, never 0: a worker stopped under system
+ * [LOCAL_DRAFT_RETRY_BASE_MILLIS] on the cancellation, never 0: a worker stopped under system
  * pressure that re-books itself for *now* is re-stopped and re-books itself again, which is a loop
  * against the very condition that stopped it. Half a minute is the wait a first failure gets, and a
  * stop is not worse news than a failure.
  *
- * ⭐ **The second argument of [rebook] is why the two paths are not the same booking.** The stop path
+ * **The second argument of [rebook] is why the two paths are not the same booking.** The stop path
  * asks for `onlyIfNothingBooked = true`: WorkManager reschedules a worker it stopped ITSELF, and this
  * queue books under one unique name — so a plain booking would CANCEL the system's own retry and put
  * ours 30 s later in its place, delaying the very resumption it exists to guarantee. `true` means
  * "be the safety net, never the replacement". The ordinary-failure path asks for `false`: the row has
  * just been given a new backoff, and that instant must win over whatever was booked before it.
  *
- * ⭐ [now] is a CLOCK, not an instant, and it is read AFTER [upload] returns — never before. Read
+ * [now] is a CLOCK, not an instant, and it is read AFTER [upload] returns — never before. Read
  * before, the delay would carry the whole duration of the attempt on top of the backoff the row was
  * just given (up to [LOCAL_DRAFT_UPLOAD_BUDGET_MS] of it), so a draft would come back later than the
- * row itself says, and the slower the link the later it would be. ⛔ It is not read at all on the two
+ * row itself says, and the slower the link the later it would be. It is not read at all on the two
  * paths that do not need it.
  */
 suspend fun uploadLocalDraftRebooking(
@@ -364,7 +364,7 @@ suspend fun uploadLocalDraftRebooking(
 /**
  * Whether it is worth asking the server whether it already holds this draft (#95).
  *
- * ⛔ Only a row that has already FAILED at least once. On a first attempt the answer is known in
+ * Only a row that has already FAILED at least once. On a first attempt the answer is known in
  * advance: the `Message-ID` was minted by the save this row came from ([localDraftMessageId]) and
  * has never been on a wire, so the round trip would be paid on every single save — on the very path
  * the user is waiting on — to be told "no" every time.
@@ -373,7 +373,7 @@ suspend fun uploadLocalDraftRebooking(
  * link dies before the server's tagged answer, the client throws, [localDraftAttemptAfterFailure]
  * writes the attempt — and the copy is on the server with nothing on the phone knowing it.
  *
- * ⛔ **And only a row that HAS a name.** The whole comparison is between two `Message-ID`s, and a
+ * **And only a row that HAS a name.** The whole comparison is between two `Message-ID`s, and a
  * row with none has nothing to compare: there is no answer the server could give that would mean
  * "this is your draft". [localDraftMessageIdMatches] refuses a blank on either side for that
  * reason, so this guard is the second lock on the same door — a nameless draft belongs on the
@@ -393,13 +393,13 @@ fun localDraftMayAlreadyBeOnServer(row: LocalDraftEntity): Boolean =
  * save minted, and the server reports the header as it stores it, `<id>` brackets included (which
  * `OutgoingMime` wrote). So: trim, drop one enclosing pair of `<>`, trim again, and compare.
  *
- * ⛔ **Equality, never a substring.** `contains` would make `<b@x>` a match for `ab@x`, and the
+ * **Equality, never a substring.** `contains` would make `<b@x>` a match for `ab@x`, and the
  * damage is not a wrong screen: a false "it is already there" makes [appendDraftUnlessAlreadyThere]
  * abstain, [uploadLocalDraftOnce] consume the row, and the text exist NOWHERE. A duplicate in
  * Drafts is visible and deletable; that is not. Case is not folded either, for the same reason —
  * every doubt goes to the duplicate.
  *
- * ⛔ **A blank on EITHER side never matches**, however blank the other one is: a message the server
+ * **A blank on EITHER side never matches**, however blank the other one is: a message the server
  * reports without a `Message-ID` (the field is `NIL`, so `reported` is null) must not be read as
  * our draft merely because it is as nameless as a row that has lost its own id.
  */
@@ -421,7 +421,7 @@ private fun unbracketedMessageId(value: String): String =
  * [localDraftMessageIdMatches] is what puts it next to what the server reports — and it MAY THROW:
  * it is a live server read over the same link that just failed.
  *
- * ⛔ **A lookup that throws appends.** Abstaining on a failed READ is the one outcome that loses
+ * **A lookup that throws appends.** Abstaining on a failed READ is the one outcome that loses
  * something: [uploadLocalDraftOnce] consumes the row the moment the upload returns, so a draft
  * skipped on a search nobody could run exists nowhere afterwards. A duplicate in Drafts is visible,
  * and the user can delete it; text that never arrived cannot be got back. A [CancellationException]
@@ -434,7 +434,7 @@ internal suspend fun appendDraftUnlessAlreadyThere(
 ): Boolean {
     if (localDraftMayAlreadyBeOnServer(row)) {
         val found = try {
-            // ⭐ The row's frozen value, NAKED. The header the APPEND wrote reads `<id>`
+            // The row's frozen value, NAKED. The header the APPEND wrote reads `<id>`
             // (OutgoingMime adds the angle brackets), and the brackets are dealt with where the
             // two are compared — [localDraftMessageIdMatches] — not by shaping the value here.
             alreadyThere(row.messageId)
@@ -459,7 +459,7 @@ fun localDraftScheduleDelayMillis(notBeforeMillis: Long, nowMillis: Long): Long 
 /**
  * The work a startup has to book for one account's [rows] (#95).
  *
- * ⛔ **Every row gets one, backed off or not.** The rows arrive from
+ * **Every row gets one, backed off or not.** The rows arrive from
  * `MailRepository.localDraftsAwaitingUpload`, which asks the queue about every instant rather than
  * about now, precisely so a draft that failed ten minutes before the reboot is not left with no
  * work item at all — WorkManager's own persistence is what a reboot loses, and this is the
@@ -481,7 +481,7 @@ fun localDraftUploadJobs(
  * server blob for JMAP, in [OutboxAttachments]' encoding, exactly as `performSend` rebuilds an
  * outbox item's.
  *
- * ⛔ The count matters as much as the bytes: `uploadDraft` weighs `attachments.size` against the
+ * The count matters as much as the bytes: `uploadDraft` weighs `attachments.size` against the
  * parts it could actually build before it lets `finishDraftSave` destroy the original (#63). An
  * `emptyList()` here would upload every deferred draft amputated AND report the amputation as a
  * faithful replacement.
@@ -503,7 +503,7 @@ internal fun localDraftUploadAttachments(attachmentsJson: String?): List<EmailBo
  * Take one account's local drafts off the phone — the rows AND the bytes staged with them (#121's
  * neighbourhood). Called on sign-out, and on nothing else: see `StorageRepository.purgeAccount`.
  *
- * ⛔ **The ids are read BEFORE the rows go.** The per-draft directories are named after the ids
+ * **The ids are read BEFORE the rows go.** The per-draft directories are named after the ids
  * ([localDraftDirName]) and nothing else names them: delete the rows first and the attachments of
  * the account just removed stay on the phone for good, with no row left to find them by.
  *

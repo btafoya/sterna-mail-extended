@@ -27,14 +27,14 @@ import app.sterna.ui.components.EmptyState
  *    "will": the gate raises its flag on ANY decode failure — a truncated blob, a damaged prefs
  *    file — and no build fixes those.
  *
- * ⛔ NO BUTTON, on purpose, and least of all a "start over" one. The only action that could
+ * NO BUTTON, on purpose, and least of all a "start over" one. The only action that could
  * "unblock" this screen is destroying the accounts it exists to protect, and a destructive button
  * on a screen reached by accident is how the data gets lost anyway. Android's own "Clear data"
  * remains available in the system settings, with the system's own confirmation in front of it; it
  * is not offered here and not mentioned in the text, because pointing a stuck user at a wipe is
  * pointing her at the loss this whole change prevents.
  *
- * ⛔ No "add an account" either: the store refuses to write, so that account would be accepted,
+ * No "add an account" either: the store refuses to write, so that account would be accepted,
  * appear to work, and be gone at the next launch — the very trap this screen replaces.
  */
 @Composable

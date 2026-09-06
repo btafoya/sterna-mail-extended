@@ -97,7 +97,7 @@ internal fun forgetRemovedLinked(
  * The [StoredAccount] for a newly granted share [sub] under [login], wearing [remembered]'s
  * settings when this share was seen before.
  *
- * ⛔ The `copy` below is a RESET list, never a KEEP list, and that is the whole point. Every field
+ * The `copy` below is a RESET list, never a KEEP list, and that is the whole point. Every field
  * named here takes its value from the FRESH record; everything not named is kept from the
  * remembered one BY DEFAULT. Written the other way round — listing the settings worth keeping —
  * the next setting added to [StoredAccount] would silently be lost on every re-grant, which is
@@ -154,7 +154,7 @@ internal fun mintLinkedAccount(
  * [AccountStore.reconcileLinkedAccounts] performs, lifted out of the store so it can be executed
  * in a unit test, plus the remember/recall the store alone could never prove.
  *
- * ⛔ A newly minted record is APPENDED, never slotted back where it used to be. List order is age
+ * A newly minted record is APPENDED, never slotted back where it used to be. List order is age
  * order, and the duplicate self-healing in [diffLinkedAccounts] keeps the OLDEST of two records
  * tracking one server account. A memory that also restored a record's seniority would let a
  * restored share outrank a live one and get the live one pruned.

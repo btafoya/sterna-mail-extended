@@ -155,7 +155,7 @@ class UnifiedPushManager(
         // subsystem. Hence that ONE question runs first, on a possibly absent record.
         val known = store.load(credentials.id)
         if (!RelayPush.mayUsePush(credentials.protocol, known?.relayRequested ?: false)) return
-        // ⛔ And ensureDistributor() runs BEFORE the registration window, not after it. It is not
+        // And ensureDistributor() runs BEFORE the registration window, not after it. It is not
         // only a check: it silently enrols a single installed distributor and it is what raises the
         // picker. Behind shouldRegister, an account that had just been marked FAILED — which is
         // precisely what reconcileDistributorPresence does when the distributor is uninstalled —
@@ -186,7 +186,7 @@ class UnifiedPushManager(
     /**
      * The user asked for a relay address on this account (settings).
      *
-     * ⛔ [RelayPush.onRelayRequested] puts the status back to NONE, and that is the correction, not
+     * [RelayPush.onRelayRequested] puts the status back to NONE, and that is the correction, not
      * a detail: "Remove address" unregisters the instance, the distributor answers, [onUnregistered]
      * writes FAILED stamped now — so tapping "Get an address" straight afterwards fell inside the
      * 15-minute FAILED cooldown and did nothing at all, with not a word on screen. That cooldown
@@ -206,7 +206,7 @@ class UnifiedPushManager(
     /**
      * The user withdrew the relay address: forget the endpoint, then unregister the instance.
      *
-     * ⛔ It talks to no server, which is only true of an account that never held a
+     * It talks to no server, which is only true of an account that never held a
      * PushSubscription — so an account that DOES hold one is refused here rather than served
      * quietly. This is [teardown]'s twin minus the destroy call: run on a JMAP account it would
      * erase the subscription id locally and leave the subscription alive on the server, posting to
@@ -255,7 +255,7 @@ class UnifiedPushManager(
      * Is this account served by an ARMED relay — one the user asked for, that holds no
      * PushSubscription of its own, and through which a wake has really arrived?
      *
-     * ⛔ One question over ONE record, and it lives here rather than in the caller precisely so it
+     * One question over ONE record, and it lives here rather than in the caller precisely so it
      * cannot be reassembled from three reads that answer about three different moments. All three
      * facts carry: [UpAccountState.relayRequested] because the subsystem enrols a distributor
      * silently and an address may exist that nobody asked for; a null [UpAccountState.subscriptionId]
@@ -276,7 +276,7 @@ class UnifiedPushManager(
             // has to be recognised; and a relay account stops at its own state, since there is
             // no subscription to create against an IMAP host. Both are [RelayPush.endpointOutcome].
             //
-            // ⛔ Read, decide and write in ONE block, under the same monitor as ensureRegistered.
+            // Read, decide and write in ONE block, under the same monitor as ensureRegistered.
             // This runs on Dispatchers.IO while the settings screen can be writing: read the state
             // outside the lock and a withdrawal landing in between is overwritten by a state built
             // on a 'prev' from before it — the address the user just removed comes back, published.
@@ -346,14 +346,14 @@ class UnifiedPushManager(
     fun onMessage(accountId: String, message: PushMessage) {
         when (val payload = decodePayload(accountId, message)) {
             is PushMessagePayload.Verification -> {
-                // ⛔ A relay address is a topic ANYONE may post to. Without this guard, a stranger
+                // A relay address is a topic ANYONE may post to. Without this guard, a stranger
                 // who knows the address posts {"@type":"PushVerification"} and the payload is
                 // carried straight into verifyPushSubscription → jmapAuth with the account's
                 // credentials, against a host that speaks IMAP: the failure calls markFailed, so
                 // that stranger switches the relay off for fifteen minutes, silently, as often as
                 // they like — and on an OAuth account a real token refresh is burnt first.
                 //
-                // ⛔ The question is the PROTOCOL, not the stored subscriptionId. That id is
+                // The question is the PROTOCOL, not the stored subscriptionId. That id is
                 // written only once createPushSubscription has RETURNED, so a first verification
                 // arriving before that return would have been dropped in silence and the account
                 // left VERIFYING until it went stale — a guard that depends on which of two
@@ -409,7 +409,7 @@ class UnifiedPushManager(
      * carry mail, never from Verification.
      */
     private fun recordDelivery(accountId: String) {
-        // ⛔ Read, decide and write under the SAME monitor as ensureRegistered and onNewEndpoint.
+        // Read, decide and write under the SAME monitor as ensureRegistered and onNewEndpoint.
         // This is the ONLY write that arms the transport, and it runs on the connector's thread
         // while an endpoint rotation writes from Dispatchers.IO. Outside the lock: the rotation
         // persists {new address, PUBLISHED, never woken}, a payload that arrived on the OLD address

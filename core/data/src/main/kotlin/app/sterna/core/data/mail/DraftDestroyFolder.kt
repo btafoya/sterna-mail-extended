@@ -8,7 +8,7 @@ package app.sterna.core.data.mail
  * green. It is the whole decision, so it lives here and the repository is left with the two Room
  * reads that feed it.
  *
- * ⛔ **What the fallback is worth.** The destroy of a draft carries this folder to the worker, and a
+ * **What the fallback is worth.** The destroy of a draft carries this folder to the worker, and a
  * destroy that arrives without one destroys NOTHING, in silence: `destroyAll` checks the ids against
  * the folder wave by wave and spares everything when it is absent (#122). The cached row is the
  * ordinary answer — but a draft that was never cached, or whose cache line went in a purge, or in a

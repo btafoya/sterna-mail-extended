@@ -16,7 +16,7 @@ object SieveCodec {
     const val SCRIPT_NAME = "sterna"
 
     /**
-     * ⛔ **The Sieve emitted below is a compatibility surface. Changing it is expensive, and
+     * **The Sieve emitted below is a compatibility surface. Changing it is expensive, and
      * bumping this marker is NOT the way out.**
      *
      * The marker is no longer only a place to hang JSON: reading a script now compares its Sieve
@@ -25,7 +25,7 @@ object SieveCodec {
      * stops matching — the whole installed base is told its filter script holds foreign Sieve, and
      * is asked to confirm an overwrite it never provoked.
      *
-     * ⛔ **Do not "fix" that by writing `# STERNA-RULES-V2:` here.** [parseRulesOrNull] knows this
+     * **Do not "fix" that by writing `# STERNA-RULES-V2:` here.** [parseRulesOrNull] knows this
      * one string and no other, so a bump makes every V1 script on every server UNREADABLE instead
      * of merely suspect — and unreadable is the WORSE of the two, not the better:
      *
@@ -50,7 +50,7 @@ object SieveCodec {
     /**
      * Build the Sieve script (with embedded JSON metadata) for [rules].
      *
-     * ⛔ **What this emits is a compatibility surface, not an implementation detail**: it is
+     * **What this emits is a compatibility surface, not an implementation detail**: it is
      * compared against the scripts already sitting on servers, all of which an earlier build of
      * this same function wrote. Read [MARKER] before changing a character of it — including
      * [escape], which is part of what is emitted.
@@ -108,7 +108,7 @@ object SieveCodec {
      * The value two scripts are compared on to tell "we wrote all of this" from "we wrote part of
      * it" (see `holdsForeignSieve`).
      *
-     * ⭐ **The marker line goes out entirely, JSON included** — the FIRST line whose trimmed text
+     * **The marker line goes out entirely, JSON included** — the FIRST line whose trimmed text
      * starts with [MARKER], i.e. exactly the line [parseRulesOrNull] read. The JSON must not be
      * compared: `encodeDefaults = true` writes every field, so the day a field is added to
      * [FilterRule] the metadata of every script already on a server would differ from what we

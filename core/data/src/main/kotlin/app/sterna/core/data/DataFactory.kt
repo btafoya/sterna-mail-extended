@@ -46,7 +46,7 @@ object DataFactory {
         val uidValidity = MailboxUidValidityStore(
             database.mailboxUidValidityDao(), database.emailBodyDao(), database.purgeSnapshotDao(),
         )
-        // ⭐ ONE tree, handed to both readers: the repository that stages a draft's bytes there and
+        // ONE tree, handed to both readers: the repository that stages a draft's bytes there and
         // the sign-out that has to clear them (#95). Two literals would be one rename away from a
         // purge that sweeps an empty directory and reports success.
         val localDraftFiles = java.io.File(appContext.filesDir, LOCAL_DRAFT_FILES_DIR)

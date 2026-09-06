@@ -6,7 +6,7 @@ import org.openintents.openpgp.util.OpenPgpApi
  * What Sterna asks an OpenPGP provider for, as a value: an action and the extras that go with it,
  * with no `Intent` and no Android in sight.
  *
- * ⭐ **Why this exists at all.** The extras of `ACTION_GET_KEY` decide the OCTETS that leave this
+ * **Why this exists at all.** The extras of `ACTION_GET_KEY` decide the OCTETS that leave this
  * phone in every message's `Autocrypt:` header, and until this file they were assembled inline in
  * [OpenKeychainPgpEngine] — a class no JVM test can build (it needs a `Context` and a live binder),
  * so nothing anywhere executed that decision. A counter-expertise showed what that costs: turning
@@ -48,18 +48,18 @@ internal data class PeerUpdateFacts(
  * Ask the provider for the public half of [keyId] — this account's OWN key, on its way into an
  * `Autocrypt:` header ([app.sterna.core.data.account.autocryptHeaderValue]).
  *
- * ⭐ **`EXTRA_MINIMIZE` + `EXTRA_MINIMIZE_USER_ID`, both, exactly as K-9 asks.** Minimize alone
+ * **`EXTRA_MINIMIZE` + `EXTRA_MINIMIZE_USER_ID`, both, exactly as K-9 asks.** Minimize alone
  * strips the third-party signatures, and leaves EVERY user id on the keyring: a private address, a
  * former employer, a pseudonym, all of them broadcast to every correspondent on every message.
  * [ownAddress] narrows the export to the one identity this account is entitled to announce — the
  * same address the header's `addr=` claims.
  *
- * ⛔ **No `EXTRA_REQUEST_ASCII_ARMOR`, and its ABSENCE is the request.** The extra is optional and
+ * **No `EXTRA_REQUEST_ASCII_ARMOR`, and its ABSENCE is the request.** The extra is optional and
  * absent means binary, which is what the header needs: the value is base64 of the raw transferable
  * key (`pgpPublicKeyCacheValue`). Asking for armor gets base64 of an armored block — bigger, valid
  * looking, and unreadable to the receiving client.
  *
- * ⚠ A blank [ownAddress] puts no `EXTRA_MINIMIZE_USER_ID` at all rather than an empty one: what a
+ * A blank [ownAddress] puts no `EXTRA_MINIMIZE_USER_ID` at all rather than an empty one: what a
  * provider does with an empty filter is nobody's promise, and "no key at all" would kill the
  * announcement outright, where "every user id" merely says too much. Callers hand over the
  * account's address (`StoredAccount.username`), so this is the empty-record case, not the normal one.
@@ -77,9 +77,9 @@ internal fun publicKeyRequest(keyId: Long, ownAddress: String): PgpApiRequest = 
  * File a CORRESPONDENT's key in the provider's public keyring under [peerId] (Autocrypt Level 1
  * §5.4), as read from a message they sent.
  *
- * ⛔ `isMutual = false`, always: `prefer-encrypt=mutual` is a standing instruction to start
+ * `isMutual = false`, always: `prefer-encrypt=mutual` is a standing instruction to start
  * encrypting, and that is not a decision taken from an incoming message.
- * ⛔ [effectiveDateMillis] is that message's own date, not now: the provider keeps the newest, so
+ * [effectiveDateMillis] is that message's own date, not now: the provider keeps the newest, so
  * the date is what stops an old message overwriting a newer key.
  */
 internal fun autocryptPeerRequest(

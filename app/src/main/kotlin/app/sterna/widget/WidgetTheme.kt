@@ -16,7 +16,7 @@ import app.sterna.ui.theme.applyPureBlack
  * shape but is API 31, and `minSdk` is 26. So the background travels as `setBackgroundResource`
  * pointing at a drawable built at compile time — hence a closed set of states, and no free colour.
  *
- * ⚠ The consequence, deliberate: under Material You the three text [WidgetPalette] colours do come
+ * The consequence, deliberate: under Material You the three text [WidgetPalette] colours do come
  * from the wallpaper-derived scheme, but the background stays Arctic / Pelagic / black. A Material
  * You background is a computed colour, and there is no drawable for a colour we only learn at
  * runtime. Accepted as the cheapest option — the alternative is a generated drawable per launch.
@@ -77,10 +77,10 @@ internal fun widgetPalette(scheme: ColorScheme, dark: Boolean, pureBlack: Boolea
  * compiled resources already hold the right colours — and the tones a monogram badge is painted in,
  * which are NEVER null.
  *
- * ⭐ THE ASYMMETRY IS THE POINT, and it is not an oversight to be tidied into one nullable field.
+ * THE ASYMMETRY IS THE POINT, and it is not an oversight to be tidied into one nullable field.
  * A [WidgetPalette] may be withheld because `res/values` and `res/values-night` hold those very
  * colours and the launcher re-resolves them at every inflation, for free, with this process dead
- * ([widgetFollowsResources]). ⛔ A BITMAP HAS NO RESOURCE BEHIND IT: there is no `values-night`
+ * ([widgetFollowsResources]). A BITMAP HAS NO RESOURCE BEHIND IT: there is no `values-night`
  * badge to fall back on, so tones withheld are a badge NOT DRAWN — and the row that withholds the
  * palette is `SYSTEM` + no pure black + no Material You, i.e. the settings nobody has touched. The
  * default install is precisely the one that would lose its badges.
@@ -93,7 +93,7 @@ internal data class WidgetColours(val palette: WidgetPalette?, val monogramRamps
  *
  * [applyPureBlack] for [widgetPalette]'s reason, written out in that function's KDoc: the OLED
  * option must cover the brand palette and `dynamicDarkColorScheme` alike rather than being silently
- * cancelled by Material You. ⚠ Today it changes none of the six colours — `pulledToBlack` pulls the
+ * cancelled by Material You. Today it changes none of the six colours — `pulledToBlack` pulls the
  * background and surface roles, and a badge is drawn from the three container families — and that is
  * pinned as a fact rather than as a promise.
  */
@@ -103,7 +103,7 @@ internal fun widgetMonogramRamps(scheme: ColorScheme, dark: Boolean, pureBlack: 
 /**
  * Does the app's theme AGREE with the system's, so that the cell needs no override at all?
  *
- * ⭐ THIS IS THE DECISION THE WHOLE PANE TURNS ON, and it is easy to read as a special case worth
+ * THIS IS THE DECISION THE WHOLE PANE TURNS ON, and it is easy to read as a special case worth
  * deleting. It is not. Read it as: the override exists ONLY to say that the app DIVERGES from the
  * system; when it does not diverge, the override has nothing to say and must not be posted.
  *
@@ -121,7 +121,7 @@ internal fun widgetMonogramRamps(scheme: ColorScheme, dark: Boolean, pureBlack: 
  * the palette and the resources draw the SAME pixels, and posting nothing is not a shortcut, it is
  * the identical drawing.
  *
- * ⛔ AND IT BUYS THE THING THE PALETTE COSTS. A palette is posted as `setTextColor(int)` and
+ * AND IT BUYS THE THING THE PALETTE COSTS. A palette is posted as `setTextColor(int)` and
  * `setBackgroundResource(id)` — literal values FROZEN into the `RemoteViews` the launcher caches.
  * The three `widget_surface_*.xml` have no `-night` twin, nothing listens for
  * `ACTION_CONFIGURATION_CHANGED`, and `updatePeriodMillis="0"` means there is no timer: the only
@@ -133,7 +133,7 @@ internal fun widgetMonogramRamps(scheme: ColorScheme, dark: Boolean, pureBlack: 
  * dead. It is the reason no configuration-change receiver is needed, and the reason this function
  * may not be "simplified" away.
  *
- * ⚠ It takes no [Configuration] and no [android.app.Application]: it is executed on all twelve
+ * It takes no [Configuration] and no [android.app.Application]: it is executed on all twelve
  * combinations by `WidgetThemeTest`, and its answers are pinned there as literals.
  */
 internal fun widgetFollowsResources(themeMode: ThemeMode, pureBlack: Boolean, dynamicColor: Boolean): Boolean =

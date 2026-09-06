@@ -5,7 +5,7 @@ import androidx.room.Entity
 /**
  * Lifecycle of a draft written on the phone and not yet on the server.
  *
- * ⛔ There is NO terminal state here, and that is the decision this enum exists to carry. The
+ * There is NO terminal state here, and that is the decision this enum exists to carry. The
  * outbox has `FAILED` and a retry cap ([OutboxLogic.MAX_ATTEMPTS]) because an undeliverable message
  * has to stop being retried and be shown to the user. A draft has no deadline and no recipient
  * waiting: it may sit for weeks on a phone that never sees the network its account is on, and
@@ -17,17 +17,17 @@ enum class LocalDraftState {
     /**
      * The text is written; the attachment bytes are still being copied.
      *
-     * ⛔ Deliberately NOT picked up by [LocalDraftDao.pending]: a row is born here and leaves for
+     * Deliberately NOT picked up by [LocalDraftDao.pending]: a row is born here and leaves for
      * [PENDING] in the same call, once the files exist and their descriptors are on the row. The
      * window is short, and a process that dies inside it is exactly the case this value exists for:
      * what survives says `attachmentsJson` "[]" while the composer was showing chips, and uploading
      * THAT would send a draft amputated of its files, weeks later, in silence (#70's rule for the
      * outbox, applied here). An amputated send is not recoverable; a stranded row is.
      *
-     * ⭐ So it is never UPLOADED here — [LocalDraftDao.pending] and `localDraftUploadIsDue` both keep
+     * So it is never UPLOADED here — [LocalDraftDao.pending] and `localDraftUploadIsDue` both keep
      * excluding it — but it is RE-ARMED at the next start:
      * [LocalDraftDao.revertStagedToPendingLossy] brings a [STAGING] row back to [PENDING], WITHOUT
-     * its attachments and ⛔ **flagged [LocalDraftEntity.bodyIsLossy]**. Such an orphan is always a
+     * its attachments and **flagged [LocalDraftEntity.bodyIsLossy]**. Such an orphan is always a
      * FIRST save (a re-save copies the row's own state, see `localDraftStagingRow`), so it carries
      * "[]", and the identity of what was attached — source path, type, `cid`, disposition — lived
      * only in the composer's memory and died with the process; no column holds it, so it cannot be
@@ -54,8 +54,8 @@ enum class LocalDraftState {
      * Open in the composer (#70's rule, applied to drafts): held back from the upload worker while
      * it is being edited, so the phone and the server can never race over the same text.
      *
-     * ⛔ **Written by the composer, and given back by the composer alone — no sweep takes it back.**
-     * ⚠ Not to be read as "nothing else ever writes over it": the upload worker's
+     * **Written by the composer, and given back by the composer alone — no sweep takes it back.**
+     * Not to be read as "nothing else ever writes over it": the upload worker's
      * `setState(UPLOADING)` follows its read of the row without re-checking the state, so a take
      * that lands between the two is overwritten (`findings/le-televerseur-ecrase-un-etat-qu-il-a-lu-avant.md`).
      * A process death
@@ -68,7 +68,7 @@ enum class LocalDraftState {
      * successful upload deletes the row and its attachment directory while the user is typing into
      * them — two drafts on the server and the edit lost.
      *
-     * ⚠ The price, named: a row whose composer never comes back (`abandonPlan` withholds the release
+     * The price, named: a row whose composer never comes back (`abandonPlan` withholds the release
      * on a `submit` that failed, and a `giveLocalDraftEditBack` that never runs) waits here instead
      * of being uploaded. The text is on the phone, visible in the Drafts list and openable
      * (`localDraftMayBeTakenForEdit`), so what is delayed is the upload, not the draft.
@@ -79,7 +79,7 @@ enum class LocalDraftState {
 /**
  * A draft the user wrote on the phone, held here until it reaches the server.
  *
- * ⛔ **Its own table, deliberately outside `emails`.** A draft row with no server id, cached in
+ * **Its own table, deliberately outside `emails`.** A draft row with no server id, cached in
  * `emails`, is deleted by four paths that never say a word:
  * - `EmailDao.reconcileMailbox` → `reconcileMailboxRows`: a local id is in no walk's `keepIds`;
  * - `MailRepository.pruneGhostRows` → `pruneServerGone`, which takes the cached BODY with it;
@@ -96,7 +96,7 @@ enum class LocalDraftState {
  * Modelled on [OutboxEntity], the other store of text the user typed and the server has not got:
  * user data, migrated additively, never rebuilt destructively.
  *
- * ⭐ The whole column set is created at once ([LOCAL_DRAFTS_CREATE_SQL], [MIGRATION_22_23]), the
+ * The whole column set is created at once ([LOCAL_DRAFTS_CREATE_SQL], [MIGRATION_22_23]), the
  * columns the first volet does not read included. A published migration is never rewritten in
  * place, so a column added later is another migration, another registration in
  * [SternaDatabase.ALL_MIGRATIONS] and another chance to miss it — and a missed step is not a
@@ -112,7 +112,7 @@ data class LocalDraftEntity(
     /**
      * The draft's local id, minted at creation by [newLocalDraftId].
      *
-     * ⛔ It shares a namespace with the ids of cached server messages, and must collide with
+     * It shares a namespace with the ids of cached server messages, and must collide with
      * neither: an `imap:` prefix would have `ImapMailService.uidOf` read a UID out of it and act on
      * a message number the server chose for something else. See [LOCAL_DRAFT_ID_PREFIX].
      */
@@ -135,7 +135,7 @@ data class LocalDraftEntity(
     val bcc: String? = null,
     val subject: String,
     /**
-     * ⛔ NOT NULL. This is the text the user typed — the thing the whole feature exists to keep —
+     * NOT NULL. This is the text the user typed — the thing the whole feature exists to keep —
      * and it has no "unknown" state: an empty draft is an empty string, not a null.
      */
     val textBody: String,
@@ -157,7 +157,7 @@ data class LocalDraftEntity(
      * The UIDVALIDITY [replacesEmailId]'s folder had when the user opened that draft — IMAP only,
      * null on JMAP and null when nothing is being replaced.
      *
-     * ⛔ What it exists to prevent: destroying a stranger's mail. An IMAP cache id ends in a UID
+     * What it exists to prevent: destroying a stranger's mail. An IMAP cache id ends in a UID
      * (`ImapMailService.emailId`), and a UID is only a name inside one numbering: "a list of UIDs
      * without its UIDVALIDITY is a list of numbers that may already mean something else"
      * (`ImapUidSnapshot`, Codeberg #99). A row here is designed to wait weeks for a network, so the
@@ -183,7 +183,7 @@ data class LocalDraftEntity(
     /** Don't attempt an upload before this instant — the backoff, computed from [attemptCount]. */
     val notBeforeMillis: Long,
     /**
-     * How many upload attempts have failed. ⚠ A COUNTER, not a cap: see [LocalDraftState]. Nothing
+     * How many upload attempts have failed. A COUNTER, not a cap: see [LocalDraftState]. Nothing
      * in this store gives up on a draft.
      */
     val attemptCount: Int = 0,
@@ -195,7 +195,7 @@ data class LocalDraftEntity(
 /**
  * The prefix every local draft id carries.
  *
- * ⛔ Two collisions to avoid at once, and the colon settles both:
+ * Two collisions to avoid at once, and the colon settles both:
  * - an id starting with `imap:` is read as an IMAP cache id (`ImapMailService.uidOf` /
  *   `mailboxOf`), so its trailing number is taken for a UID;
  * - a JMAP id is `A-Za-z0-9_-` only (RFC 8620 §1.2), so a string containing a `:` cannot be one.

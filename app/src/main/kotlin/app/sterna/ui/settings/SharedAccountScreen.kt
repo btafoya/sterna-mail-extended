@@ -50,7 +50,7 @@ internal fun sharedAccountFor(id: String, accounts: List<StoredAccount>): Stored
  * the list does not hold resolves to the account screen rather than to nothing: a dead shortcut is
  * worse than one that opens on an empty scaffold, which is what an UNKNOWN id gets there.
  *
- * ⛔ The bound, written as it really is: a BLANK id is not that case. It yields `"account/"`, which
+ * The bound, written as it really is: a BLANK id is not that case. It yields `"account/"`, which
  * matches no route in the settings graph, and navigating to it THROWS — there is no screen at the
  * end of it, empty or otherwise. Nothing can reach it today (SternaApp.kt hands the deep link over
  * as `?.ifBlank { null }`, so a blank id arrives as null and the graph starts on the hub), and that
@@ -64,7 +64,7 @@ internal fun settingsRouteFor(accountId: String, accounts: List<StoredAccount>):
  * (issue #31): its accent colour and its own new-mail notifications, both already honoured by the
  * engine per account id.
  *
- * ⛔ WHY THIS IS NOT `AccountDetailScreen` WITH A FEW ROWS HIDDEN. That screen edits the LOGIN this
+ * WHY THIS IS NOT `AccountDetailScreen` WITH A FEW ROWS HIDDEN. That screen edits the LOGIN this
  * account borrows: its secret is stored under [StoredAccount.loginKey], so a credential typed here
  * would overwrite the login's, for every account grouped under it. Its sign-out does not cascade
  * the way round one might assume: the cascade runs from a LOGIN down to the accounts linked to it
@@ -74,7 +74,7 @@ internal fun settingsRouteFor(accountId: String, accounts: List<StoredAccount>):
  * `reconcileLinkedAccounts`), under a fresh id and therefore without the two settings below. A
  * separate screen means neither can be reached by accident.
  *
- * ⛔ BOTH WRITES CARRY [accountId], never the borrowed login's id. That is the whole point of the
+ * BOTH WRITES CARRY [accountId], never the borrowed login's id. That is the whole point of the
  * batch, and it is pinned line by line by SharedAccountScreenTest.
  *
  * Nothing is pending: each tap writes. There is no Save button, so there is no unsaved state to
@@ -90,7 +90,7 @@ internal fun SharedAccountScreen(
     // The LIVE list, not a snapshot: a share revoked on the server is dropped by the next
     // discovery pass while this screen is open, and the empty scaffold below is what it should
     // then show.
-    // ⛔ PINNED BY SharedAccountScreenTest — the guard, statement by statement
+    // PINNED BY SharedAccountScreenTest — the guard, statement by statement
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val account = sharedAccountFor(accountId, accounts)
     if (account == null) {
@@ -101,7 +101,7 @@ internal fun SharedAccountScreen(
         return
     }
 
-    // ⛔ PINNED BY SharedAccountScreenTest — what each row opens on
+    // PINNED BY SharedAccountScreenTest — what each row opens on
     var colorArgb by remember(accountId) { mutableStateOf(account.color) }
     var notificationsEnabled by remember(accountId) { mutableStateOf(account.notificationsEnabled) }
 

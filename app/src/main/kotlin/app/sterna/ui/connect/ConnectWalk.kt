@@ -39,7 +39,7 @@ internal fun verdictFor(verdict: DiscoveryVerdict?, email: String): MailAutoconf
  * answer nobody will ever send. But WHICH refusal it was decides that, and [online] is the fact
  * that tells them apart.
  *
- * ⛔ A refusal for want of a NETWORK records nothing. `NotFound` says "this domain publishes
+ * A refusal for want of a NETWORK records nothing. `NotFound` says "this domain publishes
  * nothing" about a domain nobody asked — and the lie outlives the outage: the verdict stays in
  * hand, so once the link is back [addressAdvance] reads it, sends her to the manual form, and no
  * probe ever sets out for that address again. Offline, what answers the user is the advance itself
@@ -76,7 +76,7 @@ internal sealed interface AddressAdvance {
     /**
      * Nothing to wait FOR: the device is offline, so say so and stay on the address step.
      *
-     * ⛔ Distinct from [Waiting] on purpose, and that difference is the whole point. Offline no
+     * Distinct from [Waiting] on purpose, and that difference is the whole point. Offline no
      * probe sets out ([shouldDiscoverImapSettings]) and none is recorded ([verdictAfterRefusal]),
      * so "wait for the probe" is a wheel that turns until the app is killed.
      */
@@ -93,14 +93,14 @@ internal sealed interface AddressAdvance {
  * the address step, but only one of them is worth a spinner, only one of them owes her a sentence,
  * and only one of them means the button should be disabled.
  *
- * ⛔ ORDER. A verdict in hand is an answer whatever the link is doing (the sign-in beyond has its
+ * ORDER. A verdict in hand is an answer whatever the link is doing (the sign-in beyond has its
  * own offline guard, and a stale answer is not made truer by a network), so [AddressAdvance.Go]
  * comes first. But with no verdict, offline is answered BEFORE waiting: the caller that reads
  * [AddressAdvance.Waiting] asks for the probe again and draws "Finding your server…", and offline
  * that probe cannot set out, so the wheel never stops. Swap those two and the reported defect comes
  * back wearing a spinner.
  *
- * ⚠ [oauth] changes WHERE a verdict leads ([stepAfterAddress]), never WHETHER the walk moves. The
+ * [oauth] changes WHERE a verdict leads ([stepAfterAddress]), never WHETHER the walk moves. The
  * two probes travel together but do not land together, and an OAuth answer alone would advance the
  * walk while the settings cascade is still out — deciding, seconds early, that the domain publishes
  * no autoconfig. So with no settings verdict in hand the answer is still Waiting (or Offline), and
@@ -134,7 +134,7 @@ internal sealed interface AwaitedAnswer {
  * What to do about a wait for the address step's verdict, given [awaiting] and what
  * [addressAdvance] now says.
  *
- * ⛔ THE LOCK THIS EXISTS TO OPEN. Offline no probe sets out ([shouldDiscoverImapSettings]) and
+ * THE LOCK THIS EXISTS TO OPEN. Offline no probe sets out ([shouldDiscoverImapSettings]) and
  * none is recorded ([verdictAfterRefusal]) — deliberately, because a fabricated verdict outlives
  * the outage. So an armed wait offline has NO other way out: the wait survives process death (it is
  * saved) while the verdict does not, and the caller's effect only re-runs when the wait, the
@@ -142,12 +142,12 @@ internal sealed interface AwaitedAnswer {
  * disabled on "Finding your server…" for ever — and disabled, it cannot even be tapped to say why.
  * [SayOffline] is that exit, and it is the same sentence the tap itself gives.
  *
- * ⛔ [awaiting] is an argument, and the FIRST thing read, because the caller's effect also runs when
+ * [awaiting] is an argument, and the FIRST thing read, because the caller's effect also runs when
  * no wait is armed at all — on every keystroke, since the address is one of its keys. Ignore it and
  * a verdict landing for the address being typed carries the reader off the address step mid-word,
  * which is exactly the "no automatic jump" the bench signed off on.
  *
- * ⚠ [AddressAdvance.Blocked] and [AddressAdvance.Waiting] both mean "keep waiting": the wait is
+ * [AddressAdvance.Blocked] and [AddressAdvance.Waiting] both mean "keep waiting": the wait is
  * ended by an ANSWER, and editing the address is what disarms it (there is no answer to give about
  * an address that is not one).
  */
@@ -161,17 +161,17 @@ internal fun awaitedAnswer(awaiting: Boolean, advance: AddressAdvance): AwaitedA
 /**
  * Whether the address step may offer "Set up manually".
  *
- * ⛔ ONLY after a probe for THIS address came back with nothing. Offered beside a verdict that
+ * ONLY after a probe for THIS address came back with nothing. Offered beside a verdict that
  * worked, that button puts the protocol question (JMAP? IMAP/SMTP?) back on screen for everyone —
  * the one thing this whole walk exists to take off it. Offered before any verdict, it invites the
  * user to answer a question the probe was about to answer for her.
  *
- * ⛔ AND A DRIVABLE OAUTH ANSWER IS A VERDICT THAT WORKED, autoconfig or no autoconfig. A domain
+ * AND A DRIVABLE OAUTH ANSWER IS A VERDICT THAT WORKED, autoconfig or no autoconfig. A domain
  * served over OAuth that publishes no Thunderbird document ([oauth] usable, verdict `NotFound`)
  * now leads to the credentials step ([stepAfterAddress]), so the protocol question here would be
  * offered beside a walk that succeeded — the case above, verbatim.
  *
- * ⚠ THE MANUAL DOOR DOES NOT DISAPPEAR, it moves one step along: the credentials step offers it
+ * THE MANUAL DOOR DOES NOT DISAPPEAR, it moves one step along: the credentials step offers it
  * under [CredentialsPane.SIGN_IN_OFFER] ([credentialsExit]), which is exactly what a domain
  * recognised by autoconfig has always done.
  */
@@ -200,7 +200,7 @@ internal fun stepBackKeeping(current: ConnectStep, email: String): WalkBack? =
 /**
  * The quick-setup form to carry into a probe for [email], at the [step] on screen.
  *
- * ⛔ THE RATCHET THIS EXISTS TO BREAK. The cascade's guard refuses to set out over a non-blank
+ * THE RATCHET THIS EXISTS TO BREAK. The cascade's guard refuses to set out over a non-blank
  * host — and a successful discovery leaves exactly that behind, in a form that survives process
  * death while the verdict behind it does not. Come back with the fields full and no verdict, and
  * every probe is refused, every refusal records "nothing published" ([verdictAfterRefusal]), and
@@ -212,9 +212,9 @@ internal fun stepBackKeeping(current: ConnectStep, email: String): WalkBack? =
  * verdict at all. Blank fields are what let the cascade set out again, and the probe rewrites them.
  *
  * The two things it must never do, and the two facts that decide it:
- *  - ⛔ never throw away what the USER typed. [PresetForm.discoveredFor] is the only thing that can
+ *  - never throw away what the USER typed. [PresetForm.discoveredFor] is the only thing that can
  *    tell hers from the cascade's once the verdict is gone; unset, this function keeps everything;
- *  - ⛔ never take anything off the manual form while she is standing on it ([step]). There the
+ *  - never take anything off the manual form while she is standing on it ([step]). There the
  *    fields ARE the work in progress, stale or not — she can see them and edit them, and a stale
  *    host there costs a correction, not a lost configuration.
  */
@@ -226,7 +226,7 @@ internal fun presetForAddress(
 ): PresetForm {
     if (step != ConnectStep.ADDRESS) return preset
     val filledFor = preset.discoveredFor ?: return preset
-    // ⛔ A Found, not merely "a verdict": NotFound is not what put hosts in these fields, and
+    // A Found, not merely "a verdict": NotFound is not what put hosts in these fields, and
     // reading it as backing them leaves the guard jammed with the very answer that jammed it.
     val backed = filledFor == email.trim() && verdictFor(verdict, email) is MailAutoconfigResult.Found
     if (backed) return preset
@@ -244,12 +244,12 @@ internal fun presetForAddress(
 /**
  * Whether leaving a step must wipe what the last attempt left in [state].
  *
- * ⛔ A FINISHED attempt only. [ConnectState.NeedsServer] and [ConnectState.Error] are verdicts
+ * A FINISHED attempt only. [ConnectState.NeedsServer] and [ConnectState.Error] are verdicts
  * about a sign-in that is over; carried into the next step they make the screen act on something
  * nobody asked for again — a stale `NeedsServer` re-fired the IMAP handover the moment the
  * credentials step was re-entered, adding an account on a tap on "Continue".
  *
- * ⛔ And nothing else: `Connecting`/`Discovering`/the two awaiting-approval states are attempts
+ * And nothing else: `Connecting`/`Discovering`/the two awaiting-approval states are attempts
  * still RUNNING, and every add route refuses a second submit by reading exactly those. Clearing
  * them would hand the user a second Connect over a coroutine still in flight, i.e. two accounts.
  */
@@ -261,7 +261,7 @@ internal fun clearsAttemptOnLeave(state: ConnectState): Boolean =
  * that is, whether this screen has not already cleared for that step. [cleared] is the step it did
  * clear for, and null when it has cleared nothing yet.
  *
- * ⛔ WHY THIS EXISTS, measured at the bench (emu, release, airplane mode). The seam that clears a
+ * WHY THIS EXISTS, measured at the bench (emu, release, airplane mode). The seam that clears a
  * finished attempt is keyed on the step and its comment says "the step changed" — but a ROTATION
  * recreates the composition, so every effect on this screen restarts with the step unmoved. What
  * the last attempt left was then wiped by the rotation itself: the reader taps Continue, is finally
@@ -269,12 +269,12 @@ internal fun clearsAttemptOnLeave(state: ConnectState): Boolean =
  * nothing having changed. An ordinary recomposition (the keyboard coming and going) kept the
  * sentence; only the rotation threw it away, and this is the fact the effect never checked.
  *
- * ⛔ A REAL MOVE MUST STILL CLEAR — this is a guard against a step already cleared for, never a way
+ * A REAL MOVE MUST STILL CLEAR — this is a guard against a step already cleared for, never a way
  * of keeping a finished attempt. Carried across steps, a stale [ConnectState.NeedsServer] re-fires
  * the IMAP hand-over the moment the credentials step is re-entered, adding an account on a tap on
  * "Continue" ([clearsAttemptOnLeave], whose list of cleared states this does not touch).
  *
- * ⛔ AND SO MUST AN ARRIVAL, which is why null is not spelled "the first step". The screen's view
+ * AND SO MUST AN ARRIVAL, which is why null is not spelled "the first step". The screen's view
  * model is NOT new every time the screen appears: at first run the screen is composed straight
  * under the activity, so an attempt that ended before it last went away is still in hand when it
  * comes back. Null says "this screen has cleared nothing yet"; a rotation restores a step and says
@@ -332,11 +332,11 @@ internal sealed interface CredentialsAsk {
     /**
      * No OAuth answer for this address at all.
      *
-     * ⛔ NOT the password field. A password typed and then thrown away in silence, because the
+     * NOT the password field. A password typed and then thrown away in silence, because the
      * server turned out to want a browser, is exactly the defect being removed — so the absence of
      * an answer asks for nothing at all.
      *
-     * ⛔ AND NOT REACHABLE AT THE CREDENTIALS STEP, which is the other half of the same rule and
+     * AND NOT REACHABLE AT THE CREDENTIALS STEP, which is the other half of the same rule and
      * the one that was missing: drawn there this asks for nothing, offers nothing and starts
      * nothing — a bare wheel, for an address that can then never be probed again (a discovered
      * host fills the form, and the cascade refuses to set out over one). What keeps it out is that
@@ -357,11 +357,11 @@ internal sealed interface CredentialsAsk {
 /**
  * What the credentials step must ask for [email], given the OAuth answer in hand.
  *
- * ⛔ WHICH grant is [chooseOAuthGrant]'s call and stays there — a server offering both is signed in
+ * WHICH grant is [chooseOAuthGrant]'s call and stays there — a server offering both is signed in
  * with the device flow, which is the shipped production path. This function only says whether the
  * answer is a password field or a hand-over.
  *
- * ⚠ A server that advertises OAuth but no grant this app can drive ([OAuthGrant.NONE]) asks for the
+ * A server that advertises OAuth but no grant this app can drive ([OAuthGrant.NONE]) asks for the
  * password: it is the honest fallback, and the one thing that must NOT happen there is telling the
  * reader her server does not support OAuth — it does.
  */
@@ -379,14 +379,14 @@ internal fun credentialsAsk(discovery: OAuthDiscovery?, email: String): Credenti
  * spelling of "usable OAuth", so the address step, the manual door and the credentials step cannot
  * quietly disagree about it.
  *
- * ⛔ NOT `chosen != null`, and that difference is the whole of why this function exists rather than
+ * NOT `chosen != null`, and that difference is the whole of why this function exists rather than
  * a field read at three call sites. A host advertising OAuth with no grant this app can drive
  * ([OAuthGrant.NONE]) yields [CredentialsAsk.Password] — and at the credentials step reached on
  * the OAuth answer ALONE, with no autoconfig verdict behind it, that password field has no server
  * to send anything to ([shouldTryDiscoveredImap] wants a `Found`). A dead end one step further
  * from the manual form than the address step she came from.
  *
- * ⛔ It is [credentialsAsk] EXECUTED, never a second reading of the same facts: the address match
+ * It is [credentialsAsk] EXECUTED, never a second reading of the same facts: the address match
  * and the grant ranking are decided there, once. Spelled again here they drift, silently.
  */
 internal fun oauthOpensCredentials(discovery: OAuthDiscovery?, email: String): Boolean =
@@ -396,11 +396,11 @@ internal fun oauthOpensCredentials(discovery: OAuthDiscovery?, email: String): B
  * Whether the screen must now start the OAuth sign-in on its own — the moved TRIGGER, and the whole
  * of what this volet changes about the flows themselves: nothing else.
  *
- * ⛔ Gated on the step as well as on the ask: the manual fallback keeps its own explicit button, and
+ * Gated on the step as well as on the ask: the manual fallback keeps its own explicit button, and
  * an answer collected at the address step must not launch a browser while the user is still typing
  * her address.
  *
- * ⛔ AND ONCE PER ADDRESS ([handoverStarted]). Automatic and unconditional are not the same thing:
+ * AND ONCE PER ADDRESS ([handoverStarted]). Automatic and unconditional are not the same thing:
  * the hand-over panel has a Cancel, and a trigger that fires again the moment that panel is gone
  * reopens the browser the user just refused — Cancel then means nothing at all. Restarting is HER
  * gesture afterwards ([CredentialsPane.SIGN_IN_OFFER]), and the walk waits for it.
@@ -441,7 +441,7 @@ internal enum class CredentialsPane {
  * What step 2 draws, given the server's answer, the attempt's state, and whether this screen has
  * already handed over for this address.
  *
- * ⛔ THE DEFECT. Under "the server signs this account in away from here", the step used to draw a
+ * THE DEFECT. Under "the server signs this account in away from here", the step used to draw a
  * wheel whenever it was not drawing the password field. Cancel on the hand-over panel puts the
  * attempt back to [ConnectState.Idle] and leaves the ask exactly as it was, so the step came back
  * to a wheel that turns for ever, over an address field, with nothing loading behind it and no way
@@ -458,7 +458,7 @@ internal enum class CredentialsPane {
  *    invitation again — the same sentence and the same button the browser panel shows — and it
  *    waits for a gesture instead of restarting on its own.
  *
- * ⚠ [ConnectState.Connected] is deliberately not an offer: the account is in, the screen is leaving,
+ * [ConnectState.Connected] is deliberately not an offer: the account is in, the screen is leaving,
  * and an invitation to sign in again would flash over a walk that succeeded.
  */
 internal fun credentialsPane(
@@ -476,7 +476,7 @@ internal fun credentialsPane(
 /**
  * The step the credentials step must offer as a way OUT under [pane], or null when it owes none.
  *
- * ⛔ A DISCOVERY THAT WORKED MUST NEVER TAKE A DOOR AWAY, and this is the half of that rule that was
+ * A DISCOVERY THAT WORKED MUST NEVER TAKE A DOOR AWAY, and this is the half of that rule that was
  * missing. [offersManualSetup] holds it at the address step, for a probe that found nothing; this
  * holds it at the step a probe that FOUND something leads to. A domain publishing both an autoconfig
  * and an RFC 8414 document lands the reader on [CredentialsPane.SIGN_IN_OFFER]: no password field
@@ -484,7 +484,7 @@ internal fun credentialsPane(
  * button fails every time. Back returns to the address step, whose "Set up manually" is withheld
  * because the verdict is a `Found`. The account cannot be added by any gesture at all (#55).
  *
- * ⛔ UNDER THE OFFER ONLY, and the other two are refusals, not omissions:
+ * UNDER THE OFFER ONLY, and the other two are refusals, not omissions:
  *  - [CredentialsPane.WAITING] means something IS running — the browser is open, or its panel is one
  *    frame away. A manual form reached from under a hand-over in flight adds a second account behind
  *    the first;
@@ -509,7 +509,7 @@ internal fun showsHandoverPanel(state: ConnectState): Boolean =
  * ([showsHandoverPanel]) AND this walk being the one that started it ([startedByWalk], i.e.
  * [handoverStarted] for the address on screen).
  *
- * ⛔ THE STATE SAYS A PANEL IS UP, NEVER WHOSE IT IS. Two flows put one on this screen:
+ * THE STATE SAYS A PANEL IS UP, NEVER WHOSE IT IS. Two flows put one on this screen:
  *  - the walk's own, started at step 2 ([shouldStartOAuthSignIn], or the [CredentialsPane
  *    .SIGN_IN_OFFER] button) and always through the seam that records the address it handed over
  *    for. Back there left the APPLICATION with a sign-in still in flight — the defect measured at
@@ -528,11 +528,11 @@ internal fun backCancelsHandover(state: ConnectState, startedByWalk: Boolean): B
 /**
  * The OAuth server already found for [email], reusable by the sign-in itself, or null to search.
  *
- * ⛔ Two guards, and both are about answering for the right server. A [server] typed by hand under
+ * Two guards, and both are about answering for the right server. A [server] typed by hand under
  * Advanced is the ONE host that sign-in must ask, so a domain-derived answer may not stand in for
  * it; and an answer about another address is not an answer about this one.
  *
- * ⚠ Why reuse at all: without it the hand-over probes a second time, seconds after the first, and a
+ * Why reuse at all: without it the hand-over probes a second time, seconds after the first, and a
  * host that answered once but not twice would be reported as "this server doesn't support OAuth
  * sign-in" — a sentence that is factually false, on a path the reader did not even choose.
  */
@@ -548,7 +548,7 @@ internal fun reusableOAuth(
 /**
  * What the status block at the foot of the walk has to say, whatever step it stands on.
  *
- * ⛔ IT IS A VALUE BEFORE IT IS A `Text`, and that is the whole of it. The block is also what a
+ * IT IS A VALUE BEFORE IT IS A `Text`, and that is the whole of it. The block is also what a
  * scroll has to aim at, and a screen that draws it from one reading of [ConnectState] and scrolls
  * it from another is a screen with two spellings of the same rule: they drift, and the drift is
  * silent — the sentence drawn under one, the scroll withheld by the other.
@@ -567,28 +567,28 @@ internal sealed interface StatusLine {
 /**
  * What the block says for [state] at [step], or null for the states that say nothing.
  *
- * ⛔ A FAILURE SPEAKS AT EVERY STEP, and no step condition may ever be added to that branch: the
+ * A FAILURE SPEAKS AT EVERY STEP, and no step condition may ever be added to that branch: the
  * address step's own offline answer IS a [ConnectState.Error] (`reportOffline`), so conditioning
  * this on the step computes a message, writes it to the state, and renders nothing at all.
  *
- * ⚠ [ConnectState.NeedsServer] is the one line that IS step-conditioned, and it belongs here rather
+ * [ConnectState.NeedsServer] is the one line that IS step-conditioned, and it belongs here rather
  * than in the screen for the same reason as everything else in this file: on the manual form it
  * names the field the user must now fill; at the credentials step the walk is already dialling the
  * endpoints the domain published, so "enter it below" would point at nothing.
  *
- * ⛔ AND THE WHEEL IS DRAWN ONCE (#55). Coming back from the approval, the screen showed the address
+ * AND THE WHEEL IS DRAWN ONCE (#55). Coming back from the approval, the screen showed the address
  * in a read-only field and TWO bare spinners stacked under it, and nothing else. They are two
  * siblings of the same column: the credentials step draws one under [CredentialsPane.WAITING], this
  * block draws another under [StatusLine.Working], and [ConnectState.Connecting] (or
  * [ConnectState.Discovering]) at [ConnectStep.CREDENTIALS] makes both true in the same frame.
  *
- * ⛔ IT IS THIS ONE THAT GOES QUIET, never the step's, and the direction is not a matter of taste:
+ * IT IS THIS ONE THAT GOES QUIET, never the step's, and the direction is not a matter of taste:
  * [credentialsPane] being [CredentialsPane.WAITING] is also what [credentialsExit] reads to decide
  * that no way out to the manual form may be offered while a sign-in is in flight. Bend that answer
  * to remove a spinner and the dead end of the very same issue — an account addable by no gesture at
  * all — is back, in a shipped fix.
  *
- * ⛔ AND IT ASKS [credentialsPane], it does not restate its condition. A second spelling of "the
+ * AND IT ASKS [credentialsPane], it does not restate its condition. A second spelling of "the
  * step is already drawing a wheel" is a copy that drifts in silence, which is the mistake this whole
  * file exists to avoid — and it would drift the wrong way twice: on [CredentialsAsk.Password] the
  * step draws a FIELD and no wheel (this block is that path's only progress), and at any step but
@@ -617,12 +617,12 @@ internal fun statusLine(
 /**
  * Whether [line] must be brought into view — i.e. whether it is a SENTENCE.
  *
- * ⛔ THE DEFECT THIS ANSWERS, measured at the bench: at the address step with the keyboard up, the
+ * THE DEFECT THIS ANSWERS, measured at the bench: at the address step with the keyboard up, the
  * whole of the walk's answer to "Continue" offline is one line at the foot of the column, and the
  * IME covers it. She taps, and nothing moves. The block is inside an `imePadding()` column that
  * scrolls, so nothing overflows — what is missing is that the block never asked to be seen.
  *
- * ⛔ AND NOT THE WHEEL. [StatusLine.Working] is drawn on every connection attempt, from a form the
+ * AND NOT THE WHEEL. [StatusLine.Working] is drawn on every connection attempt, from a form the
  * reader may be in the middle of; scrolling to it would pull that form out from under her fingers
  * to show her a spinner she did not ask to read. Null likewise: there is nothing to bring into
  * view, and asking anyway scrolls the column on the way OUT of every error.

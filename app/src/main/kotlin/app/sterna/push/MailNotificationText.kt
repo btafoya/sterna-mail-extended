@@ -128,7 +128,7 @@ object MailNotificationText {
      * badge in front of the row, and A BADGE'S INITIAL IS A LETTER OF SOMEBODY'S NAME: drawing one
      * beside a row that was supposed to name nobody breaks the same promise the text keeps.
      *
-     * ⛔ AND IT IS DECIDED HERE, not at the drawing site. The app lock folds the effective position
+     * AND IT IS DECIDED HERE, not at the drawing site. The app lock folds the effective position
      * onto NONE inside [widgetRow], so this is the only place that knows the position actually in
      * force; anywhere else the question would be answered from the RAW setting, and a locked home
      * screen would wear the sender's initial while `SECURITY.md` promises the cell "names neither
@@ -153,7 +153,7 @@ object MailNotificationText {
      * app's window, in front of whoever is holding the phone, and it stays there — it is not a
      * banner that goes away.
      *
-     * ⛔ IT DOES NOT DECIDE WHICH MAILS GET A ROW — that is the per-account switch published as
+     * IT DOES NOT DECIDE WHICH MAILS GET A ROW — that is the per-account switch published as
      * "Sync new mail", which stops BACKGROUND FETCHING and not display, so mail already in the
      * database (it got there through an open or a pull-to-refresh) is drawn like any other. Read as
      * a promise that a row exists only where a notification was posted, this invariant says
@@ -168,7 +168,7 @@ object MailNotificationText {
      * oversight to be tidied away. There is no [preview] parameter for the same reason: a body
      * cannot physically travel this far, whatever a later reader tries.
      *
-     * ⛔ THAT ABSENCE IS PINNED BY A TEST, not by this paragraph — `MailNotificationWidgetRowTest`
+     * THAT ABSENCE IS PINNED BY A TEST, not by this paragraph — `MailNotificationWidgetRowTest`
      * reads this function's signature back by reflection and fails on a sixth parameter, and on a
      * default value for any of the five. Prose alone was the whole guard until a review pointed out
      * that no test can pass an argument that does not exist, so nothing went red when one was
@@ -187,7 +187,7 @@ object MailNotificationText {
      * compiler instead of quietly taking the sender — the invariant [resolve] and
      * [Notifications.actionsFor] already carry.
      *
-     * ⭐ [WidgetRow.namesSender] rides out on the same decision, for the monogram badge the widget
+     * [WidgetRow.namesSender] rides out on the same decision, for the monogram badge the widget
      * draws in front of a row: an initial is a letter of the sender's name, so it is allowed
      * exactly where the sender's name itself is. Asking that question anywhere else would ask it
      * of the raw setting, and the lock would stop governing the badge.

@@ -19,7 +19,7 @@ package app.sterna.ui.compose
  * Is the draft on the server KEPT by this emptying? — the twin of [emptiedLocalDraftKeepsServerCopy],
  * one route away, and deliberately not the same function.
  *
- * ⛔ **It is not the same question, which is why it is not the same function.** The local route asks
+ * **It is not the same question, which is why it is not the same function.** The local route asks
  * it of a phone-held row that STANDS IN FOR a server draft, so it needs the replaced id too: with
  * nothing behind the row there is no copy to keep and nothing to say. Here the draft being emptied
  * IS the server draft — `saveDraft` has already established that it exists (`original != null`) and
@@ -27,7 +27,7 @@ package app.sterna.ui.compose
  * and adding it would be inventing a case that cannot happen. The rule the two share is the one that
  * matters, and it is the reason this exists: [bodyIsLossy] wins.
  *
- * ⭐ **[bodyIsLossy] beats the rule of #69, and only it does.** The verdict says what this composer
+ * **[bodyIsLossy] beats the rule of #69, and only it does.** The verdict says what this composer
  * MANAGED to read of the draft: an HTML body flattened to text, inline images and calendar parts
  * never carried, a read-receipt request whose checkbox came back clear, an attachment not brought
  * down, or a read that failed outright (`reopenedDraftIsLossy`, and the three other places
@@ -38,7 +38,7 @@ package app.sterna.ui.compose
  * `R.string.compose_emptied_draft_server_copy_kept` — the same sentence the other route posts, for
  * the same fact.
  *
- * ⭐ **[addressingIsProvenEmpty] is the second term, and it is the one the ordinary save has had
+ * **[addressingIsProvenEmpty] is the second term, and it is the one the ordinary save has had
  * all along.** Re-saving a draft over its server copy is allowed to destroy that copy only once the
  * replacement PROVABLY carries the addresses the original was addressed to
  * (`draftReplacementIsFaithful`, term `addressingIsCarried`); emptying it — the harder route, which
@@ -50,7 +50,7 @@ package app.sterna.ui.compose
  * is deliberate: an unknown is not a void, and it keeps the copy. Same rule and same direction as
  * `draftAddressingIsCarried(original = null)` answering false.
  *
- * ⛔ **And no wider than that.** A draft this composer read WHOLE, whose addressing the server
+ * **And no wider than that.** A draft this composer read WHOLE, whose addressing the server
  * confirmed empty, and which the user emptied by hand is still destroyed, exactly as before: that
  * is the rule of #69 ("the original is deleted so no empty shell lingers in Drafts, nor reappears
  * on sync"), and turning "she emptied it" into "never destroy anything" would leave an empty shell
@@ -64,7 +64,7 @@ fun emptiedServerDraftIsKept(bodyIsLossy: Boolean, addressingIsProvenEmpty: Bool
  * saved: the account it was READ FROM ([openedUnderAccountId]), or null when there is nobody to act
  * for.
  *
- * ⛔ **Never [composingAsAccountId].** The "From" picker offers the identities of EVERY account and
+ * **Never [composingAsAccountId].** The "From" picker offers the identities of EVERY account and
  * switching it resets nothing about the draft: its id, and the numbering that id was frozen under,
  * were both read off the account the composer was opened on. Handed the writing account's
  * credentials — as this route was — the expunge left for another server, and the screen closed as a
@@ -75,11 +75,11 @@ fun emptiedServerDraftIsKept(bodyIsLossy: Boolean, addressingIsProvenEmpty: Bool
  * and the refusal falls, the look-up has already invalidated the other account's cached Drafts
  * bodies (`MailRepository`, `uidValidity.invalidate`), silently.
  *
- * ⭐ [composingAsAccountId] is a parameter so that the refusal is EXECUTED and not merely read out
+ * [composingAsAccountId] is a parameter so that the refusal is EXECUTED and not merely read out
  * of the source by a lint: a rule taking the frozen account alone could be re-broken at the call
  * site with no test able to see it. It is never consulted, and that is the whole decision.
  *
- * ⛔ **It is deliberately NOT [credentialsDestroyingReplacedServerDraft]**, though the two answer
+ * **It is deliberately NOT [credentialsDestroyingReplacedServerDraft]**, though the two answer
  * the same shape. That one is asked of a LEASE — an account recorded when this phone took a local
  * row, null whenever no row is held, which is the ordinary case. This one is asked of a FREEZE
  * taken beside an id read off a server, and null here means the composer opened no server draft at
@@ -88,7 +88,7 @@ fun emptiedServerDraftIsKept(bodyIsLossy: Boolean, addressingIsProvenEmpty: Bool
  * that keeps a second look-up (i.e. a fallback) from being written.
  *
  * Null is the safe end, and both roads to it destroy nothing: no server draft was opened, or the
- * account it was opened from was removed from the phone during the edit. ⛔ There is NO fallback —
+ * account it was opened from was removed from the phone during the edit. There is NO fallback —
  * the fallback is the defect. The caller turns the null into the failure banner it already draws,
  * which leaves a draft that is still exactly a draft.
  */

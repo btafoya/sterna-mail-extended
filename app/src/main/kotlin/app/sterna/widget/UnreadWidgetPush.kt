@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.map
  * while the mail moves — the user reads a message, the drawer's "All inboxes (N)" decrements, and
  * the cell next to it still shows the old figure.
  *
- * ⛔ The collection is CONDITIONAL, and that is the whole point of this file. Collecting
+ * The collection is CONDITIONAL, and that is the whole point of this file. Collecting
  * `observeUnifiedInboxUnreadByAccount()` for the life of the process subscribes two global Room aggregates
  * — for everyone, including the large majority who will never place a widget. Sterna carries its
  * own push precisely so that the app costs nothing when nothing is happening; a widget nobody
@@ -61,18 +61,18 @@ internal object UnreadWidgetPush {
      * The SECOND, on the NUMBERS, and it is not tidiness. Nothing upstream de-duplicates them:
      * `observeUnifiedInboxUnreadByAccount()` is a `combine` of two Room flows, and one invalidation
      * makes both legs re-emit, so a single write produces at least two emissions of the SAME map.
-     * ⚠ A `Map` compares by value, so it still holds — it is merely FINER than it was on a single
+     * A `Map` compares by value, so it still holds — it is merely FINER than it was on a single
      * integer: a message read in one account and one arriving in another now redraw, where the
      * total could have stayed put. That is cost, not falsehood, and the cell was wrong before.
      * Each one that got through cost a `getAppWidgetIds` binder call, a full decode of the account
      * blob, a `PendingIntent.getActivity(FLAG_UPDATE_CURRENT)` and an `updateAppWidget` the
      * launcher re-inflates on — all to redraw a cell with the digits already on it.
-     * ⚠ It is placed AFTER [flatMapLatest], so it also spans a gate closing and reopening: a cell
+     * It is placed AFTER [flatMapLatest], so it also spans a gate closing and reopening: a cell
      * removed and placed again on an unchanged count is not redrawn from here. That is correct and
      * not a gap — placing a cell makes the system call `UnreadWidgetProvider.onUpdate`, which draws
      * it, and this collection has never been what fills a brand-new cell.
      *
-     * ⛔ WHICH IS WHY THE ACCOUNT COUNT TRAVELS TOO, on [accounts], as a second arm. The numbers do
+     * WHICH IS WHY THE ACCOUNT COUNT TRAVELS TOO, on [accounts], as a second arm. The numbers do
      * not carry it and cannot: the breakdown is keyed on `UnifiedInbox.countedInboxes`, which drops
      * every account whose `inboxId` is still null — exactly how an IMPORTED account is written, and
      * how it stays until someone signs it in. So adding or removing such an account crosses the
@@ -81,38 +81,38 @@ internal object UnreadWidgetPush {
      * on a quiet mailbox the cell keeps a label — and a tap target — the app no longer has, for
      * days. [UnreadWidgetContent.of] and [UnreadWidgetTap] both decide on that count.
      *
-     * ⛔ THREE STATES, not two, because the label has three arms: "All inboxes", the single
+     * THREE STATES, not two, because the label has three arms: "All inboxes", the single
      * account's own inbox name, and the app's name when there is no account at all. A boolean would
      * leave the cell on the app's name after a first (inert) account arrived, and on a mailbox name
-     * nobody owns after the last one left. ⛔ The high arm is read through [AllInboxesView.existsFor]
+     * nobody owns after the last one left. The high arm is read through [AllInboxesView.existsFor]
      * and never re-written as `accounts.size > 1` here: one bound, in one place, is the whole
      * reason that file exists — the label and the tap target must not drift apart.
      *
-     * ⛔ It is the BOUND that travels, never the list. `AccountStore.accountsFlow` is republished by
+     * It is the BOUND that travels, never the list. `AccountStore.accountsFlow` is republished by
      * `saveAccounts`, the choke point every mutator of the list goes through — and not only the
      * deliberate ones: a settings write (a refreshed OAuth token, a colour, identities discovered
      * on connect) republishes it, and so does EVERY SYNC PASS, which writes the stored unread count
      * back through `saveInboxMeta` / `saveInboxMetaFor`. Compared whole, all of those would redraw
-     * the cell. ⛔ And it is NOT pushed down into `UnifiedInbox.unreadByAccount`, which stays keyed
+     * the cell. And it is NOT pushed down into `UnifiedInbox.unreadByAccount`, which stays keyed
      * on `countedInboxes`: keyed on the accounts, its two global Room aggregates would be cancelled
      * and rebuilt on every one of them, in the collector's context.
-     * ⚠ THE DEBT THAT BUYS, said plainly: what the bound does not carry is not redrawn from here.
-     * The account labels on the enlarged cell's lines (`UnreadWidgetContent.kt:124`) and the single
-     * account's inbox name (`:76`) both sit below it, so RENAMING an account or its inbox leaves
-     * the cell as it was — and nothing else catches it, `AccountsViewModel.kt:206-207` refreshing
+     * THE DEBT THAT BUYS, said plainly: what the bound does not carry is not redrawn from here.
+     * The account labels on the enlarged cell's lines (`UnreadWidgetContent`) and the single
+     * account's inbox name both sit below it, so RENAMING an account or its inbox leaves
+     * the cell as it was — and nothing else catches it, `AccountsViewModel` refreshing
      * only the latest-messages widget.
      *
-     * ⛔ THE EMITTED VALUE IS STILL THE MAP. Unlike the twin's, this emission is SPENT by the
+     * THE EMITTED VALUE IS STILL THE MAP. Unlike the twin's, this emission is SPENT by the
      * collector — `UnreadWidgetDraw.redraw(appContext, unreadByAccount)` sums it for the big figure
      * and ventilates it into the enlarged cell's lines — so only the COMPARED value becomes a pair.
      *
-     * ⛔ THE COMBINE IS INSIDE [flatMapLatest], NOT AFTER IT, and that is the gate, not tidiness. A
+     * THE COMBINE IS INSIDE [flatMapLatest], NOT AFTER IT, and that is the gate, not tidiness. A
      * combine RETAINS the last value of each arm, and the gated arm never completes — it only falls
      * silent when the last cell goes. Placed after, an account added or removed once no cell is on
      * any home screen would pair a stale map with a fresh bound, clear the de-duplication and ask
      * for a redraw for a widget that does not exist, making the first sentence above false. Inside,
      * the whole thing is dropped with the gate.
-     * ⛔ And the account arm emits UNDER the bound as well — no `filter`, no `dropWhile`. A combine
+     * And the account arm emits UNDER the bound as well — no `filter`, no `dropWhile`. A combine
      * whose arm never speaks never emits at all, and a single-account install (the majority) would
      * stop following the mail entirely.
      */

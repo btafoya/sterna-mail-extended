@@ -88,13 +88,13 @@ class StorageRepository(
     /**
      * Purge one account's cached messages. Snoozes are user intent, not cache — kept.
      *
-     * ⛔ **The attachment FILES go too**, and that is the point of the last line: this used to
+     * **The attachment FILES go too**, and that is the point of the last line: this used to
      * delete five tables' rows and not one byte on disk. An attachment is written into the cache
      * decrypted — an OpenPGP part included — and `enforceAttachmentCap` has no other caller, so the
      * only thing that ever removed that file was downloading the next one. The user pressed the
      * button carrying her account's name and the decrypted PDF stayed on the phone indefinitely.
      *
-     * ⚠ The tree is flat and NOT namespaced per account, so this clears every account's cached
+     * The tree is flat and NOT namespaced per account, so this clears every account's cached
      * attachments, not just this one's. Accepted deliberately: they are re-downloadable bytes, and
      * carving per-account sub-directories would break [enforceAttachmentCap] (`isFile`),
      * [clearAttachments] (`delete()` on a non-empty directory fails silently) and [usage]
@@ -114,7 +114,7 @@ class StorageRepository(
      * Attachments aren't namespaced per account, so the whole (re-downloadable)
      * cache is cleared to avoid leaking one account's files to another.
      *
-     * ⭐ **The local drafts go here and in no other purge, and that is a decision** (#95, #121's
+     * **The local drafts go here and in no other purge, and that is a decision** (#95, #121's
      * neighbourhood). A draft kept on the phone is NOT cache: it is text the user typed that the
      * server never received, so it is ranked with `snoozed` and the outbox on the user-data side —
      * removed when the account that owns it is removed, and left alone by everything that calls
@@ -122,12 +122,12 @@ class StorageRepository(
      * other three are offered as free of consequence because every byte they drop can be downloaded
      * again; this text cannot.
      *
-     * ⚠ Its FILES go with it, not just its rows. Since the store gained a writer, signing out left
+     * Its FILES go with it, not just its rows. Since the store gained a writer, signing out left
      * the attachments of every unsent draft on the phone with no row left to name them by: the
      * directories are named after the draft ids, so they can only be found while the rows are still
      * there — hence the order inside [purgeLocalDraftsOfAccount].
      *
-     * ⛔ **One `runCatching` PER STEP**, as [purgeOrphanedAccounts] already does table by table.
+     * **One `runCatching` PER STEP**, as [purgeOrphanedAccounts] already does table by table.
      * These are independent deletions, and this call is made in a LOOP over every account a
      * cascading sign-out removes (#31), followed by the orphan sweep (#121). A throw from any one
      * step used to skip the steps after it — the attachment cache included — come back out into
@@ -159,7 +159,7 @@ class StorageRepository(
      * Sweep the cached mail of accounts that no longer exist, given the accounts that DO
      * ([knownAccountIds] — a reader of `AccountStore.accounts()`' ids). Returns the ids swept.
      *
-     * ⛔ THE ORDER OF THE TWO READS IS PART OF THE FIX, which is why the account list arrives as a
+     * THE ORDER OF THE TWO READS IS PART OF THE FIX, which is why the account list arrives as a
      * function and not as a list. Read the accounts first and take the inventory second — as the
      * callers did when they passed `store.accounts().map { it.id }` — and an account created
      * between the two is missing from the list and present in the inventory: its brand-new cache is
@@ -176,7 +176,7 @@ class StorageRepository(
      * unified list forever, in whatever state it was frozen in (bold, starred), above the real
      * message. Scoping the list on (account, folder) pairs hides it; this removes it.
      *
-     * ⛔ An empty account list sweeps NOTHING — see [OrphanedAccountCache.orphans]. The
+     * An empty account list sweeps NOTHING — see [OrphanedAccountCache.orphans]. The
      * decision is that function's, not a `NOT IN` statement's, precisely so this call can never
      * degrade into "delete the whole cache".
      *
@@ -200,7 +200,7 @@ class StorageRepository(
      *    them can produce a row in a list, and the attachment cache is shared, so clearing it here
      *    would cost every account a re-download on a housekeeping pass. They are not inventoried
      *    either: an id known only to them would be deleted from four tables it has no row in.
-     *    ⭐ And the exclusion is checkable, not merely asserted: every account id `AccountStore`
+     *    And the exclusion is checkable, not merely asserted: every account id `AccountStore`
      *    ever mints comes from `UUID.randomUUID()`, on all five of its creation paths, so an id is
      *    never re-issued. A row left behind here is keyed on an id no account will ever carry
      *    again — it has no possible reader, only bytes.
@@ -278,7 +278,7 @@ class StorageRepository(
  * The outgoing staging dir is re-downloadable/re-stageable cache too (#70): a queued send already
  * holds its own durable copy, so clearing the orphaned staged files loses nothing.
  *
- * ⛔ Neither tree holds a local draft's staged bytes (#95) — those are text the server never
+ * Neither tree holds a local draft's staged bytes (#95) — those are text the server never
  * received and go on sign-out alone. Both directories are flat: `listFiles()` is null when the tree
  * has never been created, and `delete()` would silently fail on a sub-directory.
  */

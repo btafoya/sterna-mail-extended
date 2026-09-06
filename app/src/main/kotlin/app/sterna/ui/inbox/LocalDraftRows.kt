@@ -28,7 +28,7 @@ import java.time.Instant
  * folder stayed empty, so the user had no trace at all of the text she had just typed. Everything
  * here exists to end that, and to do so without lending a local row any power it does not have.
  *
- * ⛔ **No state filter.** A `STAGING` row is listed like any other: its text is on the phone, and
+ * **No state filter.** A `STAGING` row is listed like any other: its text is on the phone, and
  * hiding it would re-open exactly the lie this closes. What a local row does NOT get is an action —
  * see [isLocalDraftRow].
  */
@@ -55,13 +55,13 @@ internal data class LocalDraftRows(
 /**
  * True when [id] names a row of `local_drafts` rather than a message a server knows about.
  *
- * ⛔ **The one predicate every gesture site asks**, and it neutralises rather than routes. No action
+ * **The one predicate every gesture site asks**, and it neutralises rather than routes. No action
  * path knows this table: `repo.delete` / `archive` / `moveToMailbox` / `setRead` are silent no-ops
  * on IMAP (they read a UID out of an id that carries none) and errors on JMAP, and none of them
  * removes the local row — so a swipe would announce "deleted" and offer an Undo over a row that
  * never moved.
  *
- * ⭐ The TAP is the exception, and the only one: it opens the draft in the composer (#95). That is
+ * The TAP is the exception, and the only one: it opens the draft in the composer (#95). That is
  * safe because `ComposeViewModel.prepare` asks `draftOpenRoute` which store the id belongs to and
  * fills the screen from `local_drafts` alone — no `fetchEmail`, no `cachedEmail`, nothing a server
  * could be asked about a row it has never heard of.
@@ -77,7 +77,7 @@ internal fun isLocalDraftRow(id: String?): Boolean = id != null && id.startsWith
  * member. The unified inbox has no selected folder id, so it answers false here with no case of its
  * own.
  *
- * ⛔ [unreadOnly] is a refusal, not a filter to write later. A local row is read by construction
+ * [unreadOnly] is a refusal, not a filter to write later. A local row is read by construction
  * (`$seen`, [InboxRow.unread] false — a draft the user has just typed is not unread mail), so under
  * a funnel that promises "unread only" it is the one row on screen that does not belong there. The
  * price is accepted: with the funnel ON, a draft just saved with no network is not listed. The
@@ -97,7 +97,7 @@ internal fun showsLocalDrafts(
  * Whether the row drawn for [id] answers to a SWIPE at all — the guard that has to sit on
  * `gesturesEnabled`, i.e. BEFORE the gesture runs, not after.
  *
- * ⛔ The refusal inside `performSwipe` is a belt, never the braces: `commitSwipe` plays the whole
+ * The refusal inside `performSwipe` is a belt, never the braces: `commitSwipe` plays the whole
  * take-off arc — the row flies off the edge, tilts and fades to nothing — and only THEN calls
  * `onSwipe`. A left swipe is DELETE by default, so a local draft left swipeable is destroyed on
  * screen exactly as a real deletion is, with no snackbar and no Undo, while the text is still in the
@@ -126,12 +126,12 @@ internal fun showsFavouriteStar(id: String?): Boolean = !isLocalDraftRow(id)
  * The keys "Select all" may take: the folder's own, minus the server rows a local draft is standing
  * in for and which are therefore NOT on screen.
  *
- * ⛔ This is the destructive half of #126 re-opened by our own hiding. `selectableIds` pages the
+ * This is the destructive half of #126 re-opened by our own hiding. `selectableIds` pages the
  * `emails` table, where a replaced server draft is still filed — so without this the counter says
  * N+1 and "Delete" moves to the Trash a message the user was never shown. The rule of #126 is
  * exactly that: a bulk action never touches a row that is not on screen.
  *
- * ⭐ It subtracts by id whether or not the row was really hidden (see [hidesServerRow], which spares
+ * It subtracts by id whether or not the row was really hidden (see [hidesServerRow], which spares
  * a conversation representative). The two can therefore disagree in conversation view, and the
  * direction of the disagreement is the point: a replaced id left OUT of a selection is one message
  * not deleted, which the user can redo; a hidden row left IN is a deletion she never saw. Aligning
@@ -148,7 +148,7 @@ internal fun selectableKeysMinusHidden(folderKeys: List<EmailKey>, replacedServe
  * A flow of its own, with its inputs as parameters, so a JVM test can RUN it: `InboxViewModel` is an
  * `AndroidViewModel` and cannot be built here. [localDrafts] is the store, handed in.
  *
- * ⛔ The scope is deduped BEFORE the store is subscribed. The role map re-emits for reasons that
+ * The scope is deduped BEFORE the store is subscribed. The role map re-emits for reasons that
  * have nothing to do with this folder, and without the guard each one would re-subscribe the DAO and
  * hand the list a new, equal set of rows.
  */
@@ -191,7 +191,7 @@ internal fun replacedServerIds(drafts: List<LocalDraftEntity>): Set<String> =
 /**
  * True when [row] is the server copy a local draft already stands in for, i.e. must not be drawn.
  *
- * ⛔ **Only a row that stands for itself.** Conversation view is the DEFAULT and the Drafts folder
+ * **Only a row that stands for itself.** Conversation view is the DEFAULT and the Drafts folder
  * is paged through it like any other, so a row here can be the REPRESENTATIVE of a group
  * ([InboxRow.threadCount] > 1). Hiding a representative hides its whole conversation: a server draft
  * that is perfectly present, plus every message filed with it, listed nowhere at all. The two errors
@@ -213,14 +213,14 @@ internal fun headerInsertionOrder(rows: List<InboxRow>): List<InboxRow> = rows.r
  * The paged list as the Drafts folder must read it: the phone's own drafts on top, and the server
  * rows they replace taken out.
  *
- * ⛔ **Applied STRICTLY DOWNSTREAM of `cachedIn`, in a property only `InboxScreen` collects.**
+ * **Applied STRICTLY DOWNSTREAM of `cachedIn`, in a property only `InboxScreen` collects.**
  * `MessageScreen` pages `InboxViewModel.pagedEmails` literally, so a local id inserted upstream
  * lands in the READER's pager: a sideways swipe opens a page that cannot load, and a swipe-delete
  * from there calls `repo.delete`, which on IMAP deletes nothing and returns `trash` — "deleted",
  * with an Undo, over an untouched message. Paging re-applies downstream operators per collector,
  * which is what makes a per-screen view legitimate at all.
  *
- * ⛔ **The caller combines, it does not map.** The Room `PagingSource` behind `pagedEmails` observes
+ * **The caller combines, it does not map.** The Room `PagingSource` behind `pagedEmails` observes
  * `EmailEntity` and `SnoozedEntity` only, never `local_drafts`: nothing would wake the list after a
  * save with no network, which is the very case this exists for. The wake-up is the combine's.
  *

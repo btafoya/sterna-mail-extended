@@ -11,12 +11,12 @@ import java.util.Base64
  * Pure string assembly, like [app.sterna.core.imap.PgpMime]: no repository, no `Context`, no
  * socket, so every byte that will leave the device is decided by a function a JVM test can run.
  *
- * ⛔ **Nothing here is translated, and nothing here may ever be.** An MDN is read twice: once by a
+ * **Nothing here is translated, and nothing here may ever be.** An MDN is read twice: once by a
  * correspondent whose language this phone cannot know, and once by their mail client, which parses
  * the second part as a set of fields. The house precedent is [UNSUBSCRIBE_SUBJECT] and its
  * reasoning applies word for word — what the reader SEES is translated, what leaves the device and
  * has to be understood by a stranger and their software is fixed English. That includes the
- * subject. ⛔ Nothing in this file belongs in `strings.xml`.
+ * subject. Nothing in this file belongs in `strings.xml`.
  */
 
 /**
@@ -37,7 +37,7 @@ internal data class ReadReceiptMail(
     /** The `multipart/report` that replaces the body on the wire; see [readReceiptEntity]. */
     val prebuiltEntity: String,
     /**
-     * ⛔ Always false, and it is a decision, not an oversight.
+     * Always false, and it is a decision, not an oversight.
      *
      * Every other caller of `enqueueSend` learns its recipients into the contacts the composer
      * suggests, because the user wrote to somebody. Here the user wrote to nobody: they opened a
@@ -60,7 +60,7 @@ internal data class ReadReceiptMail(
 }
 
 /**
- * The fixed English word a read receipt's subject is built from — ⛔ NOT a translated label, see
+ * The fixed English word a read receipt's subject is built from — NOT a translated label, see
  * this file's header.
  */
 internal const val READ_RECEIPT_SUBJECT = "Read receipt"
@@ -115,7 +115,7 @@ fun readReceiptPreview(originalSubject: String?, finalRecipient: String): ReadRe
 /**
  * The name this app reports itself under in an MDN (RFC 8098 §3.2.2, `ua-name`).
  *
- * ⛔ No version, and ⛔ no host name. The field's classic form is `machine.example.com; Foomail 97`
+ * No version, and no host name. The field's classic form is `machine.example.com; Foomail 97`
  * and both halves are optional; the ABNF accepts a bare `ua-name`, which is all a correspondent
  * needs to know. A host name would name the reader's machine to a stranger, and a version would
  * tie this file to `versionName` — one more thing to bump, silently wrong the day it is not.
@@ -126,7 +126,7 @@ internal const val READ_RECEIPT_UA = "Sterna Mail"
  * The `multipart/report` entity of RFC 8098 §3: a part for the person and a part for their
  * software, in that order.
  *
- * ⭐ [boundary] is an ARGUMENT and never drawn in here, exactly as
+ * [boundary] is an ARGUMENT and never drawn in here, exactly as
  * [app.sterna.core.imap.PgpMime.wrapSigned] takes its own: a function that reaches for a random
  * number is a function whose output cannot be pinned, and these bytes are the whole point. The
  * draw lives at the call site.
@@ -138,7 +138,7 @@ internal const val READ_RECEIPT_UA = "Sterna Mail"
  * ([app.sterna.core.imap.OutgoingMessage.prebuiltEntity]) rather than through the normal body
  * construction.
  *
- * ⚠ [humanText], [finalRecipient] and [originalMessageId] all originate in a message a stranger
+ * [humanText], [finalRecipient] and [originalMessageId] all originate in a message a stranger
  * wrote. [humanText] is base64'd, so it cannot start a line and cannot end a part. The other two
  * land in header-shaped fields and go through [OutgoingMime.headerSafe], the same sink the message
  * headers use: with CR and LF gone, a hostile `Message-ID` can neither add a field of its own
@@ -154,7 +154,7 @@ internal fun readReceiptEntity(
     // One sanitised spelling used for the parameter AND for the delimiters, so the two cannot
     // disagree about where the parts begin.
     val b = OutgoingMime.headerSafe(boundary).replace("\"", "")
-    // ⚠ The angle brackets are REMOVED, not trimmed off the ends. A Message-ID read from a received
+    // The angle brackets are REMOVED, not trimmed off the ends. A Message-ID read from a received
     // message arrives wrapped in them (`<abc@x>`), so trimming is what keeps `<<abc@x>>` from going
     // out; but [OutgoingMime.headerSafe] passes `<` and `>` through, so a value carrying them in
     // the middle — an injection attempt that the CR/LF strip has already flattened into one line —
@@ -193,7 +193,7 @@ internal fun readReceiptEntity(
  * MIME base64: 76-column lines separated by CRLF, which is what `Base64.getMimeEncoder()` already
  * produces on its own (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`).
  *
- * ⛔ NOT written as `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`. That replace runs
+ * NOT written as `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`. That replace runs
  * over separators that are ALREADY `\r\n` and turns every one of them into `\r\r\n` — a bare CR
  * inside a base64 body, which a DATA payload may not contain (RFC 5321 § 2.3.8). Parsers shrug at
  * it, so nothing looks wrong on a plain message; on a SIGNED one the bare CR sits in the signed
@@ -206,7 +206,7 @@ private fun base64(text: String): String =
  * The identity a receipt goes out under: the one whose address the message was DELIVERED to, or
  * the account's default (its first) when [deliveredTo] names none of them or is not known.
  *
- * ⛔ Not `identities.first()`. An account can hold several aliases ([StoredIdentity]'s own KDoc says
+ * Not `identities.first()`. An account can hold several aliases ([StoredIdentity]'s own KDoc says
  * so), and the first is merely the composer's default — so a receipt for a message addressed to the
  * second alias used to leave from the first, telling a correspondent that a mailbox they never
  * wrote to had read their mail. Matching is case-insensitive: an address is, and a sender who typed
@@ -221,7 +221,7 @@ internal fun receiptIdentity(identities: List<StoredIdentity>, deliveredTo: Stri
  * Build the read receipt for a message whose sender asked for one at [receiptTo], or **null** when
  * there is nothing to answer.
  *
- * ⭐ Null is the whole guard, and it is why this returns a nullable rather than throwing.
+ * Null is the whole guard, and it is why this returns a nullable rather than throwing.
  * [receiptTo] comes from [ReadReceiptHeader.recipients], which answers with an EMPTY LIST for a
  * header that is absent, blank, `<>`, or a word that is not an address — and `enqueueSend` opens
  * with `require(recipients.isNotEmpty())`. Handing it an empty list would throw an exception at a
@@ -234,7 +234,7 @@ internal fun receiptIdentity(identities: List<StoredIdentity>, deliveredTo: Stri
  * sender never wrote to, about a message they will not recognise. See [receiptIdentity] for how
  * one is picked.
  *
- * ⭐ [deliveredTo] is the address the message ARRIVED at, and it wins the `Final-Recipient` field
+ * [deliveredTo] is the address the message ARRIVED at, and it wins the `Final-Recipient` field
  * and the sentence the correspondent reads. It is a parameter and not a guess: an account with
  * several aliases has several addresses, only one of them was written to, and naming another says
  * to a stranger "you wrote to this mailbox" about a mailbox they never used. The caller — the

@@ -115,7 +115,7 @@ val PelagicColorScheme = darkColorScheme(
 /**
  * How far the raised surface roles are pulled toward black in the OLED scheme.
  *
- * ⚠ This is **not** a fraction of brightness. Compose's [lerp] interpolates in Oklab, and black is
+ * This is **not** a fraction of brightness. Compose's [lerp] interpolates in Oklab, and black is
  * the origin there, so pulling by *f* scales the Oklab vector by (1−f) and therefore the light the
  * panel actually emits by **(1−f)³**. At 0.2 a surface emits about half of what it did; at 0.5 it
  * would emit an eighth, which is why a first pass at 0.5 left an `AlertDialog` sitting on a black

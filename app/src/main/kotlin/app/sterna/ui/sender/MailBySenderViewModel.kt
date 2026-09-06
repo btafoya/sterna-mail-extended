@@ -147,7 +147,7 @@ internal enum class SenderAction { SEARCH, DELETE, BLOCK }
  *  - [canDelete] / [canBlock] false mean *this account cannot do this at all* — IMAP, no Sieve
  *    capability, another Sieve script running, a Trash nothing can NAME. There is nothing to wait
  *    for, so the entry is ABSENT: an entry greyed out forever reads as a bug, and one that
- *    reports a failure on every tap is worse. ⛔ "No Trash on the account" left that list: the
+ *    reports a failure on every tap is worse. "No Trash on the account" left that list: the
  *    batch delete resolves or creates its bin like the single-message one, so [canDelete] is now
  *    true everywhere. Naming one for a Sieve rule is the other question, and still unanswerable
  *    without a nameable folder — which is why [canBlock] keeps its no.
@@ -239,7 +239,7 @@ data class PendingDelete(
      * The IMAP numbering each source folder of [ids] was recorded under WHEN THE IDS WERE READ,
      * by folder — what the move to the Trash opposes to what the server then states (#99).
      *
-     * ⛔ Frozen with the ids, in `askDelete`, and never re-read in `confirmDelete`. The dialog
+     * Frozen with the ids, in `askDelete`, and never re-read in `confirmDelete`. The dialog
      * stays up for as long as the user leaves it, and a background pass that sees the folder
      * renumbered meanwhile calls `UidValidityStore.invalidate`, which RECORDS the new number
      * while the ids held here still belong to the old one. Read at the confirmation, the guard
@@ -259,7 +259,7 @@ data class MailBySenderUiState(
     val total: Int = 0,
     /** Whether the row menu offers "delete these messages" — true on every account: the batch
      *  resolves the Trash by role, then by name, then creates one, exactly as the single-message
-     *  delete does, so there is no account it has nowhere to go on. ⛔ Not the Sieve gesture's
+     *  delete does, so there is no account it has nowhere to go on. Not the Sieve gesture's
      *  question ([canBlock]/[trashFilePath]): filing FUTURE mail needs a Trash the app can NAME,
      *  and an account that has none is right to be offered nothing. */
     val canDelete: Boolean = false,
@@ -414,7 +414,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
                 // Offered on every account. It used to depend on a folder carrying the trash
                 // role, because `deleteAll` failed the whole batch without one; it now resolves
                 // the bin the way the single-message delete does — by role, by name, or by
-                // creating it — so there is no account this cannot be done on. ⛔ Not to be
+                // creating it — so there is no account this cannot be done on. Not to be
                 // confused with the Sieve gesture below, which needs the Trash to be NAMEABLE
                 // (`trashFilePath`) and is right to stay away when it is not.
                 canDelete = true,

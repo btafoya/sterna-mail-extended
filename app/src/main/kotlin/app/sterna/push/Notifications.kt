@@ -132,7 +132,7 @@ object Notifications {
      * from a server-side disappearance — the one cancel that came from the server needed the
      * message to still be cached, with `isSeen` set, and a deleted message is not cached at all.
      *
-     * ⛔ [departedIds] may only ever be fed from a signal that is AUTHORITATIVE about the message:
+     * [departedIds] may only ever be fed from a signal that is AUTHORITATIVE about the message:
      * a delta eviction (reorders subtracted, the recently-mutated spare honoured) or an existence
      * sweep's `notFound`. A CACHE eviction is not one — a full-query reconcile drops what fell
      * outside the page, the retention window drops what the user chose not to keep offline, and
@@ -202,7 +202,7 @@ object Notifications {
      * because nothing else guarantees the channel exists: on an install whose push was never
      * armed in direct mode [PushService] never starts, and Android drops each banner in silence.
      *
-     * ⛔ It must not create [CHANNEL_SERVICE] as well. That channel says "Keeps a live connection
+     * It must not create [CHANNEL_SERVICE] as well. That channel says "Keeps a live connection
      * to your mail server for instant mail", and on exactly the installs this repairs there is no
      * such connection — showing it in the system settings would be a lie the user can read.
      *
@@ -222,7 +222,7 @@ object Notifications {
     }
 
     /**
-     * Both channels — the mail one and the foreground-service one. ⛔ Called by [PushService] and
+     * Both channels — the mail one and the foreground-service one. Called by [PushService] and
      * by nothing else: the service channel belongs to a service that is actually running.
      */
     fun ensureChannels(context: Context) {
@@ -253,7 +253,7 @@ object Notifications {
      * screen at IMPORTANCE_HIGH. What it may show is decided by
      * [MailNotificationText.sendFailureLine]; when that is null the title stands alone.
      *
-     * ⚠ [subject] itself keeps travelling in the notification's KEY and in the `mailto:` — those
+     * [subject] itself keeps travelling in the notification's KEY and in the `mailto:` — those
      * are identity and salvage, not display: a PendingIntent does not show its Intent, and cutting
      * them would lose the subject the user gets back in the composer. Closing a leak by opening a
      * loss of text is not a fix.
@@ -442,14 +442,14 @@ object Notifications {
      * account to be left with ([expectedChildIds]) and what the shade actually shows right now
      * ([shownChildIds]).
      *
-     * ⭐ The verdict may only demolish what the repair can rebuild. Cancelling a
+     * The verdict may only demolish what the repair can rebuild. Cancelling a
      * `FLAG_GROUP_SUMMARY` notification cascades every live child of the group away
      * (`cancelGroupChildrenLocked`, `REASON_GROUP_SUMMARY_CANCELED`), and the only repair
      * [updateGroupSummary] has is [repostSilently] — which COPIES a `StatusBarNotification` the
      * shade handed over. An id that is expected but not on screen has no such object: it is
      * counted into the verdict, cascaded away by it, and put back by nobody.
      *
-     * ⛔ Which is also why the answer is not "re-post the expected ones too": [expectedChildIds]
+     * Which is also why the answer is not "re-post the expected ones too": [expectedChildIds]
      * is a `Set<Int>`, there is nothing there to post. The banner exists, it is simply still on
      * `notify`'s handler — `notify` is asynchronous exactly like `cancel`. So this pass declines
      * to demolish and returns; the next pass decides on a shade that has caught up.
@@ -460,11 +460,11 @@ object Notifications {
      * announces that message again: [NewMailNotifier.seed] has already taken it into the folder's
      * baseline, so no later pass and no restart finds it new.
      *
-     * ⛔ NOT "the two sets are equal": a child the caller never heard of and that the shade IS
+     * NOT "the two sets are equal": a child the caller never heard of and that the shade IS
      * showing (a snooze wake-up, a message that landed during the pass's server round trip) is
      * re-postable like any other, and must never freeze a summary up for good.
      *
-     * ⚠ Its own limit, so this is never read as more than it is: what the shade does not show
+     * Its own limit, so this is never read as more than it is: what the shade does not show
      * and no caller expects is invisible to both sets and still falls with the cascade. A snooze
      * wake-up whose own `notify` is still on the handler is exactly that, and `SnoozeWorker`
      * never refreshes the summary. This guard covers what the PASS knows about, no wider.
@@ -483,7 +483,7 @@ object Notifications {
      * the account is left with once the pass is DONE ([liveChildIdsAfter]), and it is what the
      * verdict is taken on, together with whatever is on screen and survives.
      *
-     * ⛔ And the verdict may only demolish what the repair can rebuild ([teardownRepairable]): an
+     * And the verdict may only demolish what the repair can rebuild ([teardownRepairable]): an
      * expected id the shade does not show yet has no notification object to copy back, so the
      * summary's cascade would eat it with nobody left to put it back.
      *
@@ -493,7 +493,7 @@ object Notifications {
      * without draining that queue. A cancel this same pass just asked for is therefore still on
      * screen when we look, and a banner posted moments ago is not there yet.
      *
-     * ⛔ The filter may NOT be "what the caller expects": the cancel of a summary takes down every
+     * The filter may NOT be "what the caller expects": the cancel of a summary takes down every
      * live child of the group, including children this caller has never heard of — the snooze
      * wake-up posts one, and the seconds `NewMailNotifier` spends between its read of the shade
      * and this call are room for another. Dropping them from `children` hands them to the cascade
@@ -506,7 +506,7 @@ object Notifications {
      * winning. The banner the user dismissed returns; for a message deleted elsewhere it never
      * goes away, and tapping it opens a message that no longer exists.
      *
-     * ⛔ No default value on either of them, deliberately: a caller that forgets one must fail to
+     * No default value on either of them, deliberately: a caller that forgets one must fail to
      * COMPILE. A defaulted last argument goes missing in silence — the trap
      * `DepartedMailLosesItsBannerWiringTest` already writes out for `departedIds`.
      */
@@ -525,7 +525,7 @@ object Notifications {
         val children = active.filter { sbn ->
             sbn.id != summaryId && sbn.notification.group == group &&
                 (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
-                // ⭐ …and the caller has NOT just cancelled it. A banner whose cancel is already
+                // …and the caller has NOT just cancelled it. A banner whose cancel is already
                 // decided is neither listed, nor counted, nor put back — that, and nothing wider:
                 // everything else alive stays, including children this caller never heard of, or
                 // the summary's cascade takes them and nobody puts them back. Matched on the ID,
@@ -533,13 +533,13 @@ object Notifications {
                 // build carries is covered by the same line.
                 sbn.id !in cancelledChildIds
         }.sortedByDescending { it.postTime }
-        // ⭐ The union, and it is the ONLY number this function decides or publishes.
+        // The union, and it is the ONLY number this function decides or publishes.
         // `expectedChildIds` brings what this pass has just posted and the shade does not show
         // yet (`notify` is asynchronous exactly like `cancel`); `shownChildIds` brings what IS on
         // screen and the caller knows nothing about. An id being cancelled is in neither.
         // Deciding on `shownChildIds` alone would let the teardown swallow a fresh banner;
         // publishing its size would headline "0 new messages" over two of them.
-        // ⭐ The two halves are also what the teardown's own guard is asked about, below: the
+        // The two halves are also what the teardown's own guard is asked about, below: the
         // difference between them is exactly the set of banners nothing could put back.
         val shownChildIds = children.mapTo(mutableSetOf()) { it.id }
         val live = expectedChildIds + shownChildIds
@@ -549,13 +549,13 @@ object Notifications {
             // and it has been so since API 21. Those children are unread mail the server still
             // holds, so each one captured above is put straight back under its own id.
             //
-            // ⛔ ONLY when a summary is really on screen. With none there the cancel is a no-op,
+            // ONLY when a summary is really on screen. With none there the cancel is a no-op,
             // nothing cascades, and a re-post would still overwrite the lone child's
             // GROUP_ALERT_ALL — the flag a single arrival is given precisely so that it may
             // announce itself ([summaryShownFor]). That is the commonest path in this app:
             // one message, no summary, and it must keep its voice (Codeberg #56).
             //
-            // ⛔ …and ONLY when every id the verdict counted can be put back, i.e. is on screen
+            // …and ONLY when every id the verdict counted can be put back, i.e. is on screen
             // ([teardownRepairable]). An expected id the shade does not show yet is a banner
             // posted moments ago: counting it into the teardown and then cascading it away leaves
             // nothing to re-post it from, and the message is never announced again.
@@ -624,13 +624,13 @@ object Notifications {
      *
      * Pure, so the "whose banner is this?" question is executed by a test rather than read.
      *
-     * ⭐ It matches on the GROUP and not on ids, deliberately: both the child ([notifyNewMail])
+     * It matches on the GROUP and not on ids, deliberately: both the child ([notifyNewMail])
      * and the summary ([notifyGroupSummary]) are posted with `.setGroup(GROUP_PREFIX + accountId)`
      * and are the only two notifications in the app that carry a group at all — `notifySendFailed`
      * carries none. So one filter takes the whole group, it also catches a child posted under an
      * id shape a previous version used, and it spares this file a fourth copy of the summary id.
      *
-     * ⛔ And it does NOT skip the summary the way [activeChildIds] does: a sign-out that left the
+     * And it does NOT skip the summary the way [activeChildIds] does: a sign-out that left the
      * summary standing would leave "3 new messages — Alex" on the shade for an account that no
      * longer exists, over the lines of messages whose own banners just went.
      */

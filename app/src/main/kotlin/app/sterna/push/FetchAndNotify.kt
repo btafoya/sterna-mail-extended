@@ -60,7 +60,7 @@ object FetchAndNotify {
             val inboxId = if (includeInbox) refreshes.firstOrNull()?.mailboxId else null
             if (inboxId != null) NewMailNotifier.migrateLegacyBaseline(context, credentials.id, inboxId)
             val unarchiveOnReply = container.settingsRepository.unarchiveOnReply.first()
-            // ⭐⛔ ONE budget for this ACCOUNT's whole pass, built HERE and not inside the loop: the
+            // ONE budget for this ACCOUNT's whole pass, built HERE and not inside the loop: the
             // diff below runs once per folder, so a budget built per folder would give an account
             // watching three extra folders 4 × 6 reads and up to 4 × 4 s of blocking IMAP work
             // under its single mutex, on one radio wake-up. The second folder inherits what the
@@ -68,7 +68,7 @@ object FetchAndNotify {
             // account, because that is the unit of the mutex and of the wake-up alike.
             val previewBudget = NotificationPreviews.PreviewBudget(System::currentTimeMillis)
             refreshes.forEach { folder ->
-                // ⛔ FIRST, and it leaves the folder ENTIRELY alone: null is the refresh saying its
+                // FIRST, and it leaves the folder ENTIRELY alone: null is the refresh saying its
                 // page cannot state what this folder holds (`MailRepository.FolderRefresh
                 // .baselineIds`) — an IMAP SELECT that never stated a count, or a page that came
                 // back empty from a folder the server says holds messages. Skipping is the whole
@@ -79,7 +79,7 @@ object FetchAndNotify {
                 // memory, and the NEXT pass finds the whole day's unread mail unknown and posts a
                 // banner per thread, at whatever hour push happens to run.
                 //
-                // ⚠ It holds just as hard when the folder has NO baseline yet (`hasBaseline` is
+                // It holds just as hard when the folder has NO baseline yet (`hasBaseline` is
                 // false, below): seeding an empty set there marks the folder as known while
                 // remembering nothing, which is the same defect one pass later. `seedsSilently` is
                 // right as it stands — this skip is what keeps a refused page away from it.
@@ -102,7 +102,7 @@ object FetchAndNotify {
                 // the one notification. Best-effort — a failed move must not cost the
                 // notification (or the reseed).
                 //
-                // ⛔ Best-effort, but NOT for a sign-out: the two guards inside
+                // Best-effort, but NOT for a sign-out: the two guards inside
                 // `unarchiveThreadsOnReply` refuse by throwing an AccountGoneException, which is a
                 // CancellationException, which `runCatching` catches like any other failure. Eaten
                 // here, the re-file would be skipped and this pass would walk straight on to the
@@ -154,11 +154,11 @@ object FetchAndNotify {
             // an error for a gesture that SUCCEEDED, which is exactly what #130 took out of this
             // log. Dropped here, with one line saying so.
             //
-            // ⛔ It must stay the FIRST arm: AccountGoneException IS a CancellationException, so
+            // It must stay the FIRST arm: AccountGoneException IS a CancellationException, so
             // any arm above naming that type (or Throwable) takes it first and this one becomes
             // unreachable without a word.
             //
-            // ⚠ WHAT the line claims is not this catch's to decide, because the exception carries
+            // WHAT the line claims is not this catch's to decide, because the exception carries
             // two different facts: `AccountStore.accounts()` answers an UNREADABLE blob with an
             // empty list too, so the guard fires with nobody having signed anything out. This line
             // used to assert "signed out" in both cases, which turned a storage failure into a
@@ -181,7 +181,7 @@ object FetchAndNotify {
         // process, but the number it drew was already drawn by the widget's own update; what moved
         // it is what this pass just wrote, and only a redraw after the writes says so.
         //
-        // ⛔ OUTSIDE the try, on purpose, and not merely at the end of it: the arm above claims a
+        // OUTSIDE the try, on purpose, and not merely at the end of it: the arm above claims a
         // CancellationException is a sign-out and prints it as one. A widget redraw that came out
         // of the try cancelled — a timeout, the pass being torn down — would be logged as "signed
         // out, dropped" for an account nobody signed out of, which is exactly the misattribution
@@ -259,7 +259,7 @@ object FetchAndNotify {
                 NewMailNotifier.seed(context, credentials.id, inboxMailboxId, remembered)
             }
         } catch (gone: AccountGoneException) {
-            // ⛔ Caught HERE for what it STOPS, not to protect the caller. `InboxViewModel` wraps
+            // Caught HERE for what it STOPS, not to protect the caller. `InboxViewModel` wraps
             // both of its calls to this hook in a `runCatching` (`refreshFolder`, `refreshUnified`),
             // so a refusal let out would be absorbed there and change nothing for it. What matters
             // is that the rest of this function does not run: `notifyDiff` and `seed` both write
@@ -270,7 +270,7 @@ object FetchAndNotify {
             // vanish without a word, which is the opposite of what #130 put in place everywhere
             // else on this path.
             //
-            // ⚠ WHAT the line claims is [accountGoneCause]'s to decide, from a FRESH
+            // WHAT the line claims is [accountGoneCause]'s to decide, from a FRESH
             // `accountsUnreadable()` read: `AccountStore.accounts()` answers an unreadable blob
             // with an empty list too, so this arm also fires with nobody having signed anything
             // out, and printing "signed out" then turns a storage failure into a deliberate gesture

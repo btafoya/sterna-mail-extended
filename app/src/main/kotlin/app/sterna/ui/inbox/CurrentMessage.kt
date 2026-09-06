@@ -81,7 +81,7 @@ object ReadingPaneRule {
      * current ACCOUNT: the pane empties, so nothing of another list stays on the right (#112 in its
      * two-pane form).
      *
-     * ⛔ There is no per-account exception here, and the account switch is not a rule of its own.
+     * There is no per-account exception here, and the account switch is not a rule of its own.
      * Sparing the anchor because it already belongs to the arriving account keeps, in the unified
      * inbox, a message opened from a sibling account's row — a message that may be in no folder the
      * new list shows, still carrying the previous list's `src` and index. The ONE thing that
@@ -101,7 +101,7 @@ object ReadingPaneRule {
      * alone. Anything else is the PREVIOUS folder's message, and a change of folder takes it off
      * the right like every other change of scope ([onViewChanged]).
      *
-     * ⛔ Never a flat "keep": a notification tapped while a composer is on top opens its reader on
+     * Never a flat "keep": a notification tapped while a composer is on top opens its reader on
      * the route and parks nothing, and the folder switch would then leave another folder's message
      * beside the new list — what the person meets on her way out of the reader.
      */

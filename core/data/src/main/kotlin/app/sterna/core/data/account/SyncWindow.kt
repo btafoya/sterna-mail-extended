@@ -18,12 +18,12 @@ import kotlinx.serialization.Serializable
  * WYSIWYG and holds every thread member), so a window now matches its "N messages"
  * settings label exactly.
  *
- * ⚠ On IMAP the window is where the reader's mail ends. Measured on the bench, same device, same
+ * On IMAP the window is where the reader's mail ends. Measured on the bench, same device, same
  * gesture, counted in the database per account and per folder: the IMAP Archive stayed flat at
  * 1 000 messages while it was scrolled to the bottom, where the JMAP Archive grew from 1 000 to
  * 1 150 under the same gesture.
  *
- * ⚠ WHY it does not hold on IMAP is NOT established. Nothing below is a cause, only what the code
+ * WHY it does not hold on IMAP is NOT established. Nothing below is a cause, only what the code
  * says. The scroll-to-load-more mediator is attached without testing the protocol ([pagedFolder]),
  * and its IMAP branch does ask the server for older pages ([folderMediator], then
  * `ImapMailService.fetchOlderPage` and `upsertAll`) — so "the app never asks" is not the answer.
@@ -50,7 +50,7 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
     COUNT_10000(limit = 10_000, maxAgeDays = null),
 
     // -- retired from the picker, ALIVE in the format --------------------------------------------
-    // ⛔ Nothing below may be removed or renamed, and the reason is the same one written out under
+    // Nothing below may be removed or renamed, and the reason is the same one written out under
     // [ALL]: these names are on disk, in the account records of every install that ever chose them,
     // and an unknown name does not fail loudly — it empties the account list on screen, and the app
     // then refuses every write until a build that knows the name reads it again ([AccountBlobGate]).
@@ -66,7 +66,7 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
      * reading "Everything" over a cache of ten thousand is the screen lying about what it holds
      * (`SettingsScreen.syncWindowLabel`).
      *
-     * ⛔ The NAME may not change, and it may not be deleted either, whatever happens to the number:
+     * The NAME may not change, and it may not be deleted either, whatever happens to the number:
      * the reason is worse than a crash. `SyncWindow` is serialized by constant name into every
      * account record ([StoredAccount.syncWindow]). kotlinx does throw on a name it does not know —
      * for the whole account list at once, not just for the records that carried it — and
@@ -96,11 +96,11 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
      * their age", Codeberg #110). The floor is read off the WINDOW and never off a request size;
      * capping it with the page size is #110 re-opened.
      *
-     * ⚠ In service only the FIRST of those two runs for a count window: [maxAgeDays] is null here,
+     * In service only the FIRST of those two runs for a count window: [maxAgeDays] is null here,
      * so the caller computes no cutoff and both refresh paths skip the prune. What bounds the cache
      * on this window is the fetch and the full-query reconcile, not the floor.
      *
-     * ⚠ No migration writes over an account that carries this name (or any retired one). The
+     * No migration writes over an account that carries this name (or any retired one). The
      * setting keeps working as it reads; it changes only when the user opens the row and picks,
      * and then she lands on the new scale.
      */
@@ -111,7 +111,7 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
  * The windows the "Messages to sync" row offers, in the order it shows them — the three age windows
  * and the count scale 100 / 1 000 / 10 000.
  *
- * ⛔ This is a WHITELIST, deliberately, and not `SyncWindow.entries` minus something: the retired
+ * This is a WHITELIST, deliberately, and not `SyncWindow.entries` minus something: the retired
  * members ([SyncWindow.COUNT_50], [SyncWindow.COUNT_200], [SyncWindow.COUNT_500], [SyncWindow.ALL])
  * must stay in the enum for ever, because their names are the persisted format (see [SyncWindow.ALL]),
  * and the only thing that changes is that nobody can choose them any more. A screen that listed

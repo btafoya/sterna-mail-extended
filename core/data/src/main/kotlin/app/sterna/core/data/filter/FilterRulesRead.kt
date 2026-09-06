@@ -15,7 +15,7 @@ import app.sterna.core.data.mail.FilterRulesState
  * surfaces of the per-sender GESTURE already refuse — the reader's menu entry and the by-sender
  * list — so the write that started this is stopped without a new state to thread through them.
  *
- * ⚠ It is not REFUSED everywhere. The **Filters screen** still writes: its Save rewrites the whole
+ * It is not REFUSED everywhere. The **Filters screen** still writes: its Save rewrites the whole
  * script from the list on screen, and that path is deliberately left open because it is the only
  * way out of "the rules are not running" (the arbitration, and what it costs, are in
  * `ai-work/issues/findings/finding-script-sieve-ecrase-par-ecran-filtres.md`).
@@ -60,7 +60,7 @@ fun loadedFilterRules(sternaScript: String?, otherActiveScript: Boolean): Filter
 /**
  * Whether [script] holds Sieve this app did not write, its rules having been read as [parsed].
  *
- * ⛔ **Reading the marker is not reading the script.** A valid `# STERNA-RULES-V1:` line says what
+ * **Reading the marker is not reading the script.** A valid `# STERNA-RULES-V1:` line says what
  * the rule editor should show; it says nothing about the rest of the file. A rule added from
  * Roundcube, a `vacation` block, one extra `require`: all of it sits AROUND a marker that decodes
  * perfectly, and all of it is recompiled away the next time anything saves, because saving rewrites
@@ -71,15 +71,15 @@ fun loadedFilterRules(sternaScript: String?, otherActiveScript: Boolean): Filter
  * is deliberately out, so a script written by another version of this app is not mistaken for a
  * hand-edited one.
  *
- * ⭐ A blank script is not foreign, and the guard says so here rather than trusting the
+ * A blank script is not foreign, and the guard says so here rather than trusting the
  * normalisation to land on it: a blank script holds nothing to lose, and calling it foreign would
  * refuse the per-sender gesture for ever on every account whose script is an empty stub.
- * ⚠ Measured 2026-08-12: removing that guard leaves the suite green, because the only caller can
+ * Measured 2026-08-12: removing that guard leaves the suite green, because the only caller can
  * only reach it with an empty rule list, which compiles to the same empty body. It is kept as the
  * written form of the rule, not because a test needs it — and this stays `internal` so that
  * "the only caller" remains true.
  *
- * ⚠ This WARNS, it does not merge: the hand-written Sieve is still lost by a save that goes
+ * This WARNS, it does not merge: the hand-written Sieve is still lost by a save that goes
  * through. What it buys is that the save is a question first, and that the per-sender gesture —
  * which asks nothing — stops.
  */

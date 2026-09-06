@@ -22,7 +22,7 @@ object Jmap {
      * the batch whose request failed at transport level, and every batch after it that was
      * therefore not attempted.
      *
-     * ⛔ It is deliberately NOT a `SetError` type from RFC 8620 §5.3, and above all not
+     * It is deliberately NOT a `SetError` type from RFC 8620 §5.3, and above all not
      * `"notFound"`: callers treat `notFound` as "destroyed elsewhere" and DELETE the local row.
      * An unreachable server must never make live messages vanish from the cache, so this string
      * is prefixed and impossible to confuse with anything a server can send.

@@ -7,25 +7,25 @@ import app.sterna.core.imap.MimeParser
 /**
  * A fetched fragment of one MIME text part, turned into the readable opening of a message.
  *
- * ⛔ It lives in `:core:data` and not in `:core:imap` for one reason: [htmlToText] is here, and the
+ * It lives in `:core:data` and not in `:core:imap` for one reason: [htmlToText] is here, and the
  * dependency runs one way. And it is pure — bytes and what the server said about them, in; text or
  * null, out — because it is the half of the preview a socket test can never pin: which charset was
  * applied, what a cut multi-byte character became, whether a truncated `<style>` reached the screen
  * as CSS.
  *
- * ⛔ NOTHING here shapes the result: no flattening, no cap, no ellipsis. That happens once, in
+ * NOTHING here shapes the result: no flattening, no cap, no ellipsis. That happens once, in
  * `MailNotificationText.shapePreview`, which is the single crossing the two protocols share. A cap
  * applied twice is a cap that will drift; a cap applied here would also hide from that function the
  * fact that it has to hold.
  *
- * ⛔ A HALF-TRUE LIST IS STILL REFUSED, and that refusal is unchanged: filling the IMAP cache's
+ * A HALF-TRUE LIST IS STILL REFUSED, and that refusal is unchanged: filling the IMAP cache's
  * `preview` column for exactly the messages that happened to be NOTIFIED would light up a handful
  * of rows in the message list and leave every other row blank, which is worse than a list that
  * never promises an opening line at all. The notification path therefore still persists nothing —
  * `ImapMailService.fetchPreview` returns its text and writes no row, and `loadWatchedFolders`
  * caches its page with `preview = null`.
  *
- * ⭐ What this paragraph never priced is the other way out, and it is the one taken for Codeberg
+ * What this paragraph never priced is the other way out, and it is the one taken for Codeberg
  * #187: fill the column for THE WHOLE PAGE the folder read is already holding, not for the few
  * messages a notification happened to want. `ImapMailService.previewsForPage` reads the opening of
  * every message of the page that has readable text and no cached opening yet, in one `UID FETCH`

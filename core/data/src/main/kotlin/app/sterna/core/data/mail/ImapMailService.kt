@@ -48,7 +48,7 @@ import kotlin.coroutines.CoroutineContext
 /**
  * A folder's mailboxes + what the walk of the target folder saw.
  *
- * ⛔ There are no `messages` here any more. They were handed to the caller page by page while the
+ * There are no `messages` here any more. They were handed to the caller page by page while the
  * walk ran ([ImapMailService.loadFolder]'s `onPage`) and are already in the cache by the time this
  * value exists; what is left is [walk] — the UIDs, and whether the folder held still.
  */
@@ -62,7 +62,7 @@ data class ImapFolderLoad(
 )
 
 /**
- * ⛔ Settle the folder's NUMBERING before a single row of it can be seen, then walk it.
+ * Settle the folder's NUMBERING before a single row of it can be seen, then walk it.
  *
  * Two lines and an order, in a function of its own for the reason [fullQueryWriteThrough] is one: an
  * order that exists only as the sequence of two statements in the middle of a long function is an
@@ -77,11 +77,11 @@ data class ImapFolderLoad(
  * writing pages as they land is what re-opened it; before that, nothing was visible until the read
  * was over.
  *
- * ⛔ [settle] COMPARES AND RECORDS, it does not refuse: `loadFolder` selects folders it has just
+ * [settle] COMPARES AND RECORDS, it does not refuse: `loadFolder` selects folders it has just
  * listed, and refusing there would fail a whole inbox refresh over one renumbered folder. Running it
  * earlier must not turn it into a gate.
  *
- * ⚠ It now also runs when the walk goes on to fail, which it did not before. That is the safe
+ * It now also runs when the walk goes on to fail, which it did not before. That is the safe
  * direction — an invalidation seen and applied — and the caches it drops are re-fillable.
  */
 internal suspend fun <R> withNumberingSettled(settle: suspend () -> Unit, walk: suspend () -> R): R {
@@ -93,7 +93,7 @@ internal suspend fun <R> withNumberingSettled(settle: suspend () -> Unit, walk: 
  * The cache ids a finished IMAP folder walk MAY be reconciled against — or NULL when the walk cannot
  * vouch for what it read, and there is no set the reconcile can safely be given.
  *
- * ⛔ A function of its own, and a pure one, because it is the whole IMAP half of the red line and a
+ * A function of its own, and a pure one, because it is the whole IMAP half of the red line and a
  * condition buried in the middle of a refresh is a condition nobody can execute in a test. Null is
  * a refusal, never an empty set: `reconcileMailbox` given an empty keep set deletes the folder.
  *
@@ -114,11 +114,11 @@ internal suspend fun <R> withNumberingSettled(settle: suspend () -> Unit, walk: 
  *    `FETCH` responses carry no `UID` is dropped item by item by `ImapSession.messages`. Both come
  *    back empty, and clearing the cache on either loses every offline message of the folder.
  *
- * ⭐ [ImapFolderWalk.folderStatedEmpty] is the licence, and a folder that really is empty carries it:
+ * [ImapFolderWalk.folderStatedEmpty] is the licence, and a folder that really is empty carries it:
  * an emptied folder must still be able to clear a stale cache, or it shows its old contents for ever
  * and nothing else on IMAP cleans up.
  *
- * ⚠ What refusal (2) costs, stated because it is a real change of behaviour: a folder whose remaining
+ * What refusal (2) costs, stated because it is a real change of behaviour: a folder whose remaining
  * messages ALL carry `\Deleted` without an expunge — another client emptied the trash and did not
  * purge — reports `* n EXISTS` with n > 0, so it is not "stated empty", and `ImapSession.messages`
  * drops every one of them, so the walk brings back no UID. It is indistinguishable from a walk that
@@ -136,7 +136,7 @@ internal fun reconcilableIds(load: ImapFolderLoad, accountId: String): Set<Strin
  * Whether the SELECT this page was read through STATED that the folder is empty — `* 0 EXISTS`,
  * parsed, and nothing else ([ImapMailboxStatus.existsObserved]).
  *
- * ⛔ The exact twin of what `ImapClient.walkFolder` writes into [ImapFolderWalk.folderStatedEmpty],
+ * The exact twin of what `ImapClient.walkFolder` writes into [ImapFolderWalk.folderStatedEmpty],
  * on purpose and with the same words: the statement is the same statement, and the push pass needs
  * it for the same reason the reconcile does. "The page came back with nothing in it" is not "the
  * folder holds nothing": a SELECT that never stated a count leaves `exists` at 0, which reads
@@ -160,7 +160,7 @@ internal fun pageVouchesForEmpty(status: ImapMailboxStatus): Boolean =
  * finding nothing remembered, announces every unread message inside the notifier's age floor: one
  * banner per thread, in the middle of the night, for mail the user read yesterday.
  *
- * ⭐ [ImapWatchedLoad.folderStatedEmpty] is the licence, and a folder that really was emptied carries
+ * [ImapWatchedLoad.folderStatedEmpty] is the licence, and a folder that really was emptied carries
  * it: an emptied folder must still be able to clear its baseline, or that baseline is immortal and
  * mail refiled into the folder later can never be announced.
  */
@@ -207,9 +207,9 @@ data class ImapWatchedLoad(
      * or it answers with rows of the PREVIOUS one, whose UIDs collide with these after a
      * renumbering: the new message would take the old one's first line and keep it (#99 in #187).
      *
-     * ⛔ It comes from the SELECT and NOT from [messages]. Reading it back off the rows would make
+     * It comes from the SELECT and NOT from [messages]. Reading it back off the rows would make
      * the guard answerable to the very rows it guards, and an empty page would carry no answer at
-     * all. ⛔ No default, for the reason written on [previewSources] and [folderStatedEmpty]: it is
+     * all. No default, for the reason written on [previewSources] and [folderStatedEmpty]: it is
      * an answer the server gave, and a default is a way of not asking — a defaulted null would
      * quietly mean "unknown numbering" everywhere and match only the rows of servers that state
      * none.
@@ -221,7 +221,7 @@ data class ImapWatchedLoad(
  * Where one message's opening line can be read from: its [uid] and the [part] the server's own
  * BODYSTRUCTURE named, carried out of the sync page that already received both.
  *
- * ⛔ It exists so that NOTHING re-asks. The structure travels with the envelope of every page of
+ * It exists so that NOTHING re-asks. The structure travels with the envelope of every page of
  * every folder walk; a notification preview that had to ask again would spend a SELECT and a
  * second FETCH per message, in a background service, before it could name the section it wants.
  * The moment this is rebuilt from the server instead of carried, the whole point is gone.
@@ -249,7 +249,7 @@ internal fun previewSourcesOf(
 }.toMap()
 
 /**
- * ⭐ Whether the MESSAGE LIST wants an opening line at all — the one decision that says whether a
+ * Whether the MESSAGE LIST wants an opening line at all — the one decision that says whether a
  * folder walk reads bodies, and the reason [ImapMailService] needs no settings of its own.
  *
  * True when the list itself shows a preview ([PreviewLines] other than `NONE`), and ALSO when it
@@ -259,7 +259,7 @@ internal fun previewSourcesOf(
  * cache row — so a row with no `preview` column loses the opening line the first notification had.
  *
  * Written on the precedent of `NotificationPreviews.gather`'s own first line, which asks the same
- * question of the same setting. ⛔ Pure, and separate, so a test can EXECUTE it over the product of
+ * question of the same setting. Pure, and separate, so a test can EXECUTE it over the product of
  * both enumerations instead of restating the rule — a test that recomputes the condition passes
  * just as happily with the condition inverted.
  */
@@ -278,10 +278,10 @@ internal fun previewWantedInList(lines: PreviewLines, content: NotificationConte
  *  - it starts from [previewSourcesOf], which is already "the totality of the conveyance": the
  *    section and its encoding come from the BODYSTRUCTURE the envelope fetch ALREADY carried, and a
  *    message with no `text/…` part is simply absent — no round trip to learn it has nothing to say;
- *  - ⭐ only the ids in [missing] are asked for. That is what makes the cost be paid ONCE per
+ *  - only the ids in [missing] are asked for. That is what makes the cost be paid ONCE per
  *    message: without it every pull-to-refresh and every step of the pager would re-download up to
  *    two hundred openings the cache is already holding;
- *  - ⭐ the UIDs are grouped BY SECTION and [fetch] is called once per group — two to four calls for
+ *  - the UIDs are grouped BY SECTION and [fetch] is called once per group — two to four calls for
  *    a page in practice ([app.sterna.core.imap.firstTextPart] answers "1", "1.1", "2"…). One call
  *    per message would be up to two hundred sequential round trips under the account's single mutex
  *    ([ImapMailService.withSession]), with opening a message, marking one read and emptying the
@@ -290,7 +290,7 @@ internal fun previewWantedInList(lines: PreviewLines, content: NotificationConte
  *    that reason ([app.sterna.core.imap.ImapSession.fetchSectionPartials]); pairing it by position
  *    would put one correspondent's words under another correspondent's name in the list.
  *
- * ⛔ The decoding is [BodyPreview.fromPart] and nothing else — pure, tested, and the half no socket
+ * The decoding is [BodyPreview.fromPart] and nothing else — pure, tested, and the half no socket
  * test can reach. A body that decodes to nothing is an ORDINARY answer and simply does not become
  * a key, exactly as it is not a preview on the notification path.
  */
@@ -319,7 +319,7 @@ internal fun previewsForPage(
  * What one page of a folder walk WRITES into the preview column: the openings just [read], plus the
  * ones the cache was already holding for the rows that were deliberately not re-read.
  *
- * ⛔ The second half is the whole point, and its absence was Codeberg #187. The read is asked only
+ * The second half is the whole point, and its absence was Codeberg #187. The read is asked only
  * for the ids the cache lacks — that is what makes an opening line cost ONE fetch ever, instead of
  * one per pull-to-refresh over a page of two hundred — but Room's `@Upsert` REPLACES THE WHOLE ROW.
  * So a page written with the fetched openings alone sets `preview = null` on exactly the rows it
@@ -332,7 +332,7 @@ internal fun previewsForPage(
  * reads no body at all and would otherwise blank the newest rows of every watched folder. One rule,
  * two writers; both take their values from the single `EmailDao.cachedPreviews` read.
  *
- * ⛔ [read] wins a collision. It cannot happen on the shipped path (the fetch is asked only for what
+ * [read] wins a collision. It cannot happen on the shipped path (the fetch is asked only for what
  * the cache has not got), but the two are maps of the same type and the operand order is invisible
  * to the compiler: the freshly read body is the fresher of the two.
  */
@@ -358,7 +358,7 @@ internal object ImapBudget {
      * The budget one call actually runs under: what its CALLER asked for, and failing that whatever
      * [ImapReadBudget] the coroutine carries ([ambientMs]).
      *
-     * ⛔ The caller wins whenever it named anything at all, however long — a caller that passed a
+     * The caller wins whenever it named anything at all, however long — a caller that passed a
      * budget has weighed its own operation, and an ambient value silently shortening it would make
      * a bound tighter than the one written at the call site. The ambient value is a FLOOR under the
      * calls that named nothing, not a ceiling over the ones that did.
@@ -390,24 +390,24 @@ internal object ImapBudget {
 }
 
 /**
- * ⭐ **A read budget carried by the COROUTINE**, for the calls whose bound cannot be written at the
+ * **A read budget carried by the COROUTINE**, for the calls whose bound cannot be written at the
  * call site (#95).
  *
  * `withSession`'s [budgetMs] is per call, and the calls that need bounding most are the ones that
  * pass none: `appendDraft` is the whole of the deferred draft upload, and it is `NO_BUDGET`, i.e.
  * `soTimeout = 0`, i.e. a link cut mid-`APPEND` leaves the thread in a `read()` that never returns.
- * ⛔ **A coroutine cancellation does not end a blocking read**: the job is cancelled, the thread
+ * **A coroutine cancellation does not end a blocking read**: the job is cancelled, the thread
  * stays on the socket, it keeps the account's IMAP mutex, and the caller's own `finally` — the one
  * that would have written the failed attempt on the row — is never reached. That is measured
  * behaviour, not a worry: a draft went to `UPLOADING` and stayed there with nothing else able to
  * touch the account.
  *
  * So the bound is installed by the CONTEXT the operation runs in ([MailRepository.uploadLocalDraft])
- * and read at the one place every IMAP call passes, `runWithRetry`. ⛔ It is a FLOOR, never a
+ * and read at the one place every IMAP call passes, `runWithRetry`. It is a FLOOR, never a
  * ceiling: [ImapBudget.effective] lets any caller that named a budget of its own keep it, and with
  * no element installed the ambient value is 0 and every existing caller is bit-for-bit unchanged.
  *
- * ⛔ It does not bound the WAIT for the account's mutex, for `SEND_PROOF_BUDGET_MS`'s reason — but it
+ * It does not bound the WAIT for the account's mutex, for `SEND_PROOF_BUDGET_MS`'s reason — but it
  * is what stops this operation from being the thing another caller waits on forever.
  */
 internal class ImapReadBudget(val millis: Int) : AbstractCoroutineContextElement(ImapReadBudget) {
@@ -446,14 +446,14 @@ class ImapMailService(
      * COROUTINE carries an [ImapReadBudget], which then applies to exactly those callers
      * ([ImapBudget.effective]). See [ENUMERATE_BUDGET_MS] for what a budget is and is not worth.
      *
-     * ⛔ [retryOnFailure] turns that one retry OFF, **per call and for one caller** ([appendDraft]).
+     * [retryOnFailure] turns that one retry OFF, **per call and for one caller** ([appendDraft]).
      * A read can be replayed; an `APPEND` cannot. The failure a client sees says nothing about what
      * the server did with bytes it had already received, so replaying it inside the same call is how
      * one save gesture puts two drafts in the Drafts folder — with no attempt recorded in between,
      * so neither the deferred retry nor the `Message-ID` search of #95 ever gets a say, and IMAP
      * `APPEND` hands back no id for the phone to see either copy by. The retry belongs to the
      * deferred loop, which knows how to de-duplicate; the price is 30 s of backoff on a failure that
-     * was only transient. ⛔ Not a change of the reconnect policy: every other caller keeps it.
+     * was only transient. Not a change of the reconnect policy: every other caller keeps it.
      */
     private suspend fun <T> withSession(
         credentials: AccountCredentials,
@@ -461,7 +461,7 @@ class ImapMailService(
         retryOnFailure: Boolean = true,
         // Suspending for ONE caller, [loadFolder], whose folder walk writes each page to the
         // database between requests — that is what holds the walk's memory to one page. Every
-        // other block here suspends at nothing and behaves exactly as before. ⚠ What a suspending
+        // other block here suspends at nothing and behaves exactly as before. What a suspending
         // block costs is that the account's single connection is held across those suspensions:
         // nothing slow belongs in one that is not the reason the connection is open.
         block: suspend (ImapSession) -> T,
@@ -487,7 +487,7 @@ class ImapMailService(
         retryOnFailure: Boolean,
         block: suspend (ImapSession) -> T,
     ): T {
-        // ⭐ ONE deadline, from the caller's budget or — when it named none — the one the coroutine
+        // ONE deadline, from the caller's budget or — when it named none — the one the coroutine
         // carries ([ImapReadBudget]). It is taken here, so the two `remaining` calls below both
         // derive from it: bounding the connect and leaving the reads at 0 would leave `appendDraft`
         // exactly as unbounded as it was, since its wait is entirely in the tagged response.
@@ -522,7 +522,7 @@ class ImapMailService(
             } catch (t: Throwable) {
                 runCatching { session.close() }
                 pooled.session = null
-                // ⛔ The connection is dropped either way — it is the REPLAY that is refused for a
+                // The connection is dropped either way — it is the REPLAY that is refused for a
                 // caller whose command is not idempotent. See [withSession]'s [retryOnFailure].
                 if (!retryOnFailure || ++attempt >= 2) throw t
             }
@@ -661,13 +661,13 @@ class ImapMailService(
     /**
      * APPEND a draft (\Draft flag) into the Drafts folder.
      *
-     * ⛔ **`retryOnFailure = false`, and it is the point of the call.** The bytes of one save go out
+     * **`retryOnFailure = false`, and it is the point of the call.** The bytes of one save go out
      * at most once per call: a replay inside the session would append a second copy of the same text
      * before any attempt is recorded, so the deferred loop — the only place that de-duplicates by
-     * `Message-ID` (#95) — would never see the first one. ⛔ Not the same for [send]'s Sent-folder
+     * `Message-ID` (#95) — would never see the first one. Not the same for [send]'s Sent-folder
      * APPEND, which is outside this and unchanged.
      *
-     * ⚠ **And no budget of its own, deliberately**: the same call serves the interactive save, which
+     * **And no budget of its own, deliberately**: the same call serves the interactive save, which
      * keeps its historic blocking read, and the deferred upload, which needs a bound. A parameter
      * here would have to be threaded through `uploadDraft` for one of its two callers; the bound is
      * therefore installed on the coroutine instead ([ImapReadBudget], and
@@ -684,7 +684,7 @@ class ImapMailService(
      * named for the copy (`[APPENDUID]`), or null on a server without UIDPLUS: not a failed
      * append, and the caller decides what an unnamed copy is worth.
      *
-     * ⛔ **`retryOnFailure = false`, for [appendDraft]'s reason.** A failure the client sees says
+     * **`retryOnFailure = false`, for [appendDraft]'s reason.** A failure the client sees says
      * nothing about what the server did with bytes it had already received; a replay inside the
      * session would put TWO copies in the folder, and the caller then trashes the original on the
      * strength of one of them. A failed append is reported, never replayed. Block body, not an
@@ -707,9 +707,9 @@ class ImapMailService(
      * message and nothing else; the folder's newest envelopes ([draftIsAlreadyThere]) are not read
      * here, they would name the wrong message on a folder that receives mail meanwhile.
      *
-     * ⚠ Stalwart answers this search EMPTY (see [draftIsAlreadyThere]'s KDoc) — known and
+     * Stalwart answers this search EMPTY (see [draftIsAlreadyThere]'s KDoc) — known and
      * accepted: null makes the move stop at "copied, not removed", a duplicate the user can see,
-     * never a loss. ⛔ Not to be worked around by taking "the newest" instead: a wrong name here
+     * never a loss. Not to be worked around by taking "the newest" instead: a wrong name here
      * trashes the original on the strength of somebody else's message.
      */
     suspend fun findByMessageId(credentials: AccountCredentials, mailbox: String, messageId: String): Long? {
@@ -721,7 +721,7 @@ class ImapMailService(
      * upload asks before appending a second copy of text the server has (#95). `APPEND` returns no
      * id to keep, so this header is the only name that draft has on both sides of the network.
      *
-     * ⛔ **The question is NOT put to the server as a search key.** `SEARCH HEADER "Message-ID"` is
+     * **The question is NOT put to the server as a search key.** `SEARCH HEADER "Message-ID"` is
      * what this used to send, and Stalwart answers it with an empty `* SEARCH` in every shape —
      * naked, bracketed, substring, on a delivered message — while answering `HEADER "Subject"` and
      * `HEADER "To"` perfectly. Measured at the bench, five witnesses, on a folder holding two copies
@@ -730,15 +730,15 @@ class ImapMailService(
      * implements, the newest [DRAFT_LOOKUP_SCAN] of them, their envelopes, and the comparison made
      * HERE by [localDraftMessageIdMatches].
      *
-     * ⛔ **The newest, and a folder deeper than the cap answers "not there".** Our copy is the last
+     * **The newest, and a folder deeper than the cap answers "not there".** Our copy is the last
      * thing `APPEND`ed, so it is at that end; and past the cap the honest answer is "I did not
      * look", whose only safe reading here is "append it".
      *
-     * ⛔ **Not [search], deliberately.** That one maps entities, applies the attachment filter and
+     * **Not [search], deliberately.** That one maps entities, applies the attachment filter and
      * turns a folder it could not read into a skipped folder plus a log line — an empty answer that
      * cannot be told apart from "there is nothing there". Here the two must never look alike: an
      * error has to reach the caller, whose only safe reading of "I could not look" is "append it".
-     * ⛔ Which is also why nothing below is wrapped in a `runCatching`.
+     * Which is also why nothing below is wrapped in a `runCatching`.
      */
     suspend fun draftIsAlreadyThere(
         credentials: AccountCredentials,
@@ -765,7 +765,7 @@ class ImapMailService(
      * cache only holds the last-synced account, so it's wrong for a non-current account
      * in the unified inbox.
      *
-     * ⛔ A BARE `listFolders()`, with no subscription question and therefore no LSUB, and it must
+     * A BARE `listFolders()`, with no subscription question and therefore no LSUB, and it must
      * stay that way (#174). Its one caller (`MailRepository.imapRoleFolder`) reads a role and an
      * id off these rows and WRITES NONE of them, so a subscription fetched here is paid for and
      * thrown away — on every archive, every delete to Trash and every junk move, for an account
@@ -783,17 +783,17 @@ class ImapMailService(
      * Connect, list folders, and WALK the newest [limit] of the target folder, handing each page to
      * [onPage] as it lands.
      *
-     * ⛔ [onPage] is not a convenience: it is where the window's messages go. This function keeps
+     * [onPage] is not a convenience: it is where the window's messages go. This function keeps
      * none of them — see [ImapFolderLoad] — so a caller that passes an empty lambda is asking for
      * the folder list and nothing else, which is what the folder-list refresh does. There is no
      * default for it, deliberately: "where do these messages go" is a question every caller has to
      * answer out loud.
      *
-     * ⛔ [onlySubscribed] is asked of the SERVER, not applied here: it adds the `LSUB` round trip
+     * [onlySubscribed] is asked of the SERVER, not applied here: it adds the `LSUB` round trip
      * that fills [MailboxEntity.isSubscribed] on the rows below (#174). Nothing is dropped from
      * [ImapFolderLoad.mailboxes] because of it, and the target folder is chosen the same way.
      *
-     * ⛔ And [ImapFolderLoad.walk] carries [ImapFolderWalk.moved], which a caller that DELETES on
+     * And [ImapFolderLoad.walk] carries [ImapFolderWalk.moved], which a caller that DELETES on
      * the strength of this walk must honour ([reconcilableIds]).
      *
      * Selects a folder it has just listed, so it cannot be refused on its numbering — but it is
@@ -803,21 +803,21 @@ class ImapMailService(
      * [reconcileNumbering] ahead of the walk and not after it ([withNumberingSettled], Codeberg
      * #99): the pages become visible while the walk is still running.
      *
-     * ⚠ What this costs while it runs, stated because it is not free: the account's ONE connection
+     * What this costs while it runs, stated because it is not free: the account's ONE connection
      * is held for the whole walk, database writes included, so every other IMAP operation on that
      * account (opening a message, marking read, moving, emptying the trash) queues behind it. That
      * was already true of the single FETCH this replaces, but the writes are new inside the lock.
-     * ⚠ And the walk is retried ONCE as a whole on a transport failure (`runWithRetry`), so a
+     * And the walk is retried ONCE as a whole on a transport failure (`runWithRetry`), so a
      * DATABASE failure in the middle of it re-runs the entire network read as well. Both are known
      * and out of this change's scope; neither can delete anything.
      *
-     * ⛔ [cachedPreviewsFor] has NO DEFAULT, for [onPage]'s reason: "does this walk read opening
+     * [cachedPreviewsFor] has NO DEFAULT, for [onPage]'s reason: "does this walk read opening
      * lines, and for which rows" is a question every caller answers out loud. Null means READ NONE.
      * It is a lambda and not a setting because this class has neither the settings nor the database
      * and must not grow either — the caller is given the page's cache ids AND the numbering they
      * were just read under, and answers with the openings it ALREADY holds for them under that
      * numbering (#187): the missing ones are what gets fetched, the held ones are re-written as
-     * they were, because the upsert replaces the whole row. ⛔ The numbering is the second argument
+     * they were, because the upsert replaces the whole row. The numbering is the second argument
      * and not an afterthought: without it the answer can come from the numbering BEFORE a
      * renumbering, and the row then keeps another message's first line for good (#99). See
      * [pagePreviews] for where in the walk it is used, and why there.
@@ -911,12 +911,12 @@ class ImapMailService(
                     folder.path,
                     folder.name,
                     folder.role,
-                    // ⛔ NO preview READ for the row, deliberately: this is the NOTIFICATION path,
+                    // NO preview READ for the row, deliberately: this is the NOTIFICATION path,
                     // it has `previewSources` below and its own budget (six reads and four seconds
                     // for the whole account pass, `NotificationPreviews`), and caching the six it
                     // reads out of a page of fifty is precisely the half-true list `BodyPreview`
                     // refuses. That reason stands and is the only one this line carries.
-                    // ⛔ It DESTROYS none either — and that is not this line's doing, because it
+                    // It DESTROYS none either — and that is not this line's doing, because it
                     // cannot be: `@Upsert` replaces the whole row, so a null written here wipes the
                     // opening line the folder walk cached for these very rows. The caller copies
                     // them back on before writing (`MailRepository.keepingCachedPreviews`, #187).
@@ -941,7 +941,7 @@ class ImapMailService(
     /**
      * Fetch the page of messages just older than the [offset] newest, for paging.
      *
-     * ⛔ [cachedPreviewsFor] has no default, exactly as on [loadFolder], and null means read no
+     * [cachedPreviewsFor] has no default, exactly as on [loadFolder], and null means read no
      * opening lines. What it answers for the page is both the bound on the fetch and what the rows
      * it did not fetch are written back with ([pageOpenings]), and it is asked UNDER the numbering
      * this SELECT stated. The read happens inside the [onMailbox] block — the numbering chokepoint
@@ -977,13 +977,13 @@ class ImapMailService(
      * Move a message to [destMailbox]; returns its new UID there (for undo, in [ImapMoved.uids])
      * and [destMailbox]'s own numbering as `COPYUID` stated it.
      *
-     * ⭐ That numbering is carried because NOTHING ELSE EVER LEARNS IT: a `UID MOVE` does not
+     * That numbering is carried because NOTHING ELSE EVER LEARNS IT: a `UID MOVE` does not
      * SELECT its destination, so on a Trash the user has never opened the app has no recorded
      * number for it — and the Undo of this very move, which is a move OUT of that folder, would
      * then have nothing to oppose and be refused. The server states it in the same breath as the
      * UIDs it hands back, frozen at that instant; see [ImapMoved] (#99).
      *
-     * ⭐ Held to exactly the standard [deleteBatch] is held to, and for the user's own reason:
+     * Held to exactly the standard [deleteBatch] is held to, and for the user's own reason:
      * "delete" on an account with a Trash IS this call ([MailRepository.delete]), so the most
      * ordinary gesture in the app was the one confirming nothing. [expectedUidValidity] is the
      * numbering [uid] was read under; the move only goes out when the server states that same
@@ -992,13 +992,13 @@ class ImapMailService(
      * disagree — so without this the `UID MOVE` went out on yesterday's UIDs, and a renumbered
      * folder had another, live message filed away or thrown in the Trash (#99).
      *
-     * ⚠ Read [deleteBatch]'s doc for why the block RETURNS a verdict and the refusal is raised
+     * Read [deleteBatch]'s doc for why the block RETURNS a verdict and the refusal is raised
      * after [onMailbox] returns: a throw inside would be replayed by `withSession`, and it must
      * not be mistaken for `ImapUidValidityChanged`, which [onMailbox] answers by INVALIDATING the
      * folder — dropping cached bodies and pending purge snapshots over a server that is merely
      * quiet. Both apply here word for word.
      *
-     * ⛔ Not a defaulted "proceed": a call carrying nothing is REFUSED, because carrying nothing
+     * Not a defaulted "proceed": a call carrying nothing is REFUSED, because carrying nothing
      * lets the SELECT fall back on the number recorded right now — the one an ordinary refresh has
      * already updated if the folder was renumbered — and the guard would then compare that number
      * with itself. Refusing costs a re-query; moving costs the mail.
@@ -1030,7 +1030,7 @@ class ImapMailService(
      * [move] opposes it — see that doc, and [deleteBatch]'s, for why. Here it comes from further
      * away: a bulk gesture reads it at the tap and the batch runs after a whole selection has been
      * resolved, so the number belongs to the moment the user acted, never to execution time.
-     * ⚠ The refusal comes back to `MailRepository.imapMoveGroup` through its `runCatching`, which
+     * The refusal comes back to `MailRepository.imapMoveGroup` through its `runCatching`, which
      * catches `Throwable`, so the group lands in `BulkResult.failed` and the caller re-queries.
      */
     suspend fun moveBatch(
@@ -1055,7 +1055,7 @@ class ImapMailService(
      * with an "Empty trash" snapshot. A folder renumbered since then refuses the whole call
      * ([ImapUidValidityChanged]) instead of destroying whatever now holds those numbers (#99).
      *
-     * ⭐ And so does a folder whose numbering the server STOPS STATING. The refusal in
+     * And so does a folder whose numbering the server STOPS STATING. The refusal in
      * [ImapSession.select] compares two positive numbers, so a SELECT carrying no `UIDVALIDITY`
      * line at all sailed through it and the expunge went out on yesterday's UIDs — in the INBOX
      * itself on an account with no Trash. This is the one place where all three facts are in hand
@@ -1067,7 +1067,7 @@ class ImapMailService(
      * is asked here, once, for the three destroy entry points that reach this call: the trash
      * purge, a selection destroy, and `MailRepository.destroyDraft`.
      *
-     * ⚠ The block RETURNS a verdict and the refusal is raised after [onMailbox] returns, rather
+     * The block RETURNS a verdict and the refusal is raised after [onMailbox] returns, rather
      * than thrown inside it. Two things depend on that: a throw inside would be caught by
      * `withSession`'s retry, which would close the session, reconnect, LOGIN and re-SELECT before
      * failing anyway; and it must not be mistaken for `ImapUidValidityChanged`, which
@@ -1117,7 +1117,7 @@ class ImapMailService(
     suspend fun fetchByUids(credentials: AccountCredentials, mailboxId: String, uids: List<Long>): List<EmailEntity> =
         if (uids.isEmpty()) emptyList()
         else onMailbox(credentials, mailboxId) { session, status ->
-            // ⛔ No preview: the ids these rows carry hold BRAND-NEW UIDs — this is the re-cache
+            // No preview: the ids these rows carry hold BRAND-NEW UIDs — this is the re-cache
             // after a `UID MOVE` back (`MailRepository`'s undo), so they collide with nothing and
             // the `@Upsert` overwrites nobody's opening line. Nothing to preserve, nothing to read.
             session.fetchUids(uids).map { it.toEntity(credentials.id, mailboxId, status.uidValidity, null) }
@@ -1162,7 +1162,7 @@ class ImapMailService(
         // (a new keystroke cancelled the search), stop between folders instead of making every
         // later IMAP call wait behind it.
         val caller = currentCoroutineContext()[Job]
-        // ⭐ What each folder's SELECT stated about its numbering, recorded after the walk — the
+        // What each folder's SELECT stated about its numbering, recorded after the walk — the
         // same shape as [loadWatchedFolders], and for the same reason: the store is suspending and
         // the session block holds the account's one connection.
         //
@@ -1172,7 +1172,7 @@ class ImapMailService(
         // Nothing is refused here and nothing is hardened in `core/imap`: the walk had already
         // asked, and this simply stops throwing the answer away.
         //
-        // ⚠ Since schema v25 the DESTROY no longer reads this record at all — it opposes the
+        // Since schema v25 the DESTROY no longer reads this record at all — it opposes the
         // numbering stamped on the ROW ([EmailEntity.uidValidity]), and a search hit is never
         // written to `emails` (`MailRepository.search` maps its hits straight to `toEmail()`). So a
         // permanent delete of a hit the cache does not hold opposes nothing and destroys nothing,
@@ -1193,7 +1193,7 @@ class ImapMailService(
             folders.forEach { hits -> numbering += hits.mailbox to hits.uidValidity }
             ImapSearchHits(
                 messages = folders
-                    // ⛔ No preview: a search hit is NEVER written to `emails` — the comment on this
+                    // No preview: a search hit is NEVER written to `emails` — the comment on this
                     // function says so and `MailRepository.search` maps its hits straight to
                     // `toEmail()`. A body read here would be paid for on the wire and dropped.
                     .flatMap { hits -> hits.messages.map { it.toEntity(credentials.id, hits.mailbox, hits.uidValidity, null) } }
@@ -1223,13 +1223,13 @@ class ImapMailService(
      * One message's ENVELOPE, by folder and UID, as a cache row — `null` when the folder does not
      * hold that UID (destroyed since we last looked).
      *
-     * ⚠ Its doc used to say "used to restore after an undo"; the undo goes through [fetchByUids]
+     * Its doc used to say "used to restore after an undo"; the undo goes through [fetchByUids]
      * (plural) and this had no production caller at all. Its caller is [fetchById], i.e. opening a
      * message the cache does not hold (#159).
      */
     suspend fun fetchByUid(credentials: AccountCredentials, mailboxId: String, uid: Long): EmailEntity? =
         onMailbox(credentials, mailboxId) { session, status ->
-            // ⛔ No preview: this row is not cached either (`MailRepository.fetchById` renders it
+            // No preview: this row is not cached either (`MailRepository.fetchById` renders it
             // and stops), and the message is about to be OPENED — its whole body is one request
             // away, so reading an opening line for it would be the same bytes twice.
             session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId, status.uidValidity, null)
@@ -1241,15 +1241,15 @@ class ImapMailService(
      * What it is for: a hit of a server-side search lives in a folder no sync ever walked, so the
      * `emails` table holds no row for it — and the id already names the folder and the UID
      * ([targetOf]), which is everything the fetch needs. `null` for an id that is not IMAP's, and
-     * ⛔ nothing goes on the wire for one: a `local-draft:` id is the only copy of a text, and it
+     * nothing goes on the wire for one: a `local-draft:` id is the only copy of a text, and it
      * has no business becoming a SELECT of a folder named after a UUID.
      *
-     * ⛔ **Through [fetchByUid], hence through [onMailbox].** That is where the UIDVALIDITY check
+     * **Through [fetchByUid], hence through [onMailbox].** That is where the UIDVALIDITY check
      * that closes #99 lives, and a UID means nothing outside the numbering it belongs to: under a
      * new one, the same number names a DIFFERENT message. A bare `withSession { select(…) }` here
      * would save a lookup and hand the reader somebody else's mail.
      *
-     * ⛔ **And the id must belong to [credentials].** The cache read this fetch stands in for was
+     * **And the id must belong to [credentials].** The cache read this fetch stands in for was
      * also the account partition — `emailsByIds(credentials.id, …)` finds nothing for another
      * account's id and the open failed there. Nothing else re-states it: `MessageViewModel` opens
      * with the CURRENT account whenever the intent carries no account id (a notification without
@@ -1273,7 +1273,7 @@ class ImapMailService(
      * Cc was never loaded. Both callers are deciding whether to destroy a server copy — the draft
      * save, and the send that replaces an edited draft — and those two answers must not look alike.
      *
-     * ⭐ [budgetMs] has no default, for [fetchPreview]'s reason (its doc says it in full): the
+     * [budgetMs] has no default, for [fetchPreview]'s reason (its doc says it in full): the
      * block below is blocking, holds the account's single connection under its mutex, and a
      * `withTimeout` from the caller can bound none of that. The save passes
      * [ImapBudget.NO_BUDGET] explicitly — its historic blocking behaviour; the send passes a real
@@ -1281,7 +1281,7 @@ class ImapMailService(
      * composer's RAM. An expired budget throws ([SocketTimeoutException]), which every caller
      * already reads as "could not be established": unknown, keep the original.
      *
-     * ⚠ **`NO_BUDGET` here is "the caller named nothing", not "nothing bounds this".** The save's
+     * **`NO_BUDGET` here is "the caller named nothing", not "nothing bounds this".** The save's
      * call site is shared with the DEFERRED draft upload, whose coroutine carries an
      * [ImapReadBudget] (#95): passing `NO_BUDGET` from there yields to that ambient bound
      * ([ImapBudget.effective]). Wanted, and harmless in the only direction that matters — an expiry
@@ -1328,7 +1328,7 @@ class ImapMailService(
      * it costing a SELECT as well as the FETCH — [onMailbox] selects the folder every time. Its one
      * caller pays that off the opening path, inside a background launch.
      *
-     * ⛔ Not `EmailEntity.receivedAt`, which on this protocol is the message's `Date:` header
+     * Not `EmailEntity.receivedAt`, which on this protocol is the message's `Date:` header
      * (`toEntity`, from `ImapMessage.dateMillis`) and is written by whoever sent the mail. The one
      * caller dates an Autocrypt key with this, and a sender-chosen date there is permanent inside
      * the OpenPGP provider.
@@ -1340,14 +1340,14 @@ class ImapMailService(
      * The opening line of every message of [page] that has one and does not have one CACHED yet —
      * read here, INSIDE the folder read, on the session that has just SELECTed the folder (#187).
      *
-     * ⭐ Inside the read on purpose, and it is [fetchPreview]'s reason for going through
+     * Inside the read on purpose, and it is [fetchPreview]'s reason for going through
      * [onMailbox]: a UID means nothing outside the numbering it was enumerated under. Asking for
      * these bodies anywhere else would name UIDs under a SELECT that is not the one that listed
      * them, a renumbered folder would answer with OTHER MESSAGES' text, and the list would show the
      * opening of somebody else's mail under this sender's name (Codeberg #99). Both callers put it
      * behind that check: the walk's own `select`, and `fetchOlderPage`'s [onMailbox].
      *
-     * ⛔ NOTHING ESCAPES. An exception raised here would fail the whole folder read — the read that
+     * NOTHING ESCAPES. An exception raised here would fail the whole folder read — the read that
      * fills the cache and that a notification pass advances its baseline behind. A failed pass
      * RE-ANNOUNCES the folder on the next round, and a re-announce MOVES MAIL on the server
      * (`unarchiveThreadsOnReply`); see `NotificationPreviews.postGatheredFirst`, which is written
@@ -1355,7 +1355,7 @@ class ImapMailService(
      * gone, and every other failure costs the openings of one page and strictly nothing else. Same
      * shape as [fetchPreview], for the same reason.
      *
-     * ⚠ "Costs the openings NOT YET READ" is true of the failing NETWORK read and only of it. The
+     * "Costs the openings NOT YET READ" is true of the failing NETWORK read and only of it. The
      * cache read is inside the same `try`, so a [cachedPreviewsFor] that throws leaves `cached`
      * empty and the page goes out bare — the upsert then blanks the column for the whole page.
      * That is bounded rather than repaired, deliberately: the same database serves the upsert this
@@ -1364,13 +1364,13 @@ class ImapMailService(
      * SQLite's host-variable cap on `IN (:ids)`, which the "ONE PAGE, never several" rule written
      * on that query already holds off.
      *
-     * ⛔ [cachedPreviewsFor] null means READ NOTHING — the caller has not asked, or has no settings
+     * [cachedPreviewsFor] null means READ NOTHING — the caller has not asked, or has no settings
      * to ask with. The decision is the caller's because this class has neither the settings nor the
      * database ([MailRepository.listPreviewCache]), and that has to stay true. When it is not null
      * it answers what the cache ALREADY holds for the page UNDER [uidValidity], keyed by row id:
      * the keys bound the fetch, the values are carried through by [pageOpenings].
      *
-     * ⛔ [uidValidity] is the numbering the SELECT that enumerated this page stated, through the one
+     * [uidValidity] is the numbering the SELECT that enumerated this page stated, through the one
      * shipped normalisation ([UidValidity.stated]) — and it is what makes the cache read SAFE
      * rather than merely cheap. A row id carries no UIDVALIDITY, and a renumbered folder hands back
      * UIDs that collide with the ids still cached: unbounded, the read answers the PREVIOUS
@@ -1378,7 +1378,7 @@ class ImapMailService(
      * (#99 in #187). Passed IN rather than read off the rows, for the reason on
      * [ImapWatchedLoad.uidValidity].
      *
-     * ⛔ BOTH CALL SITES PASS [accountId] AND [mailboxId] BY NAME, and they must keep doing so:
+     * BOTH CALL SITES PASS [accountId] AND [mailboxId] BY NAME, and they must keep doing so:
      * they are two adjacent `String`s, so swapping the two names in this declaration compiles,
      * type-checks, and mints `imap:INBOX:acct-1:7` for a row cached as `imap:acct-1:INBOX:7` — no
      * lookup ever hits, no row ever shows an opening line, and the whole page is re-downloaded on
@@ -1386,7 +1386,7 @@ class ImapMailService(
      * `PreviewFetchWiringTest` read function BODIES and can see neither this signature nor a
      * positional call's meaning; this is what covers it.
      *
-     * ⭐ WHAT BOUNDS THIS READ, since it deliberately does NOT use `NotificationPreviews`' budget
+     * WHAT BOUNDS THIS READ, since it deliberately does NOT use `NotificationPreviews`' budget
      * (six reads and four seconds): the bound is STRUCTURAL, and it has to be. That budget is per
      * ACCOUNT and sized for a group summary of six children; spent over a page of two hundred rows
      * it would fill six of them and leave the rest blank — the half-true list `BodyPreview` refuses,
@@ -1397,7 +1397,7 @@ class ImapMailService(
      * already cached, so a folder's openings are paid for ONCE and a pull-to-refresh over the same
      * page puts nothing on the wire.
      *
-     * ⛔ AND WHAT IS NOT RE-READ IS CARRIED OVER, NOT LOST ([pageOpenings]). The cost filter decides
+     * AND WHAT IS NOT RE-READ IS CARRIED OVER, NOT LOST ([pageOpenings]). The cost filter decides
      * what goes on the WIRE; it must never decide what goes in the ROW, because `@Upsert` replaces
      * the whole row and would blank the column for every id the filter took out — the flicker of
      * Codeberg #187. Hence the cached values come back out of this function alongside the fetched
@@ -1443,28 +1443,28 @@ class ImapMailService(
      * PDF has no opening line, and asking the server about it would be a round trip whose answer is
      * known.
      *
-     * ⛔ It throws nothing, and that is deliberate: a preview is decoration on a notification whose
+     * It throws nothing, and that is deliberate: a preview is decoration on a notification whose
      * job is to say that mail arrived. A timeout, a refused SELECT, a folder renumbered under it —
      * every one of them costs the preview and nothing else. A cancellation is the exception, and is
      * re-thrown: it means the caller is gone, and swallowing it here would turn a cancelled push
      * pass into one that quietly continues.
      *
-     * ⭐ [budgetMs] IS the timeout, and it has no default on purpose: a caller that forgot it would
+     * [budgetMs] IS the timeout, and it has no default on purpose: a caller that forgot it would
      * get [ImapBudget.NO_BUDGET], i.e. `soTimeout = 0`, i.e. block until the OS gives up — minutes,
      * on a server that accepts the connection and then says nothing (a captive portal, a dead VPN).
      *
-     * ⛔ And it is the ONLY thing that can bound this call. The block below is BLOCKING and holds
+     * And it is the ONLY thing that can bound this call. The block below is BLOCKING and holds
      * the account's single connection under its mutex, with no suspension point inside it: a
      * `withTimeout` wrapped around this from the caller would cancel the job without the thread
      * ever coming back off the socket read, and the mutex would stay taken with it. Every other
      * IMAP operation on that account queues behind this one, so the bound belongs here.
      *
-     * ⭐ Through [onMailbox], like every other read that names a UID, so the folder's UIDVALIDITY is
+     * Through [onMailbox], like every other read that names a UID, so the folder's UIDVALIDITY is
      * checked BEFORE the FETCH goes out. A UID from a renumbered folder names another message, and
      * the notification would show the opening of somebody else's mail (Codeberg #99). No preview is
      * the right answer there, and it is the one the refusal produces.
      *
-     * ⛔ The result is returned, NEVER STORED, and that is unchanged by #187: the row this pass caches
+     * The result is returned, NEVER STORED, and that is unchanged by #187: the row this pass caches
  * is written with `preview = null` ([loadWatchedFolders]). The list's opening lines are filled a
  * whole page at a time by [pagePreviews]; caching the six messages THIS path happens to read,
  * out of a page of fifty, is the half-true list `BodyPreview` refuses.
@@ -1533,7 +1533,7 @@ class ImapMailService(
          * LAST thing appended to the folder: a deferred upload runs minutes after the save it
          * retries, and fifty drafts written in between is already a stretch.
          *
-         * ⛔ Deeper than this, the answer is "not found", i.e. APPEND. That is the direction a
+         * Deeper than this, the answer is "not found", i.e. APPEND. That is the direction a
          * doubt must fall: a copy too many in Drafts is visible and deletable, a draft abstained
          * over is gone — `uploadLocalDraftOnce` consumes the row either way.
          */
@@ -1556,7 +1556,7 @@ class ImapMailService(
         /**
          * The ACCOUNT encoded in a cache id, or null when the id is not IMAP's.
          *
-         * ⭐ The segment [targetOf] throws away, and the one that carries the partition: an id is
+         * The segment [targetOf] throws away, and the one that carries the partition: an id is
          * only meaningful under the account it was built for, and the folder + UID it also carries
          * are perfectly valid coordinates on somebody else's server. [fetchById] compares it before
          * it dials.
@@ -1571,11 +1571,11 @@ class ImapMailService(
          * Folder path and UID to ask the server for, from an id alone; null when the id is not
          * IMAP's (a `local-draft:` id, a JMAP id, a truncated one).
          *
-         * ⚠ It says nothing about WHOSE account the id belongs to — see [accountOf]. Every caller
+         * It says nothing about WHOSE account the id belongs to — see [accountOf]. Every caller
          * that goes to a server with this pair owes that comparison; `MailRepository.imapTarget`'s
          * six call sites already hold an id they read out of their own account's cache.
          *
-         * ⭐ The ONE place that derivation is made, for both callers: [fetchById] and
+         * The ONE place that derivation is made, for both callers: [fetchById] and
          * `MailRepository.imapTarget`, which built it twice, identically. A rule applied in one
          * copy and not the other is the defect this exists to make impossible — and it is a pure
          * function so that a test can EXECUTE the decision instead of re-deriving it.
@@ -1589,7 +1589,7 @@ class ImapMailService(
 }
 
 /**
- * ⭐ The ONE place a listed IMAP folder becomes a cache row, for BOTH callers ([listMailboxes] and
+ * The ONE place a listed IMAP folder becomes a cache row, for BOTH callers ([listMailboxes] and
  * [loadFolder] built it twice, identically, and a rule applied in one copy and not the other is
  * the defect this was extracted to make impossible).
  *
@@ -1599,9 +1599,9 @@ class ImapMailService(
  * puts it in [NOT_SEARCHED_ROLES], so the second trash stays out of search results and out of the
  * FTS crawl — it used to be searched and indexed, and a cache purge could not clear it.
  *
- * ⛔ The mark does not leave `:core:data` AS A ROLE. It is erased at the crossing to the UI model
+ * The mark does not leave `:core:data` AS A ROLE. It is erased at the crossing to the UI model
  * ([MailboxEntity.toMailbox]) and dropped from [folderRoleMap], so every screen sees a role-less
- * folder: raw name, no trash icon, renameable, deletable, never the destination of a delete. ⚠ The
+ * folder: raw name, no trash icon, renameable, deletable, never the destination of a delete. The
  * FACT of the loss does cross, as the boolean `Mailbox.lostRoleClaim` ([isLostRoleClaim]), read by
  * `ui.inbox.visibleFolders` and by nothing else — without it "show subscribed folders only" (#174)
  * dropped the loser from every listing surface while it was already out of search, which left it
@@ -1609,7 +1609,7 @@ class ImapMailService(
  * gates Rename and Delete on `role == null`, and a mark reaching it costs the user the ⋮ menu of
  * her shared trash.
  *
- * ⛔ A lost claim on any OTHER role stays null, exactly as before: nothing anywhere gives a `~sent`
+ * A lost claim on any OTHER role stays null, exactly as before: nothing anywhere gives a `~sent`
  * a meaning, and marking one would only put an unreadable value in the cache row.
  *
  * A file-level function rather than a private method so a JVM test can EXECUTE the decision:
@@ -1648,7 +1648,7 @@ private fun rolePriority(role: String?): Int = when (role) {
 }
 
 /**
- * ⭐ The ONE place an IMAP message becomes a cache row — the row the list, the offline reply and
+ * The ONE place an IMAP message becomes a cache row — the row the list, the offline reply and
  * the notification quick reply all read, and the only thing left of a message after process death.
  *
  * A file-level function rather than a private method, and for one reason: the repository path that
@@ -1662,20 +1662,20 @@ private fun rolePriority(role: String?): Int = when (role) {
  * side never has. The two therefore have to agree column by column, and this is the copy that a
  * new column is forgotten in.
  *
- * ⛔ [uidValidity] has NO DEFAULT, and it must not gain one: it is the numbering of the SELECT that
+ * [uidValidity] has NO DEFAULT, and it must not gain one: it is the numbering of the SELECT that
  * enumerated THIS message, and a default is a way of not asking the question. Without it the six
  * call sites below could each forget it silently; with it the compiler holds every one of them, and
  * a seventh read path cannot be added without stating what its rows were read under (#99). Same
  * reason `previewSources` and `folderStatedEmpty` say "No default" where they are built.
  *
- * ⛔ [preview] HAS NO DEFAULT EITHER, and for that same rule (#187). It is the opening line ALREADY
+ * [preview] HAS NO DEFAULT EITHER, and for that same rule (#187). It is the opening line ALREADY
  * READ for this message by the caller — `null` where the caller read none — and a default would let
  * a read path fill every other column and quietly leave this one blank, which is the defect this
  * parameter closes. With no default the compiler holds all six call sites, so each of them has to
  * say out loud whether the rows it is about to cache carry an opening line or not; the four that
  * pass `null` write down why on the line above.
  *
- * ⛔ And nothing is DECIDED here: this line copies the value it was handed. A rule written on it
+ * And nothing is DECIDED here: this line copies the value it was handed. A rule written on it
  * would be a second rule, in the one place no JVM test can execute
  * (`PreviewFetchWiringTest.the cached preview covers the whole page…`).
  */
@@ -1725,7 +1725,7 @@ internal fun ImapMessage.toEntity(
         ccJson = EmailRecipients.encode(
             cc.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
         ),
-        // Envelope Bcc, in ITS OWN column. ⛔ Never folded into ccJson above: the whole point of
+        // Envelope Bcc, in ITS OWN column. Never folded into ccJson above: the whole point of
         // the second column is that a blind copy stays blind. A DRAFT this app appended does carry
         // a Bcc: header and surfaces here — that header is the only place a Cci survives a save,
         // since the draft is reopened from the server's copy (OutgoingMime.build's [BlindCopies],
@@ -1740,12 +1740,12 @@ internal fun ImapMessage.toEntity(
         // pair wrongly — the folder-wide record can be realigned by a background pass while these
         // ids still belong to the old numbering, and that is the accident this closes.
         //
-        // ⭐ NORMALISED HERE for the row, and never at the six call sites: `ImapMailboxStatus
+        // NORMALISED HERE for the row, and never at the six call sites: `ImapMailboxStatus
         // .uidValidity` is a `Long` in which 0 means "the server stated nothing", and 0 is not a
         // numbering. It becomes null — "nothing to oppose", which destroys nothing — exactly as
         // `UidValidityStore.record` refuses to write it and `MessageDestroyWorker` reads it back.
         //
-        // ⭐ The rule now has a NAME and is CALLED, not spelled out again ([UidValidity.stated]).
+        // The rule now has a NAME and is CALLED, not spelled out again ([UidValidity.stated]).
         // Still ONE rule: what changed is that a second kind of caller needs it — the reads that
         // must not answer with rows of another numbering (`EmailDao.cachedPreviews`, #99 in #187) —
         // and a row written under one spelling and looked up under another simply never matches,

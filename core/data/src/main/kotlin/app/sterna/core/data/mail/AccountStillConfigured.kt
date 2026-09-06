@@ -4,7 +4,7 @@ package app.sterna.core.data.mail
  * A sync walk found, mid-flight, that the account it writes for is no longer configured — signed
  * out from the settings screen while it was running.
  *
- * ⛔ A [CancellationException] on purpose, and the choice is load-bearing three times over:
+ * A [CancellationException] on purpose, and the choice is load-bearing three times over:
  *
  *  - `fullQueryWriteThrough` treats a cancellation like any other failure: it climbs out of the
  *    walk and the reconcile NEVER runs. Abandoning a walk must not delete anything;
@@ -14,7 +14,7 @@ package app.sterna.core.data.mail
  *    user asked for the account to go; a red error line for a gesture that SUCCEEDED would be a
  *    lie, and `#65`'s connectivity probe would count it as an offline network besides.
  *
- * ⛔ Which is why `MailRepository.refreshAllInboxes` catches THIS type by name, above its
+ * Which is why `MailRepository.refreshAllInboxes` catches THIS type by name, above its
  * cancellation catch, and skips the account instead of letting it out. A first version of this file
  * argued the opposite — "the sign-out re-points the list, which refreshes again straight away" —
  * and that is only true when the account signed out was the CURRENT one. For any other account
@@ -31,7 +31,7 @@ class AccountGoneException(val accountId: String) : kotlin.coroutines.cancellati
 /**
  * The decision a sync makes before it writes: may rows still be tagged with [localAccountId]?
  *
- * ⭐ This is the blank-id guard of Codeberg #121 one notch further along. That one refuses an id
+ * This is the blank-id guard of Codeberg #121 one notch further along. That one refuses an id
  * that was never an account (`require(…isNotBlank())` in `MailRepository.refresh`/`syncMailbox`);
  * this one refuses an id that STOPPED being one — the same stranded row with another face. Signing
  * an account out cancels nothing: the walk lives in the list screen's scope, not the settings
@@ -48,7 +48,7 @@ class AccountGoneException(val accountId: String) : kotlin.coroutines.cancellati
  *    [AccountGoneException] — a cancellation, which unwinds the walk without deleting anything and
  *    without reporting a failure.
  *
- * ⚠ An EMPTY [configuredAccountIds] abandons, and "empty" does not only mean "no account is
+ * An EMPTY [configuredAccountIds] abandons, and "empty" does not only mean "no account is
  * configured". `AccountStore.accounts()` also answers `emptyList()` when the stored JSON fails to
  * DECODE — so a corrupt blob stops every sync of every account here, silently, since a cancellation
  * raises no banner and writes no error. The direction is still the right one (refusing a write
@@ -58,7 +58,7 @@ class AccountGoneException(val accountId: String) : kotlin.coroutines.cancellati
  * answer is to do nothing; here the failure mode is reversed. Both fail on the side that cannot
  * destroy data.
  *
- * ⚠ What this does NOT close: a page whose check passed microseconds before the account left the
+ * What this does NOT close: a page whose check passed microseconds before the account left the
  * store still lands, and lands after the purge. The race is not removed, it is narrowed from the
  * minutes a deep folder takes to the width of one write. What collects those is the orphan sweep —
  * the one at the end of the next `signOut`, and the one `SternaApplication` runs at every process

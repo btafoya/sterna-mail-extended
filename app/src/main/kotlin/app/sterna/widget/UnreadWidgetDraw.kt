@@ -25,7 +25,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * and a second `RemoteViews` built somewhere else is the same fault as a second way of counting:
  * the two draws drift, and the cell shows one or the other depending on what woke it.
  *
- * ⛔ The numbers are never decided here either. Every path below asks
+ * The numbers are never decided here either. Every path below asks
  * `MailRepository.observeUnifiedInboxUnreadByAccount()` or is HANDED what it returned (#112) — one
  * entry per account, whose total is what the small cell and the drawer's "All inboxes (N)" show.
  */
@@ -51,7 +51,7 @@ internal object UnreadWidgetDraw {
      * An empty [ids] draws nothing rather than nothing-in-particular: the provider is handed the
      * cells the system named, the push is handed [placedIds], and both are allowed to be empty.
      *
-     * ⭐ ONE `RemoteViews` for every cell, still. What the user dragged their cell to is not read
+     * ONE `RemoteViews` for every cell, still. What the user dragged their cell to is not read
      * here at all: [android.widget.RemoteViews] built from a map of sizes lets the LAUNCHER pick,
      * per cell and on every resize, so nothing in this file has to know a geometry — and the four
      * `OPTION_APPWIDGET_M**_*` numbers, which describe two ORIENTATIONS rather than one size, are
@@ -64,10 +64,10 @@ internal object UnreadWidgetDraw {
         // callers were already inside a coroutine — the provider's launch, the app-scoped push's
         // collect, and refresh() below — so nothing gained a thread here.
         //
-        // ⚠ It may be NULL, and null is not handled here on purpose: it travels to BOTH renders
+        // It may be NULL, and null is not handled here on purpose: it travels to BOTH renders
         // and is drawn by posting no colour at all. That is the reader saying either "the read
         // timed out" or "the app does not diverge from the system", and in both cases the
-        // resources hold the right answer. ⛔ Never a `?:` default here — a default is this file
+        // resources hold the right answer. Never a `?:` default here — a default is this file
         // deciding a colour.
         val palette = WidgetThemeReader.palette(app)
         // One read of the account list, spent three times: what the cell is CALLED, what a tap on
@@ -84,16 +84,16 @@ internal object UnreadWidgetDraw {
         // draws the total at every size, because an account's name can be its owner's address.
         val rows = UnreadWidgetContent.byAccount(accounts, unreadByAccount, store.appLockEnabled())
         val views =
-            // ⚠ API 31+ only, and the fallback is deliberate: below it the size-map constructor
+            // API 31+ only, and the fallback is deliberate: below it the size-map constructor
             // does not exist, the cell keeps the layout it has always had however large it is
             // drawn, and nothing else changes. The same trade RecentMailWidgetDraw takes for
             // RemoteCollectionItems, for the same reason — minSdk here is 26.
             if (rows.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // ⛔ The ventilated entry's height is DERIVED from how many lines there are, never a
+                // The ventilated entry's height is DERIVED from how many lines there are, never a
                 // constant: a constant is a claim about how many accounts the reader has, and at
                 // four it cost them one, cut off by the edge in silence ([ventilatedHeightDp]).
                 // Below that height the launcher falls back to SMALL by itself — the total.
-                // ⚠ The font scale is read HERE, at draw time, because the rest of the size rule
+                // The font scale is read HERE, at draw time, because the rest of the size rule
                 // must stay runnable in a test and `Configuration` is not.
                 val fontScale = app.resources.configuration.fontScale
                 val ventilated = SizeF(VENTILATED_WIDTH_DP, ventilatedHeightDp(rows.size, fontScale))
@@ -114,7 +114,7 @@ internal object UnreadWidgetDraw {
     /**
      * Read the count and draw it — for a caller that has no number in hand.
      *
-     * ⚠ [withTimeoutOrNull] and NOT `withTimeout`: the only caller is the tail of
+     * [withTimeoutOrNull] and NOT `withTimeout`: the only caller is the tail of
      * `FetchAndNotify.run`, which treats its failures with `runCatching { … }.rethrowIfCancelled()`
      * so that a sign-out is never mistaken for a failed step. `withTimeout` reports a slow read as
      * a [kotlinx.coroutines.CancellationException], which that wrapper would re-throw — a widget
@@ -132,7 +132,7 @@ internal object UnreadWidgetDraw {
     }
 
     /**
-     * ⛔ THE ONLY PLACE IN THIS FILE THAT ATTACHES A TAP, and a source lint holds it to one line.
+     * THE ONLY PLACE IN THIS FILE THAT ATTACHES A TAP, and a source lint holds it to one line.
      * The whole cell is the target, not one of the labels and not a row: a home-screen cell that
      * only reacts on the digits reads as broken, and both layouts put that id on their ROOT.
      *
@@ -147,11 +147,11 @@ internal object UnreadWidgetDraw {
     /**
      * The cell as it has always been: one figure, one label under it.
      *
-     * ⛔ It reads NOTHING: [palette] arrives decided, like the count and the tap target, because
+     * It reads NOTHING: [palette] arrives decided, like the count and the tap target, because
      * this function is not suspending and never was — a settings read pushed down here would have
      * to block whatever thread the caller is on.
      *
-     * ⭐ [palette] MAY BE NULL, and null posts NO colour line at all — not a default one. The three
+     * [palette] MAY BE NULL, and null posts NO colour line at all — not a default one. The three
      * lines below are `setBackgroundResource(id)` and two `setTextColor(int)`, i.e. values FROZEN
      * into a `RemoteViews` the launcher caches, and the three `widget_surface_*.xml` have no
      * `-night` twin. Skipping them leaves the cell on `@drawable/widget_unread_background` and
@@ -159,10 +159,10 @@ internal object UnreadWidgetDraw {
      * inflation — so the cell follows the system's dusk switch by itself, with this process dead.
      * That is exactly what [widgetFollowsResources] buys, and it is the same rule
      * [RecentMailWidgetFactory] states for its rows: no `setTextColor` keeps the layout's colour,
-     * stale at worst, never wrong. ⛔ All three go together: post the background without the text
+     * stale at worst, never wrong. All three go together: post the background without the text
      * colours (or the reverse) and the cell is half this theme and half the other.
      *
-     * ⛔ The background is set with `setBackgroundResource`, NEVER `setBackgroundColor`.
+     * The background is set with `setBackgroundResource`, NEVER `setBackgroundColor`.
      * `View.setBackgroundColor(int)` throws the shape drawable away and replaces it with a flat
      * fill, so the cell comes out SQUARE among rounded neighbours — with every corner rule in this
      * package still green, because none of them can see a RemoteViews. `setBackgroundTintList`
@@ -187,23 +187,23 @@ internal object UnreadWidgetDraw {
      * The enlarged cell: [rows] and nothing else — no total above them, no "All inboxes" heading.
      * The lines already say both.
      *
-     * [android.widget.RemoteViews.removeAllViews] FIRST, and ⛔ NOT because this object carries
+     * [android.widget.RemoteViews.removeAllViews] FIRST, and NOT because this object carries
      * anything over — it is built fresh on every draw, so there is nothing of the last one in it.
      * It is the LAUNCHER's side that carries: the actions are replayed onto a view hierarchy that
      * may already be inflated, and `reapply` on a container that already holds three lines appends
      * three more. An account removed would keep its line, and every redraw would lengthen the
      * cell — which is also why this is one of the two places a stale row could survive at all.
      *
-     * ⛔ [palette] IS POSTED ON THE ROWS TOO, and that is not decoration. This layout and its rows
+     * [palette] IS POSTED ON THE ROWS TOO, and that is not decoration. This layout and its rows
      * name `@color/widget_row_primary` and `@color/widget_unread_count`, which is exactly where
      * the small cell's colours used to come from before #117: a reader who forces Sterna to light
      * on a dark phone would get a dark enlarged cell, and pure black could not reach it at all.
      * Painting one layout of the map and not the other is worse than painting neither — the same
      * cell would change theme as the user drags it larger.
      *
-     * ⭐ Null still posts NOTHING, on the container and on every row alike, for the reason
+     * Null still posts NOTHING, on the container and on every row alike, for the reason
      * [renderTotal] states: the launcher re-resolves `values-night` at every inflation, so the
-     * cell follows dusk with this process dead. ⛔ The rows must follow the container's answer —
+     * cell follows dusk with this process dead. The rows must follow the container's answer —
      * a row painted while the container is left to the resources is a line of this theme's text
      * on the other theme's surface.
      */
@@ -234,7 +234,7 @@ internal object UnreadWidgetDraw {
      * [UnreadWidgetTap] decides which, and it decides it with no Android type in hand so the rule
      * can be executed in a test.
      *
-     * ⛔ THE ACTION IS LOAD-BEARING, and it is not a matter of taste. A `PendingIntent`'s identity
+     * THE ACTION IS LOAD-BEARING, and it is not a matter of taste. A `PendingIntent`'s identity
      * is `(requestCode, Intent compared by filterEquals, flags)`, and `filterEquals` ignores
      * EXTRAS. Every new-mail notification builds `Intent(context, MainActivity::class.java)` with
      * neither action nor data, so those intents are filterEquals-identical to one another and are
@@ -246,7 +246,7 @@ internal object UnreadWidgetDraw {
      * number collides. Without it, the first notification whose `childId` lands on
      * [TAP_REQUEST_CODE] has its extras rewritten by `FLAG_UPDATE_CURRENT` — the user taps the
      * banner announcing a message and the app opens the unified inbox instead of that message.
-     * ⛔ A future reader "simplifying" this line back to a bare `Intent(context, …)` reintroduces
+     * A future reader "simplifying" this line back to a bare `Intent(context, …)` reintroduces
      * exactly that, silently and only for some users. [TAP_REQUEST_CODE] is a belt on top.
      *
      * `FLAG_UPDATE_CURRENT` is deliberate for the other direction: the target changes when a second
@@ -288,7 +288,7 @@ internal object UnreadWidgetDraw {
      * which a given cell gets — the point of the map form.
      *
      * It is the declared minimum of `appwidget_info_unread.xml` (110x40), so it is always a
-     * candidate and a cell can never end up with nothing to draw. ⛔ The other entry is NOT a
+     * candidate and a cell can never end up with nothing to draw. The other entry is NOT a
      * constant next to it any more: it is [VENTILATED_WIDTH_DP] by [ventilatedHeightDp], i.e. the
      * room this many account lines actually need at this font scale. A fixed 110dp high was a
      * silent promise that nobody has a fourth account, and the fourth one was cut off by the edge.
@@ -307,7 +307,7 @@ internal object UnreadWidgetDraw {
      * A constant, and a belt rather than the mechanism. The disjunction from the notifications is
      * the action above; this number only separates the widget's own intent from itself, which is
      * what makes `FLAG_UPDATE_CURRENT` refresh the one cell target instead of stacking targets.
-     * ⛔ Do not "make it unique" — no number is, `childId` hashes over every `Int`.
+     * Do not "make it unique" — no number is, `childId` hashes over every `Int`.
      */
     private const val TAP_REQUEST_CODE = 0
 }
@@ -322,7 +322,7 @@ internal object UnreadWidgetDraw {
  *    authoritative answer at that instant, and it is the only one a process that starts with a
  *    widget already on the home screen would ever get: `onEnabled` fired long ago, on a process
  *    that has since died;
- *  - the CALLBACKS, for the answer changing under a running process. ⚠ [android.appwidget
+ *  - the CALLBACKS, for the answer changing under a running process. [android.appwidget
  *    .AppWidgetProvider.onEnabled] fires for the FIRST instance only and `onDisabled` for the last
  *    one going — neither is per instance, which is exactly the granularity wanted here: the
  *    collection does not care how many cells there are, only whether there is one.
@@ -361,7 +361,7 @@ internal object UnreadWidgetPresence {
  * Does this set of placed cell ids mean the app has a widget? — the seed's whole decision, pulled
  * out where it can be RUN.
  *
- * ⛔ It is one call, and it was one call before; what it was not, was covered. Nothing referenced
+ * It is one call, and it was one call before; what it was not, was covered. Nothing referenced
  * [UnreadWidgetPresence] in the suite, and the wiring lint next door pins that the seed EXISTS, not
  * what it answers — so inverting this to `isEmpty()` left every test green while breaking both
  * sides of the gate at once: a user who HAS placed a cell keeps the gate shut for the life of the

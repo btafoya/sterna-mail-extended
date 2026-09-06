@@ -8,13 +8,13 @@ package app.sterna.core.data.account
  * the new app has never heard of — and the first signature attempt would fail on a key the screen
  * says is configured (#151).
  *
- * ⭐ [StoredAccount.pgpEnabled] and [StoredAccount.pgpEncryptByDefault] are deliberately LEFT ALONE.
+ * [StoredAccount.pgpEnabled] and [StoredAccount.pgpEncryptByDefault] are deliberately LEFT ALONE.
  * With the key cleared the account screen already reads "No key selected" next to its Choose key
  * button, which is the true state; turning PGP off as well would silently undo a setting the user
  * made, and re-enabling it is not something an app should decide on their behalf. It is what K-9
  * does with `NO_OPENPGP_KEY`.
  *
- * ⛔ [StoredAccount.pgpPublicKey] goes WITH the key id, in the same gesture: it is a copy of the
+ * [StoredAccount.pgpPublicKey] goes WITH the key id, in the same gesture: it is a copy of the
  * bytes of a key in the keyring being left. Kept behind, the account would go on announcing that
  * key while the screen shows no key at all — and the next key chosen in the new app would inherit
  * someone else's public half.

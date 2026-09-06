@@ -21,7 +21,7 @@ import java.util.Locale
  * [afterMillis]/[beforeMillis] are epoch-millis bounds; IMAP compares them against the
  * server's INTERNALDATE with DAY granularity, so they are rendered as calendar days (UTC).
  *
- * ⛔ **No `HEADER` key here, and none is to be added back.** The draft de-duplication of #95 used
+ * **No `HEADER` key here, and none is to be added back.** The draft de-duplication of #95 used
  * one (`HEADER "Message-ID"`) and it does not work: Stalwart answers an EMPTY `* SEARCH` to every
  * shape of that key — naked value, bracketed, substring, on a delivered message — while answering
  * `HEADER "Subject"` and `HEADER "To"` perfectly. An empty answer cannot be told apart from "there
@@ -119,7 +119,7 @@ data class ImapFolderHits(
     /**
      * The folder's UIDVALIDITY as the SELECT of this walk stated it, or 0 when it stated none.
      *
-     * ⭐ Reported, not acted on — nothing here refuses anything, and this file's rule is unchanged
+     * Reported, not acted on — nothing here refuses anything, and this file's rule is unchanged
      * (see `UidValidityTest`, "a server announcing no numbering is not turned into a refusal").
      * It is carried because the walk had already asked: `select()` returns it and this walk used
      * to DROP it, so a folder reached only by a server-side search left no trace of its numbering

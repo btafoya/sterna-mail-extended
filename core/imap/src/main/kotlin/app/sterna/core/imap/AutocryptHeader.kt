@@ -3,7 +3,7 @@ package app.sterna.core.imap
 /**
  * Folding for the `Autocrypt:` header field (Autocrypt Level 1 §2.1), and nothing else.
  *
- * ⭐ **Why a folder exists at all, here and only here.** Nothing in this repo folded a header
+ * **Why a folder exists at all, here and only here.** Nothing in this repo folded a header
  * before: [OutgoingMime]'s fields are addresses, ids and an encoded subject, all short, and the one
  * folded header in the codebase is written by hand ([PgpMime]'s `multipart/signed` Content-Type).
  * This field carries a whole public key: an RSA-4096 transferable key is ~1 550 base64 characters,
@@ -11,12 +11,12 @@ package app.sterna.core.imap
  * malformed — a strict relay refuses the message, or the key is delivered truncated and the
  * correspondent's encryption to that address becomes impossible.
  *
- * ⛔ **Not a general header folder, deliberately.** [OutgoingMime.headerSafe] is the ONE CR/LF sink
+ * **Not a general header folder, deliberately.** [OutgoingMime.headerSafe] is the ONE CR/LF sink
  * for header values, and it must stay one: this function does the exact opposite — it *inserts*
  * `"\r\n "` on purpose. The two are ordered, never mixed: sanitise first, fold second, and never
  * put a folded value back through the sink (it would come out flat, and over-long again).
  *
- * ⛔ The continuation always starts with **a space**. That is what makes an unfolded continuation
+ * The continuation always starts with **a space**. That is what makes an unfolded continuation
  * a `FWS` and not a new header field, and it is also what keeps [SmtpClient]'s `DATA` loop safe:
  * that loop splits on `"\r\n"` and dot-stuffs a line beginning with `.`; a continuation beginning
  * with a space can be neither a header nor a stuffed line.
@@ -43,7 +43,7 @@ object AutocryptHeader {
      * as well, a continuation its leading space. Splitting is left to right and never inside a
      * UTF-8 character.
      *
-     * ⭐ **Where a break can land, and why that is safe.** The value is `addr=…; keydata=<base64>`.
+     * **Where a break can land, and why that is safe.** The value is `addr=…; keydata=<base64>`.
      * The first break falls at octet 987, and an addr-spec that a mail server will accept is capped
      * at 256 octets by RFC 5321 §4.5.3.1, so a break can only ever land inside the base64 keydata —
      * where Autocrypt Level 1 §2.1 says whitespace is ignored by the parser. Nothing here inspects

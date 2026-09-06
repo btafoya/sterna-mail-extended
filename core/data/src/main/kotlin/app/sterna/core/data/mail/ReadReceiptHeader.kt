@@ -9,7 +9,7 @@ package app.sterna.core.data.mail
  * `header:Disposition-Notification-To:asText` property and IMAP's `MimeParser.headerOf` — so a
  * malformed header cannot be read two different ways depending on the server.
  *
- * ⛔ It decides NO policy. Not whether a receipt should be offered, not whether the address is the
+ * It decides NO policy. Not whether a receipt should be offered, not whether the address is the
  * sender's, not whether it is one of this phone's own accounts, not whether two entries are the
  * same person. It answers one question and only that: **which addresses does this header name?**
  * Everything else belongs to the caller that will one day offer the banner.
@@ -21,7 +21,7 @@ object ReadReceiptHeader {
      * is none to be had — absent, blank, a group with no members, `<>`, a word that is not an
      * address.
      *
-     * ⭐ Empty is the ONLY way of saying "nothing here". A later reader is specified to hold
+     * Empty is the ONLY way of saying "nothing here". A later reader is specified to hold
      * `require(recipients.isNotEmpty())` before it offers anything, so this function must never
      * throw and never return a placeholder: an empty list means "no banner", and that is all.
      *
@@ -53,7 +53,7 @@ object ReadReceiptHeader {
      * comma-separated inside it, so treating the two alike turns `Team: a@x, b@y;` into three
      * tokens of which the empty one is dropped later.
      *
-     * ⛔ The quote tracking is not decoration: `"Doe, John" <j@example.org>` is one address, and a
+     * The quote tracking is not decoration: `"Doe, John" <j@example.org>` is one address, and a
      * naive `split(',')` makes it two — of which the first names no address at all.
      */
     private fun splitTopLevel(header: String): List<String> {
@@ -81,7 +81,7 @@ object ReadReceiptHeader {
     /**
      * The one address a single token names, or null when it names none.
      *
-     * ⭐ The quoted display name is removed FIRST, before anything else is looked at. A display
+     * The quoted display name is removed FIRST, before anything else is looked at. A display
      * name may legally contain anything — including `<x@elsewhere.example>` — and looking for the
      * brackets in the raw token would let whoever wrote that name choose where the receipt goes.
      * The order is the whole protection, not the removal.

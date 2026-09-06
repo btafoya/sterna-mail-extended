@@ -10,7 +10,7 @@ package app.sterna.core.data.mail
  * message's own `Message-ID`. A message that carries none of the three gets no key, and
  * `COALESCE(threadId, id)` makes it its own conversation, exactly as before.
  *
- * ⭐ The value is stored AS IS, angle brackets included — `<m1@x>`, never `m1@x`: a bracketed key
+ * The value is stored AS IS, angle brackets included — `<m1@x>`, never `m1@x`: a bracketed key
  * cannot collide with an `imap:…` row id inside that COALESCE, and `ThreadKey.decode` cuts on the
  * FIRST `|`, so a `|` inside a Message-ID survives the round trip through a route argument. No case
  * folding either: a Message-ID is case-sensitive by RFC, and this function decides nothing more.

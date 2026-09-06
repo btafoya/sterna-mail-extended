@@ -84,7 +84,7 @@ internal fun swipeCommitThresholdPx(rowWidthPx: Float, distancePx: Float): Float
  * re-derive the side from the sign, which is the duplicated pair of branches this replaces.
  *
  * Whether the direction has an action assigned is the caller's business, not this rule's: the row
- * bounds its own offset to 0 on a side with no action, so nothing reaches the threshold there. ⚠ The
+ * bounds its own offset to 0 on a side with no action, so nothing reaches the threshold there. The
  * VELOCITY is not bounded that way — the tracker reports whatever the finger did, including on a
  * side the row refuses to move towards — which is exactly what the sign guard below is for.
  *

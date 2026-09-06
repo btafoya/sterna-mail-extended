@@ -6,7 +6,7 @@ import app.sterna.core.jmap.model.Mailbox
 /**
  * What a folder NOBODY has touched does — the default half of the fold decision (#185).
  *
- * ⛔ FIRST, and before any of the rules below: when [rowsBadgeUnread] is false, NOTHING is folded
+ * FIRST, and before any of the rules below: when [rowsBadgeUnread] is false, NOTHING is folded
  * by default and this answers the empty set. [rowsBadgeUnread] is the account's answer to "can a
  * folder row in this drawer show an unread count at all"
  * (`MailRepository.folderRowsBadgeUnread`), and today the account that answers no is the IMAP one:
@@ -23,7 +23,7 @@ import app.sterna.core.jmap.model.Mailbox
  * and the default only: the user's own folds are still obeyed to the letter ([collapsedFolderIds]),
  * because remembering a chevron is a promise made on every account.
  *
- * ⛔ The other way out — filling the IMAP counters — is a decision already taken and written down
+ * The other way out — filling the IMAP counters — is a decision already taken and written down
  * on `MailRepository.isImapAccount`: one STATUS round trip per folder on every listing. It is not
  * reopened here. If it ever is, `folderRowsBadgeUnread` is the one line that changes and none of
  * the rules below move.
@@ -33,7 +33,7 @@ import app.sterna.core.jmap.model.Mailbox
  *  1. **the user made it** — the "this folder is standard" HALF of [visibleFolders]' own rule,
  *     minus its subscription arm: `role == null && !isRoutingTargetByName && !lostRoleClaim`.
  *
- *     ⛔ The role test alone is not that rule and never was. [visibleFolders] survives a folder on
+ *     The role test alone is not that rule and never was. [visibleFolders] survives a folder on
  *     five counts precisely because `role == null` does NOT mean "the user made it": three
  *     families of folder the SERVER named a role on arrive here role-null.
  *      - a **routing target by NAME** ([isRoutingTargetByName]) — measured on the bench on
@@ -45,14 +45,14 @@ import app.sterna.core.jmap.model.Mailbox
  *        `Junk` AND a `Spam`: `ImapClient.assignRoles` elects one, and the other reaches here
  *        with its role erased on purpose (`MailboxMapper.toMailbox`) although the server
  *        advertised `\Junk` on it.
- *     ⛔ The two guards are the SAME functions [visibleFolders] runs, never a second copy: one
+ *     The two guards are the SAME functions [visibleFolders] runs, never a second copy: one
  *     table of names, and no way to widen what the app hides without widening what it files into.
  *
- *     ⛔ The test is never [folderRank], which answers 6 for every role outside the six this app
+ *     The test is never [folderRank], which answers 6 for every role outside the six this app
  *     translates: a JMAP server's `role = "all"` is a real role on a real standard folder and
  *     would be folded by a rank test.
  *
- *     ⚠ The DEBT this leaves, unfixed and deliberately: a `SPECIAL-USE` attribute outside the six
+ *     The DEBT this leaves, unfixed and deliberately: a `SPECIAL-USE` attribute outside the six
  *     the app translates (`\Flagged`, `\Snoozed`) elects no role and is a routing target for
  *     nothing, so such a folder with children still folds itself on the first run. Nothing carries
  *     it — same shape as the untranslated-language folder below;
@@ -61,21 +61,21 @@ import app.sterna.core.jmap.model.Mailbox
  *     written here would drift from the tree the drawer draws and put a chevron on a folder that
  *     hides nothing.
  *
- * ⛔ [mailboxes] must be the list the drawer DRAWS (`MailUi.visibleMailboxes`), never the account's
+ * [mailboxes] must be the list the drawer DRAWS (`MailUi.visibleMailboxes`), never the account's
  * whole list: a parent whose only child the "only subscribed folders" setting hides (#174) has no
  * child on screen, and folding it would hide nothing while showing a chevron.
  *
- * ⛔ No folder the server named a role on is ever folded, and the Inbox least of all. On IMAP the
+ * No folder the server named a role on is ever folded, and the Inbox least of all. On IMAP the
  * parent is deduced from the NAME and [Mailbox.id] IS the path ([folderParentId]), so on an
  * account in an `INBOX.` or `INBOX/` namespace the entire tree hangs under the Inbox: folding it
  * would leave the drawer showing a single line. The Inbox is safe on every server — RFC 3501
  * mandates the name, and `ImapClient.roleFromName` elects the role from it even without
  * SPECIAL-USE (which Stalwart does not advertise).
  *
- * ⚠ Two consequences, assumed and deliberately NOT caught:
+ * Two consequences, assumed and deliberately NOT caught:
  *
  *  - a folder that carries a role but hangs under a folder of the user's (`Perso/Archive` elected
- *    `archive`) is off screen on the first run, hidden by its folded parent. ⛔ No "never fold a
+ *    `archive`) is off screen on the first run, hidden by its folded parent. No "never fold a
  *    parent that hides a role" exception: that is a crossed rule for a rare tree, and the unread
  *    count a folded parent will show is what makes it honest;
  *  - on a server whose folders are named in a language NEITHER `ImapClient.roleFromName` NOR
@@ -105,13 +105,13 @@ internal fun defaultCollapsedFolderIds(mailboxes: List<Mailbox>, rowsBadgeUnread
  * not a set lookup.
  *
  *  - a key that is present WINS over the default, in both directions;
- *  - ⛔ `false` is therefore not "not stored": it is the user having opened that folder by hand,
+ *  - `false` is therefore not "not stored": it is the user having opened that folder by hand,
  *    and it must keep it open on every later launch against a default that would fold it. Collapse
  *    "the set of folded folders" back into this and a folder the user unfolded folds itself again
  *    at the next cold start — the trap this branch has already paid for once;
  *  - an absent key takes [defaultCollapsedFolderIds]' answer for [mailboxes].
  *
- * ⛔ [rowsBadgeUnread] is carried straight through to [defaultCollapsedFolderIds] and is read
+ * [rowsBadgeUnread] is carried straight through to [defaultCollapsedFolderIds] and is read
  * NOWHERE else here. On an account whose folder rows carry no unread count it empties the DEFAULT
  * — the third bullet — and it must leave the first two untouched: the registry keeps winning in
  * both directions, on every account. Fold the three cases back into "the set of folded folders"
@@ -136,19 +136,19 @@ internal fun collapsedFolderIds(
  * The number the drawer badges ONE folder row with: its own unread when it is open, and its own
  * PLUS what it hides when it is folded (every descendant's [Mailbox.unreadForList] summed).
  *
- * ⛔ Its own unread is not part of what it hides — the row is right there and a tap opens it. The
+ * Its own unread is not part of what it hides — the row is right there and a tap opens it. The
  * count is "this folder, and everything you can no longer see under it".
  *
- * ⭐ Why it exists at all: since [defaultCollapsedFolderIds] a user folder with children starts
+ * Why it exists at all: since [defaultCollapsedFolderIds] a user folder with children starts
  * FOLDED, so a row that badges its own count alone makes new mail vanish from the drawer before
  * anyone has touched a chevron. This is that volet's other half, not an extra.
  *
- * ⭐ What is ADDED to its own count is what is HIDDEN, not the whole subtree. An open folder
+ * What is ADDED to its own count is what is HIDDEN, not the whole subtree. An open folder
  * answers its own count and nothing else, so
  * with `Travail` open and its child `Client A` folded it is `Client A` that carries the sum of its
  * own descendants and `Travail` that stays on its own — exactly what the drawer shows.
  *
- * ⛔ [mailboxes] must be the list the drawer DRAWS (`MailUi.visibleMailboxes`), never the account's
+ * [mailboxes] must be the list the drawer DRAWS (`MailUi.visibleMailboxes`), never the account's
  * whole list: a descendant the "only subscribed folders" setting hides (#174) is on no row and in
  * no chevron, so counting it would advertise mail no gesture in this drawer can reach.
  *
@@ -157,7 +157,7 @@ internal fun collapsedFolderIds(
  * chain is a server answer, not an impossibility, and an unguarded walk would spin or count a
  * folder twice. Filiation is [folderParentId]'s, the app's one definition — never a second one.
  *
- * ⚠ Two limits, assumed and deliberately NOT corrected — the same two `unreadViewCount` carries:
+ * Two limits, assumed and deliberately NOT corrected — the same two `unreadViewCount` carries:
  *
  *  - in CONVERSATION view the sum can OVER-count against the list: it adds per-folder counts while
  *    the list groups a thread over the whole scope, so a thread unread in two of the folders it

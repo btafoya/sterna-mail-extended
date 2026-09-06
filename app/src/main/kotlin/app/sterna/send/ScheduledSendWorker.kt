@@ -23,12 +23,12 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
         val repo = container.mailRepository
         val row = repo.scheduledSend(id) ?: return Result.success() // already fired or cancelled
         val credentials = container.accountStore.credentials(row.accountId) ?: run {
-            // ⛔ A `null` here is NOT proof that the account left, and this row is the ONLY copy of
+            // A `null` here is NOT proof that the account left, and this row is the ONLY copy of
             // the message: `ComposeViewModel.scheduleSend` writes no draft beside it. `credentials`
             // also answers null for a secret that will not decode (a regenerated Keystore key), for
             // a linked sub-account whose `pw_` slot was never written, and for a slot withdrawn on
             // an account that is very much alive — and an unreadable blob makes `accounts()` empty,
-            // which is exactly what `accountsUnreadable()` exists to say (`AccountStore.kt:304`).
+            // which is exactly what `accountsUnreadable()` exists to say.
             // So the departure is proved first, in the one place a JVM test can execute the rule.
             val departed = accountDepartureIsProven(
                 accountsUnreadable = container.accountStore.accountsUnreadable(),
@@ -43,7 +43,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
             // the "Scheduled" screen is still announcing this send, so success() would leave the row
             // on screen with no job behind it, for good. retry() keeps it armed, and it leaves on
             // its own the moment the account reads again.
-            // ⚠ …and it is NOT free: a retry bumps WorkManager's runAttemptCount, which is the
+            // …and it is NOT free: a retry bumps WorkManager's runAttemptCount, which is the
             // very counter the catch below reads against MAX_ATTEMPTS. So an account that stays
             // unreadable for a few minutes spends the give-up budget without a single delivery
             // having been attempted, and the first throw from enqueueSend afterwards lands
@@ -93,7 +93,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 // as much as the notification-content setting allows: a scheduled send that failed
                 // leaked the subject to the lock screen exactly as a quick reply did.
                 //
-                // ⚠ GUARDED: this read sits INSIDE the catch, and the DataStore is declared with no
+                // GUARDED: this read sits INSIDE the catch, and the DataStore is declared with no
                 // corruption handler — a throw here would escape doWork() as a failure, skipping
                 // both the banner and the deleteScheduledSend below, and leaving the overdue row
                 // the comment above exists to clear. An unreadable setting falls back to the

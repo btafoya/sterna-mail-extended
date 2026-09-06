@@ -8,7 +8,7 @@ import android.content.Context
  * 1.4.7 = 167). A literal on purpose — it is a fact about a past upgrade, not the current build
  * number, and it must not move when the version does.
  *
- * ⚠ **The day another change needs the cached bodies dropped, add a SECOND constant and a second
+ * **The day another change needs the cached bodies dropped, add a SECOND constant and a second
  * threshold; do not raise this one and do not go back to "purge on every version bump".** A
  * threshold is a one-off answer to a one-off need. "Every version bump" is a permanent policy
  * that throws away every body on the first start after each update — every message read again
@@ -32,10 +32,10 @@ const val BODY_CACHE_PURGE_VERSION = 168
  * install, and the prefetch keeps precisely the twenty newest inbox messages — the ones they will
  * try it on — warm and fieldless.
  *
- * ⚠ **170 must be the `versionCode` of the cut that CARRIES #148**, not merely the next number.
+ * **170 must be the `versionCode` of the cut that CARRIES #148**, not merely the next number.
  * `versionCode` is 169 (1.4.9) as this is written, so the next cut is 170 — but a cut that skips
  * #148 breaks this. Late is harmless: with no 170 ever published, 169 → 171 still crosses 170 and
- * purges (`jumping over the second threshold purges on arrival`). ⛔ **The dangerous case is an
+ * purges (`jumping over the second threshold purges on arrival`). **The dangerous case is an
  * INTERLEAVED release**: ship a corrective 1.4.10 as `versionCode` 170 WITHOUT #148, and the 1.4.9
  * user purges their bodies for nothing, records 170, then gets #148 in 171 — no threshold left to
  * cross, no banner, ever, in silence and with the suite green from end to end.
@@ -57,14 +57,14 @@ const val BODY_CACHE_PURGE_VERSION_2 = 170
  * prefetch keeps the twenty newest inbox messages warm, which is exactly where a freshly relayed
  * message sits: the reporter would try the update on the one message that cannot show it.
  *
- * ⛔ And the two earlier thresholds cannot help: whoever runs 1.5.1 recorded
+ * And the two earlier thresholds cannot help: whoever runs 1.5.1 recorded
  * `purgedForVersion = 171`, which is past both. Without a third threshold that install never
  * purges again for the life of it.
  *
- * ⚠ **172 must be the `versionCode` of the cut that CARRIES #160**, not merely the next number.
+ * **172 must be the `versionCode` of the cut that CARRIES #160**, not merely the next number.
  * `versionCode` is 171 (1.5.1) as this is written, so the next cut is 172 — but a cut that skips
  * #160 breaks this. Late is harmless: with no 172 ever published, 171 → 173 still crosses 172 and
- * purges. ⛔ **The dangerous case is an INTERLEAVED release**: ship a corrective as `versionCode`
+ * purges. **The dangerous case is an INTERLEAVED release**: ship a corrective as `versionCode`
  * 172 WITHOUT #160, and the 1.5.1 user purges their bodies for nothing, records 172, then gets
  * #160 in 173 — no threshold left to cross, no line, ever, in silence and with the suite green
  * from end to end.
@@ -77,7 +77,7 @@ const val BODY_CACHE_PURGE_VERSION_3 = 172
 /**
  * The thresholds, in the order they were needed. Crossing ANY of them purges once.
  *
- * ⛔ A list of one-off answers, never a policy: nothing here is derived from the current build
+ * A list of one-off answers, never a policy: nothing here is derived from the current build
  * number, so no entry ever appears on its own when the version moves.
  */
 private val BODY_CACHE_PURGE_VERSIONS =
@@ -121,7 +121,7 @@ fun bodyCachePurgeVersion(purgedForVersion: Int, currentVersion: Int): Int? =
  * The once-per-upgrade purge of the cached message bodies, remembered in its own small preference
  * file (the decision itself is [bodyCachePurgeVersion]).
  *
- * ⛔ Bodies ONLY. Not the message list, not the attachments, not the search index: those are not
+ * Bodies ONLY. Not the message list, not the attachments, not the search index: those are not
  * caches in the same sense — losing them costs a full resync, and none of them holds a serialised
  * `Email` that an older build could have written short of a field.
  *

@@ -15,7 +15,7 @@ package app.sterna.ui
 object RootRoute {
 
     /**
-     * ⭐ THE ORDER OF THE TWO TESTS IS THE DECISION, not a formality.
+     * THE ORDER OF THE TWO TESTS IS THE DECISION, not a formality.
      *
      * A signed-in account wins first. Reversed, a device whose blob is unreadable for a moment
      * would throw a user who IS signed in onto the alert screen; and, more to the point, the rule

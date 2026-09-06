@@ -60,7 +60,7 @@ internal fun inboxBackAction(
  * Whether the list is showing the account's Inbox — the `atInbox` flag [inboxBackAction] reads, so this
  * is what decides between "Back returns to the Inbox" and "Back LEAVES THE APP".
  *
- * ⛔ Structural, never `(sel as? Sel.Folder)?.id == inboxMailboxId`: that form answers
+ * Structural, never `(sel as? Sel.Folder)?.id == inboxMailboxId`: that form answers
  * `null == null` for ANY selection that is not a folder as soon as the account's inbox has never
  * been synced. Since the selection is restored across a cold start, a reader who left the app in
  * the unread view would come back to it and have her first Back close the app — from a view she

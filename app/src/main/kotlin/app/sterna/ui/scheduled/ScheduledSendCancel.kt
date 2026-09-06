@@ -40,7 +40,7 @@ data class ScheduledSendDraft(
     val body: String,
     /**
      * The `text/html` part the returned draft is stored with (#131), or null when the message
-     * carried no styling this editor can give back. ⛔ NOT the row's own `htmlBody`: that one is
+     * carried no styling this editor can give back. NOT the row's own `htmlBody`: that one is
      * the SEND's html, and only the part of it that reads back as styling survives.
      */
     val html: String?,
@@ -57,32 +57,32 @@ data class ScheduledSendDraft(
  * ("comma-separated", "space-separated message-ids"), and a cancel that parsed it differently from
  * the send would file a draft addressed differently from the message that was queued.
  *
- * ⭐ `htmlBody` IS carried since #131, and through the same two functions every other reopen goes
+ * `htmlBody` IS carried since #131, and through the same two functions every other reopen goes
  * through: `richBodyFrom` reads the row's html when it is ours — the styling the user applied —
  * and falls back to the stored text for anything else, and `draftHtmlToSave` writes back only what
  * a reopen can read. So a styled message cancelled from the Scheduled screen is filed in Drafts
  * WITH its bold, while a forward's html (its carried original appended) and an imported HTML
- * signature are flattened to text exactly as they were before. ⛔ The row's html is NOT stored as
+ * signature are flattened to text exactly as they were before. The row's html is NOT stored as
  * it stands: it is what the SEND built, and a draft carrying it would reopen as unparseable HTML,
  * i.e. as text, one save later. (This KDoc used to say the column had no destination because
  * `saveDraft` took no HTML parameter. It takes one now; the reason is gone, not merely outvoted.)
  *
- * ⛔ `draftEmailId` / `draftUidValidity` are NOT carried either, and that is the decision of § 3:
+ * `draftEmailId` / `draftUidValidity` are NOT carried either, and that is the decision of § 3:
  * naming the server draft this message was edited from would let the save DESTROY it, while the
  * deposit flattens the HTML body. A duplicate in Drafts is recoverable; a destroyed original is
  * not. The columns stay on the row for the SEND path, which still uses them.
  *
- * ⭐ [fromName]/[fromEmail] are carried: without them the returned draft goes back under the login
+ * [fromName]/[fromEmail] are carried: without them the returned draft goes back under the login
  * account's address rather than the identity the user chose (#31).
  */
 fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
     // The html first, the stored text as the fallback — and the draft's own html derived from
     // what came back, never copied from the row: both halves out of ONE answer, so the text filed
     // and the styling filed cannot describe different messages.
-    // ⚠ Same fallback, same accepted cost as `composeDraftOf` (SendOutbox.kt): the stored text is
+    // Same fallback, same accepted cost as `composeDraftOf` (SendOutbox.kt): the stored text is
     // the text/plain that was to be delivered, so it spells a list out — an unparsable html
     // (a forward, an imported HTML signature) files a draft holding `- milk` as letters.
-    // ⛔ And the text filed is `toPlainText`, never `rich.text` (#131): it is the SAME plain-text
+    // And the text filed is `toPlainText`, never `rich.text` (#131): it is the SAME plain-text
     // answer the composer's own save writes, so a message filed from here and one saved from the
     // composer cannot describe the same link — or the same list — differently. `rich.text` here
     // stores a draft whose text part holds neither a marker nor an address.
@@ -105,7 +105,7 @@ fun draftFromScheduledSend(row: ScheduledSendEntity): ScheduledSendDraft {
 /**
  * What to say for a save's [outcome], `null` meaning the account was gone before a save was tried.
  *
- * ⭐ [DraftSaveOutcome.KEPT_ON_DEVICE] is a SUCCESS here, and that is the answer that matters. An
+ * [DraftSaveOutcome.KEPT_ON_DEVICE] is a SUCCESS here, and that is the answer that matters. An
  * offline deposit writes a durable local row and books the upload (see the KDoc of
  * [DraftSaveOutcome]); reading it as a failure would keep the scheduled row, and the message would
  * then GO OUT at its hour after the user cancelled it — the opposite of the gesture, on the one
@@ -134,46 +134,46 @@ fun scheduledCancelDropsTheRow(report: ScheduledCancelReport): Boolean =
 /**
  * Cancel the scheduled send [id]: file it in Drafts, and ONLY THEN drop its row and its job (#170).
  *
- * ⛔ **Two orders, and together they are the whole correction**; both are grid rule 1 (nothing
+ * **Two orders, and together they are the whole correction**; both are grid rule 1 (nothing
  * irreversible first).
  *
- * ⛔ **[saveDraft] before the destruction.** The scheduled row is the only copy of the message;
+ * **[saveDraft] before the destruction.** The scheduled row is the only copy of the message;
  * [saveDraft] is what creates the other one. Deleted first — or in a `finally` — a deposit that
  * throws leaves the message on NEITHER side: the reported defect, in worse. Same shape, and the
  * same reason, as [app.sterna.core.data.mail.commitThenConsumeLocalDraft].
  *
- * ⛔ **[deleteRow] before [dropWorker].** The delete is a committed write when it returns;
+ * **[deleteRow] before [dropWorker].** The delete is a committed write when it returns;
  * `WorkManager.cancelUniqueWork` is asynchronous and its return proves nothing. A row that outlives
  * its job is re-armed at EVERY process start (`AppContainer.init`) and the cancelled message goes
  * out at its hour, with a copy left in Drafts. A job that outlives its row fires on nothing
- * (`ScheduledSendWorker.kt:24` returns on a missing row), so the row is the single source of truth
+ * (`ScheduledSendWorker` returns on a missing row), so the row is the single source of truth
  * and the job a satellite. Pinned as source text by `ScheduledCancelDropOrderTest`.
  *
- * ⚠ **What actually reaches [ScheduledCancelReport.NOT_CANCELLED] is narrow, and saying otherwise
+ * **What actually reaches [ScheduledCancelReport.NOT_CANCELLED] is narrow, and saying otherwise
  * once cost this file a review.** `saveDraft` does NOT throw for a transport failure: offline, a
  * dropped socket, a server that refuses, an account with no Drafts folder are all caught inside
  * `saveDraftLocalFirst` and answered [DraftSaveOutcome.KEPT_ON_DEVICE] — a success, and the row
  * goes. A throw here is a local write that failed (Room, attachment staging), or an addressing
  * `requireSingleLineAddresses` refuses before anything is written.
  *
- * ⛔ …plus the one case that is NOT a save failure at all: [credentials] answering `null` while
+ * …plus the one case that is NOT a save failure at all: [credentials] answering `null` while
  * [accountIsGone] says the account is still there. See below.
  *
- * ⛔ **Sheltered from cancellation, both halves together.** The caller runs off a tap on a screen
+ * **Sheltered from cancellation, both halves together.** The caller runs off a tap on a screen
  * the user leaves at once; cancellation landing between the deposit and the delete would leave the
  * message in Drafts AND still scheduled, so it goes out anyway. The boundary is read BEFORE the
  * shelter is entered ([ensureActive]): nothing has been written yet at that point, so a caller
  * already gone takes nothing with it and the scheduled message simply stays scheduled.
  *
- * ⛔ [credentials] is asked for the account of the ROW, never a displayed one: the screen is not
- * filtered by account (`ScheduledSendDao.kt:19`) and does not show which account a line belongs to,
+ * [credentials] is asked for the account of the ROW, never a displayed one: the screen is not
+ * filtered by account (`ScheduledSendDao`) and does not show which account a line belongs to,
  * so a message would be filed into someone else's Drafts — or fail to be filed at all.
  *
- * ⛔ **And a `null` from [credentials] is NOT proof that the account is gone**, which is why
+ * **And a `null` from [credentials] is NOT proof that the account is gone**, which is why
  * [accountIsGone] exists and is asked separately. `AccountStore.credentials` answers `null` for a
  * removed account AND for one whose stored secret would not decode (`readPassword`, an invalidated
  * Keystore key), and `AccountStore.accounts()` answers an EMPTY LIST when the blob itself cannot be
- * read — which is exactly why `accountsUnreadable()` was built (`AccountStore.kt:304`). Destroying
+ * read — which is exactly why `accountsUnreadable()` was built. Destroying
  * the row on an unproven `null` reproduces #170 with a snackbar claiming a cause that is false: the
  * only copy of the text deleted because a key rotated. Unproven ⇒ nothing is destroyed.
  *
@@ -197,7 +197,7 @@ suspend fun <C> cancelScheduledSend(
         val c = credentials(r.accountId)
         val outcome = when {
             // A deposit that throws destroys nothing: the row stays, and it is still the copy.
-            // ⛔ Not `runCatching { }.getOrNull()`: that reads a cancellation as a failed save.
+            // Not `runCatching { }.getOrNull()`: that reads a cancellation as a failed save.
             c != null -> runCatching { saveDraft(c, draftFromScheduledSend(r)) }
                 .getOrElseUnlessCancelled { return@withContext ScheduledCancelReport.NOT_CANCELLED }
             // No credentials AND the account really is gone: nowhere to file it, and nothing left

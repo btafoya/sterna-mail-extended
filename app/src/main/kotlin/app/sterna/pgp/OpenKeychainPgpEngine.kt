@@ -139,7 +139,7 @@ class OpenKeychainPgpEngine(
     /**
      * The Intent for a [PgpApiRequest] — the ONE place a pure request becomes an Android object.
      *
-     * ⛔ The `when` is exhaustive over what [PgpApiRequest] is allowed to carry, and the `error`
+     * The `when` is exhaustive over what [PgpApiRequest] is allowed to carry, and the `error`
      * branch is not decoration: a fifth type added to a request without a branch here would
      * otherwise be dropped in silence, i.e. an extra the provider never receives. A JVM test walks
      * both requests and asserts every value is one of these four types.
@@ -178,7 +178,7 @@ class OpenKeychainPgpEngine(
      * ACTION_GET_KEY: the provider streams the public key to the output stream, which is why this
      * is the one read here that collects output.
      *
-     * ⛔ **The arguments are [publicKeyRequest]'s, not this method's**, and that is the point: they
+     * **The arguments are [publicKeyRequest]'s, not this method's**, and that is the point: they
      * decide the bytes that end up in every outgoing `Autocrypt:` header, and nothing in this class
      * can be executed by a test. Built as a value, they are pinned by a test that runs them.
      */
@@ -199,12 +199,12 @@ class OpenKeychainPgpEngine(
      * [peerId], which is why nothing else has to be called afterwards — the next
      * `ACTION_GET_KEY_IDS` ([findKeys]) finds it and the composer stops saying "no key".
      *
-     * ⛔ `isMutual = false`, always. `prefer-encrypt` is parsed off the header and dropped
+     * `isMutual = false`, always. `prefer-encrypt` is parsed off the header and dropped
      * (`autocryptPeerImportOf`): MUTUAL is a standing instruction to start encrypting by itself,
      * and that decision is not taken from an incoming message.
      *
-     * ⛔ No input stream and no output collected: this action carries everything in its extras.
-     * ⛔ No `interactionResult` either — see [PgpEngine.updateAutocryptPeer]; the caller has no
+     * No input stream and no output collected: this action carries everything in its extras.
+     * No `interactionResult` either — see [PgpEngine.updateAutocryptPeer]; the caller has no
      * screen, so anything other than success is dropped where it is mapped.
      */
     override suspend fun updateAutocryptPeer(

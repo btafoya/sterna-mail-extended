@@ -126,7 +126,7 @@ interface EmailDao {
      * compile-time constant. No `observedEntities`: this is a `suspend` snapshot, not a Flow —
      * a widget is redrawn when it is told to be, not on every row Room touches during a sync.
      *
-     * ⛔ Returns [RecentEmailRow], never [EmailEntity]: the entity carries `preview`, and the
+     * Returns [RecentEmailRow], never [EmailEntity]: the entity carries `preview`, and the
      * body of a message has no business leaving the database for a lock-screen-visible surface.
      */
     @RawQuery
@@ -138,17 +138,17 @@ interface EmailDao {
      * `MailRepository.recentUnifiedQuery`: a second SQL here would be a twin to keep in step with
      * the list's predicate, and the two would drift.
      *
-     * ⭐ BOTH entities in [observedEntities], exactly as [pagingSource] declares them and for the
+     * BOTH entities in [observedEntities], exactly as [pagingSource] declares them and for the
      * same reason: the shared predicate `listRowsWhereSql` carries the snooze filter
      * (`notSnoozedSql`), so a message whose snooze expires — or one snoozed away — changes these
      * rows without a single write to `emails`. Declaring `EmailEntity` alone would leave the cell
      * showing a message the app has hidden, and hiding one the app has brought back, until
      * something else happened to touch the mail table.
      *
-     * ⚠ Room's invalidation is per TABLE, not per row: any write to `emails` re-runs this. That is
+     * Room's invalidation is per TABLE, not per row: any write to `emails` re-runs this. That is
      * why the collector de-duplicates the rows before it redraws — see `RecentMailWidgetPush`.
      *
-     * ⛔ [RecentEmailRow], never [EmailEntity], for [recentUnified]'s reason: the entity carries
+     * [RecentEmailRow], never [EmailEntity], for [recentUnified]'s reason: the entity carries
      * `preview`, and the body of a message has no business on an unlocked home screen.
      */
     @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
@@ -190,7 +190,7 @@ interface EmailDao {
     // more. It is deliberately gone rather than left dead beside its replacements: a whole-folder `SELECT *`
     // is exactly the shape a later reader would pick up again because it is the shortest.
     //
-    // ⚠ Every one of the three that carries a LIMIT breaks its ties on `id`. `ORDER BY sortKey
+    // Every one of the three that carries a LIMIT breaks its ties on `id`. `ORDER BY sortKey
     // DESC` alone leaves the order among equal sortKeys unspecified, and SQLite answers it from
     // the physical order — which this table rewrites at every sync. A row sitting on the LIMIT
     // frontier would then leave the result and come back with no row having changed at all. The
@@ -237,7 +237,7 @@ interface EmailDao {
      * are perfect ties with one another, which is the sharpest reason the `id` tie-break above is
      * not decoration.
      *
-     * ⛔ This is NOT what seeds the notifier's baseline — [idsReceivedSince] is. See there.
+     * This is NOT what seeds the notifier's baseline — [idsReceivedSince] is. See there.
      */
     @Query(
         "SELECT * FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
@@ -292,13 +292,13 @@ interface EmailDao {
      * Two near-twin queries would drift, and the second one is the dangerous direction: a gap that
      * says "filled" for a row the write then blanks is a row nothing ever asks about again.
      *
-     * ⛔ Bound to [accountId] like every id-keyed read in this block, and here the bound is what
+     * Bound to [accountId] like every id-keyed read in this block, and here the bound is what
      * makes the answer repairable: with the composite (accountId, id) key an id is not unique
      * across accounts, so an unbound `IN` would find a same-server sibling's filled row, report
      * THIS account's row as already filled, and leave it blank for ever — the gap is the only thing
      * that ever asks for that body again.
      *
-     * ⛔ AND BOUND TO THE NUMBERING, which is the second half of the same key and the dangerous one
+     * AND BOUND TO THE NUMBERING, which is the second half of the same key and the dangerous one
      * (#99 inside #187). An IMAP row id is `imap:$accountId:$mailboxId:$uid` and carries no
      * UIDVALIDITY; `MailboxUidValidityStore.invalidate` deliberately leaves the `emails` rows in
      * place when a folder is renumbered. So after a renumbering — a folder recreated, a server
@@ -309,12 +309,12 @@ interface EmailDao {
      * the numbering the page was just read under, normalised once by `UidValidity.stated`, and it
      * is the caller's answer from the SELECT that enumerated the page — never deduced from the rows.
      *
-     * ⛔ `IS` and not `=`: SQLite's `=` is never true against NULL, and a row read from a server
+     * `IS` and not `=`: SQLite's `=` is never true against NULL, and a row read from a server
      * that states no UIDVALIDITY carries NULL here. With `=` those accounts would match none of
      * their own rows, every page would be re-fetched on every walk, and the cost this read exists
      * to avoid would come back in silence.
      *
-     * ⛔ [ids] is ONE PAGE and must stay one: the callers pass a folder-read page
+     * [ids] is ONE PAGE and must stay one: the callers pass a folder-read page
      * ([app.sterna.core.imap.IMAP_FOLDER_PAGE], 200), a pager page (50), or ONE watched folder's
      * page — never several folders' pages joined into a single call. Room expands `IN (:ids)`
      * into one host variable each and SQLite caps them (999 on the Androids this app still runs
@@ -581,7 +581,7 @@ interface EmailDao {
      * which is the whole point: the folder's record is realigned by any background pass that meets
      * the renumbering, while these rows still hold the UIDs of the numbering they were read under.
      *
-     * ⚠ An id with no row comes back MISSING, not null-valued, and the caller must read that as
+     * An id with no row comes back MISSING, not null-valued, and the caller must read that as
      * "nothing to oppose" — a row already evicted, or never cached, cannot say what its UID means.
      */
     @Query("SELECT id, uidValidity FROM emails WHERE accountId = :accountId AND id IN (:ids)")
@@ -685,7 +685,7 @@ interface EmailDao {
      * see [deleteNotInSparing]) — pass the recently-mutated set so a full re-query can't clobber
      * an optimistic Undo before the server catches up.
      *
-     * ⛔ The eviction is decided in Kotlin and applied BY ID IN BATCHES, not by handing the whole
+     * The eviction is decided in Kotlin and applied BY ID IN BATCHES, not by handing the whole
      * page to a `NOT IN (:keepIds)`: SQLite accepts 999 bound variables below Android 12, and any
      * folder page long enough to exceed that made the statement throw — before the sync cursor was
      * stored, leaving the folder re-querying whole for ever (Codeberg #29). The bound that keeps
@@ -714,7 +714,7 @@ interface EmailDao {
      * The second half of [replaceMailbox] on its own: make this mailbox's cache hold nothing
      * beyond [keepIds] (and [spareIds]), WITHOUT writing anything first.
      *
-     * ⛔ It is split out for the full-query sync of a folder — JMAP's (`MailRepository.syncMailbox`)
+     * It is split out for the full-query sync of a folder — JMAP's (`MailRepository.syncMailbox`)
      * and IMAP's (`MailRepository.imapWriteThrough`), both through
      * [app.sterna.core.data.mail.fullQueryWriteThrough] — which writes its pages as they land off
      * the network and can therefore no longer name the whole snapshot at write time.
@@ -748,7 +748,7 @@ interface EmailDao {
      * The reconcile itself — read the folder, decide the complement ONCE against the whole
      * [keepIds], evict by batches.
      *
-     * ⛔ NOT annotated `@Transaction`, and that is the point of it existing. Both entry points above
+     * NOT annotated `@Transaction`, and that is the point of it existing. Both entry points above
      * carry the annotation, and Room implements one by wrapping the interface body in
      * `RoomDatabaseKt.withTransaction`; if [replaceMailbox] called [reconcileMailbox], the wrapper
      * would call the wrapper and open a transaction inside a transaction. Room and SQLite both
@@ -756,7 +756,7 @@ interface EmailDao {
      * a path whose failure mode is deleted mail, and on two protocols at once. A shared un-annotated
      * body costs nothing and removes the question: whichever way in, exactly one transaction.
      *
-     * ⛔ The argument names below are load-bearing and are not decoration: [keepIds], [spareIds] and
+     * The argument names below are load-bearing and are not decoration: [keepIds], [spareIds] and
      * [evictableIds] are all id collections, so handing [reconcileEvictions] the wrong one COMPILES
      * — and passing the spare set where the keep set belongs turns every full re-query into "delete
      * the folder except the handful of rows mutated in the last 45 seconds".
@@ -764,15 +764,15 @@ interface EmailDao {
      * real SQLite for that reason. THREE id sets on the one path whose failure mode is deleted
      * mail: read the names, not the shapes.
      *
-     * ⭐ [evictableIds] bounds what may be DELETED — the folder as the caller saw it BEFORE its walk
+     * [evictableIds] bounds what may be DELETED — the folder as the caller saw it BEFORE its walk
      * started ([app.sterna.core.data.mail.fullQueryWriteThrough]'s `folderIds`). Null means no
      * bound, which is the behaviour that shipped before it existed, and is what [replaceMailbox]
-     * passes: that caller hands over a whole snapshot with nothing racing it. ⛔ Null is NOT
+     * passes: that caller hands over a whole snapshot with nothing racing it. Null is NOT
      * `emptySet()` — an empty bound evicts nothing at all and switches the reconcile off; the
      * distinction is [app.sterna.core.data.mail.evictableCachedIds]', which is where the rule is
      * written down and executed.
      *
-     * ⛔ And the bound is applied HERE, not by the caller, because the line above it is the reason
+     * And the bound is applied HERE, not by the caller, because the line above it is the reason
      * it is needed: this body re-reads the folder itself (`idsForMailbox`), inside the transaction
      * these two entry points open, AFTER the walk is over. Anything that commits between the
      * caller's own reading of the folder and that re-read is in the read, in no page and in no keep

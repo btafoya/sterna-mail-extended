@@ -50,7 +50,7 @@ object OutboxLogic {
      * failed: those versions stored `MailRepository.unarmedNote`'s whole diagnostic English
      * sentence on the row, before [NOT_ARMED] existed.
      *
-     * ⛔ Frozen, and here to be RECOGNISED, never written. Nothing converts those rows — no
+     * Frozen, and here to be RECOGNISED, never written. Nothing converts those rows — no
      * migration touches `outbox.lastError`, and writing to a user's database to fix a display is
      * not a trade this project makes — so a row still QUEUED on a phone that ran either version
      * carries that sentence for as long as it sits there. Recognised at display time
@@ -69,7 +69,7 @@ object OutboxLogic {
      * carries is the undo window, a few seconds at most — which is what bounds the badge grace in
      * [activeCount]: no path can write a far-future notBeforeMillis on an outbox row.
      *
-     * ⛔ [OutboxState.SENDING] is NOT due, and that is the SECOND gate of the interrupted-send fix,
+     * [OutboxState.SENDING] is NOT due, and that is the SECOND gate of the interrupted-send fix,
      * independent of [parkOnPickup]: a row reading SENDING is a delivery already begun. Handing it
      * to the worker again is the duplicate measured on the bench — the same message delivered
      * twice, under two Message-Ids, with an empty outbox afterwards and nothing saying so.
@@ -101,7 +101,7 @@ object OutboxLogic {
      * that run may have got as far as the server. The row is the only witness left, and it cannot
      * say which side of the handover it died on.
      *
-     * ⛔ Which is exactly why the answer is not "send it again". Re-delivery is irreversible for
+     * Which is exactly why the answer is not "send it again". Re-delivery is irreversible for
      * the recipient (measured: the same message twice, 46 s apart, two Message-Ids); parking loses
      * nothing at all — the row stays in the Outbox, says it was interrupted, and Retry sends it by
      * hand when the user decides to.
@@ -129,7 +129,7 @@ object OutboxLogic {
      *
      * Two answers, and the FIRST one is not about counting. A [JmapException] carrying
      * `permanent` is a delivery the SERVER refused: it read the recipient, said no, and nothing
-     * about that verdict will be different in thirty seconds. ⛔ Retrying it is not merely useless,
+     * about that verdict will be different in thirty seconds. Retrying it is not merely useless,
      * it does damage that the original defect did not:
      *
      *  - the message has already been handed over and filed in Sent, so five auto-retries leave
@@ -142,7 +142,7 @@ object OutboxLogic {
      * count: the row stays in the outbox with the server's own words on it, the badge counts it,
      * the banner names it, and Retry is there for the user who has fixed the address.
      *
-     * ⛔ Everything else keeps the behaviour it always had, through [shouldRetry] and nothing else.
+     * Everything else keeps the behaviour it always had, through [shouldRetry] and nothing else.
      * A network that dropped, a server that hiccupped, an HTTP 500: those say NOTHING about whether
      * the message left, and the retries are exactly what gets a queued send out when the link comes
      * back. Widening "permanent" to cover them would park messages that only needed a second try.
@@ -157,7 +157,7 @@ object OutboxLogic {
      * How many attempts the row is written back with after a failed one — and on a PERMANENT
      * refusal that number is the CAP, not `previousAttempts + 1`.
      *
-     * ⛔ This is not bookkeeping, it is the guard [stateAfterFailure] would otherwise only appear
+     * This is not bookkeeping, it is the guard [stateAfterFailure] would otherwise only appear
      * to give. Parking a refused row as [OutboxState.FAILED] with an attemptCount of 1 leaves two
      * doors wide open, both of which put the message back on the wire with nobody asking:
      *
@@ -181,11 +181,11 @@ object OutboxLogic {
      * leaving it quietly false. The same ruse is named in `MailRepository.parkOutboxEdit` — forcing
      * the count to the cap is what was needed "while the parked state was FAILED", and here it is.
      *
-     * ⭐ It costs the user nothing: `MailRepository.retryOutbox` sets `attemptCount = 0` before
+     * It costs the user nothing: `MailRepository.retryOutbox` sets `attemptCount = 0` before
      * re-arming, so Retry on a corrected address works exactly as before. What is spent is the
      * AUTOMATIC reserve, and a refusal has no automatic attempt left to spend by definition.
      *
-     * ⛔ Everything else is untouched: an ordinary failure counts one more attempt, no more and no
+     * Everything else is untouched: an ordinary failure counts one more attempt, no more and no
      * less, or a dropped network would park sends that only needed a second try.
      */
     fun attemptsAfterFailure(previousAttempts: Int, failure: Throwable): Int =
@@ -211,7 +211,7 @@ object OutboxLogic {
     /**
      * Whether an outbox item can be reopened in the composer. Three things must hold.
      *
-     * ⛔ **It must carry no entity the composer cannot rebuild** —
+     * **It must carry no entity the composer cannot rebuild** —
      * [carriesUnreplayablePrebuiltEntity]. Careful: "carries an entity" is NOT the rule, and
      * writing it that way is a regression. Reopening a row throws the entity file away and, on
      * Send, enqueues a brand-new row built from the composer's fields alone. Whether that is
@@ -224,7 +224,7 @@ object OutboxLogic {
      *    exists nowhere but in that file, and nothing in the composer knows how to write it. Edit
      *    would silently turn a receipt into an odd little mail.
      *
-     * ⚠ The argument has NO default. It used to be the PGP mode that decided this, which answered
+     * The argument has NO default. It used to be the PGP mode that decided this, which answered
      * "editable" for every entity arriving without one, and a default would let the next call site
      * inherit that same wrong answer in silence.
      *
@@ -238,14 +238,14 @@ object OutboxLogic {
      * open in a composer. Neither may be taken. An action that cannot do what its label promises is
      * not offered (#70); Retry and Delete stay — both work on the row as it stands.
      *
-     * ⛔ And NOT an [OutboxState.INTERRUPTED] row either — refusing Edit there is load-bearing, not
+     * And NOT an [OutboxState.INTERRUPTED] row either — refusing Edit there is load-bearing, not
      * tidiness. Reopening a row parks it in EDITING, and closing the composer untouched runs
      * [stateAfterEdit] on an attemptCount of 0, which answers QUEUED: merely LOOKING at an
      * interrupted message would put it back on the wire on its own, i.e. the duplicate this state
      * exists to prevent, through the #70 door. Retry and Delete stay, and Retry is the one deliberate
      * gesture that sends it again.
      *
-     * ⛔ And NOT a [OutboxState.KEPT_AS_DRAFT] row either — the same door, and a worse fall. Reopening
+     * And NOT a [OutboxState.KEPT_AS_DRAFT] row either — the same door, and a worse fall. Reopening
      * parks the row in EDITING, and closing the composer untouched runs [stateAfterEdit] on an
      * attemptCount of 0, which answers QUEUED: merely LOOKING at a message kept as a draft would
      * send it on its own, i.e. precisely the send the user refused (#95 × #70), the data loss this
@@ -266,7 +266,7 @@ object OutboxLogic {
      * What goes in [OutboxEntity.pgpMode] for a message being queued — a STRING, and deliberately
      * not `mode.name`.
      *
-     * ⛔ That column does not say which mode the author chose. It says how the row's body must be
+     * That column does not say which mode the author chose. It says how the row's body must be
      * treated AT REST, and for that the two encrypting modes are the same thing: the body is blank
      * and the message lives in its entity file. The signature has already been consumed when the
      * entity was built; the outbox row has no use for it whatsoever.
@@ -277,11 +277,11 @@ object OutboxLogic {
      * back to a version that has never heard of the name would fail `PgpMode.valueOf` on reopen
      * and drop the composer to OFF without a word.
      *
-     * ⚠ Delivery itself does NOT read this column — it goes on the pre-built entity file — so do
+     * Delivery itself does NOT read this column — it goes on the pre-built entity file — so do
      * not credit this shortcut with keeping the send path right. It keeps the SCREEN right.
      *
-     * ⚠ Consequence, accepted with eyes open: an unsigned encrypted row reads back as ENCRYPT.
-     * Nothing reopens either of them today (Edit is refused on both). ⛔ If Edit ever becomes
+     * Consequence, accepted with eyes open: an unsigned encrypted row reads back as ENCRYPT.
+     * Nothing reopens either of them today (Edit is refused on both). If Edit ever becomes
      * possible on an encrypted row, this shortcut must fall FIRST.
      */
     fun outboxPgpModeName(mode: PgpMode?): String? = when (mode) {
@@ -301,7 +301,7 @@ object OutboxLogic {
      * somewhere else — today, RFC 8098's receipt, which is assembled once from a message that will
      * not be in front of the reader again.
      *
-     * @param pgpMode [OutboxEntity.pgpMode]. ⚠ `PgpMode.OFF` is never stored — `enqueueSend` writes
+     * @param pgpMode [OutboxEntity.pgpMode]. `PgpMode.OFF` is never stored — `enqueueSend` writes
      *   null for it — so null here genuinely means "no PGP was involved".
      * @param entityPath [OutboxEntity.pgpEntityPath]: the row's entity file, or null.
      */
@@ -438,13 +438,13 @@ object OutboxLogic {
      * Whether one row is what the Inbox's "Some messages didn't send. Tap to review." banner is
      * about — a genuine send failure, and nothing else.
      *
-     * ⛔ [OutboxState.KEPT_AS_DRAFT] is NOT one (#95), and this is the whole reason it is a state of
+     * [OutboxState.KEPT_AS_DRAFT] is NOT one (#95), and this is the whole reason it is a state of
      * its own rather than a reuse of [OutboxState.FAILED]. Nothing failed: the user asked for a
      * draft and got one, on the phone. The banner sits across the Inbox, tints the outbox dot red
      * and is cleared by nothing — there is no deferred upload whose success could ever take it down
      * again — so a message saved exactly as asked would leave a permanent alarm behind it.
      *
-     * ⛔ Nor is [OutboxState.INTERRUPTED], and there the claim would be worse than untrue: that row
+     * Nor is [OutboxState.INTERRUPTED], and there the claim would be worse than untrue: that row
      * is a delivery that may well have REACHED the server. "Some messages didn't send" over a
      * message that did send is an assertion nothing would ever take back.
      *

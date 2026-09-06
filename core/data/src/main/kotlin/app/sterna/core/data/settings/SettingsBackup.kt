@@ -31,7 +31,7 @@ data class SettingsBackup(
     val confirmLinks: Boolean? = null,
     /**
      * Whether an opened message may ASK the reader to answer a sender's read-receipt request
-     * (#148). ⛔ Never "send receipts": this backs up permission to be asked.
+     * (#148). Never "send receipts": this backs up permission to be asked.
      */
     val askReadReceipt: Boolean? = null,
     val imageAllowlist: List<String>? = null,

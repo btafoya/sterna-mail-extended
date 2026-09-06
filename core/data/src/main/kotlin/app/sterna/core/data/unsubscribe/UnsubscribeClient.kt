@@ -59,12 +59,12 @@ internal fun isPostableUnsubscribeUrl(url: String): Boolean = url.startsWith("ht
 /**
  * The exact request a one-click unsubscribe sends.
  *
- * ⛔ **No `Authorization` header, ever.** This POST goes to a third-party domain named by the
+ * **No `Authorization` header, ever.** This POST goes to a third-party domain named by the
  * sender of an email. The project has no global interceptor (every JMAP call sets the header by
  * hand), so an absent line is genuinely an absent header — the invariant is kept by NOT reusing
  * `JmapClient.postWithRetry`, which requires a token.
  *
- * ⛔ The URL is used verbatim: `LinkCleaner` is NOT applied (decision D6). The subscriber token
+ * The URL is used verbatim: `LinkCleaner` is NOT applied (decision D6). The subscriber token
  * frequently lives in the query parameters, and stripping one would either break the request or,
  * worse, unsubscribe somebody else.
  */

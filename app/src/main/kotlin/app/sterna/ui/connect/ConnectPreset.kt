@@ -220,14 +220,14 @@ internal fun canLeaveAddressStep(email: String): Boolean = isValidEmail(email)
  * yields — and only a failure: offered beside a working verdict it would put the protocol question
  * back on screen, which is the whole thing this walk removes.
  *
- * ⛔ IT TAKES BOTH VERDICTS, because the address step obtains both: one pass over the address runs
+ * IT TAKES BOTH VERDICTS, because the address step obtains both: one pass over the address runs
  * the autoconfig cascade and the OAuth search together ([AddressProbe]), and the ViewModel
  * publishes both. A domain served over JMAP + OAuth that publishes no Thunderbird document
  * (#55) has a perfectly good answer in [oauth] — the credentials step can hand it straight over —
  * and reading [discovery] alone threw that answer away and dropped the reader on the manual form,
  * where she must know her own hostnames for a server the app had already found.
  *
- * ⚠ [oauthOpensCredentials], not "an OAuth answer exists": a server advertising a grant this app
+ * [oauthOpensCredentials], not "an OAuth answer exists": a server advertising a grant this app
  * cannot drive leads to a password field with no endpoints behind it here. See that function.
  *
  * Reached from [addressAdvance], which is what the address step's button and its wait both call.
@@ -247,18 +247,18 @@ internal fun stepAfterAddress(
  * The step actually RENDERED, given the [remembered] one and the verdict currently in hand.
  *
  * The step index survives process death (`rememberSaveable`); the answers do not — they live in a
- * ViewModel with no `SavedStateHandle`, so they come back null. ⛔ The credentials step therefore
+ * ViewModel with no `SavedStateHandle`, so they come back null. The credentials step therefore
  * renders only while ONE OF THEM is still there: a password field for a server nobody discovered,
  * or a hand-over for a server nobody found, shows a state that is not true (WYSIWYG) and its
  * button leads nowhere. With neither answer we fall back to the address step, from which both
  * probes run again.
  *
- * ⛔ AN OAUTH ANSWER COUNTS AS MUCH AS A [MailAutoconfigResult.Found] HERE, and it must, or the
+ * AN OAUTH ANSWER COUNTS AS MUCH AS A [MailAutoconfigResult.Found] HERE, and it must, or the
  * walk loops. Once [stepAfterAddress] sends a domain served over OAuth alone to the credentials
  * step (#55), reading [discovered] on its own sends it straight back to the address step the very
  * frame it arrives — the ViewModel holds no settings verdict for it and never will.
  *
- * ⚠ The distinction this function is FOR is unchanged, and it is between a rotation and a process
+ * The distinction this function is FOR is unchanged, and it is between a rotation and a process
  * death: a rotation keeps the ViewModel, so the answers ([discovered], [oauth]) are still there,
  * the credentials step holds and nothing typed is lost; a process death empties it (no
  * `SavedStateHandle`) while the step index survives (`rememberSaveable`), so both come back null
@@ -299,7 +299,7 @@ internal fun stepBack(current: ConnectStep): ConnectStep? =
  * offline the cascade must not set out at all, silently — no error state for a probe nobody asked
  * for.
  *
- * ⛔ The route condition is lifted at the address step ONLY, because that is the step where no
+ * The route condition is lifted at the address step ONLY, because that is the step where no
  * protocol has been chosen yet — requiring one first is exactly what this walk removes. It stays
  * for every other step: under the manual form with JMAP chosen there are no IMAP fields for the
  * verdict to land in.
@@ -323,7 +323,7 @@ internal fun shouldDiscoverImapSettings(
 /**
  * The discovered settings written into the form — per SIDE, atomically: the incoming trio
  * (host + port + security, together) lands only while [PresetForm.imapHost] is untouched, the
- * outgoing trio likewise on [PresetForm.smtpHost]. ⛔ A hand-typed host is never overwritten, and
+ * outgoing trio likewise on [PresetForm.smtpHost]. A hand-typed host is never overwritten, and
  * never has a discovered port or security slid under it: half the cascade's verdict under half
  * the user's is a configuration nobody wrote. `selected`/`oauth`/`appPasswordUrl` are never
  * touched. The verdict's username is deliberately NOT applied anywhere: the address field keeps
@@ -335,7 +335,7 @@ internal fun presetFilledWith(
     email: String,
 ): PresetForm {
     var filled = preset
-    // ⛔ [PresetForm.discoveredFor] is stamped by the ONE function that writes discovered values,
+    // [PresetForm.discoveredFor] is stamped by the ONE function that writes discovered values,
     // and ONLY on a side it really wrote: provenance cannot be forgotten at a call site, and a
     // form this fills nothing into is never marked as the cascade's work.
     if (preset.imapHost.isBlank()) {

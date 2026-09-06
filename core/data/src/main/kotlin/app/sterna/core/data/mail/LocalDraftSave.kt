@@ -19,13 +19,13 @@ import kotlin.coroutines.cancellation.CancellationException
  * JVM test can execute: [MailRepository] needs Room, an Android context and a live session, so
  * nothing inside it can be reached from one.
  *
- * ⭐ **One path, always, online or off.** The row is written before the first byte goes out, then
+ * **One path, always, online or off.** The row is written before the first byte goes out, then
  * the upload is attempted in the same call. Online the row lives a second and is consumed; offline
  * — or on any other upload failure — it stays and [MailRepository.saveDraft] does not throw, which
  * is the whole of what issue #95 reported: "could not save the draft" plus the raw transport error,
  * and the typed text dying with the process.
  *
- * ⛔ There is deliberately NO "if there is a network, server, else local" branch. Two paths would be
+ * There is deliberately NO "if there is a network, server, else local" branch. Two paths would be
  * a state machine, and worse, they would not make the text durable BEFORE the attempt — which is the
  * only reason to write first at all. A transport that hangs, a process killed mid-upload and a phone
  * in a lift all land on the same code here.
@@ -35,7 +35,7 @@ import kotlin.coroutines.cancellation.CancellationException
 internal data class LocalDraftTarget(val id: String, val existing: LocalDraftEntity?)
 
 /**
- * Which row a save lands on — ⭐ **found by BOTH keys, because a draft has two names.**
+ * Which row a save lands on — **found by BOTH keys, because a draft has two names.**
  *
  * - A draft reopened from the phone's own store carries a [LOCAL_DRAFT_ID_PREFIX] id: it re-saves
  *   onto its own row, found by `(accountId, id)`.
@@ -47,7 +47,7 @@ internal data class LocalDraftTarget(val id: String, val existing: LocalDraftEnt
  *   PER SAVE. So it is looked up by `(accountId, replacesEmailId)` and UPDATED.
  * - Nothing being replaced: a brand-new draft, a fresh id, no lookup.
  *
- * ⛔ Both lookups are account-scoped by their callers (#31): ids collide between two accounts of one
+ * Both lookups are account-scoped by their callers (#31): ids collide between two accounts of one
  * server, and so do server draft ids.
  */
 internal suspend fun localDraftTarget(
@@ -67,7 +67,7 @@ internal suspend fun localDraftTarget(
 /**
  * The SERVER draft a save replaces, or null when there is none to destroy.
  *
- * ⛔ The guard that matters: a local id is NOT a server id. Handed on as `replacesEmailId` it would
+ * The guard that matters: a local id is NOT a server id. Handed on as `replacesEmailId` it would
  * reach [MailRepository.finishDraftSave] → `destroyDraft`, i.e. an `Email/set` destroy or a UID
  * STORE \Deleted addressed with a name the server has never issued. On IMAP that name ends in a
  * number, and a number always means SOMETHING in a folder.
@@ -76,10 +76,10 @@ internal fun serverDraftReplacedBy(replacesEmailId: String?): String? =
     replacesEmailId?.takeUnless { it.startsWith(LOCAL_DRAFT_ID_PREFIX) }
 
 /**
- * The RFC 5322 `Message-ID` this save writes on the row — ⭐ **a fresh one EVERY TIME THE USER
+ * The RFC 5322 `Message-ID` this save writes on the row — **a fresh one EVERY TIME THE USER
  * SAVES**, whatever [existing] already carries.
  *
- * ⭐ **It names the VERSION of the text, not the draft**, and that is the whole of it. The name is
+ * **It names the VERSION of the text, not the draft**, and that is the whole of it. The name is
  * what a deferred upload looks for in the Drafts folder (`ImapMailService.draftIsAlreadyThere`)
  * before appending a second copy of text the server may already hold, and it reads "found" as "do not
  * append". A name that does not distinguish two versions cannot decide not to send the second one:
@@ -89,20 +89,20 @@ internal fun serverDraftReplacedBy(replacesEmailId: String?): String? =
  * 3. the upload asks about the frozen name, finds the copy of **v1**, skips the append — and
  *    [uploadLocalDraftOnce] consumes the row. v2 is on neither side, and the original is destroyed.
  *
- * ⛔ **Frozen for the RETRIES all the same**, and structurally so: `MailRepository.uploadLocalDraft`
+ * **Frozen for the RETRIES all the same**, and structurally so: `MailRepository.uploadLocalDraft`
  * never rebuilds a row, so every deferred attempt at one save asks under the name that save wrote.
  * Re-minting there would search for something that has never been on a wire and append a copy per
  * retry — the duplicate the search exists to stop.
  *
- * ⛔ **The residual damage, chosen deliberately** (grid rule 1, nothing irreversible): the copy of an
+ * **The residual damage, chosen deliberately** (grid rule 1, nothing irreversible): the copy of an
  * earlier version stays on the server, so Drafts can end up holding a stale twin. That is a
  * duplicate — visible, and deletable by the user — where the alternative was a version of her text
- * that exists nowhere at all. ⚠ Nothing here deletes the stale copy; that is stated debt.
+ * that exists nowhere at all. Nothing here deletes the stale copy; that is stated debt.
  *
- * ⛔ The row's ID and its creation time are NOT re-minted (see [localDraftTarget] and
+ * The row's ID and its creation time are NOT re-minted (see [localDraftTarget] and
  * [localDraftRow]): one draft is still one row. Only its name moves.
  */
-// ⛔ [existing] is taken and NOT read, on purpose: it is the answer the old rule gave, and the
+// [existing] is taken and NOT read, on purpose: it is the answer the old rule gave, and the
 // question this function answers is "the row already holds a name — what does this save write?".
 // Dropped, the refusal to inherit stops being a decision anything can execute.
 internal fun localDraftMessageId(
@@ -119,7 +119,7 @@ internal fun newMessageId(username: String, unique: String = java.util.UUID.rand
  * read through [recorded] for the folder that id names. Null when nothing is being replaced, and
  * null on JMAP or a local id, where [ImapMailService.mailboxOf] answers null.
  *
- * ⛔ Nothing in this volet READS the value back — the upload volet does. It is filled in here
+ * Nothing in this volet READS the value back — the upload volet does. It is filled in here
  * because this is the only moment the information is true: an IMAP cache id ends in a UID, a UID is
  * only a name inside one numbering (#99), and a row designed to wait weeks for a network can easily
  * outlive the numbering it was written under. Recorded later it would describe a folder that has
@@ -134,7 +134,7 @@ internal suspend fun localDraftUidValidity(
 }
 
 /**
- * The body a save writes on the row — ⭐ **a body the composer says it LOST never writes over one
+ * The body a save writes on the row — **a body the composer says it LOST never writes over one
  * already stored.**
  *
  * The row in `local_drafts` is often the ONLY copy of the text (a draft composed with no network,
@@ -146,16 +146,16 @@ internal suspend fun localDraftUidValidity(
  * Refusing it costs a stale body on the row, which is the direction that cannot lose data (grid
  * rule 1).
  *
- * ⛔ **The guard arms on [composerBodyWasLost] ALONE, never on the row's `bodyIsLossy`.** The two
+ * **The guard arms on [composerBodyWasLost] ALONE, never on the row's `bodyIsLossy`.** The two
  * are not the same question, and taking the second cost a user her erasure: `bodyIsLossy` is the
  * DISJUNCTION `editingDraftLossyOnOpen || composerBodyWasLost` (the licence to destroy a server
  * original, #63), and its first term is true for EVERY server draft reopened with an HTML body —
  * exactly where the composer plainly HAS its text. Emptying such a draft by hand was therefore
  * refused in silence, the screen said the draft was saved, and the text was back at the next
- * reopen. ⛔ The row still STORES the disjunction, and every destroy guard downstream still reads
+ * reopen. The row still STORES the disjunction, and every destroy guard downstream still reads
  * it: what changed is only which term decides this write.
  *
- * ⛔ **And the term governs the WRITE of an empty body, and NOTHING ELSE — it has never stopped
+ * **And the term governs the WRITE of an empty body, and NOTHING ELSE — it has never stopped
  * this row from being DESTROYED.** Reading the guard above as "a lost body is safe now" is what
  * produced the defect it was written to prevent: the same composer, with the same lost body, taps
  * Send instead of Save, and `commitThenConsumeLocalDraft` deletes the row and its staged files
@@ -163,14 +163,14 @@ internal suspend fun localDraftUidValidity(
  * `composerMaySendBody` (`app/src/main/kotlin/app/sterna/ui/compose/LostBodySend.kt`), UPSTREAM, in
  * the composer and in front of both sends: nothing in this file can see a send coming.
  *
- * ⛔ **All three terms are load-bearing, and none of them is "a row is already there".**
+ * **All three terms are load-bearing, and none of them is "a row is already there".**
  *
  * - [composerBodyWasLost] — without it, no re-save could ever shorten or empty a draft again: every
  *   save with less text than the row holds would be read as a loss.
  * - [typedBodyIsBlank] — without it, a composer that lost its body but was handed a fresh one (the
  *   user retyped before saving) would have the retyped text thrown away for the stale row. Blank
  *   and not empty, as `draftHasContent` reads a body: whitespace is not text either.
- *   ⛔ **It is the TYPED text that answers it, never [body].** Since #131 [body] is a DERIVED
+ *   **It is the TYPED text that answers it, never [body].** Since #131 [body] is a DERIVED
  *   value — `toPlainText`, which spells the list markers out and writes `label <url>` — and
  *   `toPlainText` of a body whose text is EMPTY but which carries one bullet is `"- "`, which is
  *   not blank. Judged on [body], the guard then stands down on a composer that handed over
@@ -179,7 +179,7 @@ internal suspend fun localDraftUidValidity(
  * - [existingBody] being neither null nor blank — a first save (no row under it) writes what it has,
  *   and so does a save onto a row that holds nothing to protect.
  *
- * ⚠ It does NOT recover the body: the text the resume slot could not park is nowhere. What is kept
+ * It does NOT recover the body: the text the resume slot could not park is nowhere. What is kept
  * is the last version that reached the disk. Everything else the save carries — addresses, subject,
  * `requestReceipt`, the fresh `Message-ID`, the timestamps — is written normally, and the row still
  * carries `bodyIsLossy` so every destroy guard downstream keeps refusing.
@@ -191,8 +191,8 @@ internal fun localDraftBodyToWrite(
     /**
      * Whether the composer had NOTHING TYPED — its own `body.text`, not [body].
      *
-     * ⚠ The default is the identity for every caller whose handed-over body IS the typed text,
-     * which was every caller before #131 and is still every one but the composer's own save. ⛔ The
+     * The default is the identity for every caller whose handed-over body IS the typed text,
+     * which was every caller before #131 and is still every one but the composer's own save. The
      * production path (`localDraftRow` ← `MailRepository.saveDraft`) states it, and `saveDraft`
      * takes it with NO default so no call site can leave it to be guessed.
      */
@@ -216,7 +216,7 @@ internal fun localDraftKeepsTheStoredBody(
 ): Boolean = composerBodyWasLost && typedBodyIsBlank && !existingBody.isNullOrBlank()
 
 /**
- * The HTML part a save writes on the row (#131) — ⛔ **it FOLLOWS the text, always.**
+ * The HTML part a save writes on the row (#131) — **it FOLLOWS the text, always.**
  *
  * Where [localDraftBodyToWrite] keeps the stored text (the composer lost its body and handed over
  * a blank one), this keeps the stored HTML: the two columns describe the SAME message, and a row
@@ -243,13 +243,13 @@ internal fun localDraftHtmlToWrite(
 
 /**
  * The row to write, built from what the composer handed over plus [existing] (the row a re-save
- * lands on, so its id and creation time survive the re-save — ⛔ its `Message-ID` does not, see
+ * lands on, so its id and creation time survive the re-save — its `Message-ID` does not, see
  * [localDraftMessageId]).
  *
  * Addresses are stored comma-separated as [app.sterna.core.data.db.OutboxEntity.recipients] stores
  * them, message-id lists space-separated as the headers themselves are.
  *
- * ⛔ **A malformed address is refused HERE, before the row exists** (#95). The single-line check used
+ * **A malformed address is refused HERE, before the row exists** (#95). The single-line check used
  * to run inside [localDraftOutgoing], i.e. after the row had been written and inside the upload — so
  * `saveDraftLocalFirst`'s catch swallowed it into [DraftSaveOutcome.KEPT_ON_DEVICE] and a typing
  * mistake was displayed as a network outage. Worse, it was asymmetric: on IMAP that draft could
@@ -270,7 +270,7 @@ internal fun localDraftRow(
     /**
      * The `text/html` part to store beside [body] (#131), or null for a draft with no styling —
      * which is every draft this app wrote before #131 and every plain one it writes now
-     * (`draftHtmlToSave`). ⛔ A default of `null` here is the honest one: a caller with no HTML to
+     * (`draftHtmlToSave`). A default of `null` here is the honest one: a caller with no HTML to
      * store is saying so, and the column it lands in is nullable for exactly that reason.
      */
     html: String? = null,
@@ -282,14 +282,14 @@ internal fun localDraftRow(
     replacesUidValidity: Long? = null,
     bodyIsLossy: Boolean = false,
     /**
-     * ⛔ Whether THIS COMPOSER lost the body it is handing over — NOT [bodyIsLossy], which is the
-     * disjunction stored on the row (see [localDraftBodyToWrite]). ⛔ No default on purpose: `true`
+     * Whether THIS COMPOSER lost the body it is handing over — NOT [bodyIsLossy], which is the
+     * disjunction stored on the row (see [localDraftBodyToWrite]). No default on purpose: `true`
      * would put the silent refusal back for every distracted caller, `false` would let a future
      * site quietly delete a draft's only copy. Every call states which one it is.
      */
     composerBodyWasLost: Boolean,
     /**
-     * Whether the composer had nothing TYPED — see [localDraftBodyToWrite]. ⛔ Since #131 [body] is
+     * Whether the composer had nothing TYPED — see [localDraftBodyToWrite]. Since #131 [body] is
      * derived (`toPlainText`) and cannot answer it: a bullet on an empty body makes [body] `"- "`.
      */
     typedBodyIsBlank: Boolean = body.isBlank(),
@@ -305,7 +305,7 @@ internal fun localDraftRow(
     bcc = joinAddresses(bcc),
     subject = subject,
     textBody = localDraftBodyToWrite(body, existing?.textBody, composerBodyWasLost, typedBodyIsBlank),
-    // ⛔ The HTML FOLLOWS the text through the lost-body guard, never past it: see
+    // The HTML FOLLOWS the text through the lost-body guard, never past it: see
     // [localDraftHtmlToWrite]. Written as a bare `html` here, a composer that lost its body kept
     // last week's text beside the empty HTML of this save, and the reopen — which reads the HTML
     // first — showed the draft blank with the guard green.
@@ -319,7 +319,7 @@ internal fun localDraftRow(
     // Filled in by [saveDraftLocalFirst] once the files are staged: the descriptors have to name
     // files that exist, and they only exist after the copy.
     attachmentsJson = "[]",
-    // ⛔ **Written at the row's CREATION and never again** (#95). The link to the server draft this
+    // **Written at the row's CREATION and never again** (#95). The link to the server draft this
     // row stands in for belongs to the DRAFT, not to the last save that touched it. A row born from
     // a server draft carries both columns; reopened from the phone's own store the composer holds
     // the LOCAL id, for which `serverDraftReplacedBy` answers null — correctly, it names nothing a
@@ -358,7 +358,7 @@ internal fun localDraftAddresses(column: String?): List<String> =
  * The MIME an IMAP `APPEND` carries for [row] — built FROM THE ROW, not from the composer's
  * arguments, and that is the point rather than a detail.
  *
- * ⭐ **The `Message-ID` on the wire is the row's.** It cannot be dropped at a call site because
+ * **The `Message-ID` on the wire is the row's.** It cannot be dropped at a call site because
  * there is no call site left to drop it at: the row is the only source of the value. On `main` the
  * id was minted inside `outgoing()` at the moment of the APPEND, so nothing the phone kept named
  * what the server received.
@@ -367,12 +367,12 @@ internal fun localDraftAddresses(column: String?): List<String> =
  * single-line check on every address before any of it becomes a header (CRLF injection), the first
  * `In-Reply-To` and the joined `References`.
  *
- * ⭐ One difference, and it is a data loss either way: every token of the three address fields goes
+ * One difference, and it is a data loss either way: every token of the three address fields goes
  * through [asGroupWhenItCannotBeAnAddrSpec] first, so a token that cannot be an address is appended
  * as a group naming nobody instead of as a bare atom the server drops. The CRLF check runs on the
  * TRANSFORMED values — the guard has to judge what really goes on the wire.
  *
- * ⚠ JMAP has no equivalent: `JmapClient.saveDraft` builds an `Email/set` create and the server mints
+ * JMAP has no equivalent: `JmapClient.saveDraft` builds an `Email/set` create and the server mints
  * the `Message-ID`. The row's value is still frozen there — it just does not reach the wire, so a
  * JMAP re-upload cannot be de-duplicated by header. Stated, not fixed here.
  */
@@ -409,9 +409,9 @@ internal fun localDraftOutgoing(
  * as RFC 5322 group syntax naming nobody — `undisclosed-recipients` becomes
  * `undisclosed-recipients:;`. Anything else is handed over untouched.
  *
- * ⛔ **Not a validity check, and not a second judge of one.** The composer's `isValidEmail` and
+ * **Not a validity check, and not a second judge of one.** The composer's `isValidEmail` and
  * `parseAddrs` remain the only ones. This is RFC 5322 read literally: with no `@` a token is not an
- * `addr-spec` at all, so a group is the only header shape that can carry it. ⛔ In particular NOT
+ * `addr-spec` at all, so a group is the only header shape that can carry it. In particular NOT
  * `isValidEmail`, which lives in `:app`, is a deliberate typo-catcher stricter than the RFC and
  * rejects `a@b` — a perfectly valid `addr-spec` that this would then rewrite to `a@b:;`, destroying
  * a real recipient in the server's copy.
@@ -424,10 +424,10 @@ internal fun localDraftOutgoing(
  * comes back as `((NIL NIL "undisclosed-recipients" NIL)(NIL NIL NIL NIL))`, which that parser
  * carries as one entry with a name and no address.
  *
- * ⭐ A single TRAILING `:` is dropped and the group completed, because that is what a user who
+ * A single TRAILING `:` is dropped and the group completed, because that is what a user who
  * knows the syntax actually produces: typing `undisclosed-recipients:;` goes through the composer's
  * `parseAddrs`, which splits on `,` AND on `;`, so the stored token is `undisclosed-recipients:` —
- * a group start with no end, i.e. the same loss again. ⛔ It is "ENDS with a `:`", never "holds
+ * a group start with no end, i.e. the same loss again. It is "ENDS with a `:`", never "holds
  * one": an inner delimiter (`foo:bar`) is left alone, and lengthening it to `foo:bar:;` would only
  * make a header malformed in a new way. Same for a token already holding a `;`.
  *
@@ -445,7 +445,7 @@ internal fun localDraftDirName(id: String): String = id.replace(Regex("[^A-Za-z0
 /**
  * The directory under `filesDir` holding every local draft's staged bytes.
  *
- * ⭐ A constant because it now has TWO readers — the repository that writes there, and the sign-out
+ * A constant because it now has TWO readers — the repository that writes there, and the sign-out
  * that has to clear it. Two literals would be one rename away from a purge that sweeps an empty
  * directory and reports success.
  */
@@ -455,13 +455,13 @@ const val LOCAL_DRAFT_FILES_DIR: String = "local-drafts"
  * Copy the composer's staged attachment bytes into [dir] so they outlive the cache the composer
  * sends from, and describe them in [OutboxAttachments]' encoding.
  *
- * ⛔ **Refuses rather than shortens**, like `MailRepository.persistAttachments` (#70) and
+ * **Refuses rather than shortens**, like `MailRepository.persistAttachments` (#70) and
  * `OutboxEdit.take`: a part whose bytes cannot be read makes this THROW. The alternative — staging
  * fewer parts than the composer was showing — writes a row that a later upload would send amputated,
  * silently, weeks after the file went away. [saveDraftLocalFirst] turns the throw into a rollback,
  * so a failed staging leaves no row at all.
  *
- * ⭐ Its OWN directory, not the outbox's: an outbox item's files die with the send, a draft's wait
+ * Its OWN directory, not the outbox's: an outbox item's files die with the send, a draft's wait
  * for as long as the draft does, and the two purges have nothing to say to each other.
  */
 internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPart>): List<OutboxAttachment> {
@@ -493,7 +493,7 @@ internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPa
 }
 
 /**
- * The FIRST write of a save: the text, at once — and ⛔ **nothing of [existing] taken away.**
+ * The FIRST write of a save: the text, at once — and **nothing of [existing] taken away.**
  *
  * - **A first save** ([existing] null) has nothing to protect. It goes down in
  *   [LocalDraftState.STAGING], with the `attachmentsJson` "[]" [localDraftRow] built, which every
@@ -507,7 +507,7 @@ internal fun stageLocalDraftAttachments(dir: File, attachments: List<EmailBodyPa
  *   over with "[]" and [LocalDraftState.STAGING], as this used to do, a process killed at exactly
  *   this instant turned a draft that was going to leave with its files into a row the re-arm hands
  *   back saying "[]" — i.e. the attachments of a save that HAD worked, dropped, and the draft sent
- *   amputated. ⭐ This is also why a stranded [LocalDraftState.STAGING] row is always a first save,
+ *   amputated. This is also why a stranded [LocalDraftState.STAGING] row is always a first save,
  *   and therefore always one whose attachments never existed on the row at all.
  *
  * The new descriptors replace them only once [stageLocalDraftAttachments] has actually written the
@@ -521,25 +521,25 @@ internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEnt
     }
 
 /**
- * ⭐ **The order of this volet, and it is the whole fix.**
+ * **The order of this volet, and it is the whole fix.**
  *
  * 1. [upsert] the row — the text is on the phone before anything is attempted — through
  *    [localDraftStagingRow], which downgrades nothing an earlier save left;
  * 2. [stage] the attachments, [stageOrRollback]-style: a staging that throws takes the row with it
- *    (#70) ⛔ **only when THIS save created it** ([existing] null), because an orphan row carrying
+ *    (#70) **only when THIS save created it** ([existing] null), because an orphan row carrying
  *    `attachmentsJson` "[]" would be re-armed later and uploaded amputated;
  * 3. [upsert] it again, now describing the staged files and in [LocalDraftState.PENDING] — the row
  *    becomes uploadable at that instant and not before;
  * 4. [upload] it, and ONLY on success [discard] the row and its staged files;
  * 5. on failure, [schedule] the deferred upload the attempt books and then [record] it.
  *
- * ⛔ **The three writes that finish whatever happens to the caller** ([NonCancellable]): making the
+ * **The three writes that finish whatever happens to the caller** ([NonCancellable]): making the
  * row uploadable, undoing a save that never happened, and consuming a row the server now holds. Each
  * of them is the second half of something already half done — bytes staged, a row created, a draft
  * appended — and each is reached from the COMPOSER's scope, which is cancelled by closing a screen.
  * Everything else on this path may be cut where it stands.
  *
- * ⛔ **[existing] is the row that was there BEFORE this save, and the rollback turns on it.** The
+ * **[existing] is the row that was there BEFORE this save, and the rollback turns on it.** The
  * rollback is [discard], i.e. `deleteById` PLUS the per-DRAFT directory — not the per-save one,
  * there is no such thing. Run unconditionally it deleted the row, the text and the staged bytes of
  * an EARLIER save the moment one attachment of THIS one could not be read, which is reachable
@@ -548,7 +548,7 @@ internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEnt
  * re-save that fails to stage therefore leaves the saved draft exactly as it was and lets the error
  * out; only a save that created its own row rolls it back.
  *
- * ⭐ **Why the text is still written first, and the state carries the risk instead.** The typed text
+ * **Why the text is still written first, and the state carries the risk instead.** The typed text
  * is the one thing that cannot be refabricated, so it goes down before the bytes and before the
  * network — that is the whole promise of the volet. What [LocalDraftState.STAGING] closes is the
  * other end: a process killed BETWEEN the two upserts (the `catch` only ever covered the exception
@@ -558,15 +558,15 @@ internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEnt
  * (`revertStagedToPendingLossy`): the descriptors died with the process, so the row must never be
  * taken for a faithful replacement of a server draft whose attachments are still up there.
  *
- * ⛔ [discard] is on the success path and nowhere else. Moved to a `finally`, or run before the
+ * [discard] is on the success path and nowhere else. Moved to a `finally`, or run before the
  * outcome is known, it would be strictly worse than the bug this fixes: the screen would say the
  * draft was saved and nothing at all would be left.
  *
- * ⛔ An upload failure is swallowed into [DraftSaveOutcome.KEPT_ON_DEVICE] — the caller must NOT
+ * An upload failure is swallowed into [DraftSaveOutcome.KEPT_ON_DEVICE] — the caller must NOT
  * throw offline. A [CancellationException] is not a failure and is always rethrown: the caller is
  * going away.
  *
- * ⭐ **A cancelled attempt books the deferred upload before it lets the stop through**, and that is
+ * **A cancelled attempt books the deferred upload before it lets the stop through**, and that is
  * the hole measured at the bench (#95). The interactive attempt runs in the COMPOSER's scope and is
  * bounded by nothing, so closing the composer cancels it routinely — and from the instant a
  * coroutine is cancelled every suspension point in it throws. The row was therefore left `PENDING`
@@ -574,29 +574,29 @@ internal fun localDraftStagingRow(row: LocalDraftEntity, existing: LocalDraftEnt
  * without the draft leaving, and only the startup re-arm (`revertUnfinishedLocalDrafts`) sent it,
  * after a force-stop. So [schedule] runs FIRST, before the rethrow.
  *
- * ⛔ **[schedule] does not suspend, and that is load-bearing rather than a style**: a suspending
+ * **[schedule] does not suspend, and that is load-bearing rather than a style**: a suspending
  * seam works here only by accident — because its body happens never to suspend — and the first
  * `yield()` or Room write put behind it would book nothing at all, in silence, on this exact path.
  *
- * ⛔ **At delay 0, and writing NOTHING on the row.** A cancellation is not a failure: no attempt
+ * **At delay 0, and writing NOTHING on the row.** A cancellation is not a failure: no attempt
  * counted, no cause invented, no backoff armed. An attempt written here would make
  * [localDraftMayAlreadyBeOnServer] true for a row that has never been on a wire, and every deferred
  * upload would then pay a folder read (`UID SEARCH ALL` plus envelopes) to be told no. And nothing on
  * this path calls `finishDraftSave`, so the server draft being replaced stays intact.
  *
- * ⭐ **The failure is also RECORDED**, through the same [record] the deferred worker uses
+ * **The failure is also RECORDED**, through the same [record] the deferred worker uses
  * ([uploadLocalDraftOnce]): the attempt counter, the cause, and the instant the backoff moves the
  * row to. Swallowed without recording — as it was in the first pass — `notBeforeMillis` never
  * moves, `LocalDraftDao.pending` hands the row straight back, and against a server that is refusing
- * rather than absent the worker retries as fast as it is allowed to, on battery. ⛔ It records and
+ * rather than absent the worker retries as fast as it is allowed to, on battery. It records and
  * nothing else: no cap, no terminal state, no delete.
  *
- * ⭐ **And it is SCHEDULED**, at the instant the attempt computed — before [record] writes it, so a
+ * **And it is SCHEDULED**, at the instant the attempt computed — before [record] writes it, so a
  * cancellation landing on that write cannot take the booking with it. This is what makes the promise
  * of the volet true: the draft rejoins the server on its own when the network comes back, without
  * the app being started again. Before it, `LocalDraftUploads.enqueue` had two callers — the startup
  * re-arm and the worker re-booking itself — so a draft saved in a lift waited for the process to
- * DIE and come back, and nothing on screen said so. ⛔ Not at delay 0 either: the row's own backoff
+ * DIE and come back, and nothing on screen said so. Not at delay 0 either: the row's own backoff
  * is what a server that refuses (rather than one that is absent) is protected by.
  *
  * Note what does NOT happen on failure: nothing calls `finishDraftSave`, so the SERVER draft this
@@ -615,9 +615,9 @@ internal suspend fun saveDraftLocalFirst(
     schedule: (LocalDraftUploadJob) -> Unit,
 ): DraftSaveOutcome {
     upsert(localDraftStagingRow(row, existing))
-    // ⛔ Only what THIS save created is rolled back. See the note on [existing] above: the
+    // Only what THIS save created is rolled back. See the note on [existing] above: the
     // directory the rollback removes belongs to the draft, not to one save of it.
-    // ⛔ [NonCancellable]: this rollback runs from a coroutine that may ALREADY be cancelled, and
+    // [NonCancellable]: this rollback runs from a coroutine that may ALREADY be cancelled, and
     // `discardLocalDraft` is two `runCatching` — the first swallows the CancellationException the
     // Room delete throws, the second (a plain file delete) goes through regardless. What survives
     // is a row in [LocalDraftState.STAGING] saying "[]" whose staged bytes have just been removed —
@@ -631,7 +631,7 @@ internal suspend fun saveDraftLocalFirst(
         attachmentsJson = OutboxAttachments.encode(staged),
         state = LocalDraftState.PENDING,
     )
-    // ⛔ [NonCancellable], and this is the write the whole volet rests on. [stage] does not suspend
+    // [NonCancellable], and this is the write the whole volet rests on. [stage] does not suspend
     // (`stageLocalDraftAttachments` is plain file copying), so a cancellation arriving while the
     // attachment bytes are copied is FIRST SEEN HERE — on the write that turns a staged row into an
     // uploadable one, and outside the `try` below, so nothing catches it. Cut here, a first save
@@ -645,15 +645,15 @@ internal suspend fun saveDraftLocalFirst(
     val outcome = try {
         upload(durable)
     } catch (cancelled: CancellationException) {
-        // ⛔ BOOKED FIRST, and only then let the stop through. See the note above: from here on
+        // BOOKED FIRST, and only then let the stop through. See the note above: from here on
         // every suspension point throws, so the booking has to be the first thing that runs and it
         // has to be able to run at all — which is why [schedule] does not suspend.
-        // ⛔ Delay 0, and NOTHING written on the row: a cancellation is not a failure.
+        // Delay 0, and NOTHING written on the row: a cancellation is not a failure.
         schedule(LocalDraftUploadJob(durable.accountId, durable.id, 0L))
         throw cancelled
     } catch (@Suppress("TooGenericExceptionCaught") failure: Throwable) {
         val attempt = localDraftAttemptAfterFailure(durable, failure, nowMillis)
-        // ⛔ BOOKED BEFORE IT IS WRITTEN DOWN, and the order is the whole of it. [record] suspends,
+        // BOOKED BEFORE IT IS WRITTEN DOWN, and the order is the whole of it. [record] suspends,
         // so a cancellation that arrives with the failure (the composer is closing while the socket
         // gives up) throws THERE — and a booking placed after it would never run at all, on a row
         // that has just failed. Booked first, the worst case is a row that keeps the backoff it
@@ -669,7 +669,7 @@ internal suspend fun saveDraftLocalFirst(
         record(durable, attempt)
         return DraftSaveOutcome.KEPT_ON_DEVICE
     }
-    // ⛔ [NonCancellable]: by here the draft IS on the server and the original it replaced has been
+    // [NonCancellable]: by here the draft IS on the server and the original it replaced has been
     // destroyed. `discardLocalDraft` swallows the cancellation its Room delete throws and deletes
     // the staged files all the same, so a stop here leaves a row describing bytes that no longer
     // exist — which the deferred worker then uploads a second time, amputated.

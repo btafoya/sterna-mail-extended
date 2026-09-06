@@ -159,7 +159,7 @@ internal fun chipFill(
  *
  * [originLabel] is the one chip that says WHERE this row comes from: the owning ACCOUNT in the
  * unified inbox and in search, the row's own FOLDER in the unread view (which pages every folder of
- * one account, so the same object can legitimately appear twice — see `unreadRowFolder`). ⛔ One
+ * one account, so the same object can legitimately appear twice — see `unreadRowFolder`). One
  * slot, and the two never coexist: whichever view is on screen, only one of them is a question the
  * reader is asking. Null draws no chip at all.
  */

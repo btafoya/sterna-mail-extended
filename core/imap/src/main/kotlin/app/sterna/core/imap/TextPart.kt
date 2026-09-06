@@ -4,7 +4,7 @@ package app.sterna.core.imap
  * Where a message's readable text is, as the SERVER described it in the BODYSTRUCTURE that came
  * with the envelope — enough to fetch that one section and to decode it, without asking again.
  *
- * ⭐ It is kept because the structure is ALREADY on the wire: every page of every folder walk asks
+ * It is kept because the structure is ALREADY on the wire: every page of every folder walk asks
  * for `BODYSTRUCTURE` and, until now, reduced it to the single boolean [ImapMessage.hasAttachment].
  * A notification preview that had to re-ask for it would spend a second round trip per message, in
  * a background service, before it could even name the section it wants.
@@ -37,11 +37,11 @@ private const val MAX_STRUCTURE_PARTS = 1024
  * it has none, which is a normal answer and not an error: a message that is one PDF has no opening
  * line to show, and there is then nothing to preview.
  *
- * ⛔ The first TEXT part, never simply the first part. The first part of an ordinary
+ * The first TEXT part, never simply the first part. The first part of an ordinary
  * `multipart/mixed` is as often an image or a PDF as it is the message, and fetching it would put
  * base64 — or, one level up, a `--boundary` line — on the lock screen in place of the mail.
  *
- * ⛔ And "the body", not "any text part". The rest of the app, reading the SAME message, already
+ * And "the body", not "any text part". The rest of the app, reading the SAME message, already
  * decides this in [MimeParser] — a part with a filename or an `attachment` disposition is a FILE
  * (`MimeParser.walk`, `isAttachment`), and `text/calendar` is an invitation captured as
  * `invite.ics`, never as text. Deciding it differently here would show `notes.txt` where the

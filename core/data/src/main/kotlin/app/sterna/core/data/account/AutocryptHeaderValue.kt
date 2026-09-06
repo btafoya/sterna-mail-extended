@@ -11,11 +11,11 @@ import app.sterna.core.imap.OutgoingMime
  * standard: a correspondent who has no key yet is exactly the person it is for, and they are
  * reached by ordinary mail.
  *
- * ⛔ **No `prefer-encrypt` attribute.** Absent means `nopreference` (Level 1 §2.1.1), which is the
+ * **No `prefer-encrypt` attribute.** Absent means `nopreference` (Level 1 §2.1.1), which is the
  * truth here: this app has no per-peer encryption preference to state, and `mutual` would tell the
  * correspondent's client to start encrypting by itself.
  *
- * ⛔ **The PGP mode of the message is not consulted, and must not be.** An Autocrypt header carried
+ * **The PGP mode of the message is not consulted, and must not be.** An Autocrypt header carried
  * only by encrypted mail would only ever reach people who already have the key.
  */
 fun autocryptHeaderValue(account: StoredAccount?, fromAddress: String?): String? {
@@ -29,7 +29,7 @@ fun autocryptHeaderValue(account: StoredAccount?, fromAddress: String?): String?
     // all the same because this string also travels the JMAP path, where no MIME builder stands
     // between it and the server.
     //
-    // ⛔ Nothing folds here. Folding inserts CR/LF, so it belongs strictly after this point, and
+    // Nothing folds here. Folding inserts CR/LF, so it belongs strictly after this point, and
     // only on the SMTP side ([app.sterna.core.imap.AutocryptHeader.fold]) — JMAP takes the value
     // flat and the server folds it.
     return "addr=${OutgoingMime.headerSafe(from)}; keydata=${OutgoingMime.headerSafe(account.pgpPublicKey)}"
@@ -38,7 +38,7 @@ fun autocryptHeaderValue(account: StoredAccount?, fromAddress: String?): String?
 /**
  * Whether [from] and [accountAddress] are the same mailbox: trimmed, compared without case.
  *
- * ⭐ **This is the guard the volet exists around.** A delegated ("on behalf") send puts SOMEBODY
+ * **This is the guard the volet exists around.** A delegated ("on behalf") send puts SOMEBODY
  * ELSE's address in `From:` — `MailRepository` submits through the login's account while the header
  * names the shared mailbox — and this account's key covers that address in no way at all.
  * Announcing it there is not a cosmetic error: the correspondent's client would file that key for
@@ -52,7 +52,7 @@ fun autocryptHeaderValue(account: StoredAccount?, fromAddress: String?): String?
  * that only this function would apply. `lowercase()` with no argument is `Locale.ROOT` in Kotlin,
  * so a Turkish locale cannot make two ASCII addresses stop matching.
  *
- * ⚠ It compares the addr-spec only. Callers hand over the bare mailbox address, never a
+ * It compares the addr-spec only. Callers hand over the bare mailbox address, never a
  * `Name <addr>` form — the display name is not part of the identity being claimed.
  */
 private fun sameMailbox(from: String, accountAddress: String): Boolean {

@@ -24,7 +24,7 @@ class JmapException(
      * then reported as `delivered: "no"` for at least one recipient (#183) — a refusal issued
      * before the message was ever queued, so no bounce will ever follow it either.
      *
-     * ⛔ It is NOT "this looked like a 5xx". Transport errors, HTTP failures and parse errors leave
+     * It is NOT "this looked like a 5xx". Transport errors, HTTP failures and parse errors leave
      * it false: they say nothing about whether the message left, and the outbox's retries are what
      * gets a message out over a flaky link. Only a per-recipient refusal read back from the
      * submission itself sets it.

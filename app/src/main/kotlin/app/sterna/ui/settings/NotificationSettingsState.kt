@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.combine
  * every single visit — the view model is rebuilt each time, the back stack entry having been
  * destroyed on the way out — and the choice it displayed was not the choice that was stored.
  *
- * ⭐ The reason this is not merely ugly: the radio rows are CLICKABLE during that frame. A tap that
+ * The reason this is not merely ugly: the radio rows are CLICKABLE during that frame. A tap that
  * lands on the default writes the default to DataStore, and a privacy setting is lost without a
  * word. So the screen must not be drawn at all until the stored values are known.
  *

@@ -47,7 +47,7 @@ internal class ImapParser(private val input: InputStream) {
      * built. A `UID SEARCH` over a 200 000-message folder otherwise materialises 200 000 boxed
      * atoms before the caller can throw the surplus away, on devices as old as an S7 (#99).
      *
-     * ⛔ THE END OF THE STREAM IS A FAILURE, NOT AN ANSWER (#156). `-1` used to return `tokens`
+     * THE END OF THE STREAM IS A FAILURE, NOT AN ANSWER (#156). `-1` used to return `tokens`
      * like the two line endings do, so a closed peer and a blank line both came back as
      * `emptyList()` and no caller could tell them apart — not by a field, not by a nullable, not
      * by an exception. The `while (true)` loops of [ImapSession] then re-read a finished stream
@@ -56,10 +56,10 @@ internal class ImapParser(private val input: InputStream) {
      * it (it means "WE closed"), and a read timeout cannot either (a closed peer answers `-1` at
      * once — it is not mute).
      *
-     * ⭐ A blank line stays a blank line: a lone CRLF still returns `emptyList()`. Two cases are
+     * A blank line stays a blank line: a lone CRLF still returns `emptyList()`. Two cases are
      * separated here, neither is removed.
      *
-     * ⭐ No sub-reader guards EOF itself. None of them loops on `-1` — each returns what it has —
+     * No sub-reader guards EOF itself. None of them loops on `-1` — each returns what it has —
      * and their partial result always comes back through this loop, which sees the `-1` on the
      * next turn and throws before anything truncated reaches a caller.
      *
@@ -179,7 +179,7 @@ internal class ImapParser(private val input: InputStream) {
      * `]`, everything is the atom. `BODY[1]<0>` and `BODY[]` never had a space or a parenthesis
      * and read exactly as before.
      *
-     * ⛔ Still bounded by the line: a `]` that never comes ends the atom at the CRLF, as a plain
+     * Still bounded by the line: a `]` that never comes ends the atom at the CRLF, as a plain
      * atom always did — and the `)` that closes the list the item sits in is left to that list,
      * unless the brackets themselves opened a `(` it is answering.
      */

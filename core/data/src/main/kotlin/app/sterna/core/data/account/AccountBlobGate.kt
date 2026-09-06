@@ -25,7 +25,7 @@ package app.sterna.core.data.account
  * Decoding is all-or-nothing on purpose. Salvaging the records that happen to parse would look
  * kinder and would be worse: the write that followed would delete the unreadable one permanently.
  *
- * ⭐ Why the ENCODER lives here too, and not in [AccountStore.saveAccounts]. The obvious shape —
+ * Why the ENCODER lives here too, and not in [AccountStore.saveAccounts]. The obvious shape —
  * a `writeGuarded { … }` the caller fills with its own `putString(json.encodeToString(list))` —
  * survives the most ordinary refactor there is: move that one line out of the lambda and the store
  * writes unconditionally again, with the gate still called and every source check still passing.

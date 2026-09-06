@@ -48,7 +48,7 @@ object RelayPush {
      * JMAP always may — it holds a PushSubscription and the transport is its own. Anything else
      * only once its owner asked for a relay address: an IMAP server has nothing to subscribe to.
      *
-     * ⛔ Split out of [shouldRegister] because the manager needs this one question EARLIER than the
+     * Split out of [shouldRegister] because the manager needs this one question EARLIER than the
      * registration window: an account that may not use push at all must leave before
      * `ensureDistributor()`, whose picker is the only UI this subsystem has — while a JMAP account
      * must go through it whatever the registration window says, or a freshly installed distributor
@@ -60,7 +60,7 @@ object RelayPush {
     /**
      * The user tapped "Get an address": what to persist before registering.
      *
-     * ⛔ The status goes back to NONE, and that is the whole point. Withdrawing an address
+     * The status goes back to NONE, and that is the whole point. Withdrawing an address
      * unregisters the instance; the distributor answers; `onUnregistered` writes FAILED stamped
      * NOW — so "Remove address" immediately followed by "Get an address" hit the 15-minute FAILED
      * cooldown of [shouldRegister] and did nothing at all, in silence, which is exactly the
@@ -75,7 +75,7 @@ object RelayPush {
     /**
      * The address this account may SHOW, or null.
      *
-     * ⛔ Not simply the stored endpoint: `markFailed` and `onUnregistered` keep that field, so
+     * Not simply the stored endpoint: `markFailed` and `onUnregistered` keep that field, so
      * returning it whatever the status puts a dead address on screen as a live one — an address
      * the user then pastes into a relay that will post to it for ever with nothing listening.
      * Only a relay the user asked for, whose address is published (or has since been posted to),
@@ -137,13 +137,13 @@ object RelayPush {
      * A payload really arrived through this account's endpoint. Returns what to persist, or null
      * when there is nothing to write — the caller must not save on every message.
      *
-     * ⛔ THIS, and not the existence of an address, is what arms a relay. The subsystem enrols the
+     * THIS, and not the existence of an address, is what arms a relay. The subsystem enrols the
      * single installed distributor silently, so installing a notification app for some unrelated
      * reason publishes an address here; switching the transport on that alone would drop an IMAP
      * account's permanent connection in favour of an address nobody ever posts to — mail half an
      * hour late behind a screen reading "push".
      *
-     * ⛔ Null for a JMAP account (it holds a [UpAccountState.subscriptionId]): its ACTIVE is the
+     * Null for a JMAP account (it holds a [UpAccountState.subscriptionId]): its ACTIVE is the
      * server's PushVerification and a mere message must not counterfeit it.
      */
     fun onDelivery(prev: UpAccountState, now: Long): DeliveryUpdate? {

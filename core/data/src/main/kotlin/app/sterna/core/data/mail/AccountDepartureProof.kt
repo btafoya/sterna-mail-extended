@@ -14,14 +14,14 @@ package app.sterna.core.data.mail
  * path, which reads the same `null` and is not wired here yet — three copies of one rule, which is
  * three chances for one of them to drift into destroying on an unproven `null`.
  *
- * ⛔ **Both halves are indispensable, and the first one is the non-obvious one.** `accounts()`
+ * **Both halves are indispensable, and the first one is the non-obvious one.** `accounts()`
  * answers an UNREADABLE blob with an EMPTY list, exactly as it answers "no account is configured" —
- * which is precisely what `AccountStore.accountsUnreadable()` was built to say
- * (`AccountStore.kt:304`).
+ * which is precisely what `AccountStore.accountsUnreadable()` was built to say.
+ *
  * With the list half alone, a storage failure reads as "every account left at once", and the caller
  * destroys the only copy of a message it could have simply kept.
  *
- * ⛔ **Unproven ⇒ nothing is destroyed.** This answers `false` for everything that is not a proven
+ * **Unproven ⇒ nothing is destroyed.** This answers `false` for everything that is not a proven
  * departure, and a caller may only ever destroy on `true`. Which is grid rule 1: an option that
  * cannot lose data wins, even slower and even uglier — a message left queued one hour longer is
  * recoverable, a deleted one is not.

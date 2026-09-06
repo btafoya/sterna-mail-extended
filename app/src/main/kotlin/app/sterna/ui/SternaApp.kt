@@ -134,13 +134,13 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
         val current = accountStore.currentId()?.takeIf { accountStore.credentials(it) != null }
             ?: accountStore.accounts().firstOrNull { accountStore.credentials(it.id) != null }?.id
         if (current != null && accountStore.currentId() != current) accountStore.setCurrent(current)
-        // ⛔ SEEDED HERE, AND BEFORE THE ARM. PushController.unifiedInboxVisible is a mirror of the
+        // SEEDED HERE, AND BEFORE THE ARM. PushController.unifiedInboxVisible is a mirror of the
         // list's own selection, and on a cold start there is no list yet: the NavHost composes it
         // long after this line, while the arm below already needs the answer. Left at its initial
         // false, a launch that reopens on "All inboxes" (#179) arms as though a single folder were
         // on screen, and shouldResetBaseline reseeds fewer accounts than it should — every other
         // account then re-announces mail the user is already looking at.
-        // ⚠ Before, NOT "inside this call": apply() reads the flag inline only on its worker
+        // Before, NOT "inside this call": apply() reads the flag inline only on its worker
         // branch; on the direct branch it starts the foreground service, which reads it later, on
         // its own coroutine. Seeding first is what makes the value right whenever that read lands.
         // switchAccount() keeps its own `= false` on top of this. That line is REDUNDANT — this
@@ -164,7 +164,7 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
      * cold start lands on a single folder, which stopped being true when the drawer learnt to
      * reopen on the view you left.
      *
-     * ⛔ It is the memory's answer, not the screen's: it says what the app WILL open on, and a live
+     * It is the memory's answer, not the screen's: it says what the app WILL open on, and a live
      * list always overrules it.
      */
     fun restoredUnifiedView(): Boolean = restoredSelection(accountStore) is Sel.Unified
@@ -172,13 +172,13 @@ class RootViewModel(application: Application) : AndroidViewModel(application) {
     fun switchAccount(id: String) {
         accountStore.setCurrent(id)
         // Switching account always lands the list on a single folder, so the unified view is over
-        // before the new account is armed. ⚠ REDUNDANT since refresh() seeds the same flag from
+        // before the new account is armed. REDUNDANT since refresh() seeds the same flag from
         // the restored view on its way in: setCurrent() above has already moved the current
         // account, so the stored view names the departing one, restoreSelection's id guard answers
         // null and the seed writes false here too — this assignment is overwritten before anyone
         // reads it. Kept, and pinned by RestoredViewWiringLintTest, because it states the switch's
         // own reason at the switch and holds for any arm that does not go through refresh().
-        // ⛔ Removing it is a decision, not a tidy-up of dead code.
+        // Removing it is a decision, not a tidy-up of dead code.
         PushController.unifiedInboxVisible = false
         refresh()
     }
@@ -328,7 +328,7 @@ private fun MainNavHost(
             notificationAccountId = target.accountId,
             currentAccountId = currentAccountId,
             knownAccountIds = accounts.map { it.id },
-            // ⛔ `?:`, not `== true`. A composed list has the last word wherever there is one; the
+            // `?:`, not `== true`. A composed list has the last word wherever there is one; the
             // memory speaks only when there is nobody to answer — the first composition of a cold
             // start, where listViewModel is still null. Written `== true` that case answers false,
             // and a notification tapped over a restored "All inboxes" switches the current account
@@ -372,7 +372,7 @@ private fun MainNavHost(
     // same reason: on a COLD start [listViewModel] is null in the composition that consumes the
     // tap, so the anchor is held until the composition where the list exists. Declared AFTER the
     // folder effect so, in the batch where both run, the folder switch lands first and the anchor
-    // second. ⛔ remember, never rememberSaveable — same reason as [heldUnifiedOpen] below.
+    // second. remember, never rememberSaveable — same reason as [heldUnifiedOpen] below.
     LaunchedEffect(pendingPaneOpen, listViewModel) {
         val anchor = pendingPaneOpen ?: return@LaunchedEffect
         val list = listViewModel ?: return@LaunchedEffect
@@ -384,7 +384,7 @@ private fun MainNavHost(
     // A tapped home-screen widget puts the list on the unified inbox (Codeberg #112) — the widget
     // only asks for it when the app has that view at all, i.e. from two accounts up (UnreadWidgetTap).
     //
-    // ⛔ Through selectUnified(), the drawer's own call, never a hand-rolled equivalent. Not for
+    // Through selectUnified(), the drawer's own call, never a hand-rolled equivalent. Not for
     // the push flag — PushController.unifiedInboxVisible is set by a collector on `selection`
     // (InboxViewModel's init), so ANY path that moves the selection sets it. For everything else
     // selectUnified() does around that assignment: it collapses expanded threads, re-derives the
@@ -402,12 +402,12 @@ private fun MainNavHost(
     // composition where the list exists; [heldUnifiedOpen] is what stops that consumption from
     // throwing the tap away. [WidgetTapRelay] owns the three-way verdict, alone and executable.
     //
-    // ⛔ remember, NEVER rememberSaveable. A held `true` that survived a rotation, a locale or a
+    // remember, NEVER rememberSaveable. A held `true` that survived a rotation, a locale or a
     // font-size change would re-navigate to "All inboxes" over whatever the user is reading — the
     // very thing MainActivity's `savedInstanceState == null` guard exists to prevent, let back in
     // through the side door. A tap that did not outlive its own process is a tap not worth replaying.
     //
-    // ⚠ And while it is held this is the ONLY copy: consuming clears the activity's flag AND strips
+    // And while it is held this is the ONLY copy: consuming clears the activity's flag AND strips
     // the intent, so a host that leaves composition in between — a sign-out, an account list that
     // became unreadable — drops the tap. That is the trade taken here, deliberately: what is lost is
     // a tap, never a byte, and the alternative is an order that outlives the screen it was meant for.
@@ -427,7 +427,7 @@ private fun MainNavHost(
                 // selectUnified() moves the LIST, and the list is a destination BELOW whatever is
                 // on screen: with the reader open the switch happened where nobody could see it,
                 // and the user met it later, on Back. So the reader is unwound too — and ONLY the
-                // reader. ⛔ THE WHOLE STACK is handed over, not the top entry: popBackStack("inbox")
+                // reader. THE WHOLE STACK is handed over, not the top entry: popBackStack("inbox")
                 // drops EVERYTHING above the list, so `inbox → search → message` would take the
                 // search results with it and `inbox → compose → message` the live draft.
                 // [WidgetTapNavigation] owns that verdict, alone and executable; do not inline it
@@ -487,7 +487,7 @@ private fun MainNavHost(
             //
             // withResumed because a restored entry is at most STARTED until its transition ends,
             // and navigateOnce evaluated then would refuse and lose the conversion without a word.
-            // ⚠ If the entry is DESTROYED while withResumed waits, it throws
+            // If the entry is DESTROYED while withResumed waits, it throws
             // LifecycleDestroyedException — which extends java.util.concurrent.CancellationException
             // (read off androidx/lifecycle/LifecycleDestroyedException.class in lifecycle-runtime).
             // The LaunchedEffect's coroutine is being cancelled at that very moment, so it absorbs
@@ -611,7 +611,7 @@ private fun MainNavHost(
             // the restored stack — never from the intent, for the reason the "inbox" destination
             // gives above.
             //
-            // ⛔ And the reader is NOT composed on this pass: the message belongs to the pane now,
+            // And the reader is NOT composed on this pass: the message belongs to the pane now,
             // and composing it here as well would run a second MessageViewModel over it and settle
             // it twice — a read receipt offered twice, a second decryption, a message marked read
             // from a screen nobody ever looked at. withResumed for the same reason as the other

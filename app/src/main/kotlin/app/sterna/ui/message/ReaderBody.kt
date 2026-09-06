@@ -47,7 +47,7 @@ internal data class ReaderBody(
  * carries no body at all — both are passed IN because this is a pure function and cannot read a
  * resource, which is also what lets a test pin that the reader speaks the user's language here.
  *
- * ⭐ Every step tests `isNotBlank`, not null. `htmlContent()` and `textContent()` filter nothing: a
+ * Every step tests `isNotBlank`, not null. `htmlContent()` and `textContent()` filter nothing: a
  * part that EXISTS with an empty value hands back "", which is not null, so each step claimed the
  * body and skipped the fallback that alone knows what to say. In HTML mode that was a white screen,
  * while plain-text mode said "no content" — the two modes contradicting each other on the same
@@ -82,7 +82,7 @@ internal fun readerBody(
  * Whether switching reading mode would CHANGE what [email] puts on the screen (#149) — i.e. whether
  * the menu entry is worth offering at all.
  *
- * ⛔ The predicate is NOT "the message has a text/html part", however natural that reads. Over JMAP
+ * The predicate is NOT "the message has a text/html part", however natural that reads. Over JMAP
  * (RFC 8621 §4.1.4) a server with no text/plain part fills `textBody` with the text/html one:
  * `htmlContent()` is null, `htmlBody` is empty, and the two modes still differ sharply — HTML mode
  * escapes that markup into a `<pre>` and shows it as if it were the message, plain-text mode refuses
@@ -124,11 +124,11 @@ internal fun readingModesDiffer(email: Email, derivedNotice: String, noContent: 
  * `plainText` is in that key and `imageMode` is not. Same verdict once DataStore has answered;
  * before that, the two guards differ on purpose (see the overflow menu in `MessageScreen`).
  *
- * ⛔ This function knows NOTHING about which page the reader is on, and must not be read as if it
+ * This function knows NOTHING about which page the reader is on, and must not be read as if it
  * did. Elsewhere in this reader it has been cited for saying that a warmed neighbour is safe
  * because `manualShow` is false there: it says no such thing. `manualShow` is only ever false on
  * an unsettled page because `MessagePage`'s `everActive` latch makes it so — BOTH terms handed in
- * from the page site are gated on that latch (MessageScreen.kt:1604 and :1618), the manual
+ * from the page site are gated on that latch (`MessageScreen`), the manual
  * override every bit as much as the allowlist, since the "Show images" button of a warmed page is
  * composed and live and `load()`, which holds the only reset, never runs there. Take the latch
  * away and `false || true` fetches, on a message NOBODY OPENED.

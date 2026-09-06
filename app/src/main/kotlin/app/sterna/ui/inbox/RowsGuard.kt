@@ -10,7 +10,7 @@ import app.sterna.core.data.mail.InboxRow
 internal const val ROWS_GUARD_GIVE_UP_MS = 800L
 
 /**
- * ⛔ A floor under [ROWS_GUARD_GIVE_UP_MS], pinned by `RowsGuardTest`, because the constant is a
+ * A floor under [ROWS_GUARD_GIVE_UP_MS], pinned by `RowsGuardTest`, because the constant is a
  * silent one: shortened to a few milliseconds the valve fires before the new pager has even been
  * built — `Sel.Folder` awaits a DataStore credential read before it exists — and the screen goes
  * straight back to the previous folder's rows. Nothing else in the suite reads its value.
@@ -20,13 +20,13 @@ internal const val ROWS_GUARD_GIVE_UP_FLOOR_MS = 500L
 /**
  * The selection that the rows on screen are supposed to be describing.
  *
- * ⚠ INVARIANT, and the whole guard rests on it: every member here must also be a member of
+ * INVARIANT, and the whole guard rests on it: every member here must also be a member of
  * [PageKey] — [PageKey.accountId] for the first, [PageKey.sel] for the other three (`Sel.Folder`'s
  * id, `Sel.Unified`, `Sel.Unread`). `InboxViewModel` derives both from the SAME two flows
  * (`currentAccountId` and `selection`), so a change here always rebuilds the pager, which is what
  * eventually presents new rows and disarms the guard.
  *
- * ⛔ A member added here that can move WITHOUT rebuilding the pager would arm the guard with
+ * A member added here that can move WITHOUT rebuilding the pager would arm the guard with
  * nothing left to disarm it: a loading indicator for ever, on top of a perfectly correct list.
  * Only the give-up valve would end it, and only once the loading stopped.
  */
@@ -63,7 +63,7 @@ internal fun rowsSignature(itemCount: Int, first: InboxRow?): String =
  * alternatives widen only the thread-count sub-query, never the rows). So a presented row always
  * belongs to one of the scope's pairs, in flat and conversation mode alike.
  *
- * ⭐ BOTH ENDS of the presented snapshot are asked, and `true` needs only one of them, because the
+ * BOTH ENDS of the presented snapshot are asked, and `true` needs only one of them, because the
  * FIRST row can be honest while everything under it is not. `pagedListRows` is a
  * `combine(pagedEmails, localDraftRows)` and `withLocalDrafts` PREFIXES rows built by
  * `LocalDraftEntity.toInboxRow(mailboxId)` with the SELECTED folder's id: on Inbox → Drafts the
@@ -72,13 +72,13 @@ internal fun rowsSignature(itemCount: Int, first: InboxRow?): String =
  * page. Asked about the first row alone, that draft vouches for twenty foreign messages, and the
  * user gets the "Drafts" header, her draft, and her inbox under it.
  *
- * ⚠ The two ends, not a scan, and that is the written reason the signature takes rows rather than
+ * The two ends, not a scan, and that is the written reason the signature takes rows rather than
  * a list: this runs on EVERY recomposition and must stay O(1). It is not a proof of purity — a
  * foreign block wedged between two local ends would pass — but it covers the two shapes that
  * actually occur: a whole page of the previous generation (both ends foreign) and a local prefix
  * over that page (last end foreign). A correct list has both ends inside the scope.
  *
- * ⛔ The question is only DECIDABLE for a single folder, and the guards below are not tidiness:
+ * The question is only DECIDABLE for a single folder, and the guards below are not tidiness:
  *
  *  - "All inboxes" and the unread view span several (account, folder) pairs and have no single
  *    owner, so a row of another account is a perfectly correct row there. Answering `true` for
@@ -125,7 +125,7 @@ internal data class RowsGuard(
  *
  *  1. the selection changed — ARM, and record what is on screen as the baseline;
  *  2. the rows on screen are PROVABLY another selection's ([foreign], from [rowsForeign]) — ARM,
- *     or stay armed. ⭐ It sits in front of the sticky rule on purpose, and that is the whole point
+ *     or stay armed. It sits in front of the sticky rule on purpose, and that is the whole point
  *     of it: rules 4 to 6 all answer "something moved / a load ran / time passed", and the OLD
  *     generation can satisfy every one of them by itself — `refreshLoading` is the load state of
  *     the PagingData being PRESENTED, i.e. the old one, and an old page that empties for a beat
@@ -134,15 +134,15 @@ internal data class RowsGuard(
  *     on 2026-08-29 (blank 0.6-2.3 s, then the wrong rows, then the right ones: 1 folder switch in
  *     4, 1 in 3 offline, 1 account switch in 2). Belonging is the only signal that cannot be
  *     forged by the previous generation, so it must be able to RE-arm;
- *  3. already disarmed for this selection — nothing, for ever. ⭐ Disarming is STICKY: a later
+ *  3. already disarmed for this selection — nothing, for ever. Disarming is STICKY: a later
  *     pull-to-refresh or a delivery must never re-arm, or the list blanks to a spinner on every
  *     refresh (#63, #23). Rule 2 does not weaken this: rows that belong to the selection are not
  *     foreign, so a refresh of the folder already shown never reaches it;
  *  4. Paging presents something other than the baseline — the new page is on screen, DISARM;
  *  5. a whole loading cycle ran since the switch — DISARM. The net for two selections that present
  *     identical rows (single account: "All inboxes" then "Inbox"), where rule 4 can never fire;
- *  6. the valve elapsed AND nothing is loading — DISARM. ⛔ The `!refreshLoading` is the point of
- *     it: while a load is running we never hand the screen back to the old rows. ⚠ Say what that
+ *  6. the valve elapsed AND nothing is loading — DISARM. The `!refreshLoading` is the point of
+ *     it: while a load is running we never hand the screen back to the old rows. Say what that
  *     load IS, because the valve is sized against it and not against the network: `refreshLoading`
  *     is the PAGING refresh, i.e. the local Room query. The pager never blocks its first page on
  *     the server (`MailRepository`'s mediator answers `SKIP_INITIAL_REFRESH`, then `Success` for
@@ -150,12 +150,12 @@ internal data class RowsGuard(
  *     link widens the window this guard covers; it is not what the window is made of;
  *  7. otherwise carry on, only remembering whether a load has been seen.
  *
- * ⚠ Rules 5 and 6 are what keeps the guard BOUNDED IN TIME, and rule 2 does not spend them
+ * Rules 5 and 6 are what keeps the guard BOUNDED IN TIME, and rule 2 does not spend them
  * needlessly: the case they exist for — two selections whose rows read alike — is a case where the
  * rows belong to the new selection, so [foreign] is false there and the valve still ends it. The
  * one thing rule 2 refuses to bound is a screen we can PROVE is lying.
  *
- * ⚠ It must CONVERGE: it is written and read in the same composition pass, so re-running it on its
+ * It must CONVERGE: it is written and read in the same composition pass, so re-running it on its
  * own output with unchanged inputs has to give an equal object, or the screen recomposes for ever.
  * It does: rule 2 answers `prev.copy(stale = true)`, a fixed point after the first pass. And rule
  * 1 relies on the wiring's guarantee that `gaveUp` is false at the moment it fires (it is

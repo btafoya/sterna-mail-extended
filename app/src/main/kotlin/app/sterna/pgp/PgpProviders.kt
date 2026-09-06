@@ -36,7 +36,7 @@ object PgpProviders {
     /**
      * The provider to use when the user has expressed no preference, or `null` when there is none.
      *
-     * ⛔ OpenKeychain FIRST, not the first in the sort. Every existing Sterna user with PGP set up
+     * OpenKeychain FIRST, not the first in the sort. Every existing Sterna user with PGP set up
      * uses OpenKeychain, and `com.pgpony.android` sorts before `org.sufficientlysecure.keychain`: a
      * bare alphabetical pick would move those users onto another provider on update, without a word,
      * and their keys are not there. The `.debug` variant is a fallback for the same reason (a dev
@@ -54,12 +54,12 @@ object PgpProviders {
      * The provider to bind, given what is [installed] and what the user [chosen]; `null` when there
      * is nothing to bind. `chosen == null` is every existing user: nobody has expressed a choice.
      *
-     * ⛔ A choice is honoured ONLY while its package is still installed. Returning an uninstalled
+     * A choice is honoured ONLY while its package is still installed. Returning an uninstalled
      * package would bind nothing and leave PGP dead while another provider sits right there — the
      * very defect #151 reports, re-created by the setting meant to fix it. Uninstalling the chosen
      * app therefore falls back to [preferredDefault], silently and immediately.
      *
-     * ⛔ The choice comes FIRST. Consulting [preferredDefault] before it makes the picker
+     * The choice comes FIRST. Consulting [preferredDefault] before it makes the picker
      * decorative: the user picks PGPony, and the app keeps calling OpenKeychain because
      * OpenKeychain outranks everything in the default order.
      */
@@ -70,7 +70,7 @@ object PgpProviders {
      * Whether picking [picked] must drop every account's OpenPGP signing key, given the provider
      * [inUse] at the moment of the tap — i.e. whether this is a real switch of keyring.
      *
-     * ⛔ `inUse == null` is NOT a switch. It means the caller does not know what is in use — the
+     * `inUse == null` is NOT a switch. It means the caller does not know what is in use — the
      * screen state was not resolved yet, or nothing resolves at all — and clearing a signing key
      * is irreversible: the user has to walk through the provider's key chooser again. On an
      * unknown, the answer is to destroy nothing. Erasing on `null` is precisely the defect this
@@ -87,20 +87,20 @@ object PgpProviders {
      * The package to write down as the chosen provider, given what is [stored] and what [resolve]
      * answered ([resolved]); `null` when there is nothing to write.
      *
-     * ⭐ It exists for the user who has exactly ONE OpenPGP app. No row is offered — there is
+     * It exists for the user who has exactly ONE OpenPGP app. No row is offered — there is
      * nothing to pick — so nothing would ever be stored, and the day they install a second app for
      * unrelated reasons [preferredDefault] would rank it first and Sterna would change provider
      * without a word. Their signing key would then be an id the new provider never emitted, and
      * nothing would clear it: no choice was ever made, so no switch was ever detected. Writing the
      * provider down the first time it is resolved closes that.
      *
-     * ⛔ A [stored] choice is NEVER rewritten, and this is the dangerous half. [resolve] falls back
+     * A [stored] choice is NEVER rewritten, and this is the dangerous half. [resolve] falls back
      * to the default whenever the chosen package is momentarily absent — an app updating, a work
      * profile, external storage not mounted yet. Re-pinning at that moment would overwrite an
      * explicit choice with the default, permanently: reinstalling the app would not bring it back,
      * because the record of what was chosen is gone.
      *
-     * ⛔ Never an erasure. Pinning writes down the provider ALREADY in use; it is not a switch of
+     * Never an erasure. Pinning writes down the provider ALREADY in use; it is not a switch of
      * keyring, so it must not reach [switchErasesKeys] or clear a single signing key.
      */
     fun providerToPin(stored: String?, resolved: String?): String? =

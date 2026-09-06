@@ -42,7 +42,7 @@ enum class DraftOpenRoute {
 /**
  * Which store [draftId] belongs to.
  *
- * ⛔ **A decision, not a null check, and that is the point.** `ComposeViewModel.prepare` used to
+ * **A decision, not a null check, and that is the point.** `ComposeViewModel.prepare` used to
  * branch on `draftId != null` alone, so a local id went down the SERVER path: `repo.fetchEmail`
  * first, which for a `local-draft:` id is `error("Message is not in the cache.")` on IMAP and an
  * unknown id on JMAP — and offline it does not even fail fast, it blocks on the connect timeout.
@@ -63,7 +63,7 @@ fun draftOpenRoute(draftId: String?): DraftOpenRoute = when {
  */
 data class LocalDraftPrefill(
     /**
-     * What the composer must remember as the draft it is editing — ⭐ **the row's OWN id**, never
+     * What the composer must remember as the draft it is editing — **the row's OWN id**, never
      * the server draft it stands in for. `localDraftTarget` looks a `local-draft:` id up by id and
      * re-saves onto that very row; anything else here mints a second row for the same draft at the
      * next save, with a second `Message-ID`, a second upload and a second copy in Drafts.
@@ -77,13 +77,13 @@ data class LocalDraftPrefill(
     /**
      * The inline styling [body] carries (#131), read back out of the row's `htmlBody`, and EMPTY
      * for a draft that has none — which is every draft written before #131 and every plain one
-     * since. ⛔ Beside [body] and not inside it: the composer holds the text in a `TextFieldValue`
+     * since. Beside [body] and not inside it: the composer holds the text in a `TextFieldValue`
      * and lays the spans over it, so both halves travel as they are stored.
      */
     val bodyRanges: Map<Inline, List<Span>> = emptyMap(),
     /**
      * The list blocks [body] carries (#131), read back out of the same `htmlBody` as the spans,
-     * and EMPTY for a draft that has none. ⛔ Dropped here, a draft holding a list reopens without
+     * and EMPTY for a draft that has none. Dropped here, a draft holding a list reopens without
      * it and the next save stores the removal.
      */
     val bodyBlocks: List<Block> = emptyList(),
@@ -104,13 +104,13 @@ data class LocalDraftPrefill(
      */
     val bodyIsLossy: Boolean,
     /**
-     * ⭐ The SERVER draft this row stands in for (`replacesEmailId`) — the message the Drafts list
+     * The SERVER draft this row stands in for (`replacesEmailId`) — the message the Drafts list
      * takes out for as long as the row exists (`replacedServerIds` / `hidesServerRow`, in the app
-     * module's `ui/inbox/LocalDraftRows.kt`; ⚠ only where the row stands for itself, a
+     * module's `ui/inbox/LocalDraftRows.kt`; only where the row stands for itself, a
      * conversation's representative is drawn anyway) — and null for a draft written from scratch,
      * which stands in for nothing.
      *
-     * ⛔ It is NOT "the draft being edited", and it must never be armed as one: [editingDraftId] is
+     * It is NOT "the draft being edited", and it must never be armed as one: [editingDraftId] is
      * the row's own id, and putting a server id there mints a second row per save. This is carried
      * for one purpose — emptying the draft has to be able to name the server copy it is replacing,
      * because consuming the row alone UNMASKS it and puts the pre-edit text back in Drafts for good
@@ -119,7 +119,7 @@ data class LocalDraftPrefill(
     val replacedServerDraftId: String?,
     /**
      * The IMAP numbering [replacedServerDraftId] was named under, frozen when the row was written
-     * (`localDraftUidValidity`) and ⛔ **never re-read** — that re-reading is the whole of #99.
+     * (`localDraftUidValidity`) and **never re-read** — that re-reading is the whole of #99.
      * Null on JMAP and null when nothing is replaced.
      *
      * A field of its own, beside the id and never merged with the composer's own
@@ -130,13 +130,13 @@ data class LocalDraftPrefill(
 )
 
 /**
- * What the composer shows when it opens [row] — ⛔ **read off the row and nothing else.**
+ * What the composer shows when it opens [row] — **read off the row and nothing else.**
  *
  * There is no fallback to the cache and none to the network, deliberately: the id names a row no
  * server has ever heard of, so `fetchEmail`/`cachedEmail` can only fail, and offline they fail
  * slowly. The row is the whole truth about this draft.
  *
- * ⭐ `htmlBody` IS projected since #131, and it is read FIRST: a draft this app styled stores
+ * `htmlBody` IS projected since #131, and it is read FIRST: a draft this app styled stores
  * its bold as an HTML part, the text column holds the same letters stripped of it, so a reopen
  * that read the text would show the letters and silently drop every span. `richBodyFrom` parses
  * the HTML when it is ours and falls back to the stored text otherwise — an HTML written
@@ -144,7 +144,7 @@ data class LocalDraftPrefill(
  * (The KDoc here used to say the column was structurally always null. It was, until `saveDraft`
  * gained its `html` parameter.)
  *
- * ⚠ One column is deliberately NOT projected: `requestReceipt`, stated debt — the composer owns
+ * One column is deliberately NOT projected: `requestReceipt`, stated debt — the composer owns
  * that box in a `rememberSaveable` and the reopen of a SERVER draft does not re-arm it either
  * (D1). Reopening therefore clears a request the draft carries — the same debt, now reachable
  * from one more screen.
@@ -152,7 +152,7 @@ data class LocalDraftPrefill(
 fun localDraftPrefill(row: LocalDraftEntity): LocalDraftPrefill {
     val cc = localDraftAddresses(row.cc)
     val bcc = localDraftAddresses(row.bcc)
-    // ⛔ The HTML first, the stored text as the fallback — and BOTH halves out of the one answer:
+    // The HTML first, the stored text as the fallback — and BOTH halves out of the one answer:
     // taking the text from `row.textBody` here and the spans from the parse would let a row whose
     // two columns disagree open with spans laid over the wrong letters.
     val rich: RichBody = richBodyFrom(row.htmlBody) { row.textBody }
@@ -182,7 +182,7 @@ private fun localDraftMessageIds(column: String?): List<String> =
     column.orEmpty().split(" ").map { it.trim() }.filter { it.isNotEmpty() }
 
 /**
- * What a composer asking for one of this phone's own drafts gets back (#95) — ⛔ **three answers,
+ * What a composer asking for one of this phone's own drafts gets back (#95) — **three answers,
  * because the two failures are NOT the same failure and must not say the same sentence.**
  *
  * A row that is GONE is gone: the upload worker consumed it between the list being drawn and the
@@ -199,7 +199,7 @@ sealed interface LocalDraftEdit {
 
     /**
      * The row is there, and its files are being staged or uploaded right now
-     * ([localDraftMayBeTakenForEdit]). ⛔ Nothing was written, and ⛔ nothing may be given back
+     * ([localDraftMayBeTakenForEdit]). Nothing was written, and nothing may be given back
      * either: giving back a row this composer never held hands someone else's draft to the upload
      * worker.
      */
@@ -207,7 +207,7 @@ sealed interface LocalDraftEdit {
 }
 
 /**
- * Whether a composer may take the `EDITING` lease on a row in [state] — ⛔ **everything but the two
+ * Whether a composer may take the `EDITING` lease on a row in [state] — **everything but the two
  * states that have a REAL, concurrent owner**: [LocalDraftState.STAGING] and
  * [LocalDraftState.UPLOADING]. The decision the lease used to take blind: it wrote `EDITING` over
  * whatever it found, while its own twin [giveLocalDraftEditBack] tests its state and the model its
@@ -223,13 +223,13 @@ sealed interface LocalDraftEdit {
  *    copied. Opened, it shows a draft AMPUTATED of its attachments — and the next save writes that
  *    amputation onto the row, for good.
  *
- * ⭐ **[LocalDraftState.EDITING] is TAKEN, and that is the hot recovery this whole branch exists
+ * **[LocalDraftState.EDITING] is TAKEN, and that is the hot recovery this whole branch exists
  * for.** It looks like someone else's lease and it is not one: `ComposeViewModel` reaches a local
  * draft by one route only (`SternaApp.onEditDraft`), from the Drafts list, which sits UNDER the
  * composer in a single back stack — so two composers cannot hold one row, and an `EDITING` row
  * found at an open is this phone's own lease, left behind by a process that died holding it.
  *
- * ⛔ Refusing it re-opens the defect the branch was written against, and on the very path it exists
+ * Refusing it re-opens the defect the branch was written against, and on the very path it exists
  * to survive. Process killed with the composer open: the row stays `EDITING` — the startup sweep
  * does not take it back any more ([LocalDraftDao.revertUploadingToPending]), precisely so that the
  * restored composer finds it exactly where it left it. Refused, it is answered
@@ -240,11 +240,11 @@ sealed interface LocalDraftEdit {
  * nothing, and the worker later files a copy of the already-sent message in the server's Drafts,
  * permanently.
  *
- * ⭐ And the sentence the refusal shows (`compose_draft_load_failed`, "… Close this screen and open
+ * And the sentence the refusal shows (`compose_draft_load_failed`, "… Close this screen and open
  * it again.") becomes exactly true again: the two remaining states are transitory for good, so
  * reopening really does work.
  *
- * ⛔ Exhaustive over the four states, deliberately, in the shape [localDraftUploadIsDue] next door
+ * Exhaustive over the four states, deliberately, in the shape [localDraftUploadIsDue] next door
  * already has: a fifth state has to be answered out loud here rather than inherit an `else`.
  */
 fun localDraftMayBeTakenForEdit(state: LocalDraftState): Boolean = when (state) {
@@ -256,20 +256,20 @@ fun localDraftMayBeTakenForEdit(state: LocalDraftState): Boolean = when (state) 
  * Take the row [id] out of the upload worker's way while a composer holds it, and hand it back to
  * the caller — the writer [LocalDraftState.EDITING] never had.
  *
- * ⛔ **The state everything already respects and nothing ever wrote.** `LocalDraftDao.pending`
+ * **The state everything already respects and nothing ever wrote.** `LocalDraftDao.pending`
  * excludes it and `localDraftUploadIsDue` excludes it — but while the row was unreachable nothing
- * ever set it. ⛔ And nothing but [giveLocalDraftEditBack] ever unsets it: the startup sweep
+ * ever set it. And nothing but [giveLocalDraftEditBack] ever unsets it: the startup sweep
  * (`LocalDraftDao.revertUploadingToPending`) leaves the state alone, so this write is a promise the
  * composer alone can keep. Reopening the row opens exactly the race it was written for: the
  * network comes back while the composer is open, the worker uploads, and `discardLocalDraft` takes
  * the row AND its attachment directory away under the user. Her "Save" then lands on a fresh row
  * with no files, and the server keeps a copy of the text she was still editing.
  *
- * ⛔ **And only over a row that is free** ([localDraftMayBeTakenForEdit]). A refused row is
- * answered [LocalDraftEdit.Busy] and is ⛔ **not written at all**: no [setState], nothing. Marking
+ * **And only over a row that is free** ([localDraftMayBeTakenForEdit]). A refused row is
+ * answered [LocalDraftEdit.Busy] and is **not written at all**: no [setState], nothing. Marking
  * it would be the very theft the state exists to prevent, in the other direction.
  *
- * ⛔ A row that is not there is NOT marked either: [setState] is scoped by `(accountId, id)` and
+ * A row that is not there is NOT marked either: [setState] is scoped by `(accountId, id)` and
  * would be a silent no-op, but answering [LocalDraftEdit.Gone] without writing is what tells the
  * composer there is nothing to give back later.
  */
@@ -285,7 +285,7 @@ internal suspend fun takeLocalDraftEdit(
 }
 
 /**
- * Take the lease, remember it, and ⛔ **give it back yourself if the screen goes while the take is
+ * Take the lease, remember it, and **give it back yourself if the screen goes while the take is
  * still out** (#95).
  *
  * The composer's back gesture and its X both pop the `NavBackStackEntry` the view model is scoped
@@ -296,16 +296,16 @@ internal suspend fun takeLocalDraftEdit(
  * it — so the draft is **never uploaded again** until the app is next started cold, and not a word
  * is said. Whoever takes gives back.
  *
- * ⛔ **The give-back is sheltered from cancellation**, the shape [commitThenConsumeLocalDraft]
+ * **The give-back is sheltered from cancellation**, the shape [commitThenConsumeLocalDraft]
  * already uses: it runs on a coroutine that has just been cancelled, so an unsheltered suspend
  * inside it (a Room write is one) would throw before writing anything and change nothing at all.
  *
- * ⛔ **And only on the cancelled path.** [arm] does not suspend, so nothing can be cancelled
+ * **And only on the cancelled path.** [arm] does not suspend, so nothing can be cancelled
  * between a successful [take] and it: once armed, the id is remembered and `abandon()` is the one
  * that gives the row back. Releasing here as well would put it back to `PENDING` twice and book a
  * second upload for nothing.
  *
- * ⚠ [giveBack] may run over a row the cancellation caught BEFORE `EDITING` was written. That is
+ * [giveBack] may run over a row the cancellation caught BEFORE `EDITING` was written. That is
  * accepted and costs a read: `giveLocalDraftEditBack` refuses every state but `EDITING`, so a row
  * still `PENDING` is left exactly as it is. We cannot know which side of the write we were on, and
  * the other choice — do nothing and hope — is the defect.
@@ -333,7 +333,7 @@ suspend fun takeLocalDraftEditOrGiveItBack(
 
 /**
  * Give a row taken with [takeLocalDraftEdit] back to the upload worker, and re-arm the job that
- * would have uploaded it — ⛔ **the only way out of [LocalDraftState.EDITING] there is.**
+ * would have uploaded it — **the only way out of [LocalDraftState.EDITING] there is.**
  *
  * The startup sweep does not touch that state ([LocalDraftDao.revertUploadingToPending]): a cold
  * start cannot tell a row a restored composer is about to take from one nobody will ever claim, and
@@ -341,12 +341,12 @@ suspend fun takeLocalDraftEditOrGiveItBack(
  * a screen that leaves without calling it leaves the draft held for ever, and `abandonPlan` is where
  * that is decided, path by path.
  *
- * ⛔ **Only an `EDITING` row**, exactly as `MailRepository.releaseOutboxEdit` does: any other state
+ * **Only an `EDITING` row**, exactly as `MailRepository.releaseOutboxEdit` does: any other state
  * means this composer no longer owns the row — a save has already re-written it `PENDING`, or an
  * upload is in flight — and writing over it would fight whoever does own it. Applied to an
  * `UPLOADING` row it would hand the worker's own row back to itself mid-flight.
  *
- * ⭐ [schedule] is handed **what is LEFT of the row's own backoff** ([localDraftScheduleDelayMillis],
+ * [schedule] is handed **what is LEFT of the row's own backoff** ([localDraftScheduleDelayMillis],
  * the delay every other booking in this file is made with), and the delay is computed HERE so a
  * test can read the value that goes out. A re-arm at 0 is not a detail: a draft whose last attempt
  * a server REFUSED would retry the instant its composer is opened and closed, as fast as the worker
@@ -369,7 +369,7 @@ internal suspend fun giveLocalDraftEditBack(
 }
 
 /**
- * The `draftEmailId` a SEND may carry to the outbox (or to the scheduled table) — ⛔ **never one of
+ * The `draftEmailId` a SEND may carry to the outbox (or to the scheduled table) — **never one of
  * this phone's own draft ids** (#95). The twin of [serverDraftReplacedBy] on the other route, and
  * deliberately the same decision rather than a second copy of it.
  *
@@ -379,14 +379,14 @@ internal suspend fun giveLocalDraftEditBack(
  * composer carry exactly such an id, and the only thing standing between it and a destroy was the
  * server refusing the name. That is not a guard.
  *
- * ⭐ The local row is not forgotten by answering null here: it is consumed on the phone, by
+ * The local row is not forgotten by answering null here: it is consumed on the phone, by
  * [commitThenConsumeLocalDraft], which is where a draft that has just been sent belongs.
  */
 fun sendDraftEmailId(draftEmailId: String?): String? = serverDraftReplacedBy(draftEmailId)
 
 /**
  * The draft a SEND destroys once the message is on its way: the id, and the IMAP numbering that id
- * was named under — ⛔ **one answer, never two decisions** (#95 × #99).
+ * was named under — **one answer, never two decisions** (#95 × #99).
  *
  * The two halves are only meaningful together. An id taken from one place beside a numbering taken
  * from another is the worst of both: on IMAP an expunge is a UID opposed to a `UIDVALIDITY`, so a
@@ -412,17 +412,17 @@ data class SendDraftTarget(
  *    server draft is then named by [replacedServerDraftId], carried off the row's `replacesEmailId`
  *    with its frozen `replacesUidValidity`.
  *
- * ⛔ **The second case is a defect closed, not a refinement.** Without it NOBODY named the server
+ * **The second case is a defect closed, not a refinement.** Without it NOBODY named the server
  * draft on a send: the row is consumed by the send, the mask the Drafts list draws over the server
  * copy (`replacedServerIds` / `hidesServerRow`) lifts with it, and the draft comes back at the top
  * of Drafts carrying the text from BEFORE the edit — beside the message that has just gone out, and
  * permanently.
  *
- * ⭐ [replacedServerDraftId] goes through [sendDraftEmailId] too, in belt: nothing but
+ * [replacedServerDraftId] goes through [sendDraftEmailId] too, in belt: nothing but
  * `localDraftTarget` writes that column, but a local id reaching a destroy is a name ending in a
  * number and a number always means something in a folder.
  *
- * ⚠ This does NOT decide whether the destroy is DESERVED — that is the fidelity verdict
+ * This does NOT decide whether the destroy is DESERVED — that is the fidelity verdict
  * (`bodyIsLossy` / `editingDraftLossy`), read further down the line by `enqueueSend` and by the
  * scheduled row's own `takeUnless`. The two questions are separate and neither replaces the other.
  */
@@ -449,7 +449,7 @@ fun sendDraftTarget(
  * `ScheduledSendWorker` relies on exactly that when it re-enters `enqueueSend` with
  * `bodyIsLossy = false`.
  *
- * ⛔ The numbering goes with the id, in the one place that decides. A number beside a null id
+ * The numbering goes with the id, in the one place that decides. A number beside a null id
  * destroys nothing today, so this is not a bug being fixed — it is the STATEMENT: the pair is one
  * decision, and half a pair left on a row that waits for hours is the shape the next reader copies.
  */
@@ -468,13 +468,13 @@ fun SendDraftTarget.unlessBodyIsLossy(bodyIsLossy: Boolean): SendDraftTarget =
  * the id is not carried at all: nothing is destroyed, the original stays in A's Drafts where the
  * user can see it and delete it by hand, and the duplicate is the price.
  *
- * ⭐ **Not a change of behaviour — a change of REASON.** Uncarried is already what happens, by
+ * **Not a change of behaviour — a change of REASON.** Uncarried is already what happens, by
  * accident: on IMAP `draftAddressingIsCarried` reads the draft under B, finds nothing, and refuses;
  * on JMAP `destroyAll` spares an id the server never issued. Both accidents hold only as long as
  * the id names nothing in B — and an id IS a number in a folder on IMAP, where two accounts on one
  * server can share a UIDVALIDITY. This states it instead, once, where the row is written.
  *
- * ⛔ **A null [draftAccountId] does NOT refuse, and that laissez-passer RESTS ON AN INVARIANT
+ * **A null [draftAccountId] does NOT refuse, and that laissez-passer RESTS ON AN INVARIANT
  * HELD ELSEWHERE.** Null is read as "no server draft is open behind this composer" — a brand-new
  * message, a reply, a local row that replaces nothing — which is the ordinary route. That reading
  * is only true while **a server draft id never travels without the account it was read under**:
@@ -482,7 +482,7 @@ fun SendDraftTarget.unlessBodyIsLossy(bodyIsLossy: Boolean): SendDraftTarget =
  * the entry of the reopen branch, before the coroutine and before anything that can fail
  * (`DraftNumberingFreezeWiringTest` pins that order, and says what is lost if it drifts).
  *
- * ⛔ It was NOT always true, and the day it was not this function was the hole. While the account
+ * It was NOT always true, and the day it was not this function was the hole. While the account
  * was frozen after `repo.fetchEmail` and the id before it, any failed reopen — offline, the
  * process killed and `prepare()` re-run under a bar the composer had already redrawn, or the early
  * `credentials() ?: return` — left an armed id beside a null account. The pair applied here was
@@ -493,10 +493,10 @@ fun SendDraftTarget.unlessBodyIsLossy(bodyIsLossy: Boolean): SendDraftTarget =
  * Refusing on null instead would be free of consequence today and a trap the day it is not: it is
  * the ordinary route's own shape.
  *
- * ⛔ A null [writingAccountId] DOES refuse: the two cannot be shown to be the same account, and an
+ * A null [writingAccountId] DOES refuse: the two cannot be shown to be the same account, and an
  * unproven sameness is exactly what this exists to stop.
  *
- * ⛔ Not a `Boolean` parameter and not a `Boolean` result: [SendDraftTarget] exists because the id
+ * Not a `Boolean` parameter and not a `Boolean` result: [SendDraftTarget] exists because the id
  * and its numbering are meaningful only together, and a caller handed a "may destroy" flag can
  * still write the id on the row and leave the numbering behind — half a pair, which is the shape
  * every defect on this path has taken.
@@ -512,7 +512,7 @@ fun SendDraftTarget.unlessDraftBelongsElsewhere(
  * Which account the draft a composer carries was read under — the account [unlessDraftBelongsElsewhere]
  * opposes to the one being written as.
  *
- * ⭐ **One function for the three sites, because it answers the same question [sendDraftTarget]
+ * **One function for the three sites, because it answers the same question [sendDraftTarget]
  * does, with the same discriminator.** A composer holds its draft id in one of two shapes, and the
  * account lives in a different field for each:
  *  - a SERVER id ([sendDraftEmailId] answers it) — reopened from Drafts, or restored from an undone
@@ -524,12 +524,12 @@ fun SendDraftTarget.unlessDraftBelongsElsewhere(
  *    draft the row stands in for (`replacesEmailId` is written by `localDraftTarget`, scoped to
  *    that same account), i.e. of the pair [sendDraftTarget] takes off the row.
  *
- * ⛔ **Not `serverDraftAccountId ?: localRowAccountId`.** The two are mutually exclusive today —
+ * **Not `serverDraftAccountId ?: localRowAccountId`.** The two are mutually exclusive today —
  * one composer takes one route — and a `?:` would be right by that coincidence alone, silently, the
  * day a route arms both. The discriminator is the id itself, which is what the pair is taken from.
  *
- * ⚠ Null means "unknown", not "same", and [unlessDraftBelongsElsewhere] lets the pair through on
- * it — deliberately, see its ⛔ on a null draft account. The hole that leaves is the record an
+ * Null means "unknown", not "same", and [unlessDraftBelongsElsewhere] lets the pair through on
+ * it — deliberately, see its on a null draft account. The hole that leaves is the record an
  * undone send keeps: it files the account the "From" picker was SHOWING, while the guard opposed the
  * account the message actually went out under, and those two part company when the shown account has
  * no credentials to resolve. Narrow — it wants an account listed but unusable, an undone send, and
@@ -562,14 +562,14 @@ data class AbandonPlan(
 /**
  * The close button, the back gesture, "Discard" — what goes back to whom.
  *
- * ⛔ **[sending] gives back NOTHING**, and that is a defect closed. A send in flight owns the
+ * **[sending] gives back NOTHING**, and that is a defect closed. A send in flight owns the
  * message: it consumes the outbox row (`consumeEditingOutbox`) and the local row
  * ([commitThenConsumeLocalDraft]) itself when it lands. Releasing the local row from under it — as
  * closing the screen did, because the release sat ABOVE the guard — puts the row back to PENDING,
  * the upload worker takes it, and a copy of the message that has just gone out is filed in the
  * server's Drafts, permanently.
  *
- * ⛔ **And the two are independent**, which is why the release cannot simply be moved to the bottom
+ * **And the two are independent**, which is why the release cannot simply be moved to the bottom
  * of `abandon()` instead: every reopened local draft has a null outbox id, so written under
  * `editingOutboxId ?: return` the release would never run at all and the row would stay EDITING for
  * ever — held back from the upload worker, and no longer rescued by anything: the startup sweep
@@ -577,7 +577,7 @@ data class AbandonPlan(
  * one: under the [sending] guard, above the outbox
  * `?: return`.
  *
- * ⛔ **[emptying] withholds the phone's own row, and only that one** (#95 × #69). The close that
+ * **[emptying] withholds the phone's own row, and only that one** (#95 × #69). The close that
  * accompanies a deletion may not hand the row to the upload worker: it would go back to `PENDING`
  * with its upload re-armed at the row's own instant — for a draft saved with no network, NOW — and
  * the pre-edit text the user has just erased would race the delete to the server and be filed in
@@ -585,18 +585,18 @@ data class AbandonPlan(
  * saved, so a message reopened from the outbox is not being moved anywhere and goes back to the
  * queue — or is parked, see [parkOutbox] — rather than evaporating on an empty save (#70).
  *
- * ⭐ **Why it is an argument here and not a null slipped into [localDraftId] by the caller**, which
+ * **Why it is an argument here and not a null slipped into [localDraftId] by the caller**, which
  * is how it was written: one field cannot carry two decisions. `editingLocalDraftId` is "which row
  * this composer holds", and blanking it to mean "give nothing back this once" also erased the
  * answer to the first question — so a `submit` that FAILED left the row `EDITING` with nobody left
  * to release it. Held back from the upload worker and rescued by nothing — the startup sweep leaves
  * `EDITING` alone — the draft is then never uploaded again at all, on the very path where the user
  * has been told her deletion failed.
- * ⛔ And "give it back on the failure" is NOT the fix: the composer is still open, she still holds
+ * And "give it back on the failure" is NOT the fix: the composer is still open, she still holds
  * the row, and `EDITING` is the true state. Nothing is lost by keeping it — the text is on the
  * phone — while releasing it sends the server the text she has just erased.
  *
- * ⛔ **[parkOutbox] sends the queued row through the OTHER door** — parked, not released. The
+ * **[parkOutbox] sends the queued row through the OTHER door** — parked, not released. The
  * composer closed over a body it had lost and never got back (`closingParksQueuedRow`, on the raw
  * body of the editor): released, the row goes back to QUEUED and is re-armed at 0, and the message
  * the screen had just told her to close and reopen is delivered in under a second. Parked
@@ -625,7 +625,7 @@ fun abandonPlan(
  * `EDITING` back to `PENDING`, or null when nobody may have it. The exact twin of
  * `localDraftLeaseAfterDelete`, with the boolean the other way round.
  *
- * ⛔ **Until this existed a save answered the question NOWHERE, and that is the defect.**
+ * **Until this existed a save answered the question NOWHERE, and that is the defect.**
  * `abandon` is the only other release, and only the CANCEL of the screen reaches it: a save closes
  * the composer on `ComposeState.Done` without passing through, on the understanding that the save
  * has rewritten the row itself. It has — unless the "From" picker was moved to another account,
@@ -655,11 +655,11 @@ fun abandonPlan(
  * goes back to `PENDING` and the upload worker files in the server's Drafts the draft that has just
  * been deleted, permanently.
  *
- * ⛔ **What is left behind is stated and kept, not a defect to fix here** — and it is ONE draft per
+ * **What is left behind is stated and kept, not a defect to fix here** — and it is ONE draft per
  * account, not two in either. A keeps what its row holds, i.e. the text from BEFORE the edit that
  * was saved under B; B receives a fresh copy carrying the edit. [unlessDraftBelongsElsewhere] cuts
  * the link between them on purpose: no transaction spans two servers, so nothing here may claim the
- * edit reaches A, and nothing here may destroy A's copy on B's behalf. ⚠ Releasing the row is what
+ * edit reaches A, and nothing here may destroy A's copy on B's behalf. Releasing the row is what
  * lets it finally go up, and its upload then carries its own `replacesEmailId` — so on A the row
  * takes the place of the server draft it was masking, rather than piling a second one on top of it.
  */
@@ -670,19 +670,19 @@ fun localDraftLeaseAfterSave(lease: String?, saved: Boolean): String? =
  * Commit the composer's message somewhere else — an outbox row, a scheduled-send row — and ONLY
  * THEN consume the local draft row it was reopened from (#95).
  *
- * ⛔ **The order is half the correction, and it is grid rule 1 (nothing irreversible).** The local
+ * **The order is half the correction, and it is grid rule 1 (nothing irreversible).** The local
  * row is the only copy of the text; [commit] is what creates the other one. Consumed first — or in
  * a `finally` — a commit that throws (no Drafts folder, a full disk, a `PgpInteractionNeeded` on
  * the way out) leaves the message on neither side. So the consume is on the success path and
  * nowhere else, which is exactly the shape `discardLocalDraft` already has on the upload path.
  *
- * ⛔ And it must HAPPEN. Left behind, the row stays at the top of Drafts with its "not on the server
+ * And it must HAPPEN. Left behind, the row stays at the top of Drafts with its "not on the server
  * yet" pill after the message has gone — in `EDITING`, which no sweep takes back any more — and it
  * stays there over restarts, hiding the server draft it names (`replacesEmailId`) behind it. Reopen
  * and close that ghost once and the release hands it to the upload worker, which files a copy of an
  * already-sent message in the server's Drafts, for good.
  *
- * ⛔ **Which is why the pair is SHELTERED FROM CANCELLATION, and both halves together.** The caller
+ * **Which is why the pair is SHELTERED FROM CANCELLATION, and both halves together.** The caller
  * is `viewModelScope`, and that scope dies with the screen: the composer's X stays live during a
  * send (closing an editor is not blocked — K-9 and Gmail do not block it either), it pops the
  * `NavBackStackEntry` the view model is scoped to, and everything below the tap is cancelled where
@@ -691,12 +691,12 @@ fun localDraftLeaseAfterSave(lease: String?, saved: Boolean): String? =
  * the row is not consumed, and the paragraph above happens. Sheltering the consume alone would not
  * close it — the window is inside the commit — so the shelter holds both.
  *
- * ⛔ **And no wider than both.** A cancellation that arrives BEFORE the commit has started is
+ * **And no wider than both.** A cancellation that arrives BEFORE the commit has started is
  * honoured, and must be: nothing has gone out, so the draft is exactly what has to survive, and the
  * row goes back to the upload worker to reach the server later. Stretched over the wait in front of
  * it, this would commit a message the user closed out of.
  *
- * ⚠ Stated debt, bounded and accepted: under this shelter an `enqueueSend` that is waiting on its
+ * Stated debt, bounded and accepted: under this shelter an `enqueueSend` that is waiting on its
  * addressing proof (a bounded budget, `MailRepository`) can no longer be interrupted by closing the
  * screen. The screen is already gone; what is delayed is a background write.
  *

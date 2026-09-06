@@ -19,7 +19,7 @@ import kotlinx.coroutines.withTimeout
  * LAUNCHER's pick between the layouts `UnreadWidgetDraw.draw` hands it, so nothing here reads a
  * geometry and there is deliberately no `onAppWidgetOptionsChanged`.
  *
- * ⛔ It polls nothing, and it never will. `updatePeriodMillis="0"` means the system asks only when
+ * It polls nothing, and it never will. `updatePeriodMillis="0"` means the system asks only when
  * the widget is placed, after a reboot and after an app update; there is no timer and no alarm.
  * What DOES keep the number moving is a push, not a poll: [UnreadWidgetPush], collected in
  * `AppContainer` while at least one cell is placed, and a one-off redraw at the tail of
@@ -27,16 +27,16 @@ import kotlinx.coroutines.withTimeout
  * the draws the SYSTEM asks for, plus the two callbacks that say whether any cell exists at all.
  *
  * What a tap does is decided by [UnreadWidgetTap] and spent in `UnreadWidgetDraw.tapIntent`: the
- * unified inbox when the app has one, the app plainly when it does not. ⛔ The intent behind that
+ * unified inbox when the app has one, the app plainly when it does not. The intent behind that
  * [android.app.PendingIntent] carries an action of its own, and that is not decoration — read the
  * note on `tapIntent` before touching it.
  *
- * ⚠ The number is stale by exactly as much as the drawer's "All inboxes (N)" is, never by more:
+ * The number is stale by exactly as much as the drawer's "All inboxes (N)" is, never by more:
  * both come from `MailRepository.observeUnifiedInboxUnreadByAccount()`, one derivation, one answer
  * — the drawer and the small cell showing it totalled, the enlarged cell showing its entries (#112).
  *
  * The cost, known and accepted: reaching the container on a cold process runs `AppContainer.init`,
- * which opens Room and books background work. ⛔ Not to be "optimised" by counting unread mail some
+ * which opens Room and books background work. Not to be "optimised" by counting unread mail some
  * other way — a second derivation is the one thing the shared rule exists to prevent — and with no
  * periodic update that path is paid at placement, at boot and at update, and at no other time.
  */
@@ -67,7 +67,7 @@ class UnreadWidgetProvider : AppWidgetProvider() {
                 UnreadWidgetDraw.draw(app, appWidgetIds, unreadByAccount)
             } catch (t: Throwable) {
                 // An exception escaping a coroutine takes the process down with it, and a widget
-                // that could not be drawn must cost no more than a stale cell. ⛔ NOTHING is drawn
+                // that could not be drawn must cost no more than a stale cell. NOTHING is drawn
                 // on this path, deliberately: a cell that keeps its old number is honest about
                 // being out of date, a cell reset to 0 says the mailbox is empty.
                 // The timeout arrives here as TimeoutCancellationException, a CancellationException
@@ -83,11 +83,11 @@ class UnreadWidgetProvider : AppWidgetProvider() {
     /**
      * The FIRST cell was placed — from here on the app has a reason to watch the unread total.
      *
-     * ⚠ Not per instance: the system sends this once, for the first widget of this provider, and
+     * Not per instance: the system sends this once, for the first widget of this provider, and
      * [onDisabled] once for the last one going. That is the granularity the push wants — whether
      * any cell exists, never how many.
      *
-     * ⚠ No `intent-filter` is needed for either: the widget manager sends ENABLED and DISABLED
+     * No `intent-filter` is needed for either: the widget manager sends ENABLED and DISABLED
      * with the component set, i.e. as explicit broadcasts to this declared receiver, the way the
      * platform's own sample manifests declare only APPWIDGET_UPDATE.
      *

@@ -41,13 +41,13 @@ import app.sterna.ui.message.MessageScreen
  * snackbar shows on the list, as it does after the full-screen reader; Undo puts the row back,
  * not the message in the pane.
  *
- * ⚠ Nothing on the LIST side is one of those actions, and none of it closes the pane: a swipe
+ * Nothing on the LIST side is one of those actions, and none of it closes the pane: a swipe
  * (`performSwipe`, `performThreadSwipe`, `InboxScreen.kt`) and the bulk actions on a selection
  * ([InboxViewModel.deleteSelected], [InboxViewModel.archiveSelected], [InboxViewModel.moveSelectedTo])
  * all act on the row without ever calling [InboxViewModel.closePane]. Swiping away, or bulk-deleting,
  * the very message the pane is showing leaves the pane on it.
  *
- * ⛔ No animation around this: no `AnimatedContent`, no `Crossfade`. A fade composites the body
+ * No animation around this: no `AnimatedContent`, no `Crossfade`. A fade composites the body
  * WebView through an offscreen layer, which is the door to the native crash of #10.
  */
 @Composable

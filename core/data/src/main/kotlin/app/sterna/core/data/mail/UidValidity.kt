@@ -52,7 +52,7 @@ object UidValidity {
      * `MailboxUidValidityStore.record`, which refuses to write it, and [mayDestroy], which destroys
      * nothing without one).
      *
-     * ⭐ It has a NAME so that the row's column and the reads bounded by that column go through the
+     * It has a NAME so that the row's column and the reads bounded by that column go through the
      * same rule rather than through two copies of it. It is one rule with two callers: the row
      * builder (`ImapMessage.toEntity`), and every cache read that must not answer with rows of
      * another numbering (`EmailDao.cachedPreviews`, #99 inside #187). Two spellings of it would
@@ -94,7 +94,7 @@ object UidValidity {
      * two arguments is the new fact, and because it would still hold if the equality below were
      * ever loosened.
      *
-     * ⚠ This is deliberately NOT the rule `core/imap` applies to itself: there a server announcing
+     * This is deliberately NOT the rule `core/imap` applies to itself: there a server announcing
      * no numbering is not turned into a refusal (`UidValidityTest`), because ten READ paths select
      * through it and refusing would make a folder unreadable on a non-conforming server. Only the
      * destroy is held to this standard, because only the destroy is irreversible.
@@ -116,7 +116,7 @@ object UidValidity {
      * is ONE number: either every UID handed here belongs to it or none of them does. Everything, in
      * the order it came, when there is a numbering to oppose; nothing at all when there is not.
      *
-     * ⛔ That is a statement about this ARGUMENT, not a licence to merge waves. A UIDVALIDITY belongs
+     * That is a statement about this ARGUMENT, not a licence to merge waves. A UIDVALIDITY belongs
      * to a folder AT A TIME, and one folder's cache routinely holds rows read under two of them —
      * nothing prunes the old ones on IMAP. Splitting them is [imapDestroyRoutes]' job, upstream, and
      * it must stay split: fold two numberings back into one call here and the older ids go out under
@@ -143,7 +143,7 @@ object UidValidity {
      * held-back destroy can be RUN by a test instead of restated by one: `MailRepository` needs
      * Room and a `Context`, and a routing nothing executes is a routing a mutation walks through.
      *
-     * ⚠ This REVERSES, one layer up, what `core/imap` decides for itself: there, a server that
+     * This REVERSES, one layer up, what `core/imap` decides for itself: there, a server that
      * announces no UIDVALIDITY is deliberately not turned into a refusal (`UidValidityTest`, "a
      * server announcing no numbering is not turned into a refusal"), because refusing would break
      * the folder outright on a non-conforming server. Here it IS a refusal, and knowingly: this is
@@ -179,7 +179,7 @@ object UidValidity {
      * How a held-back destroy of one account splits into requests: by (folder the ids were in when
      * the user confirmed, numbering those ids were READ under).
      *
-     * ⭐ THE NUMBERING IS PART OF THE KEY, exactly as in [imapUndoRoutes], and for the same fact: a
+     * THE NUMBERING IS PART OF THE KEY, exactly as in [imapUndoRoutes], and for the same fact: a
      * UIDVALIDITY belongs to a folder AT A TIME, not to a folder. A selection can hold rows read
      * before a renumbering and rows read after it — the list keeps showing both, since nothing
      * prunes stale rows on IMAP — and one `UID STORE` + `UID EXPUNGE` can only oppose ONE number.
@@ -188,7 +188,7 @@ object UidValidity {
      * with the older. Splitting refuses only what cannot be confirmed, and costs one extra request
      * in a case that needs a renumbering mid-selection to happen at all.
      *
-     * ⚠ [targets] carries the folder, and it comes from the row FROZEN AT THE CONFIRMATION, never
+     * [targets] carries the folder, and it comes from the row FROZEN AT THE CONFIRMATION, never
      * from [ImapMailService.mailboxOf]: this path serves both protocols and a JMAP id says nothing
      * about its folder. On JMAP every numbering is null, so the key degenerates to the folder alone
      * and the grouping is exactly the one this replaced — one route per folder, ids in order.
@@ -235,7 +235,7 @@ object UidValidity {
      * server confirms. The missing fact is upstream — the numbering the line carried WHEN IT WAS
      * TICKED — and it is a fact only the selection can hold.
      *
-     * ⛔ AN ABSENT STAMP PASSES, and that is the expensive half of the rule. `uidValidity` is null
+     * AN ABSENT STAMP PASSES, and that is the expensive half of the rule. `uidValidity` is null
      * on EVERY JMAP row (an id there survives anything a mailbox can go through), so a guard that
      * refused on null would refuse 100 % of JMAP destroys — a total regression on a whole protocol,
      * green everywhere a test only feeds it IMAP rows. A row evicted from the cache between the
@@ -245,7 +245,7 @@ object UidValidity {
      * cases is the downstream half: [mayDestroyUnderStatedNumbering] destroys nothing when it has
      * no number to oppose.
      *
-     * ⚠ "PASSES HERE" IS NOT "PASSES EVERYWHERE", and the difference is the gesture, not the value.
+     * "PASSES HERE" IS NOT "PASSES EVERYWHERE", and the difference is the gesture, not the value.
      * The move to another account (#189) is the one destructive path with no Undo, and there an
      * absent stamp on a TICKED row is refused — `MailRepository.fetchRawSource` and
      * `MailRepository.delete` oppose `FrozenNumbering.Frozen(null)` with
@@ -296,7 +296,7 @@ object UidValidity {
      * How an Undo of a batch of moves splits into move-backs: by (folder the mail sits in NOW,
      * folder it goes home to, numbering that folder stated when the mail landed in it).
      *
-     * ⭐ THE NUMBERING IS PART OF THE KEY, and that is the decision this function exists to make
+     * THE NUMBERING IS PART OF THE KEY, and that is the decision this function exists to make
      * executable. A UIDVALIDITY belongs to a folder AT A TIME, not to a folder: two waves moved
      * into the same Trash either side of a renumbering carry UIDs of two different numberings, and
      * a single `UID MOVE` can only oppose one of them. Merging them would mean either sending the
@@ -305,7 +305,7 @@ object UidValidity {
      * only the lot that cannot be confirmed. It costs one extra command in a case that needs a
      * renumbering mid-undo-window to happen at all.
      *
-     * ⛔ An id [landedAt] knows nothing about is DROPPED, silently and without a route: no COPYUID
+     * An id [landedAt] knows nothing about is DROPPED, silently and without a route: no COPYUID
      * came back for it, so nothing knows where it went or under what number — the case
      * `ImapSession.move` documents as "the move still happened; only per-message Undo positioning
      * is lost". It was already lost before this function existed; it must not become a refusal
@@ -347,7 +347,7 @@ object UidValidity {
  * Undo — the destination folder, the UID the message got there, and THAT FOLDER'S NUMBERING at
  * that instant, all three as one `COPYUID` stated them (Codeberg #99).
  *
- * ⭐ [uidValidity] is a freeze, never a reading. The Undo is a move OUT of [mailboxId], so
+ * [uidValidity] is a freeze, never a reading. The Undo is a move OUT of [mailboxId], so
  * [mailboxId]'s numbering is what it must oppose — and the app has no other way to know it: a
  * `UID MOVE` never SELECTs its destination, and nothing else in the flow does either, so the
  * value recorded for a Trash the user has never opened is null and the Undo of an ordinary delete
@@ -436,14 +436,14 @@ interface UidValidityStore {
  * and moves are left alone too — the list cache is replaced from the server on the next refresh,
  * so those heal on their own.
  *
- * ⛔ "Replaced from the server on the next refresh" is a claim about COLUMNS THE WALK RE-READS, and
+ * "Replaced from the server on the next refresh" is a claim about COLUMNS THE WALK RE-READS, and
  * it stopped covering the whole row when the opening line was cached (#187): `preview` is written
  * back from the CACHE for every row the walk deliberately did not re-fetch, so a row surviving a
  * renumbering under a recycled id would hand the new message the old one's first line — and keep
  * it, because a filled row is a row nothing ever reads a body for again. What holds the claim up
  * is that the read behind that write-back is bounded by the numbering the page was just read under
  * ([UidValidity.stated], `EmailDao.cachedPreviews`), so a row of the old numbering is simply not in
- * the answer. ⚠ Any FUTURE column filled the same way owes the same bound; leaving the rows here is
+ * the answer. Any FUTURE column filled the same way owes the same bound; leaving the rows here is
  * only safe for columns the walk overwrites unconditionally.
  *
  * The notification baseline lives in `:app` and this layer does not reach into it: it is told,

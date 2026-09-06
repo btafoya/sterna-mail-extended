@@ -14,13 +14,13 @@ import app.sterna.core.data.account.StoredAccount
  * label on the home screen that lies about what touching it does ("All inboxes" opening a single
  * folder, or the reverse). There is no way for the user to discover that except by tapping.
  *
- * ⛔ It does NOT merge the two rules, and must not: they answer different questions and each keeps
+ * It does NOT merge the two rules, and must not: they answer different questions and each keeps
  * its own three arms. Only the bound is shared, and it lives in its own file precisely so neither
  * rule has to import the other.
  *
  * The bound itself is not invented here either: the drawer posts its "All inboxes" entry under
  * `if (accounts.size > 1)` (`InboxScreen`), and the widget must never name or open a view the app
- * does not offer. ⛔ If the drawer's condition ever moves, this is the line that follows it.
+ * does not offer. If the drawer's condition ever moves, this is the line that follows it.
  */
 internal object AllInboxesView {
 

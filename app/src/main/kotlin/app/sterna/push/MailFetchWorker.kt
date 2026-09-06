@@ -168,7 +168,7 @@ internal fun shouldPollInbox(pushConnected: Boolean, linked: Boolean): Boolean =
  * signals the INBOX alone, so a Sieve-filed message in another folder is invisible to it (issue
  * #16), whereas a JMAP EventSource covers the whole watched set.
  *
- * ⚠ The `isImap &&` carries something beyond this cycle, five hops downstream. It is what makes
+ * The `isImap &&` carries something beyond this cycle, five hops downstream. It is what makes
  * `pollExtras` always false on JMAP, so a JMAP account that reaches the call below has `pollInbox`
  * true (the `if (!pollInbox && !pollExtras) continue` above left nothing else), so
  * `FetchAndNotify.run` is always given `includeInbox = true` — which is the whole reason

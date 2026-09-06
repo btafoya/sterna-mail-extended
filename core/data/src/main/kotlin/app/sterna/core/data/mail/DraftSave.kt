@@ -19,11 +19,11 @@ enum class DraftSaveOutcome {
      * The draft is on the PHONE and not yet on the server: it was written locally before the upload
      * was attempted, and the upload failed — offline, a dropped socket, a server that refused (#95).
      *
-     * ⛔ Not an error, and the composer must not show one. Nothing was lost: the text, its
+     * Not an error, and the composer must not show one. Nothing was lost: the text, its
      * addressing and its attachments are durable, and the server draft this one replaces (if any)
      * was left alone precisely because the upload did not happen.
      *
-     * ⚠ Nothing SAYS so on screen yet. Marking a draft "not on the server" in the list is its own
+     * Nothing SAYS so on screen yet. Marking a draft "not on the server" in the list is its own
      * volet, with the nine translations that go with it; here the value exists so no caller can read
      * a failed upload as a failed save.
      */
@@ -33,7 +33,7 @@ enum class DraftSaveOutcome {
 /**
  * Whether the composer has to tell the user something about a save's [outcome].
  *
- * ⭐ Executed rather than restated, because the answer for [DraftSaveOutcome.KEPT_ON_DEVICE] is the
+ * Executed rather than restated, because the answer for [DraftSaveOutcome.KEPT_ON_DEVICE] is the
  * user-visible half of issue #95: an offline save that produced a notice — or worse, the error
  * banner — would be the reported symptom with extra steps. Only a save that deliberately left the
  * edited original behind has anything to report.
@@ -44,7 +44,7 @@ fun draftSaveNeedsNotice(outcome: DraftSaveOutcome): Boolean = outcome == DraftS
  * Whether a save's [outcome] permits the composer to CONSUME the queued outbox row it was editing
  * (#70 × #95) — i.e. to run `deleteOutbox`, which drops the row AND its staged attachment directory.
  *
- * ⛔ The destructive half of the save, and the one that must read the outcome. The route is: a
+ * The destructive half of the save, and the one that must read the outcome. The route is: a
  * message is waiting to be sent, the user taps "edit", then "save" while the phone has no network.
  * The upload cannot happen, so the draft is [DraftSaveOutcome.KEPT_ON_DEVICE] — and until the volet
  * that shows local drafts lands, NOTHING on screen displays it. Deleting the queued row there takes
@@ -54,7 +54,7 @@ fun draftSaveNeedsNotice(outcome: DraftSaveOutcome): Boolean = outcome == DraftS
  * never reached: the row stayed in the queue, on the Outbox screen, recoverable. Restoring that is
  * the whole rule — the queued row is consumed only once the draft has really reached the server.
  *
- * ⚠ The row is NOT left as it was either: see [draftSaveParksTheQueuedRowAs], which says where a
+ * The row is NOT left as it was either: see [draftSaveParksTheQueuedRowAs], which says where a
  * row that survives its save has to be put so it is neither hidden nor sent.
  */
 fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
@@ -64,7 +64,7 @@ fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
  * The state the edited outbox row must be PARKED in after a save with this [outcome], or null when
  * that save consumed the row ([draftSaveConsumesTheQueuedRow]) and there is nothing left to park.
  *
- * ⛔ Leaving the row where the composer found it — [OutboxState.EDITING] — is a SEND the user never
+ * Leaving the row where the composer found it — [OutboxState.EDITING] — is a SEND the user never
  * asked for, and it is the defect this answers. EDITING is filtered out of the Outbox screen and
  * off the badge alike ([OutboxLogic.isWaitingInOutbox], [OutboxLogic.activeCount]), so the message
  * is on no screen at all; and the next launch used to revert EDITING rows to QUEUED and re-arm
@@ -73,7 +73,7 @@ fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
  * `MailRepository.parkInterruptedOutboxEdits`, which for a save that worked is the FAILED answer
  * refused next.)
  *
- * ⛔ [OutboxState.FAILED] is the OTHER wrong answer, and it was the first attempt at this fix. It
+ * [OutboxState.FAILED] is the OTHER wrong answer, and it was the first attempt at this fix. It
  * has four of the five properties wanted, and the fifth is not a wording detail: FAILED is what
  * `OutboxLogic.needsFailureBanner` reads, so it lights "Some messages didn't send. Tap to review."
  * across the Inbox and tints the outbox dot red — over a save that did exactly what was asked, with
@@ -89,7 +89,7 @@ fun draftSaveConsumesTheQueuedRow(outcome: DraftSaveOutcome): Boolean =
  *    Drafts, and Retry sends the row by hand;
  *  - [OutboxLogic.needsFailureBanner] FALSE — nothing failed, so nothing shouts.
  *
- * ⭐ Parking at SAVE time is also what keeps this out of the way of the startup recovery: a row
+ * Parking at SAVE time is also what keeps this out of the way of the startup recovery: a row
  * already parked is no longer EDITING, so `parkInterruptedOutboxEdits` and [OutboxLogic.stateAfterEdit] —
  * whose job is a process death DURING an edit, and which stay as they are — never see it. That is
  * why `MailRepository.parkOutboxEdit` writes the state and nothing else: the `attemptCount` ruse
@@ -111,7 +111,7 @@ fun draftSaveParksTheQueuedRowAs(outcome: DraftSaveOutcome): OutboxState? =
  *   wrote no `Bcc:` header at all, or by an attempt whose `imapDraftAttachments` silently dropped
  *   a part it could not read from disk that time. What the composer holds does not describe what
  *   the server holds, so the original stays: a duplicate is deletable, the destroyed original is
- *   not. ⛔ It carries NO DEFAULT VALUE, and that — not its position — is the guard. Writing
+ *   not. It carries NO DEFAULT VALUE, and that — not its position — is the guard. Writing
  *   `replacementWentOut: Boolean = true` compiles, leaves all three call sites and all three
  *   source lints exactly as they are, and arms the defect for every caller yet to be written: a
  *   new path would inherit "the replacement went out" without having established anything, which
@@ -155,19 +155,19 @@ internal fun draftReplacementIsFaithful(
  * onto an outbox row. `true` means "this screen cannot give that draft back", so the original is
  * kept: a duplicate in Drafts is recoverable, a destroyed original is not (#63).
  *
- * ⭐ Public and taking primitives, unlike its `internal` sisters, for one reason: the caller lives
+ * Public and taking primitives, unlike its `internal` sisters, for one reason: the caller lives
  * in `:app` and is an `AndroidViewModel` no JVM test can instantiate. Pulling the decision out
  * here is what makes it EXECUTABLE (`ReopenedDraftLossyTest`); the wiring that feeds it is all
  * that is left to a source lint (`DraftVerdictWiringTest`).
  *
  * The legs, each one a thing the composer shows the user nothing about:
  *  - [hasHtmlBody]: the draft has an HTML body this editor cannot READ BACK, and so flattens to
- *    plain text on open. ⭐ Since #131 that is no longer "it has one at all": the composer stores
+ *    plain text on open. Since #131 that is no longer "it has one at all": the composer stores
  *    its own styling as a closed subset of HTML and parses it back, so a draft this app styled is
  *    reproducible and its original may be replaced. The caller answers this leg with
  *    `app.sterna.core.data.text.draftHtmlIsLossy` — a draft authored elsewhere still flattens, and
  *    so does an HTML part that is present but says nothing (empty, whitespace, a lone `<br>`),
- *    which is an UNKNOWN and keeps the original, exactly as the receipt leg below does. ⛔ The
+ *    which is an UNKNOWN and keeps the original, exactly as the receipt leg below does. The
  *    parameter stays a `Boolean` and this function stays ignorant of HTML: what "cannot be read
  *    back" means belongs to the parser, not to the verdict;
  *  - [inlineImageCount]: inline images are not carried into the editor;
@@ -178,17 +178,17 @@ internal fun draftReplacementIsFaithful(
  *    nothing — and destroying the original behind it takes the only copy that carried the
  *    request, in silence, with nothing on screen having said so.
  *
- * ⭐ The receipt leg asks whether the header is THERE, not whether it parses: absent or blank is
+ * The receipt leg asks whether the header is THERE, not whether it parses: absent or blank is
  * "nothing was asked for", and anything else — `<>`, an empty group, a word that is not an
  * address — is PRESENT-BUT-UNREADABLE, which is an unknown, and an unknown keeps the original.
  * Deliberately NOT [ReadReceiptHeader.recipients]`.isNotEmpty()`: that function decides no policy
  * (its own KDoc says so) and answers the same empty list for "no header" and "a header I could
  * not read", so reading it here would turn every malformed request into "nothing to lose",
  * authorise the destroy, and take the only copy that carried the request — the same mistake
- * [copiedAddressesOrNull] exists to refuse on the addressing. ⚠ The price, assumed: a draft whose
+ * [copiedAddressesOrNull] exists to refuse on the addressing. The price, assumed: a draft whose
  * receipt header is malformed is kept, i.e. a duplicate in Drafts, which the user can delete.
  *
- * ⚠ This verdict also governs [MailRepository.saveDraft] (the composer hands it over as
+ * This verdict also governs [MailRepository.saveDraft] (the composer hands it over as
  * `bodyIsLossy`), so a draft that asks for a receipt now RE-SAVES more cautiously too: it leaves
  * the server copy in place and the user sees a duplicate in Drafts. Deliberate, and the cheaper
  * of the two mistakes — a duplicate is deletable, a dropped receipt request is not recoverable.
@@ -218,7 +218,7 @@ fun reopenedDraftIsLossy(
  * [addressingIsCarried] is asked only when there is an id to destroy, so a send that replaces
  * nothing costs no server read.
  *
- * ⭐ `receiptRequestIsCarried = true`, and NOT a server read — the same shape of justification as
+ * `receiptRequestIsCarried = true`, and NOT a server read — the same shape of justification as
  * the `addressingIsCarried = true` of [MailRepository.saveDraft]'s JMAP branch: the leg is already
  * answered upstream by [bodyIsLossy]. On all four paths that can bring an id here, a clean
  * `bodyIsLossy == false` carries the reopen verdict of [reopenedDraftIsLossy], whose receipt leg
@@ -232,7 +232,7 @@ fun reopenedDraftIsLossy(
  *  - a scheduled send: `scheduleSend` writes the id only against a clean verdict, and the worker
  *    comes back through that one door with `bodyIsLossy = false`.
  *
- * ⚠ The hole, known and NOT closed here: all four paths read the header the composer was given,
+ * The hole, known and NOT closed here: all four paths read the header the composer was given,
  * and on a JMAP server that refuses `header:Disposition-Notification-To:asText`,
  * `dispositionNotificationTo` comes back `null` for EVERY message — a draft that does carry the
  * request included. The receipt leg then says "nothing asked", the verdict is clean, and the
@@ -242,7 +242,7 @@ fun reopenedDraftIsLossy(
  * regression, and deliberately out of this change's scope: before it, the send destroyed the
  * original with no proof at all, on every server.
  *
- * ⛔ Deliberately NOT a read of the draft's header here (no `imapDraftReceiptRequested`): it would
+ * Deliberately NOT a read of the draft's header here (no `imapDraftReceiptRequested`): it would
  * be a full `FETCH` of the source, run inside `enqueueSend` BEFORE the outbox row exists, while
  * the message is only in the composer's RAM — and it would expire under `SEND_PROOF_BUDGET_MS` on
  * any draft of any size, which reads as "unknown" and would keep every such original.
@@ -272,7 +272,7 @@ internal suspend fun replaceableDraftIdOrNull(
 /**
  * Whether [replacement] provably carries the addressing of the draft it replaces.
  *
- * ⭐ `original == null` means "could not be established", and that is NOT an empty addressing:
+ * `original == null` means "could not be established", and that is NOT an empty addressing:
  * it is an unknown, and an unknown answers false. This is the whole point of the function. A
  * draft re-saved while the addressing could not be read (offline, a fetch that failed, a message
  * gone from the folder) must leave the server copy alone — that copy is the only thing still
@@ -292,7 +292,7 @@ internal fun draftAddressingIsCarried(original: Set<String>?, replacement: Set<S
 /**
  * The addressing a replacement can offer as proof: its Cc AND its Bcc.
  *
- * ⭐ The Bcc counts SINCE 2026-08-25, and it did not before — the change is in what the phone
+ * The Bcc counts SINCE 2026-08-25, and it did not before — the change is in what the phone
  * writes, not in what this rule wants. Both halves of the reason have to hold, and they do:
  *  - at SAVE time, `OutgoingMime.build(…, BlindCopies.WRITTEN)` now writes a real `Bcc:` header into
  *    the copy APPENDed to Drafts (and only into that copy), so an address typed into the composer's
@@ -303,7 +303,7 @@ internal fun draftAddressingIsCarried(original: Set<String>?, replacement: Set<S
  *    Nothing is lost by destroying an original whose blind copy has just been delivered, even
  *    though no header of the sent message names it.
  *
- * ⛔ Being offered here is not being proven: this is one side of [draftAddressingIsCarried], whose
+ * Being offered here is not being proven: this is one side of [draftAddressingIsCarried], whose
  * safe direction is unchanged. If the reopened draft gave nothing back — a read that failed, a
  * server copy that never carried the header, a cache row older than the `bccJson` column that no
  * back-fill ever filled in (schema v21 added it and nothing rewrites old rows) — then [bcc] is
@@ -344,13 +344,13 @@ internal suspend fun draftAddressingIsCarried(
  * Whether [replacement] provably carries the read-receipt request of the draft it replaces
  * (RFC 8098's `Disposition-Notification-To`).
  *
- * ⭐ A [replacement] that asks for a receipt carries ANY original, including one that could not be
+ * A [replacement] that asks for a receipt carries ANY original, including one that could not be
  * read: whatever the old copy held, the new one holds a request, so nothing can be lost by
  * destroying it. Answering "unknown" there would leave a duplicate in Drafts — and cost a server
  * round trip to establish something that cannot change the verdict — every single time a draft
  * that asks for a receipt is saved.
  *
- * ⭐ `original == null` means "could not be established", and answers false when the replacement
+ * `original == null` means "could not be established", and answers false when the replacement
  * asks for nothing — the same rule, and for the same reason, as [draftAddressingIsCarried]: the
  * server copy is then the only thing that holds the request, and destroying it loses it silently.
  * What made this decidable at all is that the header is now READ when a message is opened (JMAP's
@@ -401,7 +401,7 @@ internal suspend fun draftReceiptRequestIsCarried(
  * The addresses of the Cc/Bcc [entries] an IMAP envelope gave for a draft, or `null` when one of
  * them is present but yields no address.
  *
- * ⭐ Present-but-unreadable is an unknown, never an entry quietly left out. A server can hand back
+ * Present-but-unreadable is an unknown, never an entry quietly left out. A server can hand back
  * a recipient with an empty address — it happens with an address it judged invalid, measured on
  * the bench and handled in the composer (`ComposeText.displayAddresses`). Filtering that entry out
  * would shrink the set the destroy decision reads, and if it was the only Cc the set would shrink

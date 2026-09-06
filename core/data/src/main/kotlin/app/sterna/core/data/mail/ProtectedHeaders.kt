@@ -20,7 +20,7 @@ import app.sterna.core.imap.MimeParser
  *
  * [entity] is a BYTE CONTAINER (one char per wire byte, ISO-8859-1 — see `MimeParser`'s KDoc),
  * so [MimeParser.decodedHeaderOf] rather than a raw read: that is the same door the outer
- * envelope subject goes through (`ImapClient.kt:1042`), and a protected subject is
+ * envelope subject goes through (`ImapClient`), and a protected subject is
  * sender-controlled content just like it.
  *
  * Kept a pure function, out of `MailRepository`, so it can be EXECUTED by its tests with pinned

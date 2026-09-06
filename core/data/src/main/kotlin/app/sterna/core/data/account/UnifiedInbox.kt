@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.map
  * `MailRepository.observeUnifiedInboxUnread()` for the single number, which is the FIRST totalled
  * ([total]) and not a second derivation.
  *
- * ⭐ READ-ONLY, deliberately: nothing here writes, so nothing here can walk past
+ * READ-ONLY, deliberately: nothing here writes, so nothing here can walk past
  * [AccountBlobGate]'s write refusal — there is no path from this file to a stored blob at all.
  *
  * It does not read storage either. Its input is [AccountStore.accountsFlow], the list last
@@ -46,7 +46,7 @@ internal object UnifiedInbox {
      * The inboxes of every account synced at least once — an account whose inbox is still unknown
      * (`inboxId == null`) contributes nothing rather than a made-up scope.
      *
-     * ⛔ The scope is a PAIR, never a bare folder id (Codeberg #121). Two accounts on the same
+     * The scope is a PAIR, never a bare folder id (Codeberg #121). Two accounts on the same
      * server routinely get the same mailbox id, so a bare id matches the other account's rows as
      * well: the unified count would then read one account's inbox twice and the other's never.
      * Both halves are load bearing — see `MailRepository.folderScopeSql`.
@@ -72,12 +72,12 @@ internal object UnifiedInbox {
      * removed account's inbox; `MailRepository` hands back a `combine` of Room flows, which never
      * completes on its own).
      *
-     * ⭐ The breakdown is the ONLY derivation, and the drawer's single "All inboxes (N)" is
+     * The breakdown is the ONLY derivation, and the drawer's single "All inboxes (N)" is
      * [total] applied to it. A large widget cell draws a line per account, a small one and the
      * drawer draw the sum; deriving them separately would be two `combine`s of the same two global
      * Room aggregates, woken by the same invalidations, for the same information.
      *
-     * ⛔ An account with no known inbox is ABSENT from the map, never an entry worth 0: the map is
+     * An account with no known inbox is ABSENT from the map, never an entry worth 0: the map is
      * built from the SCOPES ([countedInboxes] has already dropped it), and a 0 on a widget line
      * would affirm "no unread mail" about an inbox the app has never seen.
      *
@@ -85,7 +85,7 @@ internal object UnifiedInbox {
      * the ARGUMENTS observable. A test can pin what this hands the counter — the pairs, in order —
      * instead of merely checking that some counting happened.
      *
-     * ⚠ The key is [countedInboxes], NOT the scopes. Both halves are load bearing:
+     * The key is [countedInboxes], NOT the scopes. Both halves are load bearing:
      *
      *  - the STORED COUNTER has to be in it, or the IMAP half freezes. An IMAP inbox contributes
      *    `accountStore.account(id)?.unread`, read flat inside `MailRepository`'s `combine` block,
@@ -128,19 +128,19 @@ internal object UnifiedInbox {
      * own `unreadFor` is: a flow handed in is already built, so a test could not tell "never
      * subscribed" from "subscribed and empty", and could not see WHICH pairs were asked for.
      *
-     * ⛔ IT CARRIES [RecentInbox], NOT A BARE LIST OF ROWS, and `configured` is the reason. Two
+     * IT CARRIES [RecentInbox], NOT A BARE LIST OF ROWS, and `configured` is the reason. Two
      * different cells look alike from the rows alone: an inbox with no mail (drawn "No messages")
      * and no account to read at all (drawn with the app's own name, claiming nothing). A trigger
      * that only carried rows would hand the collector two identical empty lists for those two
      * states, its de-duplication would swallow the second, and the cell would go on affirming "No
-     * messages" to someone who has just removed their last account. ⭐ The identity that travels
+     * messages" to someone who has just removed their last account. The identity that travels
      * must be the identity that is DRAWN.
      *
-     * ⭐ And `configured` is not decided here: [recentUnifiedInboxFrom] decides it, the same
+     * And `configured` is not decided here: [recentUnifiedInboxFrom] decides it, the same
      * function the snapshot read `MailRepository.recentUnifiedInbox` runs. Inverting that
      * condition must redden both, which is exactly what one shared function buys.
      *
-     * ⚠ THE KEY IS [scopes], NOT [countedInboxes] — the one deliberate divergence from
+     * THE KEY IS [scopes], NOT [countedInboxes] — the one deliberate divergence from
      * [unreadByAccount], and it is worth stating because the two functions otherwise read alike.
      * The count needs [CountedInbox.storedUnread] in its key because its IMAP half is a flat read
      * of the stored record inside a `combine`, which no Room invalidation ever wakes. These rows
@@ -149,7 +149,7 @@ internal object UnifiedInbox {
      * refreshed, an account colour, identities discovered on connect — cancelling and rebuilding
      * an observed query, and redrawing a home-screen cell, for rows that cannot have moved.
      *
-     * ⛔ NO SCOPE IS ONE EMISSION, not [kotlinx.coroutines.flow.emptyFlow] and not a query.
+     * NO SCOPE IS ONE EMISSION, not [kotlinx.coroutines.flow.emptyFlow] and not a query.
      * One emission, because removing the last account must reach the home screen: silence would
      * leave the cell listing a deleted account's mail until something else redrew it. Not a query,
      * because `folderScopeSql(0, …)` is the constant `0` — a statement that matches nothing while

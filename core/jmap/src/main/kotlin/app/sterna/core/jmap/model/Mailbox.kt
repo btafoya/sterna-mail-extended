@@ -24,7 +24,7 @@ data class Mailbox(
     /**
      * Whether the server reports this mailbox as subscribed (RFC 8621 §2, Codeberg #174).
      *
-     * ⛔ The `true` default is load-bearing, not a nicety. `JmapClient` decodes with
+     * The `true` default is load-bearing, not a nicety. `JmapClient` decodes with
      * `ignoreUnknownKeys = true`, which forgives a property the SERVER sends and we do not know —
      * it forgives nothing about a property WE declare and the server omits, where a non-defaulted
      * field throws. `decodeList` turns that into a `JmapException`, so on a server that does not
@@ -38,7 +38,7 @@ data class Mailbox(
      * IMAP account with both a `Junk` and a `Spam`, or a personal `Trash` beside a shared one
      * (`ImapClient.assignRoles`, stored as `MailRepository.UNELECTED_ROLE_MARK`).
      *
-     * ⛔ **This is not a role and must never be read as one.** [role] is null on such a folder, on
+     * **This is not a role and must never be read as one.** [role] is null on such a folder, on
      * purpose and for good (`MailboxMapper.toMailbox`): it is an ordinary folder everywhere — raw
      * name, no icon, renameable, deletable, and the destination of nothing, since every role→mailbox
      * lookup compares roles by exact equality. This boolean carries the ONE fact that survives the
@@ -52,7 +52,7 @@ data class Mailbox(
      * every JMAP account: JMAP names the role on the mailbox and holds no election, so nothing
      * there ever loses one.
      *
-     * ⛔ The `false` default is load-bearing for the same reason [isSubscribed]'s `true` is: this
+     * The `false` default is load-bearing for the same reason [isSubscribed]'s `true` is: this
      * type is what `JmapClient.decodeList` decodes a `Mailbox/get` into, and a non-defaulted
      * property the server omits throws `MissingFieldException` there — which `decodeList` turns
      * into a `JmapException` and an account with no drawer at all.

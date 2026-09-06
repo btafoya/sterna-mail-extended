@@ -17,11 +17,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  * The home-screen list of the latest messages of every inbox — the second widget, and a separate
  * provider from [UnreadWidgetProvider] in every respect the system can see.
  *
- * ⛔ It polls nothing (`updatePeriodMillis="0"`), exactly like the counter: the system asks for a
+ * It polls nothing (`updatePeriodMillis="0"`), exactly like the counter: the system asks for a
  * draw when a cell is placed, after a reboot and after an app update, and the launcher asks the row
  * factory to refetch. There is no timer, no alarm, and a widget nobody placed costs nothing.
  *
- * ⛔ NOTHING IS DRAWN BEFORE THE SETTING HAS ANSWERED, and nothing is drawn on a read that did not
+ * NOTHING IS DRAWN BEFORE THE SETTING HAS ANSWERED, and nothing is drawn on a read that did not
  * answer in time. The cell then keeps what it was showing — the layout's own "Sterna Mail" on a
  * cell just placed, its previous list otherwise. A default would be a subject on the home screen of
  * someone who asked for none.
@@ -45,7 +45,7 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                // ⛔ withTimeoutOrNull, never withTimeout: the second reports a slow read as a
+                // withTimeoutOrNull, never withTimeout: the second reports a slow read as a
                 // CancellationException, which a caller that treats cancellation as a sign-out
                 // would re-throw. Null here means one thing only — draw nothing.
                 val drawing = withTimeoutOrNull(DRAW_TIMEOUT_MS) { RecentMailWidgetDraw.read(app) }
@@ -60,7 +60,7 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    /** The FIRST cell of THIS widget was placed. ⛔ Not the counter's — see [RecentMailWidgetPresence]. */
+    /** The FIRST cell of THIS widget was placed. Not the counter's — see [RecentMailWidgetPresence]. */
     override fun onEnabled(context: Context) {
         RecentMailWidgetPresence.set(true)
     }
@@ -86,7 +86,7 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
 /**
  * Is at least one LATEST-MESSAGES cell placed? — its own state, and that is the whole point.
  *
- * ⛔ IT IS NOT [UnreadWidgetPresence], and reusing that one would be a silent defect in the OTHER
+ * IT IS NOT [UnreadWidgetPresence], and reusing that one would be a silent defect in the OTHER
  * widget: presence is a process-global boolean seeded from `UnreadWidgetDraw.placedIds`, which asks
  * the widget manager about `UnreadWidgetProvider` alone. Removing the last latest-messages cell
  * would then call `set(false)` on the counter's gate, `UnreadWidgetPush` would drop its
@@ -102,7 +102,7 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
  * while this answer is true, so the gate below is what keeps a widget nobody placed from costing a
  * Room subscription woken by every write to `emails` and to `snoozed`.
  *
- * ⛔ The SEED is half of that answer and it is not decorative: `onEnabled` fires once, on the
+ * The SEED is half of that answer and it is not decorative: `onEnabled` fires once, on the
  * process that was running when the first cell was placed, and that process is long dead by the
  * next boot. Without the seed — or with it read the wrong way round, which is one `!` — a cell that
  * has been sitting on the home screen for weeks never opens the gate again, and the cell stops

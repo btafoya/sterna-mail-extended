@@ -17,7 +17,7 @@ package app.sterna.ui.compose
  * there was no way back: the record kept for the undo window is built AFTER the row is consumed and
  * carries the same empty body, so "Undo" reopened the composer just as empty.
  *
- * ⛔ It is asked in the composer, in front of the commit — NOT in `sendDraftTarget`'s guards
+ * It is asked in the composer, in front of the commit — NOT in `sendDraftTarget`'s guards
  * (`unlessBodyIsLossy`, `unlessDraftBelongsElsewhere`). Those decide what happens to a SERVER draft;
  * on the offline route `sendDraftTarget` answers `(null, null)` and a rule written there decides
  * nothing at all.
@@ -42,19 +42,19 @@ package app.sterna.ui.compose
  * whitespace and newlines are not text, and a signature-shaped body of blank lines is not a message
  * either.
  *
- * ⛔ **[body] is the RAW body of the composer — what the editor holds — never a body that has been
+ * **[body] is the RAW body of the composer — what the editor holds — never a body that has been
  * through `bodiesForSend`.** That one appends the identity's signature, so it is never blank: handed
  * it, this function answers "yes" on every message ever composed and the guard becomes dead code
  * that reads exactly like a working one. [lostBodySendWording] is what the two routes ask, and it
  * hands this one the RAW body of each: `sendInternal` its `args.body`, `scheduleSend` its own
  * `body` parameter, and both do so BEFORE anything is committed.
  *
- * ⚠ **It says nothing about SAVING, and what it used to say about it was half true.** Of the
+ * **It says nothing about SAVING, and what it used to say about it was half true.** Of the
  * phone's own draft row, yes: `localDraftBodyToWrite` refuses to write the empty body OVER the
  * stored one, so a save leaves the last text that reached the disk where it is. Of the SERVER draft,
  * yes, but NOT by the guard the send routes use: `saveDraft` never calls `unlessBodyIsLossy` (that
  * one has a single caller, `scheduleSend`). It hands the same loss down as `bodyIsLossy =
- * editingDraftLossy`, and `draftReplacementIsFaithful` (`DraftSave.kt:135-146`) is `!bodyIsLossy &&
+ * editingDraftLossy`, and `draftReplacementIsFaithful` is `!bodyIsLossy &&
  * …`, so the save answers ORIGINAL_KEPT and the copy in Drafts is never destroyed. Of the QUEUED
  * OUTBOX ROW, no — and that sentence is what
  * made the save route look covered while it destroyed the row and its staged files. That question is
@@ -85,7 +85,7 @@ internal enum class LostBodyWording {
      * [closingParksQueuedRow] reads the same lost, empty body this refusal did and sends the row to
      * `parkInterruptedOutboxEdit` — FAILED, at the cap, "editing was interrupted" — without
      * rebuilding a line of it, and reopening reads it again through `composeDraftOf`.
-     * ⛔ NOT because `releaseOutboxEdit` gives it back to the queue: it did, re-armed at 0, and the
+     * NOT because `releaseOutboxEdit` gives it back to the queue: it did, re-armed at 0, and the
      * message she had just been told to reopen was delivered in under a second (2/2 on the bench).
      * The sentence prescribed the gesture that sent it. Either way the text is there and the row is
      * reopenable, which is all the sentence promises.
@@ -110,20 +110,20 @@ internal enum class LostBodyWording {
  * `commitThenConsumeLocalDraft` deletes the row that still holds it. Where a draft is stored, the
  * true instruction is to leave and open it again.
  *
- * ⛔ **All THREE stores count, not just the phone's own.** A SERVER draft reopened online whose
+ * **All THREE stores count, not just the phone's own.** A SERVER draft reopened online whose
  * body this composer lost is intact on the server, and reopens whole. So is the QUEUED OUTBOX ROW
  * behind Outbox → Edit (#70): it is parked in the queue marked `EDITING` with the text it was
  * queued with, nothing has been rebuilt from this screen, and `abandon(body)` →
  * `parkInterruptedOutboxEdit` parks it whole the moment the composer closes ([closingParksQueuedRow]:
  * FAILED, reopenable, and NOT back on its way). "Type it again." is the wrong advice on all three, because on all
  * three the text is still somewhere and the sentence sends her to retype what she already has.
- * ⚠ It is not equally DESTRUCTIVE on all three: three characters open [composerMaySendBody], and
+ * It is not equally DESTRUCTIVE on all three: three characters open [composerMaySendBody], and
  * the send then consumes the phone's own draft row and the outbox row, while the SERVER draft is
  * spared — `editingDraftLossy` is true whenever the body was lost, so `unlessBodyIsLossy` holds
  * the id back and the original stays in Drafts as a duplicate (#63). The caller passes
  * `_editingLocalDraftId.value != null || editingDraftId != null || editingOutboxId != null`.
  *
- * ⛔ **What the third term does NOT cover: the UNDO route.** An undone send comes back through the
+ * **What the third term does NOT cover: the UNDO route.** An undone send comes back through the
  * same `restore = true` block, but its `SendOutbox.ComposeDraft` carries no `editingOutboxId` (the
  * queued row was dropped by the undo, and the field defaults to null): the message then lives ONLY
  * on this screen, there is nothing to close and reopen, and [LostBodyWording.RETYPE] is the true
@@ -165,22 +165,22 @@ internal fun lostBodySendWording(
  *  - [holdsQueuedRow] — a queued row is being edited (`editingOutboxId != null` at the call site).
  *    ALONE it would refuse every save made from Outbox → Edit.
  *
- * ⛔ **Why the third term, and why it is not written wider.** The queued row is the only store
+ * **Why the third term, and why it is not written wider.** The queued row is the only store
  * this save DESTROYS. The phone's own draft row is protected one layer down by
  * `localDraftBodyToWrite`, which will not write an empty body over the stored one; the server draft
  * by `draftReplacementIsFaithful`, which is `!bodyIsLossy && …` and is handed `editingDraftLossy` —
  * true the moment the body is lost — so the save keeps the original instead of replacing it
- * (ORIGINAL_KEPT). ⛔ NOT by `unlessBodyIsLossy`: that guard belongs to `scheduleSend`, its only
+ * (ORIGINAL_KEPT). NOT by `unlessBodyIsLossy`: that guard belongs to `scheduleSend`, its only
  * caller, and naming it here would be a mechanism this route never runs. On those
  * routes nothing is lost by saving, and refusing there would take away the last chance to keep a
  * subject or a recipient just typed — which is the whole point of the gesture.
  *
- * ⛔ **[body] is the RAW body of the composer**, the `body` parameter `saveDraft` was handed —
+ * **[body] is the RAW body of the composer**, the `body` parameter `saveDraft` was handed —
  * never a body that has been through `bodiesForSend`. That one appends the identity's signature and
  * is therefore never blank: handed it, this function answers "no" on every save ever made and the
  * guard is dead code that reads exactly like a working one.
  *
- * ⚠ **The row after a PROCESS DEATH.** `editingOutboxId` is not persisted: the composer Android
+ * **The row after a PROCESS DEATH.** `editingOutboxId` is not persisted: the composer Android
  * rebuilds gets it back from the id its route carries, once the startup sweep has parked the row
  * (`ComposeViewModel.resumeOutboxEdit`). Between the rebuild and that resume it is still null: this
  * answers false, the save goes through — and there is nothing to destroy, because
@@ -210,11 +210,11 @@ internal fun lostBodySaveDestroysQueuedRow(
  * back. A body retyped and then abandoned answers false, and the row goes back to the queue exactly
  * as #70 has it; an empty body nobody lost is a deliberate emptying and answers false too.
  *
- * ⛔ NOT a flag saying "a refusal was shown". The decision does not depend on what the user saw:
+ * NOT a flag saying "a refusal was shown". The decision does not depend on what the user saw:
  * closing an empty screen after a loss is the same gesture with or without a refusal before it,
  * and a flag raised by the notice would let a close made BEFORE tapping Send queue the row anyway.
  *
- * ⛔ **[body] is the RAW body of the composer** — `body.text` of the editor at the moment of the
+ * **[body] is the RAW body of the composer** — `body.text` of the editor at the moment of the
  * close, the value `cancel` hands `abandon` — never a body that has been through `bodiesForSend`.
  * That one appends the identity's signature and is never blank: handed it, this answers false on
  * every close and the row is queued again, the defect back with a guard that reads like a working one.

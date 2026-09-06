@@ -70,7 +70,7 @@ internal data class BarState(
  * capped), and a watcher would blink the bar on it for as long as it is open. So the probe hangs
  * off the END of a gesture — once per gesture, never per frame.
  *
- * ⚠ TWO gestures change this document's height, not one. Tapping the `<summary>` of the `<details>`
+ * TWO gestures change this document's height, not one. Tapping the `<summary>` of the `<details>`
  * that folds a reply's quoted history is the one this door was written for; PINCHING TO ZOOM is the
  * other, and it is supported here (`builtInZoomControls`, and the ACTION_POINTER_DOWN branch of the
  * body's touch handler exists because of it). A zoom therefore ends in an ACTION_UP, arms this
@@ -308,12 +308,12 @@ internal object BodyReveal {
      * shut. The release that ends the burst carries `repeatCount` 0, so the state she stopped on is
      * still measured, once.
      *
-     * ⚠ The probe's window stays BOUNDED (20 ticks of 50ms, ~1s from the event that armed it) and
+     * The probe's window stays BOUNDED (20 ticks of 50ms, ~1s from the event that armed it) and
      * nothing re-arms it: a fold that somehow reached its plateau later than that is not caught,
      * and the bar would stay as it was until her next gesture. That limit is deliberate (#63) and
      * this door does not lift it.
      *
-     * ⚠ WHAT THIS DOES NOT DECIDE, and what no JVM test in this repo can reach: whether the
+     * WHAT THIS DOES NOT DECIDE, and what no JVM test in this repo can reach: whether the
      * platform ever hands the event to the door that calls this. It must be `dispatchKeyEvent` —
      * `onKeyUp` is only reached for a key nobody consumed, and Blink consumes the one that works
      * the fold. That half has one falsifier only, a bench pass. TalkBack is a third path and is
@@ -431,7 +431,7 @@ internal class BarReveal {
      * one is allowed to set aside.
      *
      * A report that measured nothing ([BodyMetrics.measured]) is inert here as everywhere else, but
-     * ⛔ do not read that guard as the protection against a mid-layout reading: it is not, and it
+     * do not read that guard as the protection against a mid-layout reading: it is not, and it
      * cannot be. This door only fires on a document the reader is LOOKING AT, so `contentHeight` is
      * long since positive and [BodyReveal.rangeMeasured] passes on every reading, transient ones
      * included. What keeps an intermediate height out is the plateau in [BodyReveal.resizeStep].
