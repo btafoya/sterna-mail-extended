@@ -1,19 +1,19 @@
 Lecture
 
-- Sur une fenêtre d'au moins 600 dp de large, la boîte de réception s'affiche en deux volets : la liste à gauche, le message ouvert à droite. À partir de 1200 dp, le tiroir des dossiers reste à côté de la liste, sans bouton hamburger. En dessous de 600 dp, rien ne change.
+- Sur une fenêtre d'au moins 600 dp de large, la boîte de réception s'affiche en deux volets : la liste à gauche, le message ouvert à droite. À partir de 1200 dp, le tiroir des dossiers reste à côté de la liste, sans bouton hamburger. En dessous de 600 dp, la disposition ne change pas.
 - Un compte IMAP regroupe désormais ses messages en conversations, comme un compte JMAP. Le fil est reconstruit sur le téléphone à partir de l'en-tête References du message. Un dossier déjà relevé reste à plat jusqu'à sa prochaine relève, puis se regroupe.
 - Le réglage d'aperçu de la liste de courrier a maintenant un effet en IMAP : la ligne porte le début du message. Une ligne ancienne le gagne à sa prochaine synchronisation, et rien n'est rattrapé sur ce qui est déjà là.
 - L'historique cité en fin de réponse s'ouvre replié derrière un bouton « Texte cité », dans les messages HTML. Une tape le déplie, rien n'est mémorisé, et le mode texte brut est inchangé.
 - Taper un message joint l'ouvre dans une feuille : son expéditeur, ses destinataires, sa date, son sujet, son texte et les noms de ses propres pièces jointes. Cela ouvrait un sélecteur vide.
 - Imprimer un message, ou l'enregistrer en PDF, depuis le menu du lecteur. Le papier porte les lignes d'en-tête et le corps tel qu'il est affiché, sur blanc quel que soit le thème. Les images distantes bloquées le restent.
-- Enregistrer un message en .eml, exactement tel que le serveur le conserve, et enregistrer une pièce jointe directement dans un dossier de votre choix. Ni l'un ni l'autre ne passe par le cache de l'application, et un enregistrement qui échoue efface le fichier qu'il avait créé au lieu de laisser un fichier vide.
+- Enregistrer un message en .eml, exactement tel que le serveur le conserve, et enregistrer une pièce jointe directement dans un dossier de votre choix. Ni l'un ni l'autre ne passe par le cache de l'application, et un enregistrement qui échoue efface le fichier qu'il avait créé, là où le dossier choisi le permet, au lieu de laisser un fichier vide.
 - Transférer un message en pièce jointe, depuis le menu du lecteur.
 - Le tiroir conserve les dossiers que vous avez repliés, à la rotation, au redémarrage et à la déconnexion d'un compte. Un dossier à vous qui a des enfants démarre désormais replié, et un dossier replié porte le compte de non-lus de ce qu'il cache.
 - Supprimer, archiver ou déplacer un message retire aussi sa notification de nouveau courrier, au lieu de laisser un bandeau qui rouvrait un message qui n'était plus là.
 
 Écriture
 
-- Le composeur peut mettre en forme ce que vous écrivez : gras, italique, souligné, barré, listes à puces et numérotées, et liens, depuis une barre sous le corps. Le message part avec une partie HTML à côté du texte brut, un brouillon garde sa mise en forme où qu'il soit rangé, et le collage reste en texte brut.
+- Le composeur peut mettre en forme ce que vous écrivez : gras, italique, souligné, barré, listes à puces et numérotées, et liens, depuis une barre sous le corps. Le message part avec une partie HTML, un brouillon garde sa mise en forme où qu'il soit rangé, et le collage reste en texte brut.
 - Un message en cours d'édition sorti de la file d'envoi est mis de côté au lieu de partir à votre insu. Fermer le composeur sur un corps que le téléphone n'a pas pu rendre, ou l'application qui meurt en pleine édition, remettait le message sur le fil ; la ligne attend désormais, en rouge, avec un motif, et seuls Réessayer ou Modifier la font bouger.
 - « Enregistrer comme brouillon » est refusé quand le composeur a perdu son texte et que la file d'envoi tient encore le message. Ce geste écrivait un brouillon vide par-dessus la seule copie de ce que vous aviez tapé.
 - « Modifier » est retiré d'un message en file que vous avez choisi de garder en brouillon. L'ouvrir puis le refermer suffisait à l'envoyer.
@@ -32,7 +32,7 @@ Chiffrement
 
 - Un compte dont OpenPGP est actif annonce sa clé publique sur le courrier qu'il envoie, et prend la clé d'un correspondant sur un message qui en porte une. C'est Autocrypt niveau 1 : la clé arrive avec le courrier ordinaire, et elle est opportuniste et non confirmée.
 - Un message chiffré répète désormais son sujet à l'intérieur de la partie chiffrée, pour que le client du destinataire puisse constater que le sujet affiché est celui qui a été envoyé. L'enveloppe porte toujours le sujet en clair, exactement comme avant.
-- Une clé arrivée par le courrier ne peut plus passer devant une vraie au moyen d'une date falsifiée. En IMAP la date est prise sur l'horloge du serveur, une date de plus d'un jour en avance sur le téléphone est refusée, et le lecteur ne charge un message qu'une fois le doigt posé dessus.
+- Une clé arrivée par le courrier ne peut plus passer devant une vraie au moyen d'une date falsifiée. En IMAP la date est prise sur l'horloge du serveur, une date de plus d'un jour en avance sur le téléphone est refusée, et le lecteur ne va chercher un message sur le serveur qu'une fois le doigt posé dessus. Un téléphone dont l'horloge retarde de plus d'un jour ne prend plus aucune clé.
 
 Comptes
 
