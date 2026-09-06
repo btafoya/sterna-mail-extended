@@ -7,50 +7,22 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 
-/**
- * How long a refresh may run before anything is DRAWN about it (#178).
- *
- * The tern used to light the instant `refresh()` was called — before anything knew whether the
- * fetch would take 80 ms or 8 s — so every folder tap, every account switch and every cold start
- * blinked it for nothing. A refresh that lands inside this grace is one the reader never needed to
- * be told about: the rows simply arrive.
- *
- * This is the DISPLAY only. "A refresh is running" is [MailUi.refreshing] and is
- * not delayed by a millisecond: it still empties the centre of the screen so "this folder is empty"
- * cannot lie during a fetch (#63), and it is still the seed of the state flow.
- *
- * A FRESH view runs no refresh at all (`refreshUnlessFresh` returns inside its window), so on the
- * common folder switch nothing empties the centre by that path any more. Emptying it there is the
- * screen's own arm: it catches on `refreshLoading || staleRows` and draws only on
- * `refreshLoading && !staleRows`.
- */
+/** How long a refresh may run before anything is drawn about it (#178), so a folder tap or cold
+ * start does not blink the tern. Display only: "a refresh is running" is [MailUi.refreshing] and
+ *  is not delayed, so "this folder is empty" still cannot lie during a fetch (#63). */
 internal const val REFRESH_INDICATOR_GRACE_MS = 250L
 
-/**
- * Once shown, the smallest time the indicator stays on screen.
- *
- * Without it the grace only moves the flash: a refresh landing at 260 ms would draw the tern for
- * ten milliseconds, which is worse than never drawing it. The floor hangs off the instant the
- * indicator BECAME visible, not off the start of the refresh, so it is bounded by construction.
- */
+/** Once shown, the smallest time the indicator stays on screen: without it the grace only moves the
+ *  flash, a refresh landing at 260 ms drawing the tern for ten milliseconds. Counted from the
+ *  instant it became visible, not the start of the refresh, so it is bounded. */
 internal const val REFRESH_INDICATOR_MIN_SHOW_MS = 500L
 
-/**
- * One stretch of continuous refreshing, as the eye sees it — not as the ViewModel counts jobs.
- *
- * A reconcile that supersedes another (`refresh()` cancels and replaces) is the SAME stretch here:
- * see [startRefreshRun]. Nothing in this file reads a clock; every decision takes `now` as a
- * parameter, so the whole rule runs in a plain JVM test — `InboxViewModel` is an `AndroidViewModel`
- * and cannot be instantiated in one, which is already why [RefreshNotice] and `BoundedRefresh.kt`
- * exist.
- */
+/** One stretch of continuous refreshing as the eye sees it, not as the ViewModel counts jobs: a
+ *  reconcile superseding another is the same stretch. Nothing here reads a clock. */
 internal data class RefreshRun(
     val startedAt: Long,
-    /**
-     * This stretch answers a gesture the reader made in so many words — the pull, or a Retry
-     * button. There is no grace for those: the indicator IS the answer to the gesture, and a pull
-     * that draws nothing for a quarter of a second reads as a pull that did nothing.
-     */
+    /** This stretch answers an explicit gesture (the pull, a Retry button), which gets no grace: a
+     *  pull that draws nothing for a quarter of a second reads as a pull that did nothing. */
     val instant: Boolean = false,
     /** When the refreshing stopped; null while it is still running. */
     val endedAt: Long? = null,
@@ -60,30 +32,11 @@ internal data class RefreshRun(
 private fun showAt(run: RefreshRun): Long =
     run.startedAt + if (run.instant) 0L else REFRESH_INDICATOR_GRACE_MS
 
-/**
- * Start a stretch at [now], or extend the one already running.
- *
- * A refresh starting ON TOP of a stretch still in flight extends it instead of opening a new
- * one. Opening a new one restarts both the grace and the floor, and the app cancels-and-replaces
- * refreshes readily (a reconnect walk, an account switch, a folder tap while the previous fetch is
- * still out) — so a cascade would either keep the indicator permanently just-about-to-appear, or
- * make it blink once per reconcile, which is #178 with extra steps.
- *
- * A stretch CAN be promoted to [RefreshRun.instant] mid-flight, and never demoted: if the reader
- * pulls while a background reconcile is already running, the pull deserves its answer now, and the
- * grace it was serving is no longer anybody's silence to keep.
- *
- * A stretch that has ENDED but is STILL DRAWN — serving its floor — is reopened, not replaced.
- * Replacing it was the first version of this rule, and it defeated the floor at the only moment
- * the floor is for: shown at 250, landed at 300, a second folder tapped at 400 gave a NEW stretch,
- * so the indicator went dark at 400 and came back at 650. Dark for a quarter of a second between
- * two folder taps is the in-and-out blink this file exists to remove, with two more edges than
- * before the fix. The same edit protects the answer to a pull, which any background reconcile
- * landing behind it could otherwise cut short.
- *
- * A stretch that has ended and is NOT drawn — the nominal case, gone inside its own grace, or its
- * floor already served — is replaced outright: there is nothing on screen to keep continuous.
- */
+/** Start a stretch at [now], or extend the one already running. A refresh starting on top of a
+ *  stretch in flight extends it: restarting grace and floor on each would, given how readily the
+ * app cancels and replaces refreshes, keep the indicator about to appear for ever. A stretch
+ *  ended but still drawn is reopened, not replaced, or the floor is defeated at the one moment it
+ *  is for. One ended and not drawn is replaced; `instant` is promoted, never demoted. */
 internal fun startRefreshRun(previous: RefreshRun?, now: Long, instant: Boolean): RefreshRun = when {
     previous == null -> RefreshRun(startedAt = now, instant = instant)
     previous.endedAt == null -> previous.copy(instant = previous.instant || instant)
@@ -92,17 +45,9 @@ internal fun startRefreshRun(previous: RefreshRun?, now: Long, instant: Boolean)
     else -> RefreshRun(startedAt = now, instant = instant)
 }
 
-/**
- * Whether the indicator is drawn at [now].
- *
- * The nominal case of #178 is the FIRST rule below, and it is the one a naive implementation
- * gets wrong: a stretch that ended before it was ever due to be shown is never shown AT ALL. A
- * floor applied blindly to it would light the tern from 250 ms to 750 ms for a refresh that had
- * already been over for 170 ms — the very blink this file exists to remove.
- *
- * Otherwise the indicator runs from [showAt] to `max(endedAt, showAt + REFRESH_INDICATOR_MIN_SHOW_MS)`,
- * and for ever while the stretch is still running.
- */
+/** Whether the indicator is drawn at [now]. A stretch that ended before it was due to be shown is
+ *  never shown at all (#178) — a blind floor would light the tern 250→750 ms for a refresh already
+ *  over. Otherwise from [showAt] to `max(endedAt, showAt + REFRESH_INDICATOR_MIN_SHOW_MS)`. */
 internal fun refreshIndicatorShowing(run: RefreshRun?, now: Long): Boolean {
     if (run == null) return false
     val from = showAt(run)
@@ -111,14 +56,9 @@ internal fun refreshIndicatorShowing(run: RefreshRun?, now: Long): Boolean {
     return now >= from && now < maxOf(ended, from + REFRESH_INDICATOR_MIN_SHOW_MS)
 }
 
-/**
- * The next instant at which [refreshIndicatorShowing] answers differently, or null when it never
- * will again — the single wake-up [refreshIndicatorVisibility] schedules per emission.
- *
- * Null, not `showAt`, for a stretch that ended inside its grace: that one has no visible future
- * at all, and booking a wake-up for it would put the screen back on the scheduler once per folder
- * tap to change nothing.
- */
+/** The next instant at which [refreshIndicatorShowing] answers differently, or null when it never
+ * will again — the single wake-up [refreshIndicatorVisibility] schedules per emission. Null, not
+ *  `showAt`, for a stretch that ended inside its grace: it has no visible future. */
 internal fun nextRefreshIndicatorChange(run: RefreshRun?, now: Long): Long? {
     if (run == null) return null
     val from = showAt(run)
@@ -131,15 +71,9 @@ internal fun nextRefreshIndicatorChange(run: RefreshRun?, now: Long): Long? {
     return if (now < until) until else null
 }
 
-/**
- * The indicator's visibility over time, on the exact shape of `OutboxLogic.badgeCount`: each
- * stretch emitted upstream schedules ONE wake-up — the next instant the answer changes — and never
- * polls. [now] is injected and has NO default: this file must not name a clock,
- * because picking the wrong one is invisible here and wrong everywhere. It measures a DURATION, so
- * it is `SystemClock.elapsedRealtime` at the call site — see the clock in `InboxViewModel`, which a
- * source lint pins. A wall clock would be nudged by NTP mid-refresh while the `delay` below, which
- * is monotonic, would not.
- */
+/** The indicator's visibility over time: each stretch emitted upstream schedules one wake-up and
+ * never polls. [now] must be `SystemClock.elapsedRealtime` (a source lint pins it): a wall clock
+ *  would be nudged by NTP mid-refresh while the monotonic `delay` would not. */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun refreshIndicatorVisibility(
     runs: Flow<RefreshRun?>,

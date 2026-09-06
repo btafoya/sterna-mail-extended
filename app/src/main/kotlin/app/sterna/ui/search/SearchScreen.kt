@@ -104,48 +104,38 @@ fun SearchScreen(
     val keyboard = LocalSoftwareKeyboardController.current
 
     fun runSearch() {
-        // Fold the keyboard away with the panel: it used to stay up over the results, which on a
-        // phone left the list with a couple of rows' worth of room.
+        // Fold the keyboard away with the panel: it used to stay up over the results.
         focusManager.clearFocus()
         keyboard?.hide()
         viewModel.search()
     }
 
     // The advanced filters slide over the results like the main navigation drawer: a slim handle
-    // under the search box drives a top overlay. Dragging it down reveals the panel ON TOP of the
-    // list (the results never reflow); dragging up hides it. form.expanded stays the single source
-    // of truth — the summary, keyboard folding and the Tune toggle all read it — so a drag only
-    // sets it and the snap animation follows.
+    // under the search box drives a top overlay, and the results never reflow. form.expanded stays
+    // the single source of truth, so a drag only sets it and the snap animation follows.
     //
     // All of this lives ABOVE the Scaffold rather than inside its content, because the title bar is
-    // one of the places the panel can be dragged from and Scaffold's topBar is a separate lambda
-    // that cannot see the content's locals.
+    // one of the drag points and Scaffold's topBar cannot see the content's locals.
     val scope = rememberCoroutineScope()
     val motionEnabled = rememberMotionEnabled()
     val handleDesc = stringResource(R.string.search_advanced_toggle)
     var panelHeightPx by remember { mutableIntStateOf(0) }
     var firstSync by remember { mutableStateOf(true) }
-    // The handle's height: reserved at the top of the results so a closed handle sits clear
-    // of the first row, and reused as the handle's own size so it reads as a solid edge.
+    // The handle's height: reserved at the top of the results so a closed handle sits clear of the
+    // first row, and reused as the handle's own size so it reads as a solid edge.
     val handleHeight = 18.dp
 
     // How far the panel is pulled out, 0 (shut) to panelHeightPx. A PLAIN float state, written
-    // synchronously, and the only reader of the panel's position anywhere on this screen.
+    // synchronously, and the only reader of the panel's position on this screen.
     //
-    // It used to be an Animatable, whose position can only be moved from a coroutine. That is fine
-    // for a drag that owns the whole gesture, but a nested scroll must answer "how much did you
-    // take?" the instant it is asked, and there is no synchronous way to move an Animatable. Two
-    // touch events drained in the same pass of the event loop — a dropped frame, which is precisely
-    // the old-device case — would then both read the position from BEFORE either had been applied,
-    // and the first delta would be silently dropped after being reported as consumed: the panel
-    // lags behind the finger, and the nested-scroll protocol is handed a number that isn't true.
-    // Writing the float directly makes "what moved" and "what was reported" the same arithmetic,
-    // by construction. It is what AnchoredDraggableState.dispatchRawDelta does for the same reason.
+    // Not an Animatable, which can only be moved from a coroutine: a nested scroll must answer
+    // "how much did you take?" the instant it is asked, and two touch events drained in one pass of
+    // the event loop would both read the position from before either was applied — the first delta
+    // silently dropped after being reported as consumed. Writing the float directly makes "what
+    // moved" and "what was reported" the same arithmetic, as dispatchRawDelta does.
     var offsetPx by remember { mutableFloatStateOf(0f) }
-    // Kept only to DRIVE the settle animation, not to hold the position: it feeds each frame into
-    // offsetPx above. Its mutex is the point — two settles racing (the drag's own, and the one the
-    // LaunchedEffect below fires when form.expanded lands) cancel each other instead of both
-    // writing.
+    // Kept only to DRIVE the settle animation, not to hold the position. Its mutex is the point:
+    // two settles racing cancel each other instead of both writing.
     val animation = remember { Animatable(0f) }
 
     suspend fun glideTo(target: Float) {
@@ -153,8 +143,8 @@ fun SearchScreen(
         animation.animateTo(target) { offsetPx = value }
     }
 
-    // Follow form.expanded (Tune button, summary tap, search-fold, process restore). The
-    // first pass snaps, so entering the screen already-open doesn't play an intro slide.
+    // Follow form.expanded. The first pass snaps, so entering the screen already-open plays no
+    // intro slide.
     LaunchedEffect(form.expanded, panelHeightPx) {
         if (panelHeightPx == 0) return@LaunchedEffect
         val target = if (form.expanded) panelHeightPx.toFloat() else 0f
@@ -166,8 +156,8 @@ fun SearchScreen(
         }
     }
 
-    // The drag's end-state: animate the snap here (so it plays even when the panel was
-    // already on that side, e.g. a half-drag released back), then record it in the ViewModel.
+    // The drag's end-state: animate the snap here, so it plays even when the panel was already on
+    // that side, then record it in the ViewModel.
     fun settle(open: Boolean) {
         scope.launch {
             val target = if (open) panelHeightPx.toFloat() else 0f
@@ -176,9 +166,9 @@ fun SearchScreen(
         viewModel.setExpanded(open)
     }
 
-    // Move the panel by [delta] px and report how much of it was actually used — a nested scroll
-    // has to hand back exactly what it took, so the rest can go to the content. Read and write are
-    // in the same synchronous call: the panel moves by precisely the number returned, always.
+    // Move the panel by [delta] px and report how much was actually used — a nested scroll has to
+    // hand back exactly what it took. Read and write are in the same synchronous call, so the panel
+    // moves by precisely the number returned.
     fun nudge(delta: Float): Float {
         if (panelHeightPx == 0) return 0f
         val used = searchPanelTakes(offsetPx, panelHeightPx.toFloat(), delta)
@@ -186,8 +176,8 @@ fun SearchScreen(
         return used
     }
 
-    // One drag behaviour, applied at every grab point: the handle, the title bar and the free-text
-    // field. Same state, and above all the same release decision — see [searchPanelSettlesOpen].
+    // One drag behaviour at every grab point: the handle, the title bar and the free-text field.
+    // Same state, and above all the same release decision — see [searchPanelSettlesOpen].
     val dragState = rememberDraggableState { delta -> nudge(delta) }
     val panelDrag = Modifier.draggable(
         orientation = Orientation.Vertical,
@@ -197,21 +187,17 @@ fun SearchScreen(
         },
     )
 
-    // Folding by dragging up from inside the panel is NOT a `draggable`: the panel scrolls (see the
-    // Column below), and a drag modifier over it would swallow that scroll and put the Search
-    // button out of reach in exactly the cramped cases the scroll exists for. Nested scroll instead
-    // — the panel's own scroll is served first, and the fold only gets what the scroll could not
-    // consume, the way a bottom sheet behaves. On an ordinary phone in portrait at the default font
-    // nothing scrolls at all, so the leftover is the whole gesture and the fold is immediate.
+    // Folding by dragging up from inside the panel is NOT a `draggable`: the panel scrolls, and a
+    // drag modifier over it would swallow that scroll and put the Search button out of reach in
+    // exactly the cramped cases the scroll exists for. Nested scroll instead, so the panel's own
+    // scroll is served first and the fold gets only what it could not consume.
     //
-    // Unkeyed remember: everything it reads is either a State (panelHeightPx, offsetPx, form) or
-    // fixed for the composition's life (scope, and motionEnabled behind settle, itself remembered).
+    // Unkeyed remember: everything it reads is either a State or fixed for the composition's life.
     val panelNestedScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 // Coming back DOWN after a partial fold: pull the panel out again BEFORE its
-                // content scrolls, or a reversed gesture would leave it stuck half-way while the
-                // rows slid back under it.
+                // content scrolls, or a reversed gesture leaves it stuck half-way.
                 if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
                 if (offsetPx >= panelHeightPx) return Offset.Zero
                 return Offset(0f, nudge(available.y))
@@ -222,8 +208,7 @@ fun SearchScreen(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                // Going UP: this only ever runs on what the panel's scroll could not use, i.e.
-                // once the Search button is already on screen and the finger keeps rising.
+                // Going UP: this only runs on what the panel's scroll could not use.
                 if (source != NestedScrollSource.UserInput || available.y >= 0f) return Offset.Zero
                 return Offset(0f, nudge(available.y))
             }
@@ -231,13 +216,10 @@ fun SearchScreen(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 // Release. Settle only if this gesture actually moved the panel: when it merely
                 // scrolled the panel's content, the fling belongs to that content and taking it
-                // would stop the list dead.
-                // The equality is exact and that is safe now: offsetPx only ever moves by whole
-                // amounts this code applied itself, so "untouched" really means untouched. It was
-                // NOT safe while the position lagged behind — a stale read could conclude the panel
-                // had not moved when it had, return here, and leave it stranded a few pixels off
-                // its resting place with nothing to ever pull it back (form.expanded unchanged, so
-                // the LaunchedEffect never re-arms).
+                // would stop the list dead. The exact equality is safe because offsetPx only moves
+                // by whole amounts this code applied itself — it was NOT safe while the position
+                // lagged, where a stale read could strand the panel a few pixels off its rest with
+                // nothing to pull it back.
                 val committed = if (form.expanded) panelHeightPx.toFloat() else 0f
                 if (panelHeightPx == 0 || offsetPx == committed) return Velocity.Zero
                 settle(searchPanelSettlesOpen(offsetPx, panelHeightPx.toFloat(), available.y))
@@ -249,9 +231,9 @@ fun SearchScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                // Dragging down from the title bar opens the panel: aiming at an 18 dp handle was
-                // not a usable target. The icon buttons keep their taps — a tap is decided before
-                // the drag slop is crossed — and this only ever moves the panel, never the bar.
+                // Dragging down from the title bar opens the panel: an 18 dp handle was not a
+                // usable target. The icon buttons keep their taps, a tap being decided before the
+                // drag slop is crossed.
                 modifier = panelDrag,
                 title = { Text(stringResource(R.string.search_title)) },
                 navigationIcon = {
@@ -293,25 +275,21 @@ fun SearchScreen(
             // clipToBounds hides the panel where it rests above the handle; weight(1f) is the
             // results' space AND the overlay's stage, so opening the panel never resizes the list.
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
-                // The results, at full size UNDER the overlay. A top inset the height of the handle
-                // keeps the first row clear of the handle's closed (separator) position.
+                // The results, at full size UNDER the overlay, with a top inset the height of the
+                // handle.
                 Column(Modifier.fillMaxSize().padding(top = handleHeight)) {
                     if (!form.expanded) {
-                        // Folded: the criteria the RESULTS came from, never the half-edited form —
-                        // that is what explains the list. Tapping it brings the panel back.
+                        // Folded: the criteria the RESULTS came from, never the half-edited form.
                         val applied = (state as? SearchState.Results)?.query ?: query
                         CriteriaSummary(applied, onClick = viewModel::togglePanel)
                     }
                     (state as? SearchState.Results)?.takeIf { it.emails.isNotEmpty() }?.let { results ->
                         Text(
                             // "At least N" whenever the search stopped short of the whole answer: a
-                            // truncated scan counted as a total would be a number the user can't check.
-                            // Same call as the inbox's search bar so the two surfaces can't word the
-                            // same situation differently. loading = false: this screen runs ONE pass
-                            // and [SearchState.Results] replaces [SearchState.Searching], so the rows
-                            // on screen are always a finished pass. (SearchViewModel.run does NOT
-                            // cancel a previous launch, so a LATER search can be in flight — but the
-                            // count describes these results, and these are settled.)
+                            // truncated scan counted as a total would be a number the user cannot
+                            // check. Same call as the inbox's search bar, so the two surfaces cannot
+                            // word one situation differently. loading = false: this screen runs one
+                            // pass, and the rows on screen are always a finished one.
                             when (searchCount(results.complete, loading = false)) {
                                 SearchCount.EXACT ->
                                     pluralStringResource(R.plurals.search_result_count, results.emails.size, results.emails.size)
@@ -336,11 +314,10 @@ fun SearchScreen(
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.align(Alignment.Center).padding(24.dp),
                             )
-                            // A truncated scan that returned nothing has NOT proven there is nothing: say
-                            // it stopped short, don't report "no results" as a fact — the honesty the
-                            // "At least N" counter gives a partial hit, extended to the zero case it can't reach.
-                            // Routed through the shared decision so the inbox's search bar can't word the
-                            // same situation differently; only the wording below is this screen's own.
+                            // A truncated scan that returned nothing has NOT proven there is
+                            // nothing: say it stopped short rather than reporting "no results" as a
+                            // fact. Routed through the shared decision so the inbox's bar cannot
+                            // word the same situation differently.
                             is SearchState.Results -> when (
                                 searchDisplay(s.emails.size, loading = false, complete = s.complete)
                             ) {
@@ -353,23 +330,21 @@ fun SearchScreen(
                                     val term = s.query.text.trim()
                                     EmptyState(
                                         art = EmptyArt.SEARCH,
-                                        // This screen knows the words that were searched for, so it
-                                        // can name them; the inbox's bar shows its own generic line.
+                                        // This screen knows the words searched for, so it can name
+                                        // them; the inbox's bar shows a generic line.
                                         title = if (term.isBlank()) stringResource(R.string.search_no_results_generic)
                                         else stringResource(R.string.search_no_results, term),
                                         body = stringResource(R.string.empty_search_body),
                                         modifier = Modifier.align(Alignment.Center),
                                     )
                                 }
-                                // Unreachable here (loading is always false: one pass, and Results
-                                // replaces Searching) — spelled out rather than left to an else, so
+                                // Unreachable here — spelled out rather than left to an else, so
                                 // adding a case to the enum has to be answered here too.
                                 SearchDisplay.SPINNER -> LoadingRing(Modifier.align(Alignment.Center))
                                 SearchDisplay.RESULTS -> LazyColumn(Modifier.fillMaxSize()) {
                                     items(s.emails, key = ::searchResultKey) { email ->
-                                        // Which account a hit belongs to matters here more than anywhere:
-                                        // the search spans them all. Same pill as the unified list, and
-                                        // only when there is more than one account to tell apart.
+                                    // Which account a hit belongs to matters here most: the search
+                                    // spans them all. Same pill as the unified list.
                                         val owner = if (accounts.size > 1) {
                                             accounts.firstOrNull { it.id == email.accountId }
                                         } else {
@@ -389,8 +364,8 @@ fun SearchScreen(
                     }
                 }
 
-                // Scrim: like the drawer's, dims the results as the panel comes over them and, once
-                // shown, catches a tap to close. Absent (and non-blocking) while fully closed.
+                // Scrim: like the drawer's, dims the results and catches a tap to close. Absent,
+                // and non-blocking, while fully closed.
                 val progress = if (panelHeightPx > 0) offsetPx / panelHeightPx else 0f
                 if (progress > 0f) {
                     val scrimSource = remember { MutableInteractionSource() }
@@ -402,30 +377,17 @@ fun SearchScreen(
                     )
                 }
 
-                // The panel itself: the same fields as before, now floating over the results. It
-                // sits just under the handle and is translated up by its own measured height when
-                // closed (clipped away by the parent Box), sliding into view as the handle is dragged.
+                // The panel itself, floating over the results: translated up by its own measured
+                // height when closed and clipped away by the parent Box.
                 Surface(
-                    // No tonalElevation. Material 3 implements it by tinting the surface with the
-                    // primary colour, and in this theme `background` and `surface` are the SAME
-                    // colour (Color.kt) — the top app bar's default container included — so a
-                    // tinted panel was the only tinted thing on the screen: it read as a different
-                    // shade from the title bar and the search box right above it, most visibly in
-                    // the dark theme, where a teal tint over a near-black background shows far more
-                    // than the same 2 dp over light grey.
-                    //
-                    // shadowElevation is kept, but do NOT read it as the thing that now carries the
-                    // panel's depth: it draws nothing anyone can see. A 6 dp shadow spreads 6-9 dp,
-                    // and every edge of it is covered — below by the handle, which is drawn AFTER
-                    // the panel, at exactly its bottom edge, 18 dp tall and fully opaque; above by
-                    // the parent's clipToBounds; at the sides by the screen edge. It is here as a
-                    // correct declaration of what the panel is, and so that it works the day the
-                    // handle stops sitting flush against it.
-                    //
-                    // Which leaves the scrim as the ONE thing telling the user this panel floats
-                    // over the results rather than pushing them. That is a real reduction and it is
-                    // deliberate — the tint was measurably the wrong tool, since it broke the
-                    // screen's colour — but it is one marker, not three.
+                    // No tonalElevation. Material 3 implements it by tinting the surface with
+                    // the primary colour, and in this theme `background` and `surface` are the same
+                    // colour, so a tinted panel was the only tinted thing on the screen — most
+                    // visibly in the dark theme. shadowElevation is kept, but do not read it as
+                    // what carries the panel's depth: every edge of that shadow is covered. It is
+                    // here as a correct declaration, and for the day the handle stops sitting flush.
+                    // Which leaves the scrim as the ONE thing saying the panel floats over the
+                    // results: a real reduction, and deliberate.
                     shadowElevation = 6.dp,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -436,16 +398,12 @@ fun SearchScreen(
                         },
                 ) {
                     // Scrollable, because the panel is a fixed stack of rows in a space that is
-                    // not fixed at all: landscape, a font scale of 1.5x or 2x, or the keyboard
-                    // opening from the Subject field each cut the height it gets. Without this the
-                    // last rows — the flagged switch, and below it the Search button — are simply
-                    // clipped away by the parent Box, with no gesture that could bring them back.
-                    // Adding a row to this panel is what makes that reachable on ordinary phones,
-                    // so the row and the scroll ship together.
+                    // not: landscape, a large font scale, or the keyboard opening from the Subject
+                    // field each cut the height it gets, and without this the flagged switch and
+                    // the Search button are clipped away with no gesture to bring them back.
                     //
-                    // nestedScroll sits OUTSIDE verticalScroll on purpose: that order is what makes
-                    // the scroll the first served and the fold the second, so dragging up here
-                    // reaches the Search button before it ever starts closing the panel.
+                    // nestedScroll sits OUTSIDE verticalScroll on purpose: that order makes the
+                    // scroll the first served and the fold the second.
                     Column(
                         Modifier
                             .fillMaxWidth()
@@ -461,8 +419,8 @@ fun SearchScreen(
                             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                         )
-                        // Matches To OR Cc: a message that only carries the address in copy was still
-                        // received at it (aliases, shared mailboxes), so one field, no To/Cc switch.
+                        // Matches To OR Cc: a message that only carries the address in copy was
+                        // still received at it, so one field and no To/Cc switch.
                         OutlinedTextField(
                             value = query.recipient,
                             onValueChange = { viewModel.updateQuery(query.copy(recipient = it)) },
@@ -497,9 +455,7 @@ fun SearchScreen(
                         }
                         // Gathering flagged mail lives here rather than in the drawer: a drawer
                         // entry could only list what the cache holds, so it would promise "your
-                        // flagged mail" while hiding everything in a never-synced folder. A search
-                        // reports what it found, and the server answers `FLAGGED` / `$flagged`
-                        // across the whole account.
+                        // flagged mail" while hiding everything in a never-synced folder.
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -529,12 +485,10 @@ fun SearchScreen(
                     }
                 }
 
-                // The separator / drag handle: the drawer's moving edge. It rides at the panel's
-                // bottom (translationY = offsetPx) — the line under the search box when closed, then
-                // travelling DOWN with the panel as it opens, instead of sitting still while the
-                // panel crosses it. Drawn last so it stays on top of the panel's bottom edge.
-                // Draggable, and a tap toggle (like Tune) for reach; its contentDescription names
-                // the filters it reveals.
+                // The separator / drag handle: the drawer's moving edge, riding at the panel's
+                // bottom — the line under the search box when closed, then travelling DOWN with the
+                // panel. Drawn last so it stays on top of the panel's bottom edge, and a tap toggle
+                // as well as a drag, for reach.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -543,9 +497,8 @@ fun SearchScreen(
                         .height(handleHeight)
                         .background(MaterialTheme.colorScheme.surface)
                         .then(panelDrag)
-                        // The tap stays, and so does the contentDescription below: a gesture is no
-                        // handle for TalkBack, which has only this tap and the Tune button to open
-                        // the filters with.
+                        // The tap stays, and so does the contentDescription: a gesture is no handle
+                        // for TalkBack, which has only this and the Tune button.
                         .clickable { viewModel.togglePanel() }
                         .semantics { contentDescription = handleDesc },
                     contentAlignment = Alignment.Center,
@@ -564,11 +517,9 @@ fun SearchScreen(
 }
 
 /**
- * The folded panel's one line: "From: alex · Has attachment · After: 3 Jun 2026".
- *
- * A line of text rather than a row of chips on purpose — chips would wrap to three rows on a
- * phone and take back the space folding the panel just freed, for an affordance (removing one
- * criterion) the screen doesn't offer anyway. Nothing at all is shown when only free text was
+ * The folded panel's one line: "From: alex · Has attachment · After: 3 Jun 2026". Text rather than
+ * chips on purpose — chips would wrap to three rows on a phone and take back the space folding just
+ * freed, for an affordance the screen does not offer. Nothing at all when only free text was
  * searched: its field is right above, still filled in.
  */
 @Composable
@@ -576,7 +527,7 @@ private fun CriteriaSummary(query: SearchQuery, onClick: () -> Unit) {
     val filters = searchSummary(query)
     if (filters.isEmpty()) return
     // A plain loop, not joinToString: the pieces are string resources, and a composable call
-    // can't go inside a non-inline lambda.
+    // cannot go inside a non-inline lambda.
     val parts = ArrayList<String>(filters.size)
     for (filter in filters) {
         parts += when (filter.criterion) {
@@ -585,8 +536,8 @@ private fun CriteriaSummary(query: SearchQuery, onClick: () -> Unit) {
             SearchCriterion.SUBJECT -> criterionPair(R.string.search_subject, filter.text)
             SearchCriterion.ATTACHMENT -> stringResource(R.string.search_has_attachment)
             SearchCriterion.FLAGGED -> stringResource(R.string.search_flagged)
-            // The date labels are already worded as prepositions ("After", "Après le", "Depois
-            // de"), so they take the value without a colon — hence a second join pattern.
+            // The date labels are already worded as prepositions, so they take the value without a
+            // colon — hence a second join pattern.
             SearchCriterion.AFTER -> stringResource(
                 R.string.search_criteria_pair_date,
                 stringResource(R.string.search_after),

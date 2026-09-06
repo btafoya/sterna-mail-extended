@@ -3,11 +3,8 @@ package app.sterna.ui.settings
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
 
-/**
- * What a Save from the account editor decides, kept out of the composable so the button at the
- * bottom of the screen and the Save offered by the exit dialog (#34) share one answer instead of
- * two lookalike copies.
- */
+/** What a Save from the account editor decides. Shared so the bottom button and the Save offered by
+ *  the exit dialog (#34) cannot drift apart. */
 
 /** The identity-side fields a Save writes back, derived from the editor's live rows. */
 internal data class AccountSaveFields(
@@ -19,14 +16,9 @@ internal data class AccountSaveFields(
     val signature: String,
 )
 
-/**
- * Persist ONLY the manual list (server identities re-merge live on every read), dropping rows the
- * user left without an address and healing any pollution from the old merge-on-save fold, so
- * storage stays clean whichever way the user saved.
- *
- * The default sender is kept only while it still points at a surviving manual row or at a server
- * identity; otherwise it is dropped, so it degrades to "the first one" rather than dangling.
- */
+/** Persist only the manual list — server identities re-merge live on every read — dropping rows left
+ *  without an address. The default sender is kept only while it still points at a surviving manual
+ *  row or a server identity, so it degrades to "the first one" rather than dangling. */
 internal fun accountSaveFields(
     edited: List<StoredIdentity>,
     serverIdentities: List<StoredIdentity>,
@@ -47,13 +39,10 @@ internal fun accountSaveFields(
     )
 }
 
-/**
- * Whether the editor holds enough to write an account at all. Gates the bottom button and, since
- * #34, the dialog's Save too: leaving through the dialog must never write a half-filled account
- * the button itself would have refused.
- *
- * Ports come straight from the text fields, so a non-numeric one counts as missing.
- */
+/** Whether the editor holds enough to write an account at all. Gates the bottom button and, since
+ *  #34, the dialog's Save too: leaving through the dialog must never write a half-filled account the
+ *  button itself would have refused. Ports come straight from the text fields, so a non-numeric one
+ *  counts as missing. */
 internal fun canSaveAccount(
     username: String,
     isImap: Boolean,

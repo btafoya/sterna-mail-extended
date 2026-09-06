@@ -20,10 +20,8 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun Monogram(seed: String, label: String, modifier: Modifier = Modifier, color: Color? = null) {
-    // Read live rather than remembered: the tones come from MaterialTheme.colorScheme, whose
-    // colours are snapshot state, and a value cached on the seed alone would outlive a Material You
-    // or dark-mode change and keep painting the previous palette. What it replaces is a hash over a
-    // short string and three interpolations — less work than the invalidation bookkeeping.
+    // Read live rather than remembered: the tones come from MaterialTheme.colorScheme, and a value
+    // cached on the seed alone would outlive a theme change and keep painting the old palette.
     val background = color ?: monogramColor(seed, MaterialTheme.colorScheme.monogramRamps())
     Box(
         modifier = modifier
@@ -34,8 +32,7 @@ fun Monogram(seed: String, label: String, modifier: Modifier = Modifier, color: 
     ) {
         Text(
             text = initialOf(label, seed),
-            // Pick black/white by luminance so the initial stays legible on light
-            // accent colours (white on yellow/orange fails AA). See onAccentColor.
+            // Pick black/white by luminance so the initial stays legible on light accent colours.
             color = onAccentColor(background),
             style = MaterialTheme.typography.titleMedium,
         )
@@ -47,19 +44,10 @@ internal data class ToneRamp(val container: Color, val onContainer: Color)
 
 /**
  * The tonal ranges badge colours are drawn from — one per accent family of the ACTIVE scheme.
- *
- * Badges used to be a private hue wheel (`Color.hsl(hash % 360, 0.42f, 0.52f)`) computed without any
- * reference to the palette, which made them the one surface Material You never reached while
- * [app.sterna.ui.theme.SternaTheme] applied it everywhere else (issue #85). Taking the colour from
- * the scheme instead follows the Material You switch that already exists; no new setting.
- *
- * Each family's range runs from the colour the palette fills a container with to the colour it
- * paints on that container, so a badge is always a tone the scheme itself uses, and both ends are
- * already chosen to sit legibly on the surface — light theme or dark, dynamic or not.
- *
- * It returns exactly [MONOGRAM_FAMILIES] ramps, and that agreement is pinned by a test: the number is
- * also the modulus [monogramSlot] reduces a seed by, so the two drifting apart would index a badge
- * outside the palette rather than merely miscolour it.
+ * Badges used to be a private hue wheel computed without reference to the palette, the one surface
+ * Material You never reached (#85). It returns exactly [MONOGRAM_FAMILIES] ramps, pinned by a test:
+ * the number is also the modulus [monogramSlot] reduces a seed by, so a drift would index a badge
+ * outside the palette.
  */
 internal fun ColorScheme.monogramRamps(): List<ToneRamp> = listOf(
     ToneRamp(primaryContainer, onPrimaryContainer),
@@ -68,45 +56,21 @@ internal fun ColorScheme.monogramRamps(): List<ToneRamp> = listOf(
 )
 
 /**
- * Tones taken along each ramp: six, from 0.32 to 0.90 — 18 badges over the three families.
- *
- * Both ends are chosen, not rounded to. Starting at 0.32 rather than at the container itself keeps
- * the palest badge at 2.47:1 against the surface (3.84:1 dark, 2.55:1 monochrome), above what the
- * old hue wheel managed at its worst (2.05:1). Stopping at 0.90 rather than at `onContainer` avoids
- * the deep end, where the three families converge on near-black in a light scheme and near-white in
- * a dark one.
- *
- * Six is where the measurements stop paying. Slicing finer keeps lowering the odds of two contacts
- * drawing the identical badge (18 slots put it at 1.6 colliding pairs among 8 correspondents,
- * against 2.3 at twelve), but it buys no extra recognition: the closest pair of badges in a dark
- * scheme falls from 4.4 to 3.2 ΔE00 at eight steps, which is below what the eye separates on a
- * scrolling list, and the count of mutually distinguishable badges (≥10 ΔE00) sits around ten in a
- * light scheme and under nine in a dark one whatever the step count. That ceiling is the palette's,
- * not this function's — Material You exposes three accent hues, so the badges live on three lines
- * through colour space and no amount of sampling adds a fourth direction to them. It is lower than
- * the old wheel's ~17, and that is the real cost
- * of the change; the wheel's 360 values were never 360 distinguishable colours either.
+ * Tones taken along each ramp: six, from 0.32 to 0.90 — 18 badges over the three families. Both ends
+ * are chosen, not rounded to: 0.32 keeps the palest badge above what the old hue wheel managed, and
+ * 0.90 avoids the deep end where the families converge on near-black. Six is where the measurements
+ * stop paying — the ceiling is the palette's, Material You exposing three accent hues, and it is
+ * lower than the old wheel's, which is the real cost.
  */
 private const val TONE_COUNT = 6
 private const val FIRST_TONE = 0.32f
 private const val TONE_GAP = 0.116f
 
 /**
- * A stable badge colour for [seed], expressed in the tones of the palette in use.
- *
- * The seed picks one of [ramps] and one tone along it, so an address always lands on the same colour
- * — the point of colouring a badge at all is recognising a correspondent at a glance, and that
- * survives here; what changes is only where the colour comes from.
- *
- * Trade-off number one, and it reaches everyone: 18 badges where the old wheel had 360 values. See
- * [TONE_COUNT] for what that costs, what widening it further would and would not buy, and why the
- * ceiling belongs to the palette rather than to this function.
- *
- * Trade-off number two, and it reaches only whoever chose it: a monochrome palette gives three
- * families of the same hue, so badges are then told apart by lightness alone.
- *
- * Not to be confused with [accountColorOf], the accent a user picks for an account by hand: that one
- * is an explicit choice and is passed to [Monogram] as `color`, which short-circuits this entirely.
+ * A stable badge colour for [seed], expressed in the tones of the palette in use. Trade-off one,
+ * reaching everyone: 18 badges where the old wheel had 360 values. Trade-off two, reaching only
+ * whoever chose it: a monochrome palette gives three families of one hue, so badges are told apart
+ * by lightness alone. Not to be confused with [accountColorOf], the accent a user picks by hand.
  */
 internal fun monogramColor(seed: String, ramps: List<ToneRamp>): Color =
     monogramColor(monogramSlot(seed, ramps.size), ramps)
@@ -115,17 +79,10 @@ internal fun monogramColor(seed: String, ramps: List<ToneRamp>): Color =
 internal const val MONOGRAM_FAMILIES = 3
 
 /**
- * Which of the 18 badges the palette offers: an address reduced to two small indices.
- *
- * It exists so that the home-screen widget can draw the same badge as the list. The widget paints
- * outside any composition, into a Bitmap, and the row it paints into is forbidden from carrying a
- * sender's name or address that far — a home-screen surface names nobody. A pair of numbers in
- * `0 until MONOGRAM_FAMILIES` and `0 until 6` names nobody either: 18 values cannot identify a
- * correspondent, so the badge survives the trip and the address does not make it.
- *
- * Splitting the derivation here rather than at the colour keeps the seed on one side of the boundary
- * and the palette on the other, which is also what the widget needs: it chooses the slot when it
- * reads the message, and resolves the colour later, against whichever scheme is then in force.
+ * Which of the 18 badges the palette offers: an address reduced to two small indices. It exists so
+ * the home-screen widget can draw the same badge as the list — the widget paints into a Bitmap
+ * outside any composition, and the row it paints into is forbidden from carrying a sender's address
+ * that far, where a pair of numbers naming one of 18 values identifies nobody.
  */
 internal data class MonogramSlot(val family: Int, val tone: Int)
 
@@ -151,14 +108,9 @@ private fun seedHash(seed: String): Int {
     return hash
 }
 
-/**
- * Spread the hash before it is cut into a dozen buckets (the lowbias32 finaliser).
- *
- * Its low bits track the seed's last characters far too closely to be sliced this thin: over a
- * sample of ordinary addresses the raw hash filled 7 of the 12 slots and crowded five of them, which
- * on screen is a column of near-identical badges. Three multiplications fill the slots evenly. The
- * old wheel had 360 buckets and could hide the same skew.
- */
+/** Spread the hash before it is cut into a dozen buckets (the lowbias32 finaliser): its low bits
+ *  track the seed's last characters far too closely to be sliced this thin — over a sample of
+ *  ordinary addresses the raw hash filled 7 of the 12 slots and crowded five. */
 private fun scramble(hash: Int): Int {
     var x = hash
     x = x xor (x ushr 16)
@@ -176,13 +128,9 @@ private fun blend(from: Color, to: Color, fraction: Float): Color = Color(
     blue = from.blue + (to.blue - from.blue) * fraction,
 )
 
-/**
- * The letter drawn inside a badge: the first letter or digit of the display name, or of the address
- * when there is no name, and `"?"` when neither offers one.
- *
- * Shared with the home-screen widget, which has no composition to call [Monogram] from and draws the
- * badge itself — hence `internal` rather than private.
- */
+/** The letter drawn inside a badge: the first letter or digit of the display name, of the address
+ *  when there is no name, and `"?"` when neither offers one. Shared with the widget, which has no
+ *  composition to call [Monogram] from — hence `internal`. */
 internal fun initialOf(label: String, fallback: String): String {
     val source = label.ifBlank { fallback }
     return source.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"

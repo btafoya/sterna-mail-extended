@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
-/** Backs the "Scheduled" screen: lists pending scheduled sends and cancels them. */
 class ScheduledSendsViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
 
@@ -29,12 +28,10 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
      * The rows whose cancellation is still running, so a second tap on the same X cannot start a
      * second one (#170).
      *
-     * Load-bearing since the deposit came first. The row now leaves the screen only after
-     * `saveDraft` returns, and that call attempts the upload inline — a dropped socket keeps the X
-     * on screen, and inviting for seconds. A second tap re-reads the same row, files it under a
-     * fresh local draft id (`replacesEmailId` is null by design, so nothing joins them) and the
-     * user gets the same message twice in Drafts, twice on the server. Concurrent because the taps
-     * arrive on the main thread and the removal happens on `appScope`.
+     * Load-bearing since the deposit came first: the row leaves the screen only after `saveDraft`
+     * returns, and that call attempts the upload inline, so a dropped socket keeps the X on screen
+     * and inviting. A second tap files the message under a fresh local draft id and the user gets it
+     * twice in Drafts. Concurrent because the taps arrive on the main thread.
      */
     private val inFlight: MutableSet<Long> = ConcurrentHashMap.newKeySet()
 
@@ -44,14 +41,12 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
     fun clearMessage() { _message.value = null }
 
     /**
-     * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its
-     * job — and say which of the three things happened (#170).
+     * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its job —
+     * and say which of the three things happened (#170).
      *
-     * **On `appScope`, not `viewModelScope`.** The X is at the end of a row and this screen is
-     * left the moment it is tapped; the screen's own scope dies with its `NavBackStackEntry`, and
-     * a deposit cancelled halfway leaves the message in neither Drafts nor the schedule. The
-     * ordering and the cancellation shelter live in [cancelScheduledSend]; the scope is the half
-     * only the caller can get right.
+     * On `appScope`, not `viewModelScope`: this screen is left the moment the X is tapped, and a
+     * deposit cancelled halfway leaves the message in neither Drafts nor the schedule. The ordering
+     * and the cancellation shelter live in [cancelScheduledSend].
      */
     fun cancel(id: Long) {
         val app = getApplication<Application>()
@@ -63,10 +58,8 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                     row = { repo.scheduledSend(it) },
                     credentials = { app.container.accountStore.credentials(it) },
                     // A `null` from `credentials` is not proof: the store answers null for an
-                    // unreadable secret too, and an unreadable blob makes `accounts()` empty —
-                    // which is what `accountsUnreadable()` exists to say.
-                    // The two verdicts are read here; what they MEAN is decided in one executable
-                    // place, shared with the worker that fires these messages.
+                    // unreadable secret too, and an unreadable blob makes `accounts()` empty. Both
+                    // verdicts are read here; what they MEAN is decided in one executable place.
                     accountIsGone = {
                         accountDepartureIsProven(
                             accountsUnreadable = app.container.accountStore.accountsUnreadable(),
@@ -79,34 +72,28 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                             to = d.to,
                             subject = d.subject,
                             body = d.body,
-                            // The styling the message carried, as the draft's html part (#131) —
-                            // decided in `draftFromScheduledSend`, which reads the row's html and
-                            // keeps only what a reopen can read back. Dropped here, a cancelled
-                            // scheduled send is filed with its bold removed.
+                            // The styling the message carried, as the draft's html part (#131).
+                            // Dropped here, a cancelled scheduled send is filed with its bold gone.
                             html = d.html,
                             cc = d.cc,
                             bcc = d.bcc,
                             inReplyTo = d.inReplyTo,
                             references = d.references,
                             // Nothing to replace, said out loud: naming the server draft this
-                            // message was edited from (`row.draftEmailId`) would let the save
-                            // DESTROY it, and the deposit flattens the HTML body — a fidelity we
-                            // cannot prove. A duplicate in Drafts is recoverable, a destroyed
-                            // original is not (#63).
+                            // message was edited from would let the save DESTROY it, and the
+                            // deposit flattens the HTML body. A duplicate in Drafts is
+                            // recoverable, a destroyed original is not (#63).
                             replacesEmailId = null,
                             // …and the numbering that goes with it, explicit because the parameter
                             // has no default (#99), and because we aim at no original.
                             replacesUidValidity = null,
-                            // No composer in this story at all: the row of a scheduled send is
-                            // read from the database and deposited whole, so nothing can have been
-                            // lost on the way into a parcel. False, explicit because the parameter
-                            // has no default, and it must not be: `true` here would silently refuse
-                            // to deposit a message whose body is genuinely empty.
+                            // No composer in this story: the row is read from the database and
+                            // deposited whole. Explicit because the parameter has no default, and
+                            // `true` here would silently refuse a genuinely empty body.
                             composerBodyWasLost = false,
-                            // Only ever READ when `composerBodyWasLost` is true, which this
-                            // route never is (line above). It is answered from the text being
-                            // deposited because that is the only text this route has ever had —
-                            // the scheduled row's own, and there is no composer to ask.
+                            // Only ever READ when `composerBodyWasLost` is true, which this route
+                            // never is: it is answered from the text being deposited, the only text
+                            // this route has ever had.
                             typedBodyIsBlank = d.body.isBlank(),
                             fromName = d.fromName,
                             fromEmail = d.fromEmail,

@@ -4,19 +4,12 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 
-/**
- * The statement behind [EmailBodyDao.deleteForIdPrefix], kept as a constant so the DAO and a
- * plain JVM unit test execute the exact same SQL (like `PURGE_SNAPSHOT_UNLIST_SQL`).
- *
- * `LIKE … ESCAPE '\'` and not a subquery on `emails`: the body rows have to go whether or not
- * the list rows are still there, and at the moment this runs they usually are not (an Empty
- * trash evicts them before the purge). The caller escapes `%`, `_` and `\` in the prefix — an
- * unescaped `_` matches any character and would take a neighbouring folder's bodies with it.
- */
+/** `LIKE … ESCAPE '\'`, not a subquery: body rows must go regardless of list rows; caller
+ *  escapes `%`, `_`, `\`. */
 const val BODY_CACHE_ID_PREFIX_SQL: String =
     "DELETE FROM email_bodies WHERE accountId = :accountId AND id LIKE :idPrefix ESCAPE '\\'"
 
-/** The statement behind [EmailBodyDao.deleteAll], shared with its JVM test for the same reason. */
+/** DELETE for [EmailBodyDao.deleteAll], shared with its JVM test. */
 const val BODY_CACHE_CLEAR_SQL: String = "DELETE FROM email_bodies"
 
 @Dao
@@ -25,8 +18,7 @@ interface EmailBodyDao {
     @Upsert
     suspend fun upsert(body: EmailBodyEntity)
 
-    // Reads/deletes are keyed (accountId, id): with the composite key (issue #31) an email id
-    // alone could match — and serve back — another account's cached body.
+    // Keyed (accountId, id) (#31): an id alone could match another account's cached body.
     @Query("SELECT * FROM email_bodies WHERE accountId = :accountId AND id = :id LIMIT 1")
     suspend fun byId(accountId: String, id: String): EmailBodyEntity?
 
@@ -46,16 +38,8 @@ interface EmailBodyDao {
     @Query("DELETE FROM email_bodies WHERE accountId = :accountId AND id = :id")
     suspend fun deleteById(accountId: String, id: String)
 
-    /**
-     * Drop every cached body whose id starts with [idPrefix] — one IMAP folder's worth, since an
-     * id there is `imap:account:folder:UID` (see [BODY_CACHE_ID_PREFIX_SQL] for why it is written
-     * this way rather than as a join).
-     *
-     * The one store that does NOT self-heal. The list cache is replaced from the server on every
-     * refresh, so a renumbered folder corrects itself there; nothing prunes a body by folder, so
-     * a body cached under a UID that now belongs to another message would be rendered under the
-     * right sender and subject and the wrong text, with no window and no way back (Codeberg #99).
-     */
+    /** Drops cached bodies whose id starts with [idPrefix] (one IMAP folder). Does not
+     *  self-heal: a stale body under a renumbered UID could render under the wrong text (#99). */
     @Query(BODY_CACHE_ID_PREFIX_SQL)
     suspend fun deleteForIdPrefix(accountId: String, idPrefix: String)
 
@@ -67,16 +51,8 @@ interface EmailBodyDao {
     @Query("SELECT DISTINCT accountId FROM email_bodies")
     suspend fun accountIds(): List<String>
 
-    /**
-     * Drop every cached body, for every account — the once-per-upgrade purge
-     * ([app.sterna.core.data.mail.BodyCachePurge]).
-     *
-     * The statement is a constant for the same reason [BODY_CACHE_ID_PREFIX_SQL] is: so a JVM
-     * test executes the very SQL that ships. What has to be pinned here is its SCOPE — this
-     * table and no other. The messages, their attachments and the search index are not caches in
-     * the same sense; losing them costs a full resync, and one word too many in this statement
-     * would do exactly that, silently, at the first launch after an update.
-     */
+    /** Drops every cached body for every account, once per upgrade. Scope pinned to this table
+     *  only — widening it would silently wipe messages/attachments/search too. */
     @Query(BODY_CACHE_CLEAR_SQL)
     suspend fun deleteAll()
 }

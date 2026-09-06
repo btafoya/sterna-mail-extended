@@ -3,55 +3,29 @@ package app.sterna.ui.connect
 import app.sterna.core.jmap.OAuthMetadata
 import app.sterna.core.jmap.Pkce
 
-/**
- * The authorization-code round trip through the browser, as decisions that can be EXECUTED.
- *
- * Nothing here touches Android: no `Uri`, no `Context`, no `ViewModel`. The driver
- * ([OAuthCodeSignIn]) parses the redirect and performs the network call; WHAT to do with a
- * redirect is decided by [redirectVerdict] / [AuthorizationRequestSlot], which a unit test runs
- * for real instead of reading the code that contains them.
- */
+// The authorization-code round trip through the browser. Nothing here touches Android: the driver
+// (OAuthCodeSignIn) parses the redirect and performs the network call.
 
 /** The host half of the redirect this app registers, i.e. `<applicationId>://oauth`. */
 const val OAUTH_REDIRECT_HOST = "oauth"
 
-/**
- * The redirect the authorization server sends the browser back to.
- *
- * Built from the [applicationId] it is given, never from the literal `app.sterna`. The test
- * build (`-PtestApp`) is `app.sterna.test` and installs ALONGSIDE production: two packages
- * claiming one scheme make the return non-deterministic — Android picks, and the bench proves
- * nothing about the app under test. The manifest registers `android:scheme="${applicationId}"`
- * for the same reason, and this is the same string computed for the token exchange, where the
- * server compares it byte for byte with the one it was given (RFC 6749 §4.1.3).
- */
+/** The redirect the authorization server sends the browser back to. Built from [applicationId],
+ *  never from the literal `app.sterna`: the test build installs alongside production, and two
+ *  packages claiming one scheme make the return non-deterministic. */
 fun oauthRedirectUri(applicationId: String): String = "$applicationId://$OAUTH_REDIRECT_HOST"
 
 /** True when a VIEW intent's [scheme]/[host] are this app's own OAuth redirect and nothing else. */
 fun isOAuthRedirect(scheme: String?, host: String?, applicationId: String): Boolean =
     scheme.equals(applicationId, ignoreCase = true) && host.equals(OAUTH_REDIRECT_HOST, ignoreCase = true)
 
-/**
- * A fresh `state` for one authorization request (RFC 6749 §10.12).
- *
- * Drawn by [Pkce.newCodeVerifier], i.e. from `SecureRandom` over the RFC 3986 `unreserved`
- * alphabet, for the same reason the verifier is: `state` is what makes a redirect belong to the
- * sign-in the user actually started. A guessable one lets anything that can open a link on this
- * phone hand the app an authorization code of its own choosing, and the account that gets added is
- * the attacker's. 43 characters of that alphabet is ~256 bits.
- */
+/** A fresh `state` for one authorization request (RFC 6749 §10.12), drawn from `SecureRandom`: a
+ *  guessable one lets anything that can open a link on this phone hand the app an authorization
+ *  code of its own choosing, and the account added is the attacker's. 43 chars is ~256 bits. */
 fun newOAuthState(): String = Pkce.newCodeVerifier(43)
 
-/**
- * The one authorization request in flight, held IN MEMORY only.
- *
- * Nothing here is persisted (arbitration: KISS + irreversible-first). `codeVerifier` is the
- * proof that redeems a code; on disk it would outlive the browser trip it exists for, and it would
- * have to be wiped on every path out. So a process death while the browser is in front loses the
- * request, and the redirect that comes back finds nothing and says so — see
- * [RedirectVerdict.NoPendingRequest]. That is a readable sentence and a fresh start, not a
- * degraded exchange.
- */
+/** The one authorization request in flight, held in memory only. Nothing is persisted: on disk the
+ *  `codeVerifier` would outlive the browser trip and have to be wiped on every path out. A process
+ *  death loses the request, and the redirect says so ([RedirectVerdict.NoPendingRequest]). */
 data class PendingAuthorization(
     val state: String,
     val codeVerifier: String,
@@ -61,10 +35,8 @@ data class PendingAuthorization(
     val accountName: String,
 ) {
     init {
-        // THE guard of this whole flow: no exchange without PKCE, ever. There is no fallback to
-        // a bare authorization code and no "the server didn't ask for a challenge" path, so a
-        // request that could not prove possession cannot be built in the first place — the failure
-        // lands on the developer who built it, never on a user's redirect.
+        // No exchange without PKCE, ever. There is no fallback to a bare authorization code, so
+        // a request that cannot prove possession cannot be built at all.
         require(codeVerifier.isNotBlank()) {
             "an authorization request without a code verifier could only be exchanged without PKCE"
         }
@@ -74,35 +46,24 @@ data class PendingAuthorization(
 
 /** What a redirect coming back from the browser means, decided before any network call. */
 sealed interface RedirectVerdict {
-    /** Redeem [code] with [request]'s verifier — the only verdict that reaches the token endpoint. */
+    /** The only verdict that reaches the token endpoint. */
     data class Exchange(val code: String, val request: PendingAuthorization) : RedirectVerdict
 
     /** Nothing was in flight: the process died during the browser trip, or this is a stale link. */
     data object NoPendingRequest : RedirectVerdict
 
-    /** The `state` is not the one we drew: not our sign-in. The code is NOT exchanged. */
+    /** Not our sign-in. The code is not exchanged. */
     data object StateMismatch : RedirectVerdict
 
-    /** The server said no (`error=access_denied`, …): the user refused, or the client is unknown. */
+    /** The server said no: the user refused, or the client is unknown. */
     data class Refused(val error: String) : RedirectVerdict
 
-    /** Our own sign-in came back with neither a code nor an error. */
     data object NothingUsable : RedirectVerdict
 }
 
-/**
- * Decide what a redirect is worth. The ORDER below is the guard, not the individual checks:
- *
- *  1. something must be in flight — otherwise there is no verifier, and no exchange is possible;
- *  2. the `state` must be the one we drew, and it is compared BEFORE `code` or `error` are even
- *     looked at, so a forged redirect cannot get an authorization code of its own choosing
- *     exchanged against our client id;
- *  3. only then does the server's answer matter: a refusal is a message, a code is an exchange.
- *
- * Consumption (a redirect is good exactly once) belongs to [AuthorizationRequestSlot]; this
- * function is a pure verdict and can be run twice on the same input without meaning anything
- * different.
- */
+/** Decide what a redirect is worth. The order is the guard, not the individual checks: something
+ *  in flight, then the `state` we drew compared before `code` or `error` are looked at, then the
+ *  server's answer. Consumption belongs to [AuthorizationRequestSlot]. */
 fun redirectVerdict(
     pending: PendingAuthorization?,
     state: String?,
@@ -125,17 +86,9 @@ data class TokenExchange(
     val codeVerifier: String,
 )
 
-/**
- * What to POST for a redirect that earned an exchange — the PROVENANCE of the four arguments, as a
- * function a test can run.
- *
- * The verifier is the one THIS request drew, and nothing else will do. "There is a verifier in
- * the call" is not the rule: a freshly drawn one (`Pkce.newCodeVerifier()`) is non-blank, passes
- * `PendingAuthorization`'s guard, reads perfectly well at the call site — and turns PKCE into
- * decoration, because the challenge the server holds was derived from the other one. That is why
- * this is a value returned by a function and compared whole in a test, instead of four arguments
- * spelled out at a call site where only their shape can be checked.
- */
+/** What to POST for a redirect that earned an exchange. The verifier is the one this request
+ *  drew: a freshly drawn one is non-blank, passes every guard, and turns PKCE into decoration,
+ *  because the challenge the server holds came from the other one. */
 fun tokenExchangeFor(verdict: RedirectVerdict.Exchange, redirectUri: String): TokenExchange =
     TokenExchange(
         metadata = verdict.request.metadata,
@@ -144,18 +97,9 @@ fun tokenExchangeFor(verdict: RedirectVerdict.Exchange, redirectUri: String): To
         codeVerifier = verdict.request.codeVerifier,
     )
 
-/**
- * The one in-flight request, and the rule that it is redeemed ONCE.
- *
- * An authorization code is a one-shot key to the account and the browser can deliver the same
- * redirect twice (a re-tap on a history entry, an activity recreated from the same intent). So the
- * request is cleared as soon as it has produced a verdict of its own — the second identical return
- * finds nothing in flight and exchanges nothing.
- *
- * Except on the two verdicts that mean "this redirect was not our sign-in": with nothing armed
- * there is nothing to clear, and on a state mismatch clearing would let anything able to open a
- * link cancel the user's real sign-in from outside.
- */
+/** The one in-flight request, redeemed once: the browser can deliver the same redirect twice, so
+ *  the request is cleared as soon as it produced a verdict — except on the two verdicts meaning
+ *  "not our sign-in", where clearing would let any link cancel her real sign-in. */
 class AuthorizationRequestSlot {
     private var pending: PendingAuthorization? = null
 

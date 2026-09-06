@@ -16,15 +16,10 @@ import androidx.work.workDataOf
 import app.sterna.container
 import java.util.concurrent.TimeUnit
 
-/**
- * Executes a held-back permanent destroy (in-Trash delete, or an Empty-trash purge) after
- * its undo window. WorkManager persistence means the destroy survives the ViewModel and the
- * process: previously the hold-back lived in viewModelScope, so killing the app within the
- * window silently dropped a destroy the user had confirmed — the rows were already evicted,
- * so the UI claimed success while the mail lived on server-side. Undo = cancel before the
- * initial delay (which carries a margin over the snackbar window) elapses; a new hold-back
- * commits the pending one at once via [flushNow]. Same model as [app.sterna.folders.FolderDeleteWorker].
- */
+/** Executes a held-back permanent destroy (in-Trash delete, or an Empty-trash purge) after its undo
+ *  window. WorkManager persistence means it survives the ViewModel and the process: with the
+ *  hold-back in viewModelScope, killing the app within the window silently dropped a destroy the
+ *  user had confirmed. A new hold-back commits the pending one at once via [flushNow]. */
 class MessageDestroyWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -36,26 +31,22 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
         val purgeId = inputData.getString(KEY_PURGE_ID)
         return runCatching {
             if (purgeId != null) {
-                // Destroy the set the user confirmed, recorded at that instant — NOT whatever
-                // the Trash holds now (Codeberg #99). An erased snapshot destroys nothing.
+                // The set the user confirmed, recorded at that instant — NOT whatever the Trash
+                // holds now (#99). An erased snapshot destroys nothing.
                 repo.purgeSnapshot(credentials, purgeId)
             } else {
                 val ids = inputData.getStringArray(KEY_EMAIL_IDS)?.toList().orEmpty()
-                // The folder those ids sat in when the user confirmed. On JMAP the destroy checks
-                // it against the server wave by wave and spares whatever has moved (#122); absent
-                // (a destroy enqueued before this key existed) it destroys nothing.
+                // The folder those ids sat in when the user confirmed. On JMAP the destroy checks it
+                // against the server wave by wave and spares whatever has moved (#122).
                 val mailboxId = inputData.getString(KEY_MAILBOX_ID)
-                // The IMAP numbering that folder was under WHEN THE USER CONFIRMED, out of this
-                // request's own Data (#99). Never re-read here: the folder's current numbering is
-                // whatever a refresh has recorded since, so opposing it would be comparing it with
-                // itself — the renumbered case would expunge UIDs that now name other messages
-                // without a single failure. Absent (a destroy enqueued before this key existed, a
-                // folder never observed) it reads 0 and destroys nothing, the safe end.
+                // The IMAP numbering that folder was under WHEN THE USER CONFIRMED (#99). Never
+                // re-read here: the folder's current numbering is whatever a refresh has recorded
+                // since, so opposing it would compare it with itself and the renumbered case would
+                // expunge UIDs that now name other messages. Absent it reads 0 and destroys nothing.
                 val uidValidity = inputData.getLong(KEY_UID_VALIDITY, 0L).takeIf { it > 0L }
                 if (ids.isNotEmpty() && repo.destroyAll(credentials, ids, mailboxId, uidValidity).failed.isNotEmpty()) {
-                    // Some ids were rejected: still on the server, but their rows were evicted
-                    // when the hold-back started. Drop the sync cursors so the next refresh
-                    // does a full re-query and brings the survivors back into view.
+                    // Some ids were rejected: still on the server, their rows evicted when the
+                    // hold-back started. Drop the sync cursors so the next refresh re-queries.
                     repo.resetSyncState()
                 }
             }
@@ -65,8 +56,8 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
                 Log.w(TAG, "Held-back destroy failed", it)
                 if (runAttemptCount < MAX_ATTEMPTS) Result.retry()
                 else {
-                    // Given up for good: drop the destroy list rather than leave a standing
-                    // order nothing will ever execute.
+                    // Given up for good: drop the destroy list rather than leave a standing order
+                    // nothing will ever execute.
                     purgeId?.let { id -> runCatching { repo.discardPurgeSnapshot(id) } }
                     repo.resetSyncState() // undestroyed mail reappears on the next full re-query
                     Result.failure()
@@ -75,15 +66,10 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
         )
     }
 
-    /**
-     * One folder's share of a held-back destroy: the ids the user confirmed, the folder they were
-     * in at that moment, and the IMAP numbering that folder was under at that moment — the three
-     * things a destroy has to be able to oppose to the server later. Grouped in one value so a
-     * caller cannot enqueue the ids of one folder stamped with the numbering of another.
-     *
-     * [uidValidity] is null on JMAP (nothing to number) and on an IMAP folder whose numbering was
-     * never observed; either way the destroy of that request is refused rather than run blind.
-     */
+    /** One folder's share of a held-back destroy: the ids the user confirmed, the folder they were
+     *  in and the numbering it was under, grouped so a caller cannot enqueue the ids of one folder
+     *  stamped with the numbering of another. [uidValidity] is null on JMAP and on an IMAP folder
+     *  never observed; either way the destroy is refused rather than run blind. */
     data class FolderDestroy(val mailboxId: String, val emailIds: List<String>, val uidValidity: Long?)
 
     companion object {
@@ -91,53 +77,34 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
         private const val KEY_ACCOUNT_ID = "accountId"
         private const val KEY_EMAIL_IDS = "emailIds"
 
-        /** The folder [KEY_EMAIL_IDS] were in when the user confirmed the destroy — ONE folder
-         *  per request, which is why the ids are grouped by folder before they are chunked.
-         *
-         *  A field, not a table: `Data`'s 10 KiB cap is about the ID LIST (an Empty trash carries
-         *  ten thousand of them, which is why a purge travels as [KEY_PURGE_ID] instead), and one
-         *  folder id costs nothing. A destroy enqueued by a version predating this key arrives
-         *  with it null: on JMAP that destroys nothing, the safe end of an unverifiable order. */
+        /** The folder [KEY_EMAIL_IDS] were in when the user confirmed — ONE per request, which is
+         *  why the ids are grouped by folder before they are chunked. Null from a version predating
+         *  this key, which on JMAP destroys nothing. */
         private const val KEY_MAILBOX_ID = "mailboxId"
 
-        /** The IMAP UIDVALIDITY [KEY_MAILBOX_ID] was under when the user confirmed — the numbering
-         *  the frozen UIDs belong to (Codeberg #99). A `Long` in the request's `Data`, like the
-         *  folder id: no table, no migration, and one number per request costs nothing.
-         *
-         *  0 means "none to oppose" (the folder's numbering was never observed, the server
-         *  announces none, or the destroy was enqueued by a version predating this key). On IMAP
-         *  that destroys NOTHING and the ids come back in `BulkResult.failed`, which triggers the
-         *  re-query below — the safe end of an order that cannot be checked. Unused on JMAP. */
+        /** The IMAP UIDVALIDITY [KEY_MAILBOX_ID] was under when the user confirmed (#99). 0 means
+         *  "none to oppose", and on IMAP that destroys NOTHING: the ids come back in
+         *  `BulkResult.failed`, which triggers the re-query below. */
         private const val KEY_UID_VALIDITY = "uidValidity"
 
-        /** The snapshot to destroy. Only the KEY travels in the worker's [androidx.work.Data]:
-         *  the ids themselves live in the database, because Data is capped at 10 KiB and an
-         *  Empty trash can carry ten thousand of them (see `PurgeSnapshotEntity`).
-         *
-         *  A purge enqueued by a version predating this key carries no snapshot, falls through
-         *  to the id branch with an empty list and destroys nothing — the safe outcome for the
-         *  at most one purge that can be in flight across an upgrade. */
+        /** The snapshot to destroy. Only the KEY travels in the worker's `Data`, which is capped at
+         *  10 KiB while an Empty trash can carry ten thousand ids. */
         private const val KEY_PURGE_ID = "purgeId"
         private const val MAX_ATTEMPTS = 3
 
         /** Margin over the snackbar window so an Undo cancel always wins the race. */
         private const val DELAY_MARGIN_MS = 1_000L
 
-        /** Byte budget for one request's ids: WorkManager caps input Data at 10240 bytes and
-         *  throws at enqueue past it — long IMAP ids (`imap:<uuid>:<folder>:<uid>`) can blow a
-         *  fixed per-count chunk, so chunk on cumulative size with ample headroom instead. */
+        /** Byte budget for one request's ids: WorkManager throws past 10240 bytes at enqueue, and
+         *  long IMAP ids can blow a fixed per-count chunk. */
         private const val MAX_IDS_BYTES_PER_REQUEST = 6 * 1024
 
         /**
-         * Hold the permanent destroy of [folders] (one account) back for [holdBackMs], then run
-         * it. The ids come in grouped by the folder they were in when the user confirmed, with
-         * that folder's numbering, so each request carries its own [KEY_MAILBOX_ID] and
-         * [KEY_UID_VALIDITY] and the destroy can tell a message that has since been moved from
-         * one that has not (#122), in a folder still numbered as confirmed (#99).
-         *
+         * Hold the permanent destroy of [folders] back for [holdBackMs], then run it. The ids come
+         * grouped by the folder they were in when the user confirmed, with that folder's numbering,
+         * so the destroy can tell a message that has since moved from one that has not (#122, #99).
          * The whole account still goes in ONE `enqueueUniqueWork` call: the unique name is per
-         * account, so scheduling folder by folder would have each group REPLACE the previous one
-         * and silently drop a destroy the user confirmed.
+         * account, so scheduling folder by folder would have each group REPLACE the previous.
          */
         fun schedule(context: Context, accountId: String, folders: List<FolderDestroy>, holdBackMs: Long) {
             WorkManager.getInstance(context).enqueueUniqueWork(
@@ -147,15 +114,9 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
             )
         }
 
-        /**
-         * Commit a pending held-back destroy immediately (a new hold-back supersedes it):
-         * the delayed unique work is cancelled and the same set is re-enqueued with no
-         * delay — REPLACE alone would silently drop it, and the superseding hold-back is
-         * about to claim the unique slot.
-         *
-         * [folders] is the set captured at THAT confirmation, numbering included: this replays a
-         * destroy the user already confirmed, so nothing here may be read afresh.
-         */
+        /** Commit a pending held-back destroy immediately: the delayed work is cancelled and the
+         *  same set re-enqueued with no delay, REPLACE alone silently dropping it. [folders] is the
+         *  set captured at THAT confirmation — nothing here may be read afresh. */
         fun flushNow(context: Context, accountId: String, folders: List<FolderDestroy>) {
             cancelDestroy(context, accountId)
             destroyRequests(accountId, folders, delayMs = 0L)
@@ -163,19 +124,11 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
         }
 
         /**
-         * Destroy [folders] as soon as there is a network, **without taking the account's unique
-         * work slot** — for a gesture that has no undo window of its own (emptying a draft the phone
-         * kept, #95 × #69).
-         *
-         * NOT [schedule]: that one enqueues under `destroyWorkName(accountId)` with
-         * `ExistingWorkPolicy.REPLACE`, so it would silently DROP a permanent delete the user
-         * confirmed seconds earlier and is still inside the undo window of. This is [flushNow]'s
-         * shape — the same [destroyRequests], no delay — minus its `cancelDestroy`, which is the
-         * other half of the same hazard.
-         *
-         * Suspends until WorkManager has WRITTEN the request: the caller's next act destroys the
-         * only local trace of what is being destroyed, so "enqueued" has to mean "on disk". A bare
-         * `enqueue` returns before the write and a process death in that window loses the order.
+         * Destroy [folders] as soon as there is a network, without taking the account's unique
+         * work slot — for a gesture that has no undo window of its own (#95 × #69). NOT
+         * [schedule], which enqueues under the account's name with REPLACE and would silently drop
+         * a permanent delete confirmed seconds earlier. Suspends until WorkManager has WRITTEN
+         * the request: the caller's next act destroys the only local trace.
          */
         suspend fun destroyDurably(context: Context, accountId: String, folders: List<FolderDestroy>) {
             destroyRequests(accountId, folders, delayMs = 0L)
@@ -187,11 +140,8 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
             WorkManager.getInstance(context).cancelUniqueWork(destroyWorkName(accountId))
         }
 
-        /**
-         * Hold the Empty-trash purge of snapshot [purgeId] back for [holdBackMs], then run it.
-         * [mailboxId] names the work (one pending purge per account+folder), it does NOT define
-         * what gets destroyed — [purgeId] does (#99).
-         */
+        /** Hold the Empty-trash purge of snapshot [purgeId] back for [holdBackMs]. [mailboxId] names
+         *  the work; it does NOT define what gets destroyed — [purgeId] does (#99). */
         fun schedulePurge(context: Context, accountId: String, mailboxId: String, purgeId: String, holdBackMs: Long) {
             val request = OneTimeWorkRequestBuilder<MessageDestroyWorker>()
                 .setInitialDelay(holdBackMs + DELAY_MARGIN_MS, TimeUnit.MILLISECONDS)
@@ -222,7 +172,7 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
                                 KEY_ACCOUNT_ID to accountId,
                                 KEY_EMAIL_IDS to chunk.toTypedArray(),
                                 KEY_MAILBOX_ID to folder.mailboxId,
-                                // Data holds no null: 0 IS "nothing to oppose", and destroys nothing.
+                                // Data holds no null: 0 IS "nothing to oppose".
                                 KEY_UID_VALIDITY to (folder.uidValidity ?: 0L),
                             ),
                         )
@@ -251,9 +201,8 @@ class MessageDestroyWorker(context: Context, params: WorkerParameters) : Corouti
 
         private fun destroyWorkName(accountId: String) = "message-destroy-$accountId"
 
-        // The account is part of the name: mailbox ids can collide between same-server accounts
-        // (e.g. Stalwart), and a colliding name would let one account's purge REPLACE or cancel
-        // the other's pending one.
+        // The account is part of the name: mailbox ids can collide between same-server accounts,
+        // and a colliding name would let one account's purge REPLACE the other's pending one.
         private fun purgeWorkName(accountId: String, mailboxId: String) = "trash-purge-$accountId-$mailboxId"
     }
 }

@@ -8,18 +8,9 @@ data class StoredAccount(
     val id: String,
     val server: String,
     val username: String,
-    /**
-     * The server-side JMAP account id this record maps to (RFC 8620 §1.6.2). A single login can
-     * expose several mail accounts in `Session.accounts`; each becomes its own [StoredAccount].
-     * null = resolve via the session's primary mail account (legacy/standalone records,
-     * byte-identical to pre-multi-account behaviour).
-     */
+    /** JMAP account id this maps to (RFC 8620 §1.6.2); null = resolve via the session's primary account. */
     val jmapAccountId: String? = null,
-    /**
-     * Groups sub-accounts that share one login/credential. Points at the primary [StoredAccount.id]
-     * whose encrypted secret and OAuth tokens this record borrows. null = standalone (this id IS
-     * the login; the secret lives under this id).
-     */
+    /** Groups sub-accounts sharing one login: points at the primary id whose secret this borrows; null = standalone. */
     val loginId: String? = null,
     val accountName: String = "",
     val inboxId: String? = null,
@@ -28,46 +19,15 @@ data class StoredAccount(
     val syncWindow: SyncWindow = SyncWindow.DAYS_90,
     /** Whether new-mail notifications fire for this account (per-account opt-out). */
     val notificationsEnabled: Boolean = true,
-    /**
-     * Whether a sent message is APPENDed into this account's Sent folder by the app (IMAP only).
-     * Off for a submission server that files the sent copy itself, which otherwise ends up with
-     * two. Defaults to true: a record written before this field existed decodes to the behaviour
-     * it was written under, and a missing copy is invisible where a duplicate is not.
-     */
+    /** Whether a sent copy is APPENDed into Sent (IMAP only) — off for a submission server that files its own. */
     val uploadSentCopy: Boolean = true,
-    /**
-     * Whether the folder lists hide the folders this account is NOT subscribed to on the server
-     * (#174): a mailbox left behind but never opened is still a mailbox the server lists, and a
-     * long-lived account ends up with a folder list nobody can read.
-     *
-     * Defaults to FALSE, and that is load-bearing, not a taste: this is the setting that makes
-     * folders DISAPPEAR from the lists. A record written before this field existed — i.e. every
-     * record on every phone — decodes to "show everything", which is the behaviour it was written
-     * under. Any other default would hide folders on the update, on installs whose owner never
-     * asked for it, with nothing on screen saying where they went (rule 1: the option that cannot
-     * lose data wins).
-     */
+    /** Whether folder lists hide unsubscribed folders (#174); defaults FALSE (rule 1: every record predates this
+     *  field). */
     val showOnlySubscribedFolders: Boolean = false,
-    /**
-     * Extra folders watched for new mail, by mailbox id (JMAP id / IMAP path).
-     * The Inbox is always watched and never stored here; empty = inbox only.
-     */
+    /** Extra folders watched for new mail, by mailbox id; the Inbox is always watched and never stored here. */
     val watchedFolders: Set<String> = emptySet(),
-    /**
-     * The EXPLICIT collapse choice the user made per folder of the drawer tree, by mailbox id
-     * (JMAP id / IMAP path): true = they folded it, false = they unfolded it. A key that is ABSENT
-     * means nobody has decided anything for that folder, and the drawer takes its own default.
-     *
-     * A `Map`, and NOT the set of the collapsed ones, on purpose. A set can only record "folded":
-     * unfolding a folder would have to REMOVE its key, which is indistinguishable from never having
-     * touched it, so any default other than "everything unfolded" re-applies on the next launch and
-     * folds back a folder the user opened by hand. Writing false must WRITE false.
-     *
-     * Defaults to `emptyMap()`, i.e. "nobody chose anything": every record already on a phone was
-     * written before this field existed and decodes to exactly today's behaviour — the whole tree
-     * unfolded ([AccountStore] decodes with `ignoreUnknownKeys = true`). There is no migration and
-     * there must not be one.
-     */
+    /** Per-folder collapse choice; absent = undecided. A `Map`, not a set: unfolding must WRITE `false`, or it folds
+     *  back. */
     val collapsedFolders: Map<String, Boolean> = emptyMap(),
     /** User-chosen accent colour (ARGB); null = auto (derived from the address). */
     val color: Int? = null,
@@ -75,30 +35,15 @@ data class StoredAccount(
     val signature: String = "",
     /** Sending identities; empty means use a default derived from the account. */
     val identities: List<StoredIdentity> = emptyList(),
-    /**
-     * Identities discovered from the JMAP server (Identity/get, RFC 8621 §6), refreshed
-     * on connect. The server is authoritative for what the user may send as, so these
-     * populate the composer's From picker; [identities] (manual) are merged on top.
-     */
+    /** Identities discovered from the JMAP server; [identities] (manual) are merged on top in the composer's From
+     *  picker. */
     val serverIdentities: List<StoredIdentity> = emptyList(),
-    /**
-     * The user-chosen default sending identity, keyed by [StoredIdentity.id] (stable, so it
-     * survives the identity list being reordered by server discovery on connect). null = no
-     * explicit choice; the composer then falls back to the account's own address, and only then to
-     * the first resolved identity. An id that no longer matches any resolved identity degrades the
-     * same way (see [defaultIdentity]).
-     */
+    /** User-chosen default identity, keyed by [StoredIdentity.id]; unmatched degrades via [defaultIdentity]. */
     val defaultIdentityId: String? = null,
-    /**
-     * True for a freshly imported account (K-9 / backup) that still needs its one-time sign-in.
-     * Drives the "accounts to sign in" list; cleared once the user signs it in or dismisses it.
-     * The account stays inert (no stored credential) until sign-in regardless of this flag.
-     */
+    /** True for a freshly imported account (K-9/backup) still needing sign-in; stays inert regardless of this flag. */
     val importPending: Boolean = false,
     val protocol: MailProtocol = MailProtocol.JMAP,
-    // OAuth (used only when authType == OAUTH; the refresh token is stored encrypted
-    // in the password slot). The access token is short-lived; cached to avoid a
-    // refresh on every cold start.
+    // OAuth (authType == OAUTH); access token cached, refresh token in the password slot.
     val authType: AuthType = AuthType.BASIC,
     val oauthAccessToken: String = "",
     val oauthAccessExpiresAt: Long = 0,
@@ -114,22 +59,8 @@ data class StoredAccount(
     // OpenPGP (via the OpenKeychain provider). The key id is not a secret.
     val pgpEnabled: Boolean = false,
     val pgpSignKeyId: Long = 0L,
-    /**
-     * Cache of this account's own OpenPGP public key: the MINIMIZED key the provider returns for
-     * [pgpSignKeyId], base64 with no line breaks ([pgpPublicKeyCacheValue] is the one encoder).
-     * Empty when nothing has been read yet, which is the state of every account configured before
-     * this field existed — [pgpPublicKeyBackfill] is what fills those in.
-     *
-     * It exists because the key can only be READ at a screen: the provider may answer
-     * USER_INTERACTION_REQUIRED, and launching its PendingIntent needs an Activity. A worker
-     * writing a header hours later has no screen, so what it emits has to already be here.
-     *
-     * Bound to [pgpSignKeyId], and to nothing else: every change of the key id empties it (see
-     * [withoutPgpSignKeys] and [withCachedPgpPublicKey]). A cache surviving a key change would
-     * announce, under the new key's id, the bytes of the old one.
-     *
-     * Not a secret — it is the PUBLIC half, and it is meant to be published in a header.
-     */
+    /** Cache of this account's OpenPGP public key for [pgpSignKeyId]; a key-id change empties it, or it'd announce the
+     *  OLD key. */
     val pgpPublicKey: String = "",
     val pgpEncryptByDefault: Boolean = false,
 ) {
@@ -139,56 +70,28 @@ data class StoredAccount(
     /** True for a sub-account discovered under another account's login (shares its credential). */
     val isLinked: Boolean get() = loginId != null
 
-    /**
-     * True for a DELEGATED (shared) account: one the login only reaches through someone else's
-     * grant. The rule reads what discovery already persisted, and nothing else: it is [loginId]
-     * alone — [AccountStore.reconcileLinkedAccounts] stores a discovered sub-account pointing at
-     * the login it borrows — so labelling it in the UI costs no extra request. The session's
-     * `isPersonal` flag is NOT consulted (and is read nowhere in the app): on Stalwart a genuinely
-     * shared mailbox and an account merely visible through a calendar share both come back
-     * `isPersonal: false`, so it separates nothing (#129).
-     *
-     * Stricter than [isLinked] on one edge only: a blank [loginId] names no login, so it is read as
-     * absent (standalone). [isLinked] is left alone deliberately — it gates behaviour (push
-     * transport, cascading removal, identity fallback) and this is a display rule.
-     */
+    /** True for a DELEGATED account, read from [loginId] alone — Stalwart's `isPersonal` flag separates nothing (#129).
+     *  */
     val isShared: Boolean get() = !loginId.isNullOrBlank()
 
     /** Best label for the account in UI. */
     fun label(): String = accountName.ifBlank { username }
 
-    /**
-     * Identities to send as: the merge of manual [identities] and server-discovered
-     * [serverIdentities], deduped by address. Manual identities come FIRST so a manual
-     * entry with the same address as a server one wins (lets the user customise the name
-     * or signature of a server address). Pristine server addresses with no manual override
-     * still appear, and self-correct when the server later drops them (they are never
-     * frozen into [identities] on save). Falls back to a single default derived from the
-     * account when both lists are empty.
-     *
-     * A linked sub-account can't fetch server identities (Identity/get is member-only —
-     * "You are not an owner", issue #31) and its [username] is the LOGIN's address, so the
-     * standalone fallback would offer a silently wrong From. Its own address comes from the
-     * session's account name instead (Stalwart advertises the address there); when that name
-     * isn't an address there is nothing trustworthy to offer, and the list stays empty so
-     * [AccountStore.identities] can fall back to the login's identities.
-     */
+    /** Manual + server identities, deduped by address, manual FIRST. A linked sub-account can't fetch server identities
+     *  (#31). */
     fun resolvedIdentities(): List<StoredIdentity> =
         (identities + serverIdentities)
             .distinctBy { it.email.trim().lowercase() }
             .ifEmpty {
                 if (isLinked) {
-                    // A delegated sub-account has no signature of its own to split: all we can
-                    // trust here is the address the session advertises for it (issue #31).
+                    // No signature to split on a delegate; trust only the session-advertised address (#31).
                     listOfNotNull(
                         accountName.trim()
                             .takeIf { it.matches(Regex("[^@\\s]+@[^@\\s]+")) }
                             ?.let { StoredIdentity(id = "delegated", name = "", email = it) },
                     )
                 } else {
-                    // The legacy account-level signature may itself be raw HTML (it seeded the old
-                    // "Import HTML" field), so split it like any other: plain text for the composer,
-                    // HTML for the outgoing html alternative.
+                    // Legacy signature may be raw HTML; split into plain text + optional HTML like any other.
                     listOf(
                         StoredIdentity(id = "default", name = accountName, email = username, signature = signature)
                             .withSplitSignature(),
@@ -196,21 +99,8 @@ data class StoredAccount(
                 }
             }
 
-    /**
-     * The identity to pre-select when composing: the one matching [defaultIdentityId]; failing that
-     * the identity that IS this account (its [username]); failing that the first resolved identity.
-     * So it still degrades gracefully after a server-driven identity refresh drops the stored id.
-     *
-     * The username step is what keeps the pre-selected sender stable: [resolvedIdentities] lists
-     * manual identities BEFORE server ones, so falling straight through to "the first" meant that
-     * merely adding an identity promoted it to pre-selected sender, silently and with nothing on
-     * screen saying so (#78). The account's own address is the only implicit answer that does not
-     * move under the user's feet.
-     *
-     * Skipped for a linked sub-account: its [username] is the LOGIN's address, not its own (see
-     * [resolvedIdentities], issue #31), so matching on it would pre-select a shared mailbox's mail
-     * as coming from the login instead.
-     */
+    /** [defaultIdentityId] match, else this account's own identity, else the first — the username step matters (#78).
+     *  */
     fun defaultIdentity(): StoredIdentity? {
         val resolved = resolvedIdentities()
         resolved.firstOrNull { it.id == defaultIdentityId }?.let { return it }
@@ -224,32 +114,8 @@ data class StoredAccount(
     }
 
     companion object {
-        /**
-         * The rows of the accounts screen, in the order they are drawn: every login, each one
-         * immediately followed by the delegated (shared) mailboxes that borrow its credential,
-         * marked [AccountRowEntry.underLogin] so the screen can indent them under it.
-         *
-         * Grouping is by [loginId], never by position: [all] is the order accounts were ADDED
-         * (`AccountStore.accountsFlow`), so a login signed in after someone else's shared mailbox
-         * sits between that mailbox and its own login. Within each group the stored order is kept.
-         *
-         * Accounts still awaiting their one-time sign-in ([importPending]) are filtered out here,
-         * because the screen shows them in its own section above this list; the rule lives in one
-         * place so it can be tested without a composable. That includes a DELEGATE awaiting its
-         * sign-in — `AccountStore.importAccounts` keeps the [loginId] of the copy it marks pending
-         * — which would otherwise be drawn twice: once to connect, once as a live row.
-         *
-         * THE ORPHAN FALL-BACK. A delegated account that was hung under NO login — a [loginId]
-         * naming an account this list does not hold, or one that is itself [importPending], or one
-         * that is itself a DELEGATE (a shared mailbox opens no group of its own: it is drawn as a
-         * child row, and a child row hosts no child, so a delegate of a delegate hangs under
-         * nothing even though its parent IS emitted) — is emitted at the END, at top level,
-         * instead of being dropped. It has nothing to hang under, but dropping it would leave the
-         * mailbox with no row anywhere, and its colour and its own notification switch (the short
-         * shared-account screen, reached from this list) with no door at all — the very hole this
-         * work closes. Same call the repo already made for the settings shortcut: a row that opens
-         * something imperfect beats a mailbox that cannot be reached.
-         */
+        /** Every login, followed by its delegated mailboxes; an orphan delegate is emitted at the END rather than
+         *  dropped. */
         fun accountsScreenRows(all: List<StoredAccount>): List<AccountRowEntry> {
             val visible = all.filter { !it.importPending }
             val delegates = visible.filter { it.isShared }
@@ -266,23 +132,13 @@ data class StoredAccount(
             return rows
         }
 
-        /**
-         * Heal the MANUAL identity list of pollution left by the old merge-on-save fold (which
-         * wrote the merged server+manual list back into the manual field on every Save, so server
-         * identities piled up as frozen copies and byte-identical rows accumulated). Pure and
-         * order-preserving so the editor can seed with it and Save can persist the cleaned result:
-         *  1. collapse byte-identical duplicates, keyed by (email, name, signature, signatureHtml);
-         *  2. drop a manual entry that matches a server identity on email AND name AND both
-         *     signatures (a frozen copy — not an intentional override). A manual entry sharing only
-         *     the email but differing in name or signature is a genuine override and is kept (it
-         *     still wins over the server one in [resolvedIdentities]).
-         */
+        /** Heals manual identities polluted by an old merge-on-save fold: drops entries that only mirror a server
+         *  identity. */
         fun normalizeManualIdentities(
             manual: List<StoredIdentity>,
             server: List<StoredIdentity>,
         ): List<StoredIdentity> {
-            // The html signature is part of the key: two identities that differ only by it are
-            // genuinely different, and must not be folded into one.
+            // signatureHtml is part of the key: differing only there is a genuine difference.
             fun key(i: StoredIdentity) =
                 listOf(i.email.trim().lowercase(), i.name, i.signature, i.signatureHtml)
             val serverKeys = server.map(::key).toSet()
@@ -291,12 +147,7 @@ data class StoredAccount(
                 .distinctBy(::key)
         }
 
-        /**
-         * Server identities deduped by address for DISPLAY, keeping the first occurrence. Some
-         * servers return byte-identical duplicates from JMAP Identity/get; [resolvedIdentities]
-         * already collapses them by email, so the editor's read-only server group must do the same
-         * to stay consistent with the composer's From picker. Genuinely distinct addresses stay.
-         */
+        /** Server identities deduped by address for DISPLAY, matching [resolvedIdentities]'s own de-dup. */
         fun distinctServerIdentities(server: List<StoredIdentity>): List<StoredIdentity> =
             server.distinctBy { it.email.trim().lowercase() }
     }

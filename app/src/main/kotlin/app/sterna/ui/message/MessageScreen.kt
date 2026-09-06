@@ -190,61 +190,34 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * TEST BUILD ONLY — set back to false before integrating.
- *
- * When true, [WebViewLayerGuard.useSoftwareLayer] returns true unconditionally, so every device
- * takes the software-layer + internal-scroll body path. This lets the software path be exercised
- * on a modern device (e.g. a Pixel, which never hits the GPU-functor SIGSEGV) without needing the
- * actual S7. Flip to true to test, then back to false before merging — when false the normal
- * pre-seed + crash-sentinel logic decides the layer per device.
+ * TEST BUILD ONLY — set back to false before integrating. When true,
+ * [WebViewLayerGuard.useSoftwareLayer] returns true unconditionally, so the software-layer path can
+ * be exercised on a device that never hits the GPU-functor SIGSEGV.
  */
 private const val FORCE_SOFTWARE_LAYER = false
 
 /**
- * True while the nav destination hosting the reading view is animating (the message route's
- * enter/pop-exit fade), provided by the NavHost. A running fade composites the whole destination
- * through an offscreen graphics layer; on the GL HWUI pipeline, drawing the body WebView's
- * hardware functor into that layer can hit an unguarded null SkSurface in AOSP's
- * GLFunctorDrawable (unfixed from Android 11 through current main) — a hard SIGSEGV on every
- * back press (Codeberg #10: OnePlus 5T, Xperia 1 II, Pixel 4; Vulkan-pipeline devices like the
- * Pixel 7 are structurally immune). Two defenses hang off this signal:
- *  - [NavFadeGuard] arms a persisted crash sentinel exactly while a live hardware body is
- *    exposed to a fade; a process death in that window disables the fade on that device forever;
- *  - [WebViewLayerGuard.markProven] is deferred until no fade runs, so a fade-window crash is
- *    never misattributed to the steady-state functor (which is fine on these devices).
- * The [WebViewLayerGuard] sentinel alone can't catch this crash — it fires after a body has
- * already drawn safely, so the device is long latched "proven".
+ * True while the nav destination hosting the reading view is animating. On the GL HWUI pipeline,
+ * drawing the body WebView's hardware functor into the fade's offscreen layer can hit an unguarded
+ * null SkSurface in AOSP's GLFunctorDrawable — a SIGSEGV on every back press (#10). [NavFadeGuard]
+ * arms a crash sentinel while a hardware body is exposed to a fade, and
+ * [WebViewLayerGuard.markProven] is deferred until no fade runs.
  */
 val LocalNavTransitionActive = compositionLocalOf { false }
 
 /**
  * The identity of a pager entry — (email id, owning account) — as one string. Same-server accounts
- * under a single login can hold messages with identical ids (issue #31) and the unified inbox shows
- * them side by side, so the pager identifies its entries by the pair, never by the id alone.
- *
- * The composition lives in [MessagePaging.entryKey] so it can be unit-tested.
+ * under a single login can hold messages with identical ids (#31), so the pager identifies entries
+ * by the pair. The composition lives in [MessagePaging.entryKey] so it can be unit-tested.
  */
 private fun pagerKey(entry: Pair<String, String?>): String =
     MessagePaging.entryKey(entry.first, entry.second)
 
 /**
- * The reading view. A [HorizontalPager] lets the user swipe left/right between the entries
- * of the context they came from, in the same order (mailbox / unified inbox, sort, unread
- * filter, active search, or one conversation). Four sources feed it:
- *
- *  - [listSource]: the inbox's own paged flow (shared, so swiping near the end pages older
- *    mail in from the server exactly as scrolling the list does);
- *  - [searchResults]: the bounded, in-memory results when a search was active;
- *  - [threadEntries]: the messages of an unfolded conversation, when the message was opened
- *    from inside one (Codeberg #13) — the swipe stays inside that conversation and stops at
- *    its ends rather than spilling into the list behind it;
- *  - none of them: a single message (opened from a context without a list, e.g. a
- *    notification or global search).
- *
- * Each page owns its own [MessageViewModel] (and its account context), so Reply/Forward,
- * back, and mark-as-read stay correct per entry. Mark-as-read fires on settle, never while
- * a message is flicked past. The horizontal pager only claims horizontal drags, so a long
- * body still scrolls vertically.
+ * The reading view. A [HorizontalPager] swipes between the entries of the context the reader came
+ * from: the inbox's paged flow, the bounded search results, the messages of an unfolded conversation
+ * (#13), or none of them for a lone message. Each page owns its own [MessageViewModel] and account
+ * context, and mark-as-read fires on settle, never while a message is flicked past.
  */
 @Composable
 fun MessageScreen(
@@ -270,18 +243,15 @@ fun MessageScreen(
     when {
         listSource != null -> {
             val items = listSource.collectAsLazyPagingItems()
-            // The pager pages over a STICKY merge of the live flow, not the live flow itself:
-            // rows removed while reading (marked read under the unread filter, triaged from
-            // another device, …) keep their slot for the whole reading session. Following the
-            // live removals would re-bind the settled page to the next row — under the unread
-            // filter that meant read-on-settle removed the row, the next unread slid in, got
-            // marked read too, and cascaded through every unread message. New rows (fresh mail,
-            // older mail paged in) still merge in at their live position.
+            // The pager pages over a STICKY merge of the live flow: rows removed while reading keep
+            // their slot for the whole session. Following the live removals would re-bind the
+            // settled page to the next row — under the unread filter, read-on-settle removed the
+            // row, the next unread slid in and got marked read too, cascading through every one.
             val liveEntries = items.itemSnapshotList.items.map { it.email.id to it.email.accountId }
             var entries by remember { mutableStateOf(listOf<Pair<String, String?>>()) }
-            // Identified by (account, id), never by the bare id: in the unified inbox two accounts
-            // of one login can list a message under the SAME server id (issue #31), and a bare key
-            // would swallow the second row in the merge below and bind its page to the first one's.
+            // Identified by (account, id), never by the bare id: two accounts of one login can list
+            // a message under the SAME server id (#31), and a bare key would swallow the second row
+            // in the merge below.
             entries = MessagePaging.mergeEntries(entries, liveEntries, ::pagerKey)
             if (entries.isEmpty()) {
                 // The shared paged flow replays its cached pages within a frame or two; show a
@@ -301,18 +271,15 @@ fun MessageScreen(
                 MessagePager(
                     pageCount = entries.size,
                     initialPage = initialPage,
-                    // Indexing the paged items near the end triggers paging (incl. the
-                    // RemoteMediator's server fetch), so older entries swipe in as on scroll;
-                    // the entry's index in the LIVE list can trail its sticky index once rows
-                    // have been removed, hence the id→live-index lookup.
+                    // Indexing the paged items near the end triggers paging, so older entries swipe
+                    // in as on scroll; the entry's index in the LIVE list can trail its sticky index
+                    // once rows have been removed, hence the id→live-index lookup.
                     entryAt = { i ->
                         entries.getOrNull(i)?.also { entry ->
-                            // Touching the paging item triggers page loads near the end. Guard the
-                            // index against the LIVE count: deleting from the reader invalidates
-                            // the paged flow, and the pager's item provider re-runs this lambda
+                            // Guard the index against the LIVE count: deleting from the reader
+                            // invalidates the paged flow, and the item provider re-runs this lambda
                             // during drainChanges — before recomposition rebuilds liveIndexById —
-                            // while the presenter is transiently EMPTY (Codeberg #13: reader
-                            // delete threw Index: 0, Size: 0 here).
+                            // while the presenter is transiently EMPTY (#13).
                             liveIndexById[pagerKey(entry)]
                                 ?.takeIf { it < items.itemCount }
                                 ?.let { liveIndex -> items[liveIndex] }
@@ -351,17 +318,14 @@ fun MessageScreen(
                 onPageSettled = onPageSettled,
             )
         }
-        // Opened from an unfolded conversation: page over that conversation only. The entries
-        // are a snapshot of what the unfolded conversation showed, so the count is bounded and
-        // the pager cannot run past the first or last message of the thread (Codeberg #13).
+        // Opened from an unfolded conversation: page over that conversation only, on a snapshot of
+        // what it showed, so the pager cannot run past its first or last message (#13).
         !threadEntries.isNullOrEmpty() -> {
             val initialPage = remember(threadEntries) {
                 // By the pair like the other three branches. A conversation's members are all one
-                // account's (the cached query is account-pinned and the server fetch runs under one
-                // login), so this is defence in depth rather than a second occurrence of #92 — but
-                // if a wrongly keyed conversation is ever handed in, matching the pair FAILS to find
-                // the anchor and falls back to the tapped index, instead of matching a foreign
-                // message that happens to share the id.
+                // account's, so this is defence in depth rather than a second #92 — but a wrongly
+                // keyed conversation FAILS to find the anchor and falls back to the tapped index,
+                // instead of matching a foreign message that happens to share the id.
                 MessagePaging.resolveInitialPage(
                     threadEntries.map(::pagerKey),
                     pagerKey(anchorEmailId to anchorAccountId),
@@ -372,8 +336,8 @@ fun MessageScreen(
                 pageCount = threadEntries.size,
                 initialPage = initialPage,
                 entryAt = { i -> threadEntries.getOrNull(i) },
-                // A conversation has a known, small number of messages, so the reader can say
-                // where in it you are — and offer the two chevrons for people who don't swipe.
+                // A conversation has a known, small number of messages, so the reader can say where
+                // in it you are — and offer the two chevrons for people who don't swipe.
                 showPosition = true,
                 onBack = onBack,
                 onReply = onReply,
@@ -415,9 +379,9 @@ private fun MessagePager(
     pageCount: Int,
     initialPage: Int,
     entryAt: (Int) -> Pair<String, String?>?,
-    /** Show the "2 / 5" position line with its two chevrons (conversation context only —
-     *  the list context is unbounded and pages more entries in as you go, so a running
-     *  total there would be both wrong and restless). */
+    /** Show the "2 / 5" position line with its two chevrons (conversation context only — the list
+     *  context is unbounded and pages more entries in, so a running total there would be both wrong
+     *  and restless). */
     showPosition: Boolean = false,
     onBack: () -> Unit,
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
@@ -429,23 +393,15 @@ private fun MessagePager(
     onPageSettled: ((emailId: String, accountId: String?, page: Int) -> Unit)? = null,
 ) {
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))) { pageCount }
-    // The chrome (top app bar + bottom Reply/Forward bar) is FIXED: it lives OUTSIDE the
-    // pager, so swiping between messages never translates or blinks it (#62). Only the
-    // message content pages horizontally. The chrome acts on the SETTLED page, which
-    // publishes its ViewModel here on settle — so the bars' content (star state, actions,
-    // bar visibility) switches on settle, never mid-gesture.
+    // The chrome is FIXED: it lives OUTSIDE the pager, so swiping between messages never moves it
+    // (#62). It acts on the SETTLED page, which publishes its ViewModel here on settle — so the
+    // bars' content switches on settle, never mid-gesture.
     var activeMessage by remember { mutableStateOf<ActiveMessage?>(null) }
     // The page the reader has settled on, held as the MESSAGE and not as its rank.
-    // `PagerState.settledPage` is an index, and it is refreshed only around a scroll: when new
-    // mail is prepended to the list under an open reader, the pager re-anchors itself onto the
-    // same message (its pages are keyed by identity) while that index keeps its old number —
-    // which now names the neighbour ABOVE. That neighbour's page believed itself settled and
-    // LOADED: on IMAP a load fetches the whole source and files the sender's announced key in
-    // OpenKeychain, from a message nobody opened (bench G-décalage, 2026-09-04).
-    // `currentPage` is read ONLY at rest. `isScrollInProgress` is true for the whole gesture,
-    // drag and fling alike, so a page merely brushed past still never counts — that is what
-    // `settledPage` was bought for, and the guard below is what keeps it. The initial value is
-    // the page the reader opened on, so that message loads without waiting for any gesture.
+    // `PagerState.settledPage` is an index refreshed only around a scroll: mail prepended under an
+    // open reader re-anchors the pager while that index keeps its old number, naming the neighbour
+    // ABOVE — whose page then believed itself settled and LOADED (bench G-décalage, 2026-09-04).
+    // `currentPage` is read ONLY at rest, and `isScrollInProgress` covers drag and fling alike.
     var settledEntry by remember { mutableStateOf(entryAt(pagerState.currentPage)) }
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.isScrollInProgress to pagerState.currentPage }
@@ -455,12 +411,10 @@ private fun MessagePager(
     }
     val settledKey = settledEntry?.let(::pagerKey)
     // Settling on a page whose entry hasn't loaded means there is no message: drop the published
-    // one, or the fixed chrome would keep starring/deleting the message the user swiped away from.
-    // The page republishes itself (MessagePage's onActivated) as soon as its entry arrives.
-    // The settle is also the one moment the reading pane's anchor follows the pager (#103): a
-    // human gesture landed here, so the row painted current in the list moves with it. It fires
-    // on the settled MESSAGE changing, never on a page number moving under it — a page flicked
-    // past, or a row inserted above, must not become "the current message".
+    // one, or the fixed chrome would keep starring the message the user swiped away from. The page
+    // republishes itself as soon as its entry arrives. The settle is also the one moment the reading
+    // pane's anchor follows the pager (#103) — it fires on the settled MESSAGE changing, never on a
+    // page number moving under it.
     LaunchedEffect(settledEntry) {
         val settled = settledEntry
         if (settled == null) activeMessage = null
@@ -476,9 +430,8 @@ private fun MessagePager(
                 MessageTopBar(activeMessage, onBack, onReply, onDelete, onArchive, onMove, paneMode)
                 // The position line belongs to the header, under the app bar rather than in its
                 // title slot: the toolbar already carries five actions, and on a narrow screen a
-                // counter squeezed between them would clip. It is part of the FIXED chrome, so it
-                // never translates with the swipe. Hidden outright for a one-message context, so
-                // nothing about the reader changes where there is nowhere to page to.
+                // counter squeezed between them would clip. Hidden outright for a one-message
+                // context.
                 if (showPosition && pageCount > 1) {
                     MessagePositionBar(
                         page = pagerState.currentPage,
@@ -494,49 +447,36 @@ private fun MessagePager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize().then(pagerTravel.modifier),
                 // Key by entry identity — (account, id), never the bare id — so pages keep their
-                // identity when rows are inserted around them. The bare id made two messages
-                // of two same-server accounts ONE page for Compose, which then reused the page and
-                // its ViewModel and showed the other account's message (#92). Same granularity for
-                // a single account: the pair differs exactly where the id does.
+                // identity when rows are inserted around them. The bare id made two messages of two
+                // same-server accounts ONE page for Compose, which reused the page and its ViewModel
+                // and showed the other account's message (#92).
                 key = { i -> entryAt(i)?.let(::pagerKey) ?: "page-$i" },
-                // One page composed each side of the one being read. What composition buys is
-                // the page and its ViewModel, and NOT a WebView: this comment used to claim the
-                // WebView too, which is how removing the body warm-up looked free. A page whose
-                // state holds no body composes no ConversationBody, hence no WebView, so the
-                // entire render started at the finger — the ~1 s hourglass per swipe.
-                // The WebView is bought instead by MessagePage's warmFromCache effect, which
-                // paints the body from the LOCAL CACHE only. A neighbour is still never
-                // `load`ed (see MessagePage, and MessagePaging.needsLoad): a load fetches the
-                // whole source on IMAP and imports the sender's announced key into OpenKeychain
-                // from a message nobody opened, and no gesture can take that back. A neighbour
-                // whose body is not cached, is crypto, or is still missing its inline images gets
-                // no warm-up and shows its LoadingRing until the pager settles on it.
+                // One page composed each side of the one being read. What composition buys is the
+                // page and its ViewModel, NOT a WebView: the render used to start at the finger, the
+                // ~1 s hourglass per swipe. MessagePage's warmFromCache buys it from the LOCAL CACHE.
+                // A neighbour is still never `load`ed: on IMAP that imports the sender's announced
+                // key into OpenKeychain, and no gesture can take it back.
                 beyondViewportPageCount = 1,
-                // Demand 25 dp of FINGER travel before a flick may change message: the library's
-                // own rule is velocity-only, so a 10-20 dp brush of the thumb turned the page. The
-                // travel is read from the pointer stream by pagerTravel.modifier above, NOT from
-                // the pager's own offset, which is short by the touch slop and by whatever the body
-                // WebView held back. See PagerFlingDistance.kt — the rest of the fling is the
-                // library's.
+                // Demand 25 dp of FINGER travel before a flick may change message: the library's own
+                // rule is velocity-only, so a 10-20 dp brush of the thumb turned the page. The travel
+                // is read from the pointer stream, NOT from the pager's own offset, which is short by
+                // the touch slop and by whatever the body WebView held back.
                 flingBehavior = rememberPageFlingBehavior(pagerState, pagerTravel),
             ) { page ->
                 val entry = entryAt(page)
                 if (entry == null) {
-                    // Paged item for this page hasn't loaded yet (near the growing end). No
-                    // toolbar here — the fixed one above stays in place.
+                    // Paged item for this page hasn't loaded yet. No toolbar here — the fixed one
+                    // above stays in place.
                     Box(Modifier.fillMaxSize(), Alignment.Center) { LoadingRing() }
                 } else {
                     MessagePage(
                         emailId = entry.first,
                         accountId = entry.second,
-                        // Settle-gating, and it governs TWO things, not one: the page the reader
-                        // lands on is the only one that marks its message read, and the only one
-                        // that LOADS at all. On IMAP a load fetches the whole source, which
-                        // imports the sender's announced key into OpenKeychain — so this single
-                        // argument is what keeps a warmed neighbour, never opened, from depositing
-                        // a key nothing can take back. Compared by IDENTITY, never by page
-                        // number: an index goes stale the moment the list moves underneath a
-                        // motionless reader, and named the neighbour above (G-décalage).
+                        // Settle-gating, and it governs TWO things: the page the reader lands on is
+                        // the only one that marks its message read, and the only one that LOADS at
+                        // all — on IMAP a load imports the sender's announced key into OpenKeychain.
+                        // Compared by IDENTITY, never by page number: an index goes stale the
+                        // moment the list moves under a motionless reader (G-décalage).
                         active = pagerKey(entry) == settledKey,
                         onActivated = { vm ->
                             activeMessage = ActiveMessage(entry.first, entry.second, vm)
@@ -545,11 +485,9 @@ private fun MessagePager(
                     )
                 }
             }
-            // The bottom Reply/Forward bar, fixed over the pager. Its visibility follows the
-            // SETTLED page's scroll-end reveal (reported into that page's ViewModel by
-            // ConversationBody); the settled page doesn't change during a drag, so the bar
-            // cannot flicker mid-swipe — it animates only when the newly settled page's
-            // resting state differs from the previous one's.
+            // The bottom Reply/Forward bar, fixed over the pager. Its visibility follows the SETTLED
+            // page's scroll-end reveal, and the settled page does not change during a drag, so the
+            // bar cannot flicker mid-swipe.
             val active = activeMessage
             if (active != null) {
                 val barVisible by active.viewModel.replyBarVisible.collectAsStateWithLifecycle()
@@ -569,10 +507,8 @@ private fun MessagePager(
 }
 
 /**
- * "2 / 5" between two chevrons, telling the reader where they are in the conversation they
- * opened the message from, and letting them step through it by tap as well as by swipe. The
- * chevrons grey out at the ends — the pager stops there, and the bar says so before the gesture
- * has to (the swipe remains the primary way through; this makes it discoverable, not redundant).
+ * "2 / 5" between two chevrons, telling the reader where they are in the conversation, and letting
+ * them step through it by tap as well as by swipe. The chevrons grey out at the ends.
  */
 @Composable
 private fun MessagePositionBar(
@@ -622,52 +558,35 @@ private fun MessagePage(
     onComposeTo: (address: String) -> Unit,
 ) {
     val app = LocalContext.current.applicationContext as Application
-    // Each page needs its own MessageViewModel (the pager composes several at once). A
-    // per-page ViewModelStore, cleared when the page leaves the pager, bounds memory so
-    // swiping through a long list doesn't pile up bodies/inline images.
+    // Each page needs its own MessageViewModel (the pager composes several at once). A per-page
+    // ViewModelStore, cleared when the page leaves the pager, bounds memory.
     val owner = rememberDisposableViewModelStoreOwner()
     val viewModel: MessageViewModel = viewModel(
         viewModelStoreOwner = owner,
         factory = viewModelFactory { initializer { MessageViewModel(app) } },
     )
-    // The neighbours are made READY, from the local cache and from nothing else. Composition
-    // alone buys the page and its ViewModel; it does NOT buy a WebView, because a state with no
-    // body composes no ConversationBody — so the whole render (view creation, loadDataWithBaseURL,
-    // onPageFinished, the 30 × 32 ms height poll) used to start when the finger landed, which is
-    // the ~1 s hourglass at the end of each swipe.
-    // No `active`, in the keys or the arguments: warming only the page already on screen buys
-    // nothing, and BOTH neighbours are what the pager composes. Idempotent — MessageViewModel
-    // does nothing here once `load` owns the page, and nothing at all on a cache miss, on a
-    // crypto body, or on one whose inline images are still missing (MessagePaging.warmable).
-    // And it reaches no server: that is the whole difference with the warm-up 798a5fd1
-    // removed, which fetched IMAP sources and deposited their senders' keys in OpenKeychain.
+    // The neighbours are made READY, from the local cache and nothing else: composition buys the page
+    // and its ViewModel but not a WebView, so the whole render used to start at the finger.
+    // No `active` in the keys or the arguments: BOTH neighbours are what the pager composes.
+    // Idempotent, and it reaches no server — the whole difference with the warm-up 798a5fd1 removed.
     LaunchedEffect(emailId, accountId) { viewModel.warmFromCache(emailId, accountId) }
-    // `active` is BOTH a key of this effect and the argument: as a key, because the page is
-    // composed before it settles and the effect must replay the moment it does (drop it and
-    // the message the reader tapped never loads); as the argument, because the pager warms a
-    // page each side of the one being read, and on IMAP loading one fetches its whole source,
-    // which imports the sender's announced key into OpenKeychain (MailRepository.openEmailImap).
-    // Ungated, opening a message deposits the keys of its two neighbours, untouched and
-    // irreversibly. The decision itself is MessagePaging.needsLoad.
+    // `active` is BOTH a key of this effect and the argument: as a key because the page is composed
+    // before it settles and the effect must replay the moment it does; as the argument because the
+    // pager warms a page each side, and on IMAP loading one imports the sender's announced key into
+    // OpenKeychain. Ungated, opening a message deposits the keys of its two neighbours.
     LaunchedEffect(emailId, accountId, active) { viewModel.load(emailId, accountId, active) }
     LaunchedEffect(active) {
         viewModel.onActiveChanged(active)
         // Hand this page's ViewModel to the fixed chrome once the user has settled on it.
         if (active) onActivated(viewModel)
     }
-    // Has the reader EVER settled on this page? Composition alone does not count: the pager warms
-    // one page each side of the open message, and a warmed page keeps collecting the allowlist
-    // through its own ViewModel. Without this, "Always show images from this sender", tapped on
-    // the message she IS reading, flips `senderAllowed` on the NEIGHBOUR too — a message never put
-    // under her finger — which reloads its body with remote content allowed and hands the sender's
-    // tracking pixel the fact that it was opened. PRIVACY.md:288 promises exactly the opposite.
-    // A latch, never a bare `!active`: `MessagePaging.settledEntry` deliberately answers null at
-    // rest, and in that window EVERY page is inactive, the one being read included — a bare
-    // reading would flip `blockRemote` under the reader, re-key the document and reload the
-    // message she is on, scroll position lost. It only ever goes false → true.
-    // And it lives here, not as a ViewModel flow: there it would be reset by load()'s prologue,
-    // which runs BEFORE onActiveChanged (see ReaderStateResetOnLoadTest) — wrong by one frame,
-    // and that frame is the one that fetches.
+    // Has the reader EVER settled on this page? A warmed page keeps collecting the allowlist through
+    // its own ViewModel, so without this "Always show images from this sender" flips `senderAllowed`
+    // on the NEIGHBOUR too, against PRIVACY.md:288.
+    // A latch, never a bare `!active`: `settledEntry` answers null at rest, and a bare reading would
+    // flip `blockRemote` under the reader and reload the message she is on.
+    // And it lives here, not as a ViewModel flow, which load()'s prologue would reset one frame
+    // early — the frame that fetches.
     var everActive by remember { mutableStateOf(false) }
     if (active) {
         everActive = true
@@ -731,10 +650,9 @@ private fun MessageLoadingScaffold(onBack: () -> Unit, paneMode: Boolean = false
 }
 
 /**
- * The reader's FIXED top app bar: ONE instance at the pager level, outside the horizontal
- * swipe, so paging between messages never moves it (#62). It renders the actions for the
- * SETTLED page's message; while no page has settled yet (first frames, or a still-loading
- * entry) it shows just the back arrow.
+ * The reader's FIXED top app bar: ONE instance at the pager level, outside the horizontal swipe, so
+ * paging never moves it (#62). It renders the actions for the SETTLED page's message; while no page
+ * has settled it shows just the back arrow.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -748,8 +666,8 @@ private fun MessageTopBar(
     paneMode: Boolean = false,
 ) {
     TopAppBar(
-        // The subject is shown in full inside the message (Codeberg #44), so the bar has
-        // no title — that frees the width for a Follow (star) action.
+        // The subject is shown in full inside the message (#44), so the bar has no title — that frees
+        // the width for a Follow (star) action.
         title = {},
         // No back arrow in the reading pane (#103): the list is right there, the system Back
         // empties the pane, and Gmail's tablet reader shows none either.
@@ -772,9 +690,9 @@ private fun MessageTopBar(
 }
 
 /**
- * The toolbar actions (star / archive / delete / reply / overflow) for the settled message.
- * All state comes from that page's own [MessageViewModel] ([ActiveMessage.viewModel]), so the
- * star, trash/junk variants and menu entries update when the pager settles on a new page.
+ * The toolbar actions (star / archive / delete / reply / overflow) for the settled message. All
+ * state comes from that page's own [MessageViewModel], so everything updates when the pager settles
+ * on a new page.
  */
 @Composable
 private fun MessageActions(
@@ -798,21 +716,19 @@ private fun MessageActions(
     val imageAllowlist by viewModel.imageAllowlist.collectAsStateWithLifecycle()
     // Per-message manual override; the sender allowlist auto-shows without it.
     val manualShow by viewModel.manualShowImages.collectAsStateWithLifecycle()
-    // Reading mode (#149): the stored setting, this message's deviation from it (set by the very
-    // menu below), and the two answers they resolve to — what is RENDERED, and what the remote-image
-    // question is decided against. The second is not the first while the setting is still being
-    // read: see plainTextForImages.
+    // Reading mode (#149): the stored setting, this message's deviation from it, and the two answers
+    // they resolve to — what is RENDERED, and what the remote-image question is decided against. The
+    // second is not the first while the setting is still being read: see plainTextForImages.
     val plainTextOverride by viewModel.plainText.collectAsStateWithLifecycle()
     val plainTextSetting by viewModel.plainTextSetting.collectAsStateWithLifecycle()
     val plainText = plainTextForBody(plainTextOverride, plainTextSetting)
     val imageMode = plainTextForImages(plainTextOverride, plainTextSetting)
-    // Folders the move-to-folder entry offers: this message's OWN account's, minus its current
-    // one (#73). Empty (single-folder account, folders not cached yet) hides the entry rather
-    // than opening a picker with nothing to pick.
+    // Folders the move-to-folder entry offers: this message's OWN account's, minus its current one
+    // (#73). Empty hides the entry rather than opening a picker with nothing to pick.
     val folders by viewModel.moveTargets.collectAsStateWithLifecycle()
-    // The LISTED account's whole folder list, only to spell out a target's parent path (#109) —
-    // the picker's own flow, which follows the account row (#189). Never `accountMailboxes`:
-    // that one is the message's OWN account's, and the sender rule is computed on it.
+    // The LISTED account's whole folder list, only to spell out a target's parent path (#109) — the
+    // picker's own flow, which follows the account row (#189). Never `accountMailboxes`: that one
+    // is the message's OWN account's, and the sender rule is computed on it.
     val accountFolders by viewModel.pickerMailboxes.collectAsStateWithLifecycle()
     // The picker's account row (#189): the open message's account, the one chosen on the row, and
     // the accounts to list — all from the ViewModel, so the choice survives a rotation.
@@ -823,23 +739,18 @@ private fun MessageActions(
     // and how far it has got — the menu entry stands down once the gesture has been made.
     val unsubscribe by viewModel.unsubscribe.collectAsStateWithLifecycle()
     val unsubscribeState by viewModel.unsubscribeState.collectAsStateWithLifecycle()
-    // Only to know whether the open message has its BODY: a message never opened while online
-    // holds its cached header and nothing else, and a "Print" entry offered on it would print a
-    // blank page — the entry stands down instead.
+    // Only to know whether the open message has its BODY: a message never opened while online holds
+    // its cached header and nothing else, and a "Print" entry offered on it would print a blank page.
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val printable = messages.firstOrNull()?.body != null
     val loaded = state as? MessageState.Loaded ?: return
     val senderEmail = loaded.email.from.firstOrNull()?.email
     val senderAllowed = senderEmail?.lowercase()?.let { it in imageAllowlist } == true
     val showRemote = showRemoteImages(imageMode, manualShow, senderAllowed)
-    // Is the reading-mode entry worth offering on THIS message (#149)? On mail with no HTML part —
-    // a mailing-list post, a git notification — both modes build the same <pre>, and the entry only
-    // ever flipped its own label. The verdict comes from building both bodies (see
-    // [readingModesDiffer]), so it needs the same localised strings the page renders — the derived
-    // line AND the "no content" line, which a body-less message puts on both sides. Remembered on
-    // the message and those strings: it renders the body twice and must not do so on every
-    // recomposition of the menu. Before the body arrives the state holds the cached header, which
-    // has no body at all — the entry stands down until there is something to switch.
+    // Is the reading-mode entry worth offering on THIS message (#149)? On mail with no HTML part both
+    // modes build the same <pre>, and the entry only ever flipped its own label. The verdict comes
+    // from building both bodies ([readingModesDiffer]), so it needs the same localised strings the
+    // page renders. Remembered on the message and those strings: it renders the body twice.
     val derivedNotice = stringResource(R.string.message_plain_text_derived)
     val noContent = stringResource(R.string.message_no_content)
     val readingModeUseful = remember(loaded.email, derivedNotice, noContent) {
@@ -859,11 +770,10 @@ private fun MessageActions(
     }
     val inTrash by viewModel.inTrash.collectAsStateWithLifecycle()
     val resolvedMailbox by viewModel.mailboxId.collectAsStateWithLifecycle()
-    // Archive, promoted from the overflow to the bar (#50 follow-up; mark-unread
-    // took its overflow slot). Routes through the shared inbox VM (like delete)
-    // so the reader reuses the same count nudge + Undo; the resolved mailbox is
-    // passed since the body fetch can drop it (RC-6), and the page's accountId
-    // so a unified-inbox archive hits the message's own account.
+    // Archive, promoted from the overflow to the bar. Routes through the shared inbox VM (like
+    // delete) so the reader reuses the same count nudge and Undo; the resolved mailbox is passed
+    // since the body fetch can drop it, and the page's accountId so a unified-inbox archive hits the
+    // message's own account.
     IconButton(onClick = {
         onArchive(
             loaded.email.copy(
@@ -877,15 +787,12 @@ private fun MessageActions(
             contentDescription = stringResource(R.string.message_archive),
         )
     }
-    // Delete routes through the inbox's held-back delete (Undo shows on the
-    // list) so the reader behaves like swipe/bulk; in Trash it destroys, so
-    // the icon reads "delete forever" (Codeberg #23).
+    // Delete routes through the inbox's held-back delete (Undo shows on the list) so the reader
+    // behaves like swipe/bulk; in Trash it destroys, so the icon reads "delete forever" (#23).
     IconButton(onClick = {
-        // The displayed email can carry a null mailboxId (the body fetch drops
-        // it), which would misroute the delete and lose Undo — pass the folder
-        // the VM resolved (Codeberg #23). Same for the owning account: in the
-        // unified inbox the page's nav-passed accountId is authoritative, and
-        // without it the delete would run against the current account.
+        // The displayed email can carry a null mailboxId (the body fetch drops it), which would
+        // misroute the delete and lose Undo — pass the folder the VM resolved (#23). Same for the
+        // owning account: in the unified inbox the page's nav-passed accountId is authoritative.
         onDelete(
             loaded.email.copy(
                 mailboxId = resolvedMailbox ?: loaded.email.mailboxId,
@@ -910,13 +817,11 @@ private fun MessageActions(
     var menuOpen by remember(active.emailId) { mutableStateOf(false) }
     var snoozeSubmenu by remember(active.emailId) { mutableStateOf(false) }
     var movePicker by remember(active.emailId) { mutableStateOf(false) }
-    // "Save as .eml": the system picker, then the message's exact server bytes into the document
-    // it returns (MessageViewModel.exportSource). Declared HERE, outside the DropdownMenu, for
-    // the reason the toast effect below gives: registered inside the menu, the launcher is disposed
-    // when the menu closes on the very tap that opened the picker, and the result has nowhere to
-    // land. `exportFor` remembers WHICH message the picker was launched for (saved across a
-    // recreation behind the picker); the ViewModel refuses a result for another page. An empty
-    // value after a lost state is refused too, which is the safe side.
+    // "Save as .eml": the system picker, then the message's exact server bytes into the document it
+    // returns. Declared HERE, outside the DropdownMenu: registered inside it, the launcher is
+    // disposed when the menu closes on the very tap that opened the picker, and the result has
+    // nowhere to land. `exportFor` remembers WHICH message it was launched for; the ViewModel
+    // refuses a result for another page, and an empty value after a lost state too.
     val exportName = remember(loaded.email.subject) { safeFileName(loaded.email.subject, "message") + ".eml" }
     var exportFor by rememberSaveable { mutableStateOf("") }
     val exportLauncher = rememberLauncherForActivityResult(
@@ -976,17 +881,12 @@ private fun MessageActions(
                 leadingIcon = { Icon(Icons.Filled.AttachFile, contentDescription = null) },
                 onClick = { menuOpen = false; onReply("forwardAttachment", replyTargetId, accountId) },
             )
-            // Reading mode (#149): read the message as text instead of its HTML, and back. The
-            // label says what the tap DOES, so it follows the mode actually RENDERED — the stored
-            // setting included, which is why the entry reads "Show HTML" on a message the setting
-            // opened as text. The tap writes the opposite of that as this message's deviation, so
-            // the label's promise is always the one carried out. Transitory: the deviation is
-            // forgotten when the message is left, and the setting decides again.
+            // Reading mode (#149). The label says what the tap DOES, so it follows the mode actually
+            // RENDERED — which is why the entry reads "Show HTML" on a message the setting opened as
+            // text. Transitory: the deviation is forgotten when the message is left.
             //
-            // Offered only when switching would actually CHANGE the screen: an entry that promises
-            // a rendering and hands back the identical document is a dead action, and that is what
-            // the setting's own audience got — with the setting on, "Show HTML" on a message with
-            // no HTML part flipped its label and nothing else.
+            // Offered only when switching would actually CHANGE the screen: an entry that promises a
+            // rendering and hands back the identical document is a dead action.
             if (readingModeUseful) {
                 HorizontalDivider()
                 DropdownMenuItem(
@@ -1007,18 +907,11 @@ private fun MessageActions(
                     onClick = { menuOpen = false; viewModel.setPlainText(!plainText) },
                 )
             }
-            // Image controls: one-time show only while still blocked, plus the per-sender
-            // allowlist toggle. Both stand down in plain-text mode — there is no image in the
-            // document to show, so an entry offering to show one would be a lie, and the
-            // allowlist toggle would silently change what the NEXT message does from a screen
-            // where nothing visibly happens.
-            //
-            // Guarded on `imageMode`, NOT on `plainText`, and that is the same variable `showRemote`
-            // just above is decided on — this whole block asks showRemote's question, so it must get
-            // showRemote's answer. The two only differ while DataStore has not answered, and in that
-            // window a `plainText` guard makes the menu contradict itself: setting off, sender
-            // already on the allowlist, and it offers "Show images" and "Stop showing images from
-            // this sender" side by side.
+            // Image controls: one-time show only while blocked, plus the per-sender allowlist toggle.
+            // Both stand down in plain-text mode — there is no image to show, and the toggle would
+            // silently change the NEXT message. Guarded on `imageMode`, NOT on `plainText`, the same
+            // variable `showRemote` is decided on: the two differ only while DataStore has not
+            // answered, and there a `plainText` guard makes the menu contradict itself.
             if (!imageMode) {
                 if (!showRemote || senderEmail != null) HorizontalDivider()
                 if (!showRemote) {
@@ -1054,10 +947,9 @@ private fun MessageActions(
                 leadingIcon = { Icon(Icons.Filled.MarkEmailUnread, contentDescription = null) },
                 onClick = { menuOpen = false; viewModel.markUnread(onBack) },
             )
-            // Move to folder (#73): the same action the list's selection bar carries, so a
-            // message can be filed without going back to the list first — the way OUT of Trash
-            // or Spam for something that shouldn't be there. In the menu, not a sixth toolbar
-            // icon: the bar is already at five on a narrow screen.
+            // Move to folder (#73): the same action the list's selection bar carries, so a message
+            // can be filed without going back to the list — the way OUT of Trash or Spam. In the
+            // menu, not a sixth toolbar icon: the bar is already at five on a narrow screen.
             if (folders.isNotEmpty()) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.inbox_move_to_folder)) },
@@ -1065,8 +957,8 @@ private fun MessageActions(
                     onClick = { menuOpen = false; movePicker = true },
                 )
             }
-            // Spam-reporting acts on incoming mail; in Drafts and Sent the open message is the
-            // user's own outgoing mail, so it is not offered there (Codeberg #82).
+            // Spam-reporting acts on incoming mail; in Drafts and Sent the open message is the user's
+            // own outgoing mail, so it is not offered there (#82).
             if (!isOutgoingFolder(folderRole)) {
                 DropdownMenuItem(
                     text = {
@@ -1097,8 +989,8 @@ private fun MessageActions(
                     },
                 )
             }
-            // Snoozing is a promise to come back to a message, so it goes further: also gone in
-            // Spam and in the Trash, where nothing is waiting to be dealt with (Codeberg #82).
+            // Snoozing is a promise to come back to a message, so it goes further: also gone in Spam
+            // and in the Trash, where nothing is waiting to be dealt with (#82).
             if (canSnoozeIn(folderRole)) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.message_snooze)) },
@@ -1107,12 +999,10 @@ private fun MessageActions(
                 )
             }
             // Unsubscribe (RFC 2369 / RFC 8058) — shown only when the message carries a usable way
-            // out AND that way out has not already been taken, so the entry is never a dead end
-            // and never a second request to a list that already answered. The same decision drives
-            // the banner's button (see [UnsubscribeStrip]): the two used to disagree, and going
-            // round by the menu sent the POST again. The label says which gesture it is: "Open
-            // page" is a browser and everything a page load implies, and calling that
-            // "Unsubscribe" like the other two would be the one dishonest word in the feature.
+            // out AND that way out has not already been taken, so the entry is never a dead end and
+            // never a second request. The same decision drives the banner's button: the two used to
+            // disagree, and going round by the menu sent the POST again. The label says which
+            // gesture it is — "Open page" is a browser and everything a page load implies.
             offeredUnsubscribeAction(unsubscribe, unsubscribeState)?.let { action ->
                 DropdownMenuItem(
                     text = {
@@ -1143,9 +1033,8 @@ private fun MessageActions(
                 leadingIcon = { Icon(Icons.Filled.SaveAlt, contentDescription = null) },
                 onClick = { menuOpen = false; exportFor = active.emailId; exportLauncher.launch(exportName) },
             )
-            // Print, last. The gesture itself is the page's (see MessageContent's effect on
-            // `printRequested`): it has the body, the reading mode and the remote-image decision,
-            // this menu has none of them. Absent until the body is here — see `printable`.
+            // Print, last. The gesture itself is the page's: it has the body, the reading mode and
+            // the remote-image decision, this menu has none of them. Absent until the body is here.
             if (printable) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.message_print)) },
@@ -1155,25 +1044,22 @@ private fun MessageActions(
             }
         }
     }
-    // The move-to-folder picker (#73): the same dialog the list's selection bar opens, fed the
-    // open message's own account's folders. Picking one hands the message (stamped with the
-    // folder the VM resolved and its owning account, exactly like archive/delete above) to the
-    // shared inbox ViewModel, which moves it with the usual Undo and pops back to the list.
+    // The move-to-folder picker (#73): the same dialog the list's selection bar opens, fed the open
+    // message's own account's folders. Picking one hands the message (stamped with the resolved
+    // folder and its owning account) to the shared inbox ViewModel.
     if (movePicker) {
         // The filter field's text (#182). Held INSIDE the `if`, so leaving the dialog drops the
-        // composition group and the field comes back empty next time it is opened.
+        // composition group and the field comes back empty next time.
         var folderQuery by remember { mutableStateOf("") }
-        // Same rows as the list's picker, parent path included (#109), resolved against the
-        // account's WHOLE folder list. Memoized for the reason spelled out in InboxScreen's copy:
-        // each call walks a map rebuilt over that whole list, and the filter field re-runs this
-        // block on every keystroke.
+        // Same rows as the list's picker, parent path included (#109), resolved against the account's
+        // WHOLE folder list. Memoized: each call walks a map rebuilt over that whole list, and the
+        // filter field re-runs this block on every keystroke.
         val folderPaths = remember(folders, accountFolders) {
             folders.map { folder -> mailboxPathLabel(folder, accountFolders) }
         }
-        // Painted over the WHOLE offered list, never over the filtered one: what the filter
-        // compares is what the row shows, and how many rows are painted must not depend on what
-        // has been typed. [folders] already arrives sorted from the ViewModel, so there is no
-        // moveTargets call here.
+        // Painted over the WHOLE offered list, never over the filtered one: what the filter compares
+        // is what the row shows, and how many rows are painted must not depend on what has been
+        // typed.
         val folderRows = ArrayList<FolderPickerRow>(folders.size)
         for ((folder, path) in folders.zip(folderPaths)) {
             folderRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
@@ -1187,11 +1073,9 @@ private fun MessageActions(
                     // The account whose folders are listed, and the way to list another's (#189).
                     MoveAccountRow(accounts, moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)
                     // The filter field (#182), OUTSIDE the scroller so it stays put while the list
-                    // moves under it. Same shape as the list's search bar: transparent container and
-                    // indicators, hint drawn behind in a Box, a cross that empties it. Deliberately
-                    // WITHOUT a FocusRequester — unlike the folder-creation dialogs below, the keyboard
-                    // does not come up on its own — and without an IME "search" action: this filters
-                    // what is already on screen, it asks the server nothing.
+                    // moves under it. Deliberately WITHOUT a FocusRequester — the keyboard does not
+                    // come up on its own — and without an IME "search" action: this filters what is
+                    // already on screen and asks the server nothing.
                     Box(Modifier.fillMaxWidth()) {
                         if (folderQuery.isEmpty()) {
                             Text(
@@ -1289,32 +1173,28 @@ private fun MessageActions(
             },
         )
     }
-    // The unsubscribe confirmation (decision D7: systematic, and no setting to switch it off).
-    // Rendered here rather than next to the banner because both the banner and the overflow entry
-    // open it, and they live on either side of the pager boundary — the settled page's ViewModel
-    // is the one thing they share.
+    // The unsubscribe confirmation (D7: systematic, and no setting to switch it off). Rendered here
+    // rather than next to the banner because both the banner and the overflow entry open it, and they
+    // live on either side of the pager boundary.
     val pendingUnsubscribe by viewModel.unsubscribeConfirm.collectAsStateWithLifecycle()
     val leaveOnce = rememberLeaveOnce()
     pendingUnsubscribe?.let { pending ->
         val action = pending.action
-        // Named from the options the confirmation was OPENED for, never re-read from the live
-        // state: what this dialog says and what the button then does are one and the same thing.
-        // Which form of the target each gesture names — host, address, or the whole URL — is
-        // decided once, in :core:data, and executed by a test (UnsubscribeOptions.confirmationTarget).
+        // Named from the options the confirmation was OPENED for, never re-read from the live state:
+        // what this dialog says and what the button then does are one and the same thing. Which form
+        // of the target each gesture names is decided in :core:data.
         val target = pending.target
         AlertDialog(
             onDismissRequest = { viewModel.dismissUnsubscribeConfirm() },
             title = { Text(stringResource(R.string.message_unsubscribe_confirm_title)) },
             text = {
-                // The same Column-with-weight as the external-link dialog above, for the same
-                // reason spelled out there: Material's text slot is a height-bounded box with no
-                // scrolling of its own, and an unsubscribe URL is exactly the kind of hundreds-of-
-                // characters string that would eat the whole slot and leave the button measured
-                // at zero height — gone, not merely crowded.
+                // The same Column-with-weight as the external-link dialog above, for the same reason:
+                // Material's text slot is a height-bounded box with no scrolling of its own, and an
+                // unsubscribe URL would eat the whole slot and leave the button measured at zero
+                // height — gone, not merely crowded.
                 Column {
-                    // Both lines scroll together, inside the SAME bounded box the single line used
-                    // to occupy — for the reason just above, and now also because the previewed
-                    // body is a stranger's text of unknown length.
+                    // Both lines scroll together, inside the SAME bounded box, and now also because
+                    // the previewed body is a stranger's text of unknown length.
                     Column(
                         modifier = Modifier
                             .weight(1f, fill = false)
@@ -1326,24 +1206,19 @@ private fun MessageActions(
                                     stringResource(R.string.message_unsubscribe_confirm_post, target.orEmpty())
                                 UnsubscribeAction.MAIL ->
                                     stringResource(R.string.message_unsubscribe_confirm_mail, target.orEmpty())
-                                // The full URL, not just the host, exactly like the reader's ordinary
-                                // external-link dialog: this is the one unsubscribe that opens a page
-                                // in a browser, and consenting to "open a page on this host" is not
-                                // the same as consenting to open THIS address.
+                                // The full URL, not just the host, like the reader's ordinary
+                                // external-link dialog: consenting to "open a page on this host" is
+                                // not consenting to open THIS address.
                                 UnsubscribeAction.OPEN_PAGE ->
                                     stringResource(R.string.message_unsubscribe_confirm_open, target.orEmpty())
                             },
                         )
                         // The mail path, and only it, sends a TEXT chosen by the sender of the
-                        // received message: `?subject=` and `?body=` of the `mailto:` are used
-                        // verbatim (some lists key the unsubscribe off the subject line), under
-                        // the account's own identity, with a copy in Sent. Naming only the
-                        // address described a narrower gesture than the one being run, so the
-                        // subject and the body are shown here, before the send, as plain text —
-                        // never rendered, never a link. They come from `unsubscribePreview`,
-                        // which is also what the outbox row is built from: what is shown here
-                        // and what leaves are the same two strings, including the default
-                        // subject and the empty body when the URI carried neither.
+                        // received message: `?subject=` and `?body=` are used verbatim, under the
+                        // account's own identity, with a copy in Sent. Naming only the address
+                        // described a narrower gesture than the one being run, so both are shown
+                        // here as plain text — never rendered, never a link. They come from
+                        // `unsubscribePreview`, which is also what the outbox row is built from.
                         pending.mailPreview?.takeIf { action == UnsubscribeAction.MAIL }?.let { preview ->
                             Spacer(Modifier.height(12.dp))
                             Text(
@@ -1362,10 +1237,9 @@ private fun MessageActions(
             confirmButton = {
                 TextButton(onClick = {
                     if (action == UnsubscribeAction.OPEN_PAGE) {
-                        // A page load is a hand-off to another app, so it takes the same
-                        // one-shot guard every other "leave the app" action in the reader does.
-                        // The URL is the CAPTURED one — the address named two lines above, not
-                        // whatever the live state holds by the time the button is pressed.
+                        // A page load is a hand-off to another app, so it takes the same one-shot
+                        // guard every other "leave the app" action does. The URL is the CAPTURED one,
+                        // not whatever the live state holds when the button is pressed.
                         val page = pending.options.pageUrl
                         viewModel.dismissUnsubscribeConfirm()
                         if (page != null) leaveOnce { openExternally(context, Uri.parse(page)) }
@@ -1402,10 +1276,8 @@ private fun MessageActions(
 }
 
 /**
- * Read-only raw-headers viewer (issue #60): the opened message's header fields listed as
- * `Name: value` in monospace, in original order (duplicates kept), vertically scrollable and
- * fully selectable/copyable. No parsing or prettifying — just the raw lines. Shown as a modal
- * bottom sheet, matching the reader's existing [ParticipantsSheet].
+ * Read-only raw-headers viewer (#60): the header fields as `Name: value` in monospace, in original
+ * order (duplicates kept), scrollable and fully selectable. No parsing or prettifying.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1453,7 +1325,7 @@ private fun MessageHeadersSheet(
                         ) {
                             state.headers.forEach { header ->
                                 // JMAP's `headers` value keeps the raw leading space after the
-                                // colon; trim it so the line reads cleanly and matches the IMAP path.
+                                // colon; trim it so the line matches the IMAP path.
                                 Text(
                                     text = "${header.name}: ${header.value.trim()}",
                                     fontFamily = FontFamily.Monospace,
@@ -1470,10 +1342,8 @@ private fun MessageHeadersSheet(
 }
 
 /**
- * Read-only view of a `message/rfc822` attachment, parsed in memory ([attachedMessageOf]): the
- * attached message's From/To/Cc/Date, its text body and the names of its own attachments. Nothing
- * here is clickable — its attachments are named, not opened. Same modal bottom sheet as
- * [MessageHeadersSheet].
+ * Read-only view of a `message/rfc822` attachment, parsed in memory ([attachedMessageOf]). Nothing
+ * here is clickable — its own attachments are named, not opened.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1496,8 +1366,8 @@ private fun AttachedMessageSheet(
             )
             HorizontalDivider()
             when (state) {
-                // Not `) { LoadingRing() }` on its own line: LoadingRingTest pins that exact line
-                // to the headers sheet, once per file.
+                // Not `) { LoadingRing() }` on its own line: LoadingRingTest pins that exact line to
+                // the headers sheet, once per file.
                 is AttachedMessageState.Loading ->
                     Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) { LoadingRing() }
                 is AttachedMessageState.Error -> Text(
@@ -1551,10 +1421,9 @@ private fun AttachedMessageSheet(
 }
 
 /**
- * One page of the reading view: the conversation body (header overlay + WebView) for a single
- * list entry, driven by its own [viewModel]. The horizontal pager ([MessagePager]) hosts one of
- * these per adjacent list entry so the user can swipe between them; the toolbar and the
- * Reply/Forward bar are NOT here — they are fixed chrome at the pager level (#62).
+ * One page of the reading view: the conversation body (header overlay + WebView) for a single list
+ * entry. The toolbar and the Reply/Forward bar are NOT here — they are fixed chrome at the pager
+ * level (#62).
  */
 @Composable
 private fun MessageContent(
@@ -1574,9 +1443,9 @@ private fun MessageContent(
     val crypto by viewModel.crypto.collectAsStateWithLifecycle()
     val unsubscribe by viewModel.unsubscribe.collectAsStateWithLifecycle()
     val unsubscribeState by viewModel.unsubscribeState.collectAsStateWithLifecycle()
-    // The read-receipt question (#148) and where an accepted one got to. The OFFER is what decides
-    // whether there is a strip at all, and it is null unless the switch is on AND the reader
-    // settled on a message that was unread AND the sender asked — see `offeredReadReceipt`.
+    // The read-receipt question (#148) and where an accepted one got to. The OFFER decides whether
+    // there is a strip at all, and it is null unless the switch is on AND the reader settled on a
+    // message that was unread AND the sender asked — see `offeredReadReceipt`.
     val readReceiptOffer by viewModel.readReceiptOffer.collectAsStateWithLifecycle()
     val readReceiptState by viewModel.readReceiptState.collectAsStateWithLifecycle()
     // OpenKeychain's passphrase/key dialogs round-trip through this launcher.
@@ -1588,44 +1457,33 @@ private fun MessageContent(
     val imageAllowlist by viewModel.imageAllowlist.collectAsStateWithLifecycle()
     val messageTextSize by viewModel.messageTextSize.collectAsStateWithLifecycle()
     val replyBarEnabled by viewModel.replyBar.collectAsStateWithLifecycle()
-    // Per-message manual override (set from the fixed toolbar's menu, hence in the VM);
-    // the sender allowlist auto-shows without it.
-    // Latched on `everActive` too, and for a reason the shape of the code hides: this is the
-    // SECOND producer of the remote-image answer — `showRemoteImages` takes `manualShow ||
-    // senderAllowed`, so closing the allowlist half below and leaving this one open closes
-    // nothing. Nothing gates it on its own: `onShowImages = viewModel::showImagesOnce` is wired
-    // with no `active` on it, down to a live button in the `ImagesStrip` that a WARMED page
-    // composes exactly like the open one, and the only reset lives in `load()`, which never runs
-    // on a page nobody settled on — so a `manualShow` raised on a neighbour would never come back
-    // down. That it is hard to raise with a finger today is not a guard, it is an accident.
-    // On this `val`, never on the `showRemoteImages(...)` call below: ReaderBodyTest counts
-    // that line whole and demands exactly two of it, one per site.
+    // Per-message manual override, latched on `everActive` too: this is the SECOND producer of the
+    // remote-image answer (`manualShow || senderAllowed`), so closing the allowlist half below and
+    // leaving this one open closes nothing — a WARMED page composes the same live button, and the
+    // only reset lives in `load()`, which never runs there.
+    // On this `val`, never on the `showRemoteImages(...)` call: ReaderBodyTest counts that line.
     val manualShowRaw by viewModel.manualShowImages.collectAsStateWithLifecycle()
     val manualShow = everActive && manualShowRaw
     // Reading mode (#149), resolved exactly as the menu above resolves it: the stored setting, this
-    // message's deviation from it, and the two answers — the one that picks the document, and the
-    // one the remote-image question is decided against.
+    // message's deviation from it, and the two answers.
     val plainTextOverride by viewModel.plainText.collectAsStateWithLifecycle()
     val plainTextSetting by viewModel.plainTextSetting.collectAsStateWithLifecycle()
     val plainText = plainTextForBody(plainTextOverride, plainTextSetting)
     val imageMode = plainTextForImages(plainTextOverride, plainTextSetting)
     val senderEmail = (state as? MessageState.Loaded)?.email?.from?.firstOrNull()?.email
     // `everActive` first, and on THIS line rather than on `blockRemote`: `senderAllowed` is the
-    // single producer of the answer, so gating it here closes the rendered page, the printed
-    // document and `shouldInterceptRequest` in one move. A page that was only ever WARMED must
-    // answer "not allowed" whatever the allowlist says — allowing a sender from the open message
-    // must not let the neighbour beside it fetch his pictures and report that it was opened.
+    // single producer of the answer, so gating it here closes the rendered page, the printed document
+    // and `shouldInterceptRequest` in one move. Allowing a sender from the open message must not let
+    // the neighbour beside it fetch his pictures and report that it was opened.
     val senderAllowed = everActive && senderEmail?.lowercase()?.let { it in imageAllowlist } == true
     val showRemote = showRemoteImages(imageMode, manualShow, senderAllowed)
-    // The per-sender filter rule offered from the participants panel. The Trash is named from
-    // the account's OWN cached folder list (no network), the script state is read once when the
-    // panel opens, the account's own addresses come from the store, and which of the four answers
-    // all that makes is senderRuleEntry()'s — the same decision the per-sender screen takes,
-    // executed by a test.
+    // The per-sender filter rule offered from the participants panel. The Trash is named from the
+    // account's OWN cached folder list (no network), the script state is read once when the panel
+    // opens, and which of the four answers all that makes is senderRuleEntry()'s.
     val senderRules by viewModel.senderRules.collectAsStateWithLifecycle()
     val accountAddresses by viewModel.accountAddresses.collectAsStateWithLifecycle()
     // The header's arrival line counts IDENTITIES, not `accountAddresses`: the latter folds in the
-    // login, which is an authentication identifier and not an address. See the flow in the VM.
+    // login, which is an authentication identifier and not an address.
     val identityAddresses by viewModel.identityAddresses.collectAsStateWithLifecycle()
     val accountMailboxes by viewModel.accountMailboxes.collectAsStateWithLifecycle()
     val senderRuleStatus by viewModel.senderRuleStatus.collectAsStateWithLifecycle()
@@ -1636,29 +1494,21 @@ private fun MessageContent(
         viewModel.clearSenderRuleStatus()
     }
     // The word a failed action on the OPEN message leaves behind (#99). A toast and not the error
-    // screen: the message is still there, and still readable — see `readerActionFailureText`.
-    // It belongs HERE, in the composable's own body, beside the effect above and outside every
-    // menu and dialog: moved inside one, it is disposed the moment the menu closes on the tap
-    // that caused the failure, and the refusal is never shown at all.
+    // screen: the message is still there and still readable.
+    // It belongs HERE, outside every menu and dialog: moved inside one, it is disposed the moment
+    // the menu closes on the tap that caused the failure, and the refusal is never shown at all.
     val actionStatus by viewModel.actionStatus.collectAsStateWithLifecycle()
     LaunchedEffect(actionStatus) {
         val status = actionStatus ?: return@LaunchedEffect
         Toast.makeText(context, status, Toast.LENGTH_SHORT).show()
         viewModel.clearActionStatus()
     }
-    // "Save" on an attachment row: the system picker, then the part's server bytes straight into
-    // the document it returns (MessageViewModel.saveAttachment). Declared HERE, in the page's
-    // own body and outside every section, menu and loop, for the reason the .eml launcher gives
-    // where it sits: registered further down, it is disposed the moment the thing that carries it
-    // recomposes away — the header rebuilds on every settle — and the picker's result comes back
-    // with nowhere to land, so the tap saves nothing and says nothing.
-    // The three keys are rememberSaveable and not remember: the picker is another activity, the
-    // system may recreate this one behind it, and a plain remember comes back empty. Empty is
-    // refused by the ViewModel's owner guard, so the save would be lost without a word.
-    // The MIME type is "*/*", fixed ONCE, and not the touched part's: a CreateDocument contract
-    // freezes its type when the launcher is registered, so typing it per part would need a
-    // recomposition between the tap and launch() — a race. What types the file in the end is its
-    // extension, carried by the proposed name (attachmentFileName).
+    // "Save" on an attachment row. Declared HERE, outside every section, menu and loop: registered
+    // further down it is disposed the moment its host recomposes away — the header rebuilds on every
+    // settle — and the picker's result has nowhere to land. The three keys are rememberSaveable
+    // because the picker is another activity.
+    // The MIME type is "*/*", fixed ONCE: a CreateDocument contract freezes its type at
+    // registration. What types the file is its extension, carried by the proposed name.
     var saveAttachmentFor by rememberSaveable { mutableStateOf("") }
     var saveAttachmentPart by rememberSaveable { mutableStateOf("") }
     var saveAttachmentName by rememberSaveable { mutableStateOf("") }
@@ -1668,11 +1518,10 @@ private fun MessageContent(
         // A cancelled picker (null) does nothing — no word, no file.
         if (uri != null) viewModel.saveAttachment(uri, saveAttachmentName, saveAttachmentFor, saveAttachmentPart)
     }
-    // Print (the overflow menu's last entry). The document is built HERE and not in the menu
-    // because this is where the three decisions the reader took live — the body it renders
-    // (`readerBody`, the same call the page makes), the reading mode, and whether remote images
-    // are shown — so what comes out of the printer is what was on the screen. Every string is
-    // resolved in the composable's body and captured: the effect runs outside composition.
+    // Print (the overflow menu's last entry). The document is built HERE, not in the menu, because
+    // this is where the three decisions the reader took live — the body it renders, the reading mode,
+    // and whether remote images are shown. Every string is resolved in the composable's body and
+    // captured: the effect runs outside composition.
     val printRequested by viewModel.printRequested.collectAsStateWithLifecycle()
     val printLabels = PrintLabels(
         from = stringResource(R.string.participants_from),
@@ -1686,15 +1535,14 @@ private fun MessageContent(
     val appName = stringResource(R.string.app_name)
     LaunchedEffect(printRequested) {
         if (!printRequested) return@LaunchedEffect
-        // Consumed first, whatever happens next: a request that stayed raised would fire again
-        // on the next recomposition, and on the next message.
+        // Consumed first, whatever happens next: a request that stayed raised would fire again on the
+        // next recomposition, and on the next message.
         viewModel.printConsumed()
         val msg = messages.firstOrNull() ?: return@LaunchedEffect
         val full = msg.body ?: return@LaunchedEffect
         val activity = context.findActivity() ?: return@LaunchedEffect
-        // The date the header on screen shows — the cached header's, read through a local so the
-        // neighbouring lint on the header's own date line (DeliveredToInHeaderCallSiteTest) is
-        // not tripped by a line that is not the one it pins.
+        // The date the header on screen shows, read through a local so the neighbouring lint on the
+        // header's own date line is not tripped by a line that is not the one it pins.
         val receivedAt = msg.header.receivedAt
         val header = PrintHeader(
             subject = (full.subject ?: msg.header.subject)?.takeIf { it.isNotBlank() } ?: printNoSubject,
@@ -1740,8 +1588,8 @@ private fun MessageContent(
             is MessageState.Loaded -> ConversationBody(
                 messages = messages,
                 blockRemote = !showRemote,
-                // Not the same question as `blockRemote`: this one says whether the reader ever
-                // had anything held back on this page, and it is read ONCE (see ConversationBody).
+                // Not the same question as `blockRemote`: this one says whether the reader ever had
+                // anything held back on this page, and it is read ONCE.
                 senderAllowed = senderAllowed,
                 onShowImages = viewModel::showImagesOnce,
                 stripTracking = stripTracking,
@@ -1764,11 +1612,10 @@ private fun MessageContent(
                 senderRule = senderRule,
                 showRecipients = ownMessage,
                 deliveredTo = deliveredTo,
-                // Which of the reader's own addresses this arrived on, as the header's third
-                // line (#180), on the data #81 already resolves. Decided HERE and once, like the
-                // "Original sender" line: the guard is a plain function a unit test executes, and
-                // the header only paints the answer. `ownMessage` is the SAME value that turns the
-                // line above into "To: …" two lines up — an outgoing message has no arrival.
+                // Which of the reader's own addresses this arrived on, as the header's third line
+                // (#180). Decided HERE and once, like the "Original sender" line: the guard is a
+                // plain function a unit test executes, and the header only paints the answer.
+                // `ownMessage` is the SAME value that turns the line above into "To: …".
                 deliveredToLine = deliveredToInHeader(deliveredTo, identityAddresses, ownMessage),
                 crypto = crypto,
                 onCryptoAction = {
@@ -1779,13 +1626,13 @@ private fun MessageContent(
                 },
                 unsubscribe = unsubscribe,
                 unsubscribeState = unsubscribeState,
-                // The banner never acts on its own: it opens the same confirmation the
-                // overflow entry does (decision D7).
+                // The banner never acts on its own: it opens the same confirmation the overflow entry
+                // does (D7).
                 onUnsubscribe = viewModel::askUnsubscribe,
                 readReceiptOffer = readReceiptOffer,
                 readReceiptState = readReceiptState,
-                // The two ends of the one gesture, and they must not be swapped: the first
-                // queues mail to a stranger, the second sends NOTHING and takes the question away.
+                // The two ends of the one gesture, and they must not be swapped: the first queues
+                // mail to a stranger, the second sends NOTHING and takes the question away.
                 onSendReadReceipt = viewModel::sendReadReceipt,
                 onDeclineReadReceipt = viewModel::declineReadReceipt,
             )
@@ -1794,10 +1641,9 @@ private fun MessageContent(
 }
 
 /**
- * How long a present-but-not-yet-revealed message body may stay hidden behind the spinner before
- * the reader shows it anyway. Comfortably past the normal path (page load, then a height poll that
- * caps at ~1s), so a legitimately slow body still reveals itself the accurate way and this never
- * fires; it only catches a body whose height report was lost for good.
+ * How long a present-but-not-yet-revealed body may stay hidden behind the spinner before the reader
+ * shows it anyway. Comfortably past the normal path, so a legitimately slow body still reveals
+ * itself the accurate way; it only catches a body whose height report was lost for good.
  */
 private const val BODY_REVEAL_FAILSAFE_MS = 2_500L
 
@@ -1817,14 +1663,12 @@ private fun ConversationBody(
     onRespondToInvite: (String) -> Unit,
     textZoom: Int,
     /** Read the message as text rather than as its HTML (#149). It selects the document below and
-     *  decides, with it, whether the images strip exists at all (see `imagesStripPresent` and the
-     *  comment on `imagesStrip`) — and nothing else here: the reveal machinery is keyed on the
-     *  message id, so a toggle rebuilds the document without putting the spinner back over a body
-     *  that is already on screen. */
+     *  decides, with it, whether the images strip exists at all — and nothing else here: the reveal
+     *  machinery is keyed on the message id, so a toggle rebuilds the document without putting the
+     *  spinner back over a body already on screen. */
     plainText: Boolean,
-    /** Whether the bottom Reply/Forward bar is wanted at all (#63). It gates the bar's visibility
-     *  and the blank the document reserves for it, and NOTHING else: the reveal machinery below
-     *  also drives the body's alpha, its spinner and the collapsing header. */
+    /** Whether the bottom Reply/Forward bar is wanted at all (#63). It gates the bar's visibility and
+     *  the blank the document reserves for it, and NOTHING else. */
     replyBarEnabled: Boolean,
     onBarVisibleChanged: (Boolean) -> Unit,
     onComposeTo: (address: String) -> Unit,
@@ -1846,136 +1690,71 @@ private fun ConversationBody(
 ) {
     val msg = messages.firstOrNull() ?: return
     val full = msg.body
-    // Whether the header says anything about blocked pictures at all (#153) — decided when the
-    // body arrives, then held, and re-decided on ONE gesture only. Both halves of that matter:
-    //  · the ANSWER may not change on its own, because the header's measured height keys the
-    //    remember() that builds the body's HTML document twenty lines below. A strip that appears
-    //    or disappears mid-read changes the header by a whole row, which re-keys that document and
-    //    cancels the body load in flight. What that costs depends on when it happens, both bad:
-    //    BEFORE the body has ever been revealed it costs the reveal itself — the height poll that
-    //    sets `bodyReady` was armed by the load just superseded and nothing re-arms it, so the
-    //    body sits at alpha 0 behind the spinner until the failsafe below lifts it. AFTER the
-    //    reveal `bodyReady` is latched (it is never set back to false), so the damage is in plain
-    //    sight instead: the document is rebuilt and reloaded under the reader's eyes and her
-    //    scroll position is lost, back to the top of the message. "Always show images from this
-    //    sender", chosen from the overflow menu while reading, is exactly that gesture: it flips
-    //    `senderAllowed`.
-    //  · the KEY is `(full, plainText)`, so exactly ONE thing can still flip this answer mid-read:
-    //    the reading-mode toggle in the overflow menu. BE HONEST ABOUT WHAT THAT COSTS — the
-    //    tempting claim, that the flip merely rides the rebuild `plainText` triggers anyway, is
-    //    FALSE. The strip's presence is itself an input to the document's key, through the header
-    //    height: this row + its divider are ~49 dp, `onSizeChanged` writes `headerHeightPx` in the
-    //    LAYOUT phase (a pass later than the composition that saw `plainText` change), and that
-    //    feeds `topSpacerCss`, which the HTML remember() keys on. So the toggle loads the
-    //    document TWICE: once for the mode, then again for the header that changed under it.
-    //    That is accepted here, and only here, because the toggle is a gesture that ALREADY
-    //    replaces the whole document and already puts the reader back at the top — she asked for
-    //    a different rendering. It is NOT accepted for a gesture that promises to move nothing,
-    //    which is why `senderAllowed` stays out of the key (see above).
-    //    `plainText` and NOT `imageMode`, and the difference is exactly that gesture: the
-    //    image-side mode is absent from the document's key AND flips on its own, when DataStore
-    //    answers, so keying on it would spend those two loads with no gesture behind them, on
-    //    every reader whose setting is off. The price paid instead is the other way round and is
-    //    written at `imagesStripPresent`: while DataStore has not answered, the strip may be
-    //    decided present next to images that are held back, and its button does nothing for those
-    //    few frames. (The rule at the overflow menu, "guarded on `imageMode`, NOT on `plainText`",
-    //    is about a menu that recomposes freely; it does not extend to a presence held like this.)
-    // `blockRemote` is deliberately NOT read here: it is the live state, and it chooses which of
-    // the strip's two same-height shapes is drawn — never whether the strip exists.
-    // In text mode there is no strip at all: `showRemoteImages` stays false while that mode holds,
-    // so the button could never do anything and would sit there live and dead (#149 × #153).
+    // Whether the header says anything about blocked pictures at all (#153) — decided when the body
+    // arrives, then held, and re-decided on ONE gesture only.
+    // The ANSWER may not change on its own: the header's measured height keys the remember() that
+    // builds the body's HTML document, so a strip appearing mid-read cancels the load in flight —
+    // before the first reveal that costs the reveal, after it the reader's scroll position.
+    // The KEY is `(full, plainText)`, so only the reading-mode toggle can flip it. That costs TWO
+    // document loads, since the strip's presence feeds the key through the header height a pass later
+    // — accepted only there, because that gesture already replaces the document. `plainText` and NOT
+    // `imageMode`, which flips on its own when DataStore answers; the price is at `imagesStripPresent`.
+    // `blockRemote` is deliberately not read here: it chooses which same-height shape is drawn.
     val imagesStrip = remember(full, plainText) { imagesStripPresent(plainText, senderAllowed, full?.htmlContent()) }
     val density = LocalDensity.current
     // The body WebView OWNS all vertical scroll. It fills the viewport (so Blink culls offscreen
-    // tiles — the email-view jank fix, Codeberg #5) and there is NO outer Compose vertical scroll to
-    // compete for the gesture: vertical drags stay in the WebView, and a sideways one reaches the
-    // pager (swipe-between-messages on the body — #6) only on a body with less than one touch slop
-    // of sideways travel, never on a two-finger gesture (#152). The header is an OVERLAY that
-    // collapses (slides up) in lock-step with the body scroll; the Reply/Forward bar overlays the
-    // bottom, revealed only at the end (it never occupies scroll space, so it can't shrink the body
-    // into a show/hide loop).
-    // Both start HIDDEN and are only revealed once the body has ARRIVED and laid out. The body loads
-    // async, so a cold open first paints a cached header-only frame (full == null — see
-    // MessageViewModel) before the fetch returns. Initialising these to `!hasBody` (= shown) for that
-    // frame made the Reply/Forward bar flash in on the header-only frame and then reset to hidden when
-    // the body arrived. That brief show->hide was absorbed by the bar's fade, so it was invisible with
-    // animations ON, but with the OS "Remove animations" setting ON (animator duration scale 0) the
-    // fade is instant and the flash rendered as a blink (Codeberg #63). Starting hidden removes the
-    // transient entirely: once the body is ready the scroll-end logic below drives the one clean
-    // reveal. (On a successful load the body always becomes non-null, so there is no resting
-    // header-only state to keep shown — the WebView's onReady/onScroll always take over.)
-    // That left the OTHER half of #63: the bar's resting state was only ever decided by the first
-    // scroll report, a few hundred ms after the body appeared, so the reader still arrived in two
-    // steps. The height poll that makes the body ready already knows the geometry the decision
-    // needs, so `onReady` now carries it and both are set below in one recomposition.
-    // And that in turn left the LAST half: two writers (`onReady` and `onScroll` below) then decided
-    // the same value from geometry measured at different instants, each answering only for its own
-    // report. A body grows while it lays out, so the later, larger measurement could contradict the
-    // earlier one and pull a bar that was already on screen back down — the reporter's "appears then
-    // leaves". [BarReveal] now folds both writers' reports into one running state and is the one
-    // place the ordering is decided: the range only grows, and only the reader moving takes the bar
-    // back. It is a plain holder, NOT Compose state: it tracks the live scroll offset (that is how
-    // it tells a reader who moved from a measurement that landed late), and that offset changes
-    // every scroll frame — observing it here would recompose the reader once per frame on the very
-    // scroll path #5/#6 were about. Only the Boolean verdict is mirrored into Compose state, where
-    // re-writing the same value is free.
+    // tiles — #5) and there is no outer Compose vertical scroll: a sideways drag reaches the pager
+    // (#6) only under one touch slop of sideways travel, never on two fingers (#152). The header
+    // overlays and collapses with the scroll; the bar overlays the bottom and takes no scroll space.
+    // Both start HIDDEN and are revealed only once the body has laid out: seeded `!hasBody` the bar
+    // flashed in on the header-only frame — a blink with "Remove animations" on (#63). The rest of
+    // #63 was two writers deciding the same value from geometry measured at different instants, so a
+    // later, larger measurement pulled a bar already on screen back down. [BarReveal] folds both
+    // reports and is the one place the ordering is decided; it is a plain holder, NOT Compose state,
+    // because it tracks the live scroll offset and observing that recomposes once per frame.
     var bodyReady by remember(msg.id) { mutableStateOf(false) }
     val barReveal = remember(msg.id) { BarReveal() }
     var showBar by remember(msg.id) { mutableStateOf(false) }
     // A reading-mode switch (#149) puts a DIFFERENT body under the same message id, so the geometry
-    // folded in so far is about a document that is gone: the newsletter's 8000 px range would
-    // outlive its 900 px flattening, and the bar — which only shows at a range the new body can no
-    // longer reach — would never come back, in either mode, until the message is closed.
+    // folded in so far is about a document that is gone: the newsletter's 8000 px range would outlive
+    // its 900 px flattening, and the bar would never come back in either mode.
     // Keyed on `plainText` and on NOTHING else: the document is also rebuilt by an inline-image
     // insert, a theme change or a header resize, and forgetting the range on those paths would take
-    // the bar away mid-read, which is exactly Codeberg #63. `bodyReady` and the rest below stay
-    // keyed on msg.id for the same reason: the body is already on screen, and re-arming its
-    // readiness would flash the spinner back over a message the reader is reading.
+    // the bar away mid-read, which is exactly #63.
     LaunchedEffect(plainText) { barReveal.documentReplaced() }
-    // The VISIBLE Reply/Forward bar is fixed chrome at the pager level (outside the horizontal
-    // swipe — #62): this page only reports whether its resting/scroll state wants the bar, and
-    // the chrome follows the SETTLED page's value. The invisible measuring copy below stays
-    // in-page — it only reserves the bar's height in the document.
+    // The VISIBLE Reply/Forward bar is fixed chrome at the pager level (#62): this page only reports
+    // whether its state wants the bar. The invisible measuring copy below stays in-page — it only
+    // reserves the bar's height in the document.
     val barVisible = replyBarVisible(replyBarEnabled, bodyReady, showBar)
     LaunchedEffect(barVisible) { onBarVisibleChanged(barVisible) }
     // Measured header height (device px) and the live body scroll offset. scrollY is read only in the
-    // layout phase (the header's offset lambda) so updating it every scroll frame re-lays-out the
-    // header translate WITHOUT a recomposition.
+    // layout phase, so updating it every scroll frame re-lays-out the header WITHOUT a recomposition.
     var headerHeightPx by remember(msg.id) { mutableIntStateOf(0) }
-    // The body's own viewport height (device px). The WebView is a fillMaxSize() child of the Box
-    // below, so this IS the WebView's height, and it is measured in the SAME layout pass as the
-    // header — no extra round trip. It is the denominator of both document spacers: they are
-    // reserved in `vh`, one hundredth of this, which is the only unit the page's own scale does not
-    // change. See [bodySpacerCss].
+    // The body's own viewport height (device px), measured in the SAME layout pass as the header. It
+    // is the denominator of both document spacers: they are reserved in `vh`, one hundredth of this,
+    // which is the only unit the page's own scale does not change. See [bodySpacerCss].
     var bodyViewportPx by remember(msg.id) { mutableIntStateOf(0) }
     val scrollY = remember(msg.id) { mutableIntStateOf(0) }
     var spinnerDue by remember(msg.id) { mutableStateOf(false) }
     LaunchedEffect(msg.id) { delay(500); spinnerDue = true }
-    // Failsafe reveal. [bodyReady] is driven by ONE height poll, started by the WebView's
-    // onPageFinished; a load that is superseded before it finishes never delivers that callback,
-    // and nothing re-arms the poll. When that happened the body stayed at alpha 0 behind the
-    // spinner for the whole life of the page — no wait, no refresh and no retry ever got it back;
-    // only closing and reopening the message did. It hit the page the reader OPENS ON far more
-    // often than a page swiped into, because the settled page is also the one that runs the
-    // OpenPGP auto-decrypt, and each crypto state it goes through resizes the header, which
-    // re-keys the document below it and cancels the load in flight.
-    // Readiness only exists to avoid showing a half-laid-out body, so past a grace period show it
-    // regardless: a late reveal is a blink, a body that never arrives is mail that cannot be read.
+    // Failsafe reveal. [bodyReady] is driven by ONE height poll started by onPageFinished; a load
+    // superseded before it finishes never delivers that callback and nothing re-arms the poll, so the
+    // body stayed at alpha 0 for the life of the page. It hit the page the reader OPENS ON most,
+    // whose OpenPGP auto-decrypt resizes the header and re-keys the document. Past a grace period
+    // show it regardless: a late reveal is a blink, a body that never arrives is unreadable mail.
     LaunchedEffect(msg.id, full != null) {
         if (full == null) return@LaunchedEffect
         delay(BODY_REVEAL_FAILSAFE_MS)
         bodyReady = true
     }
     val revealThresholdPx = with(density) { 4.dp.roundToPx() }
-    // The body reserves exactly the overlaying Reply/Forward bar's measured height (see the invisible
-    // measuring copy below) plus a little clearance, so the bar never covers the last line when it
-    // reveals at the end. A default until measured avoids any cut on the first frame.
+    // The body reserves the overlaying bar's measured height plus a little clearance, so the bar never
+    // covers the last line when it reveals. A default until measured avoids any cut on the first frame.
     var barHeightPx by remember { mutableIntStateOf(0) }
-    // Zero when the bar is switched off: the blank is a DIV inside the document, so leaving it
-    // there would end every message with a strip of white under nothing (#63). The fallback height
-    // and the clearance live inside bodyBottomInsetPx, where a test can exercise them: as two
-    // `val`s here they could be swapped for each other, which puts ~72 dp of white at the end of
-    // every message with nothing to see in a diff and no test able to reach it.
+    // Zero when the bar is switched off: the blank is a DIV inside the document, so leaving it there
+    // would end every message with a strip of white under nothing (#63). The fallback height and the
+    // clearance live inside bodyBottomInsetPx, where a test can exercise them: as two `val`s here they
+    // could be swapped, putting ~72 dp of white at the end of every message with nothing to see.
     val bottomInsetPx = bodyBottomInsetPx(replyBarEnabled, barHeightPx, density.density)
 
     Box(
@@ -1985,15 +1764,11 @@ private fun ConversationBody(
             .background(MaterialTheme.colorScheme.surface),
     ) {
         // Invisible, no-op copy of the bar, used ONLY to measure its height up front so the body
-        // reserves the right space from the first frame (no content jump when the bar appears). It is
-        // the bottom-most child, so the WebView above it takes all touches; its onReply is a no-op.
-        //
-        // Composed only when the bar is switched on (#63). alpha(0f) hides it from the eye and not
-        // from the finger — Compose hit-tests a fully transparent node exactly like any other — so
-        // with the setting OFF and no body yet on top of it (offline, a load that failed) a band
-        // the height of a bar it was told not to show would sit at the bottom taking taps. Nothing
-        // else needs it either: bodyBottomInsetPx answers 0 while the setting is off, whatever
-        // barHeightPx happens to hold.
+        // reserves the right space from the first frame. It is the bottom-most child, so the WebView
+        // above it takes all touches.
+        // Composed only when the bar is switched on (#63): alpha(0f) hides it from the eye and not
+        // from the finger, so with the setting OFF and no body on top of it a band the height of a bar
+        // it was told not to show would sit at the bottom taking taps.
         if (replyBarEnabled) {
             Box(
                 Modifier
@@ -2016,41 +1791,32 @@ private fun ConversationBody(
                 dark = dark,
             )
             // The document carries a transparent TOP spacer of the header's height, so the collapsing
-            // header overlays blank space (never the content) and the content begins right below it.
-            // We wait for BOTH measurements — the header's height and the body's own viewport,
-            // which the blank is expressed against — before loading, so the body loads ONCE with
-            // the two right spacers: no reflow, no reload, no document rebuilt under her eyes.
+            // header overlays blank space and the content begins right below it. We wait for BOTH
+            // measurements before loading, so the body loads ONCE with the two right spacers.
             if (headerHeightPx > 0 && bodyViewportPx > 0) {
                 // Reserved as a SHARE OF THE VIEW (vh), not as a count of CSS pixels: a newsletter
-                // that carries its own <meta viewport> lays the page out at a scale of its own, and
-                // a px count then paints that many fewer screen pixels than the opaque header
-                // covers — message hidden under the header, unreachable by scrolling (#171). `vh`
-                // is measured against the LAYOUT viewport, so that scale cancels. A scale applied
-                // without a re-layout (a pinch, or shrink-to-fit on an overflowing
-                // width=device-width message) is out of reach of any CSS length — see
-                // [bodySpacerCss], which says why that is not fixable here.
+                // with its own <meta viewport> lays out at a scale of its own, and a px count then
+                // paints fewer screen pixels than the opaque header covers — message hidden under the
+                // header, unreachable by scrolling (#171). A scale applied without a re-layout (a
+                // pinch, or shrink-to-fit) is out of reach of any CSS length — see [bodySpacerCss].
                 val topSpacerCss = bodySpacerCss(headerHeightPx, bodyViewportPx)
                 // Bottom spacer is a real DOCUMENT element (scrollable content), NOT WebView view
-                // padding: view padding with clipToPadding CLIPS the last lines instead of letting them
-                // scroll above it, so the bar covered the end. In dark mode the spacer is transparent
-                // (buildHtmlDocument) so it shows the native surface and doesn't invert to an off-black box.
-                // Same unit as the top one, for the same reason.
+                // padding: view padding with clipToPadding CLIPS the last lines instead of letting
+                // them scroll above it. In dark mode it is transparent so it shows the native surface.
                 val bottomSpacerCss = bodySpacerCss(bottomInsetPx, bodyViewportPx)
-                // The "derived text" and "no content" lines are resolved here, where a Composable
-                // can read resources, and handed to the document already localised.
+                // The "derived text" and "no content" lines are resolved here, where a Composable can
+                // read resources, and handed to the document already localised.
                 val derivedNotice = stringResource(R.string.message_plain_text_derived)
                 val noContent = stringResource(R.string.message_no_content)
                 // The quote-fold button's label, resolved here for the same reason as the two
                 // above. A locale change recreates the activity, so it is safe in the key below.
                 val quoteLabel = stringResource(R.string.message_quoted_text)
-                // plainText is part of the key, or the toggle would change the mode and re-render
-                // the SAME document; the rebuilt document then differs, which is what makes
-                // EmailWebView's loadKey reload the page.
-                // The two spacers enter the key as the LENGTHS themselves, and those depend on
-                // two screen measurements only — never on the page's scale. Anything a pinch can
-                // change must stay out of this key: it would rebuild the document under the
-                // reader's finger, which reloads the page, flashes white, sends her back to the top
-                // and resets the zoom she was setting — in a loop, for as long as she pinches.
+                // plainText is part of the key, or the toggle would change the mode and re-render the
+                // SAME document.
+                // The two spacers enter the key as the LENGTHS themselves, which depend on two
+                // screen measurements only — never on the page's scale. Anything a pinch can change
+                // must stay out of this key: it would rebuild the document under the reader's finger,
+                // flash white, send her back to the top and reset the zoom, in a loop.
                 val html = remember(
                     full, msg.inlineImages, emailTheme, topSpacerCss, bottomSpacerCss,
                     plainText, derivedNotice, noContent, quoteLabel,
@@ -2067,23 +1833,11 @@ private fun ConversationBody(
                     confirmLinks = confirmLinks,
                     backgroundColor = scheme.surface.toArgb(),
                     textZoom = textZoom,
-                    // ONE reveal, not two (Codeberg #63). [resting] is the body's scroll geometry
-                    // as measured by the very height poll that made it ready — non-null only when
-                    // that height came from two agreeing readings, i.e. a real measurement. With
-                    // it the bar's resting state is decided in the SAME recomposition that reveals
-                    // the body, so both land in one frame instead of the bar trailing the body by
-                    // the settle poll's few hundred milliseconds (which the OS "remove animations"
-                    // setting renders as a blink rather than a fade).
-                    // When it is null (the poll capped out, or the height came from a fallback) we
-                    // learned nothing solid: report nothing and let the settle poll decide, as
-                    // before. Nothing here shows the bar ahead of a measurement — a long body must
-                    // never flash a bar that immediately scrolls away.
-                    // Both callbacks below are REPORTS, not verdicts: they hand their geometry to
-                    // [BarReveal], which alone decides — including the rule that an unmeasured
-                    // height decides nothing. That is what keeps the two of them from contradicting
-                    // each other; see the note on `barReveal` above. Assigning `showBar` on every
-                    // scroll frame is free while the verdict does not change (Compose skips a state
-                    // write that is structurally equal), so the reader is not recomposed per frame.
+                    // ONE reveal, not two (#63). [resting] is the geometry measured by the height poll
+                    // itself, non-null only from two agreeing readings, so the bar's resting state is
+                    // decided in the SAME recomposition that reveals the body. Null means nothing was
+                    // learned: report nothing and let the settle poll decide. Both callbacks are
+                    // REPORTS, not verdicts — [BarReveal] alone decides.
                     onReady = { resting ->
                         showBar = barReveal.bodyReady(resting, revealThresholdPx)
                         bodyReady = true
@@ -2092,12 +1846,10 @@ private fun ConversationBody(
                         scrollY.intValue = m.scrollY
                         showBar = barReveal.scrolled(m, revealThresholdPx, lastWord)
                     },
-                    // The body she is reading changed height under her own finger — the quote fold
-                    // opened or closed. The scroll offset goes with the verdict: the WebView clamps
-                    // its own scroll as it shrinks, and the collapsing header reads this value, so
-                    // without it the header would stay translated off a scroll that no longer
-                    // exists. This is the ONLY door allowed to forget the range of the body as it
-                    // was before the fold — see [BarReveal.resized].
+                    // The body she is reading changed height under her own finger — the quote fold.
+                    // The scroll offset goes with the verdict: the WebView clamps its own scroll as it
+                    // shrinks, and the collapsing header reads this value. This is the ONLY door
+                    // allowed to forget the range of the body as it was before the fold.
                     onResized = { m ->
                         scrollY.intValue = m.scrollY
                         showBar = barReveal.resized(m, revealThresholdPx)
@@ -2107,8 +1859,7 @@ private fun ConversationBody(
             }
         }
         // The collapsing header: translated up by how far the body has scrolled (clamped to its own
-        // height), so it slides away with the content and is gone once the body scrolls past it. It
-        // is opaque (surface) and drawn ON TOP of the body, covering the document's top spacer.
+        // height). It is opaque and drawn ON TOP of the body, covering the document's top spacer.
         Box(
             Modifier
                 .align(Alignment.TopStart)
@@ -2144,16 +1895,15 @@ private fun ConversationBody(
                 LoadingRing(Modifier.size(24.dp), strokeWidth = 2.dp)
             }
         }
-        // No visible Reply/Forward bar here: it is rendered once, fixed, by MessagePager (#62),
-        // driven by the [onBarVisibleChanged] reports above.
+        // No visible Reply/Forward bar here: it is rendered once, fixed, by MessagePager (#62).
     }
 }
 
 /** The Reply / Forward action bar: a divider above a full-width Reply button + Forward button. */
 @Composable
 private fun ReplyForwardBar(onReply: (mode: String) -> Unit) {
-    // Opaque surface background: the bar overlays the bottom of the body, so it must hide the
-    // content scrolling beneath it rather than letting it show through.
+    // Opaque surface background: the bar overlays the bottom of the body, so it must hide the content
+    // scrolling beneath it.
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
         HorizontalDivider()
         Row(
@@ -2183,9 +1933,8 @@ private fun ReplyForwardBar(onReply: (mode: String) -> Unit) {
 }
 
 /**
- * The collapsing message header (sender, date, star/attachment, plus any attachment list and
- * calendar invite). Rendered as an overlay above the body WebView and translated up with the scroll
- * (see [ConversationBody]); a trailing divider separates it from the body.
+ * The collapsing message header (sender, date, star/attachment, plus any attachment list and calendar
+ * invite). Rendered as an overlay above the body WebView and translated up with the scroll.
  */
 @Composable
 private fun MessageHeader(
@@ -2193,9 +1942,9 @@ private fun MessageHeader(
     full: Email?,
     attachmentStatus: String?,
     onOpenAttachment: (EmailBodyPart, String) -> Unit,
-    /** Declared right after [onOpenAttachment] and handed over POSITIONALLY from
-     *  [ConversationBody], like everything up to `onCryptoAction`: two lambdas of the same type,
-     *  and swapped, the row's name would save and its icon would open. */
+    /** Declared right after [onOpenAttachment] and handed over POSITIONALLY, like everything up to
+     *  `onCryptoAction`: two lambdas of the same type, and swapped, the row's name would save and its
+     *  icon would open. */
     onSaveAttachment: (EmailBodyPart, String) -> Unit,
     calendar: CalendarInvite?,
     onRespondToInvite: (String) -> Unit,
@@ -2205,14 +1954,12 @@ private fun MessageHeader(
     deliveredTo: String? = null,
     crypto: CryptoUiState = CryptoUiState.None,
     onCryptoAction: () -> Unit = {},
-    /** The arrival line to paint under the date, already decided by [deliveredToInHeader] — null
-     *  on a single-address account, which is the whole of the guard. Not re-judged here.
-     *  Declared AFTER [onCryptoAction] on purpose: the call above passes everything up to it
-     *  POSITIONALLY, so a parameter slipped in earlier silently shifts `crypto` by one. */
+    /** The arrival line to paint under the date, already decided by [deliveredToInHeader]. Not
+     * re-judged here. Declared AFTER [onCryptoAction] on purpose: the call above passes everything
+     *  up to it POSITIONALLY, so a parameter slipped in earlier silently shifts `crypto` by one. */
     deliveredToLine: String? = null,
-    /** Whether this message has remote content that was held back — decided in [ConversationBody],
-     *  and held there for as long as the reading mode does NOT change. It is not frozen for the
-     *  life of the page: a reading-mode toggle re-decides it, at the cost written out there. */
+    /** Whether this message has remote content that was held back — decided in [ConversationBody] and
+     *  held there for as long as the reading mode does NOT change. */
     imagesStrip: Boolean = false,
     /** The LIVE state: which of the strip's two same-height shapes is drawn. */
     imagesBlocked: Boolean = true,
@@ -2226,9 +1973,9 @@ private fun MessageHeader(
     onDeclineReadReceipt: () -> Unit = {},
 ) {
     val sender = msg.header.from.firstOrNull()
-    // The user's own message (Sent/Drafts, or sent under one of the account's identities): the
-    // sender is yourself, so the header line names the recipients instead (Codeberg #59). Falls
-    // back to the sender while no recipients are known (e.g. a cold IMAP cache).
+    // The user's own message (Sent/Drafts, or sent under one of the account's identities): the sender
+    // is yourself, so the header line names the recipients instead (#59). Falls back to the sender
+    // while no recipients are known.
     val recipients = if (showRecipients) msg.header.to.ifEmpty { full?.to.orEmpty() } else emptyList()
     val recipient = recipients.firstOrNull()
     val unread = !msg.header.isSeen
@@ -2236,8 +1983,8 @@ private fun MessageHeader(
     // actions. To/Cc live on the full body, so they populate once it has loaded.
     var showParticipants by remember(msg.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        // The full subject, wrapping. The toolbar can only show a truncated single line (it shares
-        // its width with the action icons), so the complete text lives here (Codeberg #44).
+        // The full subject, wrapping. The toolbar can only show a truncated single line (it shares its
+        // width with the action icons), so the complete text lives here (#44).
         Text(
             text = msg.header.subject?.takeIf { it.isNotBlank() }
                 ?: stringResource(R.string.message_no_subject),
@@ -2279,28 +2026,26 @@ private fun MessageHeader(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // Which of YOUR addresses this arrived on (#180), visible without opening anything.
-                // Already decided by `deliveredToInHeader` at MessageContent's call site — null on
-                // a single-address account — so nothing is judged here, and the participants
-                // panel's own ReceivedAtGroup stays unconditional: the panel is what one opens FOR
-                // this, and it is promised there even on an account with a single address.
+                // Which of YOUR addresses this arrived on (#180). Already decided by
+                // `deliveredToInHeader` at the call site — null on a single-address account — so
+                // nothing is judged here, and the participants panel's own ReceivedAtGroup stays
+                // unconditional: the panel is what one opens FOR this.
                 if (deliveredToLine != null) {
                     Text(
                         text = stringResource(R.string.message_received_at, deliveredToLine),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        // 2 lines, not 1. The rule above OriginalSenderGroup — "only what comes
-                        // from the sender is clamped" — cannot be applied word by word here, since
-                        // the label and the address share ONE formatted string. Two lines let the
-                        // label wrap in de and ru while a long alias still cannot grow the header
-                        // without end (its height keys the body document, see ConversationBody).
+                        // 2 lines, not 1. The rule above OriginalSenderGroup — "only what comes from
+                        // the sender is clamped" — cannot apply word by word here, since the label and
+                        // the address share ONE formatted string. Two lines let the label wrap in de
+                        // and ru while a long alias still cannot grow the header without end.
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            // OpenPGP badges: a lock when the message is/was encrypted, a seal for the
-            // signature state (colored by verdict). Mirrors the star/paperclip style.
+            // OpenPGP badges: a lock when the message is/was encrypted, a seal for the signature
+            // state. Mirrors the star/paperclip style.
             if (crypto != CryptoUiState.None) {
                 val decrypted = (crypto as? CryptoUiState.Decrypted)?.result
                 val encrypted = decrypted?.wasEncrypted
@@ -2373,31 +2118,27 @@ private fun MessageHeader(
                 )
             }
         }
-        // The pictures this message wanted from someone else's server, and did not get (#153).
-        // Until this, nothing on screen said so at all: the only way through was an entry buried
-        // in the reader's overflow menu, which a reader has no reason to open for a message that
-        // simply looks broken. The entry stays — it is the only way out when the detection misses.
+        // The pictures this message wanted from someone else's server, and did not get (#153). Until
+        // this, nothing on screen said so: the only way through was an overflow entry no one opens for
+        // a message that simply looks broken. The entry stays — it is the way out when detection misses.
         if (imagesStrip) {
             HorizontalDivider()
             ImagesStrip(imagesBlocked, onShowImages)
         }
-        // The way out of a mailing list, when the sender offers one. Last of the strips, so it
-        // never pushes the crypto verdict or a meeting invitation below the fold.
+        // The way out of a mailing list, when the sender offers one. Last of the strips, so it never
+        // pushes the crypto verdict or a meeting invitation below the fold.
         unsubscribe?.let { options ->
             HorizontalDivider()
             UnsubscribeStrip(options, unsubscribeState, onUnsubscribe)
         }
-        // The answer to a sender who asked to be told this was displayed (#148). LAST of the
-        // strips, for the same reason the unsubscribe one was: it must never push the crypto
-        // verdict or a meeting invitation below the fold. Its own presence is `readReceiptStrip`'s
-        // decision — null for very nearly every message, and for every reader who left the switch
-        // off — so the divider goes with it rather than framing an empty row.
+        // The answer to a sender who asked to be told this was displayed (#148). LAST of the strips,
+        // for the unsubscribe strip's reason. Its own presence is `readReceiptStrip`'s decision — null
+        // for very nearly every message — so the divider goes with it rather than framing an empty row.
         readReceiptStrip(readReceiptOffer, readReceiptState)?.let { strip ->
             HorizontalDivider()
-            // NAMED, both of them, and not as a matter of style: the two lambdas have the same
-            // type, so passed positionally a swap of the two lines in the callee's signature
-            // compiles and makes the refusal QUEUE a receipt while the button does nothing. Named,
-            // that swap cannot be written at all.
+            // NAMED, both of them, and not as a matter of style: the two lambdas have the same type,
+            // so passed positionally a swap in the callee's signature compiles and makes the refusal
+            // QUEUE a receipt while the button does nothing.
             ReadReceiptStrip(
                 strip,
                 onSendReadReceipt = onSendReadReceipt,
@@ -2422,12 +2163,9 @@ private fun MessageHeader(
 }
 
 /**
- * Everything the participants panel needs to offer the per-sender filter rule, in one value so
- * the reader's composables gain ONE parameter rather than three.
- *
- * [entryFor] is [senderRuleEntry] with the screen's state already bound — a plain function a JVM
- * test runs, called here rather than restated. [onOpened] reads the account's script the first
- * time the panel is opened; [onBlock] adds the rule.
+ * Everything the participants panel needs to offer the per-sender filter rule, in one value so the
+ * reader's composables gain ONE parameter rather than three. [entryFor] is [senderRuleEntry] with the
+ * screen's state already bound, called here rather than restated.
  */
 private class SenderRuleOffer(
     val entryFor: (isSender: Boolean, address: String) -> SenderRuleEntry =
@@ -2438,11 +2176,8 @@ private class SenderRuleOffer(
 
 /**
  * Slide-up panel listing every participant of the open message, grouped From / To / Cc, each with
- * their full address and actions (add to contacts, write to, copy address, copy name + address,
- * and — for the sender alone — the per-sender filter rule), above them [deliveredTo]: which of
- * the reader's OWN addresses received it (#81).
- * Opened by tapping the sender in [MessageHeader]. To/Cc come from the full body, so they are empty
- * until it has loaded.
+ * their full address and actions — and, above them, which of the reader's OWN addresses received it
+ * (#81). To/Cc come from the full body, so they are empty until it has loaded.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -2456,8 +2191,7 @@ private fun ParticipantsSheet(
     senderRule: SenderRuleOffer,
     onDismiss: () -> Unit,
 ) {
-    // The one round-trip this feature costs, paid when the panel is opened and not when a
-    // message is: see MessageViewModel.loadSenderRules.
+    // The one round-trip this feature costs, paid when the panel is opened and not when a message is.
     LaunchedEffect(Unit) { senderRule.onOpened() }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -2474,14 +2208,12 @@ private fun ParticipantsSheet(
             // First, because it is the one line the panel is opened for on a multi-alias account:
             // scanning a long To/Cc list for your own address is exactly what this spares (#81).
             ReceivedAtGroup(deliveredTo)
-            // Under "Received at" and ABOVE "From", which is the order the reader asks the panel
-            // its question in: what did this arrive on, what does it claim about where it came
-            // from, who does it say sent it.
+            // Under "Received at" and ABOVE "From", the order the reader asks the panel its question
+            // in: what did this arrive on, what does it claim about where it came from, who sent it.
             OriginalSenderGroup(originalSender)
-            // isSender is TRUE for the From group and false for the other two, and it is an
-            // argument of the decision rather than "whichever group got a callback": a rule on
-            // FROM aimed at someone who was merely in Cc is a rule about mail that person has
-            // not sent.
+            // isSender is TRUE for the From group and false for the other two, and it is an argument
+            // of the decision rather than "whichever group got a callback": a rule on FROM aimed at
+            // someone who was merely in Cc is a rule about mail that person has not sent.
             ParticipantGroup(R.string.participants_from, from, isSender = true, onComposeTo, senderRule)
             ParticipantGroup(R.string.participants_to, to, isSender = false, onComposeTo, senderRule)
             ParticipantGroup(R.string.participants_cc, cc, isSender = false, onComposeTo, senderRule)
@@ -2490,11 +2222,9 @@ private fun ParticipantsSheet(
 }
 
 /**
- * Which of YOUR addresses the message came in on (Codeberg #81). An account with several aliases
- * cannot tell that from the To/Cc lists above — it has to spot its own address among the others —
- * and it is what decides the identity a reply goes out under. One label, one address, no actions:
- * writing to yourself is not what this is for. Absent (nothing rendered) when no address of the
- * account is named, i.e. a mailing list or a Bcc delivery.
+ * Which of YOUR addresses the message came in on (#81). An account with several aliases has to spot
+ * its own address among the others, and this is what decides the identity a reply goes out under. One
+ * label, one address, no actions. Absent when no address of the account is named.
  */
 @Composable
 private fun ReceivedAtGroup(address: String?) {
@@ -2515,30 +2245,27 @@ private fun ReceivedAtGroup(address: String?) {
 
 /**
  * What the message SAYS about who wrote it, when a forwarding service relayed it (#160): an alias
- * puts its own address in both `From` and `To`, and nothing on screen then names the author, so a
- * reader cannot rule out a forgery. Rendered from [address], already decided by
- * [originalSenderToShow] — nothing is judged here.
+ * puts its own address in both `From` and `To`, and nothing on screen then names the author.
+ * Rendered from [address], already decided by [originalSenderToShow].
  *
- * No avatar, no menu, no action, on the shape of [ReceivedAtGroup] and not of [ParticipantRow]:
- * this is not a participant to write to, it is a claim the message makes about its own origin.
- * And the `From` above is not replaced by it: what arrived is still what arrived.
+ * No avatar, no menu, no action: this is a claim the message makes about its own origin, not a
+ * participant to write to. And the `From` above is not replaced by it.
  */
 @Composable
 private fun OriginalSenderGroup(address: EmailAddress?) {
     if (address == null) return
     HorizontalDivider()
-    // The LABEL is not bounded: it wraps, like `participants_received_at` which is already 19
-    // characters in fr and ru. Only what comes from the sender is clamped.
+    // The LABEL is not bounded: it wraps, like `participants_received_at`, already 19 characters in
+    // fr and ru. Only what comes from the sender is clamped.
     Text(
         stringResource(R.string.participants_original_sender),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
     )
-    // maxLines = 1 + ellipsis on both lines, exactly as [ParticipantRow] clamps a display name:
-    // this text is ENTIRELY sender-controlled, and `stripBidiAndControls` lets 0x09 and 0x0A
-    // through, so an unbounded Text here could be pushed down the panel
-    // by a tab-and-newline header until the groups under it leave the screen.
+    // maxLines = 1 + ellipsis on both lines, as [ParticipantRow] clamps a display name: this text is
+    // ENTIRELY sender-controlled, and `stripBidiAndControls` lets 0x09 and 0x0A through, so an
+    // unbounded Text could be pushed down the panel until the groups under it leave the screen.
     Text(
         address.display(),
         style = MaterialTheme.typography.bodyMedium,
@@ -2546,10 +2273,9 @@ private fun OriginalSenderGroup(address: EmailAddress?) {
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(start = 24.dp, end = 24.dp),
     )
-    // The bare address under the name, as [ParticipantRow] does — and here it is the whole point
-    // rather than a detail: a display name is precisely what a forgery gets right, so the address
-    // itself must always be readable. Omitted when there is no name, since `display()` IS the
-    // address then and one line would simply be printed twice.
+    // The bare address under the name, as [ParticipantRow] does — and here it is the whole point: a
+    // display name is precisely what a forgery gets right. Omitted when there is no name, since
+    // `display()` IS the address then.
     if (!address.name.isNullOrBlank()) {
         Text(
             address.email,
@@ -2595,10 +2321,9 @@ private fun ParticipantRow(
     val clipboard = LocalClipboardManager.current
     val copiedMsg = stringResource(R.string.status_address_copied)
     val noContactsAppMsg = stringResource(R.string.participant_no_contacts_app)
-    // Adding to Contacts CREATES something, and the contacts editor is slow enough to come up that
-    // a second tap lands while the screen is still ours: without this it filed the same person
-    // twice, and the duplicate is left behind in the user's address book long after the mail is
-    // forgotten. One latch per row: the next participant is another intention, not a stutter.
+    // Adding to Contacts CREATES something, and the contacts editor is slow enough to come up that a
+    // second tap lands while the screen is still ours: without this it filed the same person twice.
+    // One latch per row: the next participant is another intention, not a stutter.
     val leaveOnce = rememberLeaveOnce()
     val hasName = !addr.name.isNullOrBlank()
     var menuOpen by remember { mutableStateOf(false) }
@@ -2632,8 +2357,8 @@ private fun ParticipantRow(
         IconButton(onClick = {
             leaveOnce {
                 val opened = addToContacts(context, addr)
-                // No contacts app: say so and keep the button live — nothing was created, so
-                // there is nothing to protect against a second tap.
+                // No contacts app: say so and keep the button live — nothing was created, so there is
+                // nothing to protect against a second tap.
                 if (!opened) Toast.makeText(context, noContactsAppMsg, Toast.LENGTH_SHORT).show()
                 opened
             }
@@ -2678,12 +2403,10 @@ private fun ParticipantRow(
                     Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()
                 },
             )
-            // The per-sender rule, on the sender's row only. Which of the four states this is —
-            // absent, offered, already ruled, another script running — is senderRuleEntry(), a
-            // plain function a JVM test runs; all that happens here is that each answer gets a
-            // rendering. It is deliberately NOT in the message's own ⋮: a rule per sender is
-            // unconditional, so it would appear on every message ever opened, personal mail
-            // included, and take that menu to eight permanent entries.
+            // The per-sender rule, on the sender's row only. Which of the four states this is, is
+            // senderRuleEntry()'s answer; all that happens here is a rendering of each. Deliberately
+            // NOT in the message's own ⋮: a rule per sender is unconditional, so it would appear on
+            // every message ever opened and take that menu to eight permanent entries.
             if (entry != SenderRuleEntry.ABSENT) {
                 DropdownMenuItem(
                     enabled = entry == SenderRuleEntry.OFFERED,
@@ -2695,19 +2418,17 @@ private fun ParticipantRow(
         }
     }
     if (confirmRule) {
-        // A dialog, and this is the point of putting the gesture here: a list row has nowhere to
-        // say what the rule does, and this one says it before anything is written.
+        // A dialog, and this is the point of putting the gesture here: a list row has nowhere to say
+        // what the rule does, and this one says it before anything is written.
         AlertDialog(
             onDismissRequest = { confirmRule = false },
             title = { Text(stringResource(R.string.sender_volume_block_title, addr.email)) },
             text = {
-                // The body SCROLLS. Material's text slot is a height-bounded box with no
-                // scrolling of its own (the same finding as the open-link dialog further down
-                // this file), and a bare Text in it is CLIPPED — not ellipsised, not scrollable,
-                // just cut, with nothing on screen saying more text exists. At the largest font
-                // scale this sentence runs to seventeen lines in German and was measured cut
-                // mid-word; what it loses is "nothing already received moves" and where the rule
-                // can be removed, which is the only reason the dialog is shown before the write.
+                // The body SCROLLS. Material's text slot is a height-bounded box with no scrolling of
+                // its own, and a bare Text in it is CLIPPED — not ellipsised, just cut, with nothing
+                // saying more text exists. At the largest font scale this sentence runs to seventeen
+                // lines in German and was measured cut mid-word, losing "nothing already received
+                // moves" and where the rule can be removed.
                 Text(
                     stringResource(
                         R.string.sender_volume_block_body,
@@ -2718,19 +2439,11 @@ private fun ParticipantRow(
                 )
             },
             confirmButton = {
-                // A verb, not the menu entry's sentence. MEASURED, at font_scale 2.0: with the
-                // sentence here, this label wrapped to four lines and "Cancel" was drawn INSIDE
-                // this button — one tap landing on both, on a write that is permanent and has no
-                // Undo. WHY Material does that is a hypothesis, not a reading (its sources are not
-                // available here): the action rows look to be stacked in reverse order and placed
-                // at un-reversed positions, which predicts the overlap to appear as soon as one
-                // row is taller than the other, and an offset of the same order as the 172 px
-                // measured — "same order" and not "to the pixel", because the predicted figure is
-                // itself built on three constants nobody can read here (a TextButton's 8 dp
-                // vertical padding, 12 dp between rows, density 2.625). What is certain either
-                // way is that the label must not wrap.
-                // The menu entry keeps sender_volume_block, where a full line has room to say what
-                // the gesture does.
+                // A verb, not the menu entry's sentence. MEASURED at font_scale 2.0: with the sentence
+                // here, this label wrapped to four lines and "Cancel" was drawn INSIDE this button —
+                // one tap landing on both, on a write that is permanent and has no Undo. What is
+                // certain is that the label must not wrap. The menu entry keeps
+                // sender_volume_block, where a full line has room to say what the gesture does.
                 TextButton(onClick = { confirmRule = false; senderRule.onBlock(addr.email) }) {
                     Text(stringResource(R.string.sender_volume_block_confirm))
                 }
@@ -2857,9 +2570,8 @@ private fun signatureSummary(sig: PgpSignatureState, signer: String?): String? =
 }
 
 /**
- * The OpenPGP status strip above the body: unlock prompt / progress while
- * decrypting, then the verdict (encrypted + signature summary), or the failure
- * with a retry. Compact — one row plus an optional action button.
+ * The OpenPGP status strip above the body: unlock prompt / progress while decrypting, then the verdict
+ * or the failure with a retry. Compact — one row plus an optional action button.
  */
 @Composable
 private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
@@ -2973,78 +2685,46 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
 }
 
 /**
- * The blocked-images strip above the body: **one button**, offering to fetch the pictures and then
- * — once they are there — saying so, greyed out (#153).
+ * The blocked-images strip above the body: one button, offering to fetch the pictures and then —
+ * once they are there — saying so, greyed out (#153). A button, no icon, no sentence: the grammar of
+ * the FREQUENT strips (see [UnsubscribeStrip]'s KDoc, the reference for all of this).
  *
- * **Why it exists.** The reader blocks remote content by default, and said nothing about it. A
- * message whose layout depends on its images just looked broken, and the only remedy was an entry
- * in the overflow menu that no one opens for a message that looks broken rather than blocked. The
- * strip states what happened where the consequence is visible.
- *
- * **A button, no icon, no sentence** — the grammar of the FREQUENT strips (see [UnsubscribeStrip]'s
- * KDoc, which is the reference for all of this). Remote images are in most commercial mail, so this
- * strip appears constantly and every pixel it costs is paid on every one of those messages. The
- * label already says what the gesture does; an icon beside it would only repeat it.
- *
- * **One shape in both states, and that is the whole risk of the feature.** The measured height of
- * the header is part of the key of the `remember` that builds the body's HTML document (see
- * [ConversationBody]), so a strip that changes size cancels the body load in flight: before the
- * body's first reveal the reader is left waiting behind the spinner until the failsafe lifts it,
- * and after that reveal she watches the message reload and lose her scroll position. Showing the
- * images is a gesture made in this very header, so this strip does not disappear when it is done —
- * it is the SAME [TextButton], `enabled = false`, wearing the other label from [ImagesStripBody].
- * Two composables under one `heightIn` do not hold: that is a FLOOR, and the button stands above it
- * (Material3's `minimumInteractiveComponentSize()`, plus a vertical inset that grows with the font
- * scale) while a bare [Text] sits back down on it — the bench measured the header LOSING 8 dp at
- * the tap in the normal font and 13 dp at `font_scale 2.0`.
- *
- * One shape is only one height **as long as the label stays on one line** — hence `maxLines = 1`
- * and the ellipsis, which are part of this rule and not a matter of taste. `heightIn` is a floor,
- * so a label that wrapped would grow the strip by a whole line, and the two strings differ in
- * length in every locale. Nothing in the JVM lays Compose out: all of this is an argument, not a
- * tested guarantee — it is checked on the bench. Its PRESENCE is frozen for the life of the page
- * for the same reason, one level up in [ConversationBody], and drawn on that flag ALONE — only the
- * label and `enabled` follow the live state.
- *
- * A short @Composable is exactly the shape R8 once inlined into drawing NOTHING in a release
- * build (hence `MonogramKt` in proguard-rules.pro). **Do not move this into a small file of its
- * own**, and verify any change here on a RELEASE build on a device; a debug build cannot see it.
+ * One shape in both states, and that is the whole risk of the feature: the header's measured height
+ * keys the `remember` that builds the body's HTML document, so a strip that changes size cancels the
+ * body load in flight. Two composables under one `heightIn` do not hold — that is a FLOOR. Hence
+ * `maxLines = 1` too, checked on the bench since nothing in the JVM lays Compose out.
  */
 @Composable
 private fun ImagesStrip(blocked: Boolean, onShowImages: () -> Unit) {
-    // Asked, never re-decided from the boolean: a second copy of the rule here is a rule no test
-    // can hold, because the test would be measuring the copy that does not ship.
+    // Asked, never re-decided from the boolean: a second copy of the rule here is a rule no test can
+    // hold, because the test would be measuring the copy that does not ship.
     val body = imagesStripBody(blocked)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // No padding of its own along the height: the button's own minimum IS the strip's
-            // height, and the button is the only thing in here. See the KDoc above — a strip that
-            // changes height reloads (and blanks) the body underneath it.
+            // No padding of its own along the height: the button's own minimum IS the strip's height.
+            // See the KDoc — a strip that changes height reloads the body underneath it.
             .heightIn(min = ButtonDefaults.MinHeight)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Done is done: the same button, in the same place, at the same size, with no gesture left
-        // in it. Nothing else is drawn here — a second shape is a second height.
+        // Done is done: the same button, in the same place, at the same size. Nothing else is drawn
+        // here — a second shape is a second height.
         TextButton(
             onClick = onShowImages,
             enabled = body.acts,
-            // A disabled TextButton otherwise takes onSurface at 38 % alpha, and the only
-            // confirmation this app gives that the pictures arrived would be the palest thing in
-            // the header — fainter than the muted line it replaces.
+            // A disabled TextButton otherwise takes onSurface at 38 % alpha, and the only confirmation
+            // that the pictures arrived would be the palest thing in the header.
             colors = ButtonDefaults.textButtonColors(
                 disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
         ) {
             Text(
                 stringResource(body.label),
-                // ONE line whatever the language, and this is a height rule, not typography:
-                // heightIn is a FLOOR, so a label that wrapped would make the strip a whole line
-                // taller — and the two strings differ in length in every locale (de 15 → 23
-                // chars, nl 18 → 24, fr 19 → 16), so at large font scales one state would wrap
-                // and the other would not. A clipped German word costs legibility on a status
-                // line; a wrap costs the body reload and the reader's place in the message.
+                // ONE line whatever the language, and this is a height rule, not typography: heightIn
+                // is a FLOOR, so a wrapped label makes the strip a whole line taller — and the two
+                // strings differ in length in every locale. A clipped German word costs legibility; a
+                // wrap costs the body reload and the reader's place in the message.
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -3055,43 +2735,12 @@ private fun ImagesStrip(blocked: Boolean, onShowImages: () -> Unit) {
 /**
  * The unsubscribe strip above the body: one button to leave the list, or — once left — one line
  * saying what happened.
- *
- * **A button, not a sentence, and the reason is frequency.** The reader carries four strips. The
- * two RARE ones (the OpenPGP verdict, a calendar invitation) are a tinted icon plus a sentence
- * plus an [OutlinedButton]: those are decisions being asked for. The other FREQUENT one — the
- * attachment list — is `labelLarge` in `onSurfaceVariant` with a muted icon and no button at all:
- * that is content being listed. Since February 2024 Google and Yahoo require `List-Unsubscribe`
- * from every bulk sender, so this header is no longer the mark of a mailing list, it is the mark
- * of commercial mail in general — which put the grammar of the exceptions on something that
- * happens on nearly every message that is not personal. There is no honest filter to add (deciding
- * which lists are "legitimate" is a score, and this app does not score mail), so the answer is to
- * make each appearance cost less.
- *
- * [TextButton] and not an `AssistChip`: the plain text button is already the house vocabulary for
- * a secondary action (`OutboxScreen`, `FiltersScreen`), and there is no AssistChip anywhere in
- * this application.
- *
- * **The constant height is not tidiness.** The measured height of the header is part of the key
- * of the `remember` that builds the body's HTML document (see [ConversationBody]) — the file
- * already documents the damage — so a strip that changes size cancels the body load in flight.
- * The header is exactly where an unsubscribe happens, so every unsubscribe used to reload the
- * message. [UnsubscribeStripBody] keeps the three ordinary shapes to one height; only the failure
- * grows, and only after a deliberate gesture.
- *
- * The button LABEL is the honest part: "Open page" when all the sender offers is a browser link,
- * because that gesture loads a page and hands over an IP address, and dressing it as the one-click
- * POST would be selling the same word for two very different things.
- *
- * A short @Composable is exactly the shape R8 once inlined into drawing NOTHING in a release
- * build (that is why `MonogramKt` sits in proguard-rules.pro's -keep list — and it was already a
- * top-level function in its own file when it happened, so living in this file protects nothing).
- * Any change here needs a release-build check on the device, not just a debug one.
- *
- * **Precaution, not proof: do not move this composable into a small file of its own.** That is
- * the exact shape the inlining happened to, and `MessageScreenKt` carries no `-keep` rule. Nothing
- * here demonstrates that staying makes it safe; what is known is that leaving is the arrangement
- * it went wrong in. If it ever has to move, the move is verified by looking at a RELEASE build on
- * a device — a debug build cannot see it.
+ * A button, not a sentence, and the reason is frequency: the two RARE strips are an icon plus a
+ * sentence plus an [OutlinedButton], because those are decisions being asked for, while
+ * `List-Unsubscribe` now marks commercial mail in general and there is no honest filter to add.
+ * The constant height is not tidiness: the header's height keys the body document's `remember`, and
+ * the header is where an unsubscribe happens. Only the failure shape grows. R8 once inlined a short
+ * @Composable into drawing NOTHING in a release build; do not move this into a file of its own.
  */
 @Composable
 private fun UnsubscribeStrip(
@@ -3099,17 +2748,15 @@ private fun UnsubscribeStrip(
     state: UnsubscribeState,
     onUnsubscribe: () -> Unit,
 ) {
-    // The label of the button, when there is one to draw — the same decision the overflow entry
-    // and the action itself take (see [offeredUnsubscribeAction]). `preferredAction` alone would
-    // answer for a gesture already made, and the strip would go on offering it.
+    // The label of the button, when there is one to draw — the same decision the overflow entry and the
+    // action itself take. `preferredAction` alone would answer for a gesture already made.
     val action = options.preferredAction() ?: return
     val body = unsubscribeStripBody(state)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // No vertical padding of its own: the button's own minimum IS the strip's height, and
-            // it is the floor for the two states that draw less. See the KDoc above — a strip
-            // that changes height reloads the body underneath it.
+            // No vertical padding of its own: the button's own minimum IS the strip's height, and it
+            // is the floor for the two states that draw less.
             .heightIn(min = ButtonDefaults.MinHeight)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -3130,8 +2777,8 @@ private fun UnsubscribeStrip(
         } else {
             val failed = state as? UnsubscribeState.Failed
             if (failed != null) {
-                // The one shape allowed to grow: a refusal has to say what happened, and a
-                // failure is a retry rather than a dead end — the button comes back beside it.
+                // The one shape allowed to grow: a refusal has to say what happened, and a failure is
+                // a retry rather than a dead end — the button comes back beside it.
                 Text(
                     text = stringResource(
                         when (failed.reason) {
@@ -3149,15 +2796,14 @@ private fun UnsubscribeStrip(
             }
             TextButton(onClick = onUnsubscribe, enabled = body.acts) {
                 if (body == UnsubscribeStripBody.SENDING) {
-                    // In the icon's place, at the icon's size: the button keeps its height, so
-                    // the header does, so the body underneath is not reloaded mid-gesture.
+                    // In the icon's place, at the icon's size: the button keeps its height, so the
+                    // header does, so the body underneath is not reloaded mid-gesture.
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
                     Icon(
                         Icons.Filled.Unsubscribe,
-                        // The sentence this strip used to spend a whole line on, recycled where
-                        // it costs no height and gains a screen reader something: the icon was
-                        // announced as nothing at all before.
+                        // The sentence this strip used to spend a whole line on, recycled where it
+                        // costs no height: the icon was announced as nothing at all before.
                         contentDescription = stringResource(R.string.message_unsubscribe_banner),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
@@ -3179,64 +2825,20 @@ private fun UnsubscribeStrip(
 }
 
 /**
- * The read-receipt strip above the body (#148): the question a sender's
- * `Disposition-Notification-To` raises, and — once answered — where the answer got to.
- *
- * **It ASKS, and it is the only thing in this app that can send a receipt.** The reader has to have
- * turned the switch on (Privacy settings, off by default), and even then nothing leaves without
- * this button. The refusal costs one tap and sends nothing at all: it takes the strip away and
- * the page forgets the question. Nothing is written anywhere, so a message reopened later asks
- * nothing either (the trigger is the unread → read transition, which happens once).
- *
- * **What it says, and what it must never say.** The line names WHO would be told, because that is
- * the only fact the reader is deciding on, and it says *displayed* rather than *read*: an MDN
- * reports that a message was shown on a device, and neither this app nor the protocol knows whether
- * anybody read it. There is no "sent" state, under any wording — a receipt has one road, the
- * durable outbox, so "in the outbox" is the furthest the app can honestly go ([ReadReceiptState]
- * has no `Sent`, deliberately). Once queued the line names the subject of the row that was queued,
- * handed back by `MailRepository.sendReadReceipt` and never rebuilt here: a strip naming one text
- * while another leaves is worse than one naming nothing (house precedent: `unsubscribePreview`).
- *
- * **Its grammar is [UnsubscribeStrip]'s** — a [TextButton], no icon on it, a muted line beside it —
- * for the reason that KDoc gives at length, and it is drawn LAST in the header so it can never push
- * a crypto verdict or a meeting invitation below the fold.
- *
- * **The height does not move BETWEEN THE STATES — and that is the exact size of the claim.** The
- * measured height of the header keys the `remember` that builds the body's HTML document (see
- * [ConversationBody]), so anything that changes the header's height cancels the body load in
- * flight and puts the reader back at the top. Between asking, sending and queueing this row does
- * not move: it is the SAME button throughout — only its label, its `enabled`, the spinner inside it
- * and the line beside it change — and only the failure is allowed to grow, after a gesture the
- * reader deliberately made. `heightIn` is a FLOOR and cannot level two different shapes; a bare
- * [Text] sits back down on it while a button stands above (measured on the bench for the images
- * strip, #153: 8 dp lost in the normal font, 13 dp at `font_scale 2.0`). Hence also `maxLines = 1`
- * on the line of the three ordinary states: a wrap is a whole extra line, and German and Russian
- * are the longest.
- *
- * **What that does NOT claim: the strip appearing or leaving moves the header, like any other
- * strip in it.** Two known cases, neither of them fixed here:
- *  - the REFUSAL takes this row and its `HorizontalDivider()` away — roughly 49 dp, six times the
- *    drift measured in #153 — so refusing reloads the body and loses the reader's place. It is
- *    post-gesture, which is the licence its neighbours take, and the alternative (a row that stays
- *    for ever saying "you said no") was refused: nothing may remain that could send.
- *  - the APPEARANCE can happen with NO gesture at all. On a page the pager warmed the body can
- *    land before the settle, and the setting answers asynchronously on top of that, so the question
- *    can be raised a moment after the reader has started reading — the header grows, and the body
- *    under her is rebuilt. That is the price of a setting read from DataStore, and it is measured
- *    on the bench rather than argued here.
- *
- * A short @Composable is exactly the shape R8 once inlined into drawing NOTHING in a release
- * build (that is why `MonogramKt` is in proguard-rules.pro's -keep list — and it was already a
- * top-level function in its own file when it happened). **Do not move this into a small file of
- * its own**: `MessageScreenKt` carries no `-keep` rule, and that arrangement is the one it went
- * wrong in. Any change here is verified on a RELEASE build on a device; a debug build cannot see it.
+ * The read-receipt strip above the body (#148): the question a sender's `Disposition-Notification-To`
+ * raises, and — once answered — where the answer got to.
+ * It ASKS, and it is the only thing in this app that can send a receipt. The refusal sends nothing
+ * and is written nowhere. The line names WHO would be told, and says *displayed* rather than *read*.
+ * There is no "sent" state under any wording, and once queued the line names the subject
+ * `sendReadReceipt` handed back.
+ * The height does not move BETWEEN THE STATES, and only the failure may grow. That does not claim
+ * the strip appearing or leaving leaves the header alone.
  */
 @Composable
 private fun ReadReceiptStrip(
-    // What [readReceiptStrip] decided, HANDED IN: the caller ran the decision once, to know
-    // whether to draw this row and its divider at all. Not the offer and the state again — a
-    // second reading of the same rule is a rule no test can hold, because the test would be
-    // measuring the copy that does not ship.
+    // What [readReceiptStrip] decided, HANDED IN: the caller ran the decision once, to know whether to
+    // draw this row and its divider at all. Not the offer and the state again — a second reading of
+    // the same rule is a rule no test can hold.
     strip: ReadReceiptStrip,
     onSendReadReceipt: () -> Unit,
     onDeclineReadReceipt: () -> Unit,
@@ -3245,8 +2847,7 @@ private fun ReadReceiptStrip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // No vertical padding of its own: the button's own minimum IS the strip's height. See
-            // the KDoc above — a strip that changes height reloads the body underneath it.
+            // No vertical padding of its own: the button's own minimum IS the strip's height.
             .heightIn(min = ButtonDefaults.MinHeight)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -3259,15 +2860,14 @@ private fun ReadReceiptStrip(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            // ONE line in the three ordinary states, and this is a height rule, not typography:
-            // heightIn is a floor, so a wrapped line makes the strip a whole line taller.
+            // ONE line in the three ordinary states, and this is a height rule, not typography.
             maxLines = if (body.shape == ReadReceiptStripShape.BUTTON_ROW) 1 else Int.MAX_VALUE,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(end = 8.dp),
         )
         if (body.declines) {
-            // Saying no: the strip goes, and NOTHING leaves. It is offered only while the question
-            // stands untouched — once a receipt is queued there is nothing left to refuse.
+            // Saying no: the strip goes, and NOTHING leaves. Offered only while the question stands
+            // untouched — once a receipt is queued there is nothing left to refuse.
             IconButton(onClick = onDeclineReadReceipt) {
                 Icon(
                     Icons.Filled.Close,
@@ -3277,23 +2877,21 @@ private fun ReadReceiptStrip(
                 )
             }
         }
-        // Drawn in EVERY state, under no condition at all: the same button, in the same place, at
-        // the same size, wearing the label of the state it is in. Wrapping it in `if (body.acts)`
-        // reads like a tidy-up and is the measured defect — the queued row would fall back to a
-        // bare line, the header would lose the button's height and the body would be rebuilt.
+        // Drawn in EVERY state, under no condition at all: the same button, in the same place, at the
+        // same size, wearing the label of the state it is in. Wrapping it in `if (body.acts)` reads
+        // like a tidy-up and is the measured defect — the header would lose the button's height.
         TextButton(
             onClick = onSendReadReceipt,
             enabled = body.acts,
-            // A disabled TextButton otherwise takes onSurface at 38 % alpha, and the only
-            // confirmation this app gives that the answer was queued would be the palest
-            // thing in the header.
+            // A disabled TextButton otherwise takes onSurface at 38 % alpha, and the only confirmation
+            // that the answer was queued would be the palest thing in the header.
             colors = ButtonDefaults.textButtonColors(
                 disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
         ) {
             if (body == ReadReceiptStripBody.SENDING) {
-                // Inside the button, at the icon's size: the button keeps its height, so the
-                // header does, so the body underneath is not reloaded mid-gesture.
+                // Inside the button, at the icon's size: the button keeps its height, so the header
+                // does, so the body underneath is not reloaded mid-gesture.
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
             }
@@ -3307,11 +2905,9 @@ private fun ReadReceiptStrip(
 }
 
 /**
- * An event preview for a calendar invite (text/calendar part), shown above the body. While the
- * .ics downloads it shows a compact placeholder; on success it shows the parsed event with an
- * "Add to calendar" action (an ACTION_INSERT intent, no permission). If the invite can't be
- * parsed or there is no calendar app, it degrades to "Open invitation" (the raw .ics opened
- * by whatever app handles it).
+ * An event preview for a calendar invite, shown above the body. A compact placeholder while the .ics
+ * downloads, then the parsed event with an "Add to calendar" action (an ACTION_INSERT intent, no
+ * permission). Degrades to "Open invitation" when it cannot be parsed or there is no calendar app.
  */
 @Composable
 private fun CalendarEventCard(
@@ -3390,8 +2986,8 @@ private fun CalendarEventCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                // RSVP is offered only for an actionable request (a REQUEST that names an
-                // organiser to reply to and isn't cancelled). CANCEL/REPLY methods get no buttons.
+                // RSVP is offered only for an actionable request (a REQUEST naming an organiser and
+                // not cancelled). CANCEL/REPLY methods get no buttons.
                 if (event.method == "REQUEST" && !event.cancelled && !event.organizerEmail.isNullOrBlank()) {
                     InviteRsvp(invite.response, onRespond)
                 }
@@ -3434,9 +3030,8 @@ private fun CalendarEventCard(
 }
 
 /**
- * RSVP controls for a meeting request: Accept / Decline / Tentative. While the reply is sending
- * it shows progress; once sent it collapses to a confirmation line; on failure it shows an error
- * and the buttons act as a retry. Reflected for the current session only (not persisted).
+ * RSVP controls for a meeting request: Accept / Decline / Tentative. Progress while sending, a
+ * confirmation line once sent, an error and a retry on failure. Session only.
  */
 @Composable
 private fun InviteRsvp(response: InviteResponse, onRespond: (String) -> Unit) {
@@ -3536,46 +3131,30 @@ private fun formatSize(bytes: Long): String = when {
 }
 
 /**
- * Decides how the body WebView is composited, and self-heals devices whose GPU-functor path
- * SIGSEGVs (e.g. the Samsung S7 test device: older hardware on a newer custom ROM that reports a
- * modern API level, so it can't be gated by version).
+ * Decides how the body WebView is composited, and self-heals devices whose GPU-functor path SIGSEGVs
+ * (the S7: older hardware on a newer ROM reporting a modern API level, so it cannot be gated by
+ * version). Crash-prone devices fall back to the software layer and its internal-scroll path.
  *
- * Modern devices render hardware-accelerated ([View.LAYER_TYPE_NONE]): the WebView tiles its own
- * paint, so a full-height newsletter draws with no offscreen bitmap and no size cap — it simply
- * stacks in the reader's outer scroll. Crash-prone devices fall back to the software layer (a single
- * capped bitmap), keeping the older pinned + internal-scroll path.
- *
- * Detection is a persisted sentinel (synchronous [android.content.SharedPreferences.Editor.commit],
- * so it survives a process-killing SIGSEGV):
- *  - each process launch, before its first hardware body draw, [armIfUnproven] bumps a persisted
- *    "unproven starts" counter (once per process);
- *  - once a body has safely drawn, [markProven] latches "hardware proven" and resets the counter, so
- *    no later render arms the sentinel again;
- *  - if the process dies mid-draw the bumped counter survives; after [LATCH_THRESHOLD] such launches
- *    [useSoftwareLayer] latches the software layer. A real functor SIGSEGV fails every launch, so it
- *    latches after 2 crashes; a healthy device that merely closed the first mail before proving (a
- *    single unproven launch) simply re-probes next time instead of being condemned — the false
- *    positive that the old single-arm flag produced. Known-risky GPUs are pre-seeded (0 crashes).
+ * Detection is a persisted sentinel (synchronous `commit`, so it survives a process-killing SIGSEGV):
+ * each launch [armIfUnproven] bumps a counter once, [markProven] latches and resets it, and after
+ * [LATCH_THRESHOLD] unproven launches the software layer is latched — so a real SIGSEGV latches after
+ * 2 crashes while a healthy device that closed the first mail early re-probes.
  */
 private object WebViewLayerGuard {
     private const val PREFS = "webview_layer_guard"
     private const val KEY_FORCE_SOFTWARE = "force_software"
     private const val KEY_HARDWARE_PROVEN = "hardware_proven"
     // Consecutive process launches that armed a hardware draw but never proved it survived. A single
-    // premature close (app backgrounded/killed before [markProven]) no longer latches the software
-    // layer — only a device that fails to prove REPEATEDLY (≥ [LATCH_THRESHOLD]) is latched. A real
-    // GPU-functor SIGSEGV kills the process EVERY launch, so it still latches quickly (after 2 crashes),
-    // while a healthy device that got unlucky once recovers on the next launch.
+    // premature close no longer latches the software layer — only a device that fails to prove
+    // REPEATEDLY is latched, which a real SIGSEGV does after 2 crashes.
     private const val KEY_UNPROVEN_STARTS = "unproven_starts"
     private const val LATCH_THRESHOLD = 2
-    // One-time migration marker: the previous logic latched software on a SINGLE unproven arm (a
-    // fragile 500ms timer), which falsely condemned healthy devices that merely closed the first mail
-    // quickly. On first run of this version we clear that latch so those devices re-probe hardware;
-    // genuinely crash-prone GPUs are re-caught by the preseed (0 crashes) or the counter (self-heals).
+    // One-time migration marker: the previous logic latched software on a SINGLE unproven arm, which
+    // falsely condemned healthy devices. On first run of this version that latch is cleared; genuinely
+    // crash-prone GPUs are re-caught by the preseed or the counter.
     private const val KEY_GUARD_RESET_V2 = "guard_reset_v2"
-    // Goal 2: a one-time pre-seed that latches known-risky old GPUs onto the software layer BEFORE
-    // their first hardware draw, so they never take the one-time SIGSEGV. KEY_PRESEED_DONE makes it
-    // run exactly once; KEY_GL_RENDERER caches the offscreen GL_RENDERER probe so it's never redone.
+    // A one-time pre-seed that latches known-risky old GPUs onto the software layer BEFORE their first
+    // hardware draw. KEY_PRESEED_DONE makes it run once; KEY_GL_RENDERER caches the offscreen probe.
     private const val KEY_PRESEED_DONE = "preseed_done"
     private const val KEY_GL_RENDERER = "gl_renderer"
 
@@ -3586,15 +3165,14 @@ private object WebViewLayerGuard {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** True if this device must use the software layer. Latches it only after REPEATED unproven
-     *  hardware draws (a crash-prone GPU fails every launch), never on a single premature close. */
+     *  hardware draws, never on a single premature close. */
     fun useSoftwareLayer(context: Context): Boolean {
-        // Goal 3 test override: force every device onto the software path (no prefs touched, so
-        // flipping the flag back leaves no latched state behind).
+        // Test override: force every device onto the software path (no prefs touched, so flipping the
+        // flag back leaves no latched state behind).
         if (FORCE_SOFTWARE_LAYER) return true
         val p = prefs(context)
-        // One-time migration: wipe the OLD fragile latch (and the preseed marker, so known-risky
-        // GPUs are re-caught with 0 crashes) so devices falsely condemned by the previous single-arm
-        // logic re-probe hardware. Genuine crashers re-latch via the preseed or the counter below.
+        // One-time migration: wipe the OLD fragile latch (and the preseed marker, so known-risky GPUs
+        // are re-caught with 0 crashes). Genuine crashers re-latch via the preseed or the counter.
         if (!p.getBoolean(KEY_GUARD_RESET_V2, false)) {
             p.edit()
                 .putBoolean(KEY_GUARD_RESET_V2, true)
@@ -3605,9 +3183,9 @@ private object WebViewLayerGuard {
                 .commit()
         }
         if (p.getBoolean(KEY_FORCE_SOFTWARE, false)) return true
-        // Goal 2: before this device's first hardware draw, conservatively pre-seed the software
-        // layer for known-risky old GPUs (S7-class Exynos/Mali-T, Exynos-9820 S10) so they never
-        // crash even once. Runs once and latches; the counter below is the catch-all for the rest.
+        // Before this device's first hardware draw, conservatively pre-seed the software layer for
+        // known-risky old GPUs (S7-class Exynos/Mali-T, Exynos-9820 S10) so they never crash even
+        // once. Runs once and latches; the counter below is the catch-all for the rest.
         if (!p.getBoolean(KEY_PRESEED_DONE, false)) {
             val risky = isRiskyOldGpu(context, p)
             val e = p.edit().putBoolean(KEY_PRESEED_DONE, true)
@@ -3617,8 +3195,7 @@ private object WebViewLayerGuard {
         }
         // No "proven" marker after repeated arms means the hardware draw never reported a safe finish
         // on several launches — a GPU-functor SIGSEGV takes the app down before [markProven] every
-        // time. Latch software. One unlucky launch (counter == 1) does NOT latch: healthy devices that
-        // merely closed the first mail before proving simply re-probe next launch.
+        // time. One unlucky launch does NOT latch.
         if (!p.getBoolean(KEY_HARDWARE_PROVEN, false) &&
             p.getInt(KEY_UNPROVEN_STARTS, 0) >= LATCH_THRESHOLD
         ) {
@@ -3630,17 +3207,16 @@ private object WebViewLayerGuard {
 
     /**
      * Conservative pre-seed test for a GPU known to SIGSEGV on the WebView hardware functor. A false
-     * positive only costs a modern device the full-height benefit (the software path still renders
-     * correctly); a false negative is caught by the crash sentinel (one crash, then heal). So we err
-     * towards flagging. The GL_RENDERER probe is the most reliable signal for the actual GPU; cheap
-     * Build heuristics are the fallback when the probe can't run.
+     * positive only costs a modern device the full-height benefit; a false negative is caught by the
+     * crash sentinel. So we err towards flagging. The GL_RENDERER probe is the most reliable signal;
+     * Build heuristics are the fallback when it cannot run.
      */
     private fun isRiskyOldGpu(context: Context, p: android.content.SharedPreferences): Boolean {
-        // Cheap Build signals first: old Exynos SoCs (the S7's Exynos 8890 and the 74xx/75xx/54xx
+        // Cheap Build signals first: old Exynos SoCs (the S7's 8890 and the 74xx/75xx/54xx
         // generations) all shipped the crash-prone Mali-T (Midgard) GPU.
         if (buildSignalsRiskyOldExynos()) return true
-        // GL_RENDERER probe (cached): the authoritative signal for the real GPU. Old Mali-T (e.g.
-        // the S7's Mali-T880) is the family that dereferences a null SkSurface in the WebView functor.
+        // GL_RENDERER probe (cached): the authoritative signal. Old Mali-T is the family that
+        // dereferences a null SkSurface in the WebView functor.
         val renderer = cachedGlRenderer(context, p)?.lowercase()
         return renderer != null && (renderer.contains("mali-t") || renderer.contains("mali t"))
     }
@@ -3676,8 +3252,8 @@ private object WebViewLayerGuard {
     }
 
     /**
-     * Read GL_RENDERER from a 1x1 offscreen EGL14 pbuffer context. Fully torn down in `finally`;
-     * any failure returns null (the caller then leans on Build heuristics + the crash sentinel).
+     * Read GL_RENDERER from a 1x1 offscreen EGL14 pbuffer context. Fully torn down in `finally`; any
+     * failure returns null and the caller leans on Build heuristics plus the crash sentinel.
      */
     private fun probeGlRenderer(): String? {
         var display = EGL14.EGL_NO_DISPLAY
@@ -3721,8 +3297,8 @@ private object WebViewLayerGuard {
     }
 
     /** Count this process launch as an unproven hardware attempt, before the first-ever hardware body
-     *  draw (no-op once proven, and at most once per process). A crash before [markProven] leaves the
-     *  bumped counter persisted; [LATCH_THRESHOLD] such launches latch the software layer. */
+     *  draw (no-op once proven, at most once per process). A crash before [markProven] leaves the
+     *  bumped counter persisted. */
     fun armIfUnproven(context: Context) {
         if (armedThisProcess) return
         val p = prefs(context)
@@ -3738,25 +3314,14 @@ private object WebViewLayerGuard {
 }
 
 /**
- * Crash sentinel for the message route's nav fade (Codeberg #10). On the GL HWUI pipeline,
- * compositing a hardware WebView through the fade's offscreen layer can SIGSEGV in AOSP's
- * GLFunctorDrawable (unguarded null SkSurface on the empty-clip saveLayer path — present,
- * unfixed, from Android 11 through current main; the Vulkan pipeline has no such path). The
- * [FrameLayout] wrap around [BodyWebView] steers healthy geometry away from that path; this
- * sentinel is the safety net for devices where it still lines up badly.
+ * Crash sentinel for the message route's nav fade (#10): compositing a hardware WebView through the
+ * fade's offscreen layer can SIGSEGV in AOSP's GLFunctorDrawable. The [FrameLayout] wrap steers
+ * healthy geometry away from it; this is the net for devices where it still lines up badly.
  *
- * Protocol (same commit()-survives-SIGSEGV pattern as [WebViewLayerGuard]):
- *  - [arm]/[disarm] bracket the exact exposure window — a laid-out hardware body composed while
- *    a message-route fade runs (≤ 700 ms, foreground, actively rendering). Ref-counted: the
- *    pager can have up to three bodies composed at once.
- *  - [onActivityStop]/[onActivityStart] clear the flag while the activity is stopped: frames
- *    stop, the functor cannot draw, so a background kill (LMK, swipe-away) never counts.
- *  - [fadeDisabled] reconciles at startup: a leftover armed flag means the process died inside
- *    an exposure window — latch the fade OFF for this device, permanently. Threshold is a
- *    single crash: the window is so tight that false positives are freak coincidences, and
- *    their cost is only a cosmetic fade, while a second guaranteed native crash is far worse.
- *  - The latch records [Build.FINGERPRINT]: a ROM update (the bug is ROM-side) re-probes once —
- *    at worst one more crash on a still-broken ROM, at best the fade comes back after a fix.
+ * [arm]/[disarm] bracket the exposure window, ref-counted; [onActivityStop]/[onActivityStart] clear
+ * the flag while the activity is stopped; [fadeDisabled] reconciles at startup, latching the fade OFF
+ * when a leftover armed flag says the process died inside that window. One crash is the threshold,
+ * and the latch records [Build.FINGERPRINT], so a ROM update re-probes once.
  */
 internal object NavFadeGuard {
     private const val PREFS = "webview_layer_guard" // shared file, namespaced keys
@@ -3774,15 +3339,15 @@ internal object NavFadeGuard {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** Read once per process at NavHost composition (the latch only ever changes via a process
-     *  death, so per-process freshness is exactly right). Also performs startup reconciliation. */
+     *  death). Also performs startup reconciliation. */
     @Synchronized
     fun fadeDisabled(context: Context): Boolean {
         if (initialized) return latched
         initialized = true
         val p = prefs(context)
         if (p.getBoolean(KEY_FADE_ARMED, false)) {
-            // The previous process died while a hardware body was exposed to a running fade:
-            // that is the #10 SIGSEGV (or a freak coincidence we accept). Latch the fade off.
+            // The previous process died while a hardware body was exposed to a running fade: that is
+            // the #10 SIGSEGV (or a freak coincidence we accept). Latch the fade off.
             p.edit()
                 .putBoolean(KEY_FADE_ARMED, false)
                 .putBoolean(KEY_FADE_DISABLED, true)
@@ -3826,85 +3391,41 @@ internal object NavFadeGuard {
         val want = refCount > 0 && !stopped && !latched
         if (want == diskArmed) return
         diskArmed = want
-        // Synchronous commit: runs on the UI thread during applyChanges, i.e. strictly before
-        // the frame in which the fade's offscreen layer is first rendered — the flag is on disk
-        // before the RenderThread can possibly SIGSEGV.
+        // Synchronous commit: runs on the UI thread during applyChanges, i.e. strictly before the
+        // frame in which the fade's offscreen layer is first rendered.
         prefs(context).edit().putBoolean(KEY_FADE_ARMED, want).commit()
     }
 }
 
 /**
  * How much longer the horizontal side of a drag on the message body must be than its vertical side
- * before the gesture is handed to the pager as a swipe between messages. THE calibration knob for
- * that gesture — see [BodyWebView.onTouchEvent].
+ * before the gesture is handed to the pager. THE calibration knob — see [BodyWebView.onTouchEvent].
  *
- * 3.0 means "within about 18° of the horizontal" (atan(1 / 3)). It was 1.5, i.e. anything within
- * 34°, and that took gestures the reader meant as scrolling: the decision is made as soon as the
- * finger has travelled one touch slop (8dp, about 1.3mm), and over so short a distance a thumb
- * starting a scroll arcs sideways easily — at 1.5 it only had to wander 0.85mm across to lose the
- * message, at 3.0 it takes 0.43mm. The reader was landing on another message while trying to read
- * (Codeberg #97), and coming back is not free: the place in the text is lost.
- *
- * The decision cannot simply be postponed to a longer, better-judged drag: whatever the body has
- * not claimed by the time the pager crosses its OWN touch slop is already the pager's, and a claim
- * released later does not hand the gesture back (the pager's drag detector has by then seen its
- * events consumed and waits for a new touch). So the angle, judged at that same first slop, is the
- * only honest knob here.
- *
- * Tuning: raise it (4.0 ≈ 14°) if a page still flips while reading, lower it (2.0 ≈ 27°) if a
- * deliberate sideways swipe has to be aimed. Ties go to reading, which is what the view is for.
+ * 3.0 is within about 18° of the horizontal (atan(1/3)). It was 1.5, i.e. 34°, and that took
+ * gestures meant as scrolling: the decision is made after one touch slop (~1.3 mm), so at 1.5 a
+ * thumb only had to wander 0.85 mm across to lose the message (#97), against 0.43 mm at 3.0. It
+ * cannot be postponed to a longer drag: whatever the body has not claimed by the pager's own slop
+ * is already the pager's.
  */
 private const val SWIPE_HORIZONTAL_DOMINANCE = 3.0f
 
 /**
- * Who owns a drag on the message body once its axis is settled.
- *
- * - [CLAIM]: the body keeps it (`requestDisallowInterceptTouchEvent(true)`) — either the drag is not
- *   clearly horizontal, or it is and the body has a USABLE course that way, i.e. at least a touch
- *   slop of it (see [bodyCanTravel]). A course of 3px is travel left and still RELEASE.
- * - [RELEASE]: left unclaimed, so the reading view's `HorizontalPager` swipes to another message.
- * - [PENDING]: neither side of the drag has cleared the touch slop yet — no verdict, keep watching.
+ * Who owns a drag on the message body once its axis is settled: [CLAIM] keeps it in the body, either
+ * because the drag is not clearly horizontal or because the body has a USABLE course that way (at
+ * least a touch slop, see [bodyCanTravel]); [RELEASE] leaves it to the `HorizontalPager`; [PENDING]
+ * means neither side has cleared the slop yet.
  */
 internal enum class BodyDrag { PENDING, CLAIM, RELEASE }
 
 /**
  * The body's once-per-gesture axis decision, factored out of [BodyWebView.onTouchEvent] so it can be
- * unit-tested (a WebView cannot be built in a JVM test).
+ * unit-tested. A clearly horizontal drag used to go to the pager unconditionally, which made a body
+ * wider than the viewport unreachable (#152), so the sideways course LEFT decides.
  *
- * A drag that is clearly horizontal (|dx| > |dy| × [SWIPE_HORIZONTAL_DOMINANCE]) used to go to the
- * pager unconditionally, which made a body wider than the viewport — a 600px table, or any zoomed
- * message — unreachable: dragging it sideways changed message instead of scrolling it (Codeberg
- * #152). So the sideways course LEFT in the direction asked for decides: while there is a usable
- * course that way — one touch slop or more of it — the body keeps the gesture. The pager gets it at
- * the edge, and equally anywhere under that threshold: within a slop of the edge, and on any body
- * whose whole course is smaller than a slop.
- *
- * ON THE HORIZONTAL AXIS THIS IS NOW UNREACHABLE, and deliberately so: [bodyTakesGestureAtDown]
- * settles the gesture at ACTION_DOWN for any body with at least a touch slop of travel, and a body
- * under that threshold answers false to both parameters below — so the per-direction share this
- * function describes never runs sideways. It is kept because it is still what decides EVERY gesture
- * on a body with no usable course (the #97 near-vertical guard, the whole of 1.4.9's behaviour).
- * It catches NOTHING that DOWN missed: a body whose horizontal geometry only reflows after the
- * finger has landed is decided by nobody — DOWN read it too early, and the sideways MOVE that would
- * re-read it never arrives. That gap is known and unaddressed here. What this function's tests cover
- * on the sideways rows is therefore a path production no longer takes; they are kept as the
- * specification of the rule, not as a claim about what runs.
- *
- * The direction comes from the SIGN of [dx]. A finger moving right (dx > 0) drags the content right,
- * i.e. lowers scrollX: that is the travel BEHIND the viewport, passed as [canScrollBack]. A finger
- * moving left raises scrollX, so it needs the course AHEAD, [canScrollForward]. Since the 3px
- * defect (see [bodyTakesGestureAtDown]) the caller no longer hands over raw `canScrollHorizontally`
- * answers: it measures both courses in pixels and passes them through [bodyCanTravel]. Not because
- * this door rescues anything — it cannot, see above — but because there must be ONE rule: two doors
- * holding two different notions of "has travel" is how the 3px defect would come back through
- * whichever of them is looked at less. Both courses come from the scroll offset/range/extent rather
- * than from `scrollX == 0`, which is wrong for a `dir="rtl"` document: it rests at a non-zero
- * scrollX with no course left.
- *
- * While the geometry is unsettled both answer false, so the verdict is RELEASE and the behaviour is
- * exactly 1.4.9's. Reaching the edge MID-gesture does not hand it over: the verdict is taken once,
- * at the first slop crossing, because a claim released later is not given back (the pager's drag
- * detector has by then seen its events consumed).
+ * ON THE HORIZONTAL AXIS THIS IS NOW UNREACHABLE, deliberately, [bodyTakesGestureAtDown] settling the
+ * gesture at ACTION_DOWN; it is kept because it still decides EVERY gesture on a body with no usable
+ * course (the #97 near-vertical guard). The caller passes both courses through [bodyCanTravel], since
+ * there must be ONE rule, and they come from the offset/range/extent — `scrollX == 0` is wrong in RTL.
  */
 internal fun bodyDragOwner(
     dx: Float,
@@ -3924,92 +3445,34 @@ internal fun bodyDragOwner(
 
 /**
  * Whether the body must claim the whole gesture at ACTION_DOWN, before anyone knows which way the
- * finger will go. True as soon as the body can follow the finger for at least [minTravel] pixels on
- * one side or the other — [travelBack] is the course already scrolled past, [travelForward] the one
- * still ahead, both in device pixels.
- *
- * THE THRESHOLD IS THE POINT, and it is what the first version of this function got wrong. It
- * claimed on ANY travel, i.e. on `canScrollHorizontally`, whose own threshold is one pixel. The
- * bench measured, on 2026-08-12, a 900px table inside a 914 CSS-px viewport — visibly whole, nothing
- * to pan to — reporting `hRange=2403 hExtent=2400`: THREE pixels of course, produced by a border and
- * a rounding. The body claimed, moved 3px under the finger and swipe-between-messages died in both
- * directions, on a message where there was nothing to see. A body that cannot follow the finger over
- * the very distance that makes a drag a drag ([minTravel] is the view's own
- * `ViewConfiguration.scaledTouchSlop`) has nothing to show, so it must not take the gesture.
- *
- * Courses can read NEGATIVE while the layout has not settled (extent momentarily above range). A
- * negative course is not a course: it fails a positive threshold, which is the whole guard — do not
- * "fix" it by taking an absolute value.
- *
- * [bodyDragOwner]'s rule is right but UNREACHABLE on the horizontal axis, which is why #152 survived
- * its first fix and measured identical on two benches: 0 `drag` lines over 5 sideways drags, one line
- * every time for a vertical one. `PointerInteropFilter` dispatches to an Android view like this
- * (Compose 1.7.6, read in the bytecode, not supposed):
- *
- *     dispatchDuringInitialTunnel = disallowIntercept || the event is a DOWN or an UP
- *     pass Initial and  dispatchDuringInitialTunnel  → dispatch to the view
- *     pass Final   and !dispatchDuringInitialTunnel  → dispatch to the view
- *
- * and dispatching an already-consumed change sends the view an ACTION_CANCEL instead of the event.
- * So while nothing is claimed, an ACTION_MOVE only reaches this WebView at the Final pass — AFTER the
- * reading view's `HorizontalPager` has had the Main pass, consumed the horizontal drag and turned our
- * MOVE into a CANCEL. The axis decision is never run. Vertically nothing consumes, the MOVE arrives,
- * and the decision runs — which is exactly the asymmetry the bench measured.
- *
- * ACTION_DOWN is the one event always delivered on the Initial pass: the only instant at which the
- * body speaks before the pager. And the claim cannot be handed back later — from the first MOVE the
- * view consumes, the pager's `awaitPointerSlopOrCancellation` returns null and waits for a new
- * finger. So this verdict is taken once, blind to the direction, and holds for the whole gesture.
- *
- * THE CONSEQUENCE, ACCEPTED, AND WIDER THAN IT LOOKS: on a body that HAS sideways travel, a sideways
- * drag no longer changes message at all — not even towards the edge it is already at. That is the
- * WYSIWYG call: a 600px table the reader cannot pan to is content shown and denied.
- *
- * Do not soften it in a reply. The 600px HTML-newsletter template overflows EVERY phone held
- * upright (360dp ≈ 360 CSS px; the bench measured hRange=1833 for hExtent=720, i.e. 1113px of
- * course), so this is not an exotic case, and it FLIPS WITH ROTATION: the same message fits in
- * landscape, where the swipe comes back. And the fallback is thinner than it sounds — the position
- * bar is composed only in the conversation context (`showPosition`), so from the inbox, from search,
- * or on a single message the only remaining way to the next message is going back to the list. A
- * body that FITS is untouched: both courses are below one slop, this returns false, and the gesture
- * goes to the pager exactly as in 1.4.9.
+ * finger will go. True as soon as the body can follow it for at least [minTravel] pixels either way.
+ * THE THRESHOLD IS THE POINT: claiming on ANY travel, i.e. on `canScrollHorizontally`, whose
+ * threshold is one pixel, had a visibly whole 900px table report THREE pixels of course and take the
+ * gesture. A negative course, read before the layout settles, is not a course — never abs() it.
+ * Decided at DOWN because [bodyDragOwner] is unreachable horizontally (#152): unclaimed, an
+ * ACTION_MOVE reaches a view only on the Final pass, already consumed, while ACTION_DOWN always
+ * arrives on the Initial one — and its claim cannot be handed back.
  */
 internal fun bodyTakesGestureAtDown(travelBack: Int, travelForward: Int, minTravel: Int): Boolean =
     bodyCanTravel(travelBack, minTravel) || bodyCanTravel(travelForward, minTravel)
 
 /**
  * Whether [travel] pixels of remaining sideways course are worth taking a gesture for: they are once
- * they reach [minTravel], the touch slop. ONE rule, called from both doors a gesture can come
- * through — [bodyTakesGestureAtDown] at ACTION_DOWN, and [BodyWebView.onTouchEvent]'s ACTION_MOVE
- * branch, which feeds [bodyDragOwner] the same verdict per direction instead of raw
- * `canScrollHorizontally` answers — so that neither door can drift into its own idea of "has travel".
- *
- * It replaces `canScrollHorizontally`, which compares the same three numbers with a threshold of a
- * pixel or two (the exact platform expression is not in this repo — do not quote it from memory).
- * That is what let 3px of border kill swipe-between-messages. Same numbers, a usable threshold.
+ * they reach [minTravel], the touch slop. ONE rule for both doors a gesture can come through, so
+ * neither drifts into its own idea of "has travel". It replaces `canScrollHorizontally`, whose
+ * threshold of a pixel or two let 3px of border kill swipe-between-messages.
  */
 internal fun bodyCanTravel(travel: Int, minTravel: Int): Boolean = travel >= minTravel
 
 /**
- * The "Original sender" line of the participants panel: the address to show, or null for no line
- * at all (#160). [headerValue] is `Email.originalSender` — what a forwarding service said about
- * the author — and [from] is the message's `From`, which this NEVER replaces.
+ * The "Original sender" line of the participants panel: the address to show, or null for no line at
+ * all (#160). [headerValue] is `Email.originalSender`; [from] is the `From`, which this NEVER
+ * replaces. The address is parsed on `MailRepository.parseAddress`'s rule, restated here rather than
+ * widening the repository's surface.
  *
- * A plain function and not a branch inside the panel's composable, on purpose: R8 has already
- * inlined a small `@Composable` of this module until it painted nothing at all (`Monogram`, kept
- * alive by an explicit keep rule), so a guard living in the painting is only ever proven by a
- * bench run on a release build. Out here it is executed by a unit test.
- *
- * The address is parsed on the same rule as `MailRepository.parseAddress`: `name <addr>`, or the
- * bare string as the address. That rule is `private` to the repository and is restated here rather
- * than widening the repository's surface for one line of one screen.
- *
- * Two refusals, and they are the point of the function:
- * nothing address-shaped in it (no `@`) → no line. The header is entirely sender-controlled and
- *    the line it feeds reads as "here is who really wrote to you"; arbitrary text must not be
- *    presented under that promise.
- * the same address as the first `From`, case-insensitively → no line. Showing one address twice
- *    under two labels is noise on the one screen this exists to make legible.
+ * A plain function and not a branch inside the composable: R8 has already inlined a small
+ * `@Composable` of this module until it painted nothing at all. Two refusals: nothing
+ * address-shaped, the header being sender-controlled; the same address as the first `From`.
  */
 internal fun originalSenderToShow(headerValue: String?, from: List<EmailAddress>): EmailAddress? {
     val value = headerValue?.trim()?.takeIf { it.isNotBlank() } ?: return null
@@ -4022,54 +3485,14 @@ internal fun originalSenderToShow(headerValue: String?, from: List<EmailAddress>
 }
 
 /**
- * Which of the reader's OWN addresses this message came in on, as the third line of the open
- * message's header (#180), or null for no third line at all. [deliveredTo] is what the delivery
- * said — already resolved by the ViewModel, and shown verbatim — and [identityAddresses] is the
- * addresses of the account's SEND-AS IDENTITIES — `store.identities(accountId).map { it.email }`,
- * collected from `MessageViewModel.identityAddresses`. [ownMessage] is the reader's own mail
- * (Sent, Drafts, or sent under one of the account's identities).
- *
- * A plain function and not a branch inside the header's composable, for the same reason as
- * [originalSenderToShow] above: R8 has already inlined a small `@Composable` of this module until
- * it painted nothing at all (`Monogram`, kept alive by an explicit keep rule), so a guard living
- * in the painting is only ever proven by a bench run on a release build. Out here a unit test
- * EXECUTES it.
- *
- * Four refusals, and they are the point of the function:
- * [ownMessage] → no line. Sent and Drafts are shown by their RECIPIENTS ("To: …" on the line
- *    above), and `receivingAddress` scans To+Cc with no idea which folder it is in: a message you
- *    addressed, or copied, to one of your own addresses would otherwise be captioned "Received at"
- *    though nobody ever received it. WYSIWYG — an outgoing message has no arrival.
- * nothing delivered, or blank → no line. A mailing-list post or a Bcc delivery names no address
- *    of the account at all, and a label with nothing after it is worse than no label.
- * fewer than two DISTINCT own addresses → no line. On a single-address account the answer is
- *    the address the account already is, so the header stays exactly as it was.
- * a [deliveredTo] that is not one of [identityAddresses] → no line. The label asserts it is
- *    YOURS. Today's only caller passes `receivingAddress(...)`, which already returns nothing else,
- *    so this changes nothing now; it is here because the obvious next source for this line is a raw
- *    `Delivered-To` header, and that one would hand a stranger's address to the same label.
- *
- * WHICH list this is, is the whole trap, and it is why the parameter is not `accountAddresses`.
- * That list is `identities.map { it.email } + listOfNotNull(username)`, and the LOGIN in it is an
- * authentication identifier, not an address one is reachable at. Two ways it lies here, both
- * ordinary rather than exotic:
- *  · the login is a bare username (`theo`) — the connect screen labels that field
- *    "Email / username" — so `{"theo", "theo@ex.test"}` is two distinct strings for one address;
- *  · the login IS an address, but ANOTHER one. Shared hosting authenticates as
- *    `sc12345@mail.hebergeur.tld` and receives at `moi@mondomaine.tld`; the `.k9s` import builds
- *    exactly that pair from two independent fields. Here `{sc12345@…, moi@…}` counts two, the
- *    delivered address really is a member, and a single-address account would carry this line on
- *    every message it ever shows. An `@` filter does not catch that one — only refusing the login
- *    does.
- * So: identities only. `accountAddresses` keeps its login for `senderRuleEntry`, which asks a
- * different question ("is this sender me?"); it is not to be aligned with this.
- *
- * The accepted cost, and it is the safe direction: an account whose identities have not synced
- * yet, or on which the user declared a single identity, gets NO line. No line is honest; a line
- * naming the wrong address is not.
- *
- * The `@` filter stays — an identity may carry an empty e-mail — and so does the case folding:
- * folding is how entries are COUNTED and compared, never how one is shown.
+ * Which of the reader's OWN addresses this message came in on, as the third line of the header (#180),
+ * or null for no line. A plain function, for [originalSenderToShow]'s reason.
+ * Four refusals: [ownMessage], an outgoing message having no arrival; nothing delivered, a label
+ * with nothing after it being worse than none; fewer than two DISTINCT own addresses; a
+ * [deliveredTo] that is not one of [identityAddresses], since the label asserts it is YOURS.
+ * WHICH list this is, is the whole trap, and why it is not `accountAddresses`: that one folds in the
+ * LOGIN, an authentication identifier that would carry this line on every message of a single-address
+ * account. An account whose identities have not synced yet gets NO line, which is honest.
  */
 internal fun deliveredToInHeader(deliveredTo: String?, identityAddresses: List<String>, ownMessage: Boolean): String? {
     if (ownMessage) return null
@@ -4082,40 +3505,32 @@ internal fun deliveredToInHeader(deliveredTo: String?, identityAddresses: List<S
 
 /**
  * The message-body WebView. It fills the viewport and OWNS its vertical scroll, so Blink culls
- * offscreen content (the email-view jank fix, Codeberg #5). There is no competing outer Compose
- * vertical scroll, so vertical drags stay here. Horizontal ones are ROUTED, in [onTouchEvent]: a
- * sideways drag reaches the reading view's `HorizontalPager` (swipe-between-messages, #6) only on a
- * body with less than one touch slop of sideways travel, and a second finger never reaches it
- * (#152 — a table 3px wider than the viewport is a body that fits). Beyond
- * that it adds a scroll callback (for the collapsing header + the end-of-body bar reveal) and
- * layout metrics.
+ * offscreen content (#5). Horizontal drags are ROUTED in [onTouchEvent]: a sideways drag reaches the
+ * pager (#6) only on a body with less than one touch slop of sideways travel, and a second finger
+ * never reaches it (#152). Beyond that it adds a scroll callback and layout metrics.
  */
 private class BodyWebView(context: Context) : WebView(context) {
     /** Invoked after every internal scroll so the host can collapse the header / reveal the bar. */
     var onScrolled: (() -> Unit)? = null
 
-    /** Gates scroll reporting until layout has settled (set by the host after a load + a stable-range
-     *  settle poll), so the scroll-reset and reflow during load don't report a transient (tiny) range
-     *  and flash the bar. */
+    /** Gates scroll reporting until layout has settled, so the scroll-reset and reflow during load do
+     *  not report a transient (tiny) range and flash the bar. */
     var reportingEnabled = false
 
     /** Identity token for the in-flight settle poll. Each load installs a fresh one, so a poll left
-     *  over from a previous load (or a recycled view) bails instead of revealing the bar on stale,
-     *  not-yet-settled content. */
+     *  over from a previous load bails instead of revealing the bar on stale content. */
     var settleToken: Any? = null
 
-    /** Invoked once the view actually has a size. The body is revealed off a height poll started
-     *  by `onPageFinished`; that poll reads the content range, which is floored at the view's own
-     *  height and is therefore ZERO for as long as the view has not been laid out. A poll that ran
-     *  entirely inside that window learned nothing, and no second poll was ever started. This gives
-     *  the host a second, layout-driven chance to notice the body is there. */
+    /** Invoked once the view actually has a size. The reveal poll reads the content range, which is
+     *  floored at the view's own height and therefore ZERO until the view is laid out; a poll that ran
+     *  entirely inside that window learned nothing, and none is ever restarted. This is the host's
+     *  second, layout-driven chance to notice the body is there. */
     var onSized: (() -> Unit)? = null
 
     /** Invoked when a gesture that could have ACTIVATED something in the document happens: an
-     *  ACTION_UP, or an activation key PRESSED OR RELEASED (which of the two the document acts on
-     *  is not knowable here — see [BodyReveal.keyArmsResizeProbe]). The document has no script and
-     *  no size callback, so this is the host's only warning that the `<details>` folding the
-     *  quoted history may just have opened or closed — i.e. that the body it measured is now a different height. It says
+     *  ACTION_UP, or an activation key pressed or released (which of the two the document acts on is
+     *  not knowable here — see [BodyReveal.keyArmsResizeProbe]). The document has no script and no
+     *  size callback, so this is the host's only warning that the quote fold may have moved. It says
      *  "she touched it", never "it resized": the host reads the geometry itself. */
     var onActivated: (() -> Unit)? = null
 
@@ -4125,22 +3540,12 @@ private class BodyWebView(context: Context) : WebView(context) {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // The keyboard's half of [onActivated]. It hangs off dispatchKeyEvent, not onKeyUp:
-        // onKeyUp is only reached for a key NOBODY consumed, and Blink consumes the one that
-        // works the fold — the bench folded the quoted history with SPACE / ENTER / DPAD_CENTER
-        // and Reply/Forward never came back, which is that door never running. WebView overrides
-        // dispatchKeyEvent, so this subclass sees every key on the way in, consumed or not — the
-        // same position the touch door holds in onTouchEvent.
-        //
-        // Armed BEFORE super, like the touch door and for a sharper reason: super is where the
-        // document acts on the key, so this is the last instant at which the range still holds the
-        // pre-toggle height. Which of the press and the release the document acts on is not
-        // knowable here and may differ per key, so both arm — [BodyReveal.keyArmsResizeProbe] owns
-        // that arbitration and what the spare probe costs, and is run value by value in
-        // KeyArmsResizeProbeTest.
-        //
-        // THIS OBSERVES, IT NEVER CONSUMES. Every key the body receives passes here — text
-        // selection, keyboard zoom, D-pad navigation — so the answer is super's, unchanged.
+        // The keyboard's half of [onActivated]. It hangs off dispatchKeyEvent, not onKeyUp: onKeyUp
+        // is only reached for a key NOBODY consumed, and Blink consumes the one that works the fold.
+        // Armed BEFORE super, like the touch door: super is where the document acts on the key, so
+        // this is the last instant at which the range still holds the pre-toggle height. Which of the
+        // press and the release the document acts on is not knowable here, so both arm.
+        // THIS OBSERVES, IT NEVER CONSUMES: the answer is super's, unchanged.
         if (BodyReveal.keyArmsResizeProbe(event.action, event.keyCode, event.repeatCount)) {
             onActivated?.invoke()
         }
@@ -4156,14 +3561,12 @@ private class BodyWebView(context: Context) : WebView(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x; downY = event.y; axisDecided = false
-                // The ONLY instant this view speaks before the pager: DOWN is dispatched on the
-                // Initial pass, every ACTION_MOVE only on the Final one — so a sideways MOVE reaches
-                // us as an ACTION_CANCEL, already consumed by the pager, and the axis decision below
-                // is never run (see bodyTakesGestureAtDown). The two courses are measured HERE, in
-                // pixels, and not asked of canScrollHorizontally: its threshold is one pixel, and
-                // 3px of table border killed the swipe. travelForward needs travelBack, so it is a
-                // local; BodySideScrollWiringTest pins these three lines as text, since nothing in
-                // a JVM test can build a WebView and watch them run.
+                // The ONLY instant this view speaks before the pager: DOWN is dispatched on the Initial
+                // pass, every ACTION_MOVE only on the Final one — so a sideways MOVE reaches us as an
+                // ACTION_CANCEL and the axis decision below never runs. The two courses are measured
+                // HERE, in pixels, and not asked of canScrollHorizontally: its threshold is one pixel,
+                // and 3px of table border killed the swipe. BodySideScrollWiringTest pins these three
+                // lines as text, since nothing in a JVM test can build a WebView.
                 val travelBack = computeHorizontalScrollOffset()
                 val travelForward =
                     computeHorizontalScrollRange() - computeHorizontalScrollExtent() - travelBack
@@ -4172,33 +3575,30 @@ private class BodyWebView(context: Context) : WebView(context) {
                     travelForward = travelForward,
                     minTravel = touchSlop,
                 )
-                // Outside the claim on purpose: a DOWN that took nothing is a RESULT — the line
-                // carries the two courses and the slop they were judged against, so "the body had
-                // nothing to show" is readable, and distinguishable from "the code never ran".
+                // Outside the claim on purpose: a DOWN that took nothing is a RESULT — the line carries
+                // the two courses and the slop they were judged against, so "the body had nothing to
+                // show" is distinguishable from "the code never ran".
                 if (BuildConfig.DEBUG) logDownVerdict(takesIt, travelBack, travelForward)
                 if (takesIt) {
                     axisDecided = true
                     parent?.requestDisallowInterceptTouchEvent(true)
                 }
             }
-            // A second finger is never a swipe between messages. Pinch-to-zoom is supported here
-            // (builtInZoomControls), and it is the very gesture that creates the sideways travel a
-            // wide body needs — yet event.x stays pointer 0's, so two fingers spreading sideways
-            // make the first MOVE look clearly horizontal and the message would change under the
-            // zoom. Claim it outright and freeze the verdict, so no later MOVE re-arbitrates on
-            // deltas that are a spread, not a drag. No verdict is ever re-opened mid-gesture: this
-            // branch always arrives BEFORE the first two-finger MOVE.
+            // A second finger is never a swipe between messages. Pinch-to-zoom is supported here, and
+            // it is the very gesture that creates the sideways travel a wide body needs — yet event.x
+            // stays pointer 0's, so two fingers spreading sideways make the first MOVE look clearly
+            // horizontal. Claim it outright and freeze the verdict; this branch always arrives BEFORE
+            // the first two-finger MOVE.
             MotionEvent.ACTION_POINTER_DOWN -> {
                 axisDecided = true
                 parent?.requestDisallowInterceptTouchEvent(true)
             }
             MotionEvent.ACTION_MOVE -> if (!axisDecided) {
-                // Signed deltas: bodyDragOwner needs the DIRECTION of the drag to know which of the
-                // two travel answers applies. The claim goes through parent? on purpose — the
-                // WebView is not the AndroidView's root, there is a FrameLayout in between (the
-                // fade's SIGSEGV, Codeberg #10). The two answers are the SAME thresholded measure
-                // DOWN took, not raw canScrollHorizontally — one rule for both doors, so neither can
-                // drift. This branch rescues nothing sideways: it is not reached (see above).
+                // Signed deltas: bodyDragOwner needs the DIRECTION of the drag. The claim goes through
+                // parent? on purpose — the WebView is not the AndroidView's root, there is a
+                // FrameLayout in between (#10). The two answers are the SAME thresholded measure DOWN
+                // took, not raw canScrollHorizontally. This branch rescues nothing sideways: it is not
+                // reached (see above).
                 val travelBack = computeHorizontalScrollOffset()
                 val travelForward =
                     computeHorizontalScrollRange() - computeHorizontalScrollExtent() - travelBack
@@ -4211,15 +3611,10 @@ private class BodyWebView(context: Context) : WebView(context) {
                 )
                 if (owner != BodyDrag.PENDING) {
                     axisDecided = true
-                    // Debug-only measurement of the verdict, at the instant it is taken and BEFORE
-                    // the claim (nothing below changes the geometry, but the reading must not be
-                    // arguable). It exists because a wide body still changed message on the bench:
-                    // both canScrollHorizontally answers came back false while a table was visibly
-                    // cut off, and no JS probe is possible here (javaScriptEnabled = false). The
-                    // deltas are recomputed rather than hoisted into locals: the call above is
-                    // pinned argument by argument by BodySideScrollWiringTest, and two float
-                    // subtractions behind a debug guard are cheaper than weakening that pin. The
-                    // two courses ARE the ones just decided on, handed over rather than re-read.
+                    // Debug-only measurement of the verdict, at the instant it is taken and BEFORE the
+                    // claim (nothing below changes the geometry, but the reading must not be arguable).
+                    // The deltas are recomputed rather than hoisted: the call above is pinned argument
+                    // by argument by BodySideScrollWiringTest.
                     if (BuildConfig.DEBUG) {
                         logDragVerdict(
                             owner, event.x - downX, event.y - downY, travelBack, travelForward,
@@ -4228,9 +3623,8 @@ private class BodyWebView(context: Context) : WebView(context) {
                     if (owner == BodyDrag.CLAIM) parent?.requestDisallowInterceptTouchEvent(true)
                 }
             }
-            // The end of a gesture the body kept. ACTION_CANCEL is deliberately NOT here: a
-            // cancelled gesture is one the pager took off us (swipe between messages), and it
-            // activated nothing in this document. Reporting nothing here either — see [onActivated].
+            // The end of a gesture the body kept. ACTION_CANCEL is deliberately NOT here: a cancelled
+            // gesture is one the pager took off us, and it activated nothing in this document.
             MotionEvent.ACTION_UP -> onActivated?.invoke()
         }
         return super.onTouchEvent(event)
@@ -4249,44 +3643,18 @@ private class BodyWebView(context: Context) : WebView(context) {
 
     /**
      * One line per settled drag verdict, debug builds only (see [BODY_DRAG_TAG]). Call it INSIDE an
-     * `if (BuildConfig.DEBUG)`: the touch path is hot, and the guard must swallow the string
-     * building, not just the write.
-     *
-     * It reports the raw scroll geometry behind the verdict, so a bench pass can tell "the View
-     * really has no horizontal range" (range - extent == 0, i.e. the only travel is Chromium's
-     * visual viewport, which the View API does not expose) from "the range exists and was read at
-     * the wrong moment".
+     * `if (BuildConfig.DEBUG)`: the touch path is hot, and the guard must swallow the string building.
      *
      * IT HAS ALREADY ANSWERED, on 2026-08-12: `verdict=CLAIM canFwd=true hRange=1833 hExtent=720`.
-     * The range exists, the View API reports it, and the body claims — WHEN IT IS ASKED. The reading
-     * this doc was written to test (that both answers came back false on a visibly cut-off table)
-     * was WRONG, and it cost a whole implementation cycle; do not resurrect it from this file.
-     * What was actually broken was the instant, not the API — see [bodyTakesGestureAtDown].
-     *
-     * READ `travelBack`/`travelFwd` FIRST: those two are the numbers the verdict was ACTUALLY
-     * taken on, handed over by the caller, and the threshold they were compared against is `slop=`
-     * (one and the same number — the view's touch slop). A course under it is not a course: that is
-     * the 3px defect of 2026-08-12, where `hRange=2403 hExtent=2400` claimed a gesture and killed
-     * the swipe on a table that was entirely visible.
-     *
-     * `canBack`/`canFwd` are the RAW View-API answers, re-read microseconds later and kept only so
-     * these lines still line up with the readings archived before the threshold existed. They are no
-     * longer what decides: `canFwd=true` next to `travelFwd=3 slop=24` and `verdict=RELEASE` is the
-     * fix working, not a contradiction. `hRange`/`hExtent`/`hOffset` are re-read too; nothing
-     * relayouts in that gap, so they should agree with the courses, and a line where they do not is
-     * itself the finding.
-     *
-     * `view=` is the view's identity hash: the pager keeps neighbouring pages composed and a thread
-     * opens several bodies, so lines from more than one WebView land under the same tag. It is what
-     * ties a drag to the `settle` line of the same body — and it is a number, never content.
+     * The reading this doc was written to test was WRONG; what was broken was the instant, not the API.
+     * READ `travelBack`/`travelFwd` FIRST, against the `slop=` threshold. `canBack`/`canFwd` are the
+     * RAW View-API answers, kept only to line these up with older readings; they no longer decide.
      */
     @Suppress("DEPRECATION")
     // getScale() is deprecated with no replacement on the View API: the modern answer is
-    // window.visualViewport, and JavaScript is disabled on this view — which is the very reason
-    // this measurement has to come from the View side. A scale != 1 with a zero horizontal range
-    // would say the travel lives only in Chromium's visual viewport — the bench REFUTED that on
-    // 2026-08-12 (hRange=1833 at scale=2.0), so the number now serves as the cross-check that the
-    // geometry reported here is the horizontal one, and it stays worth the deprecation.
+    // window.visualViewport, and JavaScript is disabled on this view — which is the very reason this
+    // measurement has to come from the View side. It now serves as the cross-check that the geometry
+    // reported here is the horizontal one.
     private fun logDragVerdict(
         owner: BodyDrag,
         dx: Float,
@@ -4308,31 +3676,13 @@ private class BodyWebView(context: Context) : WebView(context) {
     }
 
     /**
-     * One line per finger landing on the body, debug builds only (see [BODY_DRAG_TAG]). Call it
-     * INSIDE an `if (BuildConfig.DEBUG)`, and OUTSIDE the claim: the hot-path rule of
-     * [logDragVerdict] applies, and so does the opposite of silence — a `takes=false` line is the
-     * finding, not the absence of a line.
+     * One line per finger landing on the body, debug builds only. Call it INSIDE an
+     * `if (BuildConfig.DEBUG)` and OUTSIDE the claim: a `takes=false` line is the finding, not the
+     * absence of a line. It exists because a bench pass could not tell "the body read no sideways
+     * travel" from "the decision was never reached".
      *
-     * It exists because the previous bench pass could not tell two very different failures apart:
-     * "the body read no sideways travel" and "the decision was never reached at all". A `drag` line
-     * missing proves only the second; this one is emitted on EVERY gesture, so the pair (`down` with
-     * no `drag` following it) is now readable directly.
-     *
-     * READ `takes=` BEFORE CONCLUDING: that pair has TWO causes since the DOWN claim exists.
-     * `takes=true` freezes the verdict, so no `drag` line follows — that is the NORMAL, working
-     * case, not a failure. Only `takes=false` with no `drag` still means the MOVE never arrived.
-     *
-     * `travelBack`/`travelFwd`/`minTravel` are the decision itself: the two courses in pixels and
-     * the touch slop they had to reach. `takes=false travelFwd=3 minTravel=24` is the 3px case of
-     * 2026-08-12 behaving — a table that fits, keeping its swipe. `canBack`/`canFwd` beside them are
-     * the raw View-API answers (threshold: one pixel), kept only to line these lines up with the
-     * readings archived before the threshold existed; they no longer decide anything.
-     * And cross-check the numbers against the `drag`/`settle` line of the same `view=`: nothing
-     * executes this string, so a wrong field here would read as a measurement (a horizontal range in
-     * the tens of thousands is a VERTICAL range, and hRange &lt; hExtent is impossible).
-     *
-     * Same metrics as [logDragVerdict] and [logSettledGeometry], same `view=` identity hash to tie
-     * the three together, and numbers only — never a fragment of the document.
+     * READ `takes=` BEFORE CONCLUDING: `takes=true` freezes the verdict, so no `drag` line follows —
+     * the normal case. Only `takes=false` with no `drag` means the MOVE never arrived.
      */
     @Suppress("DEPRECATION") // getScale(): same reason as [logDragVerdict].
     private fun logDownVerdict(takes: Boolean, travelBack: Int, travelForward: Int) {
@@ -4348,26 +3698,14 @@ private class BodyWebView(context: Context) : WebView(context) {
     }
 
     /**
-     * One line per load, debug builds only, at the point where the settle poll enables reporting —
-     * i.e. the geometry AT REST, before any finger has touched it. [template] names which of
-     * [buildHtmlDocument]'s two templates was rendered, because the dark-rich one puts
-     * `filter: invert(1)` on the root `<html>`, and a filtered root creates a containing block of
-     * its own: it WAS a candidate explanation for a horizontal range that reads as zero on a
-     * document that is visibly too wide. That question is CLOSED — the bench found a real
-     * horizontal range on 2026-08-12 — and the line is kept for what it still measures: the
-     * geometry at rest, which the same pass showed disagreeing with the geometry during a drag
-     * (hRange == hExtent at rest, 1833 moments later). Read it as "not reflowed yet", never as
-     * "no travel". The bench still replays both themes and compares these two lines.
+     * One line per load, debug builds only, where the settle poll enables reporting — the geometry AT
+     * REST. [template] names which of [buildHtmlDocument]'s two templates was rendered, since the
+     * dark-rich one puts `filter: invert(1)` on the root. That question is CLOSED (a real horizontal
+     * range was found on 2026-08-12); the line is kept for the geometry at rest, which the same pass
+     * showed disagreeing with the geometry during a drag. Read it as "not reflowed yet".
      *
-     * [settled] false means the poll hit its cap instead of seeing a stable range, so the reading
-     * is suspect — but even `settled=true` attests only that the VERTICAL range stopped moving:
-     * that is the only stability signal this poll has, and the horizontal geometry is merely assumed
-     * to have settled with it. [blockRemote] is here because a wide layout can be narrow with images
-     * blocked, which would zero the range for a reason none of the three hypotheses is about.
-     *
-     * This line does NOT survive a relayout that skips a reload: changing the text-zoom setting
-     * reflows the body without re-keying the load, and the last line in logcat then describes a
-     * geometry that no longer exists. Re-open the message before trusting it.
+     * Even `settled=true` attests only that the VERTICAL range stopped moving.
+     * It does NOT survive a relayout that skips a reload: re-open the message before trusting it.
      */
     @Suppress("DEPRECATION") // getScale(): same reason as [logDragVerdict].
     fun logSettledGeometry(template: String, settled: Boolean, blockRemote: Boolean) {
@@ -4390,41 +3728,27 @@ private const val BODY_DRAG_TAG = "SternaBodyDrag"
 /**
  * Which of [buildHtmlDocument]'s two templates produced [html] — debug instrumentation only, and
  * deliberately NOT a decision anything on screen depends on. Only the dark-rich branch puts a
- * `filter:` in the document head; the head is entirely ours, the message's own markup lands in the
- * body, so no email can forge either answer.
+ * `filter:` in the document head, and the head is entirely ours, so no email can forge either answer.
  */
 private fun bodyTemplateName(html: String): String =
     if ("filter: invert(1)" in html.substringBefore("<body")) "dark-rich-invert" else "light-or-plain"
 
 /**
- * How long after a document load the body's height report may go missing before the WebView takes
- * the height from the view itself. Sits just past the post-load height poll's own window (~30 ticks
- * of 32ms), so the accurate report always wins when it comes at all.
+ * How long after a document load the body's height report may go missing before the WebView takes the
+ * height from the view itself. Just past the post-load height poll's own window, so the accurate
+ * report always wins when it comes at all.
  */
 private const val HEIGHT_REPORT_BACKSTOP_MS = 1_200L
 
 /**
- * The resize probe's window: [RESIZE_PROBE_TICKS] readings [RESIZE_PROBE_MS] apart, ~1s, armed by
+ * The resize probe's window: [RESIZE_PROBE_TICKS] readings [RESIZE_PROBE_MS] apart, ~1 s, armed by
  * the END of a gesture the body kept.
+ * Why a whole second: the probe must see the relayout reach a PLATEAU ([BodyReveal.resizeStep]).
+ * Expiring is FINAL — a folded body that fits never scrolls again — so a budget too short does not
+ * delay the bar, it loses it; and it stays BOUNDED for the symmetric reason (#63).
  *
- * Why a whole second, when the fold itself is instant: the probe must see the relayout reach a
- * PLATEAU (two agreeing readings — [BodyReveal.resizeStep]), and a forty-message thread with inline
- * images takes several ticks to get there on the hardware this app is meant for. The load's settle
- * poll allows 2.5s for the same layout work; this stays an order of magnitude under that cap while
- * leaving real room for the plateau. It was 6 ticks (~300ms) and that is not room for one.
- *
- * Expiring is FINAL — nothing re-arms it, and a folded body that fits the screen never scrolls
- * again, so it produces no further report of any kind. A budget too short therefore does not delay
- * the bar, it loses it.
- *
- * And it stays strictly BOUNDED, for the symmetric reason: a body that relayouts in a loop exists
- * (that is what the settle poll's own cap is about), and an unbounded probe would poll the UI
- * thread for as long as that body is open, blinking the bar on it (Codeberg #63).
- *
- * What is armed per gesture, not what is free: EVERY gesture the body keeps ends in an ACTION_UP,
- * a scroll included, so a scroll arms one closure and up to [RESIZE_PROBE_TICKS] posted readings.
- * That is once per GESTURE, not once per frame, and nothing is added to `onScrollChanged` or to the
- * draw path — the two places where per-frame work would be felt (Codeberg #5/#6).
+ * EVERY gesture the body keeps ends in an ACTION_UP, so a scroll arms one probe — once per GESTURE,
+ * not per frame, and nothing is added to the scroll or draw paths (#5/#6).
  */
 private const val RESIZE_PROBE_TICKS = 20
 private const val RESIZE_PROBE_MS = 50L
@@ -4446,20 +3770,17 @@ private fun EmailWebView(
     val clipboard = LocalClipboardManager.current
     val linkCopiedMsg = stringResource(R.string.status_link_copied)
     // Both ways out of this body go through ONE latch, because they are one action: tapping a link.
-    // The confirmation dialog is not itself protection — two taps inside the same frame both reach
-    // its Open button — and with the confirmation setting OFF, which is the default and the path
-    // most mail is read on, there is no dialog at all between the tap and the browser.
+    // The confirmation dialog is not itself protection — two taps in the same frame both reach its
+    // Open button — and with confirmation OFF, the default, there is no dialog at all.
     val leaveOnce = rememberLeaveOnce()
     // When confirmation is on, a tapped link is held here until the user approves it.
     var pendingLink by remember { mutableStateOf<Uri?>(null) }
     // Body laid out: JS is disabled, so this comes from the native scroll range, reported once it has
-    // stabilised (BlockingWebViewClient polls until two readings agree). Until then the parent keeps
-    // the WebView invisible (alpha) and shows a spinner, so no half-laid-out reflow is ever shown.
+    // stabilised. Until then the parent keeps the WebView invisible and shows a spinner.
     var heightPx by remember { mutableIntStateOf(0) }
-    // Compositing mode for this device, decided once. Most devices render hardware-accelerated
-    // (LAYER_TYPE_NONE); crash-prone devices (S7-class GPU-functor SIGSEGV) latch the software layer.
-    // The WebView fills the viewport (≈ one screen), so it stays within the software layer's ARGB_8888
-    // bitmap cap with no extra clamping. See [WebViewLayerGuard] for the self-healing sentinel.
+    // Compositing mode for this device, decided once. Most devices render hardware-accelerated;
+    // crash-prone ones latch the software layer. The WebView fills the viewport, so it stays within
+    // that layer's bitmap cap with no extra clamping. See [WebViewLayerGuard].
     val useSoftwareLayer = remember(context) { WebViewLayerGuard.useSoftwareLayer(context) }
     val navTransitionActive = LocalNavTransitionActive.current
     val client = remember { BlockingWebViewClient() }
@@ -4468,28 +3789,21 @@ private fun EmailWebView(
     client.onOpenUrl = { uri ->
         if (confirmLinks) pendingLink = uri else leaveOnce { openExternally(context, uri) }
     }
-    // The body's resting scroll geometry as measured by the height poll, when that poll actually
-    // measured (two agreeing readings) rather than fell back. It is what lets the host decide the
-    // Reply/Forward bar in the same frame as the body's reveal (#63); null keeps the old,
-    // bias-to-hidden path where only the settle poll below decides.
+    // The body's resting scroll geometry as measured by the height poll, when it actually measured
+    // rather than fell back. It is what lets the host decide the Reply/Forward bar in the same frame
+    // as the body's reveal (#63); null keeps the old, bias-to-hidden path.
     var restingMetrics by remember { mutableStateOf<BodyMetrics?>(null) }
     client.onContentHeight = { px, resting -> heightPx = px; restingMetrics = resting }
     val ready = heightPx > 0
-    // Keyed on the metrics too: a height that arrived from a fallback first (onSized / the
-    // backstop) can still be followed by a real measurement, and that measurement should still get
-    // to settle the bar. Re-announcing readiness is a no-op for the host.
+    // Keyed on the metrics too: a height that arrived from a fallback can still be followed by a real
+    // measurement, and that measurement should still get to settle the bar.
     LaunchedEffect(ready, restingMetrics) { if (ready) onReady(restingMetrics) }
     // Report the body's scroll position so the host can collapse the header and reveal the bar at the
-    // end. maxScroll uses the LIVE scroll range (accurate once layout has settled); reporting is gated
-    // by [BodyWebView.reportingEnabled] until then, so the load-time scroll-reset and reflow never
-    // report a transient tiny range (which read as "fits" and flashed the bar on a fresh open). The
-    // header/bar overlay the body, so this never resizes it.
-    // The RAW geometry is reported, not a scroll range: `contentRangePx()` is floored at the view's
-    // height, so before the document lays out it is indistinguishable from a body that fits, and the
-    // decision of whether this report measured anything belongs to [BarReveal] alone.
-    // `lastWord` says this is the settle poll's CAPPED report — the only report of the resting
-    // geometry the reader is guaranteed, since a body that fits never scrolls. [BarReveal] discards
-    // a report that measured nothing, except that one.
+    // end. Reporting is gated until layout settles, so the load-time scroll-reset never reports a
+    // transient tiny range (which read as "fits" and flashed the bar). The RAW geometry is reported:
+    // `contentRangePx()` is floored at the view's height, so whether a report measured anything
+    // belongs to [BarReveal] alone. `lastWord` marks the settle poll's CAPPED report — the only
+    // resting geometry the reader is guaranteed.
     val reportScroll: (BodyWebView, Boolean) -> Unit = { wv, lastWord ->
         onScroll(
             BodyMetrics(
@@ -4501,11 +3815,10 @@ private fun EmailWebView(
             lastWord,
         )
     }
-    // The same raw geometry, through the THIRD door: this body is the one already on screen and it
-    // just changed height under the reader's finger (she opened or closed the quote fold). Only
-    // [BarReveal.resized] may set aside the "a measured range only grows" rule, and only because
-    // this report is armed by a gesture — so it has its own callback rather than a flag on the
-    // scroll one, and nothing on the scroll path can reach it by accident.
+    // The same raw geometry, through the THIRD door: this body is already on screen and just changed
+    // height under the reader's finger. Only [BarReveal.resized] may set aside the "a measured range
+    // only grows" rule, and only because this report is armed by a gesture — so it has its own
+    // callback rather than a flag on the scroll one.
     val reportResize: (BodyWebView) -> Unit = { wv ->
         onResized(
             BodyMetrics(
@@ -4516,24 +3829,20 @@ private fun EmailWebView(
             ),
         )
     }
-    // On the hardware layer, once the body has drawn safely, latch the device as "hardware proven" so
-    // the crash sentinel never arms again. The delay outlives the first frame: an S7-class functor
-    // would already have SIGSEGV'd the process before this runs, leaving the sentinel set for
-    // next-launch detection. Gated on the nav fade being over, so a fade-window crash (the #10
-    // offscreen-layer bug, [NavFadeGuard]'s territory) is never counted as steady-state proof.
+    // On the hardware layer, once the body has drawn safely, latch the device as "hardware proven".
+    // The delay outlives the first frame: an S7-class functor would already have SIGSEGV'd. Gated on
+    // the nav fade being over, so a fade-window crash ([NavFadeGuard]'s territory) is never counted as
+    // steady-state proof.
     LaunchedEffect(ready, useSoftwareLayer, navTransitionActive) {
         if (ready && !useSoftwareLayer && !navTransitionActive) {
             delay(500)
             WebViewLayerGuard.markProven(context)
         }
     }
-    // Arm the fade-crash sentinel exactly while a laid-out hardware body is exposed to a running
-    // nav fade — the only window where the #10 SIGSEGV can strike. DisposableEffect covers every
-    // exit uniformly: fade completes (key flips → restart → disarm), destination disposed after a
-    // pop (onDispose), fade cancelled, page recycled. Only a process death leaves the flag set.
-    // The commit() runs on the UI thread during applyChanges, strictly before the frame in which
-    // the fade's offscreen layer is first rendered. Software-layer devices never arm: they have
-    // no GL functor, and their fade has always been safe.
+    // Arm the fade-crash sentinel exactly while a laid-out hardware body is exposed to a running nav
+    // fade — the only window where the #10 SIGSEGV can strike. DisposableEffect covers every exit
+    // uniformly, so only a process death leaves the flag set. The commit() runs strictly before the
+    // frame in which the fade's offscreen layer is first rendered. Software-layer devices never arm.
     val fadeExposure = ready && !useSoftwareLayer && navTransitionActive
     DisposableEffect(fadeExposure) {
         if (fadeExposure) NavFadeGuard.arm(context)
@@ -4543,23 +3852,20 @@ private fun EmailWebView(
         modifier = modifier,
         factory = { ctx ->
             val webView = BodyWebView(ctx).apply {
-                // Compositing path. The hardware-accelerated GLFunctor lets the WebView tile its
-                // own paint (full-height bodies, no bitmap cap), but on devices whose HWUI/GPU
-                // blobs are mismatched (e.g. older hardware running a newer custom ROM, which
-                // reports a modern API level so we can't gate by version) that functor
-                // dereferences a null SkSurface in RenderThread and the whole app SIGSEGVs the
-                // instant a mail body is drawn. Such devices are latched onto the software layer
-                // by [WebViewLayerGuard] (which sidesteps the functor) and stay there; for a
-                // static, JS-disabled email body the software rendering cost is negligible.
+                // Compositing path. The hardware-accelerated GLFunctor lets the WebView tile its own
+                // paint, but on devices whose HWUI/GPU blobs are mismatched it dereferences a null
+                // SkSurface in RenderThread and the app SIGSEGVs the instant a body is drawn. Such
+                // devices are latched onto the software layer by [WebViewLayerGuard]; for a static,
+                // JS-disabled body the software rendering cost is negligible.
                 setLayerType(if (useSoftwareLayer) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_NONE, null)
                 settings.javaScriptEnabled = false
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
                 settings.allowFileAccess = false
                 settings.allowContentAccess = false
-                // Explicitly deny every path from email markup to the local filesystem,
-                // on-device storage, or geolocation. These are off by default on modern
-                // API levels, but untrusted HTML email warrants asserting it.
+                // Explicitly deny every path from email markup to the local filesystem, on-device
+                // storage or geolocation. Off by default on modern API levels, but untrusted HTML
+                // email warrants asserting it.
                 @Suppress("DEPRECATION")
                 settings.allowFileAccessFromFileURLs = false
                 @Suppress("DEPRECATION")
@@ -4571,14 +3877,12 @@ private fun EmailWebView(
                 settings.displayZoomControls = false
                 webViewClient = client
             }
-            // The WebView is deliberately NOT the AndroidView root: an intermediate FrameLayout
-            // changes the clip geometry HWUI hands the GL functor when the nav fade composites
-            // this subtree into its offscreen layer, steering it away from the empty-clip
-            // "unclipped saveLayer" path whose unguarded null SkSurface SIGSEGVs GL-pipeline
-            // devices (Codeberg #10; AOSP GLFunctorDrawable bug, unfixed since Android 11).
-            // Same shape as react-native-webview's shipped fix for the identical crash. The
-            // [NavFadeGuard] sentinel remains the safety net for devices where the geometry
-            // still lines up badly.
+            // The WebView is deliberately NOT the AndroidView root: an intermediate FrameLayout changes
+            // the clip geometry HWUI hands the GL functor when the nav fade composites this subtree
+            // into its offscreen layer, steering it away from the empty-clip path whose unguarded null
+            // SkSurface SIGSEGVs GL-pipeline devices (#10). Same shape as react-native-webview's
+            // shipped fix. [NavFadeGuard] remains the net for devices where the geometry still lines
+            // up badly.
             FrameLayout(ctx).apply {
                 addView(
                     webView,
@@ -4594,33 +3898,26 @@ private fun EmailWebView(
             // Match the WebView's own background to the theme so it doesn't flash white.
             webView.setBackgroundColor(backgroundColor)
             webView.settings.textZoom = textZoom
-            // Report scroll on each internal scroll, but only once reporting is enabled (after the
-            // load settles, below), so load-time scroll-resets don't flash the bar.
+            // Report scroll on each internal scroll, but only once reporting is enabled, so load-time
+            // scroll-resets do not flash the bar.
             webView.onScrolled = { if (webView.reportingEnabled) reportScroll(webView, false) }
             // Second chance to notice the body is laid out: the post-load height poll can run and
-            // expire entirely while the view still has no size (nothing it reads can be non-zero
-            // then), and it is never restarted. Getting a size is exactly the event it was missing.
+            // expire entirely while the view still has no size, and it is never restarted.
             webView.onSized = {
                 if (heightPx <= 0) heightPx = webView.contentRangePx().coerceAtLeast(webView.height)
             }
-            // The third door. Closing the <details> that folds a reply's quoted history really
-            // SHORTENS the document, and nothing announces it: the document has no script, the
-            // View has no content-size callback, and a body already at the top does not scroll as
-            // it shrinks — so no scroll report is produced at all. The remembered range then stays
-            // that of the unfolded body, which the folded one can never reach again, and
-            // Reply/Forward are gone until the message is reopened.
-            //
-            // Every gesture the body keeps ends here, not just a tap on the fold: a scroll, a long
-            // press, a pinch. Two of them really do change the height (the fold, and zooming out),
-            // and the rest read the same number twice and expire in silence — see [ResizeProbe].
-            //
-            // This LOOKS ONLY. Nothing here re-keys the document or touches the load key: a
-            // reload would send the reader back to the top of the message she is reading.
+            // The third door. Closing the <details> that folds a reply's quoted history really SHORTENS
+            // the document, and nothing announces it: no script, no content-size callback, and a body
+            // at the top does not scroll as it shrinks — so the remembered range stays that of the
+            // unfolded body and Reply/Forward are gone until the message is reopened.
+            // Every gesture the body keeps ends here, not just a tap on the fold; the rest read the
+            // same number twice and expire in silence (see [ResizeProbe]).
+            // This LOOKS ONLY: nothing here re-keys the document or touches the load key.
             webView.onActivated = {
                 if (webView.reportingEnabled) {
-                    // The load this gesture belongs to, and the height the document had when her
-                    // finger left the screen. Both are captured now: the probe below compares
-                    // against THIS reading, and stands down if a newer load replaced the token.
+                    // The load this gesture belongs to, and the height the document had when her finger
+                    // left the screen. Both are captured now: the probe compares against THIS reading,
+                    // and stands down if a newer load replaced the token.
                     val loadToken = webView.settleToken
                     val atGesture = webView.contentRangePx()
                     fun probe(last: Int, triesLeft: Int) {
@@ -4635,57 +3932,40 @@ private fun EmailWebView(
                     webView.postDelayed({ probe(atGesture, RESIZE_PROBE_TICKS) }, RESIZE_PROBE_MS)
                 }
             }
-            // update() runs on every recomposition; only (re)load when the document
-            // actually changed, otherwise expanding one card reloads (and flickers)
-            // every other open body in the conversation. blockRemote is part of the
-            // key so toggling "show images" reloads the page — otherwise the already
-            // intercepted (blocked) image requests are never re-issued and stay broken.
+            // update() runs on every recomposition; only (re)load when the document actually changed.
+            // blockRemote is part of the key so toggling "show images" reloads the page — otherwise the
+            // already-intercepted image requests are never re-issued and stay broken.
             val loadKey = Pair(blockRemote, html)
             if (webView.tag != loadKey) {
                 webView.tag = loadKey
-                // Arm the crash sentinel right before a hardware-accelerated draw on a device that
-                // hasn't yet proven the functor is safe. If this draw SIGSEGVs, the flag survives to
-                // the next launch and the device latches the software layer. No-op once proven.
+                // Arm the crash sentinel right before a hardware-accelerated draw on a device that has
+                // not yet proven the functor is safe. If this draw SIGSEGVs, the flag survives to the
+                // next launch. No-op once proven.
                 if (!useSoftwareLayer) WebViewLayerGuard.armIfUnproven(context)
                 webView.reportingEnabled = false
                 webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
-                // Keep the bar HIDDEN until the body has SETTLED, then evaluate the resting reveal
-                // ONCE with the final scroll range. The old fixed 250ms timer expired while a heavy
-                // HTML body (lots of markup / inline images) was still laying out, so the live range
-                // was still tiny → judged "fits" → the bar flashed in, vanished on the first scroll,
-                // then returned at the end (cold open only; pager-prewarmed pages had already settled,
-                // so they never flashed). Instead poll the live content range until it stops changing
-                // across consecutive reads — or a generous cap elapses — before enabling reporting.
-                // Reporting stays OFF throughout, so onScrolled can't reveal the bar during the
-                // unsettled window: bias-to-hidden, zero flash. A short mail still ends up showing the
-                // bar because the resting reveal runs once after settle (range ≈ 0 → "fits"); a long
-                // mail stays hidden until onScrolled reveals it at the (now accurate) bottom.
-                // Since #63 this is no longer what USUALLY reveals the bar: the height poll settles
-                // first and hands the reader the same resting geometry, so body and bar appear
-                // together. This poll stays as the gate for live scroll reporting, and as the
-                // fallback for the loads whose height never settled. Its one terminal report can
-                // therefore land AFTER the height poll's, on a body that has grown in between; the
-                // reader folds both through [BarReveal], so the later, taller
-                // reading can no longer pull back a bar the earlier one already put on screen.
+                // Keep the bar HIDDEN until the body has SETTLED, then evaluate the resting reveal ONCE
+                // with the final scroll range. A fixed 250 ms timer expired while a heavy body was
+                // still laying out, so the tiny live range was judged "fits" and the bar flashed in.
+                // Instead poll the live content range until it stops changing, or a cap elapses;
+                // reporting stays OFF throughout: bias-to-hidden, zero flash.
+                // Since #63 this is no longer what usually reveals the bar — the height poll settles
+                // first — so it stays as the gate for live reporting and the fallback for loads whose
+                // height never settled.
                 val settleToken = Any()
                 webView.settleToken = settleToken
                 var settleLast = -1
                 var settleStable = 0
                 fun settlePoll(triesLeft: Int) {
-                    // A newer load started (token replaced) or the view was detached (recycled/closed):
-                    // abandon WITHOUT touching reporting, so a stale poll can't reveal the bar.
+                    // A newer load started (token replaced) or the view was detached: abandon WITHOUT
+                    // touching reporting, so a stale poll cannot reveal the bar.
                     if (webView.settleToken !== settleToken || webView.parent == null) return
                     val range = webView.contentRangePx()
-                    // A reading that MEASURED nothing can never settle this poll, however many
-                    // times it repeats: the range is floored at the view's height, so three
-                    // agreeing readings of that floor are what a body reads while its renderer is
-                    // still booting — and this poll's terminal report is the reader's ONE
-                    // guaranteed report of the resting geometry. Concluding on the floor used to
-                    // announce "the body fits" for the first message opened after process start;
-                    // [BarReveal] now discards that report, and if the poll still stopped there
-                    // nothing would ever report the real geometry and a short body would lose its
-                    // bar for good. So keep polling until the document is laid out — the cap below
-                    // still reports unconditionally, because this poll may never end silently.
+                    // A reading that MEASURED nothing can never settle this poll, however often it
+                    // repeats: the range is floored at the view's height, so three agreeing readings of
+                    // that floor are what a body reads while its renderer is booting. Concluding there
+                    // announced "the body fits" for the first message opened after process start. So
+                    // keep polling until the document is laid out — the cap still reports regardless.
                     if (BodyReveal.rangeMeasured(range, webView.visibleExtentPx(), webView.contentHeight) &&
                         range == settleLast
                     ) {
@@ -4694,16 +3974,13 @@ private fun EmailWebView(
                         settleStable = 0
                         settleLast = range
                     }
-                    // Stable across three consecutive reads, or the ~2.5s cap reached (some bodies
-                    // never fully settle — relayout loop): enable reporting and evaluate the resting
-                    // reveal once, now using the final (accurate) scroll range.
+                    // Stable across three consecutive reads, or the ~2.5 s cap reached (some bodies never
+                    // fully settle): enable reporting and evaluate the resting reveal once.
                     if (settleStable >= 2 || triesLeft <= 0) {
                         webView.reportingEnabled = true
                         reportScroll(webView, settleStable < 2)
-                        // Debug-only: the body's HORIZONTAL geometry at rest, once per load, from
-                        // the one point that already knows the layout has stopped moving. Reading
-                        // it here and again at each drag verdict is what separates "no range at
-                        // all" from "range read too early" (#152 follow-up).
+                        // Debug-only: the body's HORIZONTAL geometry at rest, once per load, from the
+                        // one point that already knows the layout has stopped moving (#152 follow-up).
                         if (BuildConfig.DEBUG) {
                             webView.logSettledGeometry(
                                 bodyTemplateName(html), settleStable >= 2, blockRemote,
@@ -4714,13 +3991,10 @@ private fun EmailWebView(
                     webView.postDelayed({ settlePoll(triesLeft - 1) }, 50)
                 }
                 webView.postDelayed({ settlePoll(50) }, 50)
-                // Re-arm the height report from the LOAD, not just from onPageFinished. The report
-                // is what reveals the body, and it only ever rode on onPageFinished — which a load
-                // superseded by a newer one (a resized header re-keys the document) never delivers,
-                // leaving nothing to start the poll and no way back. The load itself always
-                // happens, so hang a backstop off it: if nothing has reported by the time the
-                // poll's own window has elapsed, take the height from the view. Token-guarded like
-                // the settle poll, so a superseded load's backstop stands down for the newer one's.
+                // Re-arm the height report from the LOAD, not just from onPageFinished. The report is
+                // what reveals the body, and it only ever rode on onPageFinished — which a superseded
+                // load never delivers, leaving nothing to start the poll and no way back. The load
+                // itself always happens, so hang a backstop off it. Token-guarded like the settle poll.
                 webView.postDelayed({
                     if (webView.settleToken === settleToken && webView.parent != null && heightPx <= 0) {
                         heightPx = webView.contentRangePx().coerceAtLeast(webView.height).coerceAtLeast(1)
@@ -4737,36 +4011,28 @@ private fun EmailWebView(
             title = { Text(stringResource(R.string.message_open_link_title)) },
             text = {
                 Column {
-                    // The address takes what is LEFT once the button has its height, and scrolls
-                    // inside that. Material's text slot is a height-bounded box with no scrolling of
-                    // its own: written as a plain Column, a long address ate the whole slot and the
-                    // button was measured at zero height — not crowded, gone, and untappable. The
-                    // addresses that need this dialog most are exactly the long ones (tracking links
-                    // run to hundreds of characters), and in landscape or at a large font scale a
-                    // few hundred is already enough.
+                    // The address takes what is LEFT once the button has its height, and scrolls inside
+                    // that. Material's text slot is a height-bounded box with no scrolling of its own:
+                    // written as a plain Column, a long address ate the whole slot and the button was
+                    // measured at zero height — not crowded, gone, and untappable. The addresses that
+                    // need this dialog most are exactly the long ones.
                     Text(
                         link,
                         modifier = Modifier
                             .weight(1f, fill = false)
                             .verticalScroll(rememberScrollState()),
                     )
-                    // Copy the address instead of handing it to whatever app claims it (#108):
-                    // the confirmation used to be a dead end — open it in the default handler, or
-                    // give up. Copying lets the reader paste it wherever they meant it to go.
-                    //
-                    // It sits UNDER the address, not as a third action button: Material's dialog has
-                    // exactly two action slots, and a third label crammed into one of them shares
-                    // that slot's single row — it cannot wrap, so the longer translations would be
-                    // clipped on a narrow screen. Here it sits on the address it copies instead.
+                    // Copy the address instead of handing it to whatever app claims it (#108): the
+                    // confirmation used to be a dead end. It sits UNDER the address, not as a third
+                    // action button: Material's dialog has exactly two action slots, and a third label
+                    // crammed into one shares that slot's single row, where it cannot wrap.
                     TextButton(
                         onClick = {
                             clipboard.setText(AnnotatedString(link))
-                            // Every other copy in the app says so, this one included — the sign-in
-                            // code's tap-to-copy is the same gesture and shows the same kind of
-                            // message. From Android 13 the system announces the copy itself and
-                            // ours would double it, so ours stands down there and only there.
-                            // minSdk is 26: without this, five Android versions get no answer at
-                            // all beyond the dialog closing.
+                            // Every other copy in the app says so. From Android 13 the system announces
+                            // the copy itself and ours would double it, so ours stands down there and
+                            // only there; minSdk is 26, so without this five Android versions get no
+                            // answer at all beyond the dialog closing.
                             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                                 Toast.makeText(context, linkCopiedMsg, Toast.LENGTH_SHORT).show()
                             }
@@ -4799,10 +4065,9 @@ private fun EmailWebView(
 }
 
 /**
- * Open a URL in the system's default handler (browser/chooser), and say whether anything took it —
- * a device with no browser at all throws. It used to swallow that and return nothing, which reads
- * the same on screen but is not the same to the guard above: an opener that cannot tell a hand-off
- * from a dud would latch a dead link and leave the reader tapping a link that can never work.
+ * Open a URL in the system's default handler, and say whether anything took it — a device with no
+ * browser at all throws. Swallowing that and returning nothing reads the same on screen but not to
+ * the guard above: an opener that cannot tell a hand-off from a dud would latch a dead link.
  */
 private fun openExternally(context: Context, uri: Uri): Boolean = try {
     context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -4816,16 +4081,12 @@ private fun openExternally(context: Context, uri: Uri): Boolean = try {
 private fun Color.toCssHex(): String = "#%06X".format(0xFFFFFF and toArgb())
 
 /**
- * The body's resting scroll geometry at the instant its height poll ended, or null when that poll
- * did not actually measure anything (it capped out and fell back to the tallest reading or the
- * view's height). Null means "nothing was measured, so claim nothing": the reader keeps the bar
- * hidden and lets the settle poll decide, exactly as before #63.
+ * The body's resting scroll geometry at the instant its height poll ended, or null when that poll did
+ * not measure anything — in which case nothing is claimed and the settle poll decides, as before #63.
  *
- * The range used is the TALLEST reading of this load, not merely the settling one. The only
- * mistake that shows on screen is calling a long body "fits", revealing the bar, and taking it
- * away again on the first scroll; a body that was ever measured taller than it settled is
- * therefore treated as the taller one. Erring this way costs at most a late bar (the behaviour
- * before #63), erring the other way costs a flash.
+ * The range used is the TALLEST reading of this load: the only mistake that shows on screen is calling
+ * a long body "fits" and taking the bar away again on the first scroll, so erring this way costs at
+ * most a late bar.
  */
 private fun restingMetrics(wv: WebView, step: HeightPoll.Report, maxSeen: Int): BodyMetrics? {
     if (!step.settled) return null
@@ -4846,44 +4107,37 @@ private class BlockingWebViewClient : WebViewClient() {
     /** Reports the final (possibly cleaned) URL to open; the composable decides how. */
     var onOpenUrl: (Uri) -> Unit = {}
 
-    /** Reports the rendered content height (Android px). The host does not size anything from
-     *  it — it uses it purely as "the body has laid out, reveal it" (see [BodyReveal]).
-     *  The second argument carries the body's resting scroll geometry measured at that same
-     *  instant, and is non-null ONLY when the height was actually measured (two agreeing
-     *  readings); it lets the host reveal the bottom bar in the same frame as the body (#63).
-     *  Null on the poll's fallback outcomes: nothing was measured, so nothing is claimed. */
+    /** Reports the rendered content height (Android px). The host does not size anything from it — it
+     *  uses it purely as "the body has laid out, reveal it". The second argument carries the resting
+     *  scroll geometry measured at that same instant, non-null ONLY when the height was actually
+     *  measured, and lets the host reveal the bottom bar in the same frame as the body (#63). */
     var onContentHeight: (px: Int, resting: BodyMetrics?) -> Unit = { _, _ -> }
 
-    /** Called once the page has finished loading, after the height poll above has been armed.
-     *  The print path hangs its "now hand the page to the print service" on it; the reader
-     *  leaves it empty. Not named after the callback it rides on, so a call reads as what it is. */
+    /** Called once the page has finished loading, after the height poll above has been armed. The
+     *  print path hangs its "hand the page to the print service" on it; the reader leaves it empty.
+     *  Not named after the callback it rides on, so a call reads as what it is. */
     var onPageLoaded: (WebView) -> Unit = {}
 
     override fun onPageFinished(view: WebView?, url: String?) {
         val wv = view ?: return
-        // No JS to measure with, so poll the native content height until it stabilises (two
-        // consecutive equal readings), then report the final height ONCE. This absorbs the
-        // brief reflow as text lays out and inline (data:) images decode, so the body is sized
-        // and revealed a single time — never half-laid-out, never resized in view. Caps at
-        // ~1s so a pathological page still reveals.
+        // No JS to measure with, so poll the native content height until it stabilises (two consecutive
+        // equal readings), then report the final height ONCE. This absorbs the brief reflow as text
+        // lays out and inline images decode, so the body is revealed a single time. Caps at ~1 s.
         var last = -1
         var maxSeen = 0
         fun poll(triesLeft: Int) {
             if (wv.parent == null) return // detached (recycled/closed) — stop
             // Measure with the layout-accurate scroll range (device px), not the legacy
-            // getContentHeight() which under-reports (it ignores trailing padding and is unreliable
-            // on heavy HTML at first paint). The under-report made long bodies un-scrollable to their
-            // true end and the "at bottom" reveal misfire (Codeberg #5/#6 follow-up).
+            // getContentHeight(), which ignores trailing padding and is unreliable on heavy HTML at
+            // first paint: the under-report made long bodies un-scrollable to their true end (#5/#6).
             val px = (wv as? BodyWebView)?.contentRangePx()
                 ?: (wv.contentHeight * wv.resources.displayMetrics.density).toInt()
             if (px > maxSeen) maxSeen = px
-            // Some bodies (deeply nested tables + inline images) never settle — the range
-            // oscillates between several values in a relayout loop. Reporting the LAST reading
-            // could pin a too-short height and cut off the tail; the cap reports the TALLEST seen
-            // so the whole body fits (and is correctly scrollable). A little trailing slack is
-            // harmless; lost content is not. And the cap ALWAYS reports, even when every reading
-            // was zero (see [BodyReveal]): this poll is the only thing that reveals the body, so
-            // giving up silently hid the mail for good.
+            // Some bodies (deeply nested tables + inline images) never settle — the range oscillates in
+            // a relayout loop. Reporting the LAST reading could pin a too-short height and cut off the
+            // tail; the cap reports the TALLEST seen. A little trailing slack is harmless; lost content
+            // is not. And the cap ALWAYS reports, even when every reading was zero: this poll is the
+            // only thing that reveals the body.
             when (val step = BodyReveal.step(px, last, maxSeen, triesLeft, wv.height)) {
                 is HeightPoll.Report -> onContentHeight(step.px, restingMetrics(wv, step, maxSeen))
                 HeightPoll.Retry -> {
@@ -4900,8 +4154,7 @@ private class BlockingWebViewClient : WebViewClient() {
         if (!blockRemote) return null
         // Default-deny: only inert, local sources are allowed through. Anything else — http(s),
         // protocol-relative URLs (which arrive with a null/empty scheme), ws, ftp, prefetch — is
-        // blocked so a tracking pixel can't fire by any vector. Keying on "http"/"https" alone
-        // (the old behaviour) let "//evil.com/x.gif" and friends slip past.
+        // blocked. Keying on "http"/"https" alone let "//evil.com/x.gif" slip past.
         val scheme = request?.url?.scheme?.lowercase()
         return if (scheme == "data" || scheme == "cid" || scheme == "about") {
             null
@@ -4913,13 +4166,11 @@ private class BlockingWebViewClient : WebViewClient() {
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val url = request?.url ?: return false
         val scheme = url.scheme?.lowercase()
-        // Only hand off web/contact schemes to the system. Never forward intent:, javascript:,
-        // file:, content:, data: etc. — an <a href="intent://…"> in a hostile email could
-        // otherwise redirect into another app or an internal component.
+        // Only hand off web/contact schemes to the system. Never forward intent:, javascript:, file:,
+        // content:, data: — an <a href="intent://…"> in a hostile email could redirect into another app.
         if (scheme !in SAFE_OPEN_SCHEMES) return true // swallow: don't navigate, don't open
-        // Act only on a genuine user tap. Auto-navigations (<meta refresh>, scripted redirects)
-        // arrive without a gesture; ignoring them stops a message from opening an app or firing
-        // a network request just by being viewed.
+        // Act only on a genuine user tap. Auto-navigations (<meta refresh>, scripted redirects) arrive
+        // without a gesture; ignoring them stops a message acting just by being viewed.
         if (!request.hasGesture()) return true
         // Strip tracking params (utm_*, fbclid, …) so the sender can't tell the link was clicked.
         val target = if (stripTracking) Uri.parse(LinkCleaner.strip(url.toString())) else url
@@ -4933,22 +4184,18 @@ private class BlockingWebViewClient : WebViewClient() {
 }
 
 /**
- * Hand [html] — the document [buildPrintDocument] made — to Android's print service, rendered by
- * a WebView of its OWN, never attached to any view hierarchy. Not the reader's WebView: that one
- * sits inside the guards that keep the fade from crashing (#10) and its page carries the
- * screen's spacer bands. This one is created for the job, loaded, printed once it has finished
- * loading, and held by [HoldingAdapter] until the print service says it is done — so a rotation
- * during the preview costs nothing: the spooler holds its document, the activity may recreate.
- *
- * [blockRemote] is the SAME decision the screen took — the remote images she chose to see are
- * printed, the ones she did not are not — enforced by the same [BlockingWebViewClient].
+ * Hand [html] — the document [buildPrintDocument] made — to Android's print service, rendered by a
+ * WebView of its OWN, never attached to any view hierarchy. Not the reader's: that one sits inside
+ * the guards that keep the fade from crashing (#10) and its page carries the screen's spacer bands.
+ * [HoldingAdapter] holds this one until the service is done, so a rotation costs nothing.
+ * [blockRemote] is the SAME decision the screen took, enforced by the same client.
  */
 private fun printDocument(activity: Activity, html: String, jobName: String, blockRemote: Boolean) {
     val webView = WebView(activity)
     webView.settings.javaScriptEnabled = false
     // Held HERE from creation, not only from the moment the print service gets its adapter: between
-    // `loadDataWithBaseURL` and `onPageFinished` nothing else in app code references this detached
-    // view, and a page with remote images on a slow network keeps that window open for seconds.
+    // `loadDataWithBaseURL` and `onPageFinished` nothing else references this detached view, and a page
+    // with remote images on a slow network keeps that window open for seconds.
     printingWebViews += webView
     // One print job per tap, however many times the client reports the page finished.
     var handed = false
@@ -4958,7 +4205,7 @@ private fun printDocument(activity: Activity, html: String, jobName: String, blo
             if (!handed) {
                 handed = true
                 // A device without a print framework has no PrintManager; the entry is offered
-                // everywhere, so the gesture just does nothing there rather than crash the reader.
+                // everywhere, so the gesture does nothing there rather than crash the reader.
                 val pm = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager
                 if (pm == null) {
                     releasePrintingWebView(wv)
@@ -4972,8 +4219,8 @@ private fun printDocument(activity: Activity, html: String, jobName: String, blo
     webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
 }
 
-/** The detached WebViews currently rendering a print job, so they outlive the composable that
- *  started them and survive a GC between load and print. Emptied by [releasePrintingWebView]. */
+/** The detached WebViews currently rendering a print job, so they outlive the composable that started
+ *  them and survive a GC between load and print. Emptied by [releasePrintingWebView]. */
 private val printingWebViews = mutableSetOf<WebView>()
 
 private fun releasePrintingWebView(webView: WebView) {
@@ -4982,11 +4229,10 @@ private fun releasePrintingWebView(webView: WebView) {
 }
 
 /**
- * A [PrintDocumentAdapter] that forwards everything to the WebView's own [delegate] and does one
- * thing more: it KEEPS the WebView alive for as long as the print service is using it. Nothing
- * else references that WebView — it is attached nowhere — so without this the job could lose its
- * page mid-preview. `destroy()` happens through [releasePrintingWebView], once the service has
- * finished — never before.
+ * A [PrintDocumentAdapter] that forwards everything to the WebView's own [delegate] and does one thing
+ * more: it KEEPS the WebView alive for as long as the print service is using it. Nothing else
+ * references that WebView, so without this the job could lose its page mid-preview. `destroy()`
+ * happens through [releasePrintingWebView], once the service has finished.
  */
 private class HoldingAdapter(
     private val delegate: PrintDocumentAdapter,
@@ -5024,11 +4270,10 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
- * Content-Security-Policy for rendered email. JavaScript is already disabled on the WebView;
- * this is defense-in-depth that also kills scripts, plugins, iframes, and form submissions
- * (phishing posts) outright, while still allowing inline styles and images. Remote images are
- * permitted by the policy but gated at load time by [BlockingWebViewClient] so the "show images"
- * toggle keeps working; the policy stops every other remote vector (connect/frame/object/script).
+ * Content-Security-Policy for rendered email. JavaScript is already disabled on the WebView; this is
+ * defense-in-depth that also kills plugins, iframes and form submissions outright, while still
+ * allowing inline styles and images. Remote images are permitted by the policy but gated at load time
+ * by [BlockingWebViewClient], so the "show images" toggle keeps working.
  */
 internal const val CSP_META =
     "<meta http-equiv=\"Content-Security-Policy\" content=\"" +
@@ -5036,10 +4281,9 @@ internal const val CSP_META =
         "font-src data:; media-src data: cid: http: https:; " +
         "form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'\">"
 
-// `internal`, not private, since #149: what the page does with [ReaderBody.richHtml] — invert the
-// page or paint it in the app's colours — is the half of the reading-mode decision that lives HERE,
-// and it was the half nothing could see. A test that only ran [readerBody] stayed green with this
-// function reading `email.htmlContent() != null` again, which puts dark text on a light band.
+// `internal`, not private, since #149: what the page does with [ReaderBody.richHtml] — invert the page
+// or paint it in the app's colours — is the half of the reading-mode decision that lives HERE, and it
+// was the half nothing could see.
 internal fun buildHtmlDocument(
     email: Email,
     inlineImages: Map<String, String> = emptyMap(),
@@ -5050,16 +4294,12 @@ internal fun buildHtmlDocument(
     bottomSpacerCss: String = "0",
     plainText: Boolean = false,
     derivedNotice: String = "",
-    // NO DEFAULT, unlike every parameter above it. A default of "" would let a caller — in
-    // practice a test — build the document of a body-less message and get `<p></p>` back: the empty
-    // screen this string exists to prevent, produced in silence by the very code meant to prevent
-    // it. Whoever builds a document says what the reader is told when there is nothing to show.
+    // NO DEFAULT, unlike every parameter above it. A default of "" would let a caller build the
+    // document of a body-less message and get `<p></p>` back: the empty screen this string exists to
+    // prevent. Whoever builds a document says what the reader is told when there is nothing to show.
     noContent: String,
-    // THIS one HAS a default, unlike [noContent] right above it, and for the opposite reason: a
-    // caller who forgets it gets a document with no quote fold, which is the page as it has always
-    // been — never an empty one. That is guard 1 of [foldTopLevelQuotes] seen from outside, and it
-    // is why the two parameters are spelled differently: omitting the "no content" line costs the
-    // reader the only sentence a body-less message has, omitting this one costs a button.
+    // THIS one HAS a default, for the opposite reason: a caller who forgets it gets a document with
+    // no quote fold, which is the page as it has always been — never an empty one.
     quoteLabel: String = "",
 ): String {
     // Which part of the message the document carries, and what that implies for the page, is
@@ -5067,42 +4307,30 @@ internal fun buildHtmlDocument(
     val body = readerBody(email, plainText, derivedNotice, noContent)
     var inner = body.fragment
     // The two rewrites below UNDO MARKUP the message wrote, so they apply only while the document
-    // actually carries that markup — [ReaderBody.richHtml], NOT "the message has HTML" (#149). A
-    // body we paint ourselves is HTML-escaped text, and escaping touches neither ':' nor '-': a
-    // message whose TEXT reads `cid:logo` or literally `prefers-color-scheme: dark` (a CSS snippet
-    // pasted into a dev mailing list) would otherwise come out mutilated as
-    // `prefers-color-scheme:dark) and (max-width:0px` — in the mode whose whole promise is to show
-    // the text as it is. This is why the guard is here and not inside the dark-theme branch below:
-    // the question is what the document CARRIES, not what colours it gets.
+    // actually carries that markup — [ReaderBody.richHtml], NOT "the message has HTML" (#149). A body
+    // we paint ourselves is HTML-escaped text, and escaping touches neither ':' nor '-': a message
+    // whose TEXT reads literally `prefers-color-scheme: dark` would otherwise come out mutilated, in
+    // the mode whose whole promise is to show the text as it is.
     if (body.richHtml) {
         // Embed inline images: replace cid: references with their data URIs. Shared with the
         // print document ([buildPrintDocument]), which must embed them the same way.
         inner = embedInlineImages(inner, inlineImages)
         // Neutralise the email's own dark-mode styles. On a dark-mode device the WebView matches
         // `prefers-color-scheme: dark`, so a marketing email renders its dark variant — which our
-        // invert then turns light (the "white band in dark theme" bug); declaring color-scheme is
-        // ignored by Android WebView, so we defang the media queries directly by appending an
-        // always-false condition. The email then always renders its light design, which we show
-        // as-is (light theme) or invert (dark theme). Shared with the print document.
+        // invert then turns light (the "white band in dark theme" bug). A declared color-scheme is
+        // ignored by Android WebView, so the media queries are defanged directly.
         inner = neutraliseDarkModeStyles(inner)
-        // Fold the TRAILING quoted block behind a native <details> (no script, so the
-        // CSP and javaScriptEnabled=false above are untouched). INSIDE the richHtml guard, after
-        // the two rewrites: it wraps the message's OWN blockquotes, and a body we paint ourselves
-        // is escaped text with no element to wrap. NOT shared with [buildPrintDocument] — paper
-        // does not unfold, so what is printed is the whole quote (see PrintDocument.kt).
+        // Fold the TRAILING quoted block behind a native <details> (no script, so the CSP is
+        // untouched). INSIDE the richHtml guard, after the two rewrites: it wraps the message's OWN
+        // blockquotes. NOT shared with [buildPrintDocument] — paper does not unfold.
         inner = foldTopLevelQuotes(inner, quoteLabel)
     }
     // Bracket the content with two real DOCUMENT elements (scrollable, unlike body padding which Blink
-    // drops, or WebView view padding which clips the last lines): a transparent TOP spacer of the
-    // collapsing header's height so the header overlays blank space and content starts below it; and a
-    // BOTTOM spacer (class s-end) reserving room for the overlaying Reply/Forward bar so the last line
-    // clears it. The bottom spacer is COLOURED (.s-end in the CSS below) so it doesn't invert to white
-    // in dark mode. cid/data already inlined above; pure layout, no scripts.
-    // The height is emitted VERBATIM, unit and all, and that unit is `vh` (see [bodySpacerCss]):
-    // it is the only length the page's own scale does not change, and it is what makes the promise
-    // above — "the header overlays blank space (never the content)" — true for a message that
-    // brings its own <meta viewport> and opens below scale 1. A `px` suffix appended here puts a
-    // RATIO where a pixel count used to be and is worse than the defect it replaced (#171).
+    // drops, or view padding which clips the last lines): a transparent TOP spacer of the header's
+    // height and a BOTTOM spacer for the overlaying bar, the latter COLOURED so it does not invert to
+    // white in dark mode.
+    // The height is emitted VERBATIM, unit and all, and that unit is `vh` (see [bodySpacerCss]): a
+    // `px` suffix appended here puts a RATIO where a pixel count used to be (#171).
     inner = "<div aria-hidden=\"true\" style=\"height:${topSpacerCss}\"></div>" + inner +
         "<div aria-hidden=\"true\" class=\"s-end\" style=\"height:${bottomSpacerCss}\"></div>"
     // What is RENDERED, not what is available: in plain-text mode a message that HAS HTML is still
@@ -5110,12 +4338,10 @@ internal fun buildHtmlDocument(
     // light band — the "white band in dark theme" bug seen from the other side.
     val richHtml = body.richHtml
     if (theme.dark && richHtml) {
-        // Rich HTML carries its own (usually white) backgrounds we can't restyle reliably,
-        // so render it light and invert the whole page. The filter MUST sit on the root
-        // <html>: marketing emails are full <html> documents, and the parser hoists their
-        // <body> out of any wrapper <div> — a div filter would then invert nothing (the
-        // old "white frame" bug). The root always contains every node, wherever it lands.
-        // hue-rotate keeps colours roughly intact; media is re-inverted to look normal.
+        // Rich HTML carries its own (usually white) backgrounds we cannot restyle reliably, so render
+        // it light and invert the whole page. The filter MUST sit on the root <html>: marketing emails
+        // are full documents and the parser hoists their <body> out of any wrapper <div>, so a div
+        // filter would invert nothing. hue-rotate keeps colours roughly intact.
         return """
             <!DOCTYPE html><html><head>
             $CSP_META
@@ -5163,9 +4389,8 @@ internal fun buildHtmlDocument(
     val bg = theme.background
     val fg = theme.text
     val link = theme.link
-    // Rich HTML reaches here only in light theme: pin it to its light design (same reason as
-    // the invert branch) so a prefers-color-scheme:dark email doesn't render dark on a
-    // dark-mode device. Plain text follows the app theme.
+    // Rich HTML reaches here only in light theme: pin it to its light design, so a
+    // prefers-color-scheme:dark email does not render dark on a dark-mode device.
     val colorScheme = if (richHtml) "only light" else if (theme.dark) "dark" else "light"
     return """
         <!DOCTYPE html><html><head>
@@ -5210,9 +4435,9 @@ private const val KEYCAP = '\u20E3' // combining enclosing keycap (1⃣)
 private val OPAQUE_ELEMENTS = setOf("style", "script", "title", "textarea", "svg")
 
 /**
- * BMP code points that default to emoji (colour) presentation. Everything else in the BMP is a
- * text glyph (✓, ©, →, …) that the mail font paints in the body colour, so it must NOT be
- * counter-inverted — unless the author forced colour with a VS16, which [emojiClusterEnd] honours.
+ * BMP code points that default to emoji (colour) presentation. Everything else in the BMP is a text
+ * glyph the mail font paints in the body colour, so it must NOT be counter-inverted — unless the
+ * author forced colour with a VS16, which [emojiClusterEnd] honours.
  */
 private val EMOJI_BMP = listOf(
     0x231A..0x231B, 0x23E9..0x23EC, 0x23F0..0x23F0, 0x23F3..0x23F3, 0x25FD..0x25FE,
@@ -5250,9 +4475,8 @@ private fun emojiClusterEnd(s: String, i: Int): Int {
         j < s.length && s[j] == VS15 -> false // author asked for the monochrome text glyph
         isEmojiPresentation(cp) -> true
         // ✔️, ©️, keycap bases: colour forced by the author. Only a real Emoji=Yes base can carry a
-        // VS16 — its ASCII members are exactly `#`, `*` and `0`-`9`, every other one is >= U+00A9.
-        // Without that guard a stray U+FE0F right after an HTML character reference would split the
-        // entity (`&#127876;️` -> `&#127876<span…>;️</span>`, rendering as "🎄;").
+        // VS16; without that guard a stray U+FE0F right after an HTML character reference would split
+        // the entity (`&#127876;️` -> `&#127876<span…>;️</span>`, rendering as "🎄;").
         j < s.length && s[j] == VS16 && isEmojiBase(cp) -> true
         else -> false
     }
@@ -5320,10 +4544,9 @@ private fun copyMarkup(s: String, start: Int, out: StringBuilder): Int {
 
 /**
  * Wraps every emoji in the mail's TEXT in a `.s-emo` span carrying the counter-filter, so the
- * page-wide invert of the dark reader (see [buildHtmlDocument]) is undone on colour glyphs and a
- * yellow face stays yellow instead of turning blue (issue #58). Tags, attributes, URLs and the
- * content of `<style>`/`<script>`/`<svg>` are copied verbatim: a wrong edit there would corrupt
- * the message, which is far worse than an off-colour emoji.
+ * page-wide invert of the dark reader is undone on colour glyphs and a yellow face stays yellow (#58).
+ * Tags, attributes, URLs and the content of `<style>`/`<script>`/`<svg>` are copied verbatim: a wrong
+ * edit there would corrupt the message.
  */
 internal fun wrapEmoji(html: String): String {
     val out = StringBuilder(html.length + 64)
@@ -5348,15 +4571,13 @@ internal fun wrapEmoji(html: String): String {
 }
 
 /**
- * Reflow RFC 3676 `format=flowed` plain text: join soft-wrapped lines (those ending in a
- * space) into one logical line, keeping hard breaks and blank lines so the `<pre>` render
- * wraps at the viewport instead of showing the sender's ~72-char line breaks (issue #4).
+ * Reflow RFC 3676 `format=flowed` plain text: join soft-wrapped lines (those ending in a space) into
+ * one logical line, keeping hard breaks and blank lines so the `<pre>` render wraps at the viewport
+ * instead of showing the sender's ~72-char breaks (#4).
  *
- * JMAP exposes the body as `text/plain` without the `format` parameter, so we key off the
- * soft-break convention itself: a trailing space before the newline. Non-flowed text has no
- * such trailing spaces, so it passes through unchanged (hard line breaks preserved). A single
- * leading space is space-stuffing (protects lines starting with space/`>`/`From `) and is
- * removed; the signature separator `-- ` is a hard break despite its trailing space.
+ * JMAP exposes the body without the `format` parameter, so we key off the convention itself: a
+ * trailing space before the newline. Non-flowed text passes through unchanged; a single leading space
+ * is space-stuffing and is removed; `-- ` is a hard break despite its trailing space.
  */
 internal fun reflowFormatFlowed(text: String): String {
     val lines = text.split("\n")
@@ -5378,8 +4599,8 @@ private fun formatFull(iso: String?): String = MailDates.formatFull(iso)
 private fun formatWith(iso: String?, formatter: DateTimeFormatter): String =
     MailDates.formatWith(iso, formatter)
 
-/** Snooze presets → (label, epoch-millis), computed in the device's time zone. */
-/** Snooze presets (label → epoch-millis). Shared by the message view and the inbox selection menu. */
+/** Snooze presets (label → epoch-millis), computed in the device's time zone. Shared by the message
+ *  view and the inbox selection menu. */
 internal fun snoozePresets(context: android.content.Context): List<Pair<String, Long>> {
     val zone = java.time.ZoneId.systemDefault()
     val now = java.time.ZonedDateTime.now(zone)

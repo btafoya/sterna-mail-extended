@@ -27,12 +27,9 @@ enum class PreviewLines(val lines: Int) { NONE(0), ONE(1), THREE(3), FIVE(5) }
 enum class SwipeAction { NONE, TOGGLE_READ, DELETE, ARCHIVE, FLAG }
 
 /**
- * How the message list is ordered.
- *
- * [FLAGGED_FIRST] is a sort like any other, not a modifier: until 1.4.5 favourites were pinned
- * above every one of these orders unconditionally, so "Newest first" silently meant "newest
- * first, except the starred ones" (issue #111). Pinning is now something the reader picks.
- * Entries are persisted BY NAME, so appending is safe and reorders nothing already stored.
+ * How the message list is ordered. [FLAGGED_FIRST] is a sort like any other, not a modifier: until
+ * 1.4.5 favourites were pinned above every order unconditionally (#111). Entries are persisted BY
+ * NAME, so appending is safe and reorders nothing already stored.
  */
 enum class SortOrder { DATE_DESC, DATE_ASC, SUBJECT, SENDER, UNREAD_FIRST, FLAGGED_FIRST }
 
@@ -40,32 +37,29 @@ enum class SortOrder { DATE_DESC, DATE_ASC, SUBJECT, SENDER, UNREAD_FIRST, FLAGG
 enum class MessageTextSize(val zoom: Int) { SMALL(85), NORMAL(100), LARGE(125), HUGE(150) }
 
 /**
- * How new mail reaches the device (issue #17, outcome-framed — never a transport
- * choice): INSTANT keeps live push (UnifiedPush, or a direct connection when
- * needed); BATTERY_SAVER drops every connection Sterna holds and relies on the
- * 30-minute periodic check — UnifiedPush subscriptions stay active either way,
- * they cost the app nothing.
+ * How new mail reaches the device (#17, outcome-framed — never a transport choice): INSTANT keeps
+ * live push (UnifiedPush, or a direct connection when needed); BATTERY_SAVER drops every connection
+ * Sterna holds and relies on the 30-minute periodic check. UnifiedPush subscriptions stay active
+ * either way.
  */
 enum class DeliveryMode { INSTANT, BATTERY_SAVER }
 
 /**
- * How much a new-mail notification reveals on the lock screen (Codeberg #25), from the most
- * talkative position to the most discreet.
+ * How much a new-mail notification reveals on the lock screen (#25), most talkative first.
  *
- * [BODY_PREVIEW] is the only one that shows anything of the message itself, and it is never the
- * default: it has to be asked for. It is stored BY NAME, so a build that predates it reads
- * "BODY_PREVIEW", fails its `valueOf` and falls back to [SENDER_AND_SUBJECT] — less revealing than
- * what was asked for, which is the direction a downgrade must fail in.
+ * [BODY_PREVIEW] is the only one that shows anything of the message itself and is never the
+ * default. Stored BY NAME, so a build that predates it fails its `valueOf` and falls back to
+ * [SENDER_AND_SUBJECT] — less revealing than what was asked for, which is the direction a downgrade
+ * must fail in.
  */
 enum class NotificationContent { BODY_PREVIEW, SENDER_AND_SUBJECT, SENDER_ONLY, NONE }
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 /**
- * Reactive app-preferences store backed by a Preferences [DataStore]. Kept
- * separate from [app.sterna.core.data.account.AccountStore], which holds accounts,
- * credentials, and per-account metadata. Each setting is exposed as a [Flow] so
- * the UI (and the theme) can collect changes live.
+ * Reactive app-preferences store backed by a Preferences [DataStore]. Separate from
+ * [app.sterna.core.data.account.AccountStore], which holds accounts and credentials. Each setting
+ * is a [Flow] so the UI and the theme collect changes live.
  */
 class SettingsRepository(context: Context) {
     private val dataStore = context.applicationContext.settingsDataStore
@@ -106,30 +100,26 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_PREVIEW_LINES] = value.name }
     }
 
-    /** Whether an unread row in the message list carries a background of its own on top of its bold
-     *  text (#141). ON by default — it is what the app does today. Off, an unread row is painted
-     *  exactly like a read one and the bold text is the only difference again; the weight itself,
-     *  the icons and the folder counts are not touched either way. */
+    /** Whether an unread row carries a background of its own on top of its bold text (#141). ON by
+     *  default. Off, an unread row is painted like a read one and the bold text is the only
+     *  difference again. */
     val unreadTint: Flow<Boolean> = dataStore.data.map(::unreadTintFrom)
 
     suspend fun setUnreadTint(enabled: Boolean) {
         dataStore.edit { it[KEY_UNREAD_TINT] = enabled }
     }
 
-    /** Whether the dark theme sits on a black background, for OLED panels (#117). OFF by default.
-     *  It only ever touches the DARK scheme: in light theme the value is stored and inert. The
-     *  elevated surfaces are compressed toward black rather than flattened onto it, so the app is
-     *  not uniformly black — see `pulledToBlack`. */
+    /** Whether the dark theme sits on a black background, for OLED panels (#117). OFF by default,
+     *  and it only ever touches the DARK scheme. Elevated surfaces are compressed toward black
+     *  rather than flattened onto it — see `pulledToBlack`. */
     val pureBlack: Flow<Boolean> = dataStore.data.map(::pureBlackFrom)
 
     suspend fun setPureBlack(enabled: Boolean) {
         dataStore.edit { it[KEY_PURE_BLACK] = enabled }
     }
 
-    /** Whether a message-list row starts with the sender's coloured initials (#144). ON by default
-     *  — it is what the app does today. Off, the row starts at its own left padding and the name,
-     *  subject and preview take the width back; nothing else about the row changes, and no other
-     *  monogram in the app (the reader, the drawer, the account picker) is touched. */
+    /** Whether a message-list row starts with the sender's coloured initials (#144). ON by default.
+     *  No other monogram in the app (the reader, the drawer, the account picker) is touched. */
     val listMonogram: Flow<Boolean> = dataStore.data.map(::listMonogramFrom)
 
     suspend fun setListMonogram(enabled: Boolean) {
@@ -148,9 +138,8 @@ class SettingsRepository(context: Context) {
     }
 
     /** Deduped: DataStore republishes the WHOLE `Preferences` on every write, whatever key was
-     *  touched, so without this an unrelated setting (an image allow-list entry, a swipe action)
-     *  re-emits the sort order that never changed — and the browse list is built off this flow, so
-     *  each such re-emission threw away the running pager and started it at the first page again. */
+     *  touched, and the browse list is built off this flow — so an unrelated setting's write threw
+     *  away the running pager and started it at the first page again. */
     val sortOrder: Flow<SortOrder> = dataStore.data.map { prefs ->
         prefs[KEY_SORT_ORDER]?.let { runCatching { SortOrder.valueOf(it) }.getOrNull() } ?: SortOrder.DATE_DESC
     }.distinctUntilChanged()
@@ -159,9 +148,8 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_SORT_ORDER] = order.name }
     }
 
-    /** Collapse threads into one conversation row in the list (on by default). Deduped for the
-     *  same reason as [sortOrder]: it is the other settings flow the browse list's paging key is
-     *  built from, so an equal re-emission here rebuilt the pager on its own. */
+    /** Collapse threads into one conversation row in the list (on by default). Deduped for
+     *  [sortOrder]'s reason: it is the other settings flow the browse list's paging key uses. */
     val conversationView: Flow<Boolean> = dataStore.data.map { it[KEY_CONVERSATION_VIEW] ?: true }
         .distinctUntilChanged()
 
@@ -169,16 +157,14 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_CONVERSATION_VIEW] = enabled }
     }
 
-    /** Mark a message as read when deleting it, so Trash doesn't accumulate unread
-     *  badges (off by default — deletion doesn't touch flags unless opted in). */
+    /** Mark a message as read when deleting it (off by default). */
     val markReadOnDelete: Flow<Boolean> = dataStore.data.map { it[KEY_MARK_READ_ON_DELETE] ?: false }
 
     suspend fun setMarkReadOnDelete(enabled: Boolean) {
         dataStore.edit { it[KEY_MARK_READ_ON_DELETE] = enabled }
     }
 
-    /** Mark a message as read when archiving it, so the archive doesn't accumulate unread
-     *  badges (off by default — archiving doesn't touch flags unless opted in; Codeberg #67). */
+    /** Mark a message as read when archiving it (off by default; #67). */
     val markReadOnArchive: Flow<Boolean> = dataStore.data.map { it[KEY_MARK_READ_ON_ARCHIVE] ?: false }
 
     suspend fun setMarkReadOnArchive(enabled: Boolean) {
@@ -186,35 +172,31 @@ class SettingsRepository(context: Context) {
     }
 
     /** Mark a message as read when it LEAVES the Inbox for another folder — an explicit
-     *  move-to-folder (Report spam included), not a move between two other folders and not a
-     *  move back INTO the Inbox (off by default; Codeberg #67). */
+     *  move-to-folder, Report spam included, never a move back INTO the Inbox (off by default; #67). */
     val markReadOnMove: Flow<Boolean> = dataStore.data.map { it[KEY_MARK_READ_ON_MOVE] ?: false }
 
     suspend fun setMarkReadOnMove(enabled: Boolean) {
         dataStore.edit { it[KEY_MARK_READ_ON_MOVE] = enabled }
     }
 
-    /** Return a conversation's archived messages to the Inbox when a new reply arrives
-     *  (on by default — an intact conversation is the less surprising behaviour; opt out for
-     *  strict zero-inbox; Codeberg #50). */
+    /** Return a conversation's archived messages to the Inbox when a new reply arrives (on by
+     *  default; #50). */
     val unarchiveOnReply: Flow<Boolean> = dataStore.data.map { it[KEY_UNARCHIVE_ON_REPLY] ?: true }
 
     suspend fun setUnarchiveOnReply(enabled: Boolean) {
         dataStore.edit { it[KEY_UNARCHIVE_ON_REPLY] = enabled }
     }
 
-    /** Whether a reply or a forward also opens with the signature in its body. Off by default: a
-     *  new message signs off, a reply usually carries the sign-off of the thread already. The
-     *  signature itself is per identity (Accounts → identity); this only says WHEN it is inserted. */
+    /** Whether a reply or a forward also opens with the signature in its body. Off by default. The
+     *  signature itself is per identity; this only says WHEN it is inserted. */
     val signatureOnReplies: Flow<Boolean> = dataStore.data.map { it[KEY_SIGNATURE_ON_REPLIES] ?: false }
 
     suspend fun setSignatureOnReplies(enabled: Boolean) {
         dataStore.edit { it[KEY_SIGNATURE_ON_REPLIES] = enabled }
     }
 
-    /** Whether the signature sits BELOW the quoted text in a reply rather than above it. Off by
-     *  default (above the quote — the majority default, and where the reader looks first).
-     *  Independent of [signatureOnReplies]: neither disables the other. */
+    /** Whether the signature sits BELOW the quoted text in a reply. Off by default. Independent of
+     *  [signatureOnReplies]: neither disables the other. */
     val signatureBelowQuote: Flow<Boolean> = dataStore.data.map { it[KEY_SIGNATURE_BELOW_QUOTE] ?: false }
 
     suspend fun setSignatureBelowQuote(enabled: Boolean) {
@@ -222,61 +204,47 @@ class SettingsRepository(context: Context) {
     }
 
     /** Whether the composer puts the standard "-- " delimiter line above the signature. ON by
-     *  default: that line is what other mail apps recognise a signature by, so it stays there
-     *  unless the user says otherwise. Turned off, the signature field holds EXACTLY what goes
-     *  into the message, so any separator — or none at all — can be typed there (Codeberg #90).
-     *  Independent of [signatureOnReplies] and [signatureBelowQuote]: those say when and where
-     *  the signature is inserted, this one says what the block looks like. */
+     *  default: that line is what other mail apps recognise a signature by. Turned off, the
+     *  signature field holds EXACTLY what goes into the message (#90). */
     val signatureDelimiter: Flow<Boolean> = dataStore.data.map { it[KEY_SIGNATURE_DELIMITER] ?: true }
 
     suspend fun setSignatureDelimiter(enabled: Boolean) {
         dataStore.edit { it[KEY_SIGNATURE_DELIMITER] = enabled }
     }
 
-    /** The OpenPGP app the user picked, by package name; `null` = no choice expressed, which is
-     *  every user upgrading into this build (#151). null is NOT "no provider": it means the app
-     *  decides, and the decision is `PgpProviders.resolve`. Only ever set from the Settings row
-     *  that appears when two or more providers are installed — with one, there is nothing to pick.
+    /** The OpenPGP app the user picked, by package name; `null` = no choice expressed (#151). null
+     *  is NOT "no provider": it means the app decides, through `PgpProviders.resolve`.
      *
-     *  Deliberately absent from [SettingsBackup]: a package name is a fact about ONE device.
-     *  Restored onto a phone that does not have that app, it would name a provider that cannot be
-     *  bound, and the honest answer there is to let discovery decide again. */
+     * Deliberately absent from [SettingsBackup]: a package name is a fact about ONE device, and
+     *  restored onto a phone without that app it would name a provider that cannot be bound. */
     val pgpProvider: Flow<String?> = dataStore.data.map { it[KEY_PGP_PROVIDER] }
 
     suspend fun setPgpProvider(packageName: String) {
         dataStore.edit { it[KEY_PGP_PROVIDER] = packageName }
     }
 
-    /** Whether the reader shows the Reply/Forward bar along the bottom of a message. ON by default
-     *  — it is what the app has always done. Off, both of its actions are still one tap away in the
-     *  top bar (Reply has its own icon; Reply all and Forward open the menu beside it), so nothing
-     *  becomes unreachable (Codeberg #63). Global, not per account: the reader is shared by the
-     *  unified inbox, and a per-account answer would make the bar appear and disappear while moving
-     *  from one message to the next in one list. */
+    /** Whether the reader shows the Reply/Forward bar along the bottom of a message. ON by default;
+     *  both actions stay one tap away in the top bar either way (#63). Global, not per account: the
+     *  reader is shared by the unified inbox, so a per-account answer would make the bar come and go
+     *  between two messages of one list. */
     val replyBar: Flow<Boolean> = dataStore.data.map(::replyBarFrom)
 
     suspend fun setReplyBar(enabled: Boolean) {
         dataStore.edit { it[KEY_REPLY_BAR] = enabled }
     }
 
-    /** Whether a message OPENS as text rather than as its own HTML (#149). OFF by default — the
-     *  HTML is what the app has always shown. It decides what a message opens as, not what it can
-     *  be shown as: the reader's menu still switches the message in hand either way, and that
-     *  choice is forgotten when the message is left. Global, not per account, for the same reason
-     *  [replyBar] is: the reader is shared by the unified inbox, and a per-account answer would
-     *  change the rendering from one message to the next in a single list. */
+    /** Whether a message OPENS as text rather than as its own HTML (#149). OFF by default. It
+     *  decides what a message opens as, not what it can be shown as — the reader's menu still
+     *  switches the message in hand. Global, not per account, for [replyBar]'s reason. */
     val plainText: Flow<Boolean> = dataStore.data.map(::plainTextFrom)
 
     suspend fun setPlainText(enabled: Boolean) {
         dataStore.edit { it[KEY_PLAIN_TEXT] = enabled }
     }
 
-    /** Whether the dates the composer itself writes into an outgoing message — a reply's quote
-     *  attribution line and a forwarded message's Date header — are rendered in UTC rather than in
-     *  this device's time zone (#120). OFF by default — the local time is what the app has always
-     *  written, and what a reader of the quote most likely expects. Global, not per account: the
-     *  two texts are produced by one composer, and the question ("what clock do my outgoing quotes
-     *  speak?") is about the device, not about a mailbox. */
+    /** Whether the dates the composer writes into an outgoing message — a reply's quote attribution
+     *  line and a forward's Date header — are rendered in UTC rather than in the device's time zone
+     *  (#120). OFF by default. Global: the question is about the device, not about a mailbox. */
     val quotedDatesUtc: Flow<Boolean> = dataStore.data.map(::quotedDatesUtcFrom)
 
     suspend fun setQuotedDatesUtc(enabled: Boolean) {
@@ -330,18 +298,13 @@ class SettingsRepository(context: Context) {
 
     /**
      * Whether an opened message that asks for a read receipt (RFC 8098's
-     * `Disposition-Notification-To:`) may raise the question at all — **off by default**.
+     * `Disposition-Notification-To:`) may raise the question at all — off by default.
      *
-     * Two positions, never three: off, and the app ignores the header entirely; on, and it
-     * ASKS. There is no "always send", under any name. Turning this on is not consent to answer
-     * anybody — it is consent to be asked, one message at a time.
+     * Two positions, never three: off ignores the header, on ASKS. There is no "always send".
+     * Turning this on is consent to be asked, one message at a time.
      *
-     * Whoever reads this flow drives an ACTION rather than shows a value, and DataStore answers
-     * a beat late: a reader that treats "not answered yet" as `false` is safe by coincidence of
-     * the default, and a reader that treats it as `true` asks the question of the overwhelming
-     * majority who never turned it on. See the caller's own unloaded state
-     * (`app.sterna.ui.message.ReadReceiptSetting.NOT_LOADED`), which is a THIRD value and not a
-     * boolean, precisely so the two cannot be confused.
+     * A reader of this flow drives an ACTION, and DataStore answers a beat late: see
+     * `app.sterna.ui.message.ReadReceiptSetting.NOT_LOADED`, a THIRD value and not a boolean.
      */
     val askReadReceipt: Flow<Boolean> = dataStore.data.map(::askReadReceiptFrom)
 
@@ -460,8 +423,8 @@ class SettingsRepository(context: Context) {
     }
 
     /**
-     * Quiet hours — when on, new-mail notifications still arrive but are posted
-     * silently (no sound/vibration/heads-up) during the nightly window. Off by default.
+     * Quiet hours — new-mail notifications still arrive but are posted silently during the nightly
+     * window. Off by default.
      */
     val quietHoursEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_QUIET_ENABLED] ?: false }
 
@@ -493,9 +456,8 @@ class SettingsRepository(context: Context) {
         const val DEFAULT_QUIET_END = 7 * 60
 
         /**
-         * True if [nowMinutes] (minutes past midnight) falls in the quiet window
-         * [start, end), handling windows that wrap past midnight (e.g. 22:00→07:00).
-         * An empty window (start == end) is never quiet.
+         * True if [nowMinutes] falls in the quiet window `[start, end)`, handling windows that wrap
+         * past midnight. An empty window (start == end) is never quiet.
          */
         fun isWithinQuietHours(nowMinutes: Int, start: Int, end: Int): Boolean = when {
             start == end -> false
@@ -533,214 +495,134 @@ class SettingsRepository(context: Context) {
     }
 }
 
-/** The key the notification-content position is stored under. Renaming it puts every reader who
- *  asked for a quieter notification back on sender + subject, so it is pinned by name in
- *  [notificationContentFrom]'s test. */
+// Two rules hold for every setting below. Each `KEY_*` is pinned BY NAME in its `…From`'s test:
+// renaming one loses the choice of every user who touched that switch. And each `…From(prefs)`
+// takes the whole [Preferences] rather than the stored value — see [replyBarFrom] for why.
+
+/** The key the notification-content position is stored under. */
 internal val KEY_NOTIFICATION_CONTENT = stringPreferencesKey("notification_content")
 
 /**
- * What a new-mail notification shows when nobody has chosen a position, AND what an unreadable
- * stored value falls back to (Codeberg #25). Sender + subject: today's behaviour, and never the
- * talkative [NotificationContent.BODY_PREVIEW] — that one is only ever reached by asking for it.
+ * What a new-mail notification shows when nobody has chosen a position, and what an unreadable
+ * stored value falls back to (#25). The position travels by name, so a downgrade reads a name its
+ * enum does not have — the fallback must therefore reveal LESS than what was stored, never more.
  *
- * The unreadable case is not hypothetical: the position travels by name, so a device downgraded to
- * a build that predates a position reads a name its enum does not have. The fallback therefore has
- * to be a position that reveals LESS than the one that was stored, never more.
- *
- * `internal` on purpose, unlike the switch defaults next to it: this one has a single consumer,
- * [notificationContentFrom], in this file. Exported to the `app` module it becomes something a
- * screen can seed itself with before DataStore has answered, which is exactly the defect the
- * five-settings gate was written to close (#57) — a default shown, and writable by a tap, over a
- * choice already made.
+ * `internal`, unlike the switch defaults next to it: exported to the `app` module it becomes
+ * something a screen can seed itself with before DataStore has answered (#57).
  */
 internal val NOTIFICATION_CONTENT_DEFAULT = NotificationContent.SENDER_AND_SUBJECT
 
 /**
- * A stored position name, or null when there is nothing usable to read — no value at all, or a name
- * this build's enum does not know (a newer build's position, seen after a downgrade).
- *
- * Null means "no answer", NOT "the default": the two callers want opposite things from it. The flow
- * substitutes [NOTIFICATION_CONTENT_DEFAULT]; restoring a backup leaves the stored position alone,
- * so importing a backup written by a newer build cannot silently make notifications more talkative
- * than what is on the device.
+ * A stored position name, or null when there is nothing usable to read. Null means "no answer", NOT
+ * "the default": the flow substitutes [NOTIFICATION_CONTENT_DEFAULT], while restoring a backup
+ * leaves the stored position alone, so a newer build's backup cannot make notifications more
+ * talkative than what is on the device.
  */
 internal fun notificationContentOrNull(stored: String?): NotificationContent? =
     stored?.let { name -> NotificationContent.entries.firstOrNull { it.name == name } }
 
-/**
- * The position a new-mail notification is posted at, read from the stored preferences.
- *
- * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
- * the whole [Preferences] there is no way to defeat the fallback from outside, and the test can hand
- * it an empty store, a store holding each position, and a store holding a name no enum has.
- */
+/** The position a new-mail notification is posted at, read from the stored preferences. */
 internal fun notificationContentFrom(prefs: Preferences): NotificationContent =
     notificationContentOrNull(prefs[KEY_NOTIFICATION_CONTENT]) ?: NOTIFICATION_CONTENT_DEFAULT
 
-/** The key the reader's Reply/Forward bar switch is stored under. Renaming it loses the setting of
- *  every user who has turned the bar off, so it is pinned by name in [replyBarFrom]'s test. */
+/** The key the reader's Reply/Forward bar switch is stored under. */
 internal val KEY_REPLY_BAR = booleanPreferencesKey("reply_bar")
 
 /**
  * What the reader shows when nobody has touched the switch: the bar, which is what the app has
- * always done and what the setting's own subtitle promises (Codeberg #63). One definition, read by
- * [replyBarFrom] and by the settings screen's initial value.
+ * always done and what the setting's subtitle promises (#63).
  */
 const val REPLY_BAR_DEFAULT = true
 
 /**
  * Whether the reader shows its bottom Reply/Forward bar, read from the stored preferences.
  *
- * The LOOKUP is in here, not the flow, and that is deliberate. It was a function of the stored
- * `Boolean?` first, which left the default reachable from outside it: `replyBarFrom(prefs[KEY] ?:
- * false)` takes the bar away from every user who has never touched the switch — the exact opposite
- * of what is announced — and no test can see it, since the argument is already defaulted by the
- * time the function runs. Given the whole [Preferences] there is nothing left to pre-empt: the test
- * hands it an empty store, a store with the switch on, and one with it off.
+ * The LOOKUP is in here, not the flow, and every `…From(prefs)` in this file follows that rule.
+ * As a function of the stored `Boolean?` the default stays reachable from outside —
+ * `replyBarFrom(prefs[KEY] ?: false)` takes the bar away from every user who never touched the
+ * switch — and no test can see it, since the argument is already defaulted by then.
  */
 internal fun replyBarFrom(prefs: Preferences): Boolean = prefs[KEY_REPLY_BAR] ?: REPLY_BAR_DEFAULT
 
-/** The key the unread-background switch is stored under. Renaming it loses the setting of every
- *  user who has turned the tint off, so it is pinned by name in [unreadTintFrom]'s test. */
+/** The key the unread-background switch is stored under. */
 internal val KEY_UNREAD_TINT = booleanPreferencesKey("unread_tint")
 
 /**
- * What the message list does when nobody has touched the switch: tint unread rows, which is what
- * the app does today (#141). One definition, read by [unreadTintFrom], by the settings screen's
- * initial value, by the activity's first frame and by the CompositionLocal's own fallback — the
- * last three are the copies that make a literal here dangerous.
+ * What the message list does when nobody has touched the switch: tint unread rows (#141). One
+ * definition, read by [unreadTintFrom], the settings screen, the activity's first frame and the
+ * CompositionLocal's fallback — the copies that make a literal dangerous.
  */
 const val UNREAD_TINT_DEFAULT = true
 
-/**
- * Whether unread rows carry a background of their own, read from the stored preferences.
- *
- * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
- * the whole [Preferences] there is no way to defeat the default from outside, and the test can hand
- * it an empty store, a store with the switch on, and one with it off.
- */
+/** Whether unread rows carry a background of their own, read from the stored preferences. */
 internal fun unreadTintFrom(prefs: Preferences): Boolean = prefs[KEY_UNREAD_TINT] ?: UNREAD_TINT_DEFAULT
 
-/** The key the pure-black switch is stored under. Renaming it loses the setting of every user who
- *  has turned the black background on, so it is pinned by name in [pureBlackFrom]'s test. */
+/** The key the pure-black switch is stored under. */
 internal val KEY_PURE_BLACK = booleanPreferencesKey("pure_black")
 
 /**
  * What the dark theme does when nobody has touched the switch: keep the Pelagic surfaces (#117).
- * OFF, deliberately — the black background is a preference, not the product's theme, and a default
- * of `true` would repaint every dark-theme user's app on update without anyone asking for it. One
- * definition, read by [pureBlackFrom], by the settings screen's initial value and by the activity's
- * first frame — the last two are the copies that make a literal there dangerous.
+ * OFF deliberately — a default of `true` would repaint every dark-theme user's app on update.
  */
 const val PURE_BLACK_DEFAULT = false
 
-/**
- * Whether the dark theme sits on a black background, read from the stored preferences.
- *
- * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
- * the whole [Preferences] there is no way to defeat the default from outside, and the test can hand
- * it an empty store, a store with the switch on, and one with it off.
- */
+/** Whether the dark theme sits on a black background, read from the stored preferences. */
 internal fun pureBlackFrom(prefs: Preferences): Boolean = prefs[KEY_PURE_BLACK] ?: PURE_BLACK_DEFAULT
 
-/** The key the read-receipt switch is stored under. Renaming it turns the switch back off for
- *  every user who has turned it on, so it is pinned by name in [askReadReceiptFrom]'s test. */
+/** The key the read-receipt switch is stored under. */
 internal val KEY_ASK_READ_RECEIPT = booleanPreferencesKey("ask_read_receipt")
 
 /**
- * **Off**, and this is the one value in this file that must never be flipped by a refactor: a
- * read receipt tells a stranger that a person opened their mail, at a time, on a device.
- * `SECURITY.md` promises none of that leaves on open. On by default, every install would start
- * asking that question of readers who never heard of it.
+ * Off, and this is the one value in this file that must never be flipped by a refactor: a read
+ * receipt tells a stranger that a person opened their mail, at a time, on a device, and
+ * `SECURITY.md` promises none of that leaves on open.
  *
- * It is also only two positions: off ignores the header, on ASKS. Turning it on is consent to be
- * asked, never consent to answer, and there is no third value anywhere for "always send".
- *
- * One definition, read by [askReadReceiptFrom] and by the settings screen's initial value.
+ * Two positions only: off ignores the header, on ASKS. There is no third value for "always send".
  */
 const val ASK_READ_RECEIPT_DEFAULT = false
 
 /**
  * Whether an opened message may raise the read-receipt question, read from the stored preferences.
- *
- * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
- * the whole [Preferences] there is nothing left to pre-empt, and the test can hand it an empty
- * store, a store with the switch on, and one with it off. Whoever READS the flow has a second
- * problem this function cannot solve — DataStore answers a beat late, and "not answered yet" is not
- * "off"; see `app.sterna.ui.message.ReadReceiptSetting`.
+ * A reader of the flow has a second problem this cannot solve: DataStore answers a beat late, and
+ * "not answered yet" is not "off"; see `app.sterna.ui.message.ReadReceiptSetting`.
  */
 internal fun askReadReceiptFrom(prefs: Preferences): Boolean =
     prefs[KEY_ASK_READ_RECEIPT] ?: ASK_READ_RECEIPT_DEFAULT
 
-/** The key the sender-initials switch is stored under. Renaming it puts the initials back for every
- *  user who has removed them, so it is pinned by name in [listMonogramFrom]'s test. */
+/** The key the sender-initials switch is stored under. */
 internal val KEY_LIST_MONOGRAM = booleanPreferencesKey("list_monogram")
 
 /**
- * What a message-list row does when nobody has touched the switch: show the sender's initials, which
- * is what the app does today (#144). One definition, read by [listMonogramFrom], by the settings
- * screen's initial value, by the activity's first frame and by the CompositionLocal's own fallback —
- * the last three are the copies that make a literal here dangerous.
+ * What a message-list row does when nobody has touched the switch: show the sender's initials
+ * (#144).
  */
 const val LIST_MONOGRAM_DEFAULT = true
 
-/**
- * Whether message-list rows start with the sender's initials, read from the stored preferences.
- *
- * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
- * the whole [Preferences] there is no way to defeat the default from outside, and the test can hand
- * it an empty store, a store with the switch on, and one with it off.
- */
+/** Whether message-list rows start with the sender's initials, read from the stored preferences. */
 internal fun listMonogramFrom(prefs: Preferences): Boolean =
     prefs[KEY_LIST_MONOGRAM] ?: LIST_MONOGRAM_DEFAULT
 
-/** The key the plain-text reading switch is stored under. Renaming it puts the HTML back for every
- *  user who chose to read text, so it is pinned by name in [plainTextFrom]'s test. */
+/** The key the plain-text reading switch is stored under. */
 internal val KEY_PLAIN_TEXT = booleanPreferencesKey("plain_text")
 
 /**
- * What a message opens as when nobody has touched the switch: its own HTML (#149). OFF,
- * deliberately — reading everything as text is a choice, and a default of `true` would change what
- * every message looks like on update without anyone asking. One definition, read by [plainTextFrom],
- * by the settings screen's initial value and by the reader's own rendering decision; the last two
- * are the copies that make a literal here dangerous.
+ * What a message opens as when nobody has touched the switch: its own HTML (#149). OFF
+ * deliberately — a default of `true` would change what every message looks like on update.
  */
 const val PLAIN_TEXT_DEFAULT = false
 
-/**
- * Whether a message opens as text rather than as its own HTML, read from the stored preferences.
- *
- * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: as a
- * function of the stored `Boolean?` the default stays reachable from outside — `plainTextFrom(
- * prefs[KEY] ?: true)` flattens every message for every user who has never opened Settings — and no
- * test can see it, since the argument is already defaulted by the time the function runs. Given the
- * whole [Preferences] there is nothing left to pre-empt: the test hands it an empty store, a store
- * with the switch on, and one with it off.
- */
+/** Whether a message opens as text rather than as its own HTML, read from the stored preferences. */
 internal fun plainTextFrom(prefs: Preferences): Boolean = prefs[KEY_PLAIN_TEXT] ?: PLAIN_TEXT_DEFAULT
 
-/** The key the quoted-dates-in-UTC switch is stored under. Renaming it puts the local time back
- *  into every reply and forward of every user who chose UTC, so it is pinned by name in
- *  [quotedDatesUtcFrom]'s test. */
+/** The key the quoted-dates-in-UTC switch is stored under. */
 internal val KEY_QUOTED_DATES_UTC = booleanPreferencesKey("quoted_dates_utc")
 
 /**
- * What the composer writes when nobody has touched the switch: the device's local time, which is
- * what the app has always put into a reply's quote line and a forward's Date header (#120). OFF,
- * deliberately — writing UTC is a choice, and a default of `true` would change the dates every
- * user's correspondents read on update without anyone asking. One definition, read by
- * [quotedDatesUtcFrom] and by the settings screen's initial value — the copy that makes a literal
- * there dangerous.
+ * What the composer writes when nobody has touched the switch: the device's local time (#120). OFF
+ * deliberately — a default of `true` would change the dates every user's correspondents read.
  */
 const val QUOTED_DATES_UTC_DEFAULT = false
 
-/**
- * Whether the composer's outgoing quoted/forwarded dates are written in UTC, read from the stored
- * preferences.
- *
- * The LOOKUP is in here and not in the flow, for the reason spelled out on [replyBarFrom]: given
- * the whole [Preferences] there is no way to defeat the default from outside, and the test can hand
- * it an empty store, a store with the switch on, and one with it off.
- */
+/** Whether outgoing quoted/forwarded dates are written in UTC, read from the stored preferences. */
 internal fun quotedDatesUtcFrom(prefs: Preferences): Boolean =
     prefs[KEY_QUOTED_DATES_UTC] ?: QUOTED_DATES_UTC_DEFAULT

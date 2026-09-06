@@ -218,19 +218,16 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 
-/**
- * Folder roles whose drawer row shows no overflow menu: the inbox is always watched
- * (issue #16), and notifying about one's own sent/drafts/trash/junk would be noise.
- */
+/** Folder roles whose drawer row shows no overflow menu: the inbox is always watched (#16), and
+ *  notifying about one's own sent/drafts/trash/junk would be noise. */
 private val watchMenuHiddenRoles = setOf("inbox", "sent", "drafts", "trash", "junk")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InboxScreen(
     onOpenEmail: (emailId: String, accountId: String?, index: Int, fromSearch: Boolean) -> Unit,
-    /** Open the reading view on one message of an inline-expanded conversation. The thread key
-     *  and the message's position within the unfolded conversation travel along, so the reader
-     *  pages over that conversation — and only that conversation — instead of the list. */
+    /** Open the reading view on one message of an inline-expanded conversation. The thread key and
+     *  the message's position travel along, so the reader pages over that conversation only. */
     onOpenThreadMessage: (emailId: String, accountId: String?, threadKey: ThreadKey, index: Int) -> Unit,
     onCompose: () -> Unit,
     /** Reopen compose with the draft of a send the user just undid. */
@@ -263,12 +260,10 @@ fun InboxScreen(
     val selectedKeys by viewModel.selectedKeys.collectAsStateWithLifecycle()
     val selectionAllRead by viewModel.selectionAllRead.collectAsStateWithLifecycle()
     // Folders the move-to-folder picker offers: the SELECTED message's account's, not the active
-    // account's — so a secondary-account message moved from the unified inbox lands in its own
-    // folders (#73). Empty until something is selected.
+    // account's (#73). Empty until something is selected.
     val moveTargetMailboxes by viewModel.selectionMailboxes.collectAsStateWithLifecycle()
-    // …and whether THAT account hides its unsubscribed folders (#174). Read next to the list and
-    // not folded into it: moveTargets needs the whole list for the parent paths it shows (#109)
-    // and the flag only for the targets it offers.
+    // …and whether THAT account hides its unsubscribed folders (#174). Read next to the list, not
+    // folded into it: moveTargets needs the whole list for the parent paths it shows (#109).
     val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()
     // The picker's account row (#189): the account the selection belongs to, and the one chosen
     // on the row, if any — both live in the ViewModel so the choice survives a rotation.
@@ -277,9 +272,8 @@ fun InboxScreen(
     // Inline conversation expansion: which threads are unfolded, and their lazily-loaded members.
     val expandedThreads by viewModel.expandedThreads.collectAsStateWithLifecycle()
     val threadMembers by viewModel.threadMembers.collectAsStateWithLifecycle()
-    // (account, folder) → role, every account: what a row inside an unfolded conversation is judged
-    // by. Those rows are not all in the folder on screen — the unfold spans the viewed folder(s)
-    // plus Sent — and in the unified list they are not all in the current account either (#115).
+    // (account, folder) → role, every account: an unfolded conversation's rows span the viewed
+    // folder(s) plus Sent, and in the unified list they are not all in the current account (#115).
     val folderRoles by viewModel.folderRoles.collectAsStateWithLifecycle()
     var showMoveSheet by remember { mutableStateOf(false) }
     var showCreateFolder by remember { mutableStateOf(false) }
@@ -289,9 +283,8 @@ fun InboxScreen(
     var folderToAddChild by remember { mutableStateOf<Mailbox?>(null) }
     val undo by viewModel.undo.collectAsStateWithLifecycle()
     val watchedFolders by viewModel.watchedFolders.collectAsStateWithLifecycle()
-    // The current account's explicit fold/unfold choice per folder — persisted, so a chevron
-    // survives a rotation, a trip into a message and a cold start. A folder with no key in here is
-    // one nobody decided anything about.
+    // The current account's explicit fold/unfold choice per folder — persisted. A folder with no
+    // key in here is one nobody decided anything about.
     val collapsedFolders by viewModel.collapsedFolders.collectAsStateWithLifecycle()
     // Can a folder row of THIS account badge unread at all? False on IMAP, whose rows carry a hard
     // 0 — and the default fold rests on that badge, so where there is none nothing folds itself.
@@ -310,13 +303,11 @@ fun InboxScreen(
     // The message open in the reading pane beside the list, on a wide window: its row is painted
     // "current" (#103). Empty under 600 dp, where nothing ever writes it.
     val pane by viewModel.readingPane.collectAsStateWithLifecycle()
-    // Rows whose swipe was played to the edge over a write that then failed — offline, above all.
-    // They are still in the table (network-first), only gone from the screen; the flight has to be
-    // wound back by hand. See [InboxViewModel.swipeRewind].
+    // Rows whose swipe was played to the edge over a write that then failed. They are still in the
+    // table (network-first), only gone from the screen — see [InboxViewModel.swipeRewind].
     val swipeRewind by viewModel.swipeRewind.collectAsStateWithLifecycle()
-    // Promote the just-opened row's highlight as this screen starts coming back (ON_START,
-    // i.e. during the return transition) rather than after it settles (ON_RESUME) — so the
-    // flash is already underway as the list reappears, reading as part of the back gesture.
+    // Promote the just-opened row's highlight on ON_START rather than ON_RESUME, so the flash is
+    // already underway as the list reappears, reading as part of the back gesture.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -326,17 +317,13 @@ fun InboxScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val snackbarHostState = remember { SnackbarHostState() }
-    // From 1 200 dp the folder drawer is drawn beside the list and never slides (#103, volet 6).
-    // Read ONCE, here, and handed to everything that would otherwise offer a way to open it: the
-    // Menu icon, the tap on an empty list, and the two gesture rules. Three sites reading
-    // `panes?.layout == PaneLayout.Desk` for themselves is three chances for one of them to drift.
+    // From 1 200 dp the folder drawer is drawn beside the list and never slides (#103). Read ONCE
+    // here and handed to everything that would otherwise offer a way to open it.
     val permanentDrawer = panes?.layout == PaneLayout.Desk
     val drawerState = rememberDrawerState(DrawerValue.Closed)
-    // Codeberg #30: the rows hand a narrow strip at the start edge back to the drawer's own
-    // drag — but only in three-button navigation, where Android reports no gesture inset
-    // there. Under gesture navigation that edge is the system back gesture: the strip is
-    // 0-wide and inert, and the app declares no exclusion zone to fight for it. Read here,
-    // above the Scaffold, so no consumed inset can make the edge look free.
+    // Codeberg #30: the rows hand a narrow strip at the start edge back to the drawer's own drag,
+    // but only in three-button navigation, where Android reports no gesture inset there. Read above
+    // the Scaffold, so no consumed inset can make the edge look free.
     val density = LocalDensity.current
     val edgeBandPx = drawerBandPx(
         systemGestureInsetPx = WindowInsets.systemGestures.getLeft(density, LocalLayoutDirection.current),
@@ -357,9 +344,8 @@ fun InboxScreen(
         }
     }
 
-    // Expanded-conversation members are a static snapshot in the ViewModel; re-sync it with
-    // the cache each time the inbox (re)enters composition, so a child read in the reader
-    // loses its unread dot on return. First-ever composition is a no-op (nothing expanded).
+    // Expanded-conversation members are a static snapshot in the ViewModel; re-sync it with the
+    // cache on every (re)entry, so a child read in the reader loses its unread dot on return.
     LaunchedEffect(Unit) { viewModel.refreshThreadMembers() }
 
     // Surface transient action errors (e.g. "no Archive folder") in a snackbar.
@@ -370,11 +356,8 @@ fun InboxScreen(
     }
 
     // Back peels the list's modes off one at a time before the app is left; the order lives in
-    // [inboxBackAction] so exactly one handler is ever enabled (LEAVE_APP enables none, and the
-    // system does its usual thing). Search is one of those modes, not a screen: Back closes it
-    // and gives the list back instead of minimising the app (Codeberg #86).
-    // The reading pane is one more mode, between the selection and the search (#103): Back with a
-    // message on the right empties the pane, and the app is only left on the press after.
+    // [inboxBackAction] so exactly one handler is ever enabled. Search is one of those modes, not a
+    // screen (#86), and so is the reading pane, between the selection and the search (#103).
     val backAction = inboxBackAction(selectionActive, detailOpen = detail != null && pane.anchor != null, ui.searching, ui.atInbox)
     BackHandler(enabled = backAction == InboxBackAction.CLEAR_SELECTION) { viewModel.clearSelection() }
     BackHandler(enabled = backAction == InboxBackAction.CLOSE_DETAIL) { viewModel.closePane() }
@@ -385,7 +368,7 @@ fun InboxScreen(
     // come from [moveTargets], shared with the reader's own picker (#73).
     if (showMoveSheet) {
         // The filter field's text (#182). Held INSIDE the `if`, so leaving the dialog drops the
-        // composition group and the field comes back empty next time it is opened.
+        // composition group and the field comes back empty next time.
         var moveQuery by remember { mutableStateOf("") }
         // The folder on screen is left out of the list ONLY while the list is the selection's own
         // account's: listing another account's, its id names nothing there, or a homonym (#92).
@@ -393,23 +376,14 @@ fun InboxScreen(
         val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed) {
             moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed)
         }
-        // Nested folders sharing a leaf ("ProjectA.Done", "ProjectB.Done") are one and the same
-        // row without their parent path underneath (#109). Resolved against the WHOLE folder
-        // list, not the offered subset: the folder being moved out of is excluded there, and it
-        // may be a parent.
-        //
-        // Memoized on the same footing as [targets] and for the same reason (#182): every one of
-        // these calls walks a map rebuilt over the account's whole folder list, and the filter
-        // field re-runs this block on EVERY KEYSTROKE. Left in the loop it is the identical
-        // O(n^2) the memo above exists to stop — on the very account that reported this, the one
-        // with a thousand folders. `mailboxPathLabel` is not @Composable, so it can be lifted;
-        // `mailboxDisplayName` is (it resolves the translated name) and stays below.
+        // Nested folders sharing a leaf are one and the same row without their parent path (#109).
+        // Resolved against the WHOLE folder list, not the offered subset. Memoized like [targets]:
+        // the filter field re-runs this block on every keystroke (#182).
         val movePaths = remember(targets, moveTargetMailboxes) {
             targets.map { folder -> mailboxPathLabel(folder, moveTargetMailboxes) }
         }
-        // Painted here, over the WHOLE offered list and never over the filtered one: what the
-        // filter compares is what the row shows, and the number of rows painted must not depend
-        // on what has been typed.
+        // Painted over the WHOLE offered list and never over the filtered one: what the filter
+        // compares is what the row shows, and the rows painted must not depend on what was typed.
         val moveRows = ArrayList<FolderPickerRow>(targets.size)
         for ((folder, path) in targets.zip(movePaths)) {
             moveRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
@@ -421,26 +395,21 @@ fun InboxScreen(
             text = {
                 Column {
                     // The account whose folders are listed, and the way to list another's (#189).
-                    // Drawn only when there is more than one account to choose from — and NOT at
-                    // all when the selection spans accounts, where the move keeps main's behaviour
-                    // and only takes the owner's messages (selectionPickerAccounts).
+                    // Not drawn at all when the selection spans accounts, where the move only takes
+                    // the owner's messages (selectionPickerAccounts).
                     MoveAccountRow(selectionPickerAccounts(accounts, selectedKeys), moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)
                     // The filter field (#182), OUTSIDE the scroller so it stays put while the list
-                    // moves under it. Same shape as the list's search bar: transparent container and
-                    // indicators, hint drawn behind in a Box, a cross that empties it. Deliberately
-                    // WITHOUT a FocusRequester — unlike the folder-creation dialogs below, the keyboard
-                    // does not come up on its own — and without an IME "search" action: this filters
-                    // what is already on screen, it asks the server nothing.
+                    // moves under it. Deliberately WITHOUT a FocusRequester and without an IME
+                    // "search" action: it filters what is on screen, it asks the server nothing.
                     Box(Modifier.fillMaxWidth()) {
                         if (moveQuery.isEmpty()) {
                             Text(
                                 stringResource(R.string.inbox_filter_folders),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                // Bounded, like the search bar this shape is copied from: a Box
-                                // is as tall as its tallest child, so an unbounded hint at a
-                                // large font scale would grow the field and steal that height
-                                // from the list underneath.
+                                // Bounded, like the search bar this shape is copied from: a Box is
+                                // as tall as its tallest child, so an unbounded hint at a large font
+                                // scale would steal that height from the list underneath.
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
@@ -472,8 +441,8 @@ fun InboxScreen(
                         )
                     }
                     // `weight(1f, fill = false)` on the scroller and NOTHING on the field: in a
-                    // Column the unweighted child is measured FIRST, so the field keeps its
-                    // height and it is the list that gives way — never the other way round.
+                    // Column the unweighted child is measured FIRST, so the field keeps its height
+                    // and it is the list that gives way.
                     Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                         if (shownMoveRows.isEmpty() && moveQuery.isNotEmpty()) {
                             Text(
@@ -506,10 +475,8 @@ fun InboxScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         // TWO lines, not one: a single line elides at the END, in
-                                        // dp, AFTER the path was already trimmed by character
-                                        // count — and at a large font size that trailing cut would
-                                        // eat the nearest parent, which is the whole point of the
-                                        // row. Two lines hold the trimmed path at any font scale.
+                                        // dp, after the path was already trimmed by character count,
+                                        // eating the nearest parent at a large font size.
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -673,13 +640,9 @@ fun InboxScreen(
             message = action.label,
             actionLabel = undoLabel,
             withDismissAction = true,
-            // Indefinite ON PURPOSE, and it is not the "never went away" bug: the ViewModel's
-            // deadline closes this window by clearing `undo`, and this effect is keyed on it, so
-            // the bar goes down with the banners. A duration here would be a SECOND clock — a
-            // rotation restarts it, the "Time to take action" accessibility setting stretches it,
-            // and the queue behind the other Indefinite bars delays it — and every drift ends the
-            // same way: Undo pressed after the banner was already cancelled, i.e. mail back in the
-            // folder and announced nowhere.
+            // Indefinite ON PURPOSE: the ViewModel's deadline closes this window by clearing `undo`,
+            // and this effect is keyed on it. A duration here would be a SECOND clock, and every
+            // drift ends with Undo pressed after the banner was already cancelled.
             duration = SnackbarDuration.Indefinite,
         )
         if (result == SnackbarResult.ActionPerformed) {
@@ -689,9 +652,8 @@ fun InboxScreen(
     }
 
     // Undo-send: while a message is held in the outbox, offer an Undo. The label is set at send
-    // time — "Message sent" when it went out, or a queued/offline notice when it only parked in the
-    // Outbox (#70) — so the snackbar reflects what actually happened rather than always "sent". The
-    // snackbar is dismissed automatically when the hold-back elapses (pending clears → restart).
+    // time (#70), so the snackbar says what actually happened rather than always "sent". It is
+    // dismissed automatically when the hold-back elapses (pending clears → restart).
     LaunchedEffect(outboxPending) {
         val pending = outboxPending ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(
@@ -707,8 +669,7 @@ fun InboxScreen(
     }
     // Reopen compose with the draft of an undone send. Kept out of the Undo snackbar handler above:
     // undoSend() clears outboxPending, which cancels that handler's coroutine, so reopening from
-    // there raced the teardown (offline especially, where Undo is the normal path) and could be
-    // silently dropped. This mirrors the Outbox screen's edit-reopen, which is already reliable.
+    // there raced the teardown and could be silently dropped.
     LaunchedEffect(restoredDraft) {
         if (restoredDraft != null) onReopenDraft()
     }
@@ -755,10 +716,9 @@ fun InboxScreen(
         if (result == SnackbarResult.ActionPerformed) viewModel.undoDeleteFolder()
     }
     val scope = rememberCoroutineScope()
-    // Make sure the drawer is shut whenever the inbox returns to the foreground. A drawer item
-    // animates `drawerState.close()` then navigates, but instant navigation disposes this
-    // screen before that animation finishes, leaving the drawer state open on return — snap it
-    // closed (no visible animation) so we never come back to a half-open drawer.
+    // Make sure the drawer is shut whenever the inbox returns to the foreground: a drawer item
+    // animates `drawerState.close()` then navigates, and instant navigation disposes this screen
+    // before that animation finishes. Snap it closed, with no visible animation.
     DisposableEffect(lifecycleOwner, drawerState) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START && drawerState.isOpen) {
@@ -774,9 +734,9 @@ fun InboxScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
 
-    // When an Undo restores a message that belongs at the top, wait for the row to repopulate
-    // (item count grows again) and pin the list to the top — otherwise LazyColumn keeps the
-    // old anchor and the restored message sits just above the viewport, invisible (Codeberg #23).
+    // When an Undo restores a message that belongs at the top, wait for the row to repopulate and
+    // pin the list to the top — otherwise LazyColumn keeps the old anchor and the restored message
+    // sits just above the viewport, invisible (#23).
     LaunchedEffect(revealTopSignal) {
         if (revealTopSignal == 0 || listState.firstVisibleItemIndex != 0) return@LaunchedEffect
         val before = listState.layoutInfo.totalItemsCount
@@ -786,10 +746,9 @@ fun InboxScreen(
         listState.animateScrollToItem(0)
     }
 
-    // Opening a *different* folder starts at the top of that folder's list. Returning to the
-    // same folder (e.g. from a message) must keep the scroll position the user left — so the
-    // reset fires only on a genuine folder change, tracked via a saved key, not on every
-    // re-entry of this screen (which would otherwise stomp the restored position).
+    // Opening a *different* folder starts at the top of that folder's list; returning to the same
+    // folder must keep the position the user left. So the reset fires on a genuine folder change,
+    // tracked via a saved key, not on every re-entry of this screen.
     var lastFolderKey by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(ui.selectedMailboxId, ui.unified) {
         val key = "${ui.unified}:${ui.selectedMailboxId}"
@@ -797,12 +756,9 @@ fun InboxScreen(
         lastFolderKey = key
     }
 
-    // Newly arrived mail is prepended ABOVE the viewport: LazyColumn anchors the scroll to
-    // the previously-first row, so the new message sits invisible until the user scrolls up.
-    // If the list was already at the very top when the first key changed — and no drag/fling
-    // is in flight — follow it up to reveal the arrival. Anywhere below, never move the user.
-    // Restarting on folder/search changes resets the tracking, so a wholesale content swap
-    // keeps its existing behavior (instant reset above) instead of a mid-list animation.
+    // Newly arrived mail is prepended ABOVE the viewport: LazyColumn anchors the scroll to the
+    // previously-first row. If the list was already at the very top and no drag/fling is in flight,
+    // follow it up to reveal the arrival; anywhere below, never move the user.
     val searchActive = ui.searching && ui.searchQuery.isNotBlank()
     LaunchedEffect(ui.selectedMailboxId, ui.unified, searchActive) {
         if (searchActive) return@LaunchedEffect
@@ -814,8 +770,8 @@ fun InboxScreen(
                 listState.firstVisibleItemScrollOffset == 0
             key to atTop
         }.collect { (key, atTop) ->
-            // Sequential collect + snapshotFlow conflation coalesce rapid arrivals into
-            // one settled animation instead of queueing one per message.
+            // Sequential collect + snapshotFlow conflation coalesce rapid arrivals into one
+            // settled animation instead of queueing one per message.
             if (prevKey != null && key != null && key != prevKey &&
                 wasAtTop && !listState.isScrollInProgress
             ) {
@@ -828,11 +784,9 @@ fun InboxScreen(
         }
     }
 
-    // Staggered first-screen entry: the first rows of a freshly-opened folder fade +
-    // slide in once, in a gentle cascade. ONLY the first screen (rows past the cap never
-    // animate) and ONLY on the initial show — the cascade self-locks after it plays and
-    // on the first scroll, so rows recycled back into view while browsing a large box
-    // never re-fade. Honours reduced motion.
+    // Staggered first-screen entry: the first rows of a freshly-opened folder fade + slide in once.
+    // ONLY the first screen and ONLY on the initial show — the cascade self-locks after it plays
+    // and on the first scroll, so rows recycled back into view never re-fade. Honours reduced motion.
     val listMotionOn = rememberMotionEnabled()
     var entryPlayed by rememberSaveable(ui.selectedMailboxId, ui.unified) { mutableStateOf(false) }
     LaunchedEffect(ui.selectedMailboxId, ui.unified) {
@@ -846,14 +800,13 @@ fun InboxScreen(
         entryPlayed = true
     }
 
-    // The list and its reading pane, hoisted into one lambda so they are composed ONCE and
-    // wrapped by whichever of the two drawer envelopes this window gets. Written twice, the
-    // two copies drift, and crossing 1 200 dp would throw away the whole list's state.
+    // The list and its reading pane, hoisted into one lambda so they are composed ONCE and wrapped
+    // by whichever of the two drawer envelopes this window gets: written twice, the two copies
+    // drift, and crossing 1 200 dp would throw away the whole list's state.
     val content: @Composable () -> Unit = {
-        // The list's Scaffold, beside the reading pane when the host decided a split (#103):
-        // the pane is a SIBLING of this Scaffold (each takes the status bar once) and lives
-        // inside the drawer's envelope (the modal drawer covers the whole window, as in Gmail).
-        // The Scaffold block below is deliberately NOT re-indented, to keep the diff readable.
+        // The list's Scaffold, beside the reading pane when the host decided a split (#103): the
+        // pane is a SIBLING of this Scaffold (each takes the status bar once) and lives inside the
+        // drawer's envelope. The Scaffold block below is deliberately NOT re-indented.
         ListDetailPanes(panes, detail) {
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -869,9 +822,8 @@ fun InboxScreen(
                             }
                         },
                         title = {
-                            // A check + the count: compact and language-proof (the old
-                            // "N sélectionné(s)" wrapped to three lines here). The full
-                            // localized label is kept for screen readers.
+                            // A check + the count: compact and language-proof. The full localized
+                            // label is kept for screen readers.
                             val countLabel = stringResource(R.string.inbox_selected_count, selectedKeys.size)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -912,11 +864,9 @@ fun InboxScreen(
                                 Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = stringResource(R.string.inbox_move_to_folder))
                             }
                             IconButton(onClick = { viewModel.deleteSelected() }) {
-                                // In Trash the button destroys, not moves-to-Trash — so a Trash-can
-                                // icon is misleading; show "delete forever" instead (Codeberg #23).
-                                // The SELECTION bar acts on many rows at once and has no single
-                                // row to be judged by, so it keeps the view's role — like the
-                                // folder menu above it, and unlike the per-row affordances.
+                                // In Trash the button destroys, not moves-to-Trash, so a Trash-can
+                                // icon is misleading (#23). The SELECTION bar acts on many rows and
+                                // has no single row to be judged by, so it keeps the view's role.
                                 val trash = isTrashContext(visibleFolderRole(ui))
                                 Icon(
                                     if (trash) Icons.Filled.DeleteForever else Icons.Filled.Delete,
@@ -928,9 +878,8 @@ fun InboxScreen(
                             var selSnooze by remember { mutableStateOf(false) }
                             val selContext = LocalContext.current
                             // Boxed with its button for the anchoring reason spelled out on the
-                            // browse-bar overflow menu (#74). This one swaps its whole content
-                            // for the snooze presets, so unboxed it could even jump sideways
-                            // while open, as the two sets of labels are not the same width.
+                            // browse-bar overflow menu (#74). This one swaps its whole content for
+                            // the snooze presets, so unboxed it could jump sideways while open.
                             Box {
                                 IconButton(onClick = { selMenu = true }) {
                                     Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
@@ -955,8 +904,7 @@ fun InboxScreen(
                                             onClick = { selMenu = false; viewModel.selectAll() },
                                         )
                                         // Spam-reporting acts on incoming mail; in Drafts and Sent
-                                        // the selection is the user's own outgoing mail, so it is
-                                        // not offered there (Codeberg #82).
+                                        // the selection is the user's own, so it is not offered (#82).
                                         if (!isOutgoingFolder(currentRole)) {
                                             DropdownMenuItem(
                                                 text = {
@@ -969,9 +917,8 @@ fun InboxScreen(
                                                 },
                                             )
                                         }
-                                        // Snoozing is a promise to come back to a message, so it
-                                        // goes further: also gone in Spam and in the Trash, where
-                                        // nothing is waiting to be dealt with (Codeberg #82).
+                                        // Snoozing is a promise to come back to a message, so it is
+                                        // also gone in Spam and in the Trash (#82).
                                         if (canSnoozeIn(currentRole)) {
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(R.string.message_snooze)) },
@@ -997,9 +944,8 @@ fun InboxScreen(
                             val searchRole = ui.mailboxes
                                 .firstOrNull { it.id == ui.selectedMailboxId }?.role
                             // The hint says what the search covers. In the unread view that is the
-                            // whole account, while ui.mailboxName still holds the Inbox's name —
-                            // "Search in Inbox" over a search of everything. Same string as the
-                            // title, no tenth translation of the same word.
+                            // whole account, while ui.mailboxName still holds the Inbox's name.
+                            // Same string as the title, no tenth translation of the same word.
                             val scopeLabel = if (ui.unreadView) {
                                 stringResource(R.string.inbox_unread_view)
                             } else if (ui.unified) {
@@ -1008,10 +954,9 @@ fun InboxScreen(
                                 mailboxDisplayName(searchRole, ui.mailboxName)
                             }
                             val focusManager = LocalFocusManager.current
-                            // The input stays single-line (a filled TextField can't grow past
-                            // the app bar's height without clipping), but the hint is drawn as a
-                            // separate Text behind it so a long folder name wraps to two lines
-                            // instead of being cut off with an ellipsis.
+                            // The input stays single-line (a filled TextField can't grow past the
+                            // app bar's height without clipping), but the hint is drawn as a
+                            // separate Text behind it so a long folder name wraps to two lines.
                             Box(Modifier.fillMaxWidth()) {
                                 if (ui.searchQuery.isEmpty()) {
                                     Text(
@@ -1057,14 +1002,13 @@ fun InboxScreen(
                     MediumTopAppBar(
                         title = {
                             Column {
-                                // Both titles are resolved HERE, not in the ViewModel: a ViewModel outlives a
-                                // configuration change, so a label resolved upstream would stay in the old language.
+                                // Both titles are resolved HERE, not in the ViewModel: a ViewModel
+                                // outlives a configuration change and would keep the old language.
                                 val selectedRole = ui.mailboxes
                                     .firstOrNull { it.id == ui.selectedMailboxId }?.role
                                 Text(
                                     // The unread view selects no folder either, so without an arm
-                                    // of its own the title would name the LAST FOLDER VISITED over
-                                    // a list that spans the account.
+                                    // of its own the title would name the LAST FOLDER VISITED.
                                     if (ui.unreadView) {
                                         stringResource(R.string.inbox_unread_view)
                                     } else if (ui.unified) {
@@ -1090,12 +1034,9 @@ fun InboxScreen(
                             }
                         },
                         navigationIcon = {
-                            // Nothing to open where the drawer is already beside the list. The
-                            // slot is kept rather than dropped so the bar keeps ONE shape in the
-                            // source, but what an empty slot does to the title's start inset is
-                            // NOT measured: Material gives the title max(bar inset, icon width),
-                            // so the title may well shift left from 1 200 dp. Read at the bench,
-                            // wide window, G24 of the test plan; nothing here promises otherwise.
+                            // Nothing to open where the drawer is already beside the list; the slot
+                            // is kept so the bar keeps ONE shape in the source. What an empty slot
+                            // does to the title's start inset is NOT measured.
                             if (!permanentDrawer) {
                                 IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                     Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.inbox_menu))
@@ -1104,9 +1045,8 @@ fun InboxScreen(
                         },
                         actions = {
                             // Hidden in the unread view: listUnreadOnly forces the filter on there,
-                            // so the funnel would sit in its OFF colour (it reads ui.unreadOnly,
-                            // which the scope does not touch) over a filtered list, and tapping it
-                            // would change nothing.
+                            // so the funnel would sit in its OFF colour over a filtered list (it
+                            // reads ui.unreadOnly, which the scope does not touch).
                             if (!ui.unreadView) {
                                 IconButton(onClick = { viewModel.toggleUnreadOnly() }) {
                                     Icon(
@@ -1118,8 +1058,7 @@ fun InboxScreen(
                             }
                             var sortOpen by remember { mutableStateOf(false) }
                             // Boxed with its button for the anchoring reason spelled out on the
-                            // overflow menu below (#74); the sort labels are short, so this menu
-                            // was always on the wrong side of that threshold.
+                            // overflow menu below (#74).
                             Box {
                                 IconButton(onClick = { sortOpen = true }) {
                                     Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.inbox_sort))
@@ -1142,17 +1081,9 @@ fun InboxScreen(
                             var overflowOpen by remember { mutableStateOf(false) }
                             val currentRole = ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role
                             val isTrash = currentRole == "trash"
-                            // The menu must be boxed WITH its button. A DropdownMenu anchors on
-                            // the layout node that contains it, not on the button that opens it;
-                            // emitted straight into the app bar's actions row, its anchor was the
-                            // whole icon cluster. Compose then tries "menu start at anchor start"
-                            // first, so any menu narrower than that cluster opened under the
-                            // leftmost icon instead of under this button — and the Trash menu,
-                            // which drops the scheduled and snoozed entries, is exactly the short
-                            // one, which is why it alone looked out of place (#74). With the box
-                            // the anchor is the 48dp button: the start candidate can never fit,
-                            // so the menu always ends flush with the button, in every folder and
-                            // whatever the labels' length.
+                            // The menu must be boxed WITH its button: a DropdownMenu anchors on the
+                            // layout node that contains it, so emitted straight into the actions row
+                            // a narrow menu opened under the leftmost icon (#74).
                             Box {
                                 IconButton(onClick = { overflowOpen = true }) {
                                     BadgedBox(
@@ -1175,8 +1106,7 @@ fun InboxScreen(
                                 }
                                 // Frequent actions first, nearest the anchor; the rarely-visited
                                 // Outbox comes after them (#48). In the Trash the destructive
-                                // "Empty trash" is pushed to the very bottom, so the third slot
-                                // keeps the harmless entry the finger expects everywhere else.
+                                // "Empty trash" is pushed to the very bottom.
                                 DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }, shape = MaterialTheme.shapes.medium) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.inbox_select_all)) },
@@ -1184,10 +1114,8 @@ fun InboxScreen(
                                         onClick = { viewModel.selectAll(); overflowOpen = false },
                                     )
                                     // Unread state is meaningless in Drafts and Sent — the mail
-                                    // there is your own — so the bulk mark-as-read is dropped in
-                                    // those two folders, like the other incoming-only actions
-                                    // (Codeberg #82). It stays in Trash: a deleted message can
-                                    // legitimately still be unread.
+                                    // there is your own — so the bulk mark-as-read is dropped there
+                                    // (#82). It stays in Trash: a deleted message can still be unread.
                                     if (!isOutgoingFolder(currentRole)) {
                                         DropdownMenuItem(
                                             text = { Text(stringResource(R.string.inbox_mark_all_read)) },
@@ -1214,16 +1142,9 @@ fun InboxScreen(
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.inbox_outbox)) },
                                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
-                                        // The count uses outboxQueuedCount, NOT the dot's
-                                        // outboxCount: it appears the instant a message is queued,
-                                        // while the dot keeps its 30 s grace (#70). The dot sits on
-                                        // the toolbar button and is in view whether or not you went
-                                        // looking; this number only exists once this menu is open,
-                                        // and at that point the user is looking on purpose, so
-                                        // there is nothing to hold back. During the grace the dot
-                                        // is therefore absent while this reads "1" — that is the
-                                        // change, not a bug: do not wire them to the same flow.
-                                        // The tint stays shared: red as soon as anything failed.
+                                        // outboxQueuedCount, NOT the dot's outboxCount: it appears
+                                        // the instant a message is queued, while the dot keeps its
+                                        // 30 s grace (#70). Do not wire them to the same flow.
                                         trailingIcon = {
                                             if (outboxQueuedCount > 0) {
                                                 Badge(
@@ -1237,10 +1158,9 @@ fun InboxScreen(
                                         },
                                         onClick = { overflowOpen = false; onOpenOutbox() },
                                     )
-                                    // After the Outbox, before anything destructive (#48). Absent
-                                    // in the Trash for the same reason as the two lists above: it
-                                    // counts the folders one keeps mail in, and the Trash is not
-                                    // one of them.
+                                    // After the Outbox, before anything destructive (#48). Absent in
+                                    // the Trash for the same reason as the two lists above: it counts
+                                    // the folders one keeps mail in.
                                     if (!isTrash) {
                                         DropdownMenuItem(
                                             text = { Text(stringResource(R.string.inbox_by_sender)) },
@@ -1290,9 +1210,8 @@ fun InboxScreen(
                 )
             },
         ) { padding ->
-            // One row renderer, shared by the search list and the paged browse list.
-            // Takes the row modifier so the caller can pass `animateItem()` from its
-            // own LazyItemScope.
+            // One row renderer, shared by the search list and the paged browse list. Takes the row
+            // modifier so the caller can pass `animateItem()` from its own LazyItemScope.
             val emailRow: @Composable (InboxRow, Modifier, Boolean, Int, Boolean) -> Unit = { row, rowModifier, animateEntry, entryIndex, fromSearch ->
                 val email = row.email
                 val ownerAccount = if (ui.unified) accounts.firstOrNull { it.id == email.accountId } else null
@@ -1304,18 +1223,11 @@ fun InboxScreen(
                 val isExpanded = expandable && threadKey in expandedThreads
                 // The role of the folder THIS ROW is filed in, not the one on screen: a list can
                 // span several folders of one account, where "Delete permanently" and "Unarchive"
-                // are true of some rows and false of the ones beside them. Falls back to the view's
-                // role whenever the row's folder cannot be believed, so the single-folder and
-                // unified views answer exactly what they answered before ([rowFolderRole]).
+                // are true of some rows and false of their neighbours ([rowFolderRole]).
                 val rowRole = rowFolderRole(email, ui, folderRoles, folderTrusted = !fromSearch)
-                // And WHICH folder, in the one view that pages several of them: the unread view
-                // shows the same object once per folder it is filed in (IMAP identities carry the
-                // folder), and those rows are all true. Naming the folder is what tells them apart
-                // — the rows are deliberately NOT deduplicated. Null everywhere else, and the
-                // account chip below wins whenever there is one: one slot, never two ([EmailListItem]).
-                // `row.threadCount`, not 1: in conversation view — the DEFAULT — a row can stand
-                // for several messages of the list, filed in several folders, and one folder name
-                // under it would be a claim about an aggregate ([unreadRowFolder]).
+                // And WHICH folder, in the one view that pages several: naming the folder is what
+                // tells apart the rows the unread view shows once per folder. `row.threadCount`,
+                // not 1: a conversation row can stand for messages in several folders.
                 val rowFolder = unreadRowFolder(email, ui, folderTrusted = !fromSearch, inViewCount = row.threadCount)
                 SwipeableEmailRow(
                     email = email,
@@ -1325,27 +1237,18 @@ fun InboxScreen(
                     leftAction = swipe.left,
                     unarchiveContext = isUnarchiveContext(rowRole),
                     trashContext = isTrashContext(rowRole),
-                    // Search results keep the sender line whatever folder they came from.
-                    // Otherwise: the shared decision, so this row and the reader it opens say the
-                    // same thing. Sent/Drafts by folder (#59), a self-authored mail moved to the
-                    // Trash by authorship (#69) — but NOT a mail you sent to yourself sitting in
-                    // the Inbox, which is received mail and reads by its sender (#115).
+                    // Search results keep the sender line whatever folder they came from. Otherwise
+                    // the shared decision: Sent/Drafts by folder (#59), a self-authored mail in the
+                    // Trash by authorship (#69), but NOT one you sent yourself in the Inbox (#115).
                     showRecipients = !fromSearch && showsRecipients(
                         role = visibleFolderRole(ui),
                         unified = ui.unified,
                         selfAuthored = isSelfAuthored(email.from, sendAsIdentities(email, accounts)),
                     ),
-                    // "(Draft)" by the keyword OR by the row's own folder. The keyword alone left
-                    // the Drafts folder unmarked after the app was killed (it is memoised, not
-                    // stored, and the sync that follows is a delta), and unmarked forever on IMAP.
-                    // The search list of this very screen is served by this same renderer, and it
-                    // already showed the chip on the keyword alone. So its branch keeps exactly
-                    // that: whether a search hit should ALSO be chipped by its folder is another
-                    // decision, out of this branch's scope — but a plain `false` here would REMOVE
-                    // a chip that was there, which is not "unchanged".
-                    // The second chip, next to "(Draft)": this draft is on the phone and has not
-                    // reached the server yet (#95). The same predicate the gesture sites ask, so
-                    // the row cannot be marked inert and drawn as uploaded, or the other way round.
+                    // "(Draft)" by the keyword OR by the row's own folder: the keyword is memoised,
+                    // not stored, so it left Drafts unmarked after a kill and forever on IMAP. The
+                    // search branch keeps the keyword alone — `false` there would REMOVE a chip. The
+                    // second chip says the draft has not reached the server yet (#95).
                     showNotUploadedBadge = isLocalDraftRow(email.id),
                     showDraftBadge = if (fromSearch) email.isDraft else showsDraftBadge(
                         isDraft = email.isDraft,
@@ -1359,15 +1262,10 @@ fun InboxScreen(
                         else performSwipe(action, email, viewModel, ui, rowRole)
                     },
                     onClick = {
-                        // The decision lives in [rowTapAction], executed by RowTapActionTest; this
-                        // `when` only acts on it. A draft only this phone holds opens in the
-                        // composer like any other (#95) — `ComposeViewModel.prepare` routes a local
-                        // id to the store that holds it and never asks a server about it. It is the
-                        // FIRST argument and wins first: the selection branch would toggle a
-                        // selection `InboxViewModel` refuses for this row (so the tap would do
-                        // nothing at all). In the Drafts folder a tap EDITS the draft (#63): open
-                        // it in compose, prefilled — not in the read-only reader — whether or not
-                        // its conversation can unfold.
+                        // The decision lives in [rowTapAction]; this `when` only acts on it. A
+                        // local draft opens in the composer like any other (#95) and is the FIRST
+                        // argument, because the selection branch would refuse the row and the tap
+                        // would do nothing. In Drafts a tap EDITS rather than opening the reader.
                         when (rowTapAction(isLocalDraftRow(email.id), selectionActive, expandable, fromSearch, rowRole)) {
                             RowTap.EDIT_DRAFT -> onEditDraft(email.id, email.accountId)
                             // A collapsed conversation selects/deselects all its members at once.
@@ -1383,21 +1281,15 @@ fun InboxScreen(
                         if (expandable) viewModel.enterSelectionThread(email) else viewModel.enterSelection(email)
                     },
                     // The star is a gesture too, on every row, and reachable by TalkBack (#95):
-                    // toggleFlag over a local id touches no row at all on IMAP (the star simply
-                    // never fills) and raises "Action failed" on JMAP. A local draft gets no star
-                    // rather than a dead one — an affordance that cannot do what it draws is the
-                    // very lie this volet exists to end.
+                    // toggleFlag over a local id touches no row at all on IMAP and raises "Action
+                    // failed" on JMAP. A local draft gets no star rather than a dead one.
                     onToggleFavourite = if (showsFavouriteStar(email.id)) {
                         {
                             val favouriting = !email.isFlagged
                             viewModel.toggleFlag(email)
                             // Only "Favourites first" moves the row on starring, so only there is
-                            // there anywhere to follow it to (#111). Under any other order the row
-                            // stays put, and scrolling away would just cost the reader their place —
-                            // which is what this did unconditionally while the pin was hard-wired.
-                            // Search results are excluded outright: they read no sort order at all,
-                            // and `listState` is the BROWSE list's, so a jump here scrolls a list
-                            // the reader isn't even looking at.
+                            // there anywhere to follow it to (#111). Search results are excluded:
+                            // `listState` is the BROWSE list's, so a jump scrolls another list.
                             if (favouriting && !fromSearch && ui.sortOrder == SortOrder.FLAGGED_FIRST) {
                                 scope.launch { listState.animateScrollToItem(0) }
                             }
@@ -1406,20 +1298,11 @@ fun InboxScreen(
                     selected = email.emailKey() in selectedKeys,
                     // Account-qualified, like `selected` above (#92).
                     current = pane.anchor?.matches(email.accountId, email.id) == true,
-                    // LOAD-BEARING BEYOND THIS ROW, and nothing else says so: this is one of the
-                    // guards that make "selection active while the search results are empty"
-                    // unreachable. Selection mode is entered by a long-press on a row, so no row,
-                    // no selection — and selectAllKeys' search branch is only ever entered while
-                    // results are on screen. Simplify this to `true` some day and a selection can
-                    // outlive the list it was taken from, at which point "Select all" takes the
-                    // folder behind an empty result list and deletes it (#126).
-                    // The other half is the swipe guard for a draft only this phone holds, and
-                    // it has to sit HERE, not further down (#95): commitSwipe plays the entire
-                    // take-off — the row leaves by the edge, tilts and fades to nothing — and only
-                    // THEN calls onSwipe, so performSwipe's refusal arrives after the row has been
-                    // destroyed on screen. A left swipe is DELETE by default: she would watch the
-                    // only copy of the text she has just typed fly off, with no snackbar and no
-                    // Undo, over a draft that is still in the table.
+                    // LOAD-BEARING BEYOND THIS ROW: one of the guards that make "selection active
+                    // while the search results are empty" unreachable — simplify it to `true` and
+                    // "Select all" takes the folder behind an empty result list and deletes it (#126).
+                    // The other half is the swipe guard for a local draft, and it must sit HERE
+                    // (#95): commitSwipe plays the whole take-off before calling onSwipe.
                     gesturesEnabled = rowGesturesEnabled(email.id, selectionActive),
                     unread = row.unread,
                     threadCount = row.threadCount,
@@ -1433,8 +1316,7 @@ fun InboxScreen(
                     entryIndex = entryIndex,
                     highlighted = email.id == highlightId,
                     onHighlightShown = viewModel::clearHighlight,
-                    // The swipe this row played did not take: bring it back. Account-qualified,
-                    // like every other per-row lookup on this screen (#92).
+                    // The swipe this row played did not take: bring it back. Account-qualified (#92).
                     rewindSwipe = needsSwipeRewind(swipeRewind, email.accountId, email.id),
                     onSwipeRewound = { viewModel.swipeRewound(email.emailKey()) },
                     drawerBandPx = edgeBandPx,
@@ -1443,11 +1325,9 @@ fun InboxScreen(
                 )
                 if (expandable) {
                     // The conversation minus the message THIS ROW is drawing, subtracted here
-                    // because here is the only place both are in hand. The representative is a
-                    // live value — the newest message of the thread in the viewed folder(s),
-                    // re-picked on every write — so mail arriving in an open conversation changes
-                    // it, and subtracting an id remembered from the tap drew the newcomer twice
-                    // and dropped the message it displaced, under a chip that still counted right.
+                    // because here is the only place both are in hand. The representative is a live
+                    // value, re-picked on every write, so subtracting an id remembered from the tap
+                    // drew the newcomer twice and dropped the message it displaced.
                     val members = ConversationExpansion.membersBelow(threadMembers[threadKey].orEmpty(), email.id)
                     ThreadChildren(
                         visible = isExpanded,
@@ -1458,12 +1338,10 @@ fun InboxScreen(
                         leftAction = swipe.left,
                         unarchiveContextFor = { child -> isUnarchiveContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },
                         trashContextFor = { child -> isTrashContext(rowFolderRole(child, ui, folderRoles, folderTrusted = true)) },
-                        // Per child, through the SAME decision as the top-level row and the reader
-                        // — on the child's OWN folder, because an unfolded conversation spans the
-                        // viewed folder(s) plus Sent and the folder on screen says nothing about
-                        // the message inside it. Your own reply lives in Sent and keeps its
-                        // "To: …" (#69); your own message echoed back into the Inbox reads by its
-                        // sender (#115), which is what the reader says when this line is tapped.
+                        // Per child, through the SAME decision as the top-level row and the reader,
+                        // on the child's OWN folder: an unfolded conversation spans the viewed
+                        // folder(s) plus Sent, so your own reply there keeps its "To: …" (#69) while
+                        // your own message echoed back into the Inbox reads by its sender (#115).
                         showRecipientsFor = { child ->
                             showsRecipientsInThread(
                                 accountId = child.accountId,
@@ -1483,9 +1361,8 @@ fun InboxScreen(
                             )
                         },
                         // Same shape, same reason, for the origin chip. Trusted: these children come
-                        // from the cache the list pages, never from the search index. And a count of
-                        // 1 because a child IS one message — the unfold is what turned the aggregate
-                        // above back into the rows it stands for, so each of them can name its folder.
+                        // from the cache the list pages, never from the search index. Count of 1
+                        // because a child IS one message, so each of them can name its folder.
                         folderFor = { child -> unreadRowFolder(child, ui, folderTrusted = true, inViewCount = 1) },
                         highlightId = highlightId,
                         paneAnchor = pane.anchor,
@@ -1502,11 +1379,9 @@ fun InboxScreen(
                                 else -> {
                                     viewModel.onEmailOpened(child.id)
                                     // The reading view pages over exactly what this row was showing
-                                    // when the reader tapped: the representative it draws, then the
-                                    // members beneath it, recorded from here rather than rebuilt
-                                    // from a representative remembered since the unfold. The index
-                                    // is only a fallback — the reader resolves the opening page by
-                                    // id first.
+                                    // when the reader tapped, recorded from here rather than rebuilt
+                                    // from a representative remembered since the unfold. The index is
+                                    // only a fallback — the reader resolves the opening page by id.
                                     val order = viewModel.recordThreadOrder(threadKey, email, members)
                                     val childIndex = order.indexOfFirst { it.first == child.id }
                                     onOpenThreadMessage(child.id, child.accountId, threadKey, childIndex.coerceAtLeast(0))
@@ -1520,13 +1395,10 @@ fun InboxScreen(
                         onEnterSelectionChild = { child -> viewModel.enterSelection(child) },
                         onToggleSelectChild = { child -> viewModel.toggleSelect(child) },
                         onHighlightShown = viewModel::clearHighlight,
-                        // A child swipes through performSwipe → swipeRemove exactly like the row
-                        // above it. Its rewind is a no-op though, and knowingly so: the view
-                        // model's own mask drops the child out of the members flow before the
-                        // call, so this sub-composition is gone by the time the failure lands.
-                        // What this hands the child is the way to give its key back, on the fold
-                        // and unfold that brings it home. Why the child stays off the row until
-                        // then is written in InboxViewModel.hidingThreadMembers, and left alone.
+                        // A child swipes through performSwipe → swipeRemove like the row above it.
+                        // Its rewind is a no-op, knowingly: the view model's mask drops the child out
+                        // of the members flow before the call. What this hands the child is the way
+                        // to give its key back, on the fold and unfold that brings it home.
                         swipeRewindKeys = swipeRewind,
                         onSwipeRewound = { child -> viewModel.swipeRewound(child.emailKey()) },
                         drawerBandPx = edgeBandPx,
@@ -1539,13 +1411,11 @@ fun InboxScreen(
             val refreshState = rememberPullToRefreshState()
             Column(Modifier.fillMaxSize().padding(padding)) {
             // Offline, failed, or neither — never "offline" for a failure the device did not
-            // confirm. See [refreshNotice]: the VPN-killswitch case (#65) still reads offline,
-            // because a failed request is what corrects the connectivity flag itself; what no
-            // longer reads offline is a server that answered and refused.
+            // confirm. See [refreshNotice]: the VPN-killswitch case (#65) still reads offline; what
+            // no longer does is a server that answered and refused.
             val notice = refreshNotice(ui.offline, ui.error)
-            // Thin line above the list, but only when there are cached rows to sit above
-            // (WYSIWYG). The zero-rows case shows the matching centred state below instead, so
-            // the two never double up.
+            // Thin line above the list, but only when there are cached rows to sit above (WYSIWYG).
+            // The zero-rows case shows the matching centred state below instead.
             if (listRows.itemCount > 0) {
                 when (notice) {
                     RefreshNotice.OFFLINE -> OfflineBanner()
@@ -1559,9 +1429,8 @@ fun InboxScreen(
             }
             PullToRefreshBox(
                 // The DISPLAY, not the truth: fed ui.refreshing the tern lit the instant refresh()
-                // was called, i.e. on every folder tap, account switch and cold start, whether the
-                // fetch took 80 ms or 8 s (#178). ui.refreshing keeps its own two readers — the
-                // centre-empty arm below (#63) and the seed of the state flow.
+                // was called, on every folder tap and cold start (#178). ui.refreshing keeps its own
+                // two readers — the centre-empty arm below (#63) and the seed of the state flow.
                 isRefreshing = ui.showRefreshIndicator,
                 onRefresh = {
                     viewModel.refreshRequested()
@@ -1581,30 +1450,22 @@ fun InboxScreen(
             ) {
                 val searchActive = ui.searching && ui.searchQuery.isNotBlank()
                 val refreshLoading = listRows.loadState.refresh is LoadState.Loading
-                // Paging keeps presenting the PREVIOUS selection's snapshot until the new
-                // PagingData inserts its first page, so on a folder/account switch itemCount is
-                // still the old folder's. Without this guard the rows branch below wins and draws
-                // another folder's mail under the new folder's header. Every field of listKey is
-                // also a PageKey member (see ListKey), so a change here always rebuilds the pager
-                // and something eventually comes to disarm the guard.
+                // Paging keeps presenting the PREVIOUS selection's snapshot until the new PagingData
+                // inserts its first page. Without this guard the rows branch draws another folder's
+                // mail under the new header; every field of listKey is also a PageKey member.
                 val listKey = ListKey(ui.accountId, ui.selectedMailboxId, ui.unified, ui.unreadView)
-                // ONE read of the presented snapshot, shared by the two derivations below: the
-                // signature and the belonging test must describe the SAME rows, or the guard
-                // compares one folder's row against another folder's ownership.
+                // ONE read of the presented snapshot, shared by the two derivations below, or the
+                // guard compares one folder's row against another folder's ownership.
                 val presentedRows = listRows.itemSnapshotList.items
                 val firstRow = presentedRows.firstOrNull()
                 val presented = rowsSignature(listRows.itemCount, firstRow)
-                // Do those rows PROVE they belong to another selection? Every other signal the
-                // guard has (a moved snapshot, a finished load, the elapsed valve) can be produced
-                // by the OLD generation on its own, which left the header of the new folder over
-                // the rows of the old one on 1 folder switch in 4 at the bench (2026-08-29). Both
-                // ENDS are asked, because in Drafts the first row is the phone's own draft — it
-                // belongs to the new folder and would vouch for the old folder's mail behind it.
-                // Only for a single folder is the question decidable — see rowsForeign.
+                // Do those rows PROVE they belong to another selection? Every other signal the guard
+                // has can be produced by the OLD generation on its own. Both ENDS are asked: in
+                // Drafts the first row is the phone's own draft and would vouch for the old folder's
+                // mail behind it. Only for a single folder is the question decidable — rowsForeign.
                 val foreign = rowsForeign(listKey, firstRow, presentedRows.lastOrNull())
-                // Valve: after ROWS_GUARD_GIVE_UP_MS with nothing loading and nothing moved, give
-                // the screen back to the rows rather than spin for ever. Keyed on listKey so it is
-                // false again at the instant the next switch arms the guard.
+                // Valve: after ROWS_GUARD_GIVE_UP_MS with nothing loading and nothing moved, give the
+                // screen back to the rows. Keyed on listKey, so the next switch re-arms the guard.
                 val gaveUp = remember(listKey) { mutableStateOf(false) }
                 LaunchedEffect(listKey) { delay(ROWS_GUARD_GIVE_UP_MS); gaveUp.value = true }
                 // Written BEFORE it is read in the same pass, and idempotent: advanceRowsGuard
@@ -1614,16 +1475,10 @@ fun InboxScreen(
                 // AFTER the step, never hoisted above it: read first, this is the previous frame's
                 // answer, and the frame that arms the guard draws the old folder's rows anyway.
                 val staleRows = guard.value.stale
-                // The centred ring runs under the SAME grace as the tern, from the same functions
-                // (#178), and it speaks for ONE thing: a page loading in the view already on
-                // screen. Hence refreshLoading && !staleRows: staleRows is the only term a change
-                // of view arms and a load never does (RowsGuard rule 1; rule 2 re-arms it on
-                // foreign rows, which is itself the aftermath of a switch). And a fresh view runs
-                // no refresh at all (refreshUnlessFresh returns inside its window), so a ring there
-                // would announce server work that is not happening. The arm below still has to keep
-                // CATCHING whether or not it draws:
-                // letting it fall through hands the centre to the empty-folder, error or offline
-                // scene while a page is still loading, and the centre would then lie.
+                // The centred ring runs under the SAME grace as the tern (#178) and speaks for ONE
+                // thing: a page loading in the view already on screen — hence refreshLoading &&
+                // !staleRows. The arm below still has to keep CATCHING whether or not it draws:
+                // letting it fall through hands the centre to the empty-folder or offline scene.
                 val ringShowing = rememberGracedIndicator(refreshLoading && !staleRows)
                 when {
                     searchActive -> when (searchDisplay(ui.searchResults.size, ui.searchLoading, ui.searchComplete)) {
@@ -1637,11 +1492,9 @@ fun InboxScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        // "At least N" when the search stopped short (its cap, or an
-                                        // account that failed and was left out) AND while the server
-                                        // leg is still in flight: on a cold index the local pass can
-                                        // be a small slice of the answer, and calling it a total made
-                                        // it read as final (#102). Same call as the search screen.
+                                        // "At least N" when the search stopped short, and while the
+                                        // server leg is in flight: on a cold index the local pass can
+                                        // be a small slice, and a total read as final (#102).
                                         text = when (searchCount(ui.searchComplete, ui.searchLoading)) {
                                             SearchCount.EXACT ->
                                                 pluralStringResource(R.plurals.search_result_count, ui.searchResults.size, ui.searchResults.size)
@@ -1650,20 +1503,14 @@ fun InboxScreen(
                                         },
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        // weight, so a long count in a large font scale wraps
-                                        // instead of eating the whole row and squeezing the slot
-                                        // beside it to 0 dp — which would hide the progress hint
-                                        // from exactly the people who enlarge their text.
+                                        // weight, so a long count in a large font scale wraps instead
+                                        // of squeezing the progress hint beside it to 0 dp.
                                         modifier = Modifier.weight(1f, fill = false),
                                     )
                                     // "At least N" alone can't say whether the search is still
-                                    // running or stopped short, so a small spinner sits beside it
-                                    // while a leg is in flight. Its slot is reserved whether or not
-                                    // it shows, so appearing/vanishing never nudges the list.
-                                    // A spinner says nothing to a screen reader, and that very
-                                    // distinction is why it is here — so the slot carries it in
-                                    // words too, including in the stopped-short case that has no
-                                    // spinner to show.
+                                    // running or stopped short, so a spinner sits beside it while a
+                                    // leg is in flight, in a slot reserved whether or not it shows.
+                                    // A spinner says nothing to a screen reader: the slot says it.
                                     val progressHint = when {
                                         ui.searchLoading -> stringResource(R.string.search_still_running)
                                         !ui.searchComplete -> stringResource(R.string.search_incomplete)
@@ -1691,10 +1538,9 @@ fun InboxScreen(
                                 }
                             }
                         SearchDisplay.SPINNER -> LoadingRing(Modifier.align(Alignment.Center))
-                        // Found nothing, but didn't get to the end (a leg failed, or its cap):
-                        // that has NOT proven there is nothing. Saying "no results, try other
-                        // words" would send the user rewording a query that never fully ran.
-                        // Same wording as the search screen, from the same decision.
+                        // Found nothing, but didn't get to the end (a leg failed, or its cap): that
+                        // has NOT proven there is nothing, and "try other words" would send the user
+                        // rewording a query that never fully ran. Same wording as the search screen.
                         SearchDisplay.INCOMPLETE_EMPTY -> EmptyState(
                             art = EmptyArt.SEARCH,
                             title = stringResource(R.string.search_incomplete),
@@ -1719,10 +1565,9 @@ fun InboxScreen(
                                 count = listRows.itemCount,
                                 key = listRows.itemKey { "${it.email.accountId}|${it.email.id}" },
                             ) { index ->
-                                // animateItem keeps each row identified across Paging snapshot
-                                // swaps so a read/unread toggle re-binds in place instead of
-                                // blinking. Placement-only (no fade) so loading a new page of
-                                // rows doesn't stutter the scroll.
+                                // animateItem keeps each row identified across Paging snapshot swaps
+                                // so a read/unread toggle re-binds in place instead of blinking.
+                                // Placement-only (no fade), so a new page doesn't stutter the scroll.
                                 listRows[index]?.let { row ->
                                     emailRow(
                                         row,
@@ -1762,32 +1607,14 @@ fun InboxScreen(
                                 else -> Unit
                             }
                         }
-                    // A refresh is already spoken for by the tern at the top (the PullToRefreshBox
-                    // indicator above, driven by the same ui.refreshing): a second, centred
-                    // indicator says the same thing twice, in another visual language, for one
-                    // event (Codeberg #63 — the reporter's screenshot caught both at once).
-                    // The centre stays EMPTY rather than falling through to the branches below:
-                    // the empty-folder scene would claim the folder holds nothing while the very
-                    // fetch that could fill it is still running.
+                    // A refresh is already spoken for by the tern at the top (#63). The centre stays
+                    // EMPTY rather than falling through to the branches below, where the
+                    // empty-folder scene would claim the folder holds nothing mid-fetch.
                     ui.refreshing -> Unit
-                    // No tern for a paging refresh (it isn't the pull gesture's state), so here
-                    // the centred indicator is the only thing saying anything, and it stays.
-                    // staleRows too, and it has to stay ABOVE the offline/error/empty scenes: on
-                    // a switch that runs no refresh of its own, gating the rows branch alone falls
-                    // through to them and the screen claims the folder is empty — or offline —
-                    // while its first page is still loading. On a FRESH switch nobody refreshes
-                    // at all — select(), showInbox(), selectUnified(), selectUnread(),
-                    // onAccountChanged() and init all go through refreshUnlessFresh(), which
-                    // returns inside the freshness window — so ui.refreshing is false and the arm
-                    // above does NOT catch. This arm catches (staleRows) and draws NOTHING:
-                    // ringShowing is fed refreshLoading && !staleRows. The centre stays empty
-                    // until the new folder's first page arrives. NOT bounded by the guard's
-                    // give-up valve: that valve is `gaveUp && !refreshLoading` (RowsGuard.kt), and
-                    // the very query being waited on holds refreshLoading true, so it is inert on
-                    // this path. The silence lasts what the local page costs. It is still the
-                    // honest reading — nothing is being fetched, and a ring would say otherwise
-                    // — and shortening it is the missing-index chantier, not this arm. #63's
-                    // decision, reached by the other path.
+                    // No tern for a paging refresh, so the centred indicator is the only thing here.
+                    // staleRows has to stay ABOVE the offline/error/empty scenes, or a switch that
+                    // runs no refresh falls through and the screen claims the folder is empty.
+                    // `gaveUp && !refreshLoading` does not bound it: inert while a query is out.
                     refreshLoading || staleRows -> if (ringShowing) LoadingRing(Modifier.align(Alignment.Center)) else Unit
                     notice == RefreshNotice.OFFLINE -> PullableCenter {
                         EmptyState(
@@ -1800,10 +1627,9 @@ fun InboxScreen(
                             },
                         )
                     }
-                    // Nothing cached AND the refresh failed: the same "it failed, here is what
-                    // it said, try again" shape as the list's own load-more footer — never the
-                    // offline scene, whose drawing and whose promise ("we'll sync as soon as
-                    // you're back") would both be untrue here.
+                    // Nothing cached AND the refresh failed: the same "it failed, here is what it
+                    // said, try again" shape as the load-more footer — never the offline scene,
+                    // whose promise ("we'll sync as soon as you're back") would be untrue here.
                     notice == RefreshNotice.ERROR -> PullableCenter {
                         Column(
                             Modifier.align(Alignment.Center).padding(32.dp),
@@ -1820,9 +1646,8 @@ fun InboxScreen(
                     }
                     else -> {
                         // Which scene, which words, and whether a way out is offered: one decision,
-                        // taken by emptyListScene and run by EmptyListSceneTest — the inbox (hero),
-                        // the trash, any other folder, the unread filter, or the unread VIEW, which
-                        // selects no folder and would otherwise inherit the unified inbox's scene.
+                        // taken by emptyListScene — the inbox (hero), the trash, any other folder,
+                        // the unread filter, or the unread VIEW, which selects no folder.
                         val role = ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role
                         val scene = emptyListScene(
                             unreadView = ui.unreadView,
@@ -1832,9 +1657,8 @@ fun InboxScreen(
                             folderRole = role,
                         )
                         // Empty list still pulls to refresh; tapping the empty space opens the
-                        // drawer (the only navigation when there are no rows to act on) — except
-                        // from 1 200 dp, where the drawer is on screen and the tap has nothing to
-                        // do: null, so the empty state is not even clickable.
+                        // drawer — except from 1 200 dp, where the drawer is on screen and the tap
+                        // has nothing to do: null, so the empty state is not even clickable.
                         PullableCenter(onClick = if (permanentDrawer) null else ({ scope.launch { drawerState.open() } })) {
                             EmptyState(
                                 art = scene.art,
@@ -1842,8 +1666,8 @@ fun InboxScreen(
                                 body = stringResource(scene.body),
                                 modifier = Modifier.align(Alignment.Center),
                                 // Filtered-empty offers a one-tap way out (clear the filter). A
-                                // genuinely empty inbox has no button here — the corner Compose FAB
-                                // already covers it, so this avoids two compose buttons (Codeberg #25).
+                                // genuinely empty inbox has none: the corner Compose FAB covers it,
+                                // so this avoids two compose buttons (#25).
                                 action = if (scene.clearsFilter) {
                                     {
                                         Button(onClick = { viewModel.toggleUnreadOnly() }) {
@@ -1862,11 +1686,9 @@ fun InboxScreen(
         }
         }
     }
-    // ONE drawer content, two envelopes. `drawerState` is created above and closed from the
-    // content in BOTH branches, deliberately: close() on a state that is already Closed does
-    // nothing, so the six `scope.launch { drawerState.close() }` inside [DrawerContent] and the
-    // ON_START snap higher up need no branch of their own and are left exactly as they were.
-    // A permanent drawer is never open, so there is nothing for them to shut (#103, volet 6).
+    // ONE drawer content, two envelopes. `drawerState` is closed from the content in BOTH branches,
+    // deliberately: close() on an already-Closed state does nothing, so the six
+    // `drawerState.close()` inside [DrawerContent] need no branch of their own (#103).
     if (permanentDrawer) {
         PermanentNavigationDrawer(
             drawerContent = {
@@ -1924,15 +1746,9 @@ fun InboxScreen(
 }
 
 /**
- * The ONE folder drawer, drawn by both envelopes (#103, volet 6): the modal sheet under 1 200 dp
- * and the permanent sheet from 1 200 dp. Moved here from inside `ModalDrawerSheet` unchanged —
- * including its indentation, so the move reads as a move — with the carousel's three
- * `remember`s travelling with it: they belong to the sheet that is on screen, and a window
- * crossing 1 200 dp swaps envelopes, so an unfolded account list closing itself there is the
- * honest outcome rather than state kept alive for a sheet that no longer exists.
- *
- * [drawerState] is taken by BOTH: every navigating tap closes it, and close() on the permanent
- * drawer's always-Closed state does nothing. That is what keeps this content branch-free.
+ * The ONE folder drawer, drawn by both envelopes (#103). The carousel's `remember`s belong to the
+ * sheet on screen, so an unfolded account list closing itself at 1 200 dp is the honest outcome.
+ * [drawerState] is taken by BOTH: close() on the permanent drawer's always-Closed state does nothing.
  */
 @Composable
 private fun DrawerContent(
@@ -1973,8 +1789,7 @@ private fun DrawerContent(
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                 ) {
                     // The active account as a little carousel: drag it sideways to bring the
-                    // next/previous account in; releasing past a threshold slides it across and
-                    // switches account in place — the drawer stays open and its folders update.
+                    // next/previous account in; releasing past a threshold switches account in place.
                     // A tap opens the account's settings; the chevron still lists all accounts.
                     Box(
                         modifier = Modifier.weight(1f).clipToBounds()
@@ -2016,13 +1831,9 @@ private fun DrawerContent(
                             modifier = Modifier
                                 .graphicsLayer { translationX = accountOffset.value }
                                 .clickable {
-                                    // The account you are LOOKING AT, shared or not: the two
-                                    // settings a shared mailbox really owns (its colour, its
-                                    // notifications) are stored under ITS id, so a chip that
-                                    // opened the login's settings would have you switch off
-                                    // notifications for the wrong mailbox and watch the shared
-                                    // one keep ringing. Which screen is honest for it is the
-                                    // settings graph's call, not this tap's (issue #31).
+                                    // The account you are LOOKING AT, shared or not: the settings a
+                                    // shared mailbox owns (colour, notifications) are stored under
+                                    // ITS id, so the login's settings would silence the wrong one (#31).
                                     onOpenAccountSettings(currentAccountId)
                                     scope.launch { drawerState.close() }
                                 },
@@ -2069,9 +1880,8 @@ private fun DrawerContent(
                             Column {
                                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 // A delegated account switches like any other, so it keeps its row
-                                // here — but it does not BEHAVE like any other (you send as someone
-                                // else, rights may be partial, it vanishes if the owner unshares),
-                                // so it says so quietly (issue #31).
+                                // here — but you send as someone else, rights may be partial, and it
+                                // vanishes if the owner unshares, so it says so quietly (#31).
                                 if (account.isShared) {
                                     Text(
                                         stringResource(R.string.account_shared),
@@ -2104,8 +1914,7 @@ private fun DrawerContent(
                     )
                 }
                 // Outside the guard above, deliberately: this is one account's unread mail across
-                // its own folders, so it means exactly as much on a single-account install — where
-                // the drawer is the only way in.
+                // its own folders, so it means as much on a single-account install.
                 val unreadLabel = if (ui.unreadViewCount > 0) {
                     stringResource(R.string.inbox_unread_view_unread, ui.unreadViewCount)
                 } else {
@@ -2129,7 +1938,7 @@ private fun DrawerContent(
                     val displayName = mailboxDisplayName(mailbox.role, mailbox.name)
                     // A FOLDED row badges the unread it hides — its own plus its descendants' — or
                     // the mail under a folder folded by default is on no row at all; see
-                    // [drawerUnreadCount]. Same list and same folded set as the tree above.
+                    // [drawerUnreadCount].
                     val unread = drawerUnreadCount(mailbox, ui.visibleMailboxes, collapsedIds)
                     val label = if (unread > 0) {
                         stringResource(R.string.inbox_folder_unread, displayName, unread)
@@ -2160,8 +1969,8 @@ private fun DrawerContent(
                         },
                         label = { Text(label) },
                         // The inbox is always watched (no menu); notifying about one's own
-                        // sent/drafts/trash/junk would be noise (issue #16). Management
-                        // actions stay limited to user-created folders (no role).
+                        // sent/drafts/trash/junk would be noise (#16). Management actions stay
+                        // limited to user-created folders (no role).
                         badge = if (mailbox.role !in watchMenuHiddenRoles) {
                             {
                                 Box {
@@ -2227,18 +2036,10 @@ private fun DrawerContent(
 
 /**
  * The centred ring's own grace, from the SAME functions that hold the tern back (#178) — never a
- * second rule: `startRefreshRun`, `refreshIndicatorShowing` and `nextRefreshIndicatorChange`, on
- * the same [REFRESH_INDICATOR_GRACE_MS] and [REFRESH_INDICATOR_MIN_SHOW_MS].
+ * second rule. It lives here rather than in the ViewModel because what it watches is
+ * `listRows.loadState` and the rows guard, both of which exist only in composition.
  *
- * Why it lives here and not in the ViewModel: what it watches is `listRows.loadState` and the rows
- * guard, both of which exist only in composition — the ViewModel never sees the pager's load state
- * nor the guard's verdict. So the stretch is held in `remember` beside its reader.
- *
- * `instant = false` always, and there is no way to ask otherwise: this ring answers no gesture.
- * The pull's answer is the tern at the top of the list, which the ViewModel drives.
- *
- * One wake-up per change, never a poll: the effect is keyed on [active], so a stretch that ended
- * inside its grace schedules nothing at all ([nextRefreshIndicatorChange] returns null for it).
+ * `instant = false` always: this ring answers no gesture; the pull's answer is the tern.
  */
 @Composable
 private fun rememberGracedIndicator(active: Boolean): Boolean {
@@ -2246,8 +2047,7 @@ private fun rememberGracedIndicator(active: Boolean): Boolean {
     val showing = remember { mutableStateOf(false) }
     LaunchedEffect(active) {
         // The same DURATION clock the ViewModel's tern runs on, never a wall clock: the wake-up
-        // below is a monotonic `delay`, and an NTP correction landing between the two would skip
-        // the grace or hold the centre blank past it.
+        // below is a monotonic `delay`, and an NTP correction between the two would skip the grace.
         val now = SystemClock.elapsedRealtime()
         run.value = if (active) {
             startRefreshRun(run.value, now, instant = false)
@@ -2267,9 +2067,8 @@ private fun rememberGracedIndicator(active: Boolean): Boolean {
 
 /**
  * Hosts an empty/error state inside a full-screen scrollable so pull-to-refresh still fires:
- * PullToRefreshBox needs a scrollable child to receive the gesture, which a static centered
- * Box doesn't provide. A single viewport-filling LazyColumn item gives that without changing
- * the layout.
+ * PullToRefreshBox needs a scrollable child to receive the gesture, which a static centered Box
+ * does not provide.
  */
 @Composable
 private fun PullableCenter(onClick: (() -> Unit)? = null, content: @Composable BoxScope.() -> Unit) {
@@ -2361,12 +2160,10 @@ private fun SwipeableEmailRow(
     /** Width of the start-edge strip left to the drawer's own drag; 0 where the system
      *  owns that edge (gesture navigation). See [DrawerGesture]. */
     drawerBandPx: Float = 0f,
-    /** Is there a drawer to hand a drag to at all? False from 1 200 dp, where it is already
-     *  beside the list. Passed as a VALUE and keyed on below, never read out of a captured
-     *  State: the drag block runs outside composition and would keep the first one it saw.
-     *  See [DrawerGesture]. No default: a third call site must ANSWER this question, and a
-     *  default would let it forget silently — with the lint next door still counting its three
-     *  `drawerCanOpen = !permanentDrawer,` and staying green over the row that has none. */
+    /** Is there a drawer to hand a drag to at all? False from 1 200 dp. Passed as a VALUE and keyed
+     *  on below, never read out of a captured State: the drag block runs outside composition and
+     * would keep the first one it saw. No default: a third call site must ANSWER this question,
+     *  and a default would let it forget silently ([DrawerGesture]). */
     drawerCanOpen: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -2376,26 +2173,19 @@ private fun SwipeableEmailRow(
     // Where this row starts in the window, so the edge strip is measured from the screen
     // edge and not from the row's own left — conversation children are indented.
     var rowLeftPx by remember { mutableFloatStateOf(0f) }
-    // The speed of the swipe in progress, published from the drag block so COMPOSITION can
-    // see it (Codeberg #125). The reveal below promises to arm "the moment releasing would
-    // trigger the action"; now that a flick commits too, the reveal has to know how fast the
-    // finger is going or that promise becomes a lie — a quick swipe would fire the action off
-    // a neutral, on the OLED-black theme invisible, background. Zero means "no finger, or the
-    // finger has left": the reveal must never read the velocity of a gesture that is over,
-    // least of all while the row is springing home.
+    // The speed of the swipe in progress, published from the drag block so COMPOSITION can see it
+    // (#125): the reveal below arms "the moment releasing would trigger the action", and a flick
+    // commits too. Zero means the finger has left — never read a finished gesture's velocity.
     var swipeVelocityX by remember { mutableFloatStateOf(0f) }
     var swipeVelocityY by remember { mutableFloatStateOf(0f) }
 
-    // The drag handler below lives in a pointerInput block that only restarts when the
-    // configured actions change — it must NOT capture onSwipe directly. The paged row
-    // re-binds with fresh state after each action (read toggled, flag flipped), and a
-    // stale capture kept dispatching the previous state's action: a second "toggle read"
-    // swipe re-applied the same state and visibly did nothing.
+    // The drag handler below lives in a pointerInput block that only restarts when the configured
+    // actions change — it must NOT capture onSwipe directly. The paged row re-binds with fresh state
+    // after each action, and a stale capture kept dispatching the previous state's action.
     val currentOnSwipe by rememberUpdatedState(onSwipe)
 
-    // Staggered first-screen entry (fade + slight rise), cascaded by row index. Plays
-    // at most once per row; rows recycled in during scroll arrive with animateEntry
-    // false and so snap straight to rest.
+    // Staggered first-screen entry (fade + slight rise), cascaded by row index. Plays at most once
+    // per row; rows recycled in during scroll arrive with animateEntry false and snap to rest.
     val enter = remember { Animatable(if (animateEntry) 0f else 1f) }
     LaunchedEffect(Unit) {
         if (animateEntry) {
@@ -2404,21 +2194,14 @@ private fun SwipeableEmailRow(
         }
     }
 
-    // Swipe "takes flight": on a dismissing swipe (archive/delete) the row lifts off in
-    // a short arc — rising, tilting, fading — instead of a flat slide, then the row is
-    // actually removed. Undo logic is unchanged (the action just fires as the bird
-    // clears the screen). Static slide-off under reduced motion.
+    // Swipe "takes flight": on a dismissing swipe the row lifts off in a short arc — rising,
+    // tilting, fading — then is actually removed. Static slide-off under reduced motion.
     val lift = remember { Animatable(0f) }
     var flyDir by remember { mutableIntStateOf(0) }
 
     // …and the take-off wound back, when the write it was played for failed. commitSwipe runs the
-    // WHOLE arc before calling onSwipe (its reduced-motion branch parks the row at the edge
-    // instead), so the row is off screen before the write is even attempted, and nothing else ever
-    // resets these three: the list key is stable, so the reconcile that follows a failure hands
-    // this very composition back, still parked. All three go back, not offsetX alone — `lift`
-    // holds the fade (alpha = 1 - lift, so a row at rest with lift 1 is simply invisible) and
-    // flyDir the tilt. snapTo, not animateTo: it also cancels the take-off still running under the
-    // reduced-motion branch, and the honest picture is a row that never left.
+    // WHOLE arc before calling onSwipe, and nothing else resets these three: the list key is stable,
+    // so the reconcile hands this composition back, still parked. snapTo, not animateTo.
     LaunchedEffect(rewindSwipe) {
         if (rewindSwipe) {
             offsetX.snapTo(0f)
@@ -2441,17 +2224,13 @@ private fun SwipeableEmailRow(
                 val slop = viewConfiguration.touchSlop
                 val minOffset = if (leftAction == SwipeAction.NONE) 0f else -rowWidth.toFloat()
                 val maxOffset = if (rightAction == SwipeAction.NONE) 0f else rowWidth.toFloat()
-                // Codeberg #125: a flick commits without travelling the distance, so the
-                // gesture's speed has to be measured. addPointerInputChange, never addPosition
-                // by hand — it unfolds the sub-frame `historical` samples and accumulates
-                // DELTAS rather than absolute positions, so it is blind both to the row moving
-                // under the finger and to the change being consumed. A flick lasts two or three
-                // frames; frame-rate sampling would not measure it.
+                // Codeberg #125: a flick commits without travelling the distance, so its speed has
+                // to be measured. addPointerInputChange, never addPosition by hand — it unfolds the
+                // sub-frame samples and accumulates DELTAS, so it is blind to the row moving.
                 val tracker = VelocityTracker()
                 // "This gesture is over, and nothing may be read from it." The same while(true)
-                // scope serves every gesture the row ever sees: without this, the samples of one
-                // swipe leak into the next, and the published velocity keeps arming the reveal
-                // while the row springs back with nobody touching it.
+                // scope serves every gesture the row sees: without this, one swipe's samples leak
+                // into the next and the published velocity arms the reveal while the row springs back.
                 fun forgetVelocity() {
                     tracker.resetTracking()
                     swipeVelocityX = 0f
@@ -2472,13 +2251,9 @@ private fun SwipeableEmailRow(
                             forgetVelocity()
                             continue
                         }
-                        // Direction-lock: only treat this as a swipe once it is clearly
-                        // more horizontal than vertical, otherwise leave the gesture to
-                        // the list's vertical scroll. This stops accidental swipes when
-                        // the finger drifts sideways during a scroll. The three-way
-                        // decision (arm / abandon-to-scroll / keep watching) is factored
-                        // into swipeDirectionLock() so it can be unit-tested; see there
-                        // for the arc-rejection rationale (Codeberg #97).
+                        // Direction-lock: treat this as a swipe only once it is clearly more
+                        // horizontal than vertical. The three-way decision is swipeDirectionLock()'s;
+                        // see there for the arc-rejection rationale (#97).
                         val horizontal = awaitPointerEventScope {
                             var dx = 0f
                             var dy = 0f
@@ -2486,13 +2261,9 @@ private fun SwipeableEmailRow(
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == pointerId }
                                 if (change == null || !change.pressed) return@awaitPointerEventScope false
-                                // Fed HERE as well as in horizontalDrag, and that is the whole
-                                // point: the travel of this phase is thrown away (offsetX only
-                                // starts following below), so a short sharp flick is almost
-                                // entirely consumed by it. A tracker started at horizontalDrag
-                                // would see the last sample or two of the gesture — usually the
-                                // deceleration — and report a low, noisy speed for exactly the
-                                // gestures this is meant to commit.
+                                // Fed HERE as well as in horizontalDrag: the travel of this phase is
+                                // thrown away, so a short sharp flick is almost entirely consumed by
+                                // it and a later tracker would see only the deceleration.
                                 tracker.addPointerInputChange(change)
                                 dx += change.positionChange().x
                                 dy += change.positionChange().y
@@ -2519,11 +2290,9 @@ private fun SwipeableEmailRow(
                         }
 
                         offsetX.stop()
-                        // horizontalDrag answers false when the drag was CANCELLED — another
-                        // node consumed the pointer — rather than ended by the finger lifting.
-                        // The answer used to be dropped, harmlessly while distance was the only
-                        // rule; with a flick in the rule it is a way in, carrying the speed of
-                        // the instant the gesture was snatched away.
+                        // horizontalDrag answers false when the drag was CANCELLED — another node
+                        // consumed the pointer — rather than ended by the finger lifting. With a
+                        // flick in the rule that is a way in, carrying a snatched-away speed.
                         val dragCompleted = awaitPointerEventScope {
                             horizontalDrag(pointerId) { change ->
                                 tracker.addPointerInputChange(change)
@@ -2537,22 +2306,14 @@ private fun SwipeableEmailRow(
                             }
                         }
                         val release = tracker.calculateVelocity()
-                        // Read the release speed, THEN forget it — before the row is animated
-                        // anywhere. The reveal reads the published velocity in composition, and
-                        // the row spends the next few frames springing home with a non-zero
-                        // offset: left set, a stale speed would light the reveal on the way back,
-                        // an armed flash for an action that is not going to happen.
+                        // Read the release speed, THEN forget it, before the row is animated: the
+                        // reveal reads the published velocity in composition, and a stale one would
+                        // light it during the spring home, for an action that will not happen.
                         forgetVelocity()
 
-                        // What commits, and what arms the reveal below, are the SAME call:
-                        // two hand-written copies of this had already drifted apart (see
-                        // SwipeCommit.kt). The threshold is computed HERE, inside the
-                        // block, and never read from composition — a value captured from
-                        // outside would freeze at the block's first run, exactly like the
-                        // stale onSwipe of 6f4f1cc3 above; adding it as a key instead
-                        // would restart the gesture under the finger on every remeasure.
-                        // The scope is a PointerInputScope, which is a Density, so the dp
-                        // converts right here.
+                        // What commits, and what arms the reveal below, are the SAME call: two
+                        // hand-written copies had already drifted apart (SwipeCommit.kt). The
+                        // threshold is computed HERE — a captured value would freeze at first run.
                         val commitThresholdPx = swipeCommitThresholdPx(
                             rowWidthPx = rowWidth.toFloat(),
                             distancePx = SWIPE_COMMIT_DISTANCE_DP.dp.toPx(),
@@ -2587,9 +2348,8 @@ private fun SwipeableEmailRow(
         val action = if (draggingRight) rightAction else leftAction
         if (offsetX.value != 0f && action != SwipeAction.NONE) {
             val destructive = action == SwipeAction.DELETE
-            // Flag reveal uses the coral tertiary to echo the favourite star
-            // (same concept, same accent); other non-destructive actions keep the
-            // calmer secondary. The label text carries the meaning either way.
+            // Flag reveal uses the coral tertiary to echo the favourite star; other non-destructive
+            // actions keep the calmer secondary. The label text carries the meaning either way.
             val isFlag = action == SwipeAction.FLAG
             val color = when {
                 destructive -> MaterialTheme.colorScheme.errorContainer
@@ -2601,21 +2361,10 @@ private fun SwipeableEmailRow(
                 isFlag -> MaterialTheme.colorScheme.onTertiaryContainer
                 else -> MaterialTheme.colorScheme.onSecondaryContainer
             }
-            // Commit-threshold feedback: the reveal stays neutral while the swipe is short
-            // of committing, then snaps to the action colour with a label pop the moment
-            // releasing would trigger the action — so mid-swipe ambiguity ("is this far
-            // enough?") never arises. Crossing back mutes it again.
-            // The same call the drag handler makes when the finger lifts, so the two cannot
-            // say different things — which is what the promise above amounts to. That is why
-            // the LIVE velocity is read here too: a flick commits, so a flick has to light the
-            // reveal, or the row is archived off a neutral background nobody was shown.
-            // This deliberately does NOT tick. It used to, back when distance alone decided and
-            // crossing the threshold was a single, slow, unmistakable event. Once a flick can
-            // commit, arming follows the speed of the finger, so a hesitant gesture buzzed over
-            // and over as it sped up and slowed down. Long-pressing a row into multi-select is
-            // the tick this list has, and it should stay the only one: two different meanings
-            // on the same tactile channel, a few millimetres apart, teach the thumb nothing.
-            // The colour and the label pop still carry the state, so nothing is hidden.
+            // Commit-threshold feedback: neutral while the swipe is short of committing, then the
+            // action colour the moment releasing would trigger it — the same call the drag handler
+            // makes on lift, hence the LIVE velocity here too. It deliberately does NOT tick:
+            // arming follows the finger's speed, and long-press is this list's only tick.
             val density = LocalDensity.current
             val viewConfiguration = LocalViewConfiguration.current
             val commitThresholdPx = remember(rowWidth, density) {
@@ -2667,10 +2416,9 @@ private fun SwipeableEmailRow(
             }
         }
         Box(
-            // graphicsLayer (draw phase) instead of offset (layout phase): the swipe
-            // translation is GPU-cheap and the row is cached as a layer, which keeps
-            // scrolling smoother. offsetX is read here, not in composition. On a
-            // dismissing swipe `lift` adds the take-off arc: rise, tilt, and fade.
+            // graphicsLayer (draw phase) instead of offset (layout phase): the swipe translation is
+            // GPU-cheap and the row is cached as a layer. offsetX is read here, not in composition.
+            // On a dismissing swipe `lift` adds the take-off arc: rise, tilt, and fade.
             modifier = Modifier.graphicsLayer {
                 translationX = offsetX.value
                 if (lift.value > 0f) {
@@ -2712,13 +2460,10 @@ private fun SwipeableEmailRow(
 private const val SWIPE_SLOP_FACTOR = 1.5f
 
 /**
- * How decisively horizontal a drag must be to arm a swipe: |dx| must reach this
- * multiple of |dy|. A plain 1:1 lead (Codeberg #97) armed too eagerly — an arc that
- * begins with a slight sideways nudge then curves vertical would momentarily satisfy
- * |dx| > |dy| and fire archive/delete when the user meant to scroll. Requiring |dx| to
- * be at least twice |dy| means a mostly-vertical arc scrolls, while a deliberate
- * sideways swipe (which is near-flat, |dy| ≈ 0) still arms on a normal short drag.
- * The same ratio gates the vertical veto below, so the two decisions stay complementary.
+ * How decisively horizontal a drag must be to arm a swipe: |dx| must reach this multiple of |dy|.
+ * A plain 1:1 lead (#97) armed too eagerly — an arc starting with a sideways nudge then curving
+ * vertical would fire archive/delete when the user meant to scroll. The same ratio gates the
+ * vertical veto below.
  */
 private const val SWIPE_HORIZONTAL_DOMINANCE = 2.0f
 
@@ -2726,17 +2471,10 @@ private const val SWIPE_HORIZONTAL_DOMINANCE = 2.0f
 internal enum class SwipeLock { PENDING, HORIZONTAL, VERTICAL }
 
 /**
- * Three-way direction lock evaluated on each accumulated drag delta.
- *
- * - VERTICAL: vertical travel has cleared the slop and horizontal does NOT dominate
- *   (|dx| < |dy| × [SWIPE_HORIZONTAL_DOMINANCE]) → abandon to the list's scroll. This
- *   fires as soon as a meaningful vertical component appears, even while dx currently
- *   leads, which is what rejects the mostly-vertical arc of Codeberg #97.
- * - HORIZONTAL: horizontal travel has cleared slop × [SWIPE_SLOP_FACTOR] AND decisively
- *   dominates (|dx| ≥ |dy| × [SWIPE_HORIZONTAL_DOMINANCE]) → arm the swipe.
- * - PENDING: neither yet — keep accumulating.
- *
- * Vertical is checked first so an ambiguous diagonal resolves to scroll, never a swipe.
+ * Three-way direction lock on each accumulated drag delta: VERTICAL abandons to the list's scroll
+ * as soon as a meaningful vertical component appears, which is what rejects the arc of #97;
+ * HORIZONTAL arms the swipe; PENDING keeps accumulating. Vertical is checked first, so an ambiguous
+ * diagonal resolves to scroll and never to a swipe.
  */
 internal fun swipeDirectionLock(dx: Float, dy: Float, slop: Float): SwipeLock {
     val ax = abs(dx)
@@ -2746,9 +2484,8 @@ internal fun swipeDirectionLock(dx: Float, dy: Float, slop: Float): SwipeLock {
     return SwipeLock.PENDING
 }
 
-// Staggered first-screen entry: only the first ENTRY_CAP rows cascade, ENTRY_STEP_MS
-// apart, each fading/rising over ENTRY_ROW_MS. The take-off arc on a dismissing swipe
-// runs over FLIGHT_MS.
+// Staggered first-screen entry: only the first ENTRY_CAP rows cascade, ENTRY_STEP_MS apart, each
+// fading over ENTRY_ROW_MS. The take-off arc on a dismissing swipe runs over FLIGHT_MS.
 private const val ENTRY_CAP = 12
 private const val ENTRY_STEP_MS = 28L
 private const val ENTRY_ROW_MS = 220
@@ -2760,20 +2497,16 @@ private fun dismissesRow(action: SwipeAction): Boolean =
 
 /**
  * Whether this row must undo its swipe animation: it is one of the rows the view model reported as
- * "the write did not take" — see [InboxViewModel.swipeRewind].
- *
- * Account-qualified, never by bare id: two accounts of one server hand out the same message ids,
- * and comparing ids alone unfolded (and paged) the sibling account's homonymous row (#92). Both
- * call sites have the pair in hand, so the decision lives here where it can be run.
+ * "the write did not take" — see [InboxViewModel.swipeRewind]. Account-qualified, never by bare id:
+ * two accounts of one server hand out the same message ids (#92), and both call sites hold the pair.
  */
 internal fun needsSwipeRewind(keys: Set<EmailKey>, accountId: String?, emailId: String): Boolean =
     EmailKey(accountId, emailId) in keys
 
 /**
- * Commit a swipe: a dismissing action with motion enabled lifts the row off in a short
- * arc ([lift] 0→1 driving rise/tilt/fade in the row's graphicsLayer) and only then runs
- * [onSwipe], so the removal lands as the bird clears the screen. Otherwise the row
- * snaps to its edge (dismiss) or back to centre, and the action fires immediately.
+ * Commit a swipe: a dismissing action with motion enabled lifts the row off in a short arc ([lift]
+ * 0→1 driving rise/tilt/fade) and only then runs [onSwipe]. Otherwise the row snaps to its edge
+ * (dismiss) or back to centre, and the action fires immediately.
  */
 private fun CoroutineScope.commitSwipe(
     action: SwipeAction,
@@ -2815,47 +2548,11 @@ private fun visibleFolderRole(ui: MailUi): String? =
 
 /**
  * The role of the folder THE ROW is filed in — what "delete permanently", "unarchive" and "a tap
- * edits the draft" must be decided by.
- *
- * Until now those three read the role of the VIEW, which is the same answer only as long as every
- * row on screen lives in the folder on screen. That holds in a single folder and (vacuously, no
- * folder being selected) in the unified inbox; it stops holding the moment a list spans several
- * folders of one account, where the row under the finger may be in the Archive while the one above
- * it is in the Inbox.
- *
- * [roles] is `InboxViewModel.folderRoles` — the (account, folder) → role map the folder cache
- * already publishes for every configured account, and which the screen already collects. It is
- * account-qualified, and that is not decoration: servers number mailboxes per account (#31/#121), so
- * a bare folder id would borrow a sibling account's role and offer to destroy a message sitting in
- * its Inbox.
- *
- * The single fallback to [visibleFolderRole] is what makes this change behaviour-constant on the
- * two existing views. It fires on everything [messageFolderRole] cannot answer:
- *
- *  - no `mailboxId`, or a blank one: a row drawn from the search index carries a folder frozen at
- *    crawl time, which may be empty (see `SelectionTargets.folderTrusted`);
- *  - no `accountId`;
- *  - a pair the role map has no entry for — a role-less folder, an account whose folders have not
- *    synced, and above all the first frames of the screen, where the map is still `emptyMap`
- *    (`folderRoles` is `WhileSubscribed`, seeded empty). Answering null there would take
- *    "Delete permanently" off the Trash for as long as the query takes.
- *
- * In each of those the answer is exactly what shipped before this function existed.
- *
- * ONE clause on purpose. A separate `takeIf { it.isNotBlank() }` guard for the blank `mailboxId`
- * was written first and DELETED when a mutation survived it: [roles] is keyed on real folder rows,
- * so a blank id has no entry either and lands on the very same fallback. An unreachable guard is a
- * line no test can hold.
- *
- * [folderTrusted] is FALSE for a search hit, and it is not optional. `SelectionTargets` says it
- * in as many words: "a non-empty `Email.mailboxId` is not evidence of anything" — a row drawn from
- * the FTS index carries the folder it was crawled in, which the server may have contradicted since.
- * Believing it costs mail: a message archived, indexed, then moved to `Projets` from another client
- * is still `archive` to the index, so an "archive" swipe on its search hit unarchives, and
- * `moveToMailbox` rewrites the whole mailbox set — taking it OUT of `Projets` with no way back. In
- * the unified list the same stale role picks the unarchive destination out of `ui.mailboxes`, i.e.
- * the SELECTED account's Inbox, and files another account's message there (#92/#121). A search hit
- * therefore keeps reading the view's role, which is exactly what shipped before this function.
+ * edits the draft" are decided by. The VIEW's role is the same answer only while every row lives in
+ * the folder on screen. [roles] is account-qualified: servers number mailboxes per account
+ * (#31/#121), so a bare id would borrow a sibling's role and offer to destroy a message in its Inbox.
+ * [folderTrusted] is FALSE for a search hit and is not optional: such a row carries the folder it
+ * was crawled in, and believing it makes an "archive" swipe unarchive and strip other folders.
  */
 internal fun rowFolderRole(
     email: Email,
@@ -2869,53 +2566,13 @@ internal fun rowFolderRole(
 
 /**
  * WHERE a row of the unread view comes from — the folder to name under it, or null to say nothing.
+ * On IMAP a message's identity CONTAINS its folder, so one object filed in two folders is two rows.
+ * They are NOT deduplicated: a single row would stand for N real messages, and a "delete" swipe
+ * on it would be a silent multi-folder delete.
  *
- * The unread view pages every folder of one account, and on IMAP a message's identity CONTAINS its
- * folder (`imap:$acc:$mbox:$uid`), so one object filed in the Inbox and in the Archive is two rows
- * of `emails` and two rows on screen. They are NOT deduplicated, deliberately: a single row would
- * stand for N real messages, and a "delete" swipe on it would be a silent multi-folder delete. Both
- * rows are true; what was missing is which folder each one is.
- *
- * Returns the [Mailbox] and not a name: [mailboxDisplayName] is `@Composable` and stays at the call
- * site, where it already turns a role into "Archive" / "Posteingang" / "Входящие" and hands a
- * user-made folder its raw name back. No new translated string exists for this.
- *
- * Null — say nothing — in every case where the folder cannot be named honestly:
- *
- *  - not the unread view: a single-folder list would repeat the drawer under every row, and the
- *    unified inbox already spends that one chip on the ACCOUNT. One badge slot, never two.
- *  - [folderTrusted] false, i.e. a search hit: its `mailboxId` is the folder frozen at crawl time,
- *    which the server may have contradicted since. Same reason [rowFolderRole] refuses it — we do
- *    not name a folder we cannot believe.
- *  - the row belongs to another account than [MailUi.accountId]. PORTING GUARD, not a formality:
- *    [MailUi.mailboxes] is ONE account's list and is not qualified by account, while servers number
- *    mailboxes per account (#31/#121) — so a bare id lookup would happily find the neighbouring
- *    account's homonymous folder and print the wrong name under the row.
- *    It is a BELT, and it is worth saying what it does not prove: [MailUi.accountId] and
- *    [MailUi.mailboxes] reach the state through two different flows, so a `combine` can in principle
- *    emit the new account beside the previous account's folder list. Today nothing gets drawn in that
- *    window — `onAccountChanged` moves the selection to `Sel.Folder` (so [MailUi.unreadView] is
- *    false) and empties `unreadScopes` (so the pager has no rows) — but that is THREE facts in
- *    another file holding it up, not this function's own. Give the folder list its account and the
- *    belt becomes a proof; until then, do not weaken it.
- *  - [inViewCount] is not 1 — the row is a COLLAPSED CONVERSATION standing for several messages
- *    of the list. Conversation view is the default, and there a thread unread in the Inbox and in
- *    the Archive is drawn ONCE, off its newest message: naming that one message's folder would
- *    assert a single origin for a row that has several, and hide the reader's Inbox message behind
- *    the word "Archive". It costs #169 nothing: the rows the reporter sees stacked each count 1,
- *    and a row that counts 1 still names its folder. IMAP folds into conversations too
- *    (`imapThreadKey`), so a collapsed IMAP row loses its folder label exactly as a JMAP one does,
- *    for the same reason — a row with several origins names none.
- *  - no account on screen, or a folder [MailUi.mailboxes] has no entry for: unknown folder, which
- *    is not the same thing as a folder without a role. We are quiet, we do not guess.
- *
- * No guard of its own for a null or blank `mailboxId`, and that is on purpose — the same call
- * [rowFolderRole] documents having deleted, for the same reason. [MailUi.mailboxes] is built from
- * real folder rows, so neither null nor "" has an entry in it and the lookup below already answers
- * null. A mutation removing such a guard survives every test, because there is nothing behind it.
- *
- * A folder with no role is returned like any other: unread mail filed in "Projets" is unread mail,
- * and [mailboxDisplayName] gives it its own name.
+ * Null wherever the folder cannot be named honestly: outside the unread view; for a search hit
+ * ([folderTrusted] false); for a row of another account, [MailUi.mailboxes] being one account's list
+ * and not qualified by it (#31/#121); and when [inViewCount] is not 1.
  */
 internal fun unreadRowFolder(
     email: Email,
@@ -2931,10 +2588,9 @@ internal fun unreadRowFolder(
 }
 
 /**
- * True when [from] (a message's sender) is one of the user's own send-as [identities], matched
- * case-insensitively on the bare address — i.e. the message was written by the user, so it should
- * show who it went TO rather than the (self) sender wherever it is read. A blank/absent sender is
- * never self-authored. Mirrors [app.sterna.ui.message.MessageViewModel]'s own per-message test.
+ * True when [from] is one of the user's own send-as [identities], matched case-insensitively on the
+ * bare address — the message was written by the user, so it should show who it went TO rather than
+ * the (self) sender. A blank/absent sender is never self-authored.
  */
 internal fun isSelfAuthored(from: List<EmailAddress>, identities: List<StoredIdentity>): Boolean {
     val sender = from.firstOrNull()?.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return false
@@ -2943,9 +2599,8 @@ internal fun isSelfAuthored(from: List<EmailAddress>, identities: List<StoredIde
 
 /**
  * The addresses the row's own account can send as. Mirrors AccountStore.identities: a linked
- * sub-account whose own address the session never advertised resolves to nothing and falls back
- * to its LOGIN's identities (issue #31) — which is what it actually sends as — instead of
- * matching nothing at all.
+ * sub-account whose own address the session never advertised falls back to its LOGIN's identities
+ * (#31), which is what it actually sends as.
  */
 private fun sendAsIdentities(email: Email, accounts: List<StoredAccount>): List<StoredIdentity> {
     val own = accounts.firstOrNull { it.id == email.accountId } ?: return emptyList()
@@ -2961,11 +2616,9 @@ private fun isDraftsContext(role: String?): Boolean = role == "drafts"
 internal enum class RowTap { EDIT_DRAFT, SELECT_THREAD, SELECT_ROW, OPEN }
 
 /**
- * What a tap on the browse/search row does. Order is load-bearing: a draft only this phone holds
- * ([localDraft], #95) edits before anything else, because the selection would refuse it and the
- * tap would do nothing; then a live selection toggles (the whole conversation when [expandable]);
- * then a row filed in Drafts edits (#63) — whether or not its conversation can unfold, a draft is
- * a draft; everything else, search hits included, opens the reader.
+ * What a tap on the browse/search row does. Order is load-bearing: a local draft ([localDraft], #95)
+ * edits first, because the selection would refuse it and the tap would do nothing; then a live
+ * selection toggles; then a row filed in Drafts edits (#63); everything else opens the reader.
  */
 internal fun rowTapAction(
     localDraft: Boolean,
@@ -2982,9 +2635,8 @@ internal fun rowTapAction(
 
 /**
  * What a tap on a child of an unfolded conversation does, from the role of ITS OWN folder — the one
- * rule of [rowTapAction], with what a child never is: a draft only this phone holds, a search hit,
- * or a foldable row; and its selection is settled upstream (`if (selectionActive)
- * onToggleSelectChild(child) else onOpenChild(child)`), so only EDIT_DRAFT and OPEN come out.
+ * rule of [rowTapAction], minus what a child never is (a local draft, a search hit, a foldable row).
+ * Its selection is settled upstream, so only EDIT_DRAFT and OPEN come out.
  */
 internal fun childTapAction(childRole: String?): RowTap = rowTapAction(localDraft = false, selectionActive = false, expandable = false, fromSearch = false, rowRole = childRole)
 
@@ -3001,19 +2653,16 @@ private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext
 /** Dispatch a configured swipe action to the view model for [email]. */
 private fun performSwipe(action: SwipeAction, email: Email, viewModel: InboxViewModel, ui: MailUi, rowRole: String?) {
     // A draft only this phone holds is inert (#95): repo.delete / archive / moveToMailbox read a
-    // UID out of an id that carries none — a silent no-op on IMAP, an error on JMAP — and none of
-    // them removes the local row. Left through, a "delete" swipe would announce a deletion that did
-    // not happen and offer an Undo over an untouched row. See [isLocalDraftRow].
+    // UID out of an id that carries none, and none of them removes the local row. Left through, a
+    // "delete" swipe would announce a deletion that did not happen ([isLocalDraftRow]).
     if (isLocalDraftRow(email.id)) return
     when (action) {
         SwipeAction.NONE -> Unit
         SwipeAction.TOGGLE_READ -> viewModel.toggleRead(email)
         SwipeAction.DELETE -> viewModel.delete(email)
-        // Inside the Archive folder — or Gmail-style "All Mail" — an "archive" swipe means
-        // unarchive → move back to Inbox (re-archiving would silently drop the row from a
-        // folder it's already in). NB: a still-in-Inbox message viewed from All Mail can't be
-        // told apart from an archived one without per-message membership data, so it unarchives
-        // too; refining that is tracked as a follow-up.
+        // Inside the Archive folder — or Gmail-style "All Mail" — an "archive" swipe means unarchive
+        // → move back to Inbox. NB: a still-in-Inbox message viewed from All Mail cannot be told
+        // apart from an archived one without per-message membership, so it unarchives too.
         SwipeAction.ARCHIVE -> {
             if (isUnarchiveContext(rowRole)) {
                 ui.mailboxes.firstOrNull { it.role == "inbox" }?.id?.let { viewModel.unarchive(email, it) }
@@ -3043,10 +2692,9 @@ private fun performThreadSwipe(action: SwipeAction, rep: Email, viewModel: Inbox
 }
 
 /**
- * The inline-expanded members of a conversation, indented under the collapsed row behind a
- * left accent rail so they read as "belonging to the conversation above". Each child opens
- * the thread reading view anchored on that message; a swipe acts on that one message.
- * Expansion animates (expand + fade) unless the system "remove animations" setting is on.
+ * The inline-expanded members of a conversation, indented under the collapsed row behind a left
+ * accent rail. Each child opens the thread reading view anchored on that message; a swipe acts on
+ * that one message. Expansion animates unless the system "remove animations" setting is on.
  */
 @Composable
 private fun ThreadChildren(
@@ -3056,9 +2704,8 @@ private fun ThreadChildren(
     accounts: List<app.sterna.core.data.account.StoredAccount>,
     rightAction: SwipeAction,
     leftAction: SwipeAction,
-    /** Decided per child, like the two below and for the same reason: an unfolded conversation
-     *  spans the viewed folder(s) PLUS Sent, so the folder on screen says nothing about the message
-     *  inside it — and "Delete permanently" must be true of the row it is drawn on. */
+    /** Decided per child, like the two below: an unfolded conversation spans the viewed folder(s)
+     *  PLUS Sent, and "Delete permanently" must be true of the row it is drawn on. */
     unarchiveContextFor: (Email) -> Boolean,
     trashContextFor: (Email) -> Boolean,
     /** Decided per child so a self reply in an incoming conversation shows "To: …" (Codeberg #69). */
@@ -3067,8 +2714,7 @@ private fun ThreadChildren(
      *  screen — an unfolded conversation spans the viewed folder(s) plus Sent. */
     showDraftBadgeFor: (Email) -> Boolean,
     /** Same shape again, for the origin chip: an unfolded child IS a row, and in the unread view it
-     *  is filed in a folder of its own. Without it the parent names its folder and its children name
-     *  nothing. Null (the common case) draws no chip — see [unreadRowFolder]. */
+     *  is filed in a folder of its own. Null (the common case) draws no chip ([unreadRowFolder]). */
     folderFor: (Email) -> Mailbox?,
     highlightId: String?,
     /** The reading pane's anchor: the child it names is painted current (#103). */
@@ -3086,8 +2732,8 @@ private fun ThreadChildren(
      *  (#92) and an unfolded conversation can span both. */
     swipeRewindKeys: Set<EmailKey>,
     onSwipeRewound: (Email) -> Unit,
-    /** The drawer's start-edge strip, applied to the children too — measured from the
-     *  window edge, so the indent doesn't shift it (see [DrawerGesture]). */
+    /** The drawer's start-edge strip, applied to the children too — measured from the window edge,
+     *  so the indent doesn't shift it ([DrawerGesture]). */
     drawerBandPx: Float,
     /** And whether there is a drawer to open at all, for the same reason: a child is a row. */
     drawerCanOpen: Boolean,
@@ -3116,12 +2762,11 @@ private fun ThreadChildren(
                             showRecipients = showRecipientsFor(child),
                             showDraftBadge = showDraftBadgeFor(child),
                             onSwipe = { action -> onSwipeChild(action, child) },
-                            // Children join multi-select like top-level rows: long-press enters
-                            // selection on this one message, a tap in selection mode toggles it.
+                            // Children join multi-select like top-level rows.
                             onClick = { if (selectionActive) onToggleSelectChild(child) else onOpenChild(child) },
                             onLongClick = { onEnterSelectionChild(child) },
-                            // Children carry the same favourite star and attachment indicator as
-                            // top-level rows, so the unfolded preview matches the collapsed one.
+                            // Children carry the same star and attachment indicator as top-level
+                            // rows, so the unfolded preview matches the collapsed one.
                             onToggleFavourite = { onToggleChildFavourite(child) },
                             selected = child.emailKey() in selectedKeys,
                             current = paneAnchor?.matches(child.accountId, child.id) == true,
@@ -3158,21 +2803,16 @@ private fun sortLabel(order: SortOrder): Int = when (order) {
 internal data class MailboxNode(val mailbox: Mailbox, val depth: Int, val hasChildren: Boolean)
 
 /**
- * Flatten mailboxes into a depth-first tree. Nesting comes from the JMAP `parentId`
- * or, for IMAP, the path delimiter in the id ([folderParentId], shared with the subscription
- * filter so the two agree on what a parent is); a child whose parent isn't present
- * falls back to top level. Ids in [collapsed] hide their descendants. The incoming
- * order is preserved within each level.
- *
- * `internal` for `MailboxTreeTest`, which is the drawer's only test: this is drawn on every frame
- * of the drawer and had none until [visibleFolders] started choosing what goes into it (#174).
+ * Flatten mailboxes into a depth-first tree. Nesting comes from the JMAP `parentId` or, for IMAP,
+ * the path delimiter in the id ([folderParentId], shared with the subscription filter so the two
+ * agree on what a parent is); a child whose parent isn't present falls back to top level. Ids in
+ * [collapsed] hide their descendants, and the incoming order is preserved within each level.
  */
 internal fun mailboxTree(mailboxes: List<Mailbox>, collapsed: Set<String>): List<MailboxNode> {
     val byId = mailboxes.associateBy { it.id }
     fun parentOf(m: Mailbox): String? = folderParentId(m, byId)
-    // Order each level by role so the standard folders come first in a familiar order
-    // (Inbox, Drafts, Sent, Trash, Spam, Archive), then any custom folders keep their
-    // server order (sortedBy is stable, so same-rank items aren't reshuffled).
+    // Order each level by role so the standard folders come first (Inbox, Drafts, Sent, Trash,
+    // Spam, Archive), then custom folders keep their server order (sortedBy is stable).
     val childrenOf = mailboxes.groupBy { parentOf(it) }
         .mapValues { (_, kids) -> kids.sortedBy { folderRank(it.role) } }
     val result = mutableListOf<MailboxNode>()
@@ -3211,19 +2851,16 @@ private fun folderIcon(role: String?): ImageVector = when (role) {
 }
 
 /**
- * The name to show for a folder. Standard folders — those the server tags with an
- * RFC 8621 / IMAP special-use [role] — get a localized canonical label, so
- * server-specific spellings like "Sent Items", "Junk Mail" or "Deleted Items"
- * read consistently in the app's language. Folders the user created on their own
- * server (role == null, or an unrecognised role) keep their raw [name] untouched.
+ * The name to show for a folder. Standard folders — those the server tags with an RFC 8621 /
+ * IMAP special-use [role] — get a localized canonical label, so server-specific spellings like
+ * "Sent Items" or "Deleted Items" read consistently. Folders the user created keep their raw [name].
  */
 @Composable
 fun mailboxDisplayName(role: String?, name: String): String =
     mailboxRoleNameRes(role)?.let { stringResource(it) } ?: name
 
 /** A discreet, non-tappable banner shown above the list while there's no usable network (#65).
- *  Same visual weight as [OutboxFailureBanner] but a calmer surface tone: offline is a state, not
- *  a failure, and cached mail stays readable below it. */
+ *  Calmer surface tone than [OutboxFailureBanner]: offline is a state, not a failure. */
 @Composable
 private fun OfflineBanner() {
     Surface(
@@ -3247,13 +2884,9 @@ private fun OfflineBanner() {
 
 /**
  * A discreet banner for a refresh that FAILED while the device is online — the error surface, not
- * the offline one, and carrying the failure's own text: until this existed, that text was shown
- * nowhere at all and every failure was filed under "You're offline".
- *
- * Two lines at most. The text is a status line or an exception message, never mail content: the
- * two guards that keep it that way live in the JMAP client (`postJmap` reports the HTTP status
- * only, never a slice of the body; `decodeList` re-throws without kotlinx's JSON excerpt, which
- * for an Email/get would be a subject and a preview).
+ * the offline one, and carrying the failure's own text. Two lines at most, and never mail content:
+ * the two guards that keep it that way live in the JMAP client (`postJmap` reports the HTTP status
+ * only; `decodeList` re-throws without kotlinx's JSON excerpt).
  */
 @Composable
 private fun SyncErrorBanner(message: String) {

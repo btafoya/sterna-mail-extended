@@ -7,19 +7,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 
 /**
- * Sterna Mail's brand palette — the Arctic tern: a calm, cold base (sea-grey /
- * navy-teal). The primary action colour is a **desaturated sea teal** (not coral):
- * red reads as "destructive", so it must not carry positive actions like Save /
- * Add. Coral — the tern's beak — is kept as a **marginal accent only** (mapped to
- * tertiary): the favourite star, a small illustration touch. It never fills a
- * button or a large surface. Red (error) is reserved for destructive actions.
+ * Sterna Mail's brand palette — the Arctic tern: a calm, cold base. The primary action colour is a
+ * desaturated sea teal and not coral, red reading as "destructive"; coral, the tern's beak, is a
+ * marginal accent mapped to tertiary and never fills a button or a large surface.
  *
- * Two named schemes follow the tern's migration:
- *   - [ArcticColorScheme]  — light (cold grey + teal action, coral accent)
- *   - [PelagicColorScheme] — dark  (deep navy-teal + soft teal action, coral accent)
- *
- * Colours are tuned for WCAG AA on the text-bearing roles (white-on-teal ≈ 7.3:1
- * light, dark-on-teal ≈ 6:1 dark; white-on-coral ≈ 4.7:1, dark-on-coral ≈ 6:1).
+ * Two named schemes follow the tern's migration: [ArcticColorScheme] light, [PelagicColorScheme]
+ * dark. Colours are tuned for WCAG AA on the text-bearing roles.
  */
 
 // --- Primary action: desaturated sea teal ---
@@ -115,34 +108,29 @@ val PelagicColorScheme = darkColorScheme(
 /**
  * How far the raised surface roles are pulled toward black in the OLED scheme.
  *
- * This is **not** a fraction of brightness. Compose's [lerp] interpolates in Oklab, and black is
- * the origin there, so pulling by *f* scales the Oklab vector by (1−f) and therefore the light the
- * panel actually emits by **(1−f)³**. At 0.2 a surface emits about half of what it did; at 0.5 it
- * would emit an eighth, which is why a first pass at 0.5 left an `AlertDialog` sitting on a black
- * page with an edge five times weaker than the one it has today.
+ * Not a fraction of brightness: [lerp] interpolates in Oklab, where black is the origin, so
+ * pulling by f scales the emitted light by (1−f)³. At 0.2 a surface emits about half of what it did;
+ * at 0.5 it would emit an eighth, which is why a first pass left an `AlertDialog` on a black page
+ * with an edge five times weaker than today's.
  *
- * The bound that keeps it honest is executed by the tests, not asserted here: after compression,
- * every container must still stand at least as far above the black page as the *weakest* edge this
- * app already ships — the one a `DropdownMenu` has over the ordinary dark background. Below that
- * line we would be shipping something worse than what we have, on purpose.
+ * The bound that keeps it honest is executed by the tests: after compression every container must
+ * still stand at least as far above the black page as the weakest edge this app already ships.
  */
 private const val PureBlackPull = 0.2f
 
 /**
- * The OLED variant of a **dark** scheme: the page itself becomes true black — the pixels an OLED
- * panel can switch off — while every raised surface is *compressed* toward black.
+ * The OLED variant of a DARK scheme: the page itself becomes true black — the pixels an OLED panel
+ * can switch off — while every raised surface is compressed toward black.
  *
- * [background], [ColorScheme.surface] and [ColorScheme.surfaceDim] are the page, so they go to
- * [Color.Black] outright. The six container roles are not: Material 3 draws no border on an
- * `AlertDialog`, a `DropdownMenu`, a bottom sheet or the navigation drawer — their edge exists only
- * because their fill is lighter than what sits behind them. Flattening the six onto black would
- * dissolve ~42 call sites at once and each would have to be given a border by hand. Pulling them
- * with a single [PureBlackPull] keeps the tonal ladder intact, just darker, and leaves every call
- * site untouched.
+ * [background], surface and surfaceDim are the page, so they go to black outright. The six container
+ * roles are not: Material 3 draws no border on an AlertDialog, a DropdownMenu, a bottom sheet or the
+ * drawer, so their edge exists only because their fill is lighter than what is behind them, and
+ * flattening them would dissolve ~42 call sites at once. Pulling them with a single [PureBlackPull]
+ * keeps the tonal ladder intact.
  *
- * Nothing else moves: `surfaceVariant`, the outlines, the coloured `*Container` roles, the scrim and
- * the inverse roles carry meaning of their own, and this transformation is about the panel, not the
- * palette. Applying it to a light scheme would be nonsense — [applyPureBlack] guards that.
+ * Nothing else moves: surfaceVariant, the outlines, the coloured containers, the scrim and the
+ * inverse roles carry meaning of their own. Applying this to a light scheme would be nonsense —
+ * [applyPureBlack] guards that.
  */
 internal fun ColorScheme.pulledToBlack(): ColorScheme = copy(
     background = Color.Black,

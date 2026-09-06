@@ -24,7 +24,6 @@ data class AccountStorageUi(val label: String, val messageCount: Int)
 /** One server-side resource quota for display: bytes ("octets") or message count. */
 data class QuotaUi(val resourceType: String, val used: Long, val limit: Long?)
 
-/** Backs the Storage & Sync settings screen: reports device usage and clears the cache. */
 class StorageViewModel(application: Application) : AndroidViewModel(application) {
     private val storage = application.container.storageRepository
     private val mail = application.container.mailRepository
@@ -60,8 +59,7 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
                 perAccount = perAccount,
                 quotas = _state.value.quotas,
             )
-            // Server-side quota is a network call; fetch it after the (instant)
-            // on-device figures so the screen never blocks on it.
+            // Server-side quota is a network call; fetched after the instant on-device figures.
             val quotas = runCatching { store.load()?.let { mail.loadQuotas(it) }.orEmpty() }
                 .getOrDefault(emptyList())
                 .filter { it.scope == "account" && (it.resourceType == "octets" || it.resourceType == "count") }
@@ -75,8 +73,8 @@ class StorageViewModel(application: Application) : AndroidViewModel(application)
             _clearing.value = true
             storage.clearAllCache()
             mail.resetSyncState()
-            // Re-sync the current account so the folder list and inbox repopulate
-            // instead of leaving the app in an empty, broken-looking state.
+            // Re-sync the current account so the folder list and inbox repopulate instead of
+            // leaving the app in an empty, broken-looking state.
             runCatching { store.load()?.let { mail.refresh(it) } }
             _clearing.value = false
             load()

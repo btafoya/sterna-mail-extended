@@ -18,16 +18,11 @@ class SmtpException(message: String) : Exception(message)
 /** The password-based SASL mechanisms this client can speak, in order of preference. */
 internal enum class SmtpAuthMechanism { PLAIN, LOGIN }
 
-/**
- * The SASL mechanism names advertised by an EHLO response, upper-cased, in the order the server
- * listed them; empty when the response carries no `AUTH` capability at all.
- *
- * [ehloLines] is the complete response (every `250-` continuation plus the final `250 ` line), each
- * one as it came off the wire. Two real spellings exist and both are handled: the RFC 4954 form
- * `250-AUTH PLAIN LOGIN` and the historical form `250-AUTH=PLAIN LOGIN`. Comparison downstream is
- * on whole tokens, which is why the list is tokenised here: a server offering `PLAIN-MD5` must not
- * read as offering `PLAIN`.
- */
+        /**
+         * The SASL mechanism names an EHLO response advertised, upper-cased, in the order listed;
+         * empty when there is no `AUTH` capability. Both spellings are handled (`250-AUTH PLAIN` and
+         * `250-AUTH=PLAIN`), tokenised, so a server offering `PLAIN-MD5` does not read as `PLAIN`.
+         */
 internal fun advertisedAuthMechanisms(ehloLines: List<String>): List<String> {
     val mechanisms = mutableListOf<String>()
     for (raw in ehloLines) {
@@ -43,14 +38,11 @@ internal fun advertisedAuthMechanisms(ehloLines: List<String>): List<String> {
     return mechanisms
 }
 
-/**
- * Which mechanism to authenticate with, given what the server [advertised].
- *
- * `PLAIN` first (autistici/inventati's submission service rejects `LOGIN` outright, Codeberg #145),
- * then `LOGIN`. A server that advertises **nothing** gets `LOGIN` tried at it exactly as this client
- * always has: that is what makes mail keep flowing for servers whose EHLO is silent about AUTH.
- * `null` means the server did say what it offers and none of it can be spoken here.
- */
+        /**
+         * Which mechanism to authenticate with, given what the server [advertised]. `PLAIN` first
+         * (autistici/inventati rejects `LOGIN` outright, Codeberg #145), then `LOGIN`; a server that
+         * advertises NOTHING gets `LOGIN` tried at it. `null` means none of what it offers fits.
+         */
 internal fun chooseAuthMechanism(advertised: List<String>): SmtpAuthMechanism? = when {
     advertised.isEmpty() -> SmtpAuthMechanism.LOGIN
     advertised.any { it.equals("PLAIN", ignoreCase = true) } -> SmtpAuthMechanism.PLAIN
@@ -58,14 +50,9 @@ internal fun chooseAuthMechanism(advertised: List<String>): SmtpAuthMechanism? =
     else -> null
 }
 
-/**
- * The SASL PLAIN initial client response (base64), RFC 4616: `base64(NUL + user + NUL + password)`.
- * ONE base64 blob, not the two separate ones AUTH LOGIN sends.
- *
- * `Base64.getEncoder()` on purpose, the same choice [xoauth2Payload] makes: `getMimeEncoder()` (what
- * `OutgoingMime` uses for message bodies) wraps at 76 characters and would break the payload of a
- * long password on the wire.
- */
+        /** The SASL PLAIN initial client response (base64), RFC 4616 — ONE blob, not the two AUTH
+         *  LOGIN sends. `Base64.getEncoder()` on purpose: `getMimeEncoder()` wraps at 76 characters
+         *  and would break the payload of a long password. */
 internal fun saslPlainPayload(username: String, password: String): String {
     val nul = Char(0) // SASL PLAIN field separator (NUL)
     return Base64.getEncoder().encodeToString("$nul$username$nul$password".toByteArray(Charsets.UTF_8))
@@ -82,16 +69,9 @@ data class OutgoingAttachment(
     val inline: Boolean = false,
 )
 
-/**
- * Whether a built message writes its blind copies as a `Bcc:` header.
- *
- * **A type, and not a `Boolean` — that IS the guard.** `build(m, true)` compiled and named
- * nothing: a positional `true` puts the header into a message while the word "Bcc" appears nowhere
- * on the line, so a rule stated over source text cannot see it, and the one call site that must
- * never ask for it (the JMAP pre-built path, submitted verbatim) is written across several lines
- * where a call-line pin cannot reach it either. [WRITTEN] cannot be passed without spelling itself
- * out, positionally or not.
- */
+        /** Whether a built message writes its blind copies as a `Bcc:` header. A type and not a
+         *  `Boolean` — that IS the guard: a positional `true` puts the header into a message while
+         *  the word "Bcc" appears nowhere on the line. */
 enum class BlindCopies {
     /** No `Bcc:` header at all. The default, and what every byte that LEAVES the phone gets. */
     OMITTED,
@@ -105,11 +85,9 @@ data class OutgoingMessage(
     val from: String,
     val to: List<String>,
     val cc: List<String> = emptyList(),
-    /**
-     * Blind-copy recipients: in the SMTP envelope (RCPT TO) and, on the wire, nowhere else.
-     * A `Bcc:` header exists in exactly one place — the copy APPENDed to the Drafts folder,
-     * which is read back and by nobody else ([OutgoingMime.build] asked for [BlindCopies.WRITTEN]).
-     */
+        /** Blind-copy recipients: in the SMTP envelope (RCPT TO) and, on the wire, nowhere else. A
+         *  `Bcc:` header exists in exactly one place — the copy APPENDed to Drafts, read back by
+         *  nobody else. */
     val bcc: List<String> = emptyList(),
     val subject: String,
     val body: String,
@@ -117,98 +95,44 @@ data class OutgoingMessage(
     val html: String? = null,
     val inReplyTo: String? = null,
     val references: String? = null,
-    /** RFC 5322 Message-ID (without angle brackets); generated by the caller. */
     val messageId: String,
-    /** Epoch millis for the Date header. */
     val dateMillis: Long,
     val attachments: List<OutgoingAttachment> = emptyList(),
-    /**
-     * A complete pre-built MIME entity (its own Content-Type headers + body) that
-     * REPLACES the normal body/attachments. [body]/[html]/[attachments] are ignored when set.
-     *
-     * NOT a PGP field, despite where it came from. It is the seam through which any payload
-     * this builder cannot express reaches the wire verbatim, apart from its line endings — those
-     * are normalised to CRLF, the bare CR preserved (see [OutgoingMime.build]): PGP/MIME
-     * (multipart/signed, multipart/encrypted — attachments already inside, signature computed over
-     * these very bytes) and RFC 8098's `multipart/report` read receipt ([app.sterna.core.data.mail]'s
-     * `readReceiptEntity`), which [buildBodyEntity] cannot build either — it knows `text/plain`,
-     * `text/html`, `multipart/mixed` and `multipart/related`, and nothing else.
-     *
-     * It used to be called `pgpEntity`, and the outbox refused to store one unless a PGP mode
-     * came with it — so a caller handing an entity and no mode had it dropped in silence and the
-     * message left as an empty shell. The name is the only thing that made that look sane.
-     *
-     * These octets come from OUTSIDE this builder — an OpenPGP provider's armor, or a file
-     * written by an older version — so their line endings are not this module's to assume.
-     * [OutgoingMime.build] canonicalises them; see the comment at that seam.
-     */
+            /** A complete pre-built MIME entity that REPLACES the normal body/attachments. NOT a
+             *  PGP field: the seam through which any payload this builder cannot express reaches the
+             * wire verbatim. Its octets come from OUTSIDE, so [OutgoingMime.build] canonicalises
+             *  the line endings to CRLF, bare CR preserved. */
     val prebuiltEntity: String? = null,
-    /**
-     * Ask the recipient's client for a read receipt: [OutgoingMime.build] then writes
-     * `Disposition-Notification-To:` (RFC 8098) naming THIS message's [from].
-     *
-     * A flag and not an address, deliberately. The receipt has to come back to the mailbox the
-     * correspondent can see, which is the `From` — including a delegated "on behalf" send, where
-     * the submitting identity is somebody else's. Deriving it here means no second address exists
-     * to drift from the visible one, and none can reach the MIME without the callers'
-     * single-line check and the [headerSafe] below, which is the whole CRLF-injection guard.
-     */
+            /** Ask the recipient's client for a read receipt: [OutgoingMime.build] then writes
+             *  `Disposition-Notification-To:` (RFC 8098) naming THIS message's [from]. A flag and not
+             *  an address, so no second address exists to drift from the visible mailbox. */
     val requestReceipt: Boolean = false,
-    /**
-     * The value of the `Autocrypt:` header to announce this sender's own OpenPGP public key
-     * (Autocrypt Level 1 §2.1), or null to announce nothing. Already assembled and sanitised, NOT
-     * folded: [OutgoingMime.build] folds it, because folding is a property of the wire format and
-     * the JMAP path wants the same value flat.
-     *
-     * A ready value and not an account, deliberately: whether an account may announce its key —
-     * PGP still enabled, a key cached for it, and the `From` being that account's own address and
-     * not a delegated mailbox's — is decided in `app.sterna.core.data.account`'s
-     * `autocryptHeaderValue`, where a JVM test can execute it. Nothing in this module knows what an
-     * account is, and adding that here would put the decision behind a socket.
-     */
+            /** The value of the `Autocrypt:` header announcing this sender's key (Autocrypt Level 1
+             *  §2.1), or null. Sanitised but NOT folded: [OutgoingMime.build] folds it, and JMAP wants
+             * it flat. A ready value and not an account — the rule lives in core/data's
+             *  `autocryptHeaderValue`, where a JVM test can execute it. */
     val autocryptHeader: String? = null,
 )
 
-/**
- * How long to wait for the TCP connection, and for the answer to one command of the dialogue.
- *
- * The values JMAP submission already uses (`JmapClient.defaultHttpClient()`: `connectTimeout(20,
- * SECONDS)` / `readTimeout(30, SECONDS)`). One convention for the whole app, and no setting: there
- * is no user-facing timeout and there will not be one.
- */
+    /** How long to wait for the TCP connection, and for the answer to one command. The values JMAP
+     *  submission already uses; one convention for the whole app, and no user-facing setting. */
 internal const val SMTP_CONNECT_TIMEOUT_MS = 20_000
 internal const val SMTP_COMMAND_TIMEOUT_MS = 30_000
 
-/**
- * `0` is the socket's own default and means "block, with no deadline of ours" — the regime kept by
- * the ONE read of a submission that is legitimately long: the 250 that answers the dot ending the
- * body, behind which the server queues, signs (DKIM) and scans the message. Minutes are normal
- * there, and cutting a send the server went on to accept would leave `OutboxWorker` to retry it —
- * the message would go out TWICE, which nothing later can take back.
- */
+        /** `0` is the socket's own default, "block with no deadline of ours" — kept by the ONE read
+         *  that is legitimately long: the 250 answering the dot, behind which the server queues, signs
+         *  and scans. Cutting a send the server accepted would have `OutboxWorker` send it TWICE. */
 internal const val SMTP_BLOCKING_READ = 0
 
 /** Minimal SMTP submission client (EHLO, optional STARTTLS, AUTH, MAIL/RCPT/DATA). */
 class SmtpClient {
-    /**
-     * Submit [message] through [config]'s server.
-     *
-     * [connectTimeoutMs] bounds the TCP connect (name resolution is not covered by it — no socket
-     * option is). [commandTimeoutMs] bounds every read of the dialogue — greeting, EHLO, STARTTLS,
-     * the EHLO after it, each step of AUTH, MAIL FROM, RCPT TO, DATA — and both TLS handshakes,
-     * armed before them. Without either, a server that accepted the connection and then went quiet
-     * left this blocked on a read for good: an outbox row stuck on "sending", with no error, nothing
-     * to cancel and nothing to edit.
-     *
-     * Neither bounds a WRITE: Java exposes no write timeout, and `soTimeout` is a read option. The
-     * body — up to 200 MB of MIME with attachments — is therefore neither threatened nor protected
-     * by these, and no value here should be chosen with it in mind. The read that FOLLOWS it is
-     * unbounded on purpose, see [SMTP_BLOCKING_READ].
-     *
-     * Parameters with the shipped values as defaults, as `ImapClient.openSession` already does, so a
-     * test can shorten them. Not fields: this client is one injected instance shared by every
-     * account, and a field would mix two of them.
-     */
+            /**
+             * Submit [message] through [config]'s server. [connectTimeoutMs] bounds the TCP connect
+             * (not name resolution — no socket option does); [commandTimeoutMs] bounds every read of
+             * the dialogue and both TLS handshakes, without which a server that went quiet left an
+             * outbox row stuck on "sending". Neither bounds a WRITE: Java exposes no write timeout.
+             * The read that FOLLOWS the body is unbounded on purpose, see [SMTP_BLOCKING_READ].
+             */
     suspend fun send(
         config: MailServerConfig,
         message: OutgoingMessage,
@@ -218,15 +142,13 @@ class SmtpClient {
         val connectTimeout = connectTimeoutMs.coerceAtLeast(0)
         val commandTimeout = commandTimeoutMs.coerceAtLeast(0)
         val plain = Socket()
-        // What the finally closes, and STARTTLS reassigns it. Every way out of the dialogue has to
-        // close the connection: the close used to be reachable only after a successful send, so a
-        // rejected recipient leaked its socket — and so would every timeout added above.
+            // What the finally closes, and STARTTLS reassigns it. Every way out of the dialogue has
+            // to close the connection: a rejected recipient used to leak its socket.
         var socket: Socket = plain
         try {
             plain.connect(InetSocketAddress(config.host, config.port), connectTimeout)
-            // Armed BEFORE the handshake, and it has to be: startHandshake() READS from this
-            // socket, so a server that accepts and then says nothing hangs it exactly as it hangs a
-            // command read, and a bound set afterwards would never cover it.
+                // Armed BEFORE the handshake: startHandshake() READS from this socket, so a bound
+                // set afterwards would never cover a server that accepts and then says nothing.
             plain.soTimeout = commandTimeout
             if (config.security == MailSecurity.TLS) {
                 val secure = (tlsFactory.createSocket(plain, config.host, config.port, true) as SSLSocket)
@@ -238,61 +160,40 @@ class SmtpClient {
             var reader = BufferedReader(InputStreamReader(socket.inputStream, Charsets.UTF_8))
             var out: OutputStream = socket.outputStream
 
-            /**
-             * The lines of the response [read] last returned, continuations included — the EHLO
-             * capabilities, which [read] itself throws away. Local to this send: a field would mix
-             * the capabilities of two accounts sharing one client.
-             */
+                /** The lines of the response [read] last returned, continuations included — the EHLO
+                 *  capabilities, which [read] throws away. Local to this send: a field would mix two
+                 *  accounts sharing one client. */
             val lastResponse = mutableListOf<String>()
 
             fun read(): String {
                 lastResponse.clear()
                 var line = reader.readLine() ?: throw SmtpException("Connection closed")
                 lastResponse += line
-                // Skip continuation lines ("250-..."), keep reading until "250 ...".
-                // The RETURN VALUE is the final line and nothing else: `expect` below compares a
-                // prefix on it, fifteen times per send. The accumulator only observes.
+                    // Skip continuation lines ("250-…"). The RETURN VALUE is the final line and
+                    // nothing else: `expect` below compares a prefix on it. The accumulator observes.
                 while (line.length >= 4 && line[3] == '-') {
-                    // A response that stops between two of its lines is NOT a response: the final
-                    // line never arrived, so the server never finished saying anything. Handing the
-                    // last continuation back instead would pass `expect`'s prefix test — a cut EHLO
-                    // would read as a success, its capabilities taken from a partial list, and the
-                    // failure would surface far later on a step that is not the cause. The first line
-                    // has always thrown here; so do the ones after it.
+                        // A response that stops between two of its lines is NOT a response. Handing
+                        // the last continuation back would pass `expect`'s prefix test — a cut EHLO
+                        // would read as a success, its capabilities taken from a partial list.
                     line = reader.readLine() ?: throw SmtpException("Connection closed mid-response")
                     lastResponse += line
                 }
                 return line
             }
 
-            /**
-             * The acknowledgement of the message BODY, and that read alone: the same reply reader
-             * as [read], with the one tolerance a cut connection makes mandatory THERE and nowhere
-             * else.
-             *
-             * RFC 5321 § 4.2.1: every line of a reply carries the same code, so a server that has
-             * written `250-…` has already taken the message. Refusing a reply cut after that line
-             * would surface as a failed send, `OutboxWorker` would retry it (`OutboxLogic
-             * .shouldRetry` exempts nothing), and the recipient would get the message TWICE —
-             * which nothing later can take back. So a cut after a continuation hands the last line
-             * read back, and the CODE decides at the call site exactly as it does for a complete
-             * reply: a cut `421-service closing` is still a failure.
-             *
-             * A cut BEFORE any line still throws, like everywhere else: an acknowledgement the
-             * server never began writing is not an acceptance, and counting it as one would lose
-             * the message — irreversible the other way round.
-             *
-             * Why [read] keeps its refusal: there a truncated reply must stay a failure. A cut
-             * EHLO returned as a success has its capabilities read off a PARTIAL list, and the
-             * failure surfaces far later on a step that is not the cause.
-             */
+                    /**
+                     * The acknowledgement of the message BODY, and that read alone: [read]'s reader
+                     * with one tolerance. RFC 5321 §4.2.1 gives every line of a reply the same code,
+                     * so a server that wrote `250-…` has already taken the message and refusing a cut
+                     * reply would have `OutboxWorker` send it TWICE. A cut BEFORE any line still
+                     * throws, and [read] keeps its refusal — a cut EHLO read as success is worse.
+                     */
             fun readBodyAck(): String {
                 var line = reader.readLine() ?: throw SmtpException("Connection closed")
                 while (line.length >= 4 && line[3] == '-') {
-                    // The tolerant exit, and the only one in this client. Its own `val` on
-                    // purpose: `line = reader.readLine() ?: return line` hands back the OLD value
-                    // while reading as if it handed back the new one, and this decision — send
-                    // once, or send twice — has to be legible at a glance.
+                        // The tolerant exit, and the only one in this client. Its own `val`: `line =
+                        // reader.readLine() ?: return line` hands back the OLD value while reading as
+                        // if it handed back the new one.
                     val next = reader.readLine() ?: return line
                     line = next
                 }
@@ -309,7 +210,6 @@ class SmtpClient {
                 out.flush()
             }
 
-            // Greeting + EHLO
             expect("220", "greeting")
             write("EHLO ${localHost()}")
             expect("250", "EHLO")
@@ -368,7 +268,6 @@ class SmtpClient {
                 }
             }
 
-            // Envelope
             write("MAIL FROM:<${OutgoingMime.envelopeAddress(message.from)}>")
             expect("250", "MAIL FROM")
             (message.to + message.cc + message.bcc).forEach { recipient ->
@@ -376,33 +275,23 @@ class SmtpClient {
                 expect("250", "RCPT TO")
             }
 
-            // Data
             write("DATA")
             expect("354", "DATA")
             val mime = buildMime(message)
-            // INVARIANT: `mime` is CRLF-only, so splitting on "\r\n" yields the actual lines.
-            // True by construction for everything OutgoingMime assembles, and it is `build`'s seam
-            // for `prebuiltEntity` — octets from elsewhere — that has to keep it true: an armor
-            // with bare LF endings collapses into ONE element here and goes out as a single
-            // oversized line (RFC 5321 § 4.5.3.1 allows 1000 octets) with bare LFs inside it and
-            // dot-stuffing tested on its first character only.
+                // INVARIANT: `mime` is CRLF-only, so splitting on "\r\n" yields the actual lines.
+                // `build`'s seam for `prebuiltEntity` — octets from elsewhere — has to keep it true: an
+                // armor with bare LF endings collapses into ONE oversized line (RFC 5321 §4.5.3.1
+                // allows 1000 octets), with bare LFs inside and dot-stuffing tested on its first char.
             mime.split("\r\n").forEach { line ->
                 // Dot-stuffing: a line starting with '.' must be doubled.
                 out.write(((if (line.startsWith(".")) ".$line" else line) + "\r\n").toByteArray(Charsets.UTF_8))
             }
             out.write(".\r\n".toByteArray(Charsets.UTF_8))
             out.flush()
-            // The regime changes here, and here only: what answers the body is the server's
-            // queue, its DKIM signing and its virus scan. Minutes are normal, a short bound would
-            // fail sends the server accepted, and OutboxWorker would send them a second time.
-            //
-            // BOTH sockets, not just the current one. `plain` was armed right after the connect
-            // and the TLS socket layered on top of it was armed again: what is armed twice is
-            // disarmed twice. Whether `SSLSocket.setSoTimeout` reaches the socket it wraps is an
-            // implementation question, and betting on it costs, when the bet is lost, exactly what
-            // this whole change exists to prevent — a 30 s bound left standing on the 250 that
-            // answers the body over TLS, the send cut, OutboxWorker retrying, the message sent
-            // TWICE. A line of code is cheaper than the hypothesis.
+                    // The regime changes here, and here only: what answers the body is the server's
+                    // queue, its DKIM signing and its scan, where minutes are normal and a short bound
+                    // would have OutboxWorker send an accepted message twice. BOTH sockets: what was
+                    // armed twice is disarmed twice, `SSLSocket.setSoTimeout` reaching only itself.
             plain.soTimeout = SMTP_BLOCKING_READ
             socket.soTimeout = SMTP_BLOCKING_READ
             // Not `expect`: a reply cut after a `250-` is an ACCEPTED message here, and only
@@ -430,23 +319,13 @@ class SmtpClient {
 
 /** Builds the RFC 5322 message for both SMTP submission and IMAP APPEND. */
 object OutgoingMime {
-    /**
-     * [blindCopies] says whether the blind-copy recipients are written as a `Bcc:` header.
-     *
-     * **[BlindCopies.OMITTED] by default, and that default IS the blind copy.** What this
-     * function returns is fed to SMTP's `DATA` line by line, with no header filter of any kind
-     * between here and the socket, so a `Bcc:` written for a submission hands every hidden
-     * recipient to every visible one — the one mistake a mail client cannot take back. Over SMTP
-     * the blind copies travel as `RCPT TO` envelope commands, and as nothing else.
-     *
-     * The ONE caller that asks for [BlindCopies.WRITTEN] is the Drafts-folder APPEND
-     * (ImapMailService's `appendDraft`), whose bytes are transmitted to no recipient at all: they
-     * are stored, and that header is the only place a Cci can survive until the draft is reopened.
-     *
-     * [BlindCopies] and not a `Boolean` since 2026-08-25: the parameter was a flag, and a
-     * positional `true` — which names neither the flag nor the header — put the disclosure back
-     * into a submitted message with every guard still green. See the enum.
-     */
+            /**
+             * [blindCopies] says whether the blind-copy recipients are written as a `Bcc:` header.
+             * [BlindCopies.OMITTED] by default, and that default IS the blind copy: what this
+             * returns is fed to SMTP's `DATA` with no header filter in between, so a `Bcc:` written
+             * for a submission hands every hidden recipient to every visible one. The ONE caller
+             * asking for [BlindCopies.WRITTEN] is the Drafts APPEND, whose bytes reach no recipient.
+             */
     fun build(m: OutgoingMessage, blindCopies: BlindCopies = BlindCopies.OMITTED): String {
         val date = ZonedDateTime.ofInstant(
             java.time.Instant.ofEpochMilli(m.dateMillis),
@@ -466,43 +345,20 @@ object OutgoingMime {
             append("Message-ID: <${headerSafe(m.messageId.trim('<', '>'))}>\r\n")
             m.inReplyTo?.let { append("In-Reply-To: <${headerSafe(it.trim('<', '>'))}>\r\n") }
             m.references?.let { append("References: ${headerSafe(it)}\r\n") }
-            // Where a read receipt should be sent, if the recipient's client makes one at all
-            // (RFC 8098). The address is the From, character for character — one mailbox, and the
-            // one the correspondent can see. Written HERE, above the body, so it is carried by
-            // the PGP/MIME branch below too: that entity replaces the body, and a receipt emitted
-            // inside it would leave every signed and every encrypted message asking for nothing.
+                // Where a read receipt should be sent (RFC 8098), the address being the From character
+                // for character. Written HERE, above the body, so the PGP/MIME branch below carries
+                // it too: that entity replaces the body, and a receipt inside it would be lost.
             if (m.requestReceipt) append("Disposition-Notification-To: ${headerSafe(m.from)}\r\n")
-            // This sender's own OpenPGP public key (Autocrypt Level 1 §2.1), when the account has
-            // one to announce for THIS From — the rule is `autocryptHeaderValue`, in core/data.
-            //
-            // HERE, above the body, for the same reason the receipt is: a pre-built entity
-            // ([OutgoingMessage.prebuiltEntity]) replaces the whole body below, and a header
-            // written inside it would change the octets [PgpMime.signablePayload] was handed —
-            // every signature this app has ever made covers those bytes exactly. Written above,
-            // it costs the entity nothing and it also covers the JMAP signed/encrypted send,
-            // which builds its raw message right here.
-            //
-            // It goes to every recipient, blind copies included: there is no header filter
-            // between this builder and the socket (see [blindCopies]). That is what a published
-            // public key is for, but it is worth knowing that this line has no other reader.
+                    // This sender's own OpenPGP key (Autocrypt Level 1 §2.1) — the rule is
+                    // `autocryptHeaderValue`, in core/data. HERE, above the body: a pre-built entity
+                    // replaces the body below, and a header inside it would change the signed octets.
             m.autocryptHeader?.let { append("${AutocryptHeader.NAME}: ${AutocryptHeader.fold(headerSafe(it))}\r\n") }
             append("MIME-Version: 1.0\r\n")
-            // A pre-built entity (PGP/MIME, or a multipart/report receipt) replaces the whole
-            // body construction — see [OutgoingMessage.prebuiltEntity].
-            //
-            // THE SEAM WHERE OCTETS FROM ELSEWHERE ENTER THE MESSAGE, and the only place that
-            // also repairs the entities ALREADY sitting in files/outbox/<id>/prebuilt-entity.mime,
-            // which nothing will ever rebuild. A PGP armor comes out of the provider with bare LF
-            // line endings; everything downstream — the DATA loop below, the JMAP `raw` blob, the
-            // APPEND of the Sent copy — assumes CRLF, and a hardened relay
-            // (`smtpd_forbid_bare_newline`, post-CVE-2023-51764) refuses the DATA outright, so a
-            // signed or encrypted message never leaves the outbox while the same message unsigned
-            // goes out.
-            //
-            // [PgpMime.canonicalize] and nothing stricter: it maps "\r\r\n" back to "\r\r\n",
-            // leaving the bare CR alone. An entity signed before dee4a346 has such octets INSIDE
-            // the bytes the signature covers; straightening them here would deliver a message
-            // whose signature no longer verifies. Refused beats wrong.
+                    // A pre-built entity (PGP/MIME, or a multipart/report receipt) replaces the whole
+                    // body. THE SEAM WHERE OCTETS FROM ELSEWHERE ENTER, and the only place that also
+                    // repairs entities already in files/outbox/<id>/: a PGP armor arrives with bare LF
+                    // endings and a hardened relay refuses the DATA outright. [PgpMime.canonicalize]
+                    // and nothing stricter — a bare CR may sit INSIDE what an old signature covers.
             if (m.prebuiltEntity != null) {
                 append(PgpMime.canonicalize(m.prebuiltEntity))
             } else {
@@ -511,41 +367,26 @@ object OutgoingMime {
         }
     }
 
-    /**
-     * The message's MIME entity WITHOUT the top-level message headers: starts at
-     * its own Content-Type line. Split out so the PGP path can build the exact
-     * inner entity to sign/encrypt with the same code that normal sends use.
-     *
-     * [protectedSubject], when given, is repeated as a `Subject:` field INSIDE this entity and
-     * marks the top-level Content-Type with `protected-headers="v1"` (RFC 9788 § 3). It is only
-     * ever passed on the ENCRYPTING path (`ComposeViewModel.buildPgpEntity`, decided by
-     * `protectedSubject(mode, subject)`), and it hides nothing: the real subject still travels in
-     * the clear on the envelope ([build] above). The copy sealed in the ciphertext is what lets a
-     * recipient catch an outer subject a relay rewrote.
-     *
-     * Null must produce the bytes this function produced before protected headers existed, in
-     * all four branches — `OutgoingMime.build` calls it for every ordinary message, and a stray
-     * header line here would land in every one of them.
-     *
-     * The parameter marks the TOP-LEVEL Content-Type and nothing below it. A sub-part carrying
-     * `protected-headers="v1"` claims its own headers are the protected ones, which they are not;
-     * the entity has exactly one protected header block, the one this function opens.
-     */
+            /**
+             * The message's MIME entity WITHOUT the top-level message headers, starting at its own
+             * Content-Type line — split out so the PGP path signs the exact inner entity a normal send
+             * builds. [protectedSubject] repeats the subject INSIDE the entity and marks the top-level
+             * Content-Type `protected-headers="v1"` (RFC 9788 §3); it hides nothing, the real subject
+             * still travelling in the clear. Null must produce the bytes of all four old branches.
+             */
     fun buildBodyEntity(m: OutgoingMessage, protectedSubject: String? = null): String {
         return buildString {
             val bodyContent = m.html ?: m.body
             val bodyType = if (m.html != null) "text/html" else "text/plain"
             val inlineParts = m.attachments.filter { it.inline }
             val fileParts = m.attachments.filter { !it.inline }
-            // Both empty when there is no protected subject, so the four branches below emit
-            // exactly the bytes they always did. [encodeHeader] is the same door the envelope
-            // subject goes through: non-ASCII becomes an RFC 2047 encoded-word, and CR/LF go the
-            // same way (its guard is `value.all { it.code in 32..126 }`), so no header line of
-            // this block can be split in two by a subject.
+                // Both empty when there is no protected subject, so the four branches below emit
+                // exactly the bytes they always did. [encodeHeader] is the same door the envelope
+                // subject goes through, so no header line of this block can be split in two.
             val subjectField = protectedSubject?.let { "Subject: ${encodeHeader(it)}\r\n" }.orEmpty()
             val protectedParam = if (protectedSubject != null) "; protected-headers=\"v1\"" else ""
             when {
-                // Plain body, nothing carried — single part (unchanged).
+                    // Plain body, nothing carried — single part.
                 inlineParts.isEmpty() && fileParts.isEmpty() -> {
                     append(subjectField)
                     append("Content-Type: $bodyType; charset=utf-8$protectedParam\r\n")
@@ -553,7 +394,7 @@ object OutgoingMime {
                     append("\r\n")
                     append(base64(bodyContent.toByteArray(Charsets.UTF_8)))
                 }
-                // File attachments only — multipart/mixed (unchanged).
+                    // File attachments only — multipart/mixed.
                 inlineParts.isEmpty() -> {
                     val boundary = boundary(m, "mixed")
                     append(subjectField)
@@ -643,50 +484,30 @@ object OutgoingMime {
         append("--$related--\r\n")
     }
 
-    /**
-     * MIME base64: 76-column lines separated by CRLF, which is what `Base64.getMimeEncoder()`
-     * already produces on its own (`getMimeEncoder()` == `getMimeEncoder(76, "\r\n")`).
-     *
-     * NOT `getMimeEncoder().encodeToString(…).replace("\n", "\r\n")`. That replace runs over
-     * separators that are ALREADY `\r\n` and turns every one of them into `\r\r\n` — a bare CR
-     * inside the body, which a DATA payload may not contain (RFC 5321 § 2.3.8). Parsers shrug at
-     * it, so it goes unnoticed on a plain message; on a SIGNED one the bare CR is part of the
-     * signed bytes, and a conforming relay that straightens the line changes the message, so the
-     * recipient reads "invalid signature". At 57 bytes of input or less the encoder emits a single
-     * 76-column line with no separator at all, so nothing breaks — which is why it hid for so long,
-     * and why a witness has to feed it 58 bytes or more to see anything.
-     */
+            /**
+             * MIME base64: 76-column lines separated by CRLF, which `Base64.getMimeEncoder()` already
+             * produces. NOT `…encodeToString(…).replace("\n", "\r\n")`: that turns each separator
+             * into `\r\r\n`, a bare CR a DATA payload may not contain (RFC 5321 §2.3.8). Parsers shrug
+             * at it, but on a SIGNED message a relay straightening the line changes the signed bytes.
+             */
     private fun base64(bytes: ByteArray): String =
         Base64.getMimeEncoder().encodeToString(bytes)
 
-    /**
-     * Strip CR/LF (and other control chars) from a structured header value so an
-     * attacker-influenced address/Message-ID/References cannot smuggle extra headers
-     * (e.g. a hidden Bcc:) or split the message. Reply/forward fields can echo a parsed
-     * Message-ID/References straight from a hostile incoming message, so this is the sink
-     * that must be clean.
-     *
-     * Public, and ONE of it. A pre-built entity ([OutgoingMessage.prebuiltEntity]) is assembled
-     * outside this file and can carry header-shaped lines of its own — RFC 8098's
-     * `message/disposition-notification` part is nothing but fields, `Original-Message-ID` among
-     * them, copied from a message a stranger wrote. That builder needs this exact filter, and a
-     * second copy of it is how the two drift until one of them stops stripping something.
-     */
+            /**
+             * Strip CR/LF and other control chars from a structured header value, so an
+             * attacker-influenced address/Message-ID/References cannot smuggle headers or split the
+             * message — reply/forward fields echo values parsed from hostile mail. Public, and ONE
+             * of it: a pre-built entity assembled elsewhere needs this exact filter.
+             */
     fun headerSafe(value: String): String =
         value.filterNot { it == '\r' || it == '\n' || it.code < 32 }
 
-    /**
-     * The addr-spec to put between the angle brackets of a `MAIL FROM:`/`RCPT TO:` command.
-     * Uses the LAST '<' so a display name that itself contains '<' (e.g. a quoted phrase)
-     * can't hijack the envelope address; the real addr-spec is the final <...>.
-     *
-     * The SMTP envelope is a line-oriented command dialogue, so it is a CR/LF sink exactly
-     * like the message headers: an address with no angle brackets used to reach the wire
-     * verbatim, and a `\r\n` in it appended a second envelope command (a hidden `RCPT TO`,
-     * or a session-breaking garbage line). [headerSafe] is applied for the same reason it
-     * guards the headers. Addresses reaching this point are already rejected upstream
-     * (MailRepository); the filter here is the sink that must be clean regardless of caller.
-     */
+            /**
+             * The addr-spec for a `MAIL FROM:`/`RCPT TO:`. The LAST '<', so a display name containing
+             * '<' cannot hijack the envelope address. The SMTP envelope is a line-oriented dialogue and
+             * so a CR/LF sink like the headers: an address with no angle brackets used to reach the
+             * wire verbatim, and a `\r\n` in it appended a second envelope command.
+             */
     internal fun envelopeAddress(address: String): String {
         val lt = address.lastIndexOf('<')
         val addr = if (lt >= 0) address.substring(lt + 1).substringBefore('>') else address
@@ -704,16 +525,10 @@ object OutgoingMime {
     /** RFC 5322 "specials": their presence in a display name forces a quoted-string. */
     private val ADDRESS_SPECIALS = "()<>[]:;@\\,.\"".toSet()
 
-    /**
-     * Build a header-correct RFC 5322 mailbox from a display name + address: the bare
-     * [address] when there is no name, otherwise `phrase <address>`. The phrase is emitted
-     * as a bare atom when it is plain ASCII with no specials, as a quoted-string when it
-     * holds ASCII specials or edge whitespace (escaping `\` first, then `"`), or as an
-     * RFC 2047 encoded-word when it is non-ASCII. The result is already quoted/encoded as
-     * needed, so callers must NOT quote or RFC 2047-encode it again (no double-encoding);
-     * running [headerSafe] over the whole value stays fine as encoded-words and
-     * quoted-strings are plain ASCII.
-     */
+            /** A header-correct RFC 5322 mailbox from a display name + address: bare [address] with no
+             *  name, else `phrase <address>` — atom when plain ASCII, quoted-string on ASCII specials
+             *  or edge whitespace, RFC 2047 encoded-word when non-ASCII. Already quoted/encoded, so
+             *  callers must NOT do it again. */
     fun formatAddress(name: String?, address: String): String {
         if (name.isNullOrBlank()) return address
         return "${encodePhrase(name)} <$address>"

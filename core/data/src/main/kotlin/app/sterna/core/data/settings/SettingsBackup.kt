@@ -6,15 +6,12 @@ import kotlinx.serialization.json.Json
 
 /**
  * A portable snapshot of the app's preferences — everything in the settings
- * [DataStore][SettingsRepository] plus the cross-cutting push scope and UI
- * language, and the account *configuration* (see [accounts]).
+ * [DataStore][SettingsRepository] plus the push scope, the UI language and the account
+ * *configuration* (see [accounts]).
  *
- * Still excludes every credential: passwords and OAuth refresh tokens are sealed
- * with a device-bound AndroidKeyStore key, so they cannot be meaningfully moved to
- * another device. Imported accounts therefore arrive without a secret and stay
- * inert until the user signs in (enters the password in Accounts). Every field is
- * nullable so a backup written by an older or newer build still imports — unknown
- * keys are ignored and absent ones left as-is.
+ * No credential: passwords and OAuth refresh tokens are sealed with a device-bound
+ * AndroidKeyStore key, so imported accounts arrive without a secret and stay inert until the user
+ * signs in. Every field is nullable so a backup written by an older or newer build still imports.
  */
 @Serializable
 data class SettingsBackup(
@@ -68,17 +65,15 @@ data class SettingsBackup(
     val deliveryMode: String? = null,
     val notificationContent: String? = null,
     /**
-     * Account configuration WITHOUT any secret: server, username, protocol, IMAP/SMTP
-     * endpoints, identities, signature, colour, sync window, notification opt-out. The
-     * password/refresh-token slot is never exported; [StoredAccount.oauthAccessToken] and
-     * device/sync state (inbox id, unread) are cleared before export. See AccountStore.
+     * Account configuration WITHOUT any secret. The password/refresh-token slot is never exported;
+     * [StoredAccount.oauthAccessToken] and device/sync state are cleared before export.
      */
     val accounts: List<StoredAccount>? = null,
 ) {
     /**
-     * True when this decoded to something that actually looks like a Sterna backup — at least one
-     * known field is present. An unrelated JSON file decodes (unknown keys ignored) to an all-null
-     * instance; treat that as invalid rather than silently "importing nothing".
+     * True when this decoded to something that looks like a Sterna backup — at least one known
+     * field is present. An unrelated JSON file decodes to an all-null instance; that is invalid,
+     * not "import nothing".
      */
     fun isPlausible(): Boolean =
         themeMode != null || dynamicColor != null || listDensity != null || previewLines != null ||

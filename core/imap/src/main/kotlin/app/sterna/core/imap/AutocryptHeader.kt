@@ -1,26 +1,18 @@
 package app.sterna.core.imap
 
-/**
- * Folding for the `Autocrypt:` header field (Autocrypt Level 1 §2.1), and nothing else.
- *
- * **Why a folder exists at all, here and only here.** Nothing in this repo folded a header
- * before: [OutgoingMime]'s fields are addresses, ids and an encoded subject, all short, and the one
- * folded header in the codebase is written by hand ([PgpMime]'s `multipart/signed` Content-Type).
- * This field carries a whole public key: an RSA-4096 transferable key is ~1 550 base64 characters,
- * and RFC 5322 §2.1.1 caps a line at **998 octets** excluding the CRLF. Unfolded, such a header is
- * malformed — a strict relay refuses the message, or the key is delivered truncated and the
- * correspondent's encryption to that address becomes impossible.
- *
- * **Not a general header folder, deliberately.** [OutgoingMime.headerSafe] is the ONE CR/LF sink
- * for header values, and it must stay one: this function does the exact opposite — it *inserts*
- * `"\r\n "` on purpose. The two are ordered, never mixed: sanitise first, fold second, and never
- * put a folded value back through the sink (it would come out flat, and over-long again).
- *
- * The continuation always starts with **a space**. That is what makes an unfolded continuation
- * a `FWS` and not a new header field, and it is also what keeps [SmtpClient]'s `DATA` loop safe:
- * that loop splits on `"\r\n"` and dot-stuffs a line beginning with `.`; a continuation beginning
- * with a space can be neither a header nor a stuffed line.
- */
+    /**
+     * Folding for the `Autocrypt:` header field (Autocrypt Level 1 §2.1), and nothing else.
+     *
+     * Nothing else in this repo folds a header: the other fields are short. This one carries a whole
+     * public key — an RSA-4096 transferable key is ~1 550 base64 characters — against RFC 5322
+     * §2.1.1's cap of 998 octets a line, so unfolded it is malformed: a strict relay refuses the
+     * message, or the key arrives truncated and encryption to that address becomes impossible.
+     *
+     * Not a general header folder: [OutgoingMime.headerSafe] is the ONE CR/LF sink and must stay
+     * one, while this INSERTS `"\r\n "`. Sanitise first, fold second, never the other way round. The
+     * continuation always starts with a SPACE, which is what makes it an `FWS` and not a new field —
+     * and what keeps [SmtpClient]'s `DATA` loop from dot-stuffing it.
+     */
 object AutocryptHeader {
 
     /** The field name, written once so the folder's budget and the emitted header cannot drift. */
@@ -29,26 +21,18 @@ object AutocryptHeader {
     /** RFC 5322 §2.1.1: a line is at most 998 octets, the CRLF not counted. */
     private const val LINE_LIMIT = 998
 
-    /**
-     * [value] with `"\r\n "` inserted as often as RFC 5322 §2.1.1 requires, and no more — the
-     * value is returned untouched when `"$NAME: $value"` already fits on one line.
-     *
-     * That "and no more" is the whole shape of it: the four benches carry ed25519 keys (~544 base64
-     * characters), which fit, so a folder that wrapped at 76 columns like a MIME body would be
-     * indistinguishable from this one on any bench we own and different on exactly the message that
-     * matters. Folding only when the line would be illegal keeps the common header a single line
-     * that a human, a log and a `grep` can all read.
-     *
-     * The budget is counted in **octets**, not characters: the first line has to hold `"$NAME: "`
-     * as well, a continuation its leading space. Splitting is left to right and never inside a
-     * UTF-8 character.
-     *
-     * **Where a break can land, and why that is safe.** The value is `addr=…; keydata=<base64>`.
-     * The first break falls at octet 987, and an addr-spec that a mail server will accept is capped
-     * at 256 octets by RFC 5321 §4.5.3.1, so a break can only ever land inside the base64 keydata —
-     * where Autocrypt Level 1 §2.1 says whitespace is ignored by the parser. Nothing here inspects
-     * the value to find that out: it is a property of the value, stated so a reader can check it.
-     */
+        /**
+         * [value] with `"\r\n "` inserted as often as RFC 5322 §2.1.1 requires, and no more — returned
+         * untouched when `"$NAME: $value"` already fits on one line. The "and no more" is the shape of
+         * it: the four benches carry ed25519 keys (~544 base64 characters), which fit, so a folder
+         * wrapping at 76 columns would look identical on every bench we own and differ on exactly the
+         * message that matters. The budget is counted in OCTETS, splitting left to right and never
+         * inside a UTF-8 character.
+         *
+         * The value is `addr=…; keydata=<base64>` and the first break falls at octet 987, while an
+         * addr-spec is capped at 256 octets (RFC 5321 §4.5.3.1) — so a break can only land inside the
+         * base64 keydata, where Autocrypt Level 1 §2.1 says whitespace is ignored.
+         */
     fun fold(value: String): String {
         val firstBudget = LINE_LIMIT - (NAME.length + 2) // "Autocrypt: "
         val contBudget = LINE_LIMIT - 1 // the continuation's leading space
@@ -66,11 +50,9 @@ object AutocryptHeader {
         return out.toString()
     }
 
-    /**
-     * The index just past the last character of `value` that fits in [budget] octets starting at
-     * [from], never splitting a surrogate pair. Astral characters are counted as 3 octets each
-     * half, i.e. 6 instead of 4: over-counting shortens a line, and a short line is legal.
-     */
+        /** The index just past the last character of `value` that fits in [budget] octets starting at
+         *  [from], never splitting a surrogate pair. Astral characters are counted as 6 octets rather
+         *  than 4: over-counting shortens a line, and a short line is legal. */
     private fun advance(value: String, from: Int, budget: Int): Int {
         var used = 0
         var i = from

@@ -21,10 +21,9 @@ import app.sterna.core.data.text.normalizeLinkUrl
 import app.sterna.core.data.text.removeLink
 import app.sterna.core.data.text.setLink
 
-/**
- * The "add a link" dialog (#131) and the TWO decisions behind it, kept OUT of the composable so a
- * JVM test can run them: `AlertDialog` cannot be executed here, so a rule written inside it could
- * only ever be read as text.
+/*
+ * The "add a link" dialog (#131) and the two decisions behind it, kept out of the composable so a
+ * JVM test can run them.
  */
 
 /** What the dialog opens with. */
@@ -64,24 +63,13 @@ fun linkDialogFields(body: RichBody, selection: Span): LinkDialogFields {
 
 /**
  * What OK produces: [url] through the guard, then `setLink` — or `null` when the guard refuses it,
- * which is what puts the error under the field and keeps the dialog open.
+ * which puts the error under the field and keeps the dialog open.
  *
- * [normalizeLinkUrl] HERE and not in `setLink`: the model stores what it is given, and this is
- * one of the two borders where a raw string becomes a URL (the other is `fromHtml`).
+ * [normalizeLinkUrl] HERE and not in `setLink`: the model stores what it is given, and this is one
+ * of the two borders where a raw string becomes a URL.
  *
- * **An empty label is the ADDRESS ITSELF**, and that is not a nicety — without it the fourth
- * arm of `setLink` is reachable from the dialog: a bare cursor, no link under it and nothing typed
- * in the label box gives back the body UNCHANGED, `onApply` runs, the dialog closes and nothing at
- * all has happened, with no message to say so. Gmail writes the address in that case (rule 4), and
- * `toPlainText` already treats that exact shape apart — "the label IS the URL" is written once,
- * not as `https://x <https://x>` — so both ends of the message agree about it.
- *
- * It only ever bites on that arm: a real selection makes `setLink` ignore the label outright,
- * and a cursor inside a link returns before the label is looked at.
- *
- * The LISTS need nothing here and that is not an oversight: inserting a label goes through
- * `setLink`, which routes the insertion through `remapAfterEdit`, so the item the caret sits in
- * stays an item. This function never touches `body.blocks` itself.
+ * An empty label is the ADDRESS ITSELF: without it the fourth arm of `setLink` gives back the body
+ * unchanged and the dialog closes with nothing said. It only bites on that arm.
  */
 fun linkApplied(body: RichBody, selection: Span, url: String, text: String): RichBody? {
     val normalised = normalizeLinkUrl(url) ?: return null
@@ -93,8 +81,7 @@ fun linkApplied(body: RichBody, selection: Span, url: String, text: String): Ric
  * [onRemove] the body with the link taken off, and both close the dialog.
  *
  * Material `TextField`s, never `BasicTextField`: three source lints count the composer's own
- * `BasicTextField(` call sites and read the file's structure around them, and this dialog is not
- * one of the composer's fields. It also lives in its own file for that reason.
+ * `BasicTextField(` call sites, and this dialog is not one of them — hence its own file too.
  */
 @Composable
 fun LinkDialog(

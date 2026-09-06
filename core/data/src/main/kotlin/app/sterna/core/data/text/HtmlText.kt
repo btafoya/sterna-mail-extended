@@ -1,10 +1,8 @@
 package app.sterna.core.data.text
 
 /**
- * Small, dependency-free HTML ↔ plain-text helpers shared by the composer (quoting, forwarding,
- * flattening an imported HTML signature) and the account layer (a legacy HTML signature stored in
- * the plain-text field). Regex-based and deliberately not a parser: mail HTML is hostile and the
- * goal is a readable plain-text approximation, never a faithful DOM.
+ * HTML ↔ plain-text helpers for the composer (quoting, forwarding, flattening an imported HTML
+ * signature) and the account layer's legacy HTML signature field. Regex-based, not a parser.
  */
 
 /** Does [s] look like HTML (a tag opener), rather than plain text? */
@@ -19,10 +17,8 @@ fun htmlEscapeMultiline(s: String): String =
     htmlEscape(s).replace("\n", "<br>")
 
 /**
- * Best-effort HTML→plain-text for quoting or editing an original that has no text/plain part
- * (most modern mail is HTML-only), and for flattening an imported HTML signature into the
- * plain-text composer. Converts block boundaries to newlines so the original keeps its
- * paragraphs and table rows, instead of collapsing to one line.
+ * Best-effort HTML→plain-text for quoting/editing an HTML-only original and for flattening an
+ * imported signature. Converts block boundaries to newlines so paragraphs/rows don't collapse.
  */
 fun htmlToText(html: String): String =
     html
@@ -42,10 +38,9 @@ fun htmlToText(html: String): String =
         .trim()
 
 /**
- * Decode HTML character references in [s]: the named ones a mail signature or quoted original
- * realistically uses, plus every numeric reference (`&#233;` / `&#xE9;`). Done in a SINGLE pass, so
- * an escaped entity like `&amp;lt;` decodes to the literal text `&lt;` and is not decoded twice.
- * An unknown or out-of-range reference is left verbatim rather than mangled.
+ * Decode HTML character references in [s]: common named ones plus every numeric reference
+ * (`&#233;` / `&#xE9;`). Single pass, so `&amp;lt;` decodes to the literal text `&lt;` rather
+ * than being decoded twice. An unknown or out-of-range reference is left verbatim.
  */
 fun unescapeEntities(s: String): String =
     ENTITY_REF.replace(s) { m ->
@@ -67,9 +62,8 @@ private fun codePointOrNull(cp: Int): String? =
     if (cp <= 0 || cp > 0x10FFFF || cp in 0xD800..0xDFFF) null else String(Character.toChars(cp))
 
 /**
- * Named references worth decoding. Not the full HTML5 table (2231 entries) — the punctuation,
- * symbols and accented letters that actually turn up in signatures and quoted mail. `&nbsp;`
- * deliberately decodes to a normal space, not U+00A0, so the plain-text body wraps normally.
+ * Named references worth decoding — not the full HTML5 table, just what shows up in signatures
+ * and quoted mail. `&nbsp;` decodes to a normal space, not U+00A0, so plain text still wraps.
  */
 private val NAMED_ENTITIES: Map<String, Int> = mapOf(
     // Core

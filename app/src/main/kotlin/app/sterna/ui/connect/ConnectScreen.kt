@@ -116,12 +116,10 @@ fun ConnectScreen(
     LaunchedEffect(state) {
         if (state is ConnectState.Connected) onConnected()
     }
-    // After importing accounts, we sign into each one first; only then enter the app.
     LaunchedEffect(importSignIn) {
         if (importSignIn is ConnectViewModel.ImportSignIn.Done) onConnected()
     }
-    // Resume the per-account password prompts if we arrive here with imported, still-unauthenticated
-    // accounts (e.g. the app was killed mid-sign-in) so the user finishes signing in, not a dead inbox.
+    // Resume the prompts for imported accounts killed mid-sign-in, or she faces a dead inbox.
     LaunchedEffect(Unit) { viewModel.resumeImportSignIn() }
 
     var protocol by rememberSaveable { mutableStateOf(MailProtocol.JMAP) }
@@ -133,56 +131,40 @@ fun ConnectScreen(
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
 
-    // Which step of the add-account walk the user has reached. It survives a rotation AND process
-    // death, like every field on this screen — but the verdict it depends on does not, which is
-    // why what is DRAWN is [stepToRender]'s answer and never this value.
+    // Survives process death; the verdict it needs does not — what is drawn is [stepToRender]'s.
     var rememberedStep by rememberSaveable(stateSaver = ConnectStepSaver) {
         mutableStateOf(ConnectStep.ADDRESS)
     }
-    // The address step's button was tapped while the probe was still out: leave as soon as it
-    // answers, and not one moment before — deciding early means deciding "manual", i.e. putting
-    // the protocol question back on screen.
+    // Tapped while the probe was out: leave when it answers — deciding early means "manual".
     var awaitingVerdict by rememberSaveable { mutableStateOf(false) }
 
-    // Autodiscovery couldn't find the server → reveal the manual server field.
     LaunchedEffect(state) {
         if (state is ConnectState.NeedsServer) showAdvanced = true
     }
 
-    // Quick setup and the server fields it fills are one piece of state, so the chips, the fields
-    // and the Connect button can never disagree about which provider is selected (#105).
+    // Quick setup and the fields it fills are one piece of state, so chips, fields and Connect
+    // can never disagree about which provider is selected (#105).
     var preset by rememberSaveable(stateSaver = PresetFormSaver) { mutableStateOf(PresetForm.NONE) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    // The provider help link below leaves for a browser; a second tap while it comes up opened a
-    // second one. This screen is composed above the navigation graph at first run, so the guard
-    // hangs off the activity's lifecycle there and off the settings entry when it is reached from
-    // Accounts → Add account — see [rememberLeaveOnce].
+    // At first run this screen sits above the navigation graph, so the guard against a second
+    // browser hangs off the activity.
     val leaveOnce = rememberLeaveOnce()
 
-    // Focusing any credential field scrolls the WHOLE credential block (account name, email,
-    // password/token + the action buttons) above the keyboard, not just the focused field, so the
-    // next field is reachable without dismissing the keyboard (#52 follow-up). The per-field
-    // bring-into-view Material already does only guarantees the focused field itself.
+    // Focusing any credential field scrolls the whole block above the keyboard (#52 follow-up);
+    // Material's per-field reveal covers only the focused field.
     val credentialReveal = remember { CredentialBlockReveal() }
-    // The focus event fires before the keyboard is up, so the reveal computed then uses the
-    // pre-IME viewport. Re-run it as the IME inset settles: collectLatest retargets the scroll on
-    // each animation frame and the last emission positions the block against the final viewport.
+    // The focus event fires before the keyboard is up; re-run as the inset settles.
     val imeInsets = WindowInsets.ime
     val density = LocalDensity.current
     LaunchedEffect(imeInsets, density) {
         snapshotFlow { imeInsets.getBottom(density) }
             .collectLatest { bottom -> if (bottom > 0) credentialReveal.reveal() }
     }
-    // The foot of the column has its own requester, on a container that exists whether or not
-    // there is anything to say — the block only speaks when something went wrong, and the keyboard
-    // is up exactly then (she has just typed her address). See the effect at the foot of the column.
+    // Its own requester, on a container that exists whether or not there is anything to say.
     val statusReveal = remember { BringIntoViewRequester() }
 
-    // First-run only: import a settings backup here, since Settings is unreachable before an
-    // account exists. A backup that carries account configuration recreates those accounts
-    // (without passwords) and drops the user straight into the app to sign in; a preferences-only
-    // backup just applies the preferences and leaves the user on this screen to add an account.
+    // First-run only: Settings is unreachable before an account exists.
     val settingsViewModel: SettingsViewModel = viewModel()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -206,7 +188,6 @@ fun ConnectScreen(
                 uri,
                 onResult = { ok, accountsAdded ->
                     when {
-                        // Accounts imported inert → the "accounts to sign in" list appears; no snackbar needed.
                         ok && accountsAdded > 0 -> viewModel.beginImportSignIn()
                         ok -> snackbar(context.getString(R.string.connect_import_no_accounts))
                         else -> snackbar(context.getString(R.string.connect_import_invalid))
@@ -249,64 +230,45 @@ fun ConnectScreen(
         }
     }
 
-    // Where Connect goes and whether it has enough to go there — one decision, shared by the
-    // button's label, its enabled state and the secret field's meaning.
+    // One decision, shared by the button's label, its enabled state and the secret field's meaning.
     val route = connectRoute(preset, protocol, useApiToken, server)
     val ready = connectReady(
         route, username, password,
         preset.imapHost, preset.imapPort, preset.smtpHost, preset.smtpPort,
     )
 
-    // Autoconfig cascade under this walk: with an address typed and nothing hand-entered,
-    // discovery sets out in the background (the ViewModel gates it — armed chip, OAuth, offline or
-    // a bad address all keep it home). What it finds lands ONLY in the visible fields, via
-    // [presetFilledWith]; Connect keeps reading the fields and nothing else (WYSIWYG).
+    // Autoconfig cascade under this walk; the ViewModel gates it. What it finds lands only in the
+    // visible fields, via [presetFilledWith]: Connect reads the fields and nothing else (WYSIWYG).
 
-    // The DURABLE verdict, and the one the walk steps on — never the one-shot fill signal below.
-    // [verdictFor] is what makes it honest: a verdict about the address the user has since changed
-    // answers nothing here.
+    // The durable verdict the walk steps on, never the one-shot fill signal below. [verdictFor]
+    // keeps it honest: a verdict about an address since changed answers nothing here.
     val verdict by viewModel.discovery.collectAsStateWithLifecycle()
     val found = verdictFor(verdict, username) as? MailAutoconfigResult.Found
-    // How the server says this account signs in, and therefore what step 2 may ask for. It is
-    // the server's answer, not a choice offered to the reader: OAuth used to be a button in the
-    // manual fallback, so whoever needed it had to know the word and go looking for it.
-    //
-    // READ ABOVE THE STEP, because the step now depends on it: a domain served over OAuth with
-    // no autoconfig document reaches the credentials step on this answer alone (#55).
+    // Read above the step: a domain over OAuth with no autoconfig reaches step 2 on this alone (#55).
     val oauthVerdict by viewModel.oauthDiscovery.collectAsStateWithLifecycle()
     val ask = credentialsAsk(oauthVerdict, username)
 
-    // The step DRAWN, not the step remembered: after process death the ViewModel comes back
-    // empty, and a credentials page for a server nobody discovered shows a state that is not true
-    // and offers a button that leads nowhere. Both answers count: withhold the OAuth one here and
-    // the credentials step reached by it is bounced back to the address step as it arrives.
+    // The step drawn, not the step remembered: step 2 for a server nobody discovered is not true.
     val walkStep = stepToRender(rememberedStep, found, oauthVerdict, username)
 
-    // What the credentials step needs before it may run: the shipped rule, on the route that step
-    // really takes (JMAP with a password), never on whatever the manual form's chips say.
+    // The route step 2 really takes (JMAP with a password), never what the manual chips say.
     val credentialsReady = connectReady(
         ConnectRoute.JMAP_AUTODISCOVER, username, password,
         preset.imapHost, preset.imapPort, preset.smtpHost, preset.smtpPort,
     )
 
-    // Whether this screen has already handed this address over to a browser sign-in, and for WHICH
-    // address — the one fact that tells "nothing has started yet" from "she cancelled it". Both are
-    // ConnectState.Idle, and the difference decides whether the step draws a wheel or an invitation,
-    // and whether the automatic trigger may fire at all. Saved, so a rotation does not restart the
-    // sign-in she just cancelled.
+    // What tells "nothing started" from "she cancelled it", both ConnectState.Idle. Saved.
     var handoverFor by rememberSaveable { mutableStateOf(NO_HANDOVER) }
     val handedOver = handoverStarted(handoverFor, username)
-    // The ONE way this screen starts a hand-over — the automatic trigger below and the button of
-    // [CredentialsPane.SIGN_IN_OFFER] both come through here, so neither can start one without
-    // recording that it did.
+    // The one way this screen starts a hand-over: the automatic trigger and the SIGN_IN_OFFER
+    // button both come through here, so neither starts one without recording that it did.
     fun startHandover() {
         handoverFor = username.trim()
         viewModel.connectOAuth(username, NO_TYPED_SERVER, accountName)
     }
 
-    // The one place the discovery triggers agree on what they hand the guard. Hosts a verdict
-    // about ANOTHER address filled in go first: left in place they are what makes the guard refuse,
-    // and the address step would then wait for a probe that can never run.
+    // The one place the discovery triggers agree on what they hand the guard. Hosts filled in for
+    // another address go first: left in place they make the guard refuse for ever.
     fun probeAddress() {
         preset = presetForAddress(preset, verdict, username, walkStep)
         viewModel.discoverImapSettings(walkStep, route, preset, username)
@@ -324,47 +286,27 @@ fun ConnectScreen(
             viewModel.consumeImapDiscovery()
         }
     }
-    // The step this seam has already cleared a finished attempt for, null while it has cleared
-    // nothing — the marker the guard below reads, and the whole of what tells a rotation from an
-    // arrival. NOT [rememberedStep], which is synchronised with walkStep inside the same effect
-    // (it differs only on a demotion).
-    // SAVED, and null is not spelled ADDRESS. A rotation restores the step this screen already
-    // cleared for, so the seam does not run again on it and what the screen has just said stays.
-    // An arriving screen has no saved marker, so it still clears — and it must: at first run this
-    // screen is composed straight under the activity ([SternaApp]), which owns its ViewModel, so
-    // an attempt that ended before it last went away is still in hand when it comes back.
+    // The step this seam has already cleared for, null while it has cleared nothing — what tells a
+    // rotation from an arrival. Null is not spelled ADDRESS: an arriving screen must still clear.
     var clearedFor by rememberSaveable(stateSaver = ClearedStepSaver) {
         mutableStateOf<ConnectStep?>(null)
     }
-    // The step changed, and both loose ends are tied here — ONE seam, so neither can be forgotten
-    // at one of the several places the walk moves.
+    // Both loose ends of a step change are tied in one seam, so neither can be forgotten at one of
+    // the several places the walk moves.
     LaunchedEffect(walkStep) {
-        // A demotion is FINAL until she moves herself: stepToRender sends the credentials step
-        // back to the address step when its verdict is gone (process death), and a probe that
-        // succeeds two seconds later must not teleport her forward, out of the step she is reading.
+        // A demotion is final until she moves herself: a probe succeeding later must not teleport
+        // her forward.
         if (rememberedStep != walkStep) rememberedStep = walkStep
-        // And what a FINISHED attempt left behind does not travel with her: a stale NeedsServer
-        // re-fired the IMAP handover the moment the credentials step was re-entered, adding an
-        // account on a tap on "Continue" that nobody meant as a sign-in.
-        //
-        // ONLY WHERE IT IS DUE ([clearingIsDue], executed in ConnectWalkTest). A ROTATION
-        // recreates the composition and restarts this effect with the step unmoved: the sentence
-        // the last attempt left ("You're offline…") was wiped by the turn of the phone alone,
-        // measured at the bench over portrait→landscape→portrait.
+        // A stale NeedsServer re-fires the IMAP handover on re-entering step 2, adding an account
+        // on a tap on "Continue". Only where due ([clearingIsDue]): a rotation restarts this
+        // effect with the step unmoved.
         if (clearingIsDue(clearedFor, walkStep)) {
             clearedFor = walkStep
             viewModel.clearFinishedAttempt()
         }
     }
-    // The address step is waiting for a verdict: [awaitedAnswer] says what ends that wait, and
-    // nothing else moves the walk forward.
-    //
-    // OFFLINE IS ANSWERED HERE TOO, not only under the tap. Offline no probe sets out and none
-    // is recorded, so a wait armed before a process death comes back with nothing that could ever
-    // end it: the button stays disabled on "Finding your server…" for ever, and disabled it cannot
-    // even be tapped to say why. Ending it here is also what catches the link dropping between the
-    // tap's own read and this one — this effect is re-run right after the tap, the wait being one
-    // of its keys.
+    // [awaitedAnswer] says what ends the wait. Offline is answered here too: no probe sets out, so
+    // an armed wait has nothing that could end it.
     LaunchedEffect(awaitingVerdict, verdict, oauthVerdict, username) {
         when (val answer = awaitedAnswer(awaitingVerdict, viewModel.advanceFromAddress(username))) {
             is AwaitedAnswer.Leave -> {
@@ -379,17 +321,13 @@ fun ConnectScreen(
         }
     }
     // The server answered that this account signs in away from the app: start that sign-in, so the
-    // reader never has to know the word OAuth nor find a button for it. The existing flows are
-    // untouched — this is only WHERE they are started from — and they take the whole screen
-    // through their own panels above.
+    // reader never has to know the word OAuth.
     LaunchedEffect(walkStep, ask) {
         if (!shouldStartOAuthSignIn(walkStep, ask, handedOver)) return@LaunchedEffect
         startHandover()
     }
-    // JMAP first, on the secret the credentials step just collected (that is what it is collected
-    // BEFORE the probe for — `discoverJmapServer` needs it); the IMAP/SMTP endpoints the domain
-    // published only if that answers "no JMAP server here". [shouldTryDiscoveredImap] decides, a
-    // test executes it, and the protocol chips are never asked.
+    // JMAP first, on the secret step 2 just collected; the IMAP/SMTP endpoints the domain
+    // published only if that answers "no JMAP server here" ([shouldTryDiscoveredImap]).
     LaunchedEffect(state, walkStep, found) {
         if (!shouldTryDiscoveredImap(walkStep, state, found)) return@LaunchedEffect
         // Non-null by that decision; the compiler cannot see it across the call.
@@ -401,8 +339,7 @@ fun ConnectScreen(
         )
     }
 
-    // Where the Connect button goes, in one place for every step that has one: the manual form's
-    // six routes are untouched, the walk only chooses to press the same button.
+    // Where the Connect button goes, in one place for every step that has one.
     fun submitConnect() {
         when (route) {
             ConnectRoute.OUTLOOK_OAUTH -> viewModel.connectOutlookOAuth(username, accountName)
@@ -425,26 +362,15 @@ fun ConnectScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                // Keep the form scrollable above the keyboard so the focused field (password…)
-                // stays visible while typing (#52) — same recipe as the compose screen.
+                // Keep the focused field visible above the keyboard while typing (#52).
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // ABOVE the panels, and that position is the whole of it: each of them hands the
-            // column over with a `return@Column`, so a handler declared below is not composed
-            // while one is on screen — Back was then answered by nobody and the system popped the
-            // whole screen, leaving the user in the launcher with a sign-in still in flight. Here
-            // it does what the panel's own Cancel does, and Back on a panel is a cancellation
-            // everywhere else in this app.
-            // It reaches NEITHER of the two other sign-ins this screen can show. The
-            // imported-accounts listing below draws ImportSignIn's own panel, not a ConnectState,
-            // and keeps its own cancel (cancelImportOAuth) and its own measured gestures. The
-            // manual form's Microsoft chip lands in the SAME ConnectState as the walk's own
-            // hand-over, and its poll is app-scoped precisely so that it survives this screen
-            // being popped — so what is asked here is WHOSE hand-over is on screen
-            // ([backCancelsHandover]), never merely whether one is.
+            // Must stay above the panels: each hands the column over with a `return@Column`, so a
+            // handler below is not composed while one is up and Back pops the whole screen with a
+            // sign-in in flight. Whose hand-over it is is [backCancelsHandover]'s question.
             BackHandler(enabled = backCancelsHandover(state, handedOver)) { viewModel.cancelOAuth() }
             val awaiting = state as? ConnectState.AwaitingApproval
             if (awaiting != null) {
@@ -460,19 +386,16 @@ fun ConnectScreen(
                 val sel = listing.selected
                 if (sel == null) {
                     Spacer(Modifier.height(8.dp))
-                    // The section renders its own "Accounts to sign in" header (shared with
-                    // Settings → Backup), so no extra title here.
+                    // The section renders its own "Accounts to sign in" header, so no title here.
                     PendingImportAccountsSection(
-                        // Re-read the StoredAccounts each recomposition (driven by importSignIn) so the
-                        // list reflects the just-signed-in / dismissed accounts dropping off.
+                        // Re-read each recomposition (driven by importSignIn), so signed-in and
+                        // dismissed accounts drop off the list.
                         accounts = viewModel.pendingStoredAccounts,
                         onSignIn = { viewModel.selectImportAccount(it.id) },
                         onDismiss = { dismissWithUndo(it) },
                     )
-                    // Always offer the normal add-account form from here (same button as
-                    // Settings → Accounts). When every imported account is still deferred there
-                    // is no signed-in account, so nothing else on screen leads to adding one —
-                    // without this exit the listing was an onboarding dead end.
+                    // Always offer the normal form: with every import deferred, the listing would
+                    // be a dead end.
                     Spacer(Modifier.height(8.dp))
                     Button(
                         onClick = viewModel::leaveImportListing,
@@ -487,11 +410,8 @@ fun ConnectScreen(
                 }
                 return@Column
             }
-            // Back belongs to the walk, and only to the walk. From the address step
-            // [stepBackKeeping] answers null, this handler is disabled, and the system pops the
-            // screen (or the first-run home simply stays) — a walk must never paint a blank screen
-            // of its own making. The address travels back with it: nobody retypes her address at
-            // every round trip.
+            // Back belongs to the walk. From the address step [stepBackKeeping] answers null, this
+            // handler is disabled and the system pops. The address travels back with it.
             BackHandler(enabled = stepBackKeeping(walkStep, username) != null) {
                 stepBackKeeping(walkStep, username)?.let { back ->
                     rememberedStep = back.step
@@ -514,9 +434,7 @@ fun ConnectScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    // Reached from the pending-imports list via its "Add account" exit (or after dismissing
-                    // the last pending row): while deferred imported accounts remain, offer the way back to
-                    // their sign-in list so leaving it is never one-way either.
+                    // While deferred imported accounts remain, offer the way back to their list.
                     if (viewModel.pendingStoredAccounts.isNotEmpty()) {
                         Spacer(Modifier.height(4.dp))
                         OutlinedButton(
@@ -528,9 +446,7 @@ fun ConnectScreen(
                             Text(stringResource(R.string.import_pending_title))
                         }
                     }
-                    // Import entry points, shown whenever adding an account (not just first run): migrating
-                    // from K-9 / Thunderbird or a Sterna backup belongs here, where people add accounts, not
-                    // buried in Settings → Backup.
+                    // Import entry points belong where people add accounts, not in Settings → Backup.
                     Spacer(Modifier.height(4.dp))
                     Text(stringResource(R.string.connect_import_header), style = MaterialTheme.typography.labelLarge)
                     OutlinedButton(
@@ -557,9 +473,7 @@ fun ConnectScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.connect_import_settings))
                     }
-                    // The address, a name if she wants one, and one button. Nothing else: no protocol
-                    // question, no host field, no sign-in method — those are answers the probes give, or
-                    // questions the manual fallback asks once the probes came back empty.
+                    // No protocol question, no host field, no sign-in method: the probes answer those.
                     Column(
                         modifier = Modifier.bringIntoViewRequester(credentialReveal.block),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -572,28 +486,15 @@ fun ConnectScreen(
                             onClick = {
                                 when (val advance = viewModel.advanceFromAddress(username)) {
                                     is AddressAdvance.Go -> rememberedStep = advance.step
-                                    // Offline: nothing to wait for — no probe may set out and none
-                                    // is recorded — so the walk says so and stays put. Fall through to
-                                    // Waiting here and the button spins for ever; move her on and she
-                                    // lands in the manual form with no idea why.
-                                    // AND THE GESTURE ASKS FOR THE ANSWER TO BE SEEN, because
-                                    // the effect at the foot of the column cannot: reportOffline
-                                    // writes the SAME ConnectState.Error every time, a data class
-                                    // into a MutableStateFlow — equal value, no emission, no
-                                    // recomposition, and LaunchedEffect(status) would not re-run
-                                    // even if there were one. Nothing puts the state back to Idle
-                                    // in between (typing does not, clearFinishedAttempt only fires
-                                    // on a change of step). So the SECOND tap said nothing at all:
-                                    // fix a typo in the address (focus scrolls the credential
-                                    // block, which sits ABOVE this one, back under the IME), tap
-                                    // Continue again, and nothing moves — the reported defect,
-                                    // word for word.
+                                    // Nothing to wait for, so say so and stay put — Waiting would
+                                    // spin for ever. The scroll is explicit: reportOffline writes
+                                    // an equal Error, so a second tap emits nothing at all.
                                     AddressAdvance.Offline -> {
                                         viewModel.reportOffline()
                                         scope.launch { statusReveal.bringIntoView() }
                                     }
-                                    // The probe has not answered yet: ask for it (it may not even have
-                                    // set out — the field never lost focus) and leave when it does.
+                                    // Ask for the probe (it may never have set out, the field not
+                                    // having lost focus) and leave when it answers.
                                     AddressAdvance.Waiting -> {
                                         awaitingVerdict = true
                                         probeAddress()
@@ -601,11 +502,8 @@ fun ConnectScreen(
                                     AddressAdvance.Blocked -> Unit
                                 }
                             },
-                            // The shared address rule, and NOT advanceFromAddress: this runs in
-                            // composition, i.e. on every keystroke, and that call reads the link
-                            // from Android (a binder round trip) only to throw the answer away —
-                            // whether the button is grey depends on the address alone. What the
-                            // link decides is what the TAP does, and there it is read at the tap.
+                            // The shared address rule, not advanceFromAddress: this runs in
+                            // composition on every keystroke, and the link decides only the tap.
                             enabled = canLeaveAddressStep(username) && !awaitingVerdict,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
@@ -615,8 +513,8 @@ fun ConnectScreen(
                                 ),
                             )
                         }
-                        // Only once a probe for THIS address came back with nothing. Beside a verdict
-                        // that worked, this button is the protocol question walking back on screen.
+                        // Only once a probe for this address came back with nothing: beside a
+                        // verdict that worked, it is the protocol question walking back on screen.
                         if (offersManualSetup(verdict, oauthVerdict, username)) {
                             OutlinedButton(
                                 onClick = { rememberedStep = ConnectStep.MANUAL },
@@ -628,8 +526,8 @@ fun ConnectScreen(
                 // ---- 2. What the domain published, and the secret it needs --------------------
                 ConnectStep.CREDENTIALS -> {
                     Spacer(Modifier.height(4.dp))
-                    // Which address this is for: shown rather than assumed (WYSIWYG), and a username node
-                    // for the password managers that match on address + domain, not on the secret field.
+                    // Shown rather than assumed (WYSIWYG), and a username node for the password
+                    // managers that match on address + domain, not on the secret field.
                     OutlinedTextField(
                         value = username,
                         onValueChange = {},
@@ -640,20 +538,13 @@ fun ConnectScreen(
                             listOf(AutofillType.EmailAddress, AutofillType.Username),
                         ) {},
                     )
-                    // The password field belongs to ONE of the server's two answers, and it is
-                    // drawn only under it. Under the other the browser sign-in is already starting
-                    // (the effect above), and its own panel is about to take the whole screen; a
-                    // secret typed here in the meantime would be collected and then dropped in
-                    // silence, which is the defect this walk removes.
-                    // And a wheel is drawn only while something IS running: after Cancel the
-                    // hand-over is over, the ask has not changed, and this step used to spin for
-                    // ever over nothing. [credentialsPane] decides, a test executes it.
+                    // The password field belongs to one of the server's two answers and is drawn
+                    // only under it: under the other the browser sign-in is already starting, and a
+                    // secret typed meanwhile would be collected and dropped in silence.
                     when (credentialsPane(ask, state, handedOver)) {
                         CredentialsPane.WAITING -> LoadingRing()
-                        // The hand-over is over without an account (cancelled, or failed — the
-                        // message is drawn below): the step goes back to being an invitation, and
-                        // waits for HER gesture. It does not restart on its own: that is what
-                        // makes the panel's Cancel mean something.
+                        // The hand-over is over without an account (cancelled, or failed): the step
+                        // becomes an invitation again, which is what makes Cancel mean something.
                         CredentialsPane.SIGN_IN_OFFER -> {
                             Text(stringResource(R.string.connect_oauth_code_step1), style = MaterialTheme.typography.bodyMedium)
                             Button(
@@ -664,8 +555,8 @@ fun ConnectScreen(
                             }
                         }
                         CredentialsPane.PASSWORD -> {
-                            // The provider the domain named refuses a normal password (Gmail and friends): one tap
-                            // to the page where she creates the one that works, instead of three failed sign-ins.
+                            // The provider refuses a normal password (Gmail and friends): one tap
+                            // to the page where she creates the one that works.
                             found?.let { appPasswordUrlFor(it) }?.let { url ->
                                 Text(
                                     stringResource(R.string.connect_provider_app_password_note),
@@ -704,10 +595,8 @@ fun ConnectScreen(
                                     reveal = credentialReveal,
                                 )
                                 val busy = state is ConnectState.Connecting || state is ConnectState.Discovering
-                                // NOT the manual form's submit: that one reads the protocol chips,
-                                // and a single tap on IMAP/SMTP — three steps and a Back ago, for another
-                                // address — would send this step straight to IMAP without ever asking
-                                // JMAP. The walk decides by probing, so the walk names its own route.
+                                // Not the manual form's submit: that reads the protocol chips, and
+                                // a tap on IMAP/SMTP three steps ago would skip JMAP entirely.
                                 Button(
                                     onClick = { viewModel.connectAuto(username, password, accountName) },
                                     enabled = !busy && credentialsReady,
@@ -724,13 +613,9 @@ fun ConnectScreen(
                             }
                         }
                     }
-                    // The way OUT (#55). A domain that publishes an autoconfig AND an OAuth
-                    // document reaches this step with the invitation and nothing else: no
-                    // password field, one button, and a server that refuses this app's client
-                    // id. Back lands on the address step, which withholds "Set up manually"
-                    // because its verdict FOUND something — so the account was unaddable by any
-                    // gesture. Which pane owes a way out is [credentialsExit]'s call, executed by
-                    // a test; drawn here, under the closed guard, so it belongs to no branch.
+                    // The way out (#55): with the invitation and nothing else, a server refusing
+                    // this app's client id would leave the account addable by no gesture, Back
+                    // landing on the address step, which withholds "Set up manually" on a `Found`.
                     credentialsExit(credentialsPane(ask, state, handedOver))?.let { exit ->
                         OutlinedButton(
                             onClick = { rememberedStep = exit },
@@ -827,10 +712,7 @@ fun ConnectScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             MAIL_PROVIDERS.forEach { provider ->
-                                // FilterChip, not AssistChip: the selected provider is visible, and
-                                // tapping it again lets go of it. Outlook used to be a one-way door —
-                                // it hid the server fields with nothing on screen to bring them back
-                                // (#105).
+                                // FilterChip, not AssistChip: tapping it again lets go (#105).
                                 FilterChip(
                                     selected = preset.selected == provider.name,
                                     onClick = { preset = presetChipTapped(preset, provider) },
@@ -838,16 +720,14 @@ fun ConnectScreen(
                                 )
                             }
                         }
-                        // Outlook signs in by OAuth, so the app-password note and the manual
-                        // server/port fields don't apply — hide them while it's selected.
+                        // Outlook signs in by OAuth: no app-password note, no server/port fields.
                         if (preset.serverFieldsVisible) {
                             Text(
                                 stringResource(R.string.connect_provider_app_password_note),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            // Selected preset needs an app-specific password (Gmail…): one tap to
-                            // the provider's page to create one, since their normal password is refused.
+                            // The preset refuses a normal password (Gmail…): one tap to its page.
                             preset.appPasswordUrl?.let { url ->
                                 TextButton(
                                     onClick = {
@@ -887,9 +767,7 @@ fun ConnectScreen(
                         }
                     }
 
-                    // One container for the whole credential block (fields + action buttons): revealing it
-                    // as a unit brings ALL of it above the keyboard when it fits, so the next field and
-                    // the Connect button are reachable without dismissing the keyboard first.
+                    // One container for the block: revealed as a unit, all of it clears the keyboard.
                     Column(
                         modifier = Modifier.bringIntoViewRequester(credentialReveal.block),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -936,21 +814,9 @@ fun ConnectScreen(
             }
 
             Spacer(Modifier.height(4.dp))
-            // What this block has to say is a VALUE first ([statusLine], executed in
-            // ConnectStatusTest), because it is also what the effect below has to scroll to: drawn
-            // from one reading of the state and scrolled from another, the two rules drift apart
-            // in silence.
-            // And the Column is composed WHATEVER THE VALUE IS — with nothing in it just as
-            // readily — so within the walk's own column the requester's node is attached and
-            // placed long before there is a sentence to show. Hang the requester off the Text
-            // instead, or wrap this Column in `if (status != null)`, and the node comes into
-            // existence in the very frame the scroll is asked for.
-            // NOT unconditional on the screen, and that is a known, UNMEASURED edge: the three
-            // `return@Column` above (the device-approval panel, the browser panel, the pending
-            // imports listing) hand the whole column away, so this block is not composed at all
-            // while one of them is up. Coming back out of a panel with an error already in state,
-            // the node is composed in the same frame the effect fires in. Left alone on purpose —
-            // the bench decides whether it needs anything.
+            // A value first ([statusLine]), because it is also what the effect below scrolls to:
+            // two readings of the state would drift in silence. The Column is composed whatever
+            // the value is; wrap it in `if (status != null)` and the requester attaches too late.
             val status = statusLine(state, walkStep, ask, handedOver)
             Column(modifier = Modifier.bringIntoViewRequester(statusReveal)) {
                 when (status) {
@@ -968,12 +834,8 @@ fun ConnectScreen(
                     null -> Unit
                 }
             }
-            // THE BENCH DEFECT. At the address step, keyboard up, offline, the whole of the
-            // walk's answer to "Continue" is the sentence above — and the IME covered it (drawn at
-            // y≈1589, keyboard top y≈1500), so from the reader's side nothing happened at all.
-            // Keyed on the value SAID: it fires when the block starts speaking, not on every
-            // recomposition, and not once at first composition when there is nothing to say. The
-            // wheel is deliberately left where it is ([statusMustBeRead]).
+            // The offline answer is the sentence above, and the IME covers it. Keyed on the value
+            // said, not on recomposition.
             LaunchedEffect(status) {
                 if (statusMustBeRead(status)) statusReveal.bringIntoView()
             }
@@ -981,38 +843,22 @@ fun ConnectScreen(
     }
 }
 
-/**
- * What the walk's own sign-in passes where the manual form passes its "Advanced" server field.
- *
- * NOT `server`. That value belongs to the manual form: it is a `rememberSaveable` only that form
- * writes, nothing ever blanks it, and it is not on screen at the credentials step — using it there
- * breaks WYSIWYG on its own. Worse, it decides WHICH host is asked: typed for one address, then
- * carried to another the walk discovered, it sends this sign-in to that host alone, which answers
- * "This server doesn't support OAuth sign-in" — a sentence that is false, under a wheel, with no
- * password field beside it, on a path the reader never chose. The automatic path knows only what
- * the probe found, which is exactly what `reusableOAuth` then hands the flow.
- */
+/** What the walk's own sign-in passes where the manual form passes its "Advanced" server field.
+ *  Not `server`: that is a `rememberSaveable` nothing ever blanks, not on screen at step 2, and it
+ *  decides which host is asked — carried to another address it reports OAuth unsupported, falsely. */
 private const val NO_TYPED_SERVER = ""
 
-/**
- * Coordinates scrolling the credential block above the keyboard: one requester for the whole
- * block, plus the requester of whichever field currently holds focus.
- */
+/** Coordinates scrolling the credential block above the keyboard: one requester for the whole
+ *  block, plus the requester of whichever field currently holds focus. */
 @OptIn(ExperimentalFoundationApi::class)
 private class CredentialBlockReveal {
-    /** The whole credential block (fields + action buttons). */
     val block = BringIntoViewRequester()
 
     /** The focused field's own requester, or null while no credential field has focus. */
     var focused by mutableStateOf<BringIntoViewRequester?>(null)
 
-    /**
-     * Best effort for the block, guarantee for the field: ask for the whole block first, then
-     * re-ask for the focused field. When the block is taller than the space left above the
-     * keyboard the block request can't show everything (the scroller moves it edge-to-edge at
-     * most), so the follow-up request makes the focused field win — it is never left scrolled
-     * out, and the rest of the block shows as much as fits.
-     */
+    /** Best effort for the block, guarantee for the field: the block request cannot always show
+     *  the focused field in full. */
     suspend fun reveal() {
         val field = focused ?: return
         block.bringIntoView()
@@ -1020,10 +866,8 @@ private class CredentialBlockReveal {
     }
 }
 
-/**
- * Marks a credential field: gaining focus reveals the whole credential block (not just this
- * field, which is all Material's built-in bring-into-view guarantees).
- */
+/** Marks a credential field: focus reveals the whole block, not just this field, which is all
+ *  Material's built-in bring-into-view guarantees. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Modifier.credentialField(reveal: CredentialBlockReveal): Modifier {
@@ -1034,9 +878,7 @@ private fun Modifier.credentialField(reveal: CredentialBlockReveal): Modifier {
         .onFocusEvent { focusState ->
             if (focusState.isFocused) {
                 reveal.focused = own
-                // Immediate reveal for the keyboard-already-open case (moving focus between
-                // fields); the first opening is handled by the IME-inset watcher, which re-runs
-                // the reveal against the final keyboard-shrunk viewport.
+                // For the keyboard-already-open case; the first opening is the inset watcher's.
                 scope.launch { reveal.reveal() }
             } else if (reveal.focused === own) {
                 reveal.focused = null
@@ -1044,7 +886,6 @@ private fun Modifier.credentialField(reveal: CredentialBlockReveal): Modifier {
         }
 }
 
-/** The optional label for the account being added — the same field at every step that shows it. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AccountNameField(value: String, onValue: (String) -> Unit, reveal: CredentialBlockReveal) {
@@ -1060,13 +901,8 @@ private fun AccountNameField(value: String, onValue: (String) -> Unit, reveal: C
     )
 }
 
-/**
- * The address field — one implementation for the address step and for the manual form, so the
- * malformed-address warning and the discovery trigger cannot drift apart between them.
- *
- * [onFocusLost] fires on the FALLING edge of focus (true only while the field WAS focused), so
- * "done typing, moved on" is what may launch discovery, not the initial unfocused state.
- */
+/** The address field — one implementation for the address step and the manual form, so the warning
+ *  and the discovery trigger cannot drift. [onFocusLost] fires on the falling edge of focus. */
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun EmailField(
@@ -1095,8 +931,7 @@ private fun EmailField(
         keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
         modifier = Modifier.fillMaxWidth().credentialField(reveal)
             .onFocusChanged { focusState ->
-                // Leaving the field with an address typed is the moment discovery may set out;
-                // the ViewModel's guard decides whether it actually does.
+                // The moment discovery may set out; the ViewModel's guard decides whether it does.
                 if (hadFocus && !focusState.isFocused) onFocusLost()
                 hadFocus = focusState.isFocused
             }
@@ -1143,7 +978,6 @@ private fun SecretField(
     )
 }
 
-/** Device-flow approval screen: show the user code + a button to open the browser. */
 @Composable
 private fun DeviceApprovalPanel(state: ConnectState.AwaitingApproval, onCancel: () -> Unit) {
     Spacer(Modifier.height(8.dp))
@@ -1154,19 +988,13 @@ private fun DeviceApprovalPanel(state: ConnectState.AwaitingApproval, onCancel: 
     )
 }
 
-/**
- * Authorization-code panel (#55): open the sign-in page, then wait for the browser to come back.
- *
- * No user code to show and nothing to copy — the whole exchange travels in the URL — so this is
- * the device panel minus the code, plus the one thing that flow cannot fail at: an image with no
- * browser installed at all.
- */
+/** Authorization-code panel (#55): open the sign-in page, then wait for the browser to come back.
+ *  Nothing to show or copy — the exchange travels in the URL — plus an image for no browser. */
 @Composable
 private fun BrowserAuthorizationPanel(state: ConnectState.AwaitingBrowser, onCancel: () -> Unit) {
     val context = LocalContext.current
-    // Two browsers for one authorization is the device flow's D2 defect over again, and worse
-    // here: each window carries its own request, the user finishes in one, and the other comes
-    // back with a state that is no longer the pending one.
+    // Two browsers for one authorization: each window carries its own request, the user finishes
+    // in one, and the other comes back with a state that is no longer the pending one.
     val leaveOnce = rememberLeaveOnce()
     var noBrowser by remember { mutableStateOf(false) }
     Spacer(Modifier.height(8.dp))
@@ -1177,10 +1005,8 @@ private fun BrowserAuthorizationPanel(state: ConnectState.AwaitingBrowser, onCan
     Button(
         onClick = {
             leaveOnce {
-                // The launch REPORTS back instead of swallowing its exception: a build with no
-                // browser (a stripped ROM, a work profile with no browser) must say so, not offer
-                // a button that silently does nothing — and must not crash on
-                // ActivityNotFoundException either.
+                // Reports back rather than swallowing: a build with no browser must say so, and
+                // must not crash on ActivityNotFoundException either.
                 val opened = runCatching {
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW, Uri.parse(state.authorizationUrl))
@@ -1211,8 +1037,7 @@ private fun BrowserAuthorizationPanel(state: ConnectState.AwaitingBrowser, onCan
     }
 }
 
-/** The shared device-flow approval body (code + open-browser + waiting + cancel), reused by both the
- *  add-account and imported-account OAuth flows. */
+/** The shared device-flow approval body, reused by the add-account and imported-account flows. */
 @Composable
 private fun DeviceApprovalContent(
     userCode: String,
@@ -1224,8 +1049,7 @@ private fun DeviceApprovalContent(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val copiedMsg = stringResource(R.string.connect_oauth_code_copied)
-    // Two browsers for one device-flow approval is worse than most double-opens: the user finishes
-    // in one of the two windows and is left staring at the other, which will never complete.
+    // Two browsers for one approval: she finishes in one and stares at the other for ever.
     val leaveOnce = rememberLeaveOnce()
     Text(
         stringResource(R.string.connect_oauth_step1),
@@ -1249,9 +1073,8 @@ private fun DeviceApprovalContent(
     Button(
         onClick = {
             val approval = verificationUriComplete ?: verificationUri
-            // Computed OUTSIDE the guard on purpose — the hand-off itself stays inside it, which
-            // is what NavHostSourceRulesTest holds. A hint the server already wrote wins, and an
-            // unreadable URL comes back untouched: see withLoginHint.
+            // Computed outside the guard on purpose — the hand-off stays inside it, which is what
+            // NavHostSourceRulesTest holds. A hint the server wrote wins: see withLoginHint.
             val target = if (loginHint.isNullOrBlank()) approval else withLoginHint(approval, loginHint)
             leaveOnce {
                 runCatching {
@@ -1274,8 +1097,8 @@ private fun DeviceApprovalContent(
     }
 }
 
-/** The inline sign-in for the one imported account the user tapped: a live device-flow, an OAuth
- *  sign-in button, or a password field (basic-auth or a chosen app-password fallback). */
+/** The inline sign-in for the imported account tapped: a live device-flow, an OAuth button, or a
+ *  password field (basic-auth or a chosen app-password fallback). */
 @Composable
 private fun ImportAccountSignIn(target: ConnectViewModel.SignInTarget, viewModel: ConnectViewModel) {
     val approval = target.approval
@@ -1295,10 +1118,8 @@ private fun ImportAccountSignIn(target: ConnectViewModel.SignInTarget, viewModel
     }
 }
 
-/**
- * Post-import step for an OAuth account (Microsoft): a browser sign-in activates it. Unknown XOAUTH2
- * hosts can't be signed into automatically, so only the app-password fallback + back are offered.
- */
+/** Post-import step for an OAuth account (Microsoft). Unknown XOAUTH2 hosts cannot be signed in
+ *  automatically, so only the app-password fallback is offered. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun ImportOAuthPanel(target: ConnectViewModel.SignInTarget, viewModel: ConnectViewModel) {
@@ -1363,10 +1184,8 @@ private fun ImportOAuthPanel(target: ConnectViewModel.SignInTarget, viewModel: C
     }
 }
 
-/**
- * Post-import step: ask for the selected imported account's password, verify it against the server,
- * and save it. On success the account drops off the list; "Back to list" returns without signing in.
- */
+/** Post-import step: ask for the account's password, verify it and save it. On success the account
+ *  drops off the list; "Back to list" returns without signing in. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: ConnectViewModel) {
@@ -1378,9 +1197,8 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
         stringResource(R.string.connect_import_signin_title),
         style = MaterialTheme.typography.headlineSmall,
     )
-    // Read-only email field: shows which account this is AND gives password managers a username
-    // node so they match the right credential (matching is by username + domain, not the password
-    // field alone). The account is fixed, so an autofilled username is ignored.
+    // Read-only: says which account this is, and gives password managers the username node they
+    // match on (username + domain).
     OutlinedTextField(
         value = account.email,
         onValueChange = {},
@@ -1391,8 +1209,8 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
             listOf(AutofillType.EmailAddress, AutofillType.Username),
         ) {},
     )
-    // A forced fallback means this account imported as OAuth but sign-in failed/was declined:
-    // point the user at creating a Microsoft app password to paste below.
+    // A forced fallback means the OAuth sign-in failed or was declined: point at a Microsoft app
+    // password to paste below.
     if (target.forcePassword) {
         Text(
             stringResource(R.string.connect_import_app_password_note),
@@ -1441,16 +1259,9 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
     }
 }
 
-/**
- * Keeps the quick-setup selection across a rotation or a process death, like the separate fields it
- * replaced. Every member is a String, a Boolean or an enum name, so the list is plainly saveable.
- */
-/**
- * Keeps the step the walk reached across a rotation AND a process death — by name, so a reordered
- * enum cannot resurrect a different step from an old bundle. It is not enough on its own: the
- * verdict the credentials step needs does NOT survive process death, which is why what is drawn is
- * [stepToRender]'s answer.
- */
+/** Keeps the step the walk reached across a rotation and a process death — by name, so a reordered
+ *  enum cannot resurrect a different step from an old bundle. Not enough on its own: the verdict
+ *  step 2 needs does not survive ([stepToRender]). */
 private val ConnectStepSaver = listSaver<ConnectStep, String>(
     save = { listOf(it.name) },
     restore = { ConnectStep.valueOf(it[0]) },
@@ -1471,16 +1282,15 @@ private val PresetFormSaver = listSaver<PresetForm, String>(
             it.imapHost, it.imapPort, it.imapSecurity.name,
             it.smtpHost, it.smtpPort, it.smtpSecurity.name,
             it.appPasswordUrl.orEmpty(),
-            // Saved WITH the fields it is about: the host values survive process death, so the
-            // one fact that says who put them there has to survive with them, or they come back
-            // indistinguishable from hand-typed ones and jam the cascade for good.
+            // Saved with the fields it is about: the host values survive process death, so the fact
+            // that says who put them there must survive too, or the cascade jams for good.
             it.discoveredFor.orEmpty(),
         )
     },
     restore = {
         PresetForm(
-            // No provider name and no help page are ever the empty string, so "" stands in for
-            // "none" — the saved list holds no nulls.
+            // No provider name or help page is ever "", so "" stands in for "none": the saved list
+            // holds no nulls.
             selected = it[0].ifEmpty { null },
             oauth = it[1] == "true",
             imapHost = it[2],

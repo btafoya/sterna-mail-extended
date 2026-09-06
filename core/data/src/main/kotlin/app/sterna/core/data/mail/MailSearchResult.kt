@@ -2,36 +2,17 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.jmap.model.Email
 
-/**
- * What a search answered.
- *
- * [complete] is false when the search stopped before it could see everything — a full page (the
- * server had more than the cap), an IMAP attachment scan that gave up on its scan cap, or an
- * account that failed while others answered. The screen must then say "at least N" instead of
- * presenting [emails].size as a total: a truncated search counted as a total is a lie the user
- * has no way to spot.
- */
+/** What a search answered. [complete] is false when it stopped before seeing everything — a full
+ *  page, a scan cap, a failed account — and the screen then says "at least N", never a total. */
 data class MailSearchResult(
     val emails: List<Email>,
     val complete: Boolean = true,
 )
 
-/**
- * Merge the per-account answers of a unified search into one capped list.
- *
- * FAIR by account, then sorted newest-first. Merging everything and keeping the newest [limit]
- * silently dropped whole accounts: an account whose mail is all older than another's [limit]
- * newest hits contributed nothing at all, so a message the user could find by searching that
- * account alone was simply absent from the unified search — with no sign that anything had been
- * cut. Taking one hit per account per round instead guarantees every account that answered is
- * represented before any account gets a second share.
- *
- * De-duplicated on (accountId, id): a same-server sibling account can hold the same JMAP id, and
- * those are two different messages that must both be listed.
- *
- * [MailSearchResult.complete] is false as soon as anything was left out — an account that failed
- * or was truncated server-side (its own flag), or hits this cap dropped.
- */
+/** Merge the per-account answers of a unified search into one capped list: fair by account, then
+ *  newest-first. Keeping the newest [limit] of everything dropped whole accounts in silence, so one
+ *  hit per account per round is taken instead. De-duplicated on (accountId, id): a same-server
+ *  sibling can hold the same JMAP id, and those are two different messages. */
 internal fun mergeAccountSearches(perAccount: List<MailSearchResult>, limit: Int): MailSearchResult {
     // receivedAt is an ISO-8601 UTC string, so lexicographic sort == chronological.
     val lists = perAccount.map { result ->

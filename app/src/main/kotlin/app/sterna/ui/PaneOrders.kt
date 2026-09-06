@@ -44,7 +44,6 @@ object PaneOrders {
         return if (onTheList) EmailOpenOrder.ShowInPane else EmailOpenOrder.Navigate
     }
 
-    /** The route's own name, without its arguments: `message/{emailId}?a={a}` is `message`. */
     private fun destination(route: String?): String? =
         route?.takeWhile { it != '/' && it != '?' }
 

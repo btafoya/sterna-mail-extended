@@ -4,16 +4,8 @@ import app.sterna.core.data.text.htmlToText
 import app.sterna.core.data.text.looksLikeHtml
 import kotlinx.serialization.Serializable
 
-/**
- * A sending identity: a "from" name + address, with its own signature. An account
- * can have several (e.g. a work and a personal alias). The first is the default.
- *
- * The signature is stored twice: [signature] is the plain text the composer inserts into the body
- * and the user edits there, [signatureHtml] the optional imported HTML sent in the html alternative
- * as long as that inserted block comes back untouched. Serialized as JSON by `AccountStore` (not a
- * Room entity), so the added field with a default value reads back old stored accounts unchanged —
- * no migration.
- */
+/** A sending identity: "from" name + address + signature. Stored twice — [signature] plain
+ *  text, [signatureHtml] optional HTML — as JSON (not Room), so new fields default cleanly. */
 @Serializable
 data class StoredIdentity(
     val id: String,
@@ -26,12 +18,8 @@ data class StoredIdentity(
     /** "Name <email>" or just the address when unnamed. */
     fun display(): String = if (name.isBlank()) email else "$name <$email>"
 
-    /**
-     * Split a legacy signature that holds raw HTML in the plain-text [signature] field (what the
-     * pre-1.3.13 "Import HTML" button wrote): the HTML moves to [signatureHtml] and [signature]
-     * becomes its flattened text, so the composer never shows tag soup. Anything already split, or
-     * a genuinely plain signature, is returned unchanged — the split is idempotent and lossless.
-     */
+    /** Splits a legacy signature holding raw HTML in [signature] (pre-1.3.13 "Import HTML")
+     *  into [signatureHtml] + flattened text. Idempotent otherwise. */
     fun withSplitSignature(): StoredIdentity =
         if (signatureHtml.isBlank() && looksLikeHtml(signature)) {
             copy(signature = htmlToText(signature), signatureHtml = signature)
@@ -40,21 +28,7 @@ data class StoredIdentity(
         }
 }
 
-/**
- * Every address that IS the user on one account: what it can send as, plus the login it
- * authenticates with.
- *
- * A plain function, and here rather than inside the two ViewModels that need it, for one reason:
- * it is the DATA a refusal is decided on ([app.sterna.core.data.filter.blockableSender] asks "is
- * this address one of these?"), and a decision executed by a test over a list nobody builds
- * proves only that the decision is right. Changing `it.email` to `it.name` one line inside a
- * ViewModel leaves every such test green and quietly empties the list of everything but the
- * login — which is how a rule against one's own alias becomes offerable again.
- *
- * [username] is added even when the identities already name it: a linked sub-account resolves its
- * identities through its LOGIN (issue #31), and an account whose identity list has not synced yet
- * has only its login to go on. Duplicates cost nothing here — every caller asks "is X in this
- * list", never "how many".
- */
+/** Every address that IS the user on this account, plus its login. [username] is added even
+ *  when identities name it: a linked sub-account resolves identities through its LOGIN (#31). */
 fun accountAddresses(identities: List<StoredIdentity>, username: String?): List<String> =
     identities.map { it.email } + listOfNotNull(username)

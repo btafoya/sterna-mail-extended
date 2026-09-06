@@ -4,41 +4,14 @@ import app.sterna.core.data.text.htmlEscape
 import app.sterna.ui.compose.BLOCKQUOTE_TAG
 
 /**
- * Fold the TRAILING quoted history of a rich HTML body behind a native `<details>`, so a long reply
- * chain opens on the new message instead of on the history the reader already read.
- *
- * `<details>`/`<summary>` is markup, not behaviour: the WebView opens it on a tap ALL BY ITSELF.
- * That is the whole reason this is not a Compose affordance or a JS toggle — it leaves the reader's
- * `javaScriptEnabled = false` and its `default-src 'none'` CSP exactly as they are, and adds no
- * channel from the message to the app.
- * The flip side, accepted deliberately: the open/closed state lives in the DOM only. Kotlin
- * cannot read it, cannot set it, and cannot persist it — so the fold is closed on every open, is
- * remembered nowhere, and has no setting. There is nothing here to remember it WITH.
- *
- * Depth is read with [BLOCKQUOTE_TAG], the counter the reply quoter already uses, so "level" means
- * the same thing on both sides of the app. NOT `htmlToQuotedText`, which flattens to text: the
- * reader needs the HTML back.
- *
- * **ONE quote is folded — the last top-level one, and only when nothing the reader can see comes
- * after it.** That is what K-9 and Gmail both do, and the two shapes it deliberately leaves alone
- * are the reason:
- *
- *  - an INTERLEAVED reply (`question / answer / question / answer`, the house style of technical
- *    mailing lists) would otherwise fold every question away and leave a column of answers to
- *    nothing;
- *  - a BOTTOM-POSTED reply, where the history comes first, folds nothing: hiding the top of the
- *    page and leaving the bottom is not what any reference client does.
- *
- * Three guards, and they all end the same way — return [html] untouched:
- *
- *  1. a blank [label] would render an empty `<summary>`: a button with no word in it, which no
- *     screen reader can announce;
- *  2. nothing the reader can SEE before that quote (a forwarded bulletin quoted whole) would fold
- *     the ENTIRE message away and show a bare button on an empty page;
- *  3. markup this one-pass scan cannot balance — depth going negative, or not back to zero at the
- *     end. Losing body is the only unacceptable outcome here; not folding is not one. The result
- *     is always the input with `<details …><summary>…</summary>` and `</details>` INSERTED around
- *     one whole span, never a character of it removed or rewritten.
+ * Fold the TRAILING quoted history of a rich HTML body behind a native `<details>`.
+ * `<details>`/`<summary>` is markup, not behaviour: the WebView opens it on a tap by itself, so the
+ * reader keeps `javaScriptEnabled = false` and its CSP. The flip side: the open/closed state lives
+ * in the DOM only, so the fold is closed on every open and has no setting.
+ * ONE quote is folded — the last top-level one, at [BLOCKQUOTE_TAG]'s depth, and only when nothing
+ * visible follows it, as K-9 and Gmail do. Three guards return [html] untouched: a blank [label],
+ * nothing visible before the quote, and markup this one-pass scan cannot balance. Losing body is
+ * the only unacceptable outcome; not folding is not one.
  */
 internal fun foldTopLevelQuotes(html: String, label: String): String {
     // Guard 1 — a mute button.
@@ -59,10 +32,9 @@ internal fun foldTopLevelQuotes(html: String, label: String): String {
                 openedAt = -1
             }
         } else {
-            // `depth == 0` is what makes the span a TOP-LEVEL one, and it is the whole rule.
-            // Without it `openedAt` walks inwards to the innermost quote while the span still ends
-            // on the outermost close: the <details> would then open INSIDE the history and the
-            // first levels of it would stay unfolded on screen — the reported defect, intact.
+            // `depth == 0` is what makes the span TOP-LEVEL. Without it `openedAt` walks inwards to
+            // the innermost quote while the span still ends on the outermost close, so the <details>
+            // opens INSIDE the history and its first levels stay unfolded.
             if (depth == 0) openedAt = tag.range.first
             depth += 1
         }
@@ -87,17 +59,12 @@ internal fun foldTopLevelQuotes(html: String, label: String): String {
 /**
  * Whether [fragment] holds anything the reader would SEE — the test behind guard 2.
  *
- * The markup that CARRIES no text to the screen is dropped before the tags are stripped, and
- * that is the point of this function rather than a bare `replace(Regex("<[^>]*>"), "")`: a mail
- * whose whole body is a forwarded quote almost always arrives as a complete document, and the
- * `body{margin:0}` sitting in its `<head><style>` is text by any regex — enough to satisfy guard 2
- * and fold the only thing on the page away. What the reader would then see is a button on a blank
- * screen.
+ * Markup that carries no text to the screen is dropped before the tags are stripped, which a bare
+ * `replace(Regex("<[^>]*>"), "")` would not do: a body that is one forwarded quote usually arrives
+ * as a complete document, and `body{margin:0}` in its `<head><style>` is text to any regex.
  *
- * An `<img>` deliberately does NOT count. A remote image is BLOCKED by default in this reader,
- * so `<img src="https://…/pixel.gif">` above a quote is nothing at all on screen — and the cost of
- * getting this wrong is asymmetric: counting it wrongly empties the page, ignoring it wrongly only
- * costs a fold, which this branch has already declared an acceptable outcome.
+ * An `<img>` deliberately does not count: a remote image is blocked by default, and the cost is
+ * asymmetric — counting it wrongly empties the page, ignoring it wrongly only costs a fold.
  */
 private fun hasVisibleContent(fragment: String): Boolean =
     fragment

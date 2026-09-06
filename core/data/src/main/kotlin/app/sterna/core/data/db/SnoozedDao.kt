@@ -27,12 +27,11 @@ interface SnoozedDao {
 
     /**
      * The snoozed messages with the headers the "Snoozed" screen shows. A LEFT JOIN, so a row
-     * whose email has since fallen out of the short cache window still lists (with a blank
-     * subject/sender) and can still be cancelled — the snooze itself is what we track.
+     * whose email has since fallen out of the cache window still lists (blank subject/sender)
+     * and can still be cancelled.
      *
      * Joined on the account as well as the id: email ids are unique only within their account
-     * (issue #31), so an id-only join would pair a snooze with a sibling account's message —
-     * and emit one duplicate list row per colliding account.
+     * (#31), so an id-only join would pair a snooze with a sibling account's message.
      */
     @Query(
         """

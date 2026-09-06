@@ -6,41 +6,30 @@ package app.sterna.core.imap
  */
 object PgpMime {
 
-    /**
-     * RFC 3156 §5: the signature is computed over the signed entity in canonical
-     * form — CRLF line endings. (Sterna's own entities are base64/7-bit clean, so
-     * no trailing-space concerns.)
-     *
-     * **The bare CR is left EXACTLY as it is, and that is deliberate.** `"\r\r\n"` maps to
-     * `"\r\n"` and back to `"\r\r\n"`: an entity signed before `dee4a346` carries such octets
-     * INSIDE the bytes the signature was computed over, and straightening them would deliver a
-     * message whose signature no longer verifies — "invalid signature" at the recipient. A bare LF
-     * is the opposite kind of error: it is refused by the relay, so nothing wrong is delivered.
-     * (And a bare CR is not what `smtpd_forbid_bare_newline` rejects.)
-     */
+        /**
+         * RFC 3156 §5: the signature is computed over the signed entity in canonical form — CRLF line
+         * endings. The bare CR is left EXACTLY as it is, deliberately: `"\r\r\n"` maps to `"\r\n"`
+         * and back, and an entity signed before `dee4a346` carries such octets INSIDE the bytes the
+         * signature covers, so straightening them delivers a message whose signature no longer
+         * verifies. A bare LF is the opposite kind of error — the relay refuses it, so nothing wrong
+         * is delivered.
+         */
     fun canonicalize(entity: String): String =
         entity.replace("\r\n", "\n").replace("\n", "\r\n")
 
-    /**
-     * The exact bytes to hand the signer for a multipart/signed: canonical CRLF
-     * form WITHOUT a trailing CRLF — per RFC 2046 §5.1.1 the CRLF that precedes
-     * the boundary delimiter belongs to the boundary, so verifiers extract the
-     * part content without it. Pass the SAME string to [wrapSigned].
-     */
+        /** The exact bytes to hand the signer for a multipart/signed: canonical CRLF form WITHOUT a
+         *  trailing CRLF — per RFC 2046 §5.1.1 the CRLF preceding the boundary belongs to the boundary,
+         *  so verifiers extract the part content without it. Pass the SAME string to [wrapSigned]. */
     fun signablePayload(entity: String): String =
         canonicalize(entity).removeSuffix("\r\n")
 
-    /**
-     * Wrap a MIME entity + its detached signature as multipart/signed
-     * (protocol="application/pgp-signature"). [innerEntity] must be EXACTLY the
-     * string that was signed (see [signablePayload]) — the wrapper adds the CRLF
-     * that separates it from the boundary.
-     *
-     * [armoredSignature] comes from the OpenPGP provider (OpenKeychain / BouncyCastle's
-     * `ArmoredOutputStream`), which separates its lines with **bare LF**. This used to be spliced
-     * in verbatim, on the unwritten assumption that a provider armor is CRLF — guaranteed by
-     * nobody. It is canonicalised here so the assumption is now enforced instead of hoped for.
-     */
+        /**
+         * Wrap a MIME entity + its detached signature as multipart/signed. [innerEntity] must be
+         * EXACTLY the string that was signed (see [signablePayload]) — the wrapper adds the CRLF that
+         * separates it from the boundary. [armoredSignature] comes from the OpenPGP provider, which
+         * separates its lines with BARE LF; it is canonicalised here rather than spliced in on the
+         * unwritten assumption that a provider armor is CRLF.
+         */
     fun wrapSigned(
         innerEntity: String,
         armoredSignature: ByteArray,
@@ -62,13 +51,9 @@ object PgpMime {
         append("--$boundary--\r\n")
     }
 
-    /**
-     * Wrap armored ciphertext as multipart/encrypted
-     * (protocol="application/pgp-encrypted"): a version part + the payload.
-     *
-     * [armoredCiphertext] is provider output with bare-LF line endings, canonicalised here for
-     * the same reason as in [wrapSigned].
-     */
+        /** Wrap armored ciphertext as multipart/encrypted (protocol="application/pgp-encrypted"): a
+         * version part + the payload. [armoredCiphertext] is provider output with bare-LF line
+         *  endings, canonicalised here for the same reason as in [wrapSigned]. */
     fun wrapEncrypted(armoredCiphertext: ByteArray, boundary: String): String = buildString {
         append("Content-Type: multipart/encrypted;\r\n")
         append(" protocol=\"application/pgp-encrypted\"; boundary=\"${sanitize(boundary)}\"\r\n")

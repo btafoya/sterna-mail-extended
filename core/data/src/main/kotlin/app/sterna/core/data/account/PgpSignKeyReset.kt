@@ -1,26 +1,12 @@
 package app.sterna.core.data.account
 
 /**
- * Every account's OpenPGP signing key dropped, and nothing else touched.
+ * Drops every account's OpenPGP signing key id and public key. A key id names a key inside
+ * ONE provider's keyring, so carrying it across a switch would point at a key the new one has
+ * never heard of (#151).
  *
- * A key id is a fact about ONE provider's keyring: OpenKeychain's `0x1A2B…` names no key inside
- * PGPony. Carrying it across a provider switch would print, under "Your Key ID", sixteen hex digits
- * the new app has never heard of — and the first signature attempt would fail on a key the screen
- * says is configured (#151).
- *
- * [StoredAccount.pgpEnabled] and [StoredAccount.pgpEncryptByDefault] are deliberately LEFT ALONE.
- * With the key cleared the account screen already reads "No key selected" next to its Choose key
- * button, which is the true state; turning PGP off as well would silently undo a setting the user
- * made, and re-enabling it is not something an app should decide on their behalf. It is what K-9
- * does with `NO_OPENPGP_KEY`.
- *
- * [StoredAccount.pgpPublicKey] goes WITH the key id, in the same gesture: it is a copy of the
- * bytes of a key in the keyring being left. Kept behind, the account would go on announcing that
- * key while the screen shows no key at all — and the next key chosen in the new app would inherit
- * someone else's public half.
- *
- * Lives outside [AccountStore] because nothing in this module can build one (it needs a `Context`
- * and the Keystore, and there is no Robolectric here) — so this is the part a JVM test can EXECUTE.
+ * [pgpEnabled]/[pgpEncryptByDefault] are left alone: clearing them too would silently undo a
+ * separate user choice — same call K-9 makes with `NO_OPENPGP_KEY`.
  */
 fun withoutPgpSignKeys(accounts: List<StoredAccount>): List<StoredAccount> =
     accounts.map { it.copy(pgpSignKeyId = 0L, pgpPublicKey = "") }

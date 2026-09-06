@@ -5,30 +5,17 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/**
- * The advanced-search criteria an IMAP `SEARCH` can express server-side (RFC 3501 §6.4.4).
- * The mirror of the protocol-neutral `SearchQuery`, minus what IMAP has no key for —
- * "has an attachment" is filtered locally from BODYSTRUCTURE by [searchFolders].
- *
- * [recipient] matches `To` OR `Cc`: a message addressed to an alias in copy was received at
- * that address just as much as one in To.
- *
- * [flagged] IS here, unlike "has an attachment": `FLAGGED` is a standard search key, so the
- * server answers it and no message has to be fetched to find out. Passing it through the local
- * filter instead would have cost an envelope FETCH per candidate, a scan cap and a truncated
- * count, for a question the server answers in one word.
- *
- * [afterMillis]/[beforeMillis] are epoch-millis bounds; IMAP compares them against the
- * server's INTERNALDATE with DAY granularity, so they are rendered as calendar days (UTC).
- *
- * **No `HEADER` key here, and none is to be added back.** The draft de-duplication of #95 used
- * one (`HEADER "Message-ID"`) and it does not work: Stalwart answers an EMPTY `* SEARCH` to every
- * shape of that key — naked value, bracketed, substring, on a delivered message — while answering
- * `HEADER "Subject"` and `HEADER "To"` perfectly. An empty answer cannot be told apart from "there
- * is nothing there", so the guard appended a second copy of text the server already held. That
- * question is now asked with `UID SEARCH ALL` plus an envelope read ([ImapSession.newestUids]),
- * `ALL` being the one key every server implements.
- */
+    /**
+     * The advanced-search criteria an IMAP `SEARCH` can express server-side (RFC 3501 §6.4.4). The
+     * mirror of the protocol-neutral `SearchQuery`, minus what IMAP has no key for — "has an
+     * attachment" is filtered locally from BODYSTRUCTURE by [searchFolders]. [recipient] matches `To`
+     * OR `Cc`; [afterMillis]/[beforeMillis] are epoch-millis bounds IMAP compares against INTERNALDATE
+     * with DAY granularity.
+     *
+     * No `HEADER` key here, and none is to be added back: Stalwart answers an EMPTY `* SEARCH` to
+     * every shape of `HEADER "Message-ID"` while answering `HEADER "Subject"` perfectly, and an empty
+     * answer cannot be told from "there is nothing there" (#95, now asked with `UID SEARCH ALL`).
+     */
 data class ImapSearchCriteria(
     val text: String = "",
     val from: String = "",
@@ -39,10 +26,8 @@ data class ImapSearchCriteria(
     val beforeMillis: Long? = null,
 )
 
-/**
- * A built `SEARCH` argument list: the search keys, plus whether any value carries a
- * non-ASCII character and therefore needs a `CHARSET UTF-8` declaration.
- */
+    /** A built `SEARCH` argument list: the search keys, plus whether any value carries a non-ASCII
+     *  character and therefore needs a `CHARSET UTF-8` declaration. */
 data class ImapSearchCommand(val keys: String, val needsUtf8: Boolean) {
     /** The arguments as they go on the wire, after `UID SEARCH `. */
     fun arguments(declareUtf8: Boolean = needsUtf8): String =
@@ -52,28 +37,16 @@ data class ImapSearchCommand(val keys: String, val needsUtf8: Boolean) {
 /** IMAP date-text: `1-Jun-2026`. English month names, never the device locale's. */
 private val IMAP_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("d-MMM-uuuu", Locale.ENGLISH)
 
-/**
- * Build the `UID SEARCH` key list for [criteria] — pure, so the exact bytes we put on the wire
- * are unit-testable (there is no IMAP server in the test bench).
- *
- * Notes on the shape of the command:
- * - Keys separated by a space are ANDed by the server; there is no explicit AND key.
- * - `OR` is PREFIX notation and takes exactly two keys, hence `OR TO "x" CC "x"`, which then
- *   sits in the AND chain like any other key.
- * - A blank free-text term emits NO `TEXT` key at all. `TEXT ""` matches every message, which
- *   is how "advanced filters only" used to return the whole inbox as if it were a result set.
- * - `SINCE`/`BEFORE` compare INTERNALDATE by calendar day. `BEFORE d` is exclusive, so the
- *   upper bound is rendered as the day AFTER the requested one to keep the picked day itself
- *   in range (the UI passes end-of-day millis). Day granularity makes the bounds slightly
- *   generous rather than slightly lossy — the wrong direction would silently hide messages.
- * - Every value goes through [quote], which rejects CR/LF (no command injection through a
- *   search field).
- * - With no key at all (an attachment-only search) the list is `ALL`: an empty key list is a
- *   syntax error, and the local attachment filter narrows it down afterwards.
- * - `FLAGGED` takes no argument and is the cheapest key there is (a flag test, no header or body
- *   to open), so it goes FIRST: servers evaluate left to right, and it is the key most likely to
- *   throw away the bulk of the folder before anything expensive is read.
- */
+    /**
+     * Build the `UID SEARCH` key list for [criteria] — pure, so the exact bytes we put on the wire are
+     * unit-testable (there is no IMAP server in the test bench). Keys separated by a space are ANDed;
+     * `OR` is PREFIX notation over exactly two keys. A blank free-text term emits NO `TEXT` key at all
+     * — `TEXT ""` matches every message. `BEFORE d` is exclusive, so the upper bound is rendered as
+     * the day AFTER: day granularity makes the bounds generous rather than lossy. Every value goes
+     * through [quote], which rejects CR/LF. With no key at all the list is `ALL`, an empty key list
+     * being a syntax error. `FLAGGED` goes FIRST, being the cheapest key there is and the one most
+     * likely to throw away the bulk of the folder before anything expensive is read.
+     */
 fun buildImapSearch(criteria: ImapSearchCriteria): ImapSearchCommand {
     val keys = mutableListOf<String>()
     val from = criteria.from.trim()
@@ -98,75 +71,45 @@ fun buildImapSearch(criteria: ImapSearchCriteria): ImapSearchCommand {
 private fun imapDay(millis: Long, plusDays: Long = 0): String =
     Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().plusDays(plusDays).format(IMAP_DATE)
 
-/**
- * One folder's matches. [mailbox] is the folder the UIDs belong to — UIDs mean nothing without it.
- *
- * [incomplete] says THIS FOLDER'S answer is not whole, so anything counting these messages must
- * say so rather than present a partial answer as a total. Two causes, deliberately one flag:
- * the caller downstream does the same thing with either.
- *  - the attachment filter's scan cap cut the walk short with candidates left over;
- *  - the folder could not be searched at all (SELECT or SEARCH refused) and was skipped.
- *
- * The second case is why a skipped folder still produces an entry, with no messages in it: a
- * folder that vanishes from the answer without a trace is indistinguishable, on screen, from a
- * folder that simply held no match — and that is how a search which never ran ends up under
- * "No results" as if it were a fact.
- */
+    /**
+     * One folder's matches. [mailbox] is the folder the UIDs belong to — UIDs mean nothing without it.
+     * [incomplete] says THIS FOLDER'S answer is not whole, from either cause (the attachment filter's
+     * scan cap, or a folder that could not be searched at all), the caller doing the same thing with
+     * both. A skipped folder still produces an entry with no messages in it: one that vanishes without
+     * a trace is indistinguishable on screen from one that held no match.
+     */
 data class ImapFolderHits(
     val mailbox: String,
     val messages: List<ImapMessage>,
     val incomplete: Boolean = false,
-    /**
-     * The folder's UIDVALIDITY as the SELECT of this walk stated it, or 0 when it stated none.
-     *
-     * Reported, not acted on — nothing here refuses anything, and this file's rule is unchanged
-     * (see `UidValidityTest`, "a server announcing no numbering is not turned into a refusal").
-     * It is carried because the walk had already asked: `select()` returns it and this walk used
-     * to DROP it, so a folder reached only by a server-side search left no trace of its numbering
-     * anywhere. The caller then had nothing to freeze, and acting on a hit — archiving it, moving
-     * it, deleting it — was refused on a perfectly healthy server (Codeberg #99). Recording it is
-     * `ImapMailService.reconcileNumbering`'s job, one layer up.
-     */
+        /**
+         * The folder's UIDVALIDITY as the SELECT of this walk stated it, or 0 when it stated none.
+         * Reported, not acted on. It is carried because the walk had already asked and used to DROP
+         * it, so a folder reached only by a server-side search left no trace of its numbering, the
+         * caller had nothing to freeze, and acting on a hit was refused on a healthy server (#99).
+         */
     val uidValidity: Long = 0L,
 )
 
 /** How many UIDs are fetched per `UID FETCH` while walking candidates for the attachment filter. */
 private const val SEARCH_FETCH_BATCH = 50
 
-/**
- * Ceiling on how many candidate messages one folder is fetched-and-filtered for when the
- * attachment filter is on. Without it a broad query on a huge folder would pull every matching
- * envelope over a mobile link looking for the few with a file attached.
- */
+    /** Ceiling on how many candidate messages one folder is fetched-and-filtered for when the
+     *  attachment filter is on. Without it a broad query on a huge folder would pull every matching
+     *  envelope over a mobile link looking for the few with a file attached. */
 private const val ATTACHMENT_SCAN_CAP = 1_000
 
-/**
- * Search [mailboxes] one after another on THIS session and return each folder's matches,
- * newest UID first, at most [limit] per folder.
- *
- * IMAP searches the SELECTed mailbox and only that one, so covering an account means
- * SELECT + UID SEARCH per folder — done on the one pooled connection, not a new one each time.
- * A folder that fails (gone, no permission, server hiccup, a search key the server refuses) is
- * reported to [onFolderError] and skipped: one bad folder must not sink the whole search. It is
- * skipped LOUDLY though — it comes back as an empty [ImapFolderHits] marked
- * [ImapFolderHits.incomplete], because the log line alone left the caller believing it had
- * searched the folder and found nothing there. A server that refuses the whole command (an
- * exotic one answering NO to a key it does not implement) fails EVERY folder that way, and the
- * result was then an empty list calling itself complete: the screen stated "No results" about a
- * search that never happened.
- *
- * When [requireAttachment] is set, IMAP has no key for it (`SEARCH` cannot express it), so the
- * server answers the other criteria and the attachment test is applied here from BODYSTRUCTURE,
- * which the envelope FETCH already carries. Candidates are then walked in batches until [limit]
- * messages have been KEPT or the candidates run out — the cap counts results, not rows examined,
- * so a filtered search cannot report three hits merely because it stopped looking after three.
- * A walk that still gives up on the scan cap marks its folder [ImapFolderHits.incomplete], so
- * the count shown to the user can say "at least" instead of passing a partial scan off as a total.
- *
- * [stillWanted] is checked between folders: the walk is blocking and holds the account's one
- * connection, so a caller that has moved on (the next keystroke in the inbox search) can stop it
- * instead of leaving every other IMAP operation queued behind a walk nobody is waiting for.
- */
+    /**
+     * Search [mailboxes] one after another on THIS session and return each folder's matches, newest UID
+     * first, at most [limit] per folder. IMAP searches the SELECTed mailbox and only that one.
+     *
+     * A folder that fails is reported to [onFolderError] and skipped LOUDLY — an empty [ImapFolderHits]
+     * marked [ImapFolderHits.incomplete], because a server refusing the whole command fails EVERY
+     * folder and the screen then stated "No results" about a search that never happened. When
+     * [requireAttachment] is set the test is applied here from BODYSTRUCTURE, and the cap counts
+     * RESULTS, not rows examined. [stillWanted] is checked between folders: the walk is blocking and
+     * holds the account's one connection.
+     */
 fun ImapSession.searchFolders(
     mailboxes: List<String>,
     command: ImapSearchCommand,
@@ -179,9 +122,8 @@ fun ImapSession.searchFolders(
     val hits = mutableListOf<ImapFolderHits>()
     for (mailbox in mailboxes) {
         if (!stillWanted()) break
-        // What the SELECT states about this folder's numbering, kept instead of dropped: see
-        // [ImapFolderHits.uidValidity]. 0 for a folder whose SELECT failed — there is nothing to
-        // report about a folder that was never entered.
+            // What the SELECT states about this folder's numbering, kept instead of dropped: see
+            // [ImapFolderHits.uidValidity]. 0 for a folder whose SELECT failed.
         var observed = 0L
         val scan = try {
             observed = select(mailbox).uidValidity

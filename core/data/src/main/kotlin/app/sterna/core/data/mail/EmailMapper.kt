@@ -16,10 +16,6 @@ import java.util.Collections
  * `seen`/`flagged`. Recorded whenever a live fetch passes through [toEntity], replayed by [toEmail]
  * so a trashed draft can still be flagged "(Draft)" in the list (#69). After process death a row
  * falls back to no flag until the folder's next refresh.
- *
- * The recipients were memoised the same way until schema v17; they are now a real column
- * ([EmailEntity.recipientsJson]), so they survive process death and a Sent/Drafts row carries its
- * "To: …" from the very first frame, offline included (#63).
  */
 private const val RECENT_DRAFTS_MAX = 2000
 private val recentDrafts: MutableSet<String> = Collections.synchronizedSet(

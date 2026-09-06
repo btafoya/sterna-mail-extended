@@ -17,17 +17,8 @@ sealed interface PushStatus {
     /** Instant via UnifiedPush; [distributorPackage] resolves to an app label in UI. */
     data class ViaUnifiedPush(val distributorPackage: String?) : PushStatus
 
-    /**
-     * Woken by a relay the user pasted this account's address into (#177), with the time the last
-     * wake really arrived — 0 never reaches here, since only a delivery arms a relay.
-     *
-     * It carries a TIMESTAMP and not a verdict, and the difference is the whole point. The relay
-     * is not ours: it is a stranger's script or service, we never talk to it, and nothing in this
-     * app can tell a relay that died last week from one that simply has no mail to announce. What
-     * is knowable is when the last wake landed, so that is what the screen says. Reading "push is
-     * on" for weeks after a relay quietly stopped is the exact defect this state exists to stop,
-     * and it was promised to the reporter in those words.
-     */
+    /** Woken by a relay the user pasted this account's address into (#177). A timestamp, not a
+     *  verdict: nothing here can tell a dead relay from a quiet one. */
     data class ViaRelay(val lastDeliveryMillis: Long) : PushStatus
 
     /** Instant via a direct connection we hold, open right now (JMAP EventSource or IMAP IDLE). */
@@ -39,48 +30,25 @@ sealed interface PushStatus {
     /** No live connection right now — the periodic worker checks every ~30 minutes. */
     data object Periodic : PushStatus
 
-    /**
-     * Not in the watched set at all (issue A8): this account is neither the current one nor
-     * covered by "push for all accounts", so no service connection and no 30-minute worker poll
-     * ever touches it — it is only refreshed when the app is opened. Distinct from [Periodic],
-     * whose 30-minute claim would be a lie here.
-     */
+    /** Not in the watched set at all (A8): nothing touches it until the app is opened. Distinct
+     *  from [Periodic], whose 30-minute claim would be a lie here. */
     data object NotWatched : PushStatus
 }
 
 /**
- * Single decision point for push transports (issue #17). Every place that used to
- * start/stop [PushService] calls [apply] instead: it kicks the UnifiedPush state
- * machine for eligible accounts and runs the foreground service only while some
- * account still needs a direct connection. [transportFor] picks, in order: linked sub-account →
- * PERIODIC; UnifiedPush ACTIVE (JMAP or IMAP relay alike) → UNIFIED_PUSH; battery saver →
- * PERIODIC; JMAP → EventSource; else IMAP IDLE. The transport is never shown nor settable,
- * unlike the relay address one of those branches rides on (`RelayAddressSection`).
+ * Single decision point for push transports (#17): [apply] kicks the UnifiedPush state machine and
+ * runs the foreground service only while some account still needs a direct connection. Selection is
+ * automatic and never user-facing.
  */
 object PushController {
 
     /**
-     * The last selection the inbox list made: true if that was the cross-account unified inbox.
-     * Mirrored from the list's own selection, which is where the answer lives and which nothing
-     * persists.
+     * The last selection the inbox list made: true if that was the unified inbox. Read by
+     * [shouldResetBaseline] alone, and false is the safe answer.
      *
-     * Not "what is on screen right now", and the difference is real — the list keeps this flag
-     * while the user is in Settings or the reader, and the mirror only moves when the list itself
-     * reselects. Read by [shouldResetBaseline] alone, to decide which accounts a user-initiated
-     * arm may reseed silently; false is the safe answer, since it reseeds fewer accounts and so
-     * announces more. It starts false, and `RootViewModel.refresh()` seeds it from the restored
-     * view on the line before it arms, rather than waiting for the recomposition that would
-     * otherwise set it a beat too late. (`switchAccount()` also clears it explicitly; that line is
-     * redundant with the seed and kept on purpose — see `RestoredViewWiringLintTest`.)
-     *
-     * ITS INITIAL VALUE IS NOT THE COLD START'S ANSWER, and used to be read as though it were.
-     * Since the drawer reopens on the view you left (#179) a launch can land straight in the
-     * unified inbox, hence that seed. The seed is placed BEFORE the arm because the value must
-     * be right when the arm reads it, which is not necessarily in the same call stack: [apply]
-     * decides inline on its worker branch, but on the direct branch it only asks
-     * `startForegroundService` for a service, which reads this flag later and on its own coroutine
-     * ([PushService]'s `watch`). `false` remains the value the field is BORN with, i.e. the safe
-     * answer for any arm that happens before anyone has said otherwise.
+     * Its initial value is NOT the cold start's answer, the drawer reopening on the view you left
+     * (#179), so `RootViewModel.refresh()` seeds it BEFORE it arms: on the direct branch the flag
+     * is read later, on the service's own coroutine.
      */
     @Volatile
     var unifiedInboxVisible: Boolean = false
@@ -92,17 +60,11 @@ object PushController {
         val container = (context.applicationContext as Application).container
         val up = container.unifiedPushManager
         return when {
-            // A linked sub-account holds no live push of its own (issue #31): the server never
-            // puts an ACL-shared account's StateChanges on the login's EventSource or
-            // PushSubscription (Stalwart subscribes the login's member accounts only), so a
-            // socket opened for it alone would never fire. Its mail arrives via the periodic
-            // worker, plus the group catch-up fan-out whenever the login's push wakes.
+            // A linked sub-account holds no live push of its own (#31): the server never puts an
+            // ACL-shared account's StateChanges on the login's EventSource.
             container.accountStore.account(credentials.id)?.isLinked == true -> Transport.PERIODIC
-            // UnifiedPush stays on in battery saver too — it costs Sterna nothing;
-            // "battery saver" means Sterna itself holds no persistent connection.
-            // Not gated on JMAP: an IMAP relay rides this too, but only once ACTIVE, which for it
-            // means a payload REALLY arrived ([RelayPush.onDelivery]) — never merely "an address
-            // exists", or installing any distributor would trade IMAP IDLE for a dead endpoint.
+            // Not gated on JMAP: an IMAP relay rides this too, but only once ACTIVE — a payload
+            // really arrived — or any distributor would trade IMAP IDLE for a dead endpoint.
             up.isActive(credentials.id) -> Transport.UNIFIED_PUSH
             batterySaver -> Transport.PERIODIC
             credentials.protocol == MailProtocol.JMAP -> Transport.EVENT_SOURCE
@@ -110,98 +72,38 @@ object PushController {
         }
     }
 
-    /**
-     * Synchronous read of the outcome setting. DataStore serves it from memory after
-     * the first disk load, and apply()/statusFor run on user actions, not hot paths.
-     */
+    /** Synchronous read: DataStore serves from memory after the first load, off any hot path. */
     private fun isBatterySaver(context: Context): Boolean {
         val settings = (context.applicationContext as Application).container.settingsRepository
         return runBlocking { settings.deliveryMode.first() } == DeliveryMode.BATTERY_SAVER
     }
 
-    /**
-     * Whether [accountId] is in the push/worker watched set (issue A8). Both the foreground service
-     * ([apply]) and the 30-minute fallback worker ([MailFetchWorker]) watch `pushAll ? all : current`
-     * — the filter is applied AFTER this membership, so an account that is neither the current one
-     * nor covered by push-all is looked at by nothing: its notifications toggle changes nothing and
-     * its status is [PushStatus.NotWatched], never a 30-minute poll that never runs. Pure, so the
-     * greying + status decision is unit-tested (linked sub-accounts are handled by the caller: they
-     * stay [PushStatus.Periodic]).
-     */
+    /** Whether [accountId] is in the push/worker watched set (A8). The notifications filter applies
+     *  AFTER this, so an account outside the set is looked at by nothing and reads NotWatched
+     *  rather than a 30-minute poll that never runs. */
     fun isWatched(accountId: String, currentId: String?, pushAllAccounts: Boolean): Boolean =
         pushAllAccounts || accountId == currentId
 
-    /**
-     * Whether the "this account is not being watched" note under the per-account notifications
-     * toggle is telling the truth (issue A8). Being unwatched is only half of it: the note names ONE
-     * action — turn on "Push for all accounts" — and that is the whole action only while
-     * [notificationsEnabled], the account's own flag, is still on. With that flag already off,
-     * watching the account would still fetch nothing until it is ticked back on, so the note would
-     * promise a one-step fix for a two-step state. Hence the third argument: the note appears where
-     * it is exact and stays quiet elsewhere. The toggle itself is left live in that state — ticking
-     * it moves the screen into the state the note describes, and the note comes back saying what is
-     * genuinely left to do. Pure, so the decision is unit-tested rather than read off a
-     * `@Composable` nothing in this module can call.
-     */
+    /** Whether the "not being watched" note is telling the truth (A8): it names ONE action, and
+     *  that is the whole action only while [notificationsEnabled] is still on. */
     fun shouldShowUnwatchedNote(isLinked: Boolean, isWatched: Boolean, notificationsEnabled: Boolean): Boolean =
         !isLinked && !isWatched && notificationsEnabled
 
-    /**
-     * The one line the service writes to logcat when an arm finishes: what was ASKED FOR and what
-     * it came away with, never one standing in for the other. [logins] is the number of login groups
-     * the arm tried to connect (one connection per login, issue #31); [held] is how many connection
-     * handles it still holds afterwards.
-     *
-     * [held] is deliberately NOT called "open", and the difference is not pedantry. A handle is
-     * recorded when the transport hands one back, which on IMAP IDLE happens before the connect
-     * attempt starts (the session opens on the connection's own thread) and on a JMAP EventSource
-     * before the server has answered. What [held] rules out is the case this line exists for: a
-     * login whose arm never got that far — offline, a refused session, a retired generation — where
-     * the count drops to 0 while the requested count stays up. On JMAP that covers an offline arm,
-     * since the session and mailbox fetch that precede the EventSource are blocking.
-     *
-     * Pure so the wording is pinned by unit tests: this string is read as evidence when diagnosing
-     * a report, and no reader should be able to infer from it a connection that was never asked for.
-     */
+    /** What an arm ASKED FOR and what it came away with. [held], never "open": a handle is
+     *  recorded before the server has answered, so what it rules out is an arm that never got that
+     *  far — offline, refused, a retired generation. */
     fun armSummary(accounts: Int, logins: Int, held: Int): String =
         "Push armed for $accounts account(s): $logins login connection(s) requested, $held held"
 
-    /**
-     * The line the service writes when an arm finds nothing to watch and stops itself. This is the
-     * one arm that ends without even a summary — no connection, no reschedule, no service — and it
-     * has two very different causes that look identical from here: every account legitimately opted
-     * out or served by UnifiedPush, or credentials that never materialised. [candidates] is how many
-     * accounts were considered before the filter, so a zero there says the second thing.
-     */
+    /** An arm that found nothing to watch and stopped itself. Two causes look identical from here,
+     *  so [candidates] counts the accounts considered before the filter. */
     fun nothingToWatchLine(candidates: Int): String =
         "Push arm found nothing to watch: 0 of $candidates account(s) need a direct connection, stopping"
 
-    /**
-     * The line the 30-minute fallback cycle ([MailFetchWorker]) writes when its account list is
-     * empty and the loop never runs. Same shape of ambiguity as [nothingToWatchLine]: the worker has
-     * one `Result.success()`, so a cycle that fetched nothing and a cycle that fetched everything
-     * print the same WorkManager SUCCESS. What arrives here, though, is not one fact but four, and
-     * counting alone cannot separate them — which is why this branches instead of interpolating.
-     *
-     * [accountsUnreadable] is asked FIRST and comes from a fresh `AccountStore.accountsUnreadable()`
-     * read, exactly as `FetchAndNotify` and `MailRepository` ask it through
-     * [app.sterna.core.data.mail.accountGoneCause]: an unreadable account blob makes
-     * `AccountStore.accounts()` answer an empty list, indistinguishable from an install with no
-     * account, so without this the storage failure would print the sentence of an empty phone.
-     * [stored] then separates the genuinely empty install from credentials that did not materialise
-     * — `allCredentials()` is a `mapNotNull` and drops an account whose secret failed to decrypt,
-     * silently. Only the last branch is a CHOICE: accounts, credentials, and notifications off.
-     *
-     * The third sentence says "for the watched set" and not "for all of them" on purpose: with
-     * "push for all accounts" off, the watched set is the current account alone, so [stored] can be
-     * three while exactly one credential was ever asked for.
-     *
-     * Deliberately worded apart from [nothingToWatchLine], which lands in the same logcat: that one
-     * is a service that stops, this one is a poll cycle that ends having polled nothing. Nothing is
-     * claimed here about why mail is missing on any given device — these lines make a silence
-     * readable, they diagnose nothing. Pure so the wording is pinned by unit tests; the worker
-     * itself needs an Application, a container and WorkManager, so no test in this module runs it.
-     */
+    /** An empty account list in the fallback cycle. Four facts arrive here and counting cannot
+     *  separate them, so this branches: [accountsUnreadable] is asked FIRST, an unreadable blob
+     *  making `accounts()` answer empty, and [stored] then separates the genuinely empty install
+     * from credentials that did not materialise. "For the watched set", not "for all of them". */
     fun nothingToPollLine(stored: Int, candidates: Int, accountsUnreadable: Boolean): String = when {
         accountsUnreadable ->
             "Fallback poll found nothing to fetch: the stored account list could not be read, " +
@@ -215,140 +117,69 @@ object PushController {
             "Fallback poll found nothing to fetch: 0 of $candidates watched account(s) have notifications on, cycle over"
     }
 
-    /**
-     * The line the fallback cycle writes when it skips one account whole: [shouldPollInbox] says its
-     * inbox is not owed a poll and [hasExtrasToPoll] finds nothing else worth a fetch. That
-     * `continue` is the widest of the worker's silent exits — on JMAP `hasExtrasToPoll` is false by
-     * construction, so every JMAP account whose handle is held is skipped entirely, with nothing in
-     * logcat between the worker starting and its SUCCESS.
-     *
-     * "A handle is HELD", never "a connection is open", and the difference is the same one
-     * [armSummary] spells out nine lines above: `PushService.isConnected` answers true for a
-     * [java.io.Closeable] we believe in, and a socket that died without telling us still answers
-     * true (said again in [shouldPollInbox]'s own KDoc). A line claiming an open connection would
-     * assert, in the reporter's logcat, the very thing under suspicion.
-     *
-     * The facts that carried the decision are printed rather than summarised: the protocol, because
-     * it is what makes the watched extras irrelevant on JMAP and relevant on IMAP, and their
-     * [watchedFolders] count. The sentence says those folders are LEFT TO the handle, not that
-     * there are none and not that they were fetched: on JMAP they are left to the handle whatever
-     * their number, on IMAP this line only prints when the number is zero.
-     *
-     * One line per account per cycle, ~48 a day for one account: the accepted price of being able
-     * to tell a cycle that decided to skip from a cycle that did nothing.
-     *
-     * [accountId] is the internal UUID, never an address or a URL — a reporter's logcat is pasted in
-     * public. Pure, so the wording is pinned by unit tests instead of rebuilt in an assertion.
-     */
+    /** One account skipped whole — the widest of the worker's silent exits, since on JMAP
+     * `hasExtrasToPoll` is false by construction. "A handle is HELD", never "a connection is
+     *  open": a socket that died without telling us still answers true, and the line would assert
+     *  the very thing under suspicion. [accountId] is the internal UUID, a logcat being public. */
     fun pollSkippedLine(accountId: String, protocol: MailProtocol, watchedFolders: Int): String =
         "Fallback poll skipped account $accountId whole: a push connection handle is held for it, " +
             "so its inbox and its $watchedFolders watched extra folder(s) are left to that handle ($protocol)"
 
-    /**
-     * The half-skip, and the one that costs mail if the handle is lying: the cycle does run a fetch
-     * for this account, but with `includeInbox = false`. It is the IMAP counterpart of
-     * [pollSkippedLine] — same decision ([shouldPollInbox] false, a handle held), same risk — and
-     * until this line existed it left the friendliest possible trace: a fetch that ran and
-     * succeeded, with no way to see that the inbox was not part of it.
-     *
-     * Worded apart from [pollSkippedLine] because the two are different events and a logcat reader
-     * has only the sentence: there, nothing was fetched at all; here, the watched extras were, and
-     * only the inbox was left out. Same on "held" versus "open" as above.
-     */
+    /** The half-skip, and the one that costs mail if the handle is lying: the cycle fetches with
+     *  `includeInbox = false`. Worded apart from [pollSkippedLine], a logcat reader having only the
+     * sentence. Same on "held" versus "open". */
     fun inboxSkippedLine(accountId: String, protocol: MailProtocol, watchedFolders: Int): String =
         "Fallback poll left account $accountId's inbox unfetched: a push connection handle is held " +
             "for it, so only its $watchedFolders watched extra folder(s) were polled ($protocol)"
 
-    /**
-     * The line the service writes when it drops an arm because the generation moved on. The guard
-     * itself is right — a socket opened for a retired generation would be a leak after an account
-     * switch — but giving up used to cost nothing in logcat, so a service holding no connection at
-     * all was indistinguishable from a healthy one. Both generations are printed, the arm's and the
-     * service's: only their difference says WHY it was dropped, and one number alone cannot.
-     *
-     * [loginId] is the internal account/login id (a UUID from [AccountStore], or the login's UUID
-     * for a grouped sub-account), never an address or a credential — a reporter's logcat is pasted
-     * in public. Pure, so the wording is pinned by unit tests rather than re-derived here.
-     */
+    /** An arm dropped because the generation moved on. Both generations are printed: only their
+     *  difference says why. [loginId] is the internal id. */
     fun abandonedArmLine(loginId: String, gen: Int, current: Int): String =
         "Stale push arm abandoned for login $loginId (generation $gen, service is at $current)"
 
-    /**
-     * Same renouncement, one step later: a reconnect that was scheduled, waited, and found its
-     * generation retired. Worded differently from [abandonedArmLine] on purpose — the two are
-     * distinct events (nothing was ever opened vs. a pending retry dropped) and a logcat reader has
-     * only the sentence to tell them apart.
-     */
+    /** Same renouncement one step later: a reconnect scheduled, waited, and found retired. Worded
+     *  apart from [abandonedArmLine], a logcat reader having only the sentence. */
     fun abandonedReconnectLine(loginId: String, gen: Int, current: Int): String =
         "Stale push reconnect abandoned for login $loginId (generation $gen, service is at $current)"
 
     /**
-     * Third renouncement, and the only one that had something in its hands: the baseline pass ran
-     * long enough for a concurrent arm to retire this generation, so the handle the transport
-     * returned is taken back out of the connection map and closed. Distinct from [abandonedArmLine],
-     * which gave up BEFORE opening anything — here a socket was really opened and really closed,
-     * which is also what the server's session log will show, and only the sentence says so.
-     *
-     * Left in place it would have stood on top of the handle the current generation had just
-     * recorded, and the map would have gone on reporting a connection that no longer exists — the
-     * account then reads "Direct" while nothing is listening and nothing polls it either (#130).
-     * "nothing rescheduled" is part of the sentence because that is the operative fact for whoever
-     * reads the log: this login gets no retry from this arm, the current generation owns it now.
-     *
-     * Both generations, same rule as the lines above: only their difference says why.
+     * Third renouncement, and the only one that had something in its hands: the handle is taken out
+     * of the connection map and closed. Left in place, the account would read "Direct" while
+     * nothing listens and nothing polls it either (#130).
      */
     fun retiredHandleDroppedLine(loginId: String, gen: Int, current: Int): String =
         "Stale push connection dropped for login $loginId (generation $gen, service is at $current), nothing rescheduled"
 
-    /** The read-only status line for one account (hidden by UI when notifications are off). */
     fun statusFor(context: Context, accountId: String): PushStatus {
         val container = (context.applicationContext as Application).container
         val store = container.accountStore
         val up = container.unifiedPushManager
         return when {
-            // Honest status for a linked sub-account: it inherits the login's transport state
-            // but the server never pushes its changes there (issue #31) — it is periodic.
+            // A linked sub-account inherits the login's transport state, but the server never
+            // pushes its changes there (#31).
             store.account(accountId)?.isLinked == true -> PushStatus.Periodic
-            // An armed relay (#177), ABOVE the UnifiedPush branch and not below it: an armed relay
-            // is ACTIVE, so isActive answers true for it as well and would swallow this case whole
-            // — leaving the screen reading "Push: UnifiedPush (…)" for an address a stranger's
-            // relay may have stopped posting to weeks ago.
-            //
-            // And above NotWatched too, which is where it used to sit. The comment that put it
-            // there said "an account nothing watches is not woken by anyone, relay or not", and
-            // that is simply false: a POST on the relay address reaches onMessage, which enqueues
-            // [PushFetchWorker], and that worker gates on notificationsEnabled ALONE — never on
-            // the watched set. An unwatched account with an armed relay really is woken, really
-            // does fetch and really does notify, while the screen said nothing was watching it and
-            // offered it an address in the same breath. Of the two, the status line is what lies.
-            // Nothing moves for anyone else: NotWatched keeps its place for every account without
-            // an armed relay, which is every account this branch does not catch.
+            // An armed relay (#177) is tested ABOVE the UnifiedPush branch and above NotWatched:
+            // a POST on the relay address enqueues [PushFetchWorker], which gates on
+            // notificationsEnabled alone, so an unwatched account with a relay really is woken.
             up.relayArmed(accountId) -> PushStatus.ViaRelay(up.relayLastDeliveryMillis(accountId))
-            // Not watched at all (issue A8): neither the current account nor covered by push-all,
-            // so no service connection and no 30-minute worker poll ever touches it. Decided before
-            // every connecting/periodic branch below so it can never masquerade as one.
+            // Not watched at all (A8), decided before every branch below so it cannot masquerade.
             !isWatched(accountId, store.currentId(), store.pushAllAccounts()) -> PushStatus.NotWatched
             up.isActive(accountId) -> PushStatus.ViaUnifiedPush(up.distributorLabel())
             isBatterySaver(context) -> PushStatus.Periodic
-            // An open connection wins over a pending UnifiedPush bring-up: apply() keeps
-            // the EventSource up through REGISTERING/VERIFYING, so delivery is direct
-            // right now — a stuck registration must not claim "connecting" for minutes
-            // after a notifications toggle (#53).
+            // An open connection wins over a pending UnifiedPush bring-up: the EventSource stays up
+            // through REGISTERING/VERIFYING, so delivery is direct right now (#53).
             PushService.isConnected(accountId) -> PushStatus.Direct
             up.isPending(accountId) -> PushStatus.Connecting
-            // Watched by the running service (guaranteed here) but its connection isn't open yet:
-            // bring-up after a toggle, or a dropped connection on its retry loop.
+            // Watched by the running service but not open yet: bring-up, or a retry loop.
             PushService.isRunning -> PushStatus.Connecting
             else -> PushStatus.Periodic
         }
     }
 
     /**
-     * Recompute every account's transport and (re)arm the machinery accordingly.
-     * [userInitiated] true only for direct user actions (app open, settings toggles):
-     * it silently reseeds the INBOX baseline of the account whose inbox the user is
-     * actually looking at ([shouldResetBaseline]). Background triggers (transport
-     * callbacks, workers) pass false so gap mail is diffed and announced.
+     * Recompute every account's transport and (re)arm accordingly. [userInitiated] silently reseeds
+     * the inbox baseline of the account whose inbox is on screen ([shouldResetBaseline]); background
+     * triggers pass false so gap mail is diffed.
      */
     fun apply(context: Context, userInitiated: Boolean) {
         val appContext = context.applicationContext as Application
@@ -360,34 +191,25 @@ object PushController {
         val accounts = watched.filter { store.notificationsEnabled(it.id) }
         // Kick the UnifiedPush state machine (no-op for IMAP or without a distributor).
         accounts.forEach { up.ensureRegistered(it) }
-        // An account counts as direct until UnifiedPush is fully ACTIVE — the EventSource
-        // stays open through REGISTERING/VERIFYING, so bring-up never gaps delivery (a
-        // transient double-trigger is deduped by the notification baselines). In battery
-        // saver no account is ever direct: the foreground service never runs and the
-        // 30-minute worker carries everything UnifiedPush doesn't.
+        // An account counts as direct until UnifiedPush is fully ACTIVE, so bring-up never gaps
+        // delivery. In battery saver none is: the 30-minute worker carries the rest.
         val batterySaver = isBatterySaver(appContext)
         val direct = accounts.filter { transportFor(appContext, it, batterySaver).isDirect }
         val currentId = store.currentId()
         if (direct.isEmpty()) {
             PushService.stop(appContext)
-            // No foreground service: catch up through the worker path. On a user-initiated
-            // arm the inbox on screen reseeds silently; every other account diffs, and so do
-            // background arms.
+            // No foreground service: catch up through the worker path.
             accounts.forEach {
                 val reset = shouldResetBaseline(it.id, userInitiated, currentId, unifiedInboxVisible)
                 PushFetchWorker.enqueue(appContext, it.id, resetInbox = reset)
             }
         } else {
-            // Android 12+ can refuse a foreground-service start at the CALLER itself — a background
-            // trigger (transport callback, worker) hits ForegroundServiceStartNotAllowedException
-            // right here, before the service is created, so the #98 guard in PushService.onCreate
-            // (which only catches the in-service startForeground refusal) never sees it. Left to
-            // propagate it crashes the trigger, and because arms are retried that is a crash loop.
-            // Swallow it and fall back to the periodic worker exactly as the no-direct branch does,
-            // so mail still flows within ~30 minutes and nothing claims a live connection it lacks.
+        // Android 12+ can refuse a foreground-service start at the CALLER, before the service is
+        // created, so the #98 guard in PushService.onCreate never sees it. Left to propagate it
+        // crashes a retried trigger, i.e. a crash loop.
             try {
-                // The service applies [shouldResetBaseline] per account itself, as it arms them:
-                // what it is handed here is the "was this a user action" half of the answer.
+                // The service applies [shouldResetBaseline] per account itself; this is only the
+                // "was this a user action" half.
                 PushService.start(appContext, userInitiated = userInitiated)
             } catch (e: RuntimeException) {
                 android.util.Log.w(
@@ -406,23 +228,12 @@ object PushController {
 
 /**
  * May a user-initiated arm swallow this account's inbox backlog into the baseline instead of
- * announcing it?
+ * announcing it? Only for the inbox the user is actually looking at. Arming push is not a
+ * per-account event, and one arm reseeding every watched account meant another account's pending
+ * mail was absorbed and never rang again.
  *
- * Only for the inbox the user is actually looking at. That is the whole justification for the
- * silent reseed — announcing a backlog the user has in front of them is noise — and it holds for
- * exactly one account at a time, or for all of them in the unified inbox, where every account's
- * mail really is on screen. Arming push is not a per-account event: one arm reseeded every watched
- * account, so with "push for all accounts" on, opening the app (or ticking one folder on one
- * account) silently absorbed every OTHER account's pending mail into its baseline. Nothing
- * announces it afterwards — the 30-minute worker and the foreground refresh both diff against that
- * same baseline, and the swallowed ids are in it — so no notification is ever emitted for those
- * messages. The mail itself is cached, listed and counted as unread; it just never rings.
- *
- * The two halves are opposite failure modes and both are live. Reseed too widely and mail goes
- * unannounced; reseed too narrowly — background arms, a fresh install, a baseline version bump —
- * and the app empties weeks of backlog into the notification shade. Hence [userInitiated] gating
- * everything, and hence the caller's untouched `!hasBaseline` seed, which keeps the first sight of
- * any folder silent whatever this returns.
+ * The two errors are opposite and both live: reseed too widely and mail goes unannounced, too
+ * narrowly and the app empties weeks of backlog into the shade.
  */
 internal fun shouldResetBaseline(
     accountId: String,

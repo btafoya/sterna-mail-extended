@@ -15,20 +15,11 @@ import app.sterna.core.data.account.MailProtocol
 import java.util.concurrent.TimeUnit
 
 /**
- * Fallback new-mail poll for when live push is down (Codeberg #11). Android 15+ budgets
- * long-running foreground services, and OEM battery managers kill them freely, so a device
- * can silently lose the push connection with nothing to revive it; before this worker
- * existed, new mail then simply never arrived until the app was opened. Every ~30 min it
- * checks each watched account's folders and notifies through the same persisted baselines
- * as [PushService] ([NewMailNotifier]), turning "push is dead" into "mail is up to 30 min
- * late" instead of "mail never comes". A healthy push makes the worker a cheap no-op,
- * except for IMAP accounts' watched non-inbox folders (issue #16), which IDLE cannot see
- * and which are polled here. Periodic WorkManager jobs persist across reboots, so this
- * also covers the boot-until-first-app-open gap.
- *
- * "Healthy" is judged per account, through [shouldPollInbox]: the service existing says nothing
- * about whether any connection is open, so asking it instead would disarm the net exactly when it
- * is needed.
+ * Fallback new-mail poll for when live push is down (#11). Android 15+ budgets long-running
+ * foreground services and OEM battery managers kill them freely, so a device can silently lose the
+ * push connection with nothing to revive it; every ~30 min this diffs each watched account's folders
+ * against the same baselines as [PushService]. "Healthy" is judged per account, through
+ * [shouldPollInbox]: the service existing says nothing about whether any connection is open.
  */
 class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -37,22 +28,14 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
         val store = container.accountStore
         val watched = if (store.pushAllAccounts()) store.allCredentials() else listOfNotNull(store.load())
         val accounts = watched.filter { store.notificationsEnabled(it.id) }
-        // Coverage matrix (issues #16/#17): a JMAP EventSource that is OPEN FOR THIS ACCOUNT
-        // covers its whole watched set; IMAP IDLE only ever watches the INBOX — its watched
-        // extras are polled here even while push runs. A UnifiedPush-active account is normally
-        // covered by its endpoint, but the endpoint can die silently (distributor's
-        // server down, JMAP server failing to POST) with the status still ACTIVE —
-        // so it gets the same ≤30-min safety poll as everything else (issue #11);
-        // per-folder baselines dedupe against push-driven fetches, cost is one delta.
+        // Coverage matrix (#16/#17): a JMAP EventSource open FOR THIS ACCOUNT covers its whole
+        // watched set, IMAP IDLE only the INBOX. A UnifiedPush-active account gets the same safety
+        // poll, its endpoint being able to die silently with the status still ACTIVE.
         val up = container.unifiedPushManager
         up.reconcileDistributorPresence()
-        // The loop below never runs, and until this line the cycle ended on the same SUCCESS as a
-        // cycle that fetched everything. Four different things arrive here and only one is a choice:
-        // an unreadable account blob, a secret that failed to decrypt, an install with no account,
-        // or notifications off everywhere — AccountStore drops the first two without a word, and
-        // both answer like an empty phone. So the three facts that separate them are read here and
-        // handed to the line: the stored count, the watched count BEFORE the notifications filter,
-        // and a fresh unreadable-blob verdict (the same one FetchAndNotify asks accountGoneCause).
+        // Until this line the cycle ended on the same SUCCESS as one that fetched everything. Four
+        // different things arrive here and only one is a choice, so the three facts that separate
+        // them are read here and handed to the line.
         if (accounts.isEmpty()) {
             Log.i(
                 TAG,
@@ -75,20 +58,12 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     .onFailure { Log.w(TAG, "Safety poll failed for account ${credentials.id}", it) }
                 continue
             }
-            // A linked sub-account gets no live push of its own (issue #31): Stalwart only
-            // delivers StateChanges for the login's member accounts (member_of), never for
-            // ACL-shared accounts (access_to) — the kind sub-account discovery surfaces. A
-            // live EventSource on the login therefore does NOT cover it: poll it here every
-            // cycle like a push-less account (per-folder baselines dedupe this against the
-            // catch-up fan-out that runs whenever the login's own push wakes).
+            // A linked sub-account gets no live push of its own (#31): the server only delivers
+            // StateChanges for the login's member accounts, so its EventSource does not cover it.
             val linked = store.account(credentials.id)?.isLinked == true
             // Asked per ACCOUNT, never "is the service up": the service outlives the failure of
-            // every connection it holds — nothing in the retry loop ever stops it, so a
-            // process-wide flag reads "push is fine" while nothing is connected, and this
-            // account's inbox would never be polled by the one thing meant to rescue it (see
-            // [PushService.isConnected], the same account-vs-connection hop as issue #61).
-            // False when the service is down or the account is unknown to it, so the default is
-            // to poll: a wasted delta costs a request, a wrong skip costs mail.
+            // every connection it holds (#61). False when it is down or the account is unknown, so
+            // the default is to poll — a wasted delta costs a request, a wrong skip costs mail.
             val connected = PushService.isConnected(credentials.id)
             val pollInbox = shouldPollInbox(connected, linked)
             // Read once, so the count the line reports is the one the decision was taken on.
@@ -97,19 +72,14 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 isImap = credentials.protocol == MailProtocol.IMAP,
                 watchedFolders = watchedFolders,
             )
-            // The widest of the silent exits: on JMAP [hasExtrasToPoll] is false by construction, so
-            // an account we hold a handle for is skipped WHOLE, and the cycle showed nothing between
-            // its start and its SUCCESS. Nothing is claimed here about whether that handle is
-            // carrying anything — only that this is what the worker decided, and on which facts.
+            // The widest of the silent exits: on JMAP [hasExtrasToPoll] is false by construction,
+            // so an account we hold a handle for is skipped WHOLE.
             if (!pollInbox && !pollExtras) {
                 Log.i(TAG, PushController.pollSkippedLine(credentials.id, credentials.protocol, watchedFolders.size))
                 continue
             }
-            // The half-skip, and the one that costs mail if the handle is lying (IMAP only: this is
-            // reachable exactly when pollExtras carried the account past the guard above). The fetch
-            // below runs and succeeds while the INBOX is left out of it, which is the friendliest
-            // trace a missed inbox can leave. Said before the fetch, so the order in logcat is the
-            // order of events.
+            // The half-skip, and the one that costs mail if the handle is lying (IMAP only). Said
+            // before the fetch, so the order in logcat is the order of events.
             if (!pollInbox) {
                 Log.i(TAG, PushController.inboxSkippedLine(credentials.id, credentials.protocol, watchedFolders.size))
             }
@@ -138,42 +108,22 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
 /**
  * Does the fallback cycle owe this account's INBOX a poll?
  *
- * [pushConnected] is deliberately per-account — "is the connection carrying THIS account open right
- * now" ([PushService.isConnected]) — and not "is the service running". The service is not evidence
- * of a connection: a connection that fails goes into a 5-second retry loop that never gives up and
- * never stops the service. (The service does stop itself in three places — a refused
- * `startForeground`, an Android 15+ FGS timeout, an empty watched set — but all three go through
- * `onDestroy`, which clears the flag. None of them is a connection failure.) So with every socket
- * dead the service still exists, its process-wide flag still reads true, and the inbox of a
- * single-account install goes unpolled forever — the exact case the worker was written for
- * (issue #11). One live connection is not needed for the bug either: none is.
+ * [pushConnected] is deliberately per-account and not "is the service running": a connection that
+ * fails goes into a retry loop that never gives up and never stops the service, so with every socket
+ * dead a single-account install goes unpolled for ever — the case the worker was written for (#11).
+ * A linked sub-account (#31) is polled even while its login's connection is open.
  *
- * A linked sub-account (issue #31) is polled even while its login's connection is open, because the
- * server never puts an ACL-shared account's changes on that socket.
- *
- * **This can only add polls, never remove one.** `isConnected` returns false whenever the service
- * instance is null, and the instance and the process-wide flag are set together in `onCreate` and
- * cleared together in `onDestroy`; so `isConnected(x)` implies the flag, and every account this
- * skips was already skipped before. Whatever else is wrong with the fallback poll, this change
- * cannot be what stops a fetch that used to happen.
- *
- * Pure so the decision is unit-tested without a service or WorkManager. NB what it can prove is
- * narrow: "connected" means we hold a Closeable we believe is open, so a socket that died without
- * telling us still answers true. This is the dead-and-known case, not the dead-and-silent one.
+ * This can only ADD polls, never remove one. What it can prove is narrow: "connected" means we
+ * hold a Closeable we believe is open, so a socket that died without telling us still answers true.
  */
 internal fun shouldPollInbox(pushConnected: Boolean, linked: Boolean): Boolean = !pushConnected || linked
 
 /**
- * With the inbox covered, is there anything left worth a cycle? Only IMAP's watched extras: IDLE
- * signals the INBOX alone, so a Sieve-filed message in another folder is invisible to it (issue
- * #16), whereas a JMAP EventSource covers the whole watched set.
- *
- * The `isImap &&` carries something beyond this cycle, five hops downstream. It is what makes
- * `pollExtras` always false on JMAP, so a JMAP account that reaches the call below has `pollInbox`
- * true (the `if (!pollInbox && !pollExtras) continue` above left nothing else), so
- * `FetchAndNotify.run` is always given `includeInbox = true` — which is the whole reason
- * `MailRepository.refreshAccountFolders` can state that its JMAP `targets` list is never empty.
- * Drop the `isImap &&` and that branch gains a walk that syncs no mailbox at all.
+ * With the inbox covered, is there anything left worth a cycle? Only IMAP's watched extras, IDLE
+ * signalling the INBOX alone (#16). The `isImap &&` carries something five hops downstream: it
+ * makes `pollExtras` always false on JMAP, so a JMAP account reaching the call below always has
+ * `pollInbox` true — which is the whole reason `refreshAccountFolders` can state that its JMAP
+ * `targets` list is never empty.
  */
 internal fun hasExtrasToPoll(isImap: Boolean, watchedFolders: Set<String>): Boolean =
     isImap && watchedFolders.isNotEmpty()

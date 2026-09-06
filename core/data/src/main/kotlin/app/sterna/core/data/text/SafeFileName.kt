@@ -1,16 +1,12 @@
 package app.sterna.core.data.text
 
 /**
- * [name] made safe for a file name, keeping its letters — accents, Cyrillic, anything unicode —
- * and replacing only what a path cannot carry: `/ \ : * ? " < > |` and every control character,
- * each by `_`. Trimmed at both ends, cut at [maxLength] UTF-16 code units — never through a
- * surrogate pair: a lone high surrogate is not a character a provider can name a file with — and
- * [fallback] when nothing is left (null, empty, whitespace). No extension: the caller adds its own.
+ * [name] made safe for a file name: keeps unicode letters, replaces only `/ \ : * ? " < > |` and
+ * control characters with `_`. Trimmed, cut at [maxLength] UTF-16 units without splitting a
+ * surrogate pair, [fallback] when nothing is left. No extension: the caller adds its own.
  *
- * Not the `[^A-Za-z0-9._-]` regex of `StorageRepository.cacheAttachment` (and its five
- * siblings): that one names a cache file nobody reads, and it turns "Réunion décalée" into
- * `R_union_d_cal_e` — a name the user is meant to find in her Downloads. Those six regexes stay
- * where they are; this is a different job.
+ * Not the same job as `StorageRepository.cacheAttachment`'s `[^A-Za-z0-9._-]` regex (and its
+ * five siblings), which names a cache file nobody reads and would mangle unicode names users see.
  */
 fun safeFileName(name: String?, fallback: String, maxLength: Int = 80): String {
     val cleaned = name.orEmpty().trim()

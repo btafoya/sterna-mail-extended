@@ -162,12 +162,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/**
- * Settings hub. A single entry point with global categories (DESIGN.md →
- * "Settings & secondary screens"). The hub stays short and scannable; depth lives
- * in detail screens reached via an internal nav graph. Per-account configuration
- * (a future "Accounts" category) is intentionally minimal for now.
- */
+/** Settings hub (DESIGN.md → "Settings & secondary screens"). The hub stays short and scannable;
+ *  depth lives in detail screens reached via an internal nav graph. */
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -178,49 +174,20 @@ fun SettingsScreen(
     accountsViewModel: AccountsViewModel = viewModel(),
 ) {
     val nav = rememberNavController()
-    // The system "Remove animations" setting switches these slides off, like every other motion in
-    // the app (Motion.kt) — the reduced-motion promise did not cover them before (#100).
-    // rememberMotionEnabled() is @Composable, so the value is captured here and only READ inside
-    // the transition lambdas below, which run outside composition (same pattern as MainNavHost).
+    // The system "Remove animations" setting switches these slides off (#100). Captured here
+    // because rememberMotionEnabled() is @Composable and the transition lambdas are not.
     val motionEnabled = rememberMotionEnabled()
-    // Deep-link from the drawer's account row (#34): start the inner graph ON the account detail so
-    // the Settings hub never renders. Routing through the hub and popping it after the fact (the old
-    // approach) flashed the hub for a frame plus a slide transition before the detail appeared. With
-    // the detail as the start destination, Back can't pop it (popBackStack returns false) and falls
-    // through to the caller, so Back still returns to the inbox, not the hub.
-    // Horizontal push between hub and detail screens (standard master/detail motion): the screen
-    // that arrives (or leaves, on Back) travels the full width, the other one only drifts a
-    // quarter of it. The slides are OPAQUE and their UNION covers the viewport at every frame, so
-    // a fast double-back (e.g. right after a theme change, whose recomposition disturbs an
-    // in-flight transition) can never expose a blank window-background frame — the failure mode
-    // that made the old cross-fade unusable here, and the reason no fade may come back into these
-    // four lines. That holds for any travel ≤ the frame width: the pair can only part where the
-    // trailing edge of one meets the leading edge of the other, and both are driven by the same
-    // eased fraction, so that seam never opens. Because both panes are opaque it is the union
-    // that matters, so the guarantee does not depend on which of the two is drawn on top.
-    // The quarter, rather than the full width both panes used to travel, is what calms the motion
-    // on a wide window — landscape and tablets, where a fixed duration over a wider frame means a
-    // faster slide. Note it only calms the pane UNDERNEATH: the one on top still crosses the whole
-    // frame, and in 220 ms rather than 300 it crosses it faster than before. The ≤ 250 ms cap in
-    // DESIGN.md is the binding rule and it wins (#100).
-    // EVERY action below (forward and Back alike) goes through [navigateOnce], the app-wide
-    // re-entrancy guard shared with the outer graph. Without it, taps landing during the slide
-    // stacked several copies of the same page on the back stack (#106). A new destination added
-    // here must be wired the same way.
-    // WHICH screen that deep link opens is [settingsRouteFor]'s call, taken HERE as well as at
-    // the accounts list below: the hub is never composed on this path (see above), so the
-    // list's own handler is never traversed and a shared mailbox would otherwise land on the
-    // login editor — a password field that writes under the LOGIN's key, for every account
-    // grouped under it.
-    // Reading the account list SYNCHRONOUSLY is sound here: the flow is seeded in the store's
-    // constructor from the prefs (AccountStore.kt, `private val live = AccountsState(accounts())`),
-    // so it is never an empty placeholder waiting on a load. No test in this module can prove that.
-    // What FREEZES the route at the first composition is the [remember], not the synchronous read:
-    // the bare expression this replaces sat in the NavHost's argument list and was therefore
-    // re-evaluated on every recomposition. A share revoked while settings are open changes the
-    // answer, and NavHost keys its graph on (route, startDestination, builder) — so the graph was
-    // rebuilt underneath a user standing on one of its destinations. Keyed on [initialAccountId]
-    // alone: the deep link's target is the only thing that may ever re-open the question.
+    // Deep-link from the drawer's account row (#34): the inner graph starts ON the account detail
+    // so the hub never renders, and Back falls through to the caller rather than popping it.
+    // The slides are opaque and cover the viewport at every frame, so a fast double-back cannot
+    // expose a blank window-background frame. No fade here; ≤ 250 ms cap in DESIGN.md (#100).
+    // Every action below goes through [navigateOnce]: taps landing during the slide otherwise
+    // stack several copies of the same page (#106).
+    // [settingsRouteFor] decides which screen the deep link opens, here as at the accounts list
+    // below: a shared mailbox would otherwise land on the login editor, whose password field writes
+    // under the LOGIN's key.
+    // The [remember] freezes the route at the first composition: NavHost keys its graph on
+    // (route, startDestination, builder), so a bare expression rebuilds it under a standing user.
     // PINNED BY SharedAccountScreenTest — the start destination, statement by statement
     val startDestination = remember(initialAccountId) {
         if (initialAccountId != null) {
@@ -250,9 +217,8 @@ fun SettingsScreen(
             val currentId by accountsViewModel.currentId.collectAsStateWithLifecycle()
             val currentLabel = accounts.firstOrNull { it.id == currentId }?.label().orEmpty()
             val context = LocalContext.current
-            // The About rows leave the app instead of navigating, so they need the sibling of
-            // [navigateOnce]: a double tap used to hand the same URL to the browser twice (#106
-            // follow-up). One opener for all of them, so two rows tapped together also open once.
+            // The About rows leave the app: one opener for all, so two rows tapped together open
+            // once (#106).
             val leaveOnce = rememberLeaveOnce(entry)
             SettingsHub(
                 onBack = onBack,
@@ -290,24 +256,21 @@ fun SettingsScreen(
                     // the pop, stranding the user on a Connect form for an account that has already
                     // been added. Same family as the mailto:/notification navigations: a single
                     // consumption whose loss is not a no-op.
+                    // Unguarded: not a tap but a LaunchedEffect, possibly firing while
+                    // backgrounded with no entry RESUMED, where the guard would swallow the pop.
                     nav.popBackStack()
                 },
             )
         }
-        // The BELT, behind [settingsRouteFor]'s braces. Both entries into this graph ask that rule,
-        // but a route is just a string: anything that navigates to "account/<id>" — a new call site,
-        // a restored back stack, a deep link written later — arrives here with nothing between the
-        // id and the login editor's password field, whose save writes under [StoredAccount.loginKey]
-        // and therefore overwrites the secret of EVERY account grouped under that login. That is the
-        // loss of access this batch exists to make impossible, so the id is asked one last time
-        // HERE, with the SAME pure function, never a second wording of the guard.
+        // The belt behind [settingsRouteFor]. A route is just a string: anything navigating to
+        // "account/<id>" arrives with nothing between the id and the login editor's password field,
+        // which writes under [StoredAccount.loginKey].
         // PINNED BY SharedAccountScreenTest — the account route, statement by statement
         composable("account/{id}") { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             val accounts by accountsViewModel.accounts.collectAsStateWithLifecycle()
             if (sharedAccountFor(id, accounts) != null) {
-                // A shared mailbox that reaches this route anyway gets the screen that is honest
-                // for it, never the login editor: its password field saves under the LOGIN's key.
+                // A shared mailbox reaching this route gets its own screen, never the login editor.
                 SharedAccountScreen(
                     accountId = id,
                     viewModel = accountsViewModel,
@@ -318,14 +281,10 @@ fun SettingsScreen(
                 AccountDetailScreen(
                     accountId = id,
                     viewModel = accountsViewModel,
-                    // When this is the only inner destination (deep-linked from the drawer, hub
-                    // popped), Back falls through to the caller so it returns to the inbox, not a
-                    // dead end (#34). The fall-through sits INSIDE the guard: an ignored re-entrant
-                    // tap must not be read as "nothing left to pop" and close settings.
+                    // As the only inner destination, Back falls through to the caller (#34).
+                    // Inside the guard: an ignored re-entrant tap must not read as "nothing left".
                     onBack = { entry.navigateOnce { if (!nav.popBackStack()) onBack() } },
-                    // Guarded, unlike onConnected above: this one IS a tap — it runs inline from the
-                    // sign-out confirmation dialog's button, with the entry resumed underneath, and a
-                    // double tap on that button would pop twice.
+                    // Guarded, unlike onConnected above: a tap, run inline from a dialog button.
                     onSignedOut = {
                         onAccountsChanged()
                         entry.navigateOnce { nav.popBackStack() }
@@ -334,19 +293,15 @@ fun SettingsScreen(
                 )
             }
         }
-        // The two settings a DELEGATED account genuinely owns, and nothing else (issue #31). It
-        // gets its own destination rather than a mode of "account/{id}": that screen edits the
-        // credential of the LOGIN this account borrows, which is not this account's to edit.
+        // The two settings a delegated account genuinely owns (#31). Its own destination rather
+        // than a mode of "account/{id}", which edits the borrowed LOGIN's credential.
         // PINNED BY SharedAccountScreenTest — the shared route, statement by statement
         composable("sharedAccount/{id}") { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
             SharedAccountScreen(
                 accountId = id,
                 viewModel = accountsViewModel,
-                // Same fall-through as the account screen above, and for the same reason: this
-                // route is reachable as the only inner destination, and Back must then land on the
-                // inbox rather than a dead end (#34). Inside the guard, so a swallowed re-entrant
-                // tap is never read as "nothing left to pop".
+                // Same fall-through as the account screen above, and for the same reason (#34).
                 onBack = { entry.navigateOnce { if (!nav.popBackStack()) onBack() } },
                 onAccountsChanged = onAccountsChanged,
             )
@@ -402,14 +357,12 @@ private fun SettingsHub(
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
         ) {
-            // Account management on top.
             SettingsCategoryRow(
                 Icons.Filled.Person,
                 stringResource(R.string.settings_accounts_title),
                 stringResource(R.string.settings_accounts_summary),
                 onOpenAccounts,
             )
-            // App-wide preferences.
             SettingsSection(stringResource(R.string.settings_group_app)) {
                 SettingsCategoryRow(Icons.Filled.Palette, stringResource(R.string.settings_appearance_title), stringResource(R.string.settings_appearance_summary), onOpenAppearance)
                 SettingsCategoryRow(Icons.AutoMirrored.Filled.List, stringResource(R.string.settings_reading_title), stringResource(R.string.settings_reading_summary), onOpenReading)
@@ -418,8 +371,7 @@ private fun SettingsHub(
                 SettingsCategoryRow(Icons.Filled.Storage, stringResource(R.string.settings_storage_title), stringResource(R.string.settings_storage_summary), onOpenStorage)
                 SettingsCategoryRow(Icons.Filled.Backup, stringResource(R.string.settings_backup_title), stringResource(R.string.settings_backup_summary), onOpenBackup)
             }
-            // Server-side settings that apply to the current account only — the header
-            // names it so it's clear you'd switch accounts to configure another.
+            // Server-side settings that apply to the current account only; the header names it.
             val accountGroupTitle = if (currentAccountLabel.isNotBlank()) {
                 stringResource(R.string.settings_group_current_account, currentAccountLabel)
             } else {
@@ -429,9 +381,8 @@ private fun SettingsHub(
                 SettingsCategoryRow(Icons.Filled.BeachAccess, stringResource(R.string.settings_vacation_title), stringResource(R.string.settings_vacation_summary), onOpenVacation)
                 SettingsCategoryRow(Icons.Filled.FilterAlt, stringResource(R.string.settings_filters_title), stringResource(R.string.settings_filters_summary), onOpenFilters)
             }
-            // These four rows hand a URL to a browser instead of navigating; [onOpenUrl] carries
-            // the guard that keeps a double tap from opening it twice. No Context is taken here on
-            // purpose, so a row added later cannot fire an intent of its own without saying so.
+            // These four rows hand a URL to a browser; [onOpenUrl] carries the double-tap guard.
+            // No Context is taken here, so a row added later cannot fire an intent of its own.
             SettingsSection(stringResource(R.string.settings_about_section)) {
                 SettingsCategoryRow(
                     Icons.Filled.Info,
@@ -461,11 +412,8 @@ private fun SettingsHub(
 /** Where Sterna Mail lives; the About section links here (repo, releases, license). */
 private const val REPO_URL = "https://codeberg.org/emon/sterna-mail"
 
-/**
- * Hands a URL to whatever handles it, and says whether anything took it — a device with no browser
- * at all throws ActivityNotFound. Call it through the opener from [rememberLeaveOnce]: it has no
- * re-entrancy protection of its own, and firing it twice opens the browser twice (#106 follow-up).
- */
+/** Hands a URL to whatever handles it, and says whether anything took it. Call it through the
+ *  opener from [rememberLeaveOnce]: it has no re-entrancy protection of its own (#106). */
 private fun openUrl(context: android.content.Context, url: String): Boolean =
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isSuccess
 
@@ -504,8 +452,7 @@ private fun AppearanceScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     optionLabel = { themeLabel(context, it) },
                     onSelect = viewModel::setThemeMode,
                 )
-                // Material You (wallpaper colours) is opt-in; Sterna's brand palette is
-                // the default. Only meaningful on Android 12+, where dynamic colour exists.
+                // Material You is opt-in; Sterna's brand palette is the default. Android 12+ only.
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     SettingSwitch(
                         title = stringResource(R.string.settings_dynamic_color_title),
@@ -514,10 +461,8 @@ private fun AppearanceScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                         onCheckedChange = viewModel::setDynamicColor,
                     )
                 }
-                // OUTSIDE the Android 12 guard above, on purpose: that guard exists because
-                // dynamic colour needs Android 12, and a black background does not. It also stays
-                // visible in LIGHT theme, where it is inert — its subtitle says so. Hiding it with
-                // the current theme would make it a coupled toggle, which this project does not do.
+                // Outside the Android 12 guard, which is about dynamic colour. Visible in light
+                // theme too, where it is inert and says so.
                 SettingSwitch(
                     title = stringResource(R.string.settings_pure_black_title),
                     subtitle = stringResource(R.string.settings_pure_black_subtitle),
@@ -618,15 +563,9 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
         ) {
-            // The first switch applies to both protocols — on JMAP the thread is the server's, on
-            // IMAP a key rebuilt from the message headers (`imapThreadKey`). The second (unarchive on
-            // reply) acts on JMAP only: unarchiving is a server write on the thread's members, and
-            // that write is not made on IMAP. Neither fact is a condition on the accounts. It used to
-            // live in a note shown only when EVERY account was IMAP, with both switches greyed — so
-            // adding a single JMAP account re-enabled them and hid the note while the IMAP mail on
-            // the very same list behaved as before. The truth is in the permanent subtitle,
-            // unconditional: no switch whose state depends on which accounts happen to exist
-            // (SettingsScreenHonestyTest).
+            // The first switch applies to both protocols; the second (unarchive on reply) is JMAP
+            // only. Neither fact is a condition on the accounts: that truth belongs in the
+            // permanent subtitle (SettingsScreenHonestyTest).
             SettingsSection(stringResource(R.string.settings_conversation_section)) {
                 SettingSwitch(
                     title = stringResource(R.string.settings_conversation_title),
@@ -652,10 +591,8 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     optionLabel = { textSizeLabel(context, it) },
                     onSelect = viewModel::setMessageTextSize,
                 )
-                // What a message OPENS as (#149). Off by default — the HTML is what the app has
-                // always shown. The subtitle says the reader's menu still switches the message in
-                // hand, and stops there: it must not promise anything about remote images, which
-                // are only cut while the text mode is actually on.
+                // What a message opens as (#149). The subtitle must not promise anything about
+                // remote images, which are only cut while the text mode is actually on.
                 SettingSwitch(
                     title = stringResource(R.string.settings_plain_text_title),
                     subtitle = stringResource(R.string.settings_plain_text_subtitle),
@@ -680,10 +617,8 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                         }
                     },
                 )
-                // On by default — it is what the app has always shown. The subtitle says where the
-                // two actions live without it, because that is the only question turning it off
-                // raises: Reply has its own icon in the top bar, Reply all and Forward are the
-                // first two entries of the menu beside it (#63).
+                // On by default. The subtitle says where the two actions live without it: Reply has
+                // its own icon in the top bar, Reply all and Forward head the menu beside it (#63).
                 SettingSwitch(
                     title = stringResource(R.string.settings_reply_bar_title),
                     subtitle = stringResource(R.string.settings_reply_bar_subtitle),
@@ -707,9 +642,8 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     onSelect = viewModel::setSwipeLeft,
                 )
             }
-            // When the signature is inserted, where, and what the block looks like. WHAT it says is
-            // per identity (Accounts → identity). The three switches are independent: none of them
-            // greys out another.
+            // When the signature is inserted and what the block looks like; what it says is per
+            // identity (Accounts → identity).
             SettingsSection(stringResource(R.string.settings_signature_section)) {
                 SettingSwitch(
                     title = stringResource(R.string.settings_signature_on_replies_title),
@@ -723,9 +657,8 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     checked = signatureBelowQuote,
                     onCheckedChange = viewModel::setSignatureBelowQuote,
                 )
-                // On by default, and the subtitle says what turning it off costs: the "-- " line is
-                // what other mail apps recognise a signature by. Off, the signature field holds
-                // exactly what is sent, so any separator (or none) can be typed there (#90).
+                // On by default; the "-- " line is what other mail apps recognise a signature by.
+                // Off, the signature field holds exactly what is sent (#90).
                 SettingSwitch(
                     title = stringResource(R.string.settings_signature_delimiter_title),
                     subtitle = stringResource(R.string.settings_signature_delimiter_subtitle),
@@ -745,8 +678,7 @@ private fun swipeLabel(context: Context, action: SwipeAction): String = when (ac
     SwipeAction.FLAG -> context.getString(R.string.settings_swipe_flag)
 }
 
-/** The three independent cases of the "Mark as read when" group — each one its own
- *  preference, none of them constraining the others (Codeberg #67). */
+/** The three independent cases of the "Mark as read when" group, none constraining another (#67). */
 private enum class MarkReadOn { DELETE, ARCHIVE, MOVE }
 
 private fun markReadLabel(context: Context, on: MarkReadOn): String = when (on) {
@@ -766,17 +698,15 @@ private fun textSizeLabel(context: Context, size: MessageTextSize): String = whe
 private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val pushAll by viewModel.pushAllAccounts.collectAsStateWithLifecycle()
     val notifSettings by viewModel.notificationSettings.collectAsStateWithLifecycle()
-    // Hoisted above the branch on purpose, so that the call site stays the same one whichever arm
-    // of the `if` the screen opens on: remembered state is keyed by position in the composition,
-    // and a key that moves with the branch is a key nobody can reason about.
+    // Hoisted above the branch so the call site is the same whichever arm the screen opens on:
+    // remembered state is keyed by position in the composition.
     val scroll = rememberScrollState()
     DetailScaffold(title = stringResource(R.string.settings_notifications_screen_title), onBack = onBack) { padding ->
         val state = notifSettings
         if (state == null) {
-            // Nothing stored has been read yet (#57). Showing the radios now would show the
-            // defaults over the reader's choice AND accept a tap that writes them. A spinner
-            // filling the viewport, never an empty Box: the screen slides in opaque, and an empty
-            // frame would show the bare window background for the length of the transition.
+            // Nothing stored has been read yet (#57): showing the radios now would draw the
+            // defaults over the reader's choice and accept a tap that writes them. A spinner
+            // filling the viewport, never an empty Box: the screen slides in opaque.
             Box(Modifier.fillMaxSize().padding(padding)) {
                 LoadingRing(Modifier.align(Alignment.Center))
             }
@@ -807,8 +737,7 @@ private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit
                     )
                 }
                 SettingsSection(stringResource(R.string.settings_notif_content_section)) {
-                    // Most talkative first, most discreet last: the order is itself the
-                    // information, so the list reads as one scale instead of four choices.
+                    // Most talkative first, most discreet last: the order is itself the information.
                     DeliveryModeOption(
                         title = stringResource(R.string.settings_notif_content_preview),
                         subtitle = stringResource(R.string.settings_notif_content_preview_desc),
@@ -861,7 +790,6 @@ private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit
 
 private fun formatMinutes(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
 
-/** A row showing a time (HH:mm) that opens a Material time picker when tapped. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimePickerRow(label: String, minutes: Int, onChange: (Int) -> Unit) {
@@ -1025,8 +953,7 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
                 )
             }
             // Next to the remote content it belongs with: both are "what does this message get to
-            // learn about me?". ONE switch, and it asks — there is no third position that sends
-            // on its own, under any name.
+            // learn about me?". One switch, and it asks — no third position that sends on its own.
             SettingsSection(stringResource(R.string.settings_read_receipt_section)) {
                 SettingSwitch(
                     title = stringResource(R.string.settings_read_receipt_title),
@@ -1035,9 +962,8 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
                     onCheckedChange = viewModel::setAskReadReceipt,
                 )
             }
-            // The dates the composer itself writes into outgoing text (#120). The subtitle says
-            // exactly what changes — two dates, rendered in UTC — and nothing more: no privacy
-            // promise, since the message keeps other traces of where it came from.
+            // The dates the composer writes into outgoing text (#120). The subtitle says only
+            // what changes and makes no privacy promise: the message keeps other traces of origin.
             SettingsSection(stringResource(R.string.settings_quoted_dates_utc_section)) {
                 SettingSwitch(
                     title = stringResource(R.string.settings_quoted_dates_utc_title),
@@ -1266,10 +1192,8 @@ private fun StorageStatRow(label: String, value: String) {
     }
 }
 
-/**
- * Every window has a label, including the ones the picker no longer offers: an account can still
- * CARRY a retired window (nothing migrates it), and the row has to say which one.
- */
+/** Every window has a label, including the ones the picker no longer offers: an account can still
+ *  carry a retired window (nothing migrates it), and the row has to say which one. */
 private fun syncWindowLabel(context: Context, window: SyncWindow): String = when (window) {
     SyncWindow.DAYS_30 -> context.getString(R.string.settings_sync_last_30_days)
     SyncWindow.DAYS_90 -> context.getString(R.string.settings_sync_last_90_days)
@@ -1280,15 +1204,11 @@ private fun syncWindowLabel(context: Context, window: SyncWindow): String = when
     SyncWindow.COUNT_50 -> context.getString(R.string.settings_sync_50_messages)
     SyncWindow.COUNT_200 -> context.getString(R.string.settings_sync_200_messages)
     SyncWindow.COUNT_500 -> context.getString(R.string.settings_sync_500_messages)
-    // WYSIWYG: "Everything" now caches 10 000 messages and no more, so it is shown as such.
-    // Between lowering the label and raising the code, the label goes down (CLAUDE.md's grid,
-    // rule 3) — otherwise an account left on this window promises a whole mailbox offline while
-    // the cache holds ten thousand. The member and the string are both untouched; only the arm
-    // moved. `settings_sync_everything` stays shipped and translated (SyncEverythingLabelTest).
+    // WYSIWYG: "Everything" caches 10 000 messages and no more, so it is labelled as such —
+    // otherwise an account left on this window promises a whole mailbox offline.
     SyncWindow.ALL -> context.getString(R.string.settings_sync_10000_messages)
 }
 
-/** Human-readable byte size (B / KB / MB / GB). */
 private fun formatBytes(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     val kb = bytes / 1024.0
@@ -1336,36 +1256,28 @@ private fun AccountsScreen(
                     HorizontalDivider()
                 }
             }
-            // Only signed-in accounts here; the still-inert imported ones live in the section above,
-            // and [StoredAccount.accountsScreenRows] filters them out for us along with deciding the
-            // order. A delegated (shared) mailbox DOES get a row, indented under the login whose
-            // credential it borrows (issue #31): it owns none of THIS screen's settings — server,
-            // credential, protocol, identities, PGP, sync window — but tapping it opens the short
-            // shared-account screen, which holds the two it does own. Which screen that is, is
-            // [settingsRouteFor]'s decision, not this list's; nothing here promises a shared mailbox
-            // a sign-out it cannot honour (discovery restores it on the next connect).
+            // Only signed-in accounts; [StoredAccount.accountsScreenRows] filters the inert ones out
+            // and decides the order. A delegated mailbox is indented under the login whose
+            // credential it borrows (#31), and is never offered a sign-out it cannot honour.
             // PINNED BY SharedAccountScreenTest — the accounts list, statement by statement
             items(StoredAccount.accountsScreenRows(accounts), key = { it.account.id }) { row ->
                 val account = row.account
                 AccountRow(
-                    // A shared mailbox's colour seed is its own LABEL, exactly as in the drawer's
-                    // account list (InboxScreen): its [username] is the LOGIN's address, so seeding
-                    // on it gave a mailbox with no chosen colour the login's own monogram colour
-                    // here and a different one in the drawer. An ordinary row keeps `username` —
-                    // that colour is already on screen and must not move.
+                    // A shared mailbox's colour seed is its own label, as in the drawer: its
+                    // [username] is the LOGIN's address. An ordinary row keeps `username`, whose
+                    // colour is already on screen and must not move.
                     seed = if (account.isShared) account.label() else account.username,
                     label = account.label(),
-                    // And the second line says what the row IS, not an address that isn't its own:
-                    // `username` under a shared mailbox printed the LOGIN's address, i.e. the same
-                    // address twice on two consecutive rows. Same wording as the drawer (#31).
+                    // The second line says what the row is: `username` under a shared mailbox is
+                    // the LOGIN's address, printing it twice on two rows. As in the drawer (#31).
                     email = if (account.isShared) stringResource(R.string.account_shared) else account.username,
                     isCurrent = account.id == currentId,
                     color = accountColorOf(account.color),
                     indented = row.underLogin,
                     onClick = {
-                        // Never switch to an INERT (imported, not-yet-signed-in) account: it has no
-                        // credentials and would break the current-account inbox. Still open it so the
-                        // user can sign it in from its detail screen.
+                        // Never switch to an inert (not-yet-signed-in) account: no credentials,
+                        // and it would break the current-account inbox. Still opened, so it can be
+                        // signed in from its detail screen.
                         if (account.id != currentId && viewModel.isSignedIn(account.id)) {
                             viewModel.switchTo(account.id)
                             onAccountsChanged()
@@ -1397,17 +1309,15 @@ private fun AccountDetailScreen(
     onSignedOut: () -> Unit,
     onAccountsChanged: () -> Unit,
 ) {
-    // Derive from the LIVE accounts flow so signing in an inert account (OAuth) or switching it
-    // OAUTH→BASIC re-renders this screen with the new authType; the editor field states below stay
-    // keyed by accountId only, so a re-fetch of the same account never resets the user's edits.
+    // From the live accounts flow, so signing in an inert account or switching it OAUTH→BASIC
+    // re-renders with the new authType. The editor field states below stay keyed by accountId
+    // only, so a re-fetch of the same account never resets the user's edits.
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
-    // What the composer will do with the "-- " line, so the signature preview below shows the real
-    // thing rather than a fixed shape (#90).
+    // What the composer does with the "-- " line, so the preview below shows the real thing (#90).
     val signatureDelimiter by viewModel.signatureDelimiter.collectAsStateWithLifecycle()
     val snapshot = remember(accountId) { viewModel.account(accountId) }
     val account = accounts.firstOrNull { it.id == accountId } ?: snapshot
     if (account == null) {
-        // Account was removed (e.g. on sign-out) — nothing to show.
         DetailScaffold(title = stringResource(R.string.settings_account_screen_title), onBack = onBack) { padding ->
             Box(Modifier.fillMaxSize().padding(padding))
         }
@@ -1420,20 +1330,16 @@ private fun AccountDetailScreen(
     var username by remember(accountId) { mutableStateOf(account.username) }
     var password by remember(accountId) { mutableStateOf("") }
     var saved by remember(accountId) { mutableStateOf(false) }
-    // Distinct from [saved]: [dirty] starts false and only flips true on an actual edit, so it can
-    // drive the "unsaved changes" cue and the confirm-on-back without firing on first open.
+    // Distinct from [saved]: [dirty] starts false and flips only on an actual edit, so the
+    // "unsaved changes" cue and the confirm-on-back do not fire on first open.
     var dirty by remember(accountId) { mutableStateOf(false) }
     fun markEdited() { saved = false; dirty = true }
-    // MANUAL identities only (never the server-merged list). Saving writes exactly this list back,
-    // so server aliases keep re-merging live and self-correct when the server later drops one.
-    // Seed a single editable default only when there is nothing at all to send as (no manual and
-    // no server identity), so a fresh account still opens with one row instead of an empty section.
+    // Manual identities only, never the server-merged list: Save writes exactly this list back,
+    // so server aliases keep re-merging live and self-correct when the server drops one.
     var identities by remember(accountId) {
         mutableStateOf(
-            // Self-heal pollution from the old merge-on-save fold before showing the raw list, and
-            // split a legacy signature that holds raw HTML in the plain-text field (what the old
-            // "Import HTML" wrote) so the editor shows text, not tag soup — the HTML is kept in
-            // signatureHtml and still sent.
+            // Heal pollution from the old merge-on-save fold, and split a legacy signature holding
+            // raw HTML in the plain-text field; the HTML is kept in signatureHtml and still sent.
             StoredAccount.normalizeManualIdentities(account.identities, account.serverIdentities)
                 .map { it.withSplitSignature() }
                 .ifEmpty {
@@ -1465,13 +1371,11 @@ private fun AccountDetailScreen(
     val cacheCount by viewModel.cacheCount.collectAsStateWithLifecycle()
     val connTest by viewModel.connTest.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    // Is this an inert (imported, not-yet-signed-in) account? Re-read on each recomposition so the
-    // sign-in card disappears once a credential is stored (OAuth success / password save).
+    // Re-read on each recomposition so the sign-in card disappears once a credential is stored.
     val isInert = !viewModel.isSignedIn(accountId)
     val accountSignIn by viewModel.accountSignIn.collectAsStateWithLifecycle()
-    // Identities the last Save could not create on the server (#172). Drawn at the BOTTOM of this
-    // screen, right above the Save button that asked for them — not in the Identities section,
-    // which is three sections higher and off screen when the answer lands.
+    // Identities the last Save could not create on the server (#172). Drawn above the Save button
+    // that asked, not in the Identities section, which is off screen when the answer lands.
     val identitiesNotCreated by viewModel.identitiesNotCreated.collectAsStateWithLifecycle()
     LaunchedEffect(accountId) {
         viewModel.loadCacheCount(accountId)
@@ -1494,8 +1398,8 @@ private fun AccountDetailScreen(
         imapHost = imapHost, imapPort = imapPort, smtpHost = smtpHost, smtpPort = smtpPort,
     )
 
-    // The screen's one Save action: the button at the bottom and the exit dialog (#34) both call
-    // it, so saving on the way out writes exactly what the button would have written.
+    // The screen's one Save action: the bottom button and the exit dialog (#34) both call it, so
+    // saving on the way out writes exactly what the button would have written.
     fun saveAccountEdits() {
         val fields = accountSaveFields(identities, account.serverIdentities, defaultIdentityId)
         if (isImap) {
@@ -1540,15 +1444,13 @@ private fun AccountDetailScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                // Keep the form scrollable above the keyboard so the focused field (server,
-                // password, a signature far down the identity list…) stays visible while
-                // typing (#52) — same recipe as the connect screen.
+                // Keeps the form scrollable above the keyboard, so the focused field stays visible
+                // while typing (#52).
                 .imePadding()
                 .verticalScroll(rememberScrollState()),
         ) {
-            // An imported account has no stored credential yet: sign it in first. OAuth accounts
-            // (Microsoft) run a browser device flow here; BASIC accounts use the password field +
-            // Save below (a successful save clears the pending flag).
+            // An imported account has no stored credential yet. OAuth accounts run a browser
+            // device flow here; BASIC accounts use the password field + Save below.
             if (isInert) {
                 val oauthProvider = if (account.authType == AuthType.OAUTH) {
                     OAuthProvider.forImapHost(account.imapHost)
@@ -1642,14 +1544,9 @@ private fun AccountDetailScreen(
                 }
             }
             SettingsSection(stringResource(R.string.settings_account_notifications_section)) {
-                // An account that is neither the current one nor covered by "Push for all accounts"
-                // is watched by nothing (issue A8): its toggle changes nothing until push-all is on.
-                // Point to that setting instead of pretending the toggle works — but only where the
-                // note is exact, i.e. while this account's own flag is on and push-all is the single
-                // thing missing. With that flag already off the note would promise one action for a
-                // two-action state, so it stays quiet and the toggle stays LIVE (greying it out here
-                // used to demand a step and forbid it at once): ticking it brings the note back,
-                // saying what is genuinely left to do.
+                // An account neither current nor covered by "Push for all accounts" is watched by
+                // nothing. The note appears only where it is exact — this account's own flag on,
+                // push-all the single thing missing — else it promises one action for two.
                 SettingSwitch(
                     title = stringResource(R.string.settings_account_notifications_title),
                     subtitle = stringResource(R.string.settings_account_notifications_subtitle),
@@ -1659,9 +1556,8 @@ private fun AccountDetailScreen(
                         viewModel.setNotificationsEnabled(accountId, it)
                     },
                 )
-                // isWatched is re-read each recomposition (no remember): neither the current account
-                // nor the push-all flag is observable, so returning from the push-all setting is what
-                // has to settle this line.
+                // isWatched is re-read each recomposition (no remember): neither the current
+                // account nor the push-all flag is observable.
                 if (PushController.shouldShowUnwatchedNote(account.isLinked, viewModel.isWatched(accountId), notificationsEnabled)) {
                     Text(
                         stringResource(R.string.settings_account_notifications_unwatched_note),
@@ -1670,15 +1566,12 @@ private fun AccountDetailScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
-                // Read-only delivery status (issue #17) — transparency, never a control.
+                // Read-only delivery status (#17) — transparency, never a control.
                 if (notificationsEnabled) {
                     val appContext = LocalContext.current
                     // statusFor is a plain snapshot, but re-enabling notifications re-arms push
-                    // asynchronously (service start/stop, UnifiedPush bring-up): a one-shot read
-                    // taken during the toggle's recomposition still sees the old transport and
-                    // claimed "checked every 30 minutes" for a push account until the screen was
-                    // rebuilt (#53). Keep re-reading while the line is visible so it settles on
-                    // the effective delivery.
+                    // asynchronously: a one-shot read taken during the toggle's recomposition still
+                    // sees the old transport (#53), so it is re-read while the line is visible.
                     var status by remember(accountId) {
                         mutableStateOf(PushController.statusFor(appContext, accountId))
                     }
@@ -1691,10 +1584,9 @@ private fun AccountDetailScreen(
                     val statusText = when (val s = status) {
                         is PushStatus.ViaUnifiedPush ->
                             stringResource(R.string.settings_push_status_up, appLabelOf(appContext, s.distributorPackage))
-                        // A DATE, not a verdict: the relay belongs to the user, not to us, and
-                        // nothing here can tell one that died from one with nothing to announce
-                        // (#177). DateUtils localises the span itself, so the nine translations
-                        // carry one sentence and no units of time of their own.
+                        // A date, not a verdict: nothing here can tell a dead relay from one with
+                        // nothing to announce (#177). DateUtils localises the span, so the nine
+                        // translations carry no units of time of their own.
                         is PushStatus.ViaRelay -> stringResource(
                             R.string.settings_push_status_relay,
                             DateUtils.getRelativeTimeSpanString(s.lastDeliveryMillis),
@@ -1710,12 +1602,10 @@ private fun AccountDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
-                    // The relay address block (#177), inside BOTH guards and pinned there by
-                    // RelayAddressRowWiringTest. Inside notificationsEnabled because an address on
-                    // an account Sterna is told not to fetch is a trap — the relay posts, the wake
-                    // is ignored, and the screen still shows the address that was supposed to make
-                    // mail arrive. Inside isImap because a JMAP account holds a real
-                    // PushSubscription: it has a server that pushes to it and no use for a relay.
+                    // The relay block (#177) belongs inside both guards. notificationsEnabled: an
+                    // address on an account Sterna is told not to fetch is a trap, since the relay
+                    // posts and the wake is ignored. isImap: a JMAP account holds a real
+                    // PushSubscription and has no use for a relay.
                     if (isImap) {
                         RelayAddressSection(accountId = accountId, viewModel = viewModel)
                     }
@@ -1763,10 +1653,8 @@ private fun AccountDetailScreen(
                         onSelect = { smtpSecurity = it; markEdited() },
                     )
                     PlaintextSecurityWarning(smtpSecurity)
-                    // IMAP only: sending is SMTP + an APPEND into Sent, and the APPEND is the half
-                    // this switches off for a server that files the sent copy itself. Written at
-                    // the toggle (the Save button below belongs to the text fields); JMAP has no
-                    // second write to cut, so the row stays inside this branch.
+                    // IMAP only: this switches off the APPEND into Sent for a server that files
+                    // the copy itself. JMAP has no second write to cut. Written at the toggle.
                     SettingSwitch(
                         title = stringResource(R.string.settings_upload_sent_title),
                         subtitle = stringResource(R.string.settings_upload_sent_subtitle),
@@ -1791,9 +1679,8 @@ private fun AccountDetailScreen(
                     keyboardType = KeyboardType.Email,
                 )
                 // OAuth accounts have no password field: their encrypted slot holds the refresh
-                // token, and save() would overwrite it with whatever is typed here, killing the
-                // account (audit A4). Re-authenticating uses the sign-in card / app-password switch
-                // above, not this field. (API-token accounts DO type their token into this slot.)
+                // token, which save() would overwrite with whatever is typed here, killing the
+                // account. (API-token accounts do type their token into this slot.)
                 if (account.authType != AuthType.OAUTH) {
                     SettingTextField(
                         // For API-token accounts the encrypted slot holds the token, not a password.
@@ -1829,28 +1716,19 @@ private fun AccountDetailScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
-                // Two groups, loaded SEPARATELY: server identities are shown read-only (the server
-                // is authoritative for what you may send as); manual identities are editable and are
-                // the only ones written back on save. Never seed the editable list from the merged
-                // resolvedIdentities() — that would freeze server aliases into the manual field.
-                // Dedup the server group DISPLAY by email (some servers return byte-identical
-                // Identity/get duplicates), consistent with resolvedIdentities() and the composer's
-                // From picker. Genuinely distinct server addresses are kept.
+                // Two groups: server identities read-only, manual ones editable and the only ones
+                // written back on Save. Never seed the editable list from the merged
+                // resolvedIdentities(), which freezes server aliases into the manual field.
                 val serverIdentities = StoredAccount.distinctServerIdentities(account.serverIdentities)
                 val serverEmails = remember(serverIdentities) {
                     serverIdentities.map { it.email.trim().lowercase() }.toSet()
                 }
-                // Purely-manual identities = editable entries whose email is NOT a server address.
-                // Entries whose email IS a server address are overrides for a server identity and are
-                // surfaced in the server group only (one edit surface per address; no duplicate row,
-                // no group-hopping as the user types).
+                // Purely-manual identities: editable entries whose email is not a server address.
+                // Entries whose email is one are overrides, surfaced in the server group only.
                 val purelyManual = identities.filter { it.email.trim().lowercase() !in serverEmails }
                 val totalIdentities = serverIdentities.size + purelyManual.size
 
-                // Folding: stacked full cards made it impossible to tell which field belonged
-                // to which address. Only the default sender opens — "what is open is what I write
-                // with" — and the rest fold to one line. Display only: computed once per account,
-                // never saved, so reopening the screen re-derives it.
+                // Only the default sender opens; display only, never saved, so it is re-derived.
                 var expandedRows by remember(accountId) {
                     val rows = serverIdentities.map { server ->
                         val emailKey = server.email.trim().lowercase()
@@ -1861,10 +1739,9 @@ private fun AccountDetailScreen(
                     mutableStateOf(setOfNotNull(initialExpandedIdentityId(rows, defaultIdentityId)))
                 }
 
-                // Edit the name/signature of a server identity by upserting a manual override for its
-                // email, seeded from the server values (so editing one field keeps the other) and
-                // reusing the server id (so the #78 default keeps resolving after an edit). Because
-                // resolvedIdentities() is manual-first, the override wins — this is the #79 fix.
+                // Edit a server identity by upserting a manual override for its email, reusing the
+                // server id so the #78 default keeps resolving; resolvedIdentities() is
+                // manual-first, so the override wins (#79).
                 fun overrideServer(server: StoredIdentity, transform: (StoredIdentity) -> StoredIdentity) {
                     val emailKey = server.email.trim().lowercase()
                     val idx = identities.indexOfFirst { it.email.trim().lowercase() == emailKey }
@@ -1901,8 +1778,8 @@ private fun AccountDetailScreen(
                     )
                     serverIdentities.forEach { server ->
                         val emailKey = server.email.trim().lowercase()
-                        // Show the manual override's values if one exists, else the server's own
-                        // (split, so a signature the server sends as HTML is shown as text).
+                        // The manual override's values if one exists, else the server's own, split
+                        // so a signature the server sends as HTML is shown as text.
                         val override = identities.firstOrNull { it.email.trim().lowercase() == emailKey }
                         val shown = (override ?: server).withSplitSignature()
                         val name = shown.name
@@ -1912,8 +1789,7 @@ private fun AccountDetailScreen(
                         val isDefault = defaultIdentityId == rowId || defaultIdentityId == server.id
                         val expanded = rowId in expandedRows
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            // The address heads the row and stays visible folded or not: it is what
-                            // tells the reader whose fields these are.
+                            // The address heads the row, folded or not: it says whose fields these are.
                             IdentityRowHeader(
                                 email = server.email,
                                 isDefault = isDefault,
@@ -1928,9 +1804,8 @@ private fun AccountDetailScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
-                                // Default is settable on a server identity too (#78); id is stable.
-                                // It sits right under the address, above the fields: below the
-                                // signature field it read as if it qualified the signature.
+                                // Default is settable on a server identity too (#78). Above the
+                                // fields, so it does not read as a property of the signature.
                                 DefaultIdentityRadioRow(
                                     selected = isDefault,
                                     onSelect = { defaultIdentityId = rowId; markEdited() },
@@ -1944,9 +1819,8 @@ private fun AccountDetailScreen(
                                 )
                                 OutlinedTextField(
                                     value = signature,
-                                    // Editing the text drops the imported HTML: it no longer matches
-                                    // what will be inserted in the composer, so keeping it would send
-                                    // something other than what the user typed.
+                                    // Editing the text drops the imported HTML, which would
+                                    // otherwise send something other than what was typed.
                                     onValueChange = { v ->
                                         overrideServer(server) { it.copy(signature = v, signatureHtml = "") }
                                     },
@@ -1970,9 +1844,8 @@ private fun AccountDetailScreen(
                                 SignaturePreview(signature, signatureDelimiter)
                                 OutlinedButton(
                                     onClick = {
-                                        // Both halves: the flattened text the composer inserts and
-                                        // edits, and the HTML sent as-is while that block comes back
-                                        // untouched.
+                                        // Both halves: the flattened text the composer inserts,
+                                        // and the HTML sent as-is while untouched.
                                         pendingImport = { html ->
                                             overrideServer(server) {
                                                 it.copy(signature = htmlToText(html), signatureHtml = html)
@@ -2004,8 +1877,8 @@ private fun AccountDetailScreen(
                         markEdited()
                     }
                     val trimmedEmail = identity.email.trim()
-                    // Local-only checks: malformed address (blocking error) and a soft, non-blocking
-                    // hint when the address is not one the server advertised (it may reject it).
+                    // Local-only checks: malformed address (blocking) and a soft hint when the
+                    // server did not advertise it.
                     val emailInvalid = trimmedEmail.isNotBlank() &&
                         !android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()
                     val notOnServer = trimmedEmail.isNotBlank() && !emailInvalid &&
@@ -2020,12 +1893,8 @@ private fun AccountDetailScreen(
                             onToggle = { expandedRows = expandedRows.toggleIdentityRow(identity.id) },
                         )
                         if (expanded) {
-                            // Default-identity picker: a single radio per account (selecting one
-                            // clears the rest, as they share the single [defaultIdentityId]). Keyed
-                            // by the stable identity id so it survives server-driven list
-                            // reordering. Placed under the address and above the fields:
-                            // sitting under the signature field it read as a property of the
-                            // signature rather than of the identity.
+                            // Default-identity picker: one radio per account, keyed by the stable id
+                            // so it survives server-driven list reordering.
                             DefaultIdentityRadioRow(
                                 selected = identity.id == defaultIdentityId,
                                 onSelect = { defaultIdentityId = identity.id; markEdited() },
@@ -2143,15 +2012,13 @@ private fun AccountDetailScreen(
             SettingsSection(stringResource(R.string.settings_sync_section)) {
                 SettingChoiceRow(
                     title = stringResource(R.string.settings_messages_to_sync_title),
-                    // The list comes from `syncWindowChoices()` and is not written out here: the
-                    // retired windows (50 / 200 / 500 / "Everything") still exist and still decode,
-                    // and a list spelled out on this screen is how one of them gets offered again.
+                    // From `syncWindowChoices()`, never spelled out here: the retired windows
+                    // (50 / 200 / 500 / "Everything") still decode, and a hand-written list is how
+                    // one of them gets offered again.
                     options = syncWindowChoices(),
-                    // The window the account CARRIES, never one picked out of the offer. A
-                    // retired window is not in `options`, so the dialog shows no ticked circle for
-                    // it — that is the accepted cost. Substituting the nearest offered value here
-                    // would make the row state a number the cache does not hold, permanently and
-                    // without writing anything.
+                    // The window the account carries, never one picked out of the offer:
+                    // substituting the nearest offered value would make the row state a number the
+                    // cache does not hold. A retired window shows no ticked circle in the dialog.
                     selected = syncWindow,
                     optionLabel = { syncWindowLabel(context, it) },
                     onSelect = {
@@ -2160,14 +2027,9 @@ private fun AccountDetailScreen(
                         onAccountsChanged()
                     },
                 )
-                // HERE, and not in the `if (isImap)` block above where the "Upload sent messages"
-                // switch legitimately sits. That one switches off a second WRITE that only IMAP
-                // sending performs; this one is about what the folder lists SHOW, and both
-                // protocols carry the subscription (IMAP LSUB, JMAP Mailbox.isSubscribed, RFC 8621
-                // §2). Inside that branch it would be invisible on every JMAP account — the app's
-                // default protocol, and the reporter's own case (#174).
-                // Written at the toggle, not at Save: the Save button belongs to the text fields,
-                // and a switch that waited for it would lose the choice to a back gesture.
+                // Here, not in the `if (isImap)` block above: both protocols carry the
+                // subscription (IMAP LSUB, JMAP Mailbox.isSubscribed), so inside that branch this
+                // would be invisible on every JMAP account (#174).
                 SettingSwitch(
                     title = stringResource(R.string.settings_subscribed_folders_title),
                     subtitle = stringResource(R.string.settings_subscribed_folders_subtitle),
@@ -2183,14 +2045,9 @@ private fun AccountDetailScreen(
             }
             SettingsSection(stringResource(R.string.settings_storage_section)) {
                 StorageStatRow(stringResource(R.string.settings_cached_messages), "$cacheCount")
-                // BEFORE the button, as the global one has it (`settings_clear_cache_help`), and
-                // it is not decoration: the attachment cache is ONE flat directory shared by every
-                // account, so this button deletes the downloaded attachments of all of them. There
-                // is no confirmation dialog (decided against), so this line is the only warning the
-                // reader gets and it has to reach her before the tap — in linear navigation
-                // (TalkBack, a keyboard) a warning placed after the button is reached after the
-                // control it warns about, and the button purges on first activation.
-                // `TranslationParityTest` pins the sentence, this call site and this order.
+                // Before the button: the attachment cache is one flat directory shared by every
+                // account, there is no confirmation dialog, and a warning placed after the button
+                // is reached too late. `TranslationParityTest` pins this order.
                 Text(
                     stringResource(R.string.settings_clear_account_cache_help),
                     style = MaterialTheme.typography.bodyMedium,
@@ -2241,8 +2098,7 @@ private fun AccountDetailScreen(
                     )
                     else -> Unit
                 }
-                // Identity/name/server edits persist only on Save (colour/sync autosave); cue the
-                // user so they are not silently lost on back-navigation (#9).
+                // Identity/name/server edits persist only on Save, unlike colour and sync (#9).
                 if (dirty) {
                     Text(
                         stringResource(R.string.settings_unsaved_changes),
@@ -2251,30 +2107,18 @@ private fun AccountDetailScreen(
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
-                // Say out loud what this button owns. Four sections above (colour, notifications,
-                // sync window, PGP) write on tap and leave it nothing to do, so it stays grey after
-                // them — correct, but on a screen carrying a Save button a grey button reads as a
-                // refusal, and until now nothing said otherwise. Above the button, not below it:
-                // the gap down to "Sign out" is the same 8 dp and the sentence would read as
-                // qualifying the sign-out. No modifier — the enclosing Column gives the side
-                // padding and the spacing; bodySmall/onSurfaceVariant so a permanent caption does
-                // not shout over the conditional "Unsaved changes" cue just above.
+                // Says what this button owns: four sections above write on tap and leave it nothing
+                // to do, so it stays grey, which otherwise reads as a refusal. Above the button:
+                // below it, the equal gap to "Sign out" makes it qualify that instead.
                 Text(
                     stringResource(R.string.settings_save_scope),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // Live only when there is something to write: a Save that is offered while the form
-                // is untouched promises an effect it cannot have (#34). [dirty] is set by every
-                // field this button persists, so the button lights up on the first keystroke and
-                // goes back out the moment the edits are written.
-                // What the server answered to the LAST Save, immediately above the button that
-                // asked it — the same place the "Test connection" failure is drawn. Under "Add an
-                // identity" it sat three sections higher, off screen, while the button the user was
-                // looking at had already flipped to "Saved". Filtered on this screen's account: one
-                // view model serves them all, and a refusal on another account names an address
-                // that appears nowhere here. Nothing retries: the sentence says the address is kept
-                // on the phone, and that is all that is true.
+                // Live only when there is something to write: a Save offered over an untouched form
+                // promises an effect it cannot have (#34). The last Save's answer, filtered on
+                // this screen's account: one view model serves them all, and another account's
+                // refusal names an address absent here.
                 identitiesNotCreated.filter { it.accountId == accountId }.forEach { failure ->
                     Text(
                         stringResource(R.string.settings_identity_not_created, failure.email, failure.detail),
@@ -2333,30 +2177,19 @@ private fun AccountDetailScreen(
 }
 
 /**
- * The relay push address block (#177), for an IMAP account whose owner wants instant mail without
- * a connection Sterna has to hold open. Sterna does not run a relay, does not ship one and does not
- * document one: it PUBLISHES an address the user hands to whatever they already trust, and a POST
- * to that address wakes the app up to check for mail. Nothing of the mailbox travels through it.
- *
- * Four states, and the first of them is the point: with no UnifiedPush app installed there is
- * nothing that could ever mint an address, so the block says so and offers no button. A button
- * that cannot work is the same on-screen lie as a status line that says push is on while nothing
- * arrives — the very thing this volet was opened to remove.
+ * The relay push address block (#177). Sterna runs no relay: it publishes an address the user hands
+ * to whatever they already trust, and a POST to it wakes the app to check for mail.
+ * With no UnifiedPush app installed nothing could mint an address, so the block says so and
+ * offers no button rather than one that cannot work.
  */
 @Composable
 private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel) {
-    // Whether a UnifiedPush app is installed is read ONCE per visit: it is
-    // packageManager.queryBroadcastReceivers under the hood, and it cannot change while this
-    // screen is on top — if it does, the next visit sees it. It used to ride the tick below, which
-    // made that loop two binder calls a second for as long as the screen was open, under a comment
-    // claiming the read was "SharedPreferences only".
+    // Read once per visit, never on the tick below: it is a binder call
+    // (packageManager.queryBroadcastReceivers) for an answer that cannot change while on top.
     val distributorInstalled = remember(accountId) { viewModel.distributorInstalled() }
-    // The rest re-reads on the same 500 ms tick as the status line just above, and for the same
-    // reason: the distributor answers asynchronously, so an address that lands while this screen is
-    // open was shown nowhere until the screen was left and re-entered — with the block reading
-    // "Waiting for an address…" while the address was already in hand. THIS read is
-    // SharedPreferences only, served from memory once loaded, exactly like the statusFor read that
-    // loop already does; no DataStore, no runBlocking and no PackageManager may join it.
+    // The rest re-reads on the same 500 ms tick as the status line above, since the distributor
+    // answers asynchronously. SharedPreferences only; no DataStore, runBlocking or PackageManager
+    // may join it.
     var relay by remember(accountId) { mutableStateOf(viewModel.relayAddress(accountId)) }
     LaunchedEffect(accountId) {
         while (true) {
@@ -2374,10 +2207,7 @@ private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel)
             value = endpoint,
             copiedMessage = stringResource(R.string.settings_push_relay_copied),
         )
-        // The same sentence as the empty state, and here is where it earns its keep: it used to
-        // vanish at the exact moment it matters, when the address is on screen and about to be
-        // pasted into somebody else's app. What the reader needs to know before doing that is what
-        // handing it out does and does not give away. No new string — the existing one, twice.
+        // The same sentence as the empty state: the address is about to leave for another app.
         Text(
             stringResource(R.string.settings_push_relay_explain),
             style = MaterialTheme.typography.bodySmall,
@@ -2393,12 +2223,8 @@ private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel)
         ) { Text(stringResource(R.string.settings_push_relay_remove)) }
     } else if (relay.requested) {
         RelayAddressNote(title, stringResource(R.string.settings_push_relay_waiting))
-        // This state can be FINAL, so it gets the way out of it. For an account outside the
-        // watched set (push-all off, not the current account) the tap above is the only
-        // ensureRegistered of its life — PushController.apply and MailFetchWorker both filter on
-        // that set — so a registration that fails, or a distributor picker the reader dismisses,
-        // used to leave this sentence on screen for ever with nothing to press. "Remove address"
-        // puts the account back where it started, and the tap can happen again. No new string.
+        // This state can be final, so it carries the way out: for an account outside the watched
+        // set the tap above is the only ensureRegistered of its life.
         TextButton(
             onClick = {
                 viewModel.dropRelayAddress(accountId)
@@ -2434,11 +2260,7 @@ private fun RelayAddressNote(title: String, note: String) {
     )
 }
 
-/**
- * Minimal inline device-approval panel for the account detail sign-in card: the user code (tap to
- * copy), an open-browser button, and a Cancel. Mirrors ConnectScreen's private DeviceApprovalContent
- * without importing it.
- */
+/** Inline device-approval panel for the sign-in card, mirroring ConnectScreen's private copy. */
 @Composable
 private fun InlineDeviceApproval(
     userCode: String,
@@ -2449,8 +2271,8 @@ private fun InlineDeviceApproval(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val copiedMsg = stringResource(R.string.connect_oauth_code_copied)
-    // As in the connect screen's copy of this panel: two approval windows for one sign-in leaves
-    // the user completing one of them while the other waits for something that will never come.
+    // As in the connect screen's copy: two approval windows for one sign-in leaves the user
+    // completing one while the other waits for something that will never come.
     val leaveOnce = rememberLeaveOnce()
     Text(stringResource(R.string.connect_oauth_step1), style = MaterialTheme.typography.bodyMedium)
     Row(
@@ -2486,12 +2308,8 @@ private fun InlineDeviceApproval(
     }
 }
 
-/**
- * Per-account OpenPGP configuration backed by the OpenKeychain provider. When
- * no provider is installed, an explainer + an F-Droid install link are shown
- * and the switches degrade to turn-off-only, so "Use OpenPGP" and "Encrypt by
- * default" never become stuck ON after OpenKeychain is uninstalled (#35).
- */
+/** Per-account OpenPGP configuration. With no provider installed the switches degrade to
+ *  turn-off-only, so they never become stuck on after the provider is uninstalled (#35). */
 @Composable
 private fun PgpAccountSection(
     accountId: String,
@@ -2505,8 +2323,8 @@ private fun PgpAccountSection(
     val pgpSetup by viewModel.pgpSetup.collectAsStateWithLifecycle()
     val pgpProviders by viewModel.pgpProviders.collectAsStateWithLifecycle()
     val pgpProviderInUse by viewModel.pgpProviderInUse.collectAsStateWithLifecycle()
-    // Observe the LIVE account so the switches/key reflect changes made by the
-    // async key chooser and setPgp; the passed-in [account] is a one-shot snapshot.
+    // The live account, so the switches reflect the async key chooser and setPgp ([account] is a
+    // one-shot snapshot).
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val liveAccount = accounts.firstOrNull { it.id == accountId } ?: account
     LaunchedEffect(accountId) { viewModel.refreshPgpAvailable() }
@@ -2535,19 +2353,13 @@ private fun PgpAccountSection(
         ) {
             Text(stringResource(R.string.settings_pgp_install))
         }
-        // No early return: the switches below must stay reachable so a configuration
-        // left ON before the provider was uninstalled/disabled can still be turned
-        // OFF (#35). Without a provider they only allow turning things off.
+        // No early return: the switches below must stay reachable so a configuration left on
+        // before the provider was uninstalled can still be turned off (#35).
     }
 
-    // Only when there is something to pick. With one provider it is taken without being asked
-    // about, and a row offering a choice of one is noise; with none, the explainer above already
-    // says what to do (#151).
-    //
-    // No fallback for a null provider-in-use, deliberately: `?: pgpProviders.first()` would
-    // name and tick a provider chosen by the sort order while the engine binds another one, which
-    // is the row saying something false. The two states are published together, so a null here
-    // means nothing is resolved yet; showing no row at all until then is the honest answer.
+    // Only when there is something to pick (#151). No fallback for a null provider-in-use:
+    // `?: pgpProviders.first()` would tick a provider chosen by the sort order while the engine
+    // binds another.
     val pgpInUse = pgpProviderInUse
     if (pgpProviders.size >= 2 && pgpInUse != null) {
         SettingChoiceRow(
@@ -2559,16 +2371,14 @@ private fun PgpAccountSection(
         )
     }
 
-    // REMEMBERED ON THE PACKAGE. Reading a provider's own name is a package-manager query plus
-    // the loading of a third-party APK's resources; called bare in the subtitle below it would run
-    // on the main thread on EVERY recomposition, where the same query is deliberately kept off it
-    // in the view model. Keyed on the package, it costs one query per change of provider.
+    // Remembered on the package: reading a provider's own name is a package-manager query plus
+    // loading a third-party APK's resources, and bare it would run on every recomposition.
     val pgpInUseLabel = remember(pgpInUse) { pgpInUse?.let { pgpProviderLabel(context, it) } }
 
     SettingSwitch(
         title = stringResource(R.string.settings_pgp_enable_title),
-        // The provider row appears only from two installed apps on, so with a single one this
-        // subtitle is the only place the app in use is named — hence the argument (#151).
+        // With a single installed app the provider row is hidden, so this subtitle is the only place
+        // the app in use is named (#151).
         subtitle = if (pgpAvailable) {
             stringResource(
                 R.string.settings_pgp_enable_subtitle,
@@ -2640,10 +2450,7 @@ private fun PgpAccountSection(
     }
 }
 
-/**
- * The OpenPGP app's own name, as it calls itself in the launcher, decided by
- * [pgpProviderDisplayName] — a package-manager round trip, so call it through a `remember`.
- */
+/** The OpenPGP app's own name ([pgpProviderDisplayName]). A package-manager round trip: remember it. */
 private fun pgpProviderLabel(context: Context, packageName: String): String =
     pgpProviderDisplayName(
         OpenPgpProviderUtil.getOpenPgpProviderName(context.packageManager, packageName),
@@ -2651,47 +2458,25 @@ private fun pgpProviderLabel(context: Context, packageName: String): String =
     )
 
 /**
- * THE FALLBACK THAT ACTUALLY SHIPS. What an OpenPGP app is called on screen — in the provider
- * row and in the "Use OpenPGP" subtitle — when it declares no name of its own.
- *
- * The answer is its PACKAGE NAME. "Sign, encrypt and read mail with org.sufficientlysecure.keychain"
- * is ugly, and it is TRUE: it is the app that is bound, named by its only other name, which is what
- * the system itself falls back to. Never a hard-coded app name here — `?: "OpenKeychain"` would
- * put one particular app back onto the screen of someone signing with another one, which is the
- * whole defect this change removes (#151), and it would look like a tidy-up.
+ * What an OpenPGP app is called on screen when it declares no name of its own: its package name.
+ * Never a hard-coded app name here: `?: "OpenKeychain"` would put one particular app onto the
+ * screen of someone signing with another one (#151).
  */
 internal fun pgpProviderDisplayName(declaredName: String?, packageName: String): String =
     declaredName ?: packageName
 
-/**
- * What the "Use OpenPGP" subtitle says mail is signed, encrypted and read WITH. The row of
- * providers only appears from two installed apps on, so with a single one this subtitle is the
- * only place on screen that names the app actually in use (#151).
- *
- * [label] IS NEVER NULL IN PRODUCTION, and this function's own fallback therefore guards a state
- * the app does not produce: `pgpProviderLabel` always returns something (see
- * [pgpProviderDisplayName]), and `refreshPgpAvailable` publishes the provider in use together with
- * `pgpAvailable`, which is what gates this branch. It exists because the type is nullable and an
- * answer is owed; "OpenPGP" names the standard, which stays true whichever app is bound. The
- * fallback that readers actually meet is the one above, not this one.
- */
+/** What the "Use OpenPGP" subtitle says mail is signed, encrypted and read with — with a single
+ * installed app, the only place on screen that names the app in use (#151). [label] is never
+ *  null in production; the fallback readers actually meet is [pgpProviderDisplayName]'s. */
 internal fun pgpSubtitleProviderName(label: String?): String = label ?: "OpenPGP"
 
-/**
- * HELD TOGETHER WITH `settings_pgp_install`, which names OpenKeychain in all nine languages.
- * The button is allowed to name one app precisely because it opens that app's page; change either
- * side alone and the button promises one thing and delivers another.
- */
+/** Held together with `settings_pgp_install`, which names OpenKeychain in all nine languages: the
+ *  button may name one app precisely because it opens that app's page. */
 internal const val OPENKEYCHAIN_FDROID_URL =
     "https://f-droid.org/packages/org.sufficientlysecure.keychain/"
 
-/**
- * What "None" costs, shown under the security selector while it is the choice. The option
- * stays: a Proton Bridge (or any loopback proxy) on 127.0.0.1 is a legitimate cleartext
- * target. But sending a password unencrypted should be a decision, not a default one can
- * land on unknowingly, so the consequence is stated in place. No dialogue, no second
- * confirmation: the state on screen is the state in force.
- */
+/** What "None" costs, shown under the security selector while it is the choice. The option stays: a
+ *  loopback proxy on 127.0.0.1 is a legitimate cleartext target. No dialogue, no confirmation. */
 @Composable
 private fun PlaintextSecurityWarning(security: ConnectionSecurity) {
     if (security != ConnectionSecurity.NONE) return
@@ -2709,12 +2494,8 @@ private fun securityLabel(context: Context, security: ConnectionSecurity): Strin
     ConnectionSecurity.NONE -> context.getString(R.string.settings_security_none)
 }
 
-/**
- * Vacation responder: a server-side auto-reply (JMAP VacationResponse) for the
- * current account. Reads/writes hit the network, so the screen has explicit
- * loading / saving / error states and an explicit Save button (unlike the
- * instant-apply local settings).
- */
+/** Vacation responder: a server-side auto-reply (JMAP VacationResponse) for the current account.
+ *  Network-backed, so the screen carries loading / saving / error states and an explicit Save. */
 @Composable
 private fun VacationScreen(
     onBack: () -> Unit,
@@ -2722,11 +2503,10 @@ private fun VacationScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Same confirm-on-back as the account editor: a responder typed and left behind used to vanish
-    // without a word (#34). Both doors go through it — the scaffold's arrow and the system gesture.
+    // Confirm-on-back (#34); both doors go through it, the scaffold's arrow and the system gesture.
     var confirmExit by remember { mutableStateOf(false) }
-    // Saving from the dialog is a network round-trip, so the screen leaves only once the server has
-    // taken it; a refusal keeps the screen (and its error) in front of the user.
+    // Saving from the dialog is a network round-trip, so the screen leaves only once the server
+    // has taken it; a refusal keeps the screen and its error in front of the user.
     var leaveAfterSave by remember { mutableStateOf(false) }
     LaunchedEffect(leaveAfterSave, state.saving, state.dirty, state.errorKind) {
         if (!leaveAfterSave) return@LaunchedEffect
@@ -2766,7 +2546,6 @@ private fun VacationScreen(
     }
 }
 
-/** Centred message for the empty / unsupported / load-error states, with optional retry. */
 @Composable
 private fun BoxScope.VacationNote(text: String, onRetry: (() -> Unit)? = null) {
     Column(
@@ -2779,8 +2558,7 @@ private fun BoxScope.VacationNote(text: String, onRetry: (() -> Unit)? = null) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (onRetry != null) {
-            // Filled Button to match every other error-recovery "Retry" (inbox,
-            // message load, filters): the same action should read the same everywhere.
+            // Filled Button to match every other error-recovery "Retry" (inbox, message, filters).
             Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
                 Text(stringResource(R.string.settings_vacation_retry))
             }
@@ -2801,27 +2579,21 @@ private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
-        // In the head of the screen, where the filters screen puts its own warning, and not above
-        // Save: it is about the state the account is in, not about the write being prepared.
-        // Which of the three sentences is vacationFilterLine(), executed by a test — the switch
-        // three rows below decides between two of them and reading it here is the whole point.
+        // In the head of the screen, not above Save: it is about the state the account is in, not
+        // about the write being prepared. vacationFilterLine() picks which of the three sentences.
         vacationFilterLine(state.filterWarning, responderEnabled = state.enabled)?.let { line ->
             Text(
                 when (line) {
-                    // Here, and NOT on the filters screen, the sentence says where the remedy is:
-                    // the way back is Save on the filters screen, which is one screen away and has
-                    // no reason to be pressed — this screen's own Save is grey, since nothing is
-                    // edited. Text and not a button, like the note at the foot of the by-sender
-                    // screen: taking a script back over belongs to the screen that warns in red
-                    // first.
+                    // Here, and not on the filters screen, the sentence names the remedy: Save
+                    // there, which has no other reason to be pressed. Text and not a button:
+                    // taking a script back over belongs to the screen that warns in red.
                     VacationFilterLine.RULES_NOT_RUNNING_WITH_REMEDY -> stringResource(
                         R.string.settings_vacation_filters_not_running,
                         stringResource(R.string.inbox_settings),
                         stringResource(R.string.settings_filters_title),
                     )
-                    // Switch ON: the rules are stopped BECAUSE the responder is running, so that
-                    // remedy would switch off what this screen has just been used to turn on, and
-                    // the sentence says none of that. The fact, then, and no path.
+                    // Switch on: the rules are stopped because the responder is running, so that
+                    // remedy would undo what this screen was just used for. The fact, and no path.
                     VacationFilterLine.RULES_NOT_RUNNING_FACT ->
                         stringResource(R.string.settings_filters_not_running)
                     VacationFilterLine.RESPONDER_WILL_SUSPEND_RULES ->
@@ -2912,7 +2684,6 @@ private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel) {
     }
 }
 
-/** A tappable row that shows the chosen day (or "Not set") and opens a date picker. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VacationDateRow(label: String, millis: Long?, onPick: (Long?) -> Unit) {
@@ -2964,10 +2735,8 @@ private fun formatVacationDate(millis: Long): String =
     Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
         .format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
 
-/**
- * Shared scaffold for the hub and detail screens: a [LargeTopAppBar] that collapses
- * on scroll, matching the inbox pattern (DESIGN.md).
- */
+/** Shared scaffold for the hub and detail screens: a [LargeTopAppBar] that collapses on scroll,
+ *  matching the inbox pattern (DESIGN.md). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DetailScaffold(
@@ -2981,11 +2750,9 @@ internal fun DetailScaffold(
         topBar = {
             LargeTopAppBar(
                 title = {
-                    // The title carried no end inset and ran to the physical edge of the screen
-                    // (#146); 16dp mirrors the inset the platform lays at the start. No maxLines,
-                    // no overflow, no softWrap = false, and the argument is drawn whole:
-                    // this title is the account address whenever the name field is empty, and an
-                    // ellipsis on an address is unreadable — a long title wraps.
+                    // 16dp mirrors the platform's start inset (#146). No maxLines, no overflow,
+                    // no softWrap = false: this title is the account address when the name field is
+                    // empty, and an ellipsised address is unreadable.
                     Text(
                         title,
                         modifier = Modifier.padding(end = 16.dp),
@@ -3003,11 +2770,8 @@ internal fun DetailScaffold(
     )
 }
 
-/**
- * The always-visible head of an identity row: the address, the "default sender" badge when it
- * applies, and — while folded — what the signature holds. Tapping anywhere on it folds or unfolds
- * the row. Shared by both groups so a folded row looks the same wherever it comes from.
- */
+/** The always-visible head of an identity row: the address, the "default sender" badge, and while
+ *  folded what the signature holds. Shared by both groups so a folded row always looks the same. */
 @Composable
 private fun IdentityRowHeader(
     email: String,
@@ -3072,19 +2836,10 @@ private fun IdentityRowHeader(
 }
 
 /**
- * What the signature will look like in a message, delimiter included (#90). Read-only, and nothing
- * here is stored: the "-- " line is added when the body is built, so the field holds the signature
- * alone and this is the only place the writer gets to see the whole thing.
- *
- * A signature that already begins with a delimiter of its own is shown as it will be sent — two
- * delimiter lines, one above the other — plus a line saying so. It is NOT stripped: the field holds
- * what the user typed, and the app does not quietly edit their text. Shown only once there is a
- * signature; a blank one adds nothing to a message and has nothing to preview.
- *
- * [delimiter] is the "Separator line above the signature" setting: with it off the app adds no line
- * of its own, so the preview is the signature alone and the duplicate warning has nothing left to
- * warn about (#90). The preview is derived from the same [signatureBlock] the composer uses, so it
- * cannot claim a shape the message will not have.
+ * What the signature will look like in a message, delimiter included (#90). Derived from the same
+ * [signatureBlock] the composer uses, so it cannot claim a shape the message will not have.
+ * A signature already beginning with its own delimiter is shown as it will be sent, two delimiter
+ * lines and a note saying so. Not stripped: the app does not quietly edit the user's text.
  */
 @Composable
 private fun SignaturePreview(signature: String, delimiter: Boolean) {
@@ -3098,8 +2853,8 @@ private fun SignaturePreview(signature: String, delimiter: Boolean) {
         Text(
             preview,
             style = MaterialTheme.typography.bodySmall,
-            // Monospace: the delimiter is two hyphens AND a trailing space, and a proportional
-            // face makes that line hard to tell from a decorative dash rule.
+            // Monospace: the delimiter is two hyphens and a trailing space, which a proportional
+            // face makes hard to tell from a decorative dash rule.
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
@@ -3115,10 +2870,8 @@ private fun SignaturePreview(signature: String, delimiter: Boolean) {
     }
 }
 
-/**
- * The "Default sender" identity radio + its meaning caption (#78). Shared by the read-only server
- * group and the editable manual group so both can be chosen as the composer's pre-selection.
- */
+/** The "Default sender" identity radio and its caption (#78). Shared by the server and manual
+ *  groups, so either can be chosen as the composer's pre-selection. */
 @Composable
 private fun DefaultIdentityRadioRow(selected: Boolean, onSelect: () -> Unit) {
     Row(

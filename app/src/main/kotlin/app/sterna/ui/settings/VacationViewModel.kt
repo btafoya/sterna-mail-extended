@@ -17,11 +17,8 @@ import java.time.Instant
 /** Which transient error (if any) the vacation screen should surface. */
 enum class VacationError { LOAD, SAVE, INVALID_DATES }
 
-/**
- * UI state for the vacation responder. Dates are held as epoch-millis at UTC
- * midnight of the chosen day (what Material's date picker speaks); they are
- * converted to/from RFC 8621 UTCDate strings at the JMAP boundary.
- */
+/** UI state for the vacation responder. Dates are epoch-millis at UTC midnight of the chosen day
+ *  (what Material's picker speaks), converted to RFC 8621 UTCDate strings at the JMAP boundary. */
 data class VacationUiState(
     val loading: Boolean = true,
     val noAccount: Boolean = false,
@@ -37,28 +34,19 @@ data class VacationUiState(
     val errorDetail: String = "",
     /** Bumped after each successful save; the screen shows a confirmation while > 0. */
     val savedTick: Int = 0,
-    /**
-     * Whether the edited fields still differ from what the server holds. Gates Save, so the button
-     * is offered only when it has something to push (#34), and goes out again if the edits are
-     * undone by hand.
-     */
+    /** Whether the edited fields still differ from what the server holds. Gates Save, so the button
+     *  is offered only when it has something to push (#34). */
     val dirty: Boolean = false,
-    /**
-     * What the account's Sieve scripts say about the user's filter rules, or null for nothing to
-     * say. Read after the responder itself, and never part of [edits]: it describes the server,
-     * not the form, so it can neither be edited nor saved.
-     */
+    /** What the account's Sieve scripts say about the user's filter rules, or null for nothing to
+     *  say. Never part of [edits]: it describes the server, not the form. */
     val filterWarning: FilterScriptWarning? = null,
 ) {
     /** The fields a Save actually writes — what "changed" is measured on. */
     internal fun edits(): List<Any?> = listOf(enabled, subject, message, fromDate, toDate)
 }
 
-/**
- * Drives the server-side vacation responder (JMAP VacationResponse) for the
- * current account. Unlike the local DataStore-backed settings, every read/write
- * is a network round-trip, so the state carries explicit loading/saving/error.
- */
+/** Drives the server-side vacation responder (JMAP VacationResponse). Every read and write is a
+ *  network round-trip, so the state carries explicit loading / saving / error. */
 class VacationViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
     private val store = application.container.accountStore
@@ -89,12 +77,9 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                         )
                     is VacationState.Loaded -> {
                         val r = result.response
-                        // BEFORE the form is published, not after. The warning this screen carries
-                        // is about the switch three rows below it: published late, it arrives after
-                        // a fast hand has already flipped that switch and pressed Save, and a
-                        // warning that can be outrun is not a warning. The screen therefore stays
-                        // on its spinner for one more round trip. That cost is why the read is
-                        // narrow (scripts only) and why its failure is silent rather than fatal.
+                        // Before the form is published: the warning is about the switch three
+                        // rows below, and published late it arrives after a fast hand has flipped
+                        // it and pressed Save. The screen holds its spinner one more round trip.
                         val warning = refreshedFilterWarning(
                             previous = null,
                             status = repo.loadFilterScriptStatus(credentials),
@@ -171,19 +156,12 @@ class VacationViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
             }
-            // OUTSIDE the try, and after the state that lets a "save then leave" go. Two reasons,
-            // both learned the hard way: the exit gesture must not wait on a read the write does
-            // not need, and this read is the one that gets CANCELLED by that very exit — inside
-            // the catch above, a cancellation would be painted as a failed save over a write the
-            // server has already taken. What it buys, for the user who stays: having just switched
-            // the responder on, the line becomes the statement of fact instead of predicting what
-            // has already happened.
-            //
-            // `responderEnabled = s.enabled`: what was just WRITTEN to the server, not what the
-            // switch shows — they are the same here and only here. And a read that FAILS keeps the
-            // line that was on screen (previous), because the case where it fails is the case
-            // where it matters: switching the responder off leaves no script active at all, so the
-            // rules are dead exactly when a swallowed failure would blank the warning.
+            // Outside the try, and after the state that lets a "save then leave" go: that exit
+            // cancels this read, and inside the catch above a cancellation would be painted as a
+            // failed save over a write the server has already taken. `responderEnabled = s.enabled`
+            // is what was just written, not what the switch shows. A failed read keeps the line
+            // already on screen: switching the responder off leaves no script active, so the rules
+            // are dead exactly when a swallowed failure would blank the warning.
             if (written) {
                 val status = repo.loadFilterScriptStatus(credentials)
                 _state.update {

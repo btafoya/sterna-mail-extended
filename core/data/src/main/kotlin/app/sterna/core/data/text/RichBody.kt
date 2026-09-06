@@ -3,10 +3,8 @@ package app.sterna.core.data.text
 /**
  * The model of a rich body (#131): plain text plus four inline style families, each a set of
  * normalised half-open spans, plus paragraph blocks (bullet and numbered lists), each a run of
- * whole lines, plus the hyperlinks it carries. Pure Kotlin, no Compose: the composer maps its
- * `TextFieldValue` onto this and back, and the HTML side is a closed subset
- * (`a b i u s br ul ol li` + a few entities) so a stored draft can be read back exactly, or
- * refused.
+ * whole lines, plus the hyperlinks it carries. The HTML side is a closed subset
+ * (`a b i u s br ul ol li` + a few entities) so a stored draft can be read back exactly, or refused.
  */
 
 /** An inline style family. Declaration order is the canonical nesting order in HTML: b > i > u > s. */
@@ -34,38 +32,23 @@ data class Span(val start: Int, val end: Int) {
 }
 
 /**
- * A hyperlink over a half-open [span] of the text (#131), carrying the [url] a recipient clicks.
+ * A hyperlink over a half-open [span] of the text (#131).
  *
- * A [Span] and not an `IntRange`: half-open is the ONE shape of range this model has, and the
- * two disagree about the last character. And the URL is stored as the guard answered it. The
- * guard has THREE borders and TWO faces:
- *  - [normalizeLinkUrl], the DIALOG's face: a bare `example.org` becomes `https://example.org`,
- *    because that is what someone typing it means;
- *  - [linkUrlFromHref], the STRICT face, at every border where the URL was written by someone
- *    else — [fromHtml] for a stored or foreign body, and `decodeLinks` for a parked record. It
- *    invents nothing: no scheme, no link.
+ * The URL is stored as the guard answered it, and the guard has two faces:
+ * [normalizeLinkUrl] for the DIALOG (a bare `example.org` becomes `https://example.org`), and
+ * [linkUrlFromHref], the STRICT face, at every border where the URL was written by someone else —
+ * [fromHtml] and `decodeLinks`. The strict face invents nothing: no scheme, no link.
  */
 data class Link(val span: Span, val url: String)
 
 /**
- * Plain [text] plus, per style family, the spans it covers, plus the list [blocks], plus its
- * [links].
+ * Plain [text] plus, per style family, the spans it covers, plus the list [blocks] and its [links].
  *
- * [ranges] is always normalised: clamped to the text, non-empty, sorted, merged when adjacent or
- * overlapping, a family without spans absent — and cut at every line break a list stands for,
- * because `</li><li>` carries no character (see [hardBreaks]).
- *
- * [blocks] is normalised the same way: clamped to `[0, lineCount)`, empty runs dropped, sorted,
- * two contiguous runs of the same kind merged into one. Two kinds never overlap: on a disputed
- * line the block written LAST wins, so a caller can append a block to impose it.
- *
- * [links] is normalised too — clamped to the text, non-empty, sorted, and cut at those same line
- * breaks — but NEVER merged: two touching links are two anchors, even under one URL, and
- * merging them would make `fromHtml(toHtml(x)) == x` false for a body the user can write in three
- * taps. Overlaps cannot be represented (one character belongs to one link), so the first one wins.
- *
- * Two bodies with the same text, the same styling, the same blocks and the same links are
- * `equals`.
+ * [ranges] is normalised: clamped, non-empty, sorted, merged when adjacent, and cut at every line
+ * break a list stands for, because `</li><li>` carries no character (see [hardBreaks]). [blocks] the
+ * same way; on a disputed line the block written LAST wins. [links] is cut at those same breaks but
+ * NEVER merged: two touching links are two anchors even under one URL, and merging them would
+ * make `fromHtml(toHtml(x)) == x` false. Overlaps cannot be represented, so the first one wins.
  */
 class RichBody(
     val text: String,
@@ -84,9 +67,8 @@ class RichBody(
 
     /**
      * Neither a span, nor a block, nor a link: what `draftHtmlToSave` may store as text only.
-     *
-     * The links count: a body whose ONLY styling is a link must still save an html part, or
-     * the link dies at the next reopen in silence.
+     * The links count — a body whose only styling is a link must still save an html part, or the
+     * link dies at the next reopen in silence.
      */
     val isPlain: Boolean get() = ranges.isEmpty() && blocks.isEmpty() && links.isEmpty()
 
@@ -142,17 +124,13 @@ private fun normaliseSpans(length: Int, spans: List<Span>): List<Span> {
 }
 
 /**
- * Clamped, empty ones dropped, CUT at every line break a list stands for, sorted — and NOT
+ * Clamped, empty ones dropped, cut at every line break a list stands for, sorted — and NOT
  * merged.
  *
- * The cut is [normaliseRanges]'s, for [normaliseRanges]'s reason: `</li><li>` carries no
- * character, an anchor may not stay open across it, and a link straddling two items would come
- * back from [fromHtml] as two — `fromHtml(toHtml(x)) == x` false for a body three taps produce
- * (link a phrase, then bullet it). Cut here, the two halves ARE what comes back.
- *
- * Not merged: a link is kept only when it starts at or after the end of the last one kept, so the
- * first of two overlapping links wins, which is arbitrary but total, and nothing in the editor can
- * produce an overlap anyway.
+ * The cut is [normaliseRanges]'s and for its reason: an anchor may not stay open across
+ * `</li><li>`, and a link straddling two items would come back from [fromHtml] as two. Cut here,
+ * the two halves ARE what comes back. Not merged: the first of two overlapping links wins, which
+ * is arbitrary but total.
  */
 private fun normaliseLinks(text: String, blocks: List<Block>, links: List<Link>): List<Link> {
     if (links.isEmpty()) return emptyList()
@@ -243,27 +221,14 @@ private fun lineStarts(text: String): List<Int> {
 // --- editing -----------------------------------------------------------------------------------
 
 /**
- * Carry [old]'s styling over to [newText] after one edit, whatever produced it (a keystroke, a
- * paste, an autocorrect). The edit is found by diffing the texts: one replaced segment
- * `[a, b)` of the old text became `[a, a + n)` of the new one. Spans before it stay, spans after
- * it shift, a span cut by the removal is trimmed, one buried in it disappears. An insertion is
- * absorbed by a span that contains the point or ends exactly there (Gmail's "sticky" style), not
- * by one that starts there. A non-null [pending], EVEN EMPTY, is an instruction for a PURE
- * insertion (`b == a`): the inserted segment carries exactly those families and no other (empty =
- * the user switched every style off at the cursor). When text is REPLACED (`b > a` and `n > 0`)
- * [pending] is IGNORED: the insertion inherits exactly the families that covered the whole of
- * `[a, b)`, as Gmail keeps the style of a selection typed over, and if none did the sticky rule
- * decides. Why: an IME commits `helo` + space as ONE replacement `[3, 4) → "lo "`, and a style
- * armed after `helo` was typed must not reach back over letters typed before the button; the
- * caller keeps [pending] armed, so the next pure keystroke receives it. [newSelection] settles
- * an ambiguous diff (typing `a` in `aaa`): the cut that ends the insertion at the cursor wins;
- * [oldSelection] is the second hint, and an unusable hint falls back to the maximal prefix.
+ * Carry [old]'s styling over to [newText] after one edit, found by diffing: one replaced segment
+ * `[a, b)` became `[a, a + n)`. An insertion is absorbed by a span containing the point or ending
+ * exactly there (Gmail's "sticky" style), not by one that starts there.
  *
- * Blocks follow the same edit: each NEW line takes the kind of the OLD line its start came from,
- * so typing inside an item splits it into two items of the same list and deleting the `\n` between
- * two items merges them. One exception, Gmail's: a bare Enter on an EMPTY item leaves the list.
- *
- * Links follow it too, by [remapLinks], which is the same arithmetic WITHOUT the sticky rule.
+ * A non-null [pending], EVEN EMPTY, instructs a PURE insertion; on a REPLACEMENT it is IGNORED and
+ * the insertion inherits the families covering all of `[a, b)`, because an IME commits `helo` +
+ * space as ONE replacement. Blocks follow too — except Gmail's rule, where a bare Enter on an EMPTY
+ * item leaves the list — and links through [remapLinks], without the sticky rule.
  */
 fun remapAfterEdit(
     old: RichBody,
@@ -276,9 +241,8 @@ fun remapAfterEdit(
     if (newText == oldText) return old
     val (a, b, n) = diffEdit(oldText, newText, oldSelection, newSelection)
     val removed = b - a
-    // A replacement keeps the style of what it replaced — the families covering all of [a, b) —
-    // and pending is ignored: the replaced letters were typed before the button was pressed. A
-    // pure insertion is what pending is for. null = no instruction, the sticky rule decides.
+    // A replacement keeps the style of what it replaced and pending is ignored: the replaced
+    // letters were typed before the button was pressed. null = the sticky rule decides.
     val carried: Set<Inline>? =
         if (removed > 0 && n > 0) stylesAt(old, Span(a, b)).takeIf { it.isNotEmpty() } else pending
     val out = LinkedHashMap<Inline, List<Span>>()
@@ -315,10 +279,9 @@ fun remapAfterEdit(
 /**
  * The links after the same edit — the removal exactly like a span, the insertion WITHOUT the
  * sticky rule: text typed at either border of a link is written OUTSIDE it, and only a keystroke
- * strictly inside extends it. Sticky here is what turns "type a word after a link" into a link
- * over that word, which no reader can see coming and no button undoes without a selection. A link
- * left with no character disappears. `pending` has nothing to say: a link is never armed at a
- * caret, it is only ever put on characters that exist.
+ * strictly inside extends it. Sticky here turns "type a word after a link" into a link over that
+ * word, which no reader sees coming and no button undoes without a selection. A link left with no
+ * character disappears.
  */
 private fun remapLinks(links: List<Link>, a: Int, b: Int, n: Int): List<Link> {
     val removed = b - a
@@ -415,9 +378,8 @@ fun toggle(body: RichBody, selection: Span, kind: Inline): RichBody {
 /** Remove every family from the selection. An empty selection changes nothing. */
 fun clear(body: RichBody, selection: Span): RichBody {
     if (selection.isEmpty) return body
-    // The blocks and the links stay: "clear formatting" takes the four families off. A list is
-    // a paragraph shape, and a link is an ADDRESS, not a family — dropping it silently would lose
-    // what the reader was to click.
+    // The blocks and the links stay: "clear formatting" takes the four families off. A list is a
+    // paragraph shape, and a link is an ADDRESS, not a family.
     return RichBody(
         body.text,
         body.ranges.mapValues { (_, spans) -> subtract(spans, selection) },
@@ -427,9 +389,9 @@ fun clear(body: RichBody, selection: Span): RichBody {
 }
 
 /**
- * Turn every line the selection touches into a list of [kind]; if they ALL carry that kind
- * already, turn them back into text. Unlike [toggle], an EMPTY selection is not a no-op: the
- * cursor's line alone is the target, because that is the gesture in Gmail.
+ * Turn every line the selection touches into a list of [kind]; if they all carry that kind already,
+ * turn them back into text. Unlike [toggle], an EMPTY selection is not a no-op: the cursor's line
+ * alone is the target, because that is the gesture in Gmail.
  */
 fun toggleBlock(body: RichBody, selection: Span, kind: BlockKind): RichBody {
     val text = body.text
@@ -443,9 +405,9 @@ fun toggleBlock(body: RichBody, selection: Span, kind: BlockKind): RichBody {
 }
 
 /**
- * The families a toolbar should show as active. For a selection, those covering all of it. For
- * a cursor `c`, those with a span containing `c` or ending exactly at `c` (the sticky rule of
- * [remapAfterEdit]: what a keystroke there would inherit), not those starting at `c`.
+ * The families a toolbar should show as active. For a selection, those covering all of it. For a
+ * cursor `c`, those with a span containing `c` or ending exactly at `c` — the sticky rule of
+ * [remapAfterEdit] — not those starting at `c`.
  */
 fun stylesAt(body: RichBody, selection: Span): Set<Inline> =
     if (selection.isEmpty) {
@@ -462,11 +424,10 @@ private fun covers(spans: List<Span>, target: Span): Boolean =
 /**
  * The whole of [target] carries the style, the line breaks a list stands for set aside.
  *
- * Not just [covers]. `</li><li>` carries no character, so a span is cut at every such newline
- * ([normaliseRanges]) and a selection running over TWO items of a list sits inside no single span.
- * Read as "not covered", two bold items selected together leave the Bold button dark and the tap
- * APPLIES bold instead of removing it: inside a list, bold could no longer be taken off at all,
- * with no way out but "clear formatting".
+ * Not just [covers]: a span is cut at every such newline ([normaliseRanges]), so a selection
+ * running over two items sits inside no single span. Read as "not covered", two bold items selected
+ * together leave the Bold button dark and the tap APPLIES bold instead of removing it — inside a
+ * list, bold could no longer be taken off at all.
  */
 private fun coversAcrossBreaks(body: RichBody, spans: List<Span>, target: Span): Boolean {
     if (covers(spans, target)) return true
@@ -498,19 +459,13 @@ private val LIST_TAG = mapOf(BlockKind.BULLET to "ul", BlockKind.NUMBER to "ol")
 
 /**
  * The body as HTML: escaped text, `\n` as `<br>`, and `<a> <b> <i> <u> <s>` always nested in that
- * order, so at a boundary the inner tags close and reopen around the one that changes.
- * A block becomes `<ul>` or `<ol>` with one `<li>` per line: between two lines of the SAME block
- * there is no `<br>` at all, `</li><li>` carries the break; everywhere else the `<br>` stays,
- * including just before `<ul>` and just after `</ul>`. Inline tags AND the anchor are written
- * inside the `<li>` and never cross it, so the nesting inside an item is `li > a > b > i > u > s`.
- * Without any span, block or link (and no [verbatim]) the output is byte for byte
- * [htmlEscapeMultiline] of the text. [verbatim] replaces the text of a span with the given string,
- * unescaped, for an HTML signature imported as is; a style boundary inside that span only yields
- * an empty tag pair.
+ * order. A block becomes `<ul>`/`<ol>` with one `<li>` per line, `</li><li>` carrying the break;
+ * inline tags and the anchor are written inside the `<li>` and never cross it. With no span, block
+ * or link (and no [verbatim]) the output is byte for byte [htmlEscapeMultiline] of the text.
  *
- * The stack holds ELEMENTS, not families, and a link's element is the LINK — not its URL. Two
- * touching links of the same address must come out as two `<a>`s: compared by URL they would fuse
- * into one, and `fromHtml(toHtml(x))` would answer a body the user did not write.
+ * The stack holds ELEMENTS, not families, and a link's element is the LINK, not its URL: two
+ * touching links of one address must come out as two `<a>`s, or `fromHtml(toHtml(x))` answers a
+ * body the user did not write.
  */
 fun toHtml(body: RichBody, verbatim: Pair<Span, String>? = null): String {
     val text = body.text
@@ -593,11 +548,9 @@ private val BR = Regex("<[bB][rR]( ?/)?>")
 private val ENTITY = Regex("&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});")
 
 /**
- * ONE attribute, named `href`, one space, and the value in matching quotes — that is the whole
- * of what an anchor may be here. `<a href="x" onclick="y">`, `<a class="c" href="x">`,
- * `<a href="x" target="_blank">` and `<a>` all fail to match and the body is refused whole, which
- * is what every foreign html has always got from this parser. The value may hold no `<` `>` nor
- * the quote that closes it; everything else in it is an entity or a literal character.
+ * ONE attribute, named `href`, one space, and the value in matching quotes — the whole of what an
+ * anchor may be here. `<a href="x" onclick="y">`, `<a class="c" href="x">` and `<a>` all fail to
+ * match and the body is refused whole. The value may hold no `<` `>` nor the quote that closes it.
  */
 private val ANCHOR = Regex("<[aA] [hH][rR][eE][fF]=(?:\"([^\"<>]*)\"|'([^'<>]*)')>")
 private val ANCHOR_CLOSE = Regex("</[aA]>")
@@ -606,24 +559,18 @@ private val ANCHOR_CLOSE = Regex("</[aA]>")
 private class OpenTag(val kind: Inline?, val url: String?, val start: Int)
 
 /**
- * Strict parser of the closed subset [toHtml] writes, plus the obvious aliases: tags `b strong i
- * em u s strike del` without attributes, `<br>` `<br/>` `<br />`, `<ul> <ol> <li>` without
- * attributes, an `<a>` with exactly one `href` (see [ANCHOR]), the five named entities
- * `&amp; &lt; &gt; &quot; &#39;` and numeric references.
- * Anything else (another tag, an attribute, a comment, a doctype, an unknown or invalid entity, a
- * bare `<` `>` `&`, an unbalanced or crossed tag, a raw `\n` or `&#10;` where [toHtml] only ever
- * writes `<br>`) returns null: the caller falls back to plain text rather than guess. So does
- * anything unusual about a list: an `<li>` outside a list, a nested list, an empty list, a `<br>`
- * inside a list, text outside an `<li>`, an `<a>` outside an `<li>`, an inline tag or an anchor
- * still open at `</li>`, a list left open, and a list that does not stand on a line of its own
- * (`a<ul>…`, `…</ul>x`, `</ul><ol>`).
- * `\r` and `\t` pass, as [htmlEscape] lets them through.
- * Property: `fromHtml(toHtml(x)) == x` for every body `x`, blocks and links included.
+ * Strict parser of the closed subset [toHtml] writes, plus the obvious aliases: `b strong i em u s
+ * strike del` without attributes, `<br>` `<br/>` `<br />`, `<ul> <ol> <li>` without attributes, an
+ * `<a>` with exactly one `href` (see [ANCHOR]), and the named/numeric entities.
+ *
+ * Anything else returns null and the caller falls back to plain text rather than guess: another tag,
+ * an attribute, a bare `<` `>` `&`, an unbalanced or crossed tag, a raw `\n`, and anything unusual
+ * about a list. Property: `fromHtml(toHtml(x)) == x` for every body `x`.
  */
 fun fromHtml(html: String): RichBody? {
     val text = StringBuilder(html.length)
-    // One stack for the four families AND the anchor: `open.isNotEmpty()` is what refuses a
-    // list opened inside a tag and an item closed under one, and an anchor is no exception.
+    // One stack for the four families AND the anchor: `open.isNotEmpty()` is what refuses a list
+    // opened inside a tag and an item closed under one, and an anchor is no exception.
     val open = ArrayList<OpenTag>()
     val ranges = HashMap<Inline, MutableList<Span>>()
     val links = ArrayList<Link>()
@@ -650,13 +597,12 @@ fun fromHtml(html: String): RichBody? {
                     // entity and a style tag outside an `<li>` are all refused, and so is this.
                     if (list != null && !inItem) return null
                     // An `<a>` inside an `<a>`: no body can mean that, and guessing which one a
-                    // character belongs to is exactly the guess this parser refuses to make.
+                    // character belongs to is the guess this parser refuses to make.
                     if (open.any { it.url != null }) return null
                     val raw = anchor.groupValues[1].ifEmpty { anchor.groupValues[2] }
                     // THE STRICT face of the guard, never the dialog's: a stored draft may not
                     // bring in a `javascript:`, and a RELATIVE href may not be turned into an
-                    // address of our own invention. Refused here, the WHOLE body is refused, so
-                    // the reopen falls back to the stored text and its original is kept.
+                    // address of our own invention. Refused here, the WHOLE body is refused.
                     val url = linkUrlFromHref(decodeEntities(raw) ?: return null) ?: return null
                     open.add(OpenTag(kind = null, url = url, start = text.length))
                     i += anchor.value.length
@@ -665,7 +611,7 @@ fun fromHtml(html: String): RichBody? {
                 val closer = ANCHOR_CLOSE.matchAt(html, i)
                 if (closer != null) {
                     // `?: return null` twice: a `</a>` with nothing open, and one closing over a
-                    // style tag opened inside it (`<a href="x"><b>t</a></b>`) — a crossed pair.
+                    // style tag opened inside it — a crossed pair.
                     val top = open.removeLastOrNull() ?: return null
                     val url = top.url ?: return null
                     links.add(Link(Span(top.start, text.length), url))
@@ -684,16 +630,13 @@ fun fromHtml(html: String): RichBody? {
                             blocks.add(Block(listKind, listFrom..line))
                             list = null
                             // …and a list ENDS a line: nothing may follow `</ul>` but the end of
-                            // the input or the `<br>` that opens the next one. `</ul>x` and
-                            // `</ul><ol>` would glue two lines into one — see below.
+                            // the input or the `<br>` that opens the next one.
                             if (i < html.length && BR.matchAt(html, i) == null) return null
                         } else {
                             if (list != null || open.isNotEmpty()) return null
-                            // A list STARTS a line: [toHtml] only ever opens one at the start of
-                            // the text or right after the `<br>` that ended the previous line.
-                            // Reading `a<ul><li>b</li></ul>` as "ab" on one line is worse than
-                            // refusing it: `draftHtmlIsLossy` would then call that draft faithful,
-                            // and the next save DESTROYS the original the glued text came from.
+                            // A list STARTS a line. Reading `a<ul><li>b</li></ul>` as "ab" on one
+                            // line is worse than refusing it: `draftHtmlIsLossy` would then call
+                            // that draft faithful, and the next save DESTROYS the original.
                             if (text.isNotEmpty() && text.last() != '\n') return null
                             list = listKind; listFrom = line; items = 0
                         }
@@ -746,8 +689,7 @@ fun fromHtml(html: String): RichBody? {
 
 /**
  * An attribute value: the same entities as the text, and `&#10;` / `&#13;` are ALLOWED here.
- * In the text they are refused because [toHtml] writes a newline as `<br>` and nothing else; in an
- * attribute there is no `<br>`, so they are exactly how a URL carrying one comes back.
+ * In the text they are refused because [toHtml] writes a newline as `<br>` and nothing else.
  */
 private fun decodeEntities(value: String): String? {
     val out = StringBuilder(value.length)
@@ -781,21 +723,14 @@ private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.\\-]*:")
 private val LINK_SCHEMES = setOf("http", "https", "mailto")
 
 /**
- * THE STRICT FACE OF THE GUARD, for every URL this app did not just watch someone type: an
- * `href` out of a stored or foreign body ([fromHtml]) and a URL out of a parked composer record
- * (`decodeLinks`). The scheme must be THERE and be one of [LINK_SCHEMES]; it is lowercased, and
- * nothing else is touched. `null` refuses the whole body or the whole record.
+ * THE STRICT FACE OF THE GUARD, for every URL this app did not just watch someone type: an `href`
+ * out of [fromHtml] and a URL out of a parked composer record. The scheme must be there and be one
+ * of [LINK_SCHEMES]; `null` refuses the whole body or record.
  *
- * IT MAY NOT PREFIX. [normalizeLinkUrl] turns a bare `example.org` into `https://example.org`,
- * which is right under a finger and WRONG here: `href="x"`, `href="#top"`, `href="/prix"` are
- * RELATIVE addresses, and prefixing them mints a link to somewhere else entirely. And the harm is
- * not cosmetic — `draftHtmlIsLossy` is the licence to EXPUNGE a server original: a foreign draft
- * with a relative anchor used to be unreadable, so its original was kept; read with a scheme put
- * in front of it, it is judged reproducible and the original is destroyed in favour of a copy
- * whose link points elsewhere. Refusing is the only side of that error that keeps the message.
- *
- * The html round trip is untouched: [toHtml] only ever writes URLs that already went through
- * one of the two faces, so they all carry a scheme.
+ * IT MAY NOT PREFIX: `href="x"`, `href="#top"`, `href="/prix"` are RELATIVE addresses, and
+ * prefixing them mints a link elsewhere. `draftHtmlIsLossy` is the licence to EXPUNGE a server
+ * original, so a draft read with an invented scheme is judged reproducible and its original
+ * destroyed in favour of a copy whose link points somewhere else.
  */
 fun linkUrlFromHref(raw: String): String? {
     val trimmed = raw.trim()
@@ -807,35 +742,19 @@ fun linkUrlFromHref(raw: String): String? {
 }
 
 /**
- * THE GUARD as the DIALOG asks it — one of its two faces. The answer is what gets stored, so
- * it is what a recipient's client is handed. The other face is [linkUrlFromHref], and it is the
- * one every border that did not watch the user type must use ([fromHtml], `decodeLinks`): only
- * this one may put a scheme in front of a bare host.
+ * THE GUARD as the DIALOG asks it — the other face of [linkUrlFromHref], and the only one that
+ * may put a scheme in front of a bare host. A recognised scheme is lowercased and must be one of
+ * [LINK_SCHEMES]; with no scheme, `https://` is put in front.
  *
- * Trimmed; empty is null. A recognised scheme (`^[A-Za-z][A-Za-z0-9+.-]*:`) is LOWERCASED and must
- * be one of [LINK_SCHEMES] — `javascript:`, `data:`, `file:`, `vbscript:` and every other one are
- * refused, in any case. With no scheme at all, `https://` is put in front: that is what the user
- * typing `example.org` means, and it is the safe direction.
- *
- * Nothing else is validated: no DNS, no domain regex, no path rules. A typo is the writer's to
- * see, and the click is the reader's; refusing a URL we merely dislike is the failure mode of
- * every "smart" link box.
- *
- * IDEMPOTENT, and the html round trip rests on it: `toHtml` writes the answer, `fromHtml` runs
- * this again on the way back, so a second pass that changed anything would make the round trip
- * false for the body it changed.
- *
- * Stated debt: `example.org:8080` reads as the scheme `example.org` and is REFUSED. A heuristic
- * ("a scheme of more than one character followed by digits is a port") would make this function
- * guess, and a guess at this border is exactly what a guard may not do. The user's way out is to
- * type `https://example.org:8080`, which is accepted.
+ * Nothing else is validated: no DNS, no domain regex, no path rules. IDEMPOTENT, and the html
+ * round trip rests on it. Stated debt: `example.org:8080` reads as the scheme `example.org` and
+ * is refused; the way out is to type `https://example.org:8080`.
  */
 fun normalizeLinkUrl(raw: String): String? {
     val trimmed = raw.trim()
     if (trimmed.isEmpty()) return null
     // The ONE thing this face adds, and the ONE place it may be added: a scheme, for a string
-    // someone has just typed into the dialog. Everything else is [linkUrlFromHref]'s answer, so
-    // the two faces can never disagree about which schemes are allowed.
+    // someone has just typed into the dialog. Everything else is [linkUrlFromHref]'s answer.
     if (SCHEME.find(trimmed) == null) return "https://" + trimmed
     return linkUrlFromHref(trimmed)
 }
@@ -843,12 +762,10 @@ fun normalizeLinkUrl(raw: String): String? {
 /**
  * The link a [selection] is inside of, or null.
  *
- * For a cursor `c`: the link with `start < c < end`, STRICTLY — the same bounds the remap's
- * non-stickiness uses, so "the button is lit" and "what I type here joins the link" are one
- * answer. At either border the cursor is outside, and typing there writes plain text.
- * For a real selection: the link that covers ALL of it, so the dialog cannot offer to edit a link
- * that only overlaps what is selected — the line breaks a list stands for set aside, exactly as
- * [stylesAt] sets them aside (see [linkAcrossBreaks]).
+ * For a cursor `c`: the link with `start < c < end`, strictly — the same bounds the remap's
+ * non-stickiness uses, so "the button is lit" and "what I type here joins the link" are one answer.
+ * For a real selection: the link that covers all of it, the line breaks a list stands for set aside
+ * (see [linkAcrossBreaks]).
  */
 fun linkAt(body: RichBody, selection: Span): Link? =
     if (selection.isEmpty) {
@@ -860,17 +777,13 @@ fun linkAt(body: RichBody, selection: Span): Link? =
     }
 
 /**
- * The one link a selection running over SEVERAL items carries, or null.
+ * The one link a selection running over SEVERAL items carries, or null — the counterpart of
+ * [normaliseLinks]'s cut, since a link over two whole items is stored as two and no single one
+ * covers the selection. Read as "no link", the dialog would offer to CREATE one with an empty
+ * address and never offer to remove it.
  *
- * Not a nicety, the counterpart of [normaliseLinks]'s cut. `</li><li>` carries no character, so
- * a link over two whole items is STORED as two, and no single one of them covers the selection.
- * Read as "no link", selecting both items and reopening the dialog offers to CREATE one with an
- * empty address, and "remove the link" is not offered at all — while [removeLink], which only
- * needs an overlap, would have done it. This is [coversAcrossBreaks]'s defect, at the same border.
- *
- * And the URL must be the SAME all the way: two addresses selected together are not "a link"
- * to re-address, and answering one of them would let the dialog overwrite the other in one tap.
- * The FIRST piece is the answer, so the dialog shows the address the selection starts on.
+ * The URL must be the SAME all the way: two addresses selected together are not "a link" to
+ * re-address. The first piece is the answer, so the dialog shows the address the selection starts on.
  */
 private fun linkAcrossBreaks(body: RichBody, target: Span): Link? {
     val hard = hardBreaks(body.text, body.blocks)
@@ -888,15 +801,12 @@ private fun linkAcrossBreaks(body: RichBody, target: Span): Link? {
 
 /**
  * Put [url] on the body, in this ORDER — the order IS the rule:
- *  1. a real selection takes the link, and every link it overlaps goes ([text] is ignored: the
- *     characters are already there and replacing them would destroy what the user selected);
- *  2. otherwise a cursor inside a link only changes that link's URL, its span untouched — which is
- *     "edit this link", the second thing the dialog is for;
- *  3. otherwise [text] is INSERTED at the cursor and the link is put on exactly those characters;
- *  4. otherwise (a cursor, no link, no text) nothing happens at all.
+ *  1. a real selection takes the link, and every link it overlaps goes ([text] is ignored);
+ *  2. otherwise a cursor inside a link only changes that link's URL, its span untouched;
+ *  3. otherwise [text] is INSERTED at the cursor and the link put on exactly those characters;
+ *  4. otherwise nothing happens.
  *
- * [url] is stored as given: it is [normalizeLinkUrl]'s answer that must reach here, and the two
- * call sites (the dialog, [fromHtml]) are where that is done.
+ * [url] is stored as given: it is [normalizeLinkUrl]'s answer that must reach here.
  */
 fun setLink(body: RichBody, selection: Span, url: String, text: String? = null): RichBody {
     if (!selection.isEmpty) {
@@ -916,10 +826,9 @@ fun setLink(body: RichBody, selection: Span, url: String, text: String? = null):
     val c = selection.start
     val newText = body.text.substring(0, c) + text + body.text.substring(c)
     // Through the ordinary edit path, with an EMPTY pending: the styling around the caret must
-    // follow the insertion exactly as it does for a keystroke, and the inserted label must not
-    // inherit the bold that ends where it starts — the user asked for a link, not for a style.
-    // And the BLOCKS come from that same remap: inserting a label inside an item must leave the
-    // item a list item, which only `remapBlocks` knows how to say.
+    // follow the insertion as it does for a keystroke, and the inserted label must not inherit the
+    // bold that ends where it starts. The blocks come from that same remap: inserting a label
+    // inside an item must leave the item a list item.
     val moved = remapAfterEdit(body, newText, Span(c, c), Span(c + text.length, c + text.length), emptySet())
     return RichBody(newText, moved.ranges, moved.blocks, moved.links + Link(Span(c, c + text.length), url))
 }
@@ -943,25 +852,13 @@ private fun overlaps(a: Span, b: Span): Boolean = a.start < b.end && b.start < a
 
 
 /**
- * The body's plain-text alternative: the styling stripped, the list markers spelled out, and every
- * link written the way Thunderbird writes one — `the text <the url>` — so a reader with no HTML
- * still gets the address.
+ * The body's plain-text alternative: styling stripped, list markers spelled out, and every link
+ * written the way Thunderbird writes one — `the text <the url>`.
  *
- * The markers are `- ` on every line of a bullet block, `1. `, `2. `… on a numbered one, the
- * numbering starting again at 1 for each block. These markers exist HERE and nowhere else:
- * `body.text` is what was typed, it carries none of them, and it is what the editor shows and what
- * the dirty check compares.
- *
- * The address is written ONCE when the text of the link IS the URL: `https://x` and not
- * `https://x <https://x>`, which is what pasting an address and linking it gives.
- *
- * ONE pass, and the URL goes where the link ENDS, not at the end of the line: a link may stop
- * in the middle of an item, and `- le site <https://x> et la suite` is the sentence, while
- * `- le site et la suite <https://x>` is another one.
- *
- * This is the ONE plain-text answer for everything that leaves the composer — the send's text
- * alternative and the draft's text part alike. Two rules would let a message and its draft say
- * different things about the same link.
+ * The markers exist HERE and nowhere else: `body.text` carries none of them, and it is what the
+ * editor shows and what the dirty check compares. The address is written once when the link's
+ * text IS the URL, and it goes where the link ENDS, not at the end of the line. The ONE
+ * plain-text answer for everything that leaves the composer, send and draft alike.
  */
 fun toPlainText(body: RichBody): String {
     if (body.blocks.isEmpty() && body.links.isEmpty()) return body.text

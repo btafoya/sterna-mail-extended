@@ -9,18 +9,9 @@ import app.sterna.core.jmap.OAuthMetadata
 /** A message to show, as the resource to look up plus the one argument it formats, if any. */
 data class OAuthMessage(@StringRes val resId: Int, val arg: String? = null)
 
-/**
- * The decision behind [oauthFailureMessage], as a pure function: no `Context`, no `ViewModel`, so
- * a unit test can EXECUTE it instead of reading the code that contains it.
- *
- * [error] is the OAuth protocol's own word for the refusal (RFC 6749 §5.2), plus two of ours:
- * `http_<status>` when the server sent no `error` field, and `network_error` when nothing was
- * reached. It is shown to the reader — a closed vocabulary is safe to show.
- *
- * [description] is READ (an admin-consent refusal only identifies itself there) and never
- * SHOWN. It is free text written by the server, on endpoints whose payload is the reader's own
- * tokens, and it used to be rendered verbatim.
- */
+/** The decision behind [oauthFailureMessage]. [error] is the protocol's own word for the refusal
+ *  (RFC 6749 §5.2) plus `http_<status>` and `network_error` of ours: a closed vocabulary, safe to
+ * show. [description] is read but never shown — free text from an untrusted server. */
 fun oauthFailureSpec(
     error: String,
     description: String,
@@ -31,11 +22,9 @@ fun oauthFailureSpec(
         OAuthMessage(R.string.connect_oauth_declined)
     error == "expired_token" ->
         OAuthMessage(R.string.connect_oauth_expired)
-    // Unverified-publisher / admin-consent / app-not-approved → the org must approve, or app password.
-    // Gated on an AADSTS code, and it must stay gated: this sentence NAMES MICROSOFT, while
-    // `description` is prose from whatever server answered. A self-hosted Stalwart / Keycloak /
-    // Authelia replying "invalid_client, contact your administrator" matches `admin` and would be
-    // told to ask Microsoft for approval. Every real Microsoft consent refusal carries a code.
+    // Must stay gated on an AADSTS code: this sentence names Microsoft, while `description` is
+    // prose from whatever server answered — a Keycloak saying "invalid_client, contact your
+    // administrator" matches `admin`. Real refusals carry a code.
     aadstsCode != null && (
         aadstsCode == "AADSTS650051" || aadstsCode == "AADSTS90094" || aadstsCode == "AADSTS65001" ||
             description.contains("admin", ignoreCase = true) ||
@@ -46,27 +35,15 @@ fun oauthFailureSpec(
         OAuthMessage(R.string.connect_oauth_admin_consent)
     aadstsCode != null -> OAuthMessage(R.string.connect_oauth_error_code, aadstsCode)
     error == "network_error" -> OAuthMessage(R.string.connect_oauth_network)
-    // The server refused and said why: say why — but only in the protocol's own words. `error` is
-    // `obj["error"]` off the wire, i.e. server text of arbitrary length and content, and it is now
-    // wired to the screen: without this gate the leak we closed on `description` simply moves one
-    // field over. What does not look like a keyword falls back instead of being rendered.
+    // Say why, but only in the protocol's own words: `error` is server text of arbitrary length
+    // wired to the screen, so what does not look like a keyword falls back.
     OAUTH_ERROR_TOKEN.matches(error) -> OAuthMessage(R.string.connect_oauth_error_reason, error)
     else -> OAuthMessage(fallbackRes)
 }
 
-/**
- * Which sentence a device-grant wait that ran out of time gets — pure, no `Context`, so a test can
- * EXECUTE the choice instead of reading the screen that shows it. [everReachedAServer]: at least one
- * poll of that wait was answered by a server.
- *
- * "The sign-in request expired. Try again." goes ONLY to someone whose polls were being answered.
- * The device code did expire in both cases — that much is true of the protocol — but the state on
- * screen has to be true about what the reader can DO, and for someone who reached nothing for half
- * an hour the fact is her connection, not the delay: "try again" sends her back to a server she
- * never spoke to, to wait out another thirty minutes. That is the defect (#55) this whole change
- * exists for, and it lives here rather than in the `when` arm because a branch inside
- * `ConnectViewModel` is executed by no test in this repo and can be inverted without a red.
- */
+/** Which sentence a device-grant wait that ran out of time gets. "Expired, try again" goes only to
+ *  someone whose polls were answered: the code expired either way, but for someone who reached
+ *  nothing for half an hour the fact is her connection, not the delay (#55). */
 @StringRes
 fun oauthRanOutMessage(everReachedAServer: Boolean): Int =
     if (everReachedAServer) R.string.connect_oauth_expired else R.string.connect_oauth_network
@@ -87,40 +64,17 @@ enum class OAuthGrant {
     NONE,
 }
 
-/**
- * Which grant to drive against [metadata] — as a pure function, so the choice is EXECUTED by a
- * test rather than read off the screen that acts on it.
- *
- * The device flow wins whenever a server offers both, and that ordering is the point of the
- * function. It is the path in production today, it never leaves the app (so no browser, no
- * redirect, no chance of coming back into a dead process), and every server signed into so far
- * uses it. The authorization code grant exists for servers that have NO device endpoint at all.
- */
+/** Which grant to drive against [metadata]. The device flow wins whenever a server offers both: it
+ *  never leaves the app, so no browser, no redirect, no coming back into a dead process. */
 fun chooseOAuthGrant(metadata: OAuthMetadata): OAuthGrant = when {
     metadata.supportsDeviceFlow -> OAuthGrant.DEVICE_CODE
     metadata.supportsCodeFlow -> OAuthGrant.AUTHORIZATION_CODE
     else -> OAuthGrant.NONE
 }
 
-/**
- * Probe [candidates] in order and COLLECT what answers — the search that feeds [chooseOAuthHost].
- *
- * COLLECT, don't stop at the first answer. `Jmap.autodiscoverHosts` tries the BARE DOMAIN first
- * — the organisation's website — so a site that publishes an OAuth document would end the search
- * before `mail.<domain>` is ever asked, and refuse a sign-in that worked the day before.
- *
- * ONLY a device flow ends the search, and that is not a leftover. A bare domain publishing an
- * `authorization_endpoint` (any site behind an SSO portal does) would otherwise stop the probe
- * here, and the mail server that carries the device flow would never be asked: someone who signed
- * in yesterday without leaving the app is sent to a browser, to the WEBSITE's identity provider,
- * which does not issue tokens for the mail server. The code grant is the fallback for when NO
- * candidate has a device flow, and [chooseOAuthHost] is where that ranking happens — after every
- * candidate has been given its chance to answer. Probing one host past a code-only answer is the
- * price of that promise.
- *
- * Extracted from the connect screen so the loop can be RUN by a test with a fake probe: which
- * hosts get asked is the decision, and it is invisible in the list the screen ends up with.
- */
+/** Probe [candidates] in order and collect what answers, feeding [chooseOAuthHost]. Collect, don't
+ *  stop at the first: the bare domain is tried first, so a site publishing an OAuth document would
+ *  end the search before `mail.<domain>` is asked. Only a device flow ends it. */
 suspend fun collectOAuthHosts(
     candidates: List<String>,
     discover: suspend (String) -> OAuthMetadata?,
@@ -134,51 +88,19 @@ suspend fun collectOAuthHosts(
     return discovered
 }
 
-/**
- * Which discovered host the sign-in goes to: the first that speaks the device flow, then the first
- * that speaks the code grant, and failing both the first that answered at all.
- *
- * The fallback is not decoration. `Jmap.autodiscoverHosts` tries the BARE DOMAIN first — the
- * organisation's website, the least likely of the four to be the mail server — so stopping at the
- * first host that merely advertises OAuth turns a working sign-in into "this server offers OAuth,
- * but not in a way Sterna can use yet" for anyone whose site publishes an OAuth document and whose
- * mail lives on `mail.<domain>`. And when NO candidate has a usable grant, the first responder is
- * what makes that sentence true rather than "this server doesn't support OAuth sign-in".
- *
- * The two capability passes are in [OAuthGrant]'s own order and both read it through
- * [chooseOAuthGrant], so "which grant do we prefer" is stated once: a device flow on `mail.…`
- * still wins over a code grant on the bare domain.
- */
+/** Which discovered host the sign-in goes to: the first that speaks the device flow, then the first
+ *  that speaks the code grant, and failing both the first that answered at all. The fallback is not
+ *  decoration — the bare domain is asked first and is least likely to be the mail server. */
 fun chooseOAuthHost(discovered: List<Pair<String, OAuthMetadata>>): Pair<String, OAuthMetadata>? =
     discovered.firstOrNull { chooseOAuthGrant(it.second) == OAuthGrant.DEVICE_CODE }
         ?: discovered.firstOrNull { chooseOAuthGrant(it.second) == OAuthGrant.AUTHORIZATION_CODE }
         ?: discovered.firstOrNull()
 
-/**
- * null when discovery found a server this app can actually sign into; otherwise what to show.
- *
- * THREE failures, three different facts, and they used to render the same sentence or worse the
- * wrong one:
- *  - no OAuth here at all;
- *  - OAuth, but not a flow this app can drive — being told it "doesn't support OAuth sign-in" is
- *    simply false;
- *  - OAuth, but it hands the sign-in to another domain. `OAuthClient.discoverMetadata` refuses an
- *    endpoint named off the queried host and off the address domain, blanks it, and reports the
- *    fact as [OAuthMetadata.endpointsOffDomain]. This is the only one of the three where the
- *    refusal is OURS: the server's OAuth is standard and would work. Blanked down to nothing it
- *    looks exactly like the second case, and "not in a way Sterna can use yet" then blames a
- *    server that did nothing wrong.
- *
- * The order and the conjunction are the decision. The off-domain arm comes FIRST but only fires
- * when nothing usable is left: a document whose device endpoint alone was refused, keeping an
- * authorization and a token endpoint on-domain, signs in through the code grant and must be told
- * NOTHING — refusing there would break a sign-in that works. And an off-domain refusal must never
- * fall back on "this server doesn't support OAuth sign-in": that is the lie #54/#137 settled.
- *
- * "A grant this app can drive" is [chooseOAuthGrant]'s answer and no longer a device endpoint:
- * a server publishing only an authorization endpoint is signed into through the code grant (#55),
- * so it is not a failure at all. Only a server with NEITHER endpoint keeps the flow sentence.
- */
+/** null when discovery found a server this app can actually sign into; otherwise what to show.
+ *  Three failures, three facts: no OAuth at all; OAuth but no flow this app can drive; and OAuth
+ *  handing the sign-in to another domain ([OAuthMetadata.endpointsOffDomain]), the only one where
+ *  the refusal is ours. That arm comes first but fires only when nothing usable is left: a
+ *  document whose device endpoint alone was refused still signs in. */
 @StringRes
 fun oauthDiscoveryFailure(metadata: OAuthMetadata?): Int? = when {
     metadata == null -> R.string.connect_oauth_unsupported
@@ -188,12 +110,9 @@ fun oauthDiscoveryFailure(metadata: OAuthMetadata?): Int? = when {
     else -> null
 }
 
-/**
- * Map a device-flow failure to a specific, actionable message. Microsoft refusals carry an AADSTS
- * code / description in [DeviceTokenResult.Failed]; unverified-publisher and admin-consent refusals
- * point the user at asking their admin or using an app password instead of a dead-end "declined".
- * Shared by the first-run import sign-in and the account-settings sign-in.
- */
+/** Map a device-flow failure to an actionable message. Microsoft refusals carry an AADSTS code in
+ *  [DeviceTokenResult.Failed]; admin-consent ones point at an admin or an app password instead of
+ *  a dead-end "declined". */
 fun oauthFailureMessage(context: Context, failure: DeviceTokenResult.Failed): String {
     val spec = oauthFailureSpec(
         error = failure.error,

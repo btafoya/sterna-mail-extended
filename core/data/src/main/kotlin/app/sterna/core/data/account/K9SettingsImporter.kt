@@ -3,20 +3,10 @@ package app.sterna.core.data.account
 import org.w3c.dom.Element
 import java.io.InputStream
 
-/**
- * Imports account setup from a K-9 Mail / Thunderbird-for-Android `.k9s` settings
- * export (Apache-2.0). The file is pure configuration: it carries NO passwords, NO
- * OAuth tokens, NO secrets of any kind. We map each usable IMAP account onto a
- * [StoredAccount] with the password/refresh-token slot left empty, so the account is
- * inert until the user authenticates through Sterna's own client. OAuth (XOAUTH2)
- * accounts are recognised and flagged [AuthType.OAUTH] but MUST be re-signed-in via
- * Sterna afterwards — the export contains nothing to authenticate with.
- *
- * Only IMAP accounts are supported; POP3, WebDAV and client-cert (EXTERNAL) accounts
- * are reported as skips rather than silently dropped. Parsing is best-effort and
- * defensive: unknown elements/keys are ignored, missing optionals are defaulted, and
- * a single malformed account never aborts the whole import.
- */
+/** Imports account setup from a K-9 Mail / Thunderbird-for-Android `.k9s` export (Apache-2.0).
+ *  Carries NO secrets: every imported account lands inert until re-authenticated through
+ *  Sterna. Only IMAP is supported — others reported as skips, never silently dropped; a single
+ *  malformed account never aborts the whole import. */
 object K9SettingsImporter {
 
     /** Parse a .k9s settings export. Throws [IllegalArgumentException] if the root element is not <k9settings>. */
@@ -136,16 +126,9 @@ object K9SettingsImporter {
             }
     }
 
-    /**
-     * Map K-9's `<connection-security>` onto ours, falling back to an encrypted [fallback]
-     * for anything we do not recognise. The export can legitimately say
-     * `SSL_TLS_OPTIONAL`/`STARTTLS_OPTIONAL`, omit the element (older K-9 versions), or be
-     * truncated; defaulting those to NONE configured the account in the clear, and with a
-     * port 143 also in the file the very first LOGIN would have put the password on the wire
-     * unencrypted, silently. An unknown value now lands on the safe side and the account is
-     * reported in [K9ImportResult.securityUnverified] so the user is told to check it: a
-     * wrong encrypted guess fails visibly at sign-in, a wrong NONE guess succeeds and leaks.
-     */
+    /** Maps K-9's `<connection-security>` onto ours, falling back to encrypted [fallback] for
+     * anything unrecognised. Falling back to NONE would configure the account in the clear
+     *  — a wrong encrypted guess fails visibly, a wrong NONE guess succeeds and leaks. */
     private fun connectionSecurity(
         raw: String,
         fallback: ConnectionSecurity = ConnectionSecurity.TLS,
@@ -181,11 +164,8 @@ object K9SettingsImporter {
 data class K9ImportResult(
     val accounts: List<StoredAccount>,
     val skipped: List<K9Skip>,
-    /**
-     * Labels of imported accounts whose connection security the file did not state in terms we
-     * map, so ours is a safe guess (TLS in, STARTTLS out) rather than what K-9 was using. The
-     * import surfaces this so the user checks those accounts instead of trusting the guess.
-     */
+    /** Labels of imported accounts whose connection security wasn't stated in terms we map — a
+     *  safe guess (TLS in, STARTTLS out) rather than confirmed. */
     val securityUnverified: List<String> = emptyList(),
 )
 

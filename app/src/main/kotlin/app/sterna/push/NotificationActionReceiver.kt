@@ -21,44 +21,21 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Handles new-mail notification quick actions (reply / mark read / delete) in the background.
- * Reply uses inline RemoteInput.
  *
- * Mark as read dismisses the notification unconditionally, as it always has: what it changes is
- * the server's copy of the message, and the same action is one tap away in the list if it failed.
+ * Mark as read dismisses the notification unconditionally, what it changes being the server's copy.
+ * Delete takes the banner down only when it MOVED something ([bannerDeleteAct]): asked to delete a
+ * message the local caches say is already in Trash it does nothing and leaves the banner standing,
+ * a banner that does not fall being the statement that nothing was done. It never destroys either
+ * way — permanent deletion lives in the list behind its Undo window (#23).
  *
- * Delete takes the banner down only when it MOVED something ([bannerDeleteAct]). Asked to delete a
- * message the local caches say is already in Trash, or one on an account whose synced folders name
- * no Trash at all, it does nothing whatever and leaves the banner standing: a banner that does not
- * fall is the statement that nothing was done, and the same gesture waits one tap away in the list.
- * It never destroys either way — what it performs is a move to Trash, and permanent deletion lives
- * in the list behind its cancelable Undo window (Codeberg #23).
+ * That refusal owns the BUTTON, not the banner's lifetime: on a LIVE account a background pass
+ * takes the banner down once the server confirms the message gone (#134). Hence the shape below,
+ * the dismissal sitting INSIDE the credentials block, so without credentials the banner stays.
+ * An account can lose its credentials without passing through sign-out — a sub-account pruned on
+ * reconcile (#31), a secret that no longer decrypts — and its banners then stand until swiped away.
  *
- * That refusal owns the BUTTON, not the banner's lifetime, and only ON A LIVE ACCOUNT does
- * something else own the rest: nothing on this path takes the banner down, but a background pass
- * will, on its own — once a sync reports the message gone from the watched folder and the server
- * confirms where it went, NewMailNotifier takes the banner down (Codeberg #134). For a message the
- * user had already deleted in the app, that lands within a minute of this refusal, and on a woken
- * process within seconds of it — near enough to read as if the button had done it. Measured on the
- * bench, 2026-08-18. That pass is not this file's to fix. It reaches signed-out accounts not at
- * all: notifyDiff needs credentials, and AccountStore.allCredentials() drops every account that has
- * none, so no later pass will finish what a button here declined to do.
- *
- * Hence the shape below: the dismissal sits INSIDE the credentials block. Without credentials no
- * server action runs, so the banner stays — the same statement as Delete's refusal, that nothing
- * was done. Clearing those banners is the job of whatever removed the account, not of a button
- * that has nothing left to act with: AccountsViewModel.signOut cancels them as it tears the
- * account down.
- *
- * Signing out is the only way in that does. An account can lose its credentials without ever
- * passing through it — a linked sub-account pruned on reconcile (Codeberg #31), a secret that no
- * longer decrypts — and its banners then stand until the user swipes them away, since nothing
- * here takes them down and no background pass revisits the account. Accepted: leaving a banner
- * that lies about what it did would be worse, and the fix belongs where the account is lost, not
- * here.
- *
- * Reply is like neither. The typed text lives in the broadcast intent and nowhere else, so on that
- * path the notification comes down only once the Outbox has accepted the text, and every other end
- * of it hands the text back to the user.
+ * Reply is like neither: the typed text lives in the broadcast intent and nowhere else, so the
+ * notification comes down only once the Outbox has accepted it.
  */
 class NotificationActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -74,10 +51,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val credentials = container.accountStore.credentials(accountId)
-                // Reply leaves the common path BEFORE the dismissal below. It used to run inside
-                // the `when` and fall through to it, so a reply that sent nothing — no sender to
-                // answer, an exception, a killed receiver — still cleared the notification and the
-                // text with it.
+                // Reply leaves the common path BEFORE the dismissal below: it used to fall through
+                // to it, so a reply that sent nothing still cleared the notification and the text.
                 if (action == ACTION_REPLY) {
                     reply(
                         appContext, container.mailRepository, container.settingsRepository,
@@ -85,8 +60,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     )
                     return@launch
                 }
-                // Delete is the one action here that can find there is nothing to do, and then the
-                // banner must survive it: see [deleteFromBanner].
+                // Delete can find there is nothing to do, and the banner must then survive it.
                 var mayDismiss = true
                 if (credentials != null) {
                     when (action) {
@@ -107,17 +81,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     /**
      * The Delete button of a banner, and the question it never asked: would this delete MOVE
-     * anything? Returns whether the banner may come down — false means nothing happened at all.
+     * anything? False means nothing happened at all, so the banner may not come down.
      *
-     * The list asks the same thing through `MailRepository.deleteWouldDestroy`, which resolves the
-     * Trash over the SOCKET. Forbidden here: this receiver has ~10 s of goAsync for everything it
-     * does, and against a reachable-but-silent server a role lookup spends all of it. So the three
-     * reads below are local (cache, folder cache, folder cache) and the decision is
-     * [bannerDeleteAct], where the reasoning and its one accepted hole are written out.
-     *
-     * All three are GUARDED, and each failure falls to the ORDINARY path: a database that will not
-     * answer is not evidence that a delete would destroy something, and turning a read error into
-     * a silently refused Delete would be a second defect on top of the one this closes.
+     * The list asks the same thing over the SOCKET, forbidden here: this receiver has ~10 s of
+     * goAsync for everything, and a role lookup against a silent server spends all of it. All three
+     * local reads are GUARDED, and each failure falls to the ORDINARY path — a database that will
+     * not answer is not evidence that a delete would destroy something.
      */
     private suspend fun deleteFromBanner(
         repo: MailRepository,
@@ -135,13 +104,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         return true
     }
 
-    /**
-     * The Reply path, whose only asset is the text the user just typed.
-     *
-     * Cache FIRST, exactly like the composer (ComposeViewModel): the recipient and the subject come
-     * from the cached row, so this never waits on a socket to learn where the reply is going. Three
-     * ends, none of them silent — queued, handed back, or nothing was typed.
-     */
+    /** The Reply path, whose only asset is the text the user just typed. Cache FIRST, exactly like
+     *  the composer, so this never waits on a socket to learn where the reply is going. Three ends,
+     *  none of them silent — queued, handed back, or nothing was typed. */
     private suspend fun reply(
         context: Context,
         repo: MailRepository,
@@ -161,17 +126,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
         when (val act = quickReplyAct(outcome, queued)) {
             QuickReplyAct.DoNothing -> Unit
             QuickReplyAct.Dismiss -> dismiss(context, accountId, credentials, emailId, notifId)
-            // Read here and not before: the setting is only needed on the end that posts a banner,
-            // and it decides how much of the message that banner may name (the subject used to go
-            // out whatever the user had chosen).
-            //
-            // GUARDED, and that is not decoration: this read is the first thing on this arm that
-            // can throw. The DataStore is declared with no corruption handler (SettingsRepository),
-            // so a truncated preferences file surfaces as a throw from `first()` — which onReceive's
-            // `catch (_: Throwable)` then swallows, leaving the banner unposted. The text the user
-            // typed lives in the broadcast intent and NOWHERE else: closing a leak by dropping it
-            // would be the worse bug. An unreadable setting falls back to the QUIETEST position, so
-            // the failure mode is a banner that says too little, never one that says too much.
+            // Read here and not before: the setting is only needed on the end that posts a banner.
+            // Guarded, and not for tidiness: the DataStore has no corruption handler, so a
+            // truncated file surfaces as a throw from `first()` that onReceive's catch-all would
+            // swallow, leaving the banner unposted — and the typed text lives nowhere else. An
+            // unreadable setting falls back to the QUIETEST position.
             is QuickReplyAct.HandBack -> {
                 val content = runCatching { settings.notificationContent.first() }
                     .getOrDefault(NotificationContent.NONE)
@@ -181,17 +140,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Hand the reply to the Outbox — which is what makes the text durable: it is sent when there is
-     * a network, retried with backoff, and parked as FAILED (text intact) if it never goes.
-     *
-     * The network is worth at most the threading headers, and never the text: the fetch below is
-     * abandoned on a budget, and whatever it did not bring back is simply not put on the message. A
-     * reply that goes out with no In-Reply-To beats a reply that never goes out.
-     *
-     * Known and accepted: the cached row carries neither Cc nor Message-Id/References — the
-     * columns do not exist (EmailEntity/EmailMapper) — so a quick reply lands OUTSIDE its thread
-     * whenever the server does not answer within the budget. Adding those columns is a schema
-     * migration and belongs to another change.
+     * Hand the reply to the Outbox, which is what makes the text durable: sent when there is a
+     * network, retried with backoff, parked as FAILED with the text intact. The network is worth at
+     * most the threading headers and never the text — a reply that goes out with no In-Reply-To
+     * beats one that never goes. Known and accepted: the cached row carries neither Cc nor
+     * Message-Id/References, so a quick reply lands OUTSIDE its thread whenever the server does not
+     * answer within the budget.
      */
     private suspend fun send(
         repo: MailRepository,
@@ -207,32 +161,20 @@ class NotificationActionReceiver : BroadcastReceiver() {
             body = outcome.body,
             inReplyTo = fetched?.messageId.orEmpty(),
             references = fetched?.references.orEmpty() + fetched?.messageId.orEmpty(),
-            // A quick reply is typed in the shade and replaces no saved draft: nothing to freeze,
-            // and nothing destroyed when it lands.
+            // A quick reply is typed in the shade and replaces no saved draft.
             draftUidValidity = null,
         )
     }
 
     /**
-     * The original's threading headers, or null — ABANDONED after [FETCH_BUDGET_MS] rather than
-     * waited for.
+     * The original's threading headers, or null — ABANDONED after [FETCH_BUDGET_MS].
      *
-     * A `withTimeoutOrNull` wrapped around the call itself is not a leash at all: coroutine
-     * cancellation is cooperative and is only observed at a suspension point, while fetchEmail
-     * BLOCKS its thread all the way down (IMAP opens the session with timeout = 0 — a connect the
-     * OS gives up on after minutes — and retries once; JMAP does an OkHttp execute() with a 20 s
-     * connect and a 30 s read). Nothing resumes until the socket returns, so against a reachable
-     * but silent server — captive portal, dropped VPN, stale pooled connection — the timeout fired
-     * into the void, goAsync's ~10 s ran out, and the enqueue that comes AFTER this never ran. The
-     * typed text died with the process: that is the original bug, not a variant of it.
-     *
-     * So the call goes into a job of its OWN scope — never a child, which would hold this coroutine
-     * to the very socket the budget exists to escape — and the budget is spent on await(), which IS
-     * a suspension point. On expiry the job is cancelled and we go and queue the message.
-     *
-     * Accepted: cancelling does not close the socket, so the orphaned thread may block until the
-     * OS gives up on it. A leaked thread in a receiver that is about to be killed anyway costs less
-     * than a lost message.
+     * A `withTimeoutOrNull` around the call itself is not a leash: cancellation is observed only
+     * at a suspension point while fetchEmail BLOCKS its thread, so against a reachable but silent
+     * server the timeout fired into the void, goAsync's ~10 s ran out, and the enqueue that comes
+     * after never ran. So the call goes into a job of its OWN scope and the budget is spent on
+     * await(). Cancelling does not close the socket, so the orphaned thread may block until the OS
+     * gives up — cheaper than a lost message.
      */
     private suspend fun fetchWithinBudget(
         repo: MailRepository,
@@ -246,7 +188,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
         return fetched
     }
 
-    /** Take the notification down, keeping the account's group summary in step (#56, #92, #134). */
     private fun dismiss(
         context: Context,
         accountId: String,
@@ -254,10 +195,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         emailId: String,
         notifId: Int,
     ) {
-        // The shade is read BEFORE the cancel below, not after. `cancel` returns once the
-        // system has queued the work, and `getActiveNotifications` does not drain that queue: a
-        // read taken afterwards still shows the banner just taken down, and the summary refresh
-        // would put it straight back on screen (#134). Read first, then subtract what leaves.
+        // The shade is read BEFORE the cancel below: `cancel` returns once the system has queued
+        // the work and `getActiveNotifications` does not drain that queue, so a later read still
+        // shows the banner just taken down and the summary would put it back (#134).
         val active = Notifications.activeChildIds(context, accountId)
         NotificationManagerCompat.from(context).cancel(notifId)
         credentials?.let {

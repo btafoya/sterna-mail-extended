@@ -5,32 +5,13 @@ import app.sterna.R
 
 /**
  * Whether a message body asks for anything the reader's WebView will refuse to load — the question
- * behind the "images are blocked" strip, kept out of `MessageScreen.kt` so it can be run.
+ * behind the "images are blocked" strip.
+ * It copies the ALLOWLIST, not the scheme list: `shouldInterceptRequest` is default-deny, so keyed
+ * on http/https instead, a protocol-relative `//host/x.gif` would be announced as "nothing remote
+ * here" while the load was refused.
  *
- * **It copies the allowlist, not the scheme list.** `BlockingWebViewClient.shouldInterceptRequest`
- * is DEFAULT-DENY: it lets through `data:`, `cid:` and `about:`, and blocks everything else. This
- * function has to answer for the same rule, so it asks the same question — is the scheme one of
- * those three? — instead of asking whether it is `http` or `https`. That second form is the defect
- * the client itself was corrected for: a protocol-relative `//host/x.gif` arrives with NO scheme
- * and is fetched over the network all the same, and an exotic scheme (`ftp:`, `ws:`) is blocked.
- * Keyed on http/https, both of those would be announced as "nothing remote here" while the load
- * was in fact being refused — the reader would see a hole in the message and be told nothing.
- *
- * **It is an admitted heuristic, and it is allowed to be one.** It reads `src` attributes out of
- * the HTML as text: it therefore MISSES `url(...)` in CSS and in a `style=`, `@import`, `srcset`,
- * the legacy `background=`, `poster=`, anything hidden behind an HTML entity or assembled by
- * script, and anything in a part it is not handed. It counts no `<a href>` — a link is not a
- * resource, nothing about it is loaded, and a strip over a message whose only remote thing is a
- * link would be a strip about nothing.
- *
- * Both errors are survivable, and that is why the heuristic is acceptable:
- *  - a FALSE NEGATIVE means no strip. The images stay blocked, the overflow entry
- *    (`message_show_images`) still shows them, and no privacy promise is weakened — this is the
- *    reason that entry is not removed.
- *  - a FALSE POSITIVE means a cosmetic strip offering to unblock nothing.
- *
- * Nothing here loads, fetches or decides anything: the actual blocking stays where it was, in the
- * client. This function only decides whether to SAY so.
+ * An admitted heuristic reading `src` attributes as text, so it misses `url(...)`, `srcset` and
+ * anything assembled by script. Both errors are survivable, and nothing here loads or blocks anything.
  */
 internal fun hasRemoteRefs(html: String?): Boolean {
     if (html.isNullOrEmpty()) return false
@@ -53,10 +34,8 @@ private fun isRemoteRef(value: String): Boolean {
 }
 
 /**
- * A `src` attribute, quoted, single-quoted or bare. The leading whitespace is required so this
- * does not fire on `data-src=` (a lazy-loading placeholder the WebView never fetches), and `src`
- * followed directly by `set=` does not match at all — `srcset` is one of the misses listed above,
- * a miss and not a wrong answer.
+ * A `src` attribute, quoted, single-quoted or bare. The leading whitespace keeps it off `data-src=`
+ * (a lazy-loading placeholder the WebView never fetches), and `srcset` does not match at all.
  */
 private val SRC_ATTR =
     Regex("""\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", RegexOption.IGNORE_CASE)
@@ -65,60 +44,27 @@ private val SRC_ATTR =
 private val SCHEME = Regex("""^([a-zA-Z][a-zA-Z0-9+.\-]*):""")
 
 /**
- * Whether the header carries an images strip at all for this page — the presence question, taken
- * out of the `@Composable` so a JVM test can RUN it rather than re-read it.
+ * Whether the header carries an images strip at all for this page.
  *
- * It is answered on [plainText] — the reading mode the BODY is rendered in
- * (`plainTextForBody`) — and deliberately NOT on the image-side mode (`plainTextForImages`).
- * The house rule written at the overflow menu ("guarded on `imageMode`, NOT on `plainText`")
- * is about a menu that recomposes freely; it does not extend to a presence held the way this one
- * is. Changing this answer mid-read costs TWO loads of the body's document, because the strip's
- * own height feeds the key that document is built on — the full mechanism is written at the call
- * site in `ConversationBody`, and it is the reason this takes the mode the DOCUMENT is keyed on.
- * The image-side mode flips on its own the moment DataStore answers, so it would spend those two
- * loads with no gesture behind them; [plainText] only changes when the reader asks for the other
- * rendering, which reloads and re-tops the message anyway.
+ * Answered on [plainText], the mode the BODY is rendered in, not on `plainTextForImages`: the
+ * strip's height feeds the key the body's document is built on, so changing this answer mid-read
+ * costs two loads of that document, and the image-side mode flips on its own when DataStore answers.
  *
- * The debt that buys, stated rather than hidden: the two modes disagree while DataStore has not
- * answered (`PLAIN_TEXT_DEFAULT` is false, `PLAIN_TEXT_UNLOADED_FOR_IMAGES` is true). In that
- * window this says "strip", `showRemoteImages` says "hold the pictures back", and the button is
- * live and does nothing — the reported defect, for a few frames, for every reader rather than for
- * those who set the switch. It closes itself when DataStore answers, and the alternative spends a
- * double document load on everyone whose switch is off.
- *
- * In text mode there is no image in the document to hold back, so there is nothing to announce and
- * nothing a tap could change: `showRemoteImages` stays false while the mode holds, so a strip drawn
- * there is a permanently dead button (its `enabled` never goes down and its label never changes).
+ * The debt that buys: the two modes disagree until DataStore answers, so for a few frames the button
+ * is live and does nothing. In text mode there is no strip at all.
  */
 internal fun imagesStripPresent(plainText: Boolean, senderAllowed: Boolean, html: String?): Boolean =
     !plainText && !senderAllowed && hasRemoteRefs(html)
 
 /**
- * What the images strip SAYS, and whether it can still be pressed — the decision taken out of the
- * `@Composable` so a JVM test can RUN it, on the pattern of [UnsubscribeStripBody].
+ * What the images strip SAYS, and whether it can still be pressed.
+ * The two states are one button wearing one label or the other, live in [ACTION] and greyed in
+ * [SHOWN]: the measured header height keys the `remember` that builds the body's document, so a strip
+ * that changes SIZE cancels the body load in flight.
  *
- * **The two states are not two shapes: they are one button wearing one label or the other**,
- * live in [ACTION] and greyed in [SHOWN]. That is not tidiness, it is the whole risk of this
- * feature: the measured height of the header is part of the key of the `remember` that builds the
- * body's HTML document, so a strip that changes size **cancels the body load in flight**. Before
- * that body has ever been revealed that costs the reveal — the poll that lifts its alpha is never
- * re-armed, and the reader waits behind the spinner until the failsafe; after it, the alpha stays
- * latched and the damage is visible instead: the message reloads under her eyes and her scroll
- * position is lost. Showing the images is a gesture made in the header, on a page whose body is
- * the very thing being reloaded — so the strip does not disappear when it is done, it says so.
- *
- * Two shapes were tried first, under a `heightIn(min = ButtonDefaults.MinHeight)` believed to hold
- * them level. It does not: that is a FLOOR, and a `TextButton` stands well above it (Material3
- * wraps it in `minimumInteractiveComponentSize()` and its vertical inset grows with the font
- * scale) while a bare `Text` sits back down on it. The bench measured the header LOSING 8 dp at
- * the tap in the normal font and 13 dp at `font_scale 2.0`. One shape cannot diverge from itself —
- * on the condition that its label never wraps, which is why the strip pins `maxLines = 1`: these
- * two strings differ in length in every locale (de 15 → 23 characters, nl 18 → 24, fr 19 → 16), and
- * a wrap on one state and not the other would move the header by a whole LINE.
- *
- * The [label] lives here rather than in the strip for the same reason [acts] does: what the reader
- * is told is then a decision a test can execute, instead of a branch inside a composable that
- * nothing in the JVM can lay out.
+ * Two shapes under `heightIn(min = ButtonDefaults.MinHeight)` do not hold level — that is a floor, a
+ * `TextButton` standing above it while a bare `Text` sits on it — and one shape is one height only
+ * while its label never wraps, hence `maxLines = 1`.
  */
 internal enum class ImagesStripBody(@StringRes val label: Int) {
     /** The pictures are held back: the button is live and offers to fetch them. */

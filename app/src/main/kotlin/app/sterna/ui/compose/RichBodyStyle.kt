@@ -16,24 +16,14 @@ import app.sterna.core.data.text.Span
 internal fun span(selection: TextRange): Span = Span(selection.min, selection.max)
 
 /**
- * The body as the text field draws it: the text cut at EVERY span boundary, and one `SpanStyle`
- * per segment carrying every family active there. Per segment, not per span: two overlapping
- * spans that each carry a `textDecoration` do not combine on their own — the later one replaces
- * the earlier — so underline and strike-through on the same characters must be handed over as one
- * combined decoration.
+ * The body as the text field draws it: the text cut at EVERY span boundary, and one `SpanStyle` per
+ * segment carrying every family active there. Per segment, not per span: two overlapping spans that
+ * each carry a `textDecoration` do not combine on their own. A link (#131) is laid ON TOP, since
+ * `AnnotatedString` stacks styles.
  *
- * A link (#131) is then laid ON TOP, one `addStyle` per link in [linkColor] and underlined —
- * `AnnotatedString` stacks styles, so the families underneath keep their weight and slant. A
- * user underline on the same characters is simply an underline drawn twice, which shows nothing
- * new; combining the two decorations was tried and taken back out, since it changes nothing on
- * screen and costs a second pass over the segments.
- *
- * The list markers are NOT here: they are laid over the ANSWER of this function, by
- * [bodyTransformation], and the two never meet — a marker carries no character of [rich], so no
- * span and no link can cover one, and the offsets below are the model's own.
- *
- * [linkColor] is an ARGUMENT: the theme is read where the field is composed, so this stays a
- * pure function a JVM test can execute, and the colour cannot silently become a hard-coded blue.
+ * The list markers are NOT here: [bodyTransformation] lays them over the ANSWER of this function, so
+ * the offsets below are the model's own. [linkColor] is an ARGUMENT so this stays a pure function a
+ * JVM test can execute, and the colour cannot silently become a hard-coded blue.
  */
 fun toAnnotatedString(rich: RichBody, linkColor: Color): AnnotatedString {
     if (rich.isPlain) return AnnotatedString(rich.text)
@@ -66,28 +56,14 @@ fun toAnnotatedString(rich: RichBody, linkColor: Color): AnnotatedString {
 }
 
 /**
- * [text] with the body's styling laid on it, ready to be handed to the TEXT LAYER — this is what
- * the body field draws, and the only place a span may live (#131).
+ * [text] with the body's styling laid on it, ready for the TEXT LAYER — the only place a span may live
+ * (#131).
+ * Not in the field's VALUE: Compose's editing buffer cannot hold a span, and `EditProcessor.reset`
+ * compares the whole `AnnotatedString` on every recomposition, so one span makes every keystroke a
+ * "text changed" — the input is restarted, autocorrect stops, and a composing IME breaks outright.
  *
- * WHY IT IS NOT IN THE FIELD'S VALUE any more. Compose's editing buffer cannot hold a span:
- * `EditingBuffer.toAnnotatedString()` is `AnnotatedString(toString())`. And `EditProcessor.reset`,
- * which `CoreTextField` calls on every recomposition, compares the WHOLE `AnnotatedString`, not
- * its text. So one span in the value makes every keystroke on that body a "text changed": the
- * composing region is dropped and Android is asked to restart the input. On screen: the suggestion
- * strip blinks, autocorrect stops applying, and a composing IME (CJK, voice, glide typing) is
- * broken outright. Handing `composition` back untouched is necessary and NOT sufficient.
- *
- * Two ways out, both taken:
- *
- * The free path first. No span and no link means the argument comes STRAIGHT BACK, not a copy:
- * this runs on every keystroke of a body sized for 324 kB (see [ComposerResumeSlot]), in a field
- * whose smoothness is already the subject of #5, #6 and #26. The links are counted here, like
- * [RichBody.isPlain] counts them: a body whose only styling is a link still has to be drawn.
- *
- * Then the defensive one. [text] and [rich] are two pieces of state and can differ for the
- * length of one frame; laying the spans of one text over another mismaps the caret at best and
- * throws `IndexOutOfBounds` under the user's finger at worst. One frame without styling is the
- * cheaper of the two, so a drifted [rich] draws nothing.
+ * No span and no link means the argument comes STRAIGHT BACK. And a [rich] drifted from [text] for
+ * one frame draws nothing rather than mismapping the caret.
  */
 fun styledBody(text: AnnotatedString, rich: RichBody, linkColor: Color): AnnotatedString = when {
     rich.ranges.isEmpty() && rich.links.isEmpty() -> text

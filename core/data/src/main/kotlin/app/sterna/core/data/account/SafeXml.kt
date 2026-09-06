@@ -5,14 +5,8 @@ import org.w3c.dom.Node
 import javax.xml.parsers.DocumentBuilderFactory
 
 /**
- * The one XML parser configuration this module trusts on input it did not write: the K-9
- * settings import and the mail-autoconfig cascade both parse documents handed over by the
- * outside world, and neither needs doctypes, external entities or XIncludes.
- *
- * Extracted verbatim from [K9SettingsImporter.parse]; the behaviour is the importer's,
- * unchanged. Each `setFeature` is wrapped in `runCatching` because a parser that does not
- * know a hardening feature must not make the whole parse throw — the features that ARE
- * known still apply.
+ * XML parser config for input this module did not write (K-9 import, mail-autoconfig); each
+ * `setFeature` is wrapped in `runCatching` so an unsupported feature doesn't fail the whole parse.
  */
 internal fun safeXmlDocumentBuilderFactory(): DocumentBuilderFactory =
     DocumentBuilderFactory.newInstance().apply {

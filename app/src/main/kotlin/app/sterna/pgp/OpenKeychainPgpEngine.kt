@@ -28,10 +28,9 @@ import org.openintents.openpgp.util.OpenPgpServiceConnection
 
 /**
  * [PgpEngine] backed by an installed OpenPGP provider over the openpgp-api bound service; which
- * package that is comes from [PgpProviders], the only place naming any.
- * Binds lazily on first use and keeps the connection for the process lifetime.
- * All calls run on IO; OpenKeychain's own UI (passphrase, key chooser) surfaces
- * as [PgpResult.UserInteractionRequired] per the openpgp-api contract.
+ * package that is comes from [PgpProviders]. Binds lazily on first use and keeps the connection for
+ * the process lifetime. All calls run on IO; the provider's own UI surfaces as
+ * [PgpResult.UserInteractionRequired] per the openpgp-api contract.
  */
 class OpenKeychainPgpEngine(
     context: Context,
@@ -46,7 +45,6 @@ class OpenKeychainPgpEngine(
      *  only ever reused for THIS package — see [PgpProviders.bindingReusable]. */
     private var boundPackage: String? = null
 
-    /** Bind (once per provider) and return the service, or null when unavailable. */
     private suspend fun service(): IOpenPgpService2? = bindMutex.withLock {
         val chosen = settings.pgpProvider.first()
         val pkg = PgpProviders.resolve(PgpProviders.installed(appContext), chosen) ?: return null
@@ -76,8 +74,8 @@ class OpenKeychainPgpEngine(
                 conn.bindToService()
             }
         }
-        // boundPackage describes connection, so it goes when connection goes: leaving it naming a
-        // package that was never bound makes the reuse guard reason on a binding that never was.
+        // boundPackage describes connection, so it goes when connection goes: left naming a package
+        // that was never bound, it makes the reuse guard reason on a binding that never was.
         if (bound == null) {
             connection = null
             boundPackage = null
@@ -85,13 +83,12 @@ class OpenKeychainPgpEngine(
         bound
     }
 
-    // The bind attempt IS the availability test. There used to be a package-manager probe in front
-    // of it, over a literal list of OpenKeychain packages: it answered false on a device whose
-    // provider was something else, while service() would happily have bound it.
+    // The bind attempt IS the availability test. A package-manager probe over a literal list of
+    // OpenKeychain packages used to sit in front of it, answering false on a device whose provider
+    // was something else while service() would happily have bound it.
     override suspend fun isAvailable(): Boolean =
         withContext(Dispatchers.IO) { service() != null }
 
-    /** Run [intent] through the provider, streaming [input] in and collecting output. */
     private suspend fun execute(
         intent: Intent,
         input: ByteArray?,
@@ -100,10 +97,9 @@ class OpenKeychainPgpEngine(
         val service = service() ?: return@withContext null
         val api = OpenPgpApi(appContext, service)
         val out = if (collectOutput) ByteArrayOutputStream() else null
-        // The provider is a foreign process reached over binder: it can die mid-call
-        // (DeadObjectException) or hand back parcels this app's version can't unmarshal.
-        // Treat any of that as "provider unavailable" rather than letting it throw into
-        // the caller's coroutine (Codeberg #14).
+        // The provider is a foreign process reached over binder: it can die mid-call or hand back
+        // parcels this app's version cannot unmarshal. Treat any of that as "provider unavailable"
+        // rather than letting it throw into the caller's coroutine (#14).
         val result = try {
             api.executeApi(intent, input?.let { ByteArrayInputStream(it) }, out)
         } catch (t: Throwable) {
@@ -112,7 +108,6 @@ class OpenKeychainPgpEngine(
         result to out?.toByteArray()
     }
 
-    /** Map the provider's result envelope; [onSuccess] extracts the payload. */
     private fun <T> mapResult(
         response: Pair<Intent, ByteArray?>?,
         onSuccess: (Intent, ByteArray?) -> PgpResult<T>,
@@ -132,17 +127,14 @@ class OpenKeychainPgpEngine(
         }
     }
 
-    /** Base intent for [action], carrying over a prior interaction result if present. */
     private fun request(action: String, interactionResult: Intent?): Intent =
         (interactionResult?.let { Intent(it) } ?: Intent()).setAction(action)
 
     /**
      * The Intent for a [PgpApiRequest] — the ONE place a pure request becomes an Android object.
-     *
-     * The `when` is exhaustive over what [PgpApiRequest] is allowed to carry, and the `error`
-     * branch is not decoration: a fifth type added to a request without a branch here would
-     * otherwise be dropped in silence, i.e. an extra the provider never receives. A JVM test walks
-     * both requests and asserts every value is one of these four types.
+     * The `when` is exhaustive and the `error` branch is not decoration: a fifth type added to a
+     * request without a branch here would be dropped in silence, i.e. an extra the provider never
+     * receives.
      */
     private fun intentFor(spec: PgpApiRequest, interactionResult: Intent?): Intent =
         request(spec.action, interactionResult).apply {
@@ -175,12 +167,10 @@ class OpenKeychainPgpEngine(
     }
 
     /**
-     * ACTION_GET_KEY: the provider streams the public key to the output stream, which is why this
-     * is the one read here that collects output.
-     *
-     * **The arguments are [publicKeyRequest]'s, not this method's**, and that is the point: they
-     * decide the bytes that end up in every outgoing `Autocrypt:` header, and nothing in this class
-     * can be executed by a test. Built as a value, they are pinned by a test that runs them.
+     * ACTION_GET_KEY: the provider streams the public key to the output stream, which is why this is
+     * the one read here that collects output. The arguments are [publicKeyRequest]'s, not this
+     * method's: they decide the bytes that end up in every outgoing `Autocrypt:` header, and nothing
+     * in this class can be executed by a test.
      */
     override suspend fun getPublicKey(
         keyId: Long,
@@ -196,16 +186,12 @@ class OpenKeychainPgpEngine(
 
     /**
      * ACTION_UPDATE_AUTOCRYPT_PEER: the provider files [keyData] in its PUBLIC keyring under
-     * [peerId], which is why nothing else has to be called afterwards — the next
-     * `ACTION_GET_KEY_IDS` ([findKeys]) finds it and the composer stops saying "no key".
+     * [peerId], so the next `ACTION_GET_KEY_IDS` finds it and the composer stops saying "no key".
      *
-     * `isMutual = false`, always. `prefer-encrypt` is parsed off the header and dropped
-     * (`autocryptPeerImportOf`): MUTUAL is a standing instruction to start encrypting by itself,
-     * and that decision is not taken from an incoming message.
-     *
-     * No input stream and no output collected: this action carries everything in its extras.
-     * No `interactionResult` either — see [PgpEngine.updateAutocryptPeer]; the caller has no
-     * screen, so anything other than success is dropped where it is mapped.
+     * `isMutual = false`, always: MUTUAL is a standing instruction to start encrypting, and that
+     * decision is not taken from an incoming message. No input stream and no output collected —
+     * this action carries everything in its extras — and no `interactionResult`, the caller having
+     * no screen.
      */
     override suspend fun updateAutocryptPeer(
         peerId: String,

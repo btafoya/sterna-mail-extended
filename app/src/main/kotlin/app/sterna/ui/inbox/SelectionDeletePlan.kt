@@ -2,38 +2,18 @@ package app.sterna.ui.inbox
 
 import app.sterna.core.jmap.model.Email
 
-/**
- * How a bulk delete splits: what is permanently [destroy]ed (behind the Undo window), what is
- * [move]d to the Trash, and what is [untreated] — deleted nowhere, because doing either would be
- * a guess, and the guess that is wrong destroys mail.
- */
+/** How a bulk delete splits: what is permanently [destroy]ed, what is [move]d to the Trash, and
+ *  what is [untreated] — deleted nowhere, because either would be a guess and the wrong guess
+ *  destroys mail. */
 internal data class SelectionDeletePlan(
     val destroy: List<Email>,
     val move: List<Email>,
     val untreated: List<Email>,
 )
 
-/**
- * Who gets destroyed and who gets moved, decided WITHOUT ever reading an untrusted row's folder.
- *
- * `MailRepository.deleteWouldDestroy` answers from the row's own `mailboxId` — "is it already in
- * the Trash?" — and a row that only exists on screen carries the folder the crawl froze, which may
- * be stale or empty. So it is asked about trusted rows only.
- *
- * An untrusted row is moved to the Trash: search excludes Trash and Junk on both sides, so a search
- * hit is never in the Trash already, and the safe leg is also the true one. The exception is an
- * account with NO Trash — none of its folders carries the role — where the move has no folder this
- * caller can name and the destroy would rest on a supposition: the row is left alone and returned
- * in [SelectionDeletePlan.untreated] for the caller to count and announce. [hasTrash] answers that
- * question without looking at any row's folder, and is asked once per account.
- *
- * `deleteWouldDestroy` no longer answers "destroy" for want of a Trash — it answers the one
- * question it names, "is this row already in the Trash?" — so the destroy leg is now trusted rows
- * genuinely IN the bin, and nothing else.
- *
- * Returns plain data rather than doing the work, so this decision runs in a JVM test —
- * `InboxViewModel` is an `AndroidViewModel` and cannot be instantiated in one.
- */
+/** Who gets destroyed and who gets moved, decided without ever reading an untrusted row's folder:
+ *  `deleteWouldDestroy` answers from the row's own `mailboxId`, so it is asked about trusted rows
+ * only. With no Trash the destroy would rest on a supposition: the row goes to [untreated]. */
 internal suspend fun planSelectionDelete(
     targets: List<SelectionTarget>,
     hasTrash: suspend (Email) -> Boolean,

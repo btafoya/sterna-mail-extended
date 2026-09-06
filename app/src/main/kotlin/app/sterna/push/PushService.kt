@@ -22,24 +22,17 @@ import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * Foreground service holding JMAP EventSource (SSE) connections so new mail
- * arrives instantly — no Google/FCM. Watches the current account, or all accounts
- * when enabled. Reconnects when a connection drops and notifies for mail that
- * arrived during the gap. A `generation` counter retires stale connections when
- * the service is (re)started, e.g. on account switch.
- */
+/** Foreground service holding JMAP EventSource connections so new mail arrives instantly, with no
+ *  FCM. It reconnects when a connection drops and notifies for mail that arrived during the gap; a
+ *  `generation` counter retires stale connections when the service is (re)started. */
 class PushService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Open connections, keyed by LOGIN id — one socket per login, not per account (issue #31). */
     private val connections = ConcurrentHashMap<String, Closeable>()
 
-    /**
-     * Which login's connection carries each account: account id → login id. Rebuilt on every arm,
-     * alongside the grouping in [reconnectAll]. Without it [isConnected] can only be asked about
-     * accounts that happen to BE their own login, since [connections] is keyed by login id.
-     */
+    /** Which login's connection carries each account, rebuilt on every arm. Without it [isConnected]
+     *  can only be asked about accounts that happen to BE their own login. */
     private val carriedBy = ConcurrentHashMap<String, String>()
 
     @Volatile
@@ -50,26 +43,17 @@ class PushService : Service() {
         instance = this
         isRunning = true
         Notifications.ensureChannels(this)
-        // specialUse, not dataSync: Android 15+ budgets dataSync foreground services
-        // (~6h/24h, then a forced stop with background restarts blocked), which silently
-        // killed push on newer devices (Codeberg #11). A persistent email-push connection
-        // is exactly what specialUse exists for (same choice as K-9/Thunderbird); the
-        // subtype declaration lives on the <service> entry in the manifest.
+        // specialUse, not dataSync: Android 15+ budgets dataSync foreground services and then
+        // forcibly stops them, which silently killed push on newer devices (#11).
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         } else {
             0
         }
-        // Android 15+ can refuse a foreground-service start outright (a system/OEM policy, a
-        // background-start restriction), and the refusal lands HERE, in the service's own
-        // startForeground — not at the caller's ContextCompat.startForegroundService, which only
-        // schedules the start. Left to propagate it takes the whole process down, and because the
-        // start is retried (BootReceiver at every boot, START_STICKY, transport callbacks) that is
-        // a crash loop, not a one-off (#98). Swallow it and stop cleanly instead: [MailFetchWorker]
-        // keeps mail flowing within ~30 minutes, and the account screen reports "Periodic" rather
-        // than claiming a live connection. ForegroundServiceStartNotAllowedException (API 31+) and
-        // MissingForegroundServiceTypeException are both IllegalStateException; a permission refusal
-        // is a SecurityException — RuntimeException covers all of them without hiding real bugs.
+        // Android 15+ can refuse a foreground-service start outright, and the refusal lands HERE
+        // rather than at the caller's startForegroundService. Left to propagate it takes the process
+        // down, and the start being retried that is a crash loop (#98); swallowed,
+        // [MailFetchWorker] keeps mail flowing and the account screen reports "Periodic".
         try {
             ServiceCompat.startForeground(this, Notifications.SERVICE_ID, Notifications.serviceNotification(this), type)
         } catch (e: RuntimeException) {
@@ -87,11 +71,9 @@ class PushService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val gen = ++generation
-        // A silent baseline reseed is allowed only on user-initiated arms (app open, settings
-        // toggles), and even then only for the inbox the user is looking at — see
-        // [shouldResetBaseline], applied per account in [watch]. Background re-arms (transport
-        // callbacks, STICKY restarts: null intent) must DIFF instead — mail that arrived
-        // during the gap still gets announced.
+        // A silent baseline reseed is allowed only on user-initiated arms, and even then only for
+        // the inbox the user is looking at. Background re-arms must DIFF, or gap mail goes
+        // unannounced.
         val userInitiated = intent?.getBooleanExtra(EXTRA_USER_INITIATED, false) ?: false
         scope.launch { reconnectAll(gen, userInitiated) }
         return START_STICKY
@@ -104,67 +86,49 @@ class PushService : Service() {
         val store = application.container.accountStore
         val up = application.container.unifiedPushManager
         val watched = if (store.pushAllAccounts()) store.allCredentials() else listOfNotNull(store.load())
-        // Honour the per-account notification opt-out; UnifiedPush-active accounts are
-        // served by their endpoint (issue #17) and hold no direct connection here.
+        // Honour the per-account notification opt-out; UnifiedPush-active accounts are served by
+        // their endpoint (#17).
         val accounts = watched.filter { store.notificationsEnabled(it.id) && !up.isActive(it.id) }
         if (accounts.isEmpty()) {
-            // The one arm that ends without even a summary line: nothing to watch, so the service
-            // stops. Legitimate (every account opted out, or all of them ride UnifiedPush) and also
-            // what a credential that failed to decrypt looks like from here — AccountStore returns
-            // no credentials and says nothing. Say which of the two it is.
+            // The one arm that ends without even a summary line. Legitimate, and also what a
+            // credential that failed to decrypt looks like from here — so say which of the two.
             Log.i(TAG, PushController.nothingToWatchLine(watched.size))
             stopSelf()
             return
         }
-        // One EventSource per login (issue #31): a login's session carries StateChanges for the
-        // accounts it is a MEMBER of, so those ride a single socket; group by the login and fan a
-        // change out to every account in the group. Caveat (verified against Stalwart): an
-        // ACL-shared sub-account's changes are NEVER delivered on this socket — the server
-        // subscribes the login's member accounts only — so [MailFetchWorker] polls linked
-        // sub-accounts every cycle too, and the fan-out below is their instant catch-up whenever
-        // the login's own mail wakes us.
+        // One EventSource per login (#31): a login's session carries StateChanges for the accounts
+        // it is a MEMBER of. An ACL-shared sub-account's changes are NEVER delivered on it, so
+        // [MailFetchWorker] polls linked sub-accounts every cycle.
         val groups = accounts.groupBy { store.account(it.id)?.loginKey() ?: it.id }
-        // Record the grouping BEFORE opening anything, so the status line can resolve an account to
-        // its connection from the first refresh on (it reads "no connection yet", never "unknown
-        // account"). Cleared at the top of every arm, so a regrouped or dropped account leaves no
-        // stale entry behind.
+        // Record the grouping BEFORE opening anything, so the status line reads "no connection yet"
+        // rather than "unknown account". Cleared at the top of every arm.
         groups.forEach { (loginId, group) -> group.forEach { carriedBy[it.id] = loginId } }
         groups.forEach { (loginId, group) -> watch(loginId, group, gen, userInitiated) }
-        // Every watch() above has returned, so [connections] holds every handle this arm came away
-        // with — which is not the same claim as "this many sockets are up"; the summary's own doc
-        // in [PushController] spells out what a held handle does and does not prove.
+        // [connections] now holds every handle this arm came away with — not the same claim as
+        // "this many sockets are up"; see the summary's doc in [PushController].
         Log.i(TAG, PushController.armSummary(accounts.size, groups.size, connections.size))
     }
 
     /** (Re)establish the single push connection for one login and fan changes out to its accounts. */
     private suspend fun watch(loginId: String, group: List<AccountCredentials>, gen: Int, userInitiated: Boolean) {
-        // The guard is unchanged: an arm from a retired generation must not open a socket. What is
-        // new is that it says so — dropped here, this login ended with no connection and nothing
-        // rescheduled, and used to leave logcat looking exactly like a healthy push. Read the
-        // generation ONCE: printing a second read would let the line claim two equal numbers while
-        // saying it gave up.
+        // An arm from a retired generation must not open a socket, and it says so: dropped here,
+        // this login ends with no connection and nothing rescheduled. Read the generation ONCE.
         val current = generation
         if (gen != current) { Log.w(TAG, PushController.abandonedArmLine(loginId, gen, current)); return }
         val repo = application.container.mailRepository
         val currentId = application.container.accountStore.currentId()
         val unified = PushController.unifiedInboxVisible
-        // The handle this arm ends up holding — filled in at the moment it is stored, never before.
-        // An AtomicReference and not a captured `var`: onClosed fires on the transport's own thread
-        // (OkHttp's event-source reader on JMAP, the idle thread on IMAP), not on this one.
+        // The handle this arm ends up holding. An AtomicReference and not a captured `var`:
+        // onClosed fires on the transport's own thread.
         val mine = AtomicReference<Closeable?>(null)
         runCatching {
-            // Seed/announce baselines for every account in the group. The silent reseed is decided
-            // per ACCOUNT, not per arm: one arm covers every watched account, but only the inbox on
-            // screen may be swallowed silently (see [shouldResetBaseline]). Everything else diffs —
-            // on a reconnect, and for the accounts the user is not looking at, that is what
-            // announces the mail that arrived during the gap.
+            // The silent reseed is decided per ACCOUNT and not per arm: one arm covers every
+            // watched account, but only the inbox on screen may be swallowed silently.
             group.forEach { credentials ->
                 val reset = shouldResetBaseline(credentials.id, userInitiated, currentId, unified)
-                // Deliberately per account, so one account's failure does not cost the whole group
-                // its connection — but never silently: a seed that fails leaves that account on a
-                // stale baseline, and the NEXT pass then announces against it. Without this line
-                // that shows up as an unexplained burst (or an unexplained silence) hours later,
-                // with nothing in the log tying it to this arm.
+                // Per account, so one failure does not cost the whole group its connection — but
+                // never silently: a failed seed leaves a stale baseline the next pass announces
+                // against, hours later.
                 runCatching { FetchAndNotify.run(this, credentials, resetBaselines = reset) }
                     .onFailure { Log.w(TAG, "Baseline pass failed for account ${credentials.id}", it) }
             }
@@ -175,37 +139,25 @@ class PushService : Service() {
                 owner,
                 onChanged = { if (gen == generation) scope.launch { group.forEach { onAccountChanged(it) } } },
                 onClosed = {
-                    // Drop the dead connection now, not at the delayed retry: the status line reads
-                    // isConnected and must say "connecting", not "direct". Done whatever the
-                    // generation — a retired socket that leaves its entry behind keeps isConnected
-                    // answering true until the next arm, and on this path nothing triggers one
-                    // (#130). Paired with the handle, NEVER connections.remove(loginId): this
-                    // callback is asynchronous (close() returns at once, the callback lands later on
-                    // the transport's own thread), so it can fire well after the NEXT generation has
-                    // stored ITS handle under this same key, and a bare removal would expel a live
-                    // connection with nothing left to reschedule it.
+                    // Drop the dead connection now, not at the delayed retry: a retired socket that
+                    // leaves its entry behind keeps isConnected answering true with nothing to
+                    // trigger an arm (#130). Paired with the handle, never
+                    // connections.remove(loginId): this callback is asynchronous and can fire after
+                    // the NEXT generation stored ITS handle under the same key.
                     retractOwnConnection(connections, loginId, mine.get())
-                    // Deliberately silent when the generation is retired, and that was already the
-                    // rule here: this callback fires on every arm (reconnectAll closes every socket
-                    // first), so a line would print once per healthy arm while saying nothing about
-                    // the race — which the arm's own check below does report, once, where it happens.
+                    // Deliberately silent when the generation is retired: this fires on every arm,
+                    // so a line would print once per healthy arm while saying nothing about the race.
                     if (gen == generation) {
                         scheduleReconnect(loginId, group, gen)
                     }
                 },
                 watchedJmapAccountIds = watchedJmapIds,
             )
-            // Store first, check after — whoever writes LAST checks LAST. The baseline pass above
-            // can run for tens of seconds, long enough for a concurrent onStartCommand to retire
-            // this arm, and checking BEFORE the write only narrows the defect (#130): the map can be
-            // swept between the read and the put, and the retired handle lands in it anyway.
-            // Reading after the write closes that order. Whatever the interleaving, the map ends up
-            // either holding the current generation's live handle or holding nothing at all, never a
-            // dead handle: if the current generation stored its own after ours, the retraction below
-            // is paired and leaves it alone; if it stored before and we overwrote it, we take our
-            // own entry back out and the login ends with no entry — isConnected then answers false
-            // and the fallback worker fetches, the safe side (a wasted delta costs a request, a
-            // wrong skip costs mail). ONE read, and it is the one the line prints.
+            // Store first, check after — whoever writes LAST checks LAST. The baseline pass can run
+            // for tens of seconds, and checking BEFORE the write only narrows the defect (#130).
+            // Reading after it, the map ends up holding either the current generation's live handle
+            // or nothing at all, never a dead one — and no entry is the safe side, a wasted delta
+            // costing a request where a wrong skip costs mail.
             mine.set(handle)
             connections[loginId] = handle
             val after = generation
@@ -231,8 +183,8 @@ class PushService : Service() {
                 // Never user-initiated: a reconnect must announce the gap's mail, not swallow it.
                 watch(loginId, group, gen, userInitiated = false)
             } else {
-                // Dropping the retry is correct here, and it is also the end of this login's push
-                // for this generation — the only trace it leaves is this line.
+            // Dropping the retry is correct here, and it is also the end of this login's push for
+            // this generation — the only trace it leaves is this line.
                 Log.w(TAG, PushController.abandonedReconnectLine(loginId, gen, current))
             }
         }
@@ -240,9 +192,8 @@ class PushService : Service() {
 
     private suspend fun onAccountChanged(credentials: AccountCredentials) {
         runCatching {
-            // JMAP's StateChange has no per-mailbox granularity → re-sync the whole watched
-            // set (cheap per-folder deltas). IMAP IDLE only ever signals the INBOX, so the
-            // watched extras stay with MailFetchWorker there.
+            // JMAP's StateChange has no per-mailbox granularity, so re-sync the whole watched set
+            // with cheap per-folder deltas. IMAP IDLE only ever signals the INBOX.
             FetchAndNotify.run(
                 this,
                 credentials,
@@ -268,13 +219,9 @@ class PushService : Service() {
         private const val RECONNECT_DELAY_MS = 5_000L
         private const val EXTRA_USER_INITIATED = "userInitiated"
 
-        /**
-         * Whether the service object exists. Says nothing about whether any connection is open:
-         * the reconnect loop keeps the service alive through the failure of every one of them.
-         * Only the status line may read it, and only after [isConnected] has already said no —
-         * "up but not connected yet" is exactly [PushStatus.Connecting]. Anything deciding
-         * whether mail still needs fetching must ask [isConnected] per account instead.
-         */
+        /** Whether the service object exists. Says nothing about whether any connection is open,
+         *  the reconnect loop keeping the service alive through every failure. Only the status line
+         *  may read it, and only after [isConnected] has said no. */
         @Volatile
         var isRunning = false
             private set
@@ -283,17 +230,11 @@ class PushService : Service() {
         private var instance: PushService? = null
 
         /**
-         * Whether the connection carrying [accountId] is open right now (status line).
-         *
-         * Asked with an ACCOUNT id, answered from a map keyed by LOGIN id — the two are the same
-         * string only for a standalone account. Resolving the account to its login first is what
-         * makes the answer mean the same thing for every account (issue #61); see
-         * [isCarriedByOpenConnection] for the rule and its test.
-         *
-         * "Carried by an open connection" is not the same claim as "instant": what a linked
-         * sub-account's open socket buys it is the group catch-up, not its own StateChanges
-         * (issue #31). Turning that into a user-facing transport stays [PushController.statusFor]'s
-         * job, and it deliberately reports [PushStatus.Periodic] for a linked sub-account.
+         * Whether the connection carrying [accountId] is open right now. Asked with an ACCOUNT id,
+         * answered from a map keyed by LOGIN id — the two are the same string only for a standalone
+         * account, so resolving first is what makes the answer mean the same thing everywhere (#61).
+         * "Carried by an open connection" is not "instant": what a linked sub-account's socket buys
+         * it is the group catch-up, not its own StateChanges (#31).
          */
         fun isConnected(accountId: String): Boolean {
             val service = instance ?: return false
@@ -315,17 +256,10 @@ class PushService : Service() {
 }
 
 /**
- * Is [accountId] carried by one of the [openConnections] right now?
- *
- * The service holds ONE connection per login and fans its changes out to the accounts grouped under
- * that login (issue #31), so [openConnections] holds LOGIN ids while every caller of the status line
- * holds an ACCOUNT id. [carriedBy] is the grouping the service just built (account id → login id);
- * an account missing from it is its own login, which is why looking an account id up directly in the
- * connection map appeared to work — it does, but only for standalone accounts, and never for one
- * grouped under another (issue #61).
- *
- * Pure so the resolution is unit-tested without a service: the whole defect was the one hop that was
- * missing here, and nothing else about it is observable from the outside.
+ * Is [accountId] carried by one of the [openConnections] right now? The service holds ONE connection
+ * per login (#31), so [openConnections] holds LOGIN ids while every caller of the status line holds
+ * an ACCOUNT id. An account missing from [carriedBy] is its own login, which is why looking an
+ * account id up directly appeared to work — it does, but only for standalone accounts (#61).
  */
 internal fun isCarriedByOpenConnection(
     accountId: String,
@@ -334,28 +268,15 @@ internal fun isCarriedByOpenConnection(
 ): Boolean = (carriedBy[accountId] ?: accountId) in openConnections
 
 /**
- * Take [loginId] out of [connections] only if the entry sitting there IS [mine] — the handle the
- * caller opened — and say whether anything was removed.
+ * Take [loginId] out of [connections] only if the entry sitting there IS [mine], and say whether
+ * anything was removed. A closing connection must drop its own entry, or [isConnected] answers true
+ * until the next arm and on the path this fixes nothing triggers one (#130).
  *
- * A closing connection must drop its own entry, or the map keeps claiming a socket that is gone:
- * [isConnected] then answers true until the next arm clears the map, and on the path this fixes
- * nothing triggers one — no reconnect is scheduled, so the account is "connected" with no socket for
- * an unbounded time (#130).
- *
- * The obvious `connections.remove(loginId)` is the wrong way to do it, and worse than the defect it
- * fixes. A close callback is ASYNCHRONOUS: `close()` returns immediately and the callback lands later
- * on the transport's own thread, so a socket retired at the top of [PushService.reconnectAll] can
- * call back long after the next generation has stored ITS handle under the same key. A removal by key
- * alone would then expel a live connection, silently, with nothing left to reschedule it.
- *
- * Pairing is by IDENTITY: two handles that compare equal are still two sockets, and only the one
- * actually recorded may be taken away. [mine] null means the caller never got as far as storing
- * anything, so it owns no entry and removes none.
- *
- * The read and the removal are two steps, so a handle swapped in between them survives — the safe way
- * round: a live connection is kept, and at worst a dead entry waits for the next arm, which clears the
- * map wholesale. Pure and generic so the rule is executed by unit tests instead of being read off a
- * service this module cannot instantiate.
+ * The obvious `connections.remove(loginId)` is worse than the defect it fixes: a close callback is
+ * ASYNCHRONOUS, so a retired socket can call back long after the next generation stored ITS handle
+ * under the same key, and a removal by key alone would expel a live connection. Pairing is by
+ * IDENTITY: two handles that compare equal are still two sockets. The read and the removal are two
+ * steps, so a handle swapped in between survives — the safe way round.
  */
 internal fun <T : Any> retractOwnConnection(
     connections: MutableMap<String, T>,

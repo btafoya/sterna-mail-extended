@@ -29,10 +29,9 @@ data class StorageUsage(
 data class AccountUsage(val accountId: String, val messageCount: Int)
 
 /**
- * Reports and manages the on-device cache (Room DB + downloaded attachments).
- * This is device usage only — distinct from the server mailbox quota
- * (ARCHITECTURE.md → "Storage & data strategy"). Attachments are a re-downloadable
- * cache, so clearing them is always safe.
+ * Reports and manages the on-device cache (Room DB + downloaded attachments) — device usage only,
+ * distinct from the server mailbox quota. Attachments are a re-downloadable cache, so clearing them
+ * is always safe.
  */
 class StorageRepository(
     private val context: Context,
@@ -51,11 +50,9 @@ class StorageRepository(
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
 
     /**
-     * Where compose stages outgoing-attachment bytes (a picked file, a carried forward part, a
-     * reopened outbox item, #70). enqueueSend copies these into the durable per-item outbox dir, so
-     * once a message is queued the staged copies are orphaned cache — never read again, but not
-     * cleaned up before (StorageRepository only swept `attachments`), so they piled up. Counted and
-     * cleared here alongside the attachment cache.
+     * Where compose stages outgoing-attachment bytes (#70). enqueueSend copies these into the
+     * durable per-item outbox dir, so once a message is queued the staged copies are orphaned
+     * cache. Counted and cleared here alongside the attachment cache.
      */
     private val outgoingDir: File get() = File(context.cacheDir, "outgoing")
 
@@ -88,17 +85,10 @@ class StorageRepository(
     /**
      * Purge one account's cached messages. Snoozes are user intent, not cache — kept.
      *
-     * **The attachment FILES go too**, and that is the point of the last line: this used to
-     * delete five tables' rows and not one byte on disk. An attachment is written into the cache
-     * decrypted — an OpenPGP part included — and `enforceAttachmentCap` has no other caller, so the
-     * only thing that ever removed that file was downloading the next one. The user pressed the
-     * button carrying her account's name and the decrypted PDF stayed on the phone indefinitely.
-     *
-     * The tree is flat and NOT namespaced per account, so this clears every account's cached
-     * attachments, not just this one's. Accepted deliberately: they are re-downloadable bytes, and
-     * carving per-account sub-directories would break [enforceAttachmentCap] (`isFile`),
-     * [clearAttachments] (`delete()` on a non-empty directory fails silently) and [usage]
-     * (`length()` of a directory) all three, in silence. The settings screen says so.
+     * The attachment FILES go too: an attachment is written into the cache decrypted, an OpenPGP
+     * part included. The tree is flat and NOT namespaced per account, so this clears every
+     * account's cached attachments — accepted deliberately, since per-account sub-directories would
+     * break [enforceAttachmentCap], [clearAttachments] and [usage] all three, in silence.
      */
     suspend fun clearAccountCache(accountId: String) = withContext(Dispatchers.IO) {
         emailDao.deleteForAccount(accountId)
@@ -110,29 +100,14 @@ class StorageRepository(
     }
 
     /**
-     * On sign-out: purge the account's cached rows and the attachment cache.
-     * Attachments aren't namespaced per account, so the whole (re-downloadable)
-     * cache is cleared to avoid leaking one account's files to another.
+     * On sign-out: purge the account's cached rows and the attachment cache, which is not namespaced
+     * per account and so goes whole.
      *
-     * **The local drafts go here and in no other purge, and that is a decision** (#95, #121's
-     * neighbourhood). A draft kept on the phone is NOT cache: it is text the user typed that the
-     * server never received, so it is ranked with `snoozed` and the outbox on the user-data side —
-     * removed when the account that owns it is removed, and left alone by everything that calls
-     * itself a cache purge ([clearAllCache], [clearAccountCache], [purgeOrphanedAccounts]). The
-     * other three are offered as free of consequence because every byte they drop can be downloaded
-     * again; this text cannot.
+     * The local drafts go here and in no other purge (#95): a draft kept on the phone is text the
+     * server never received, and its FILES go with it — only [purgeLocalDraftsOfAccount]'s order
+     * finds them, since the directories are named after the ids.
      *
-     * Its FILES go with it, not just its rows. Since the store gained a writer, signing out left
-     * the attachments of every unsent draft on the phone with no row left to name them by: the
-     * directories are named after the draft ids, so they can only be found while the rows are still
-     * there — hence the order inside [purgeLocalDraftsOfAccount].
-     *
-     * **One `runCatching` PER STEP**, as [purgeOrphanedAccounts] already does table by table.
-     * These are independent deletions, and this call is made in a LOOP over every account a
-     * cascading sign-out removes (#31), followed by the orphan sweep (#121). A throw from any one
-     * step used to skip the steps after it — the attachment cache included — come back out into
-     * `AccountsViewModel.signOut`, stop the cascade on the linked sub-accounts and take the sweep
-     * with it. The draft purge, which touches the file system, made that far likelier.
+     * One `runCatching` PER STEP: a throw from one step stopped the cascading sign-out (#31).
      */
     suspend fun purgeAccount(accountId: String): Unit = withContext(Dispatchers.IO) {
         runCatching { emailDao.deleteForAccount(accountId) }
@@ -156,60 +131,19 @@ class StorageRepository(
     }
 
     /**
-     * Sweep the cached mail of accounts that no longer exist, given the accounts that DO
-     * ([knownAccountIds] — a reader of `AccountStore.accounts()`' ids). Returns the ids swept.
+     * Sweep the cached mail of accounts that no longer exist, given the accounts that DO.
      *
      * THE ORDER OF THE TWO READS IS PART OF THE FIX, which is why the account list arrives as a
-     * function and not as a list. Read the accounts first and take the inventory second — as the
-     * callers did when they passed `store.accounts().map { it.id }` — and an account created
-     * between the two is missing from the list and present in the inventory: its brand-new cache is
-     * swept as an orphan. The window is not theoretical. This inventory is usually the process's
-     * first database access, so it pays for opening the file and for any pending migration
-     * (hundreds of milliseconds on an old device), and the first unified refresh runs in parallel:
-     * it can discover a shared mailbox, create its sub-account (Codeberg #31) and write its rows in
-     * exactly that gap. Taking the inventory FIRST closes it: an account created after the snapshot
-     * has no row in it, so it cannot be named an orphan, and one created before it is in the list
-     * read afterwards.
-     *
-     * Codeberg #121: a row whose account is gone is not merely mislabelled, it is unreachable —
-     * no credential syncs it, no action can be routed to it, no prune covers it. It stayed in the
-     * unified list forever, in whatever state it was frozen in (bold, starred), above the real
-     * message. Scoping the list on (account, folder) pairs hides it; this removes it.
-     *
-     * An empty account list sweeps NOTHING — see [OrphanedAccountCache.orphans]. The
-     * decision is that function's, not a `NOT IN` statement's, precisely so this call can never
-     * degrade into "delete the whole cache".
-     *
-     * Orphans are looked for in the UNION of the tables this then deletes from — messages, folders,
-     * the search index, cached bodies — not in `emails` alone. An account can very well be left
-     * with folders and no message: `refresh()` persists the folder list before it fetches the mail,
-     * so a sign-up interrupted between the two (and every failure of the mail fetch) leaves exactly
-     * that, which is the likeliest residue there is. Inventorying on `emails` alone would walk past
-     * it and leave it in the database for good.
-     *
-     * They are removed with the same per-account deletes sign-out uses. Deliberately NOT swept:
-     *  - `snoozed` — user intent rather than cache, and per-account snoozes of a gone account are
-     *    inert (the not-snoozed filter correlates on accountId);
-     *  - `local_drafts` and their staged files (#95) — the same rank as `snoozed`, and for a harder
-     *    reason: this is text the user typed and the server has not got. This sweep runs at every
-     *    start, off an inventory of four CACHE tables that a draft's own table is deliberately
-     *    outside of (`LocalDraftEntity`), so an account holding nothing but drafts would be named an
-     *    orphan by a list it has no row in. [purgeAccount] is where they go, on the one event that
-     *    says the user is done with that account;
-     *  - `purge_snapshot`, `mailbox_uidvalidity`, the outbox and the attachment files — none of
-     *    them can produce a row in a list, and the attachment cache is shared, so clearing it here
-     *    would cost every account a re-download on a housekeeping pass. They are not inventoried
-     *    either: an id known only to them would be deleted from four tables it has no row in.
-     *    And the exclusion is checkable, not merely asserted: every account id `AccountStore`
-     *    ever mints comes from `UUID.randomUUID()`, on all five of its creation paths, so an id is
-     *    never re-issued. A row left behind here is keyed on an id no account will ever carry
-     *    again — it has no possible reader, only bytes.
+     * function: reading the accounts first would let an account created between the two reads be
+     * missing from the list and swept as an orphan — and the first unified refresh can create a
+     * sub-account (#31) in exactly that gap. An empty account list sweeps NOTHING
+     * ([OrphanedAccountCache.orphans]). Deliberately not swept: `snoozed`, `local_drafts` and their
+     * files (#95), `purge_snapshot`, `mailbox_uidvalidity`, the outbox and the attachment cache.
      */
     suspend fun purgeOrphanedAccounts(knownAccountIds: () -> Collection<String>): List<String> =
         withContext(Dispatchers.IO) {
             // The inventory FIRST: everything written after this snapshot belongs to an account the
-            // list read below is guaranteed to contain. Swapping these two lines back sweeps the
-            // cache of an account created while this runs.
+            // list read below is guaranteed to contain.
             val cached = emailDao.countsByAccount().map { it.accountId } +
                 mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds()
             val known = knownAccountIds()
@@ -235,9 +169,8 @@ class StorageRepository(
 
     /** LRU eviction: drop files past the age cap, then oldest-first past the size cap. */
     private fun enforceAttachmentCap() {
-        // Bound the outgoing staging dir too (#70): orphaned staged copies of already-queued sends
-        // past the age cap are dead cache. The cap is far longer than any compose stays open, so an
-        // in-progress attachment is never pruned from under the composer.
+        // Bound the outgoing staging dir too (#70). The cap is far longer than any compose stays
+        // open, so an in-progress attachment is never pruned from under the composer.
         val now0 = System.currentTimeMillis()
         outgoingDir.listFiles()?.forEach { if (now0 - it.lastModified() > MAX_AGE_MS) it.delete() }
         val files = attachmentsDir.listFiles()?.filter { it.isFile } ?: return
@@ -271,16 +204,12 @@ class StorageRepository(
 
 /**
  * Empty the two attachment CACHE trees — the downloaded attachments and compose's outgoing staging
- * dir. Extracted out of `StorageRepository` (which needs a `Context` and eight Room DAOs, so no JVM
- * test can build one) purely so the sweep itself can be executed by a test, exactly as
- * `purgeLocalDraftsOfAccount` is.
+ * dir. Extracted out of `StorageRepository`, which no JVM test can build, so the sweep itself can
+ * be executed by a test.
  *
- * The outgoing staging dir is re-downloadable/re-stageable cache too (#70): a queued send already
- * holds its own durable copy, so clearing the orphaned staged files loses nothing.
- *
- * Neither tree holds a local draft's staged bytes (#95) — those are text the server never
- * received and go on sign-out alone. Both directories are flat: `listFiles()` is null when the tree
- * has never been created, and `delete()` would silently fail on a sub-directory.
+ * Neither tree holds a local draft's staged bytes (#95) — those go on sign-out alone. Both
+ * directories are flat: `listFiles()` is null when the tree was never created, and `delete()` would
+ * silently fail on a sub-directory.
  */
 internal fun clearAttachmentTrees(attachmentsDir: File, outgoingDir: File) {
     attachmentsDir.listFiles()?.forEach { it.delete() }

@@ -23,14 +23,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** In-progress state of an authorization-code sign-in (drives the browser panel). */
 sealed interface OAuthCodeProgress {
     data object Idle : OAuthCodeProgress
 
     /** The browser must be sent to [authorizationUrl]; the answer comes back as a redirect. */
     data class AwaitingBrowser(val authorizationUrl: String) : OAuthCodeProgress
 
-    /** The code came back and is being exchanged / the account added. */
     data object Connecting : OAuthCodeProgress
 }
 
@@ -40,21 +38,10 @@ sealed interface OAuthCodeOutcome {
     data class Error(val message: String) : OAuthCodeOutcome
 }
 
-/**
- * App-scoped driver for the OAuth 2.0 authorization-code grant with PKCE (RFC 6749 §4.1 +
- * RFC 7636), for servers that offer no device flow.
- *
- * App-scoped for the same reason [OutlookSignIn] is, only more so: this flow LEAVES the app by
- * construction. The user is sent to a browser, our task goes to the background, and the redirect
- * comes back into `MainActivity` — possibly after the connect screen has been popped, the app lock
- * has re-armed, or the activity has been recreated. A screen-scoped ViewModel is gone by then and
- * the code would never be exchanged. On success the account is added and a toast is shown, so it
- * works even if nobody is watching the connect screen any more.
- *
- * Nothing this class draws is logged: not the verifier, not the state, not the code, not a
- * token. The only things that ever reach the screen are the closed vocabulary of
- * [oauthFailureSpec] and this file's own sentences.
- */
+/** App-scoped driver for the OAuth 2.0 authorization-code grant with PKCE (RFC 6749 §4.1 +
+ *  RFC 7636), for servers that offer no device flow. App-scoped because the redirect comes back
+ *  into `MainActivity`, possibly after the connect screen has been popped, and a screen-scoped
+ * ViewModel would be gone before the code is exchanged. Nothing here is logged. */
 class OAuthCodeSignIn(
     private val repo: MailRepository,
     private val scope: CoroutineScope,
@@ -76,18 +63,13 @@ class OAuthCodeSignIn(
     /** `<applicationId>://oauth`, both in the authorization URL and in the token exchange. */
     val redirectUri: String get() = oauthRedirectUri(applicationId)
 
-    /**
-     * Draw a verifier and a state, remember them, and expose the URL the screen sends the browser
-     * to. Nothing is sent from here: the user's tap is what leaves the app.
-     */
+    /** Draw a verifier and a state, remember them, and expose the URL the screen sends the browser
+     *  to. Nothing is sent from here: the user's tap is what leaves the app. */
     fun start(host: String, metadata: OAuthMetadata, email: String, accountName: String) {
         if (job?.isActive == true) return
-        // An explicit start REPLACES whatever was in flight, and drops it even if the URL below
-        // cannot be built. Refusing while something is armed locked the flow for the life of the
-        // process: a request abandoned by the Back key (browser opened, nothing approved) can
-        // never complete, nothing expires it, and the next visit to Add account reopened the dead
-        // request's browser panel. Double-taps are held by rememberLeaveOnce on the screen.
-        // This is NOT the one-shot rule — that one lives on the return, in the slot.
+        // An explicit start replaces whatever was in flight, even if the URL below cannot be built:
+        // a request abandoned by the Back key never completes and nothing expires it. Not the
+        // one-shot rule, which lives on the return, in the slot.
         slot.disarm()
         val verifier = Pkce.newCodeVerifier()
         val state = newOAuthState()
@@ -111,10 +93,8 @@ class OAuthCodeSignIn(
         _progress.value = OAuthCodeProgress.AwaitingBrowser(url)
     }
 
-    /**
-     * A VIEW intent came in. Returns true when it was ours (and has been dealt with), false when
-     * it belongs to somebody else — in which case NOTHING of it has been read.
-     */
+    /** A VIEW intent came in. True when it was ours and has been dealt with, false when it belongs
+     *  to somebody else — in which case nothing of it has been read. */
     fun onRedirect(uri: Uri): Boolean {
         if (!isOAuthRedirect(uri.scheme, uri.host, applicationId)) return false
         val verdict = slot.redeem(
@@ -145,8 +125,7 @@ class OAuthCodeSignIn(
 
     private fun exchange(verdict: RedirectVerdict.Exchange) {
         val request = verdict.request
-        // WHAT is posted is tokenExchangeFor's answer, not four arguments spelled out here: this
-        // function only unfolds it, so the provenance of the verifier is decided where a test runs.
+        // What is posted is tokenExchangeFor's answer, not four arguments spelled out here.
         val exchange = tokenExchangeFor(verdict, redirectUri)
         _progress.value = OAuthCodeProgress.Connecting
         job = scope.launch {
@@ -157,14 +136,11 @@ class OAuthCodeSignIn(
                     redirectUri = exchange.redirectUri,
                     codeVerifier = exchange.codeVerifier,
                 )
-                // The account is persisted by the path the device flow already uses, untouched:
-                // it stores the token endpoint and client id per account, so the refresher is
-                // generic and knows nothing about which grant created the account.
+                // The account is persisted by the path the device flow already uses: it stores the
+                // token endpoint and client id per account, so the refresher is grant-agnostic.
                 val created = repo.addOAuthAccount(request.host, request.email, request.metadata, tokens, request.accountName)
-                // "Account added" is no longer the only thing this can say: the add resolves
-                // onto an account already stored under the same identity and refreshes it, and
-                // this toast is all the reader gets. WHICH sentence is accountAddedToast's, not
-                // this driver's — nothing here can be executed by a test.
+                // The add may resolve onto an account already stored and refresh it; which sentence
+                // that gets is accountAddedToast's.
                 accountAddedToast(created, R.string.connect_account_added)?.let { toast(string(it)) }
                 _outcomes.emit(OAuthCodeOutcome.Success)
                 _progress.value = OAuthCodeProgress.Idle
@@ -184,12 +160,8 @@ class OAuthCodeSignIn(
     private fun render(spec: OAuthMessage): String =
         if (spec.arg == null) appContext.getString(spec.resId) else appContext.getString(spec.resId, spec.arg)
 
-    /**
-     * Say it out loud AND on the flow. `outcomes` has no replay and this driver is app-scoped
-     * precisely because the screen may be gone during the browser trip: an error that only travels
-     * on the flow then reaches nobody, and the sign-in simply never happens with nothing said —
-     * while a success toasts. A failure is the half that matters more.
-     */
+    /** Say it out loud and on the flow. `outcomes` has no replay and the screen may be gone during
+     *  the browser trip, so an error that only travels on the flow reaches nobody. */
     private fun fail(message: String) {
         _progress.value = OAuthCodeProgress.Idle
         scope.launch {

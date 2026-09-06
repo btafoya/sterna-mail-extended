@@ -2,25 +2,16 @@ package app.sterna.core.imap
 
 import java.io.InputStream
 
-/**
- * Streaming parser for IMAP server responses. Reads one response at a time and
- * returns it as a tree of tokens: [String] (atom / quoted / literal), [List] for
- * parenthesised groups, or `null` for NIL. Literals (`{n}`) are read inline so
- * binary/multiline data is preserved.
- *
- * THE CHARSET CONVENTION, stated once for the whole file: a token is a FAITHFUL BYTE
- * CONTAINER, not text. Every byte off the wire becomes exactly one char of the same
- * value (ISO-8859-1), so the original octets can always be recovered with
- * `toByteArray(Charsets.ISO_8859_1)`. IMAP is a byte protocol: what a token means —
- * modified UTF-7 for a mailbox name, the `charset=` of a MIME part for a body,
- * RFC 2047 words for a header — is decided by the reader that knows, never here.
- *
- * Literals used to be the one exception, decoded as UTF-8, which applied the JVM's
- * REPLACE action: any byte that is not valid UTF-8 became U+FFFD and the octet ceased
- * to exist. That destroyed a non-UTF-8 8-bit body before [MimeParser] ever saw its
- * declared charset, and wrote `?` into every attachment carried as `8bit`/`binary`.
- * [MimeParser.decodeBytes] has always assumed this convention; now the parser honours it.
- */
+    /**
+     * Streaming parser for IMAP server responses. Reads one response at a time and returns it as a
+     * tree of tokens: [String] (atom / quoted / literal), [List] for parenthesised groups, or `null`
+     * for NIL. Literals (`{n}`) are read inline so binary/multiline data is preserved.
+     *
+     * THE CHARSET CONVENTION, stated once for the whole file: a token is a FAITHFUL BYTE CONTAINER,
+     * not text. Every byte off the wire becomes exactly one char of the same value (ISO-8859-1), so
+     * the original octets can always be recovered. What a token MEANS — modified UTF-7 for a mailbox
+     * name, `charset=` for a body, RFC 2047 for a header — is decided by the reader that knows.
+     */
 internal class ImapParser(private val input: InputStream) {
     private var peeked = NONE
 
@@ -38,34 +29,23 @@ internal class ImapParser(private val input: InputStream) {
         return peeked
     }
 
-    /**
-     * Read one full response line (following any literals) into a token list.
-     *
-     * [maxTokens] bounds what is KEPT, not what is read: past it the line is still consumed to
-     * its end — the stream must stay in sync for the next command — but the surplus tokens are
-     * discarded as they go, and an atom past the cap is skipped byte by byte without ever being
-     * built. A `UID SEARCH` over a 200 000-message folder otherwise materialises 200 000 boxed
-     * atoms before the caller can throw the surplus away, on devices as old as an S7 (#99).
-     *
-     * THE END OF THE STREAM IS A FAILURE, NOT AN ANSWER (#156). `-1` used to return `tokens`
-     * like the two line endings do, so a closed peer and a blank line both came back as
-     * `emptyList()` and no caller could tell them apart — not by a field, not by a nullable, not
-     * by an exception. The `while (true)` loops of [ImapSession] then re-read a finished stream
-     * forever: two accounts in IDLE burned a core each, 419 mAh, the SoC at 91 °C. So EOF throws,
-     * here and only here, which is the guard no caller can forget; `socket.isClosed` cannot state
-     * it (it means "WE closed"), and a read timeout cannot either (a closed peer answers `-1` at
-     * once — it is not mute).
-     *
-     * A blank line stays a blank line: a lone CRLF still returns `emptyList()`. Two cases are
-     * separated here, neither is removed.
-     *
-     * No sub-reader guards EOF itself. None of them loops on `-1` — each returns what it has —
-     * and their partial result always comes back through this loop, which sees the `-1` on the
-     * next turn and throws before anything truncated reaches a caller.
-     *
-     * @throws ImapException when the peer has closed, wherever the EOF falls: at the start of a
-     *   line, or inside a list, a quoted string or a literal.
-     */
+        /**
+         * Read one full response line (following any literals) into a token list.
+         *
+         * [maxTokens] bounds what is KEPT, not what is read: past it the line is still consumed to its
+         * end — the stream must stay in sync — but the surplus is discarded as it goes, and an atom
+         * past the cap is skipped byte by byte without ever being built (#99).
+         *
+         * THE END OF THE STREAM IS A FAILURE, NOT AN ANSWER (#156). `-1` used to return `tokens`
+         * like the two line endings do, so a closed peer and a blank line both came back as
+         * `emptyList()` and the `while (true)` loops of [ImapSession] re-read a finished stream for
+         * ever: two accounts in IDLE burned a core each, 419 mAh, the SoC at 91 °C. So EOF throws,
+         * here and only here — `socket.isClosed` means "WE closed", and a read timeout cannot state it
+         * either, a closed peer answering `-1` at once. A lone CRLF still returns `emptyList()`, and
+         * no sub-reader guards EOF itself: their partial result comes back through this loop.
+         *
+         * @throws ImapException when the peer has closed, wherever the EOF falls.
+         */
     fun readResponse(maxTokens: Int = Int.MAX_VALUE): List<Any?> {
         val tokens = mutableListOf<Any?>()
         while (true) {
@@ -132,9 +112,8 @@ internal class ImapParser(private val input: InputStream) {
         if (peek() == '\r'.code) read()
         if (peek() == '\n'.code) read()
         val declared = num.toString().trim().toIntOrNull() ?: 0
-        // A hostile/buggy server can announce a huge {N}; allocating it eagerly would OOM
-        // the process from one short line. Cap the buffer and drain any excess from the
-        // stream so the connection stays in sync, then surface the oversize as empty.
+            // A hostile/buggy server can announce a huge {N}; allocating it eagerly would OOM the
+            // process. Cap the buffer, drain the excess so the connection stays in sync, answer empty.
         if (declared > MAX_LITERAL) {
             var remaining = declared.toLong()
             val skip = ByteArray(8192)
@@ -153,9 +132,8 @@ internal class ImapParser(private val input: InputStream) {
             if (r == -1) break
             off += r
         }
-        // ISO-8859-1, i.e. one char per byte, per the charset convention in the class KDoc —
-        // and the same reading [readQuoted] and [readAtom] have always used. Literals were the
-        // one exception, and the one place a message's bytes could be lost.
+            // ISO-8859-1, one char per byte, per the charset convention in the class KDoc. Literals
+            // were the one exception, and the one place a message's bytes could be lost.
         return String(bytes, 0, off, Charsets.ISO_8859_1)
     }
 
@@ -166,23 +144,16 @@ internal class ImapParser(private val input: InputStream) {
         return if (s.equals("NIL", ignoreCase = true)) null else s
     }
 
-    /**
-     * Consume one atom off the stream, appending it to [into] when a caller wants it built.
-     *
-     * An atom ends on a space, a parenthesis or the end of the line — EXCEPT inside a section
-     * name. A FETCH item such as `BODY[HEADER.FIELDS (REFERENCES)]` is ONE item, with a space and
-     * a parenthesised list inside its brackets (RFC 3501 §6.4.5): cut on the space, it used to
-     * come out as the atom `BODY[HEADER.FIELDS`, the list `(REFERENCES)` and the atom `]`, and a
-     * reader pairing each key with the token after it paired the header item with a LIST and the
-     * literal that followed with `]` — silently. So from a `[` that follows something (`BODY[`,
-     * never a bare `[UIDVALIDITY 1]` response code, which keeps its old shape) to the matching
-     * `]`, everything is the atom. `BODY[1]<0>` and `BODY[]` never had a space or a parenthesis
-     * and read exactly as before.
-     *
-     * Still bounded by the line: a `]` that never comes ends the atom at the CRLF, as a plain
-     * atom always did — and the `)` that closes the list the item sits in is left to that list,
-     * unless the brackets themselves opened a `(` it is answering.
-     */
+        /**
+         * Consume one atom off the stream, appending it to [into] when a caller wants it built.
+         *
+         * An atom ends on a space, a parenthesis or the end of the line — EXCEPT inside a section
+         * name. `BODY[HEADER.FIELDS (REFERENCES)]` is ONE item (RFC 3501 §6.4.5): cut on the space it
+         * came out as three tokens, and a reader pairing each key with the token after it paired the
+         * header item with a LIST. So from a `[` that FOLLOWS something (never a bare `[UIDVALIDITY 1]`
+         * response code) to the matching `]`, everything is the atom. Still bounded by the line: a
+         * `]` that never comes ends the atom at the CRLF, as a plain atom always did.
+         */
     private fun consumeAtom(into: StringBuilder?) {
         var seen = 0 // chars consumed so far — a `[` is a section only after at least one
         var inSection = false

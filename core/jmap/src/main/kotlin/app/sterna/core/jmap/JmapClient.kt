@@ -67,12 +67,11 @@ import java.util.concurrent.TimeUnit
 class JmapClient internal constructor(
     private val httpClient: OkHttpClient,
     private val json: Json,
-    /**
-     * Where the few push-connection lines go. Silent by default so this module keeps no logging
-     * dependency (it is plain Kotlin/JVM: `android.util.Log` is not on its classpath and must not
-     * get there); the app passes a lambda that writes to logcat. Second argument is the failure
-     * cause when there is one.
-     */
+        /**
+         * Where the few push-connection lines go. Silent by default so this module keeps no logging
+         * dependency (plain Kotlin/JVM: `android.util.Log` is not on its classpath); the app passes a
+         * lambda that writes to logcat. Second argument is the failure cause when there is one.
+         */
     private val log: (String, Throwable?) -> Unit = { _, _ -> },
 ) {
     /** Public constructor for app code — uses a default OkHttp client. */
@@ -91,17 +90,10 @@ class JmapClient internal constructor(
                     .get()
                     .build()
                 val session = httpClient.newCall(request).execute().use { response ->
-                    // OkHttp drops the Authorization header when a redirect changes origin, so an
-                    // autodiscovery redirect (RFC 8620 §2.2, e.g. fastmail.com/.well-known/jmap →
-                    // api.fastmail.com/jmap/session) lands unauthenticated. Retry the redirect
-                    // target once, re-authenticated.
-                    //
-                    // The trigger is the MECHANICAL fact that dropped the header — the origin
-                    // changed ([redirectDroppedAuthorization]) — never the answer we got back. A
-                    // 401 is only one of the ways a server refuses an anonymous session request:
-                    // Stalwart answers 200 with an empty session instead, which used to make the
-                    // account be rejected as "This user has no JMAP mail account." (issue #137).
-                    // `retried` keeps it to a single replay, whatever the redirect chain does.
+                            // OkHttp drops the Authorization header when a redirect changes origin, so an
+                            // autodiscovery redirect (RFC 8620 §2.2) lands unauthenticated; retry it once,
+                            // re-authenticated. The trigger is the MECHANICAL fact that dropped the
+                            // header, never the answer: Stalwart answers 200 with an empty session (#137).
                     val landedAt = response.request.url
                     if (!retried && response.priorResponse != null &&
                         redirectDroppedAuthorization(request.url, landedAt)
@@ -160,10 +152,8 @@ class JmapClient internal constructor(
             }
         }
 
-    /**
-     * Fetch the most recent emails in a mailbox: a batched Email/query +
-     * Email/get, where Email/get back-references the query result (RFC 8620 §3.7).
-     */
+        /** Fetch the most recent emails in a mailbox: a batched Email/query + Email/get, where
+         *  Email/get back-references the query result (RFC 8620 §3.7). */
     suspend fun queryEmailsPage(
         session: JmapSession,
         accountId: String,
@@ -200,10 +190,9 @@ class JmapClient internal constructor(
                                 put("isAscending", false)
                             }
                         }
-                        // Always uncollapsed — every message, not one representative per
-                        // thread: the local cache is WYSIWYG (a folder's full contents,
-                        // collapsed into conversations at display time only), and a collapsed
-                        // query once made "empty Trash" destroy only thread representatives.
+                            // Always uncollapsed — every message, not one representative per thread:
+                            // the local cache is WYSIWYG, and a collapsed query once made "empty
+                            // Trash" destroy only thread representatives.
                         put("collapseThreads", false)
                         if (anchorId != null) {
                             put("anchor", anchorId)
@@ -226,11 +215,9 @@ class JmapClient internal constructor(
                             put("path", "/ids")
                         }
                         putJsonArray("properties") {
-                            // `replyTo`, `cc`, `bcc`: this page's rows are CACHED
-                            // (`emailDao.upsertAll`), and that upsert replaces the whole row —
-                            // omitting one here would wipe what another fetch stored, so a
-                            // pull-to-refresh would empty the copies of a draft. See
-                            // [EMAIL_BODY_PROPERTIES] and [CopiesOnTheWireTest].
+                                // `replyTo`, `cc`, `bcc`: this page's rows are CACHED and the upsert
+                                // replaces the whole row, so omitting one here would wipe what another
+                                // fetch stored. See [EMAIL_BODY_PROPERTIES] and [CopiesOnTheWireTest].
                             listOf(
                                 "id", "threadId", "subject", "preview",
                                 "receivedAt", "from", "replyTo", "to", "cc", "bcc",
@@ -263,54 +250,13 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * The newest [target] messages of a mailbox, in as many requests as the server's per-request
-     * object limit ([pageSize]) needs, handed to [onPage] ONE REQUEST AT A TIME.
-     *
-     * Nothing outlives the loop iteration that decoded it: the peak is ONE server page of messages,
-     * not the window. Not "zero" — a page has to exist to be handed over — but the difference
-     * between O(page) and O(window) is the whole point, and it is what a window bigger than a heap
-     * needs.
-     *
-     * Why this exists at all: [queryEmailsPage] sends `Email/query` and a back-referenced
-     * `Email/get` in ONE request, so the get's id list is produced by the server and the query's
-     * `limit` is the only lever on it. Past `maxObjectsInGet` the server rejects the whole get
-     * (RFC 8620 §5.1) and the call throws — which is exactly what "Messages to sync = All" (a
-     * window of 1000 at the time; the largest one offers 10 000 today) did on a Stalwart
-     * advertising 500: the folder's full-query fallback failed, so no sync
-     * cursor was ever stored, so the next refresh took the same fallback again. A closed loop; the
-     * folder never synced again.
-     *
-     * Why it streams rather than accumulating: it used to hand back ONE page holding every
-     * message of the window, because its caller then reconciled the mailbox in ONE
-     * `replaceMailbox`, which DELETES what it is not given — a write per network page would have
-     * emptied the folder down to the last page every time. That coupling is what capped the window
-     * at what a phone can hold. It is broken by moving the DELETE, not by moving the write: the
-     * caller now writes each page as it lands and reconciles ONCE at the end against
-     * [WindowWalk.ids] (`MailRepository.syncMailbox` → `fullQueryWriteThrough`). What this walk
-     * keeps to the end is therefore ids, not messages.
-     *
-     * The safety that used to live in "never hand back a partial page" now lives in the
-     * caller's control flow, and it must stay there: a failure mid-walk propagates from here
-     * UNCAUGHT, so the reconcile is never reached and nothing is deleted. Pages already handed to
-     * [onPage] have been written, and stay written. The worst case is a cache holding MORE than
-     * the window, never a cache that lost mail. Do not add a `catch` here that returns what was
-     * fetched: that partial set would be reconciled as "these are the folder's contents".
-     *
-     * [onPage] receives ONLY the messages new to this walk — see the de-duplication below — and
-     * its own failure propagates for the same reason.
-     *
-     * Paging is by ANCHOR on the previous page's last id (RFC 8620 §5.5), never by absolute
-     * position: mail arriving at the top between two requests shifts every position and would
-     * duplicate or skip a page. The one-shot fallback to a position is for the anchor having left
-     * the folder mid-walk (`anchorNotFound`), the same recovery the scroll mediator makes — and a
-     * walk that had to take it SAYS SO ([WindowWalk.resumedByPosition]), because it may then have
-     * skipped messages the server still holds.
-     *
-     * The cursors returned are the FIRST response's: a `queryState` describes the query it came
-     * from, and handing back the last page's would let the next delta be computed against a state
-     * that never described the whole folder.
-     */
+            /**
+             * Handed to [onPage] ONE REQUEST AT A TIME, so the peak is one server page and not the window:
+             * past `maxObjectsInGet` the server rejects a whole `Email/get` (RFC 8620 §5.1). A failure
+             * mid-walk propagates UNCAUGHT, so the caller's reconcile is never reached and nothing is
+             * deleted — do NOT add a `catch` returning what was fetched. Paging is by ANCHOR (RFC 8620
+             * §5.5); a walk that fell back on a position SAYS SO ([WindowWalk.resumedByPosition]).
+             */
     suspend fun queryEmailsWindow(
         session: JmapSession,
         accountId: String,
@@ -320,25 +266,19 @@ class JmapClient internal constructor(
         auth: JmapAuth,
         onPage: suspend (List<Email>) -> Unit,
     ): WindowWalk = withContext(Dispatchers.IO) {
-        // Ids in walk order, plus the set that de-duplicates them: the walk's pages can overlap (a
-        // recovery page starts at a position the previous one already covered), and a duplicate
-        // would be written twice and counted twice against the window. Ids and not messages —
-        // that difference is this function's reason to look like this.
+            // Ids in walk order, plus the set that de-duplicates them: pages can overlap after a
+            // recovery, and a duplicate would be written and counted twice against the window.
         val ids = ArrayList<String>()
         val seen = HashSet<String>()
-        // The first response's two cursor STRINGS, not the first response. Keeping the page itself
-        // to read two strings off it at the end pinned up to `pageSize` decoded messages — 500 on
-        // Stalwart — alive for the whole walk, which is the very thing this function was rewritten
-        // to stop doing. `sawFirst` and not a null check on the strings: the first response is
-        // allowed to carry no cursors, and a later one must not then be promoted into its place.
+            // The first response's two cursor STRINGS, not the first response: keeping the page alive
+            // to read two strings off it at the end pinned a whole decoded page for the walk.
+            // `sawFirst` and not a null check — the first response is allowed to carry no cursors.
         var sawFirst = false
         var firstQueryState: String? = null
         var firstEmailState: String? = null
         var seenIds = 0
-        // Whether this walk ever paged by an absolute POSITION instead of an anchor. It is a
-        // property of the whole walk, not of one page: once a recovery has under-shot, every id it
-        // failed to list is missing from `ids` for good, and the caller must be told so it can
-        // refuse to reconcile (see the catch below, and `reconcilableWindowIds`).
+            // Whether this walk ever paged by an absolute POSITION. A property of the WHOLE walk: once
+            // a recovery under-shoots, the ids it missed are gone from `ids` and the caller must know.
         var resumedByPosition = false
         var limit = nextWindowPageLimit(fetched = 0, target = target, pageSize = pageSize, last = null)
         while (limit != null) {
@@ -351,33 +291,11 @@ class JmapClient internal constructor(
                     anchorOffset = if (anchor != null) 1 else 0,
                 )
             } catch (e: JmapException) {
-                // The anchor left the folder mid-walk (deleted, moved elsewhere). Recover ONCE on
-                // an absolute position. Any other failure propagates: see above, a partial window
-                // deletes mail.
-                //
-                // ONE BEHIND the count accumulated, not at it. `anchorNotFound` says the list
-                // has lost a row, so everything past the anchor has shifted down by one: asking
-                // at `accumulated.size` lands one message too far and skips the one that followed
-                // the anchor. That message would not merely be missed — the caller reconciles the
-                // mailbox with what this returns, so it would be DELETED from the cache while the
-                // server still holds it, and no later delta would bring it back.
-                //
-                // Under-shooting is free and over-shooting loses mail, so under-shoot: a repeated
-                // message is dropped by the accumulation's putIfAbsent. It corrects for the
-                // anchor's own removal, which is what the error reports; a burst of removals in
-                // the same instant can still shift the list FURTHER down, and this one step back
-                // cannot cover that — the restart then lands past k messages that are listed by no
-                // page of this walk.
-                //
-                // Nothing here can recover them, so the walk SIGNALS instead of guessing: it
-                // sets `resumedByPosition`, and the caller (`fullQueryWriteThrough` through
-                // `reconcilableWindowIds`) then refuses to reconcile this folder at all. Nothing
-                // else would: the ghost sweep only ever DELETES rows, it restores none, and the
-                // "next full query" never comes — a sync cursor is stored right after this walk
-                // returns and the deltas resume, and a delta never re-sends a message that was
-                // neither added nor changed. The whole cost of the refusal is a cache allowed to
-                // hold more than the window until the next full query; the cost of guessing is
-                // mail deleted while the server still has it.
+                        // Recover ONCE on an absolute position; any other failure propagates. ONE
+                        // BEHIND the count accumulated: `anchorNotFound` says the list lost a row, so
+                        // asking at `accumulated.size` skips the message that followed the anchor, which
+                        // the reconcile would then DELETE. A burst of removals shifts further than one
+                        // step, so the walk sets `resumedByPosition` and the caller refuses to reconcile.
                 if (anchor == null || e.errorType != "anchorNotFound") throw e
                 resumedByPosition = true
                 queryEmailsPage(
@@ -422,11 +340,8 @@ class JmapClient internal constructor(
         )
     }
 
-    /**
-     * Ids-only page of a mailbox query: a lone Email/query, no chained Email/get — for
-     * resolving bulk-action targets (e.g. "Mark all read"), where fetching headers for
-     * thousands of messages would be pure waste.
-     */
+        /** Ids-only page of a mailbox query: a lone Email/query, no chained Email/get — for resolving
+         *  bulk-action targets ("Mark all read"), where fetching thousands of headers is pure waste. */
     suspend fun queryEmailIds(
         session: JmapSession,
         accountId: String,
@@ -495,11 +410,9 @@ class JmapClient internal constructor(
         auth: JmapAuth,
     ): List<Email> = queryEmailsPage(session, accountId, mailboxId, limit, auth).emails
 
-    /**
-     * Email/queryChanges for the folder sync query. Its arguments (filter, sort,
-     * collapseThreads) MUST mirror [queryEmailsPage]'s exactly: a queryState is only
-     * comparable against the same query (RFC 8620 §5.6).
-     */
+        /** Email/queryChanges for the folder sync query. Its arguments (filter, sort, collapseThreads)
+         *  MUST mirror [queryEmailsPage]'s exactly: a queryState is only comparable against the same
+         *  query (RFC 8620 §5.6). */
     suspend fun emailQueryChanges(
         session: JmapSession,
         accountId: String,
@@ -622,19 +535,12 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * The subset of [ids] the server explicitly reports as `notFound` on an ids-only
-     * `Email/get` — an authoritative existence check (a point lookup, not a snapshot
-     * query, so it cannot be stale the way `Email/queryChanges` deltas can). Used by the
-     * sync ghost sweep and returns ONLY ids listed in the response's `notFound` array: a
-     * failed or malformed response throws rather than guessing, so a transient error can
-     * never be mistaken for "these messages are gone".
-     *
-     * That contract is why the batching here ([getInBatches]) must NOT gather a partial union:
-     * the caller DELETES the rows this returns. A batch that never answered would otherwise hand
-     * back "those messages are gone" about live mail — so a failing batch throws, exactly as an
-     * unsplit call did.
-     */
+            /**
+             * An authoritative existence check for the sync ghost sweep: ONLY ids listed in the response's
+             * `notFound` array, a failed or malformed response throwing rather than guessing. That is
+             * why [getInBatches] must NOT gather a partial union here — the caller DELETES the rows this
+             * returns, so a batch that never answered would report live mail as gone.
+             */
     suspend fun missingEmailIds(
         session: JmapSession,
         accountId: String,
@@ -664,23 +570,13 @@ class JmapClient internal constructor(
         }.toSet()
     }
 
-    /**
-     * WHERE the server says [ids] are: each id it returns mapped to its `mailboxIds` set. Ids the
-     * server does not return (`notFound`) are simply absent from the map.
-     *
-     * The point of asking (Codeberg #122): a JMAP id does not move with its message, so a list of
-     * ids frozen when the user confirmed a permanent destroy says nothing about where those
-     * messages are when the destroy finally runs — which can be days later. Only the server knows,
-     * and only `mailboxIds` answers it. [getEmailsByIds] does NOT request that property, so
-     * reusing it would hand back rows that cannot answer the question at all.
-     *
-     * ids-only + `mailboxIds`: no headers, no preview, nothing that would make this a second
-     * download of the list. Split like every other get ([getInBatches], the server's
-     * `maxObjectsInGet`), and — like [missingEmailIds] — a failed or malformed response THROWS
-     * rather than answering a partial union: the caller DESTROYS what this reports as still in
-     * place, so "the batch never answered" may never be read as "still there". The destroy that
-     * calls this is retried by its worker; guessing here would be irreversible.
-     */
+            /**
+             * Each id the server returns mapped to its `mailboxIds` set; ids it does not return are absent.
+             * A JMAP id does not move with its message (Codeberg #122), so a list of ids frozen when the
+             * user confirmed a permanent destroy says nothing about where those messages are days later.
+             * Like [missingEmailIds], a failed or malformed response THROWS rather than answering a partial
+             * union: the caller DESTROYS what this reports as still in place.
+             */
     suspend fun mailboxIdsOf(
         session: JmapSession,
         accountId: String,
@@ -720,13 +616,11 @@ class JmapClient internal constructor(
         }.toMap()
     }
 
-    /**
-     * Full-text search across the account (Email/query `text` filter + Email/get).
-     *
-     * Returns both counts — see [SearchPage]: the caller has to know whether the query hit its cap
-     * and whether the get brought back everything the query matched before it may put a number on
-     * screen.
-     */
+        /**
+         * Full-text search across the account (Email/query `text` filter + Email/get). Returns both
+         * counts — see [SearchPage]: the caller has to know whether the query hit its cap and whether
+         * the get brought back everything the query matched before it may put a number on screen.
+         */
     suspend fun searchEmails(
         session: JmapSession,
         accountId: String,
@@ -800,11 +694,9 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Crawl message headers (no filter) for the local search index: `Email/query` the whole account
-     * newest-first from [position], then `Email/get` the lightweight header fields for those ids.
-     * Bodies are not fetched here. Returns up to [limit] emails (fewer at the end of the mailbox).
-     */
+        /** Crawl message headers (no filter) for the local search index: `Email/query` the whole
+         *  account newest-first from [position], then `Email/get` the lightweight header fields.
+         *  Bodies are not fetched. Up to [limit] emails, fewer at the end of the mailbox. */
     suspend fun crawlHeaders(
         session: JmapSession,
         accountId: String,
@@ -881,17 +773,12 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Fetch a single email including recipients and decoded body values.
-     *
-     * Its own request, deliberately NOT [getEmailsWithBody] with one id. The two look alike and
-     * are not interchangeable: this one is the reader opening a message, so it does not go
-     * through [postWithRetry] (a rate-limited open must fail now, not after four backoffs while
-     * the reader waits at a spinner), and its failure text is shown to the reader as it is. What
-     * the two DO share is the pair that must not drift — [EMAIL_BODY_PROPERTIES] and
-     * [withUnsubscribeHeaderFallback] — so the message you open and the one prefetched into the
-     * cache can never carry different fields.
-     */
+            /**
+             * Its own request, deliberately NOT [getEmailsWithBody] with one id: this is the reader opening
+             * a message, so it skips [postWithRetry] (a rate-limited open must fail now, not after four
+             * backoffs) and its failure text is shown as it is. What the two DO share is the pair that must
+             * not drift — [EMAIL_BODY_PROPERTIES] and [withUnsubscribeHeaderFallback].
+             */
     suspend fun getEmail(
         session: JmapSession,
         accountId: String,
@@ -949,11 +836,9 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Fetch just the raw header fields of a message, in original order with duplicates kept
-     * (RFC 8621 §4.1.3 `headers` property). Cheap: no blob download, no body values — for the
-     * reader's "view headers" action (issue #60). Returns an empty list if the id is not found.
-     */
+        /** Fetch just the raw header fields of a message, in original order with duplicates kept
+         *  (RFC 8621 §4.1.3 `headers`). No blob download, no body values — the reader's "view headers"
+         *  action (issue #60). Empty list if the id is not found. */
     suspend fun getEmailHeaders(
         session: JmapSession,
         accountId: String,
@@ -962,22 +847,13 @@ class JmapClient internal constructor(
     ): List<app.sterna.core.jmap.model.EmailHeader> =
         getEmailsHeaders(session, accountId, listOf(emailId), auth)[emailId] ?: emptyList()
 
-    /**
-     * The same read for MANY messages at once, keyed by id — what the body prefetch needs to name
-     * a forwarded message's real author on the whole window it caches (#160), for ONE round trip
-     * instead of one per message.
-     *
-     * The single-id form above is now a thin call into this one, deliberately: both must send the
-     * same [HEADER_FIELDS_PROPERTIES] and there is one place that writes them, so the two cannot
-     * drift apart the way a second copy of the payload would.
-     *
-     * Split by [getInBatches] like every other `get`: RFC 8620 §5.1 has the server reject the
-     * WHOLE call past its `maxObjectsInGet`, so an unsplit call over a prefetch window would fail
-     * outright on a strict server — and, since the caller treats this as best effort, would do so
-     * in silence.
-     *
-     * An id the server did not answer for is simply absent from the map; no entry is invented.
-     */
+            /**
+             * The same read for MANY messages, keyed by id — what the body prefetch needs to name a
+             * forwarded message's real author over a whole window (#160), in ONE round trip. The single-id
+             * form is a thin call into this one so both send the same [HEADER_FIELDS_PROPERTIES]. Split by
+             * [getInBatches]: RFC 8620 §5.1 has the server reject the WHOLE call past `maxObjectsInGet`,
+             * and the caller treats this as best effort, so an unsplit call would fail in silence.
+             */
     suspend fun getEmailsHeaders(
         session: JmapSession,
         accountId: String,
@@ -1006,17 +882,12 @@ class JmapClient internal constructor(
         }.associate { it.id to it.headers }
     }
 
-    /**
-     * Fetch several messages WITH their bodies (for prefetching the top of the inbox into the
-     * local cache), split across as many Email/get requests as [JmapSession.getBatchSize] requires
-     * ([getInBatches]). Same properties as [getEmail] — literally the same list,
-     * [EMAIL_BODY_PROPERTIES], so a prefetched body cannot come out poorer than an opened one —
-     * but many ids at once; does NOT mark anything read.
-     *
-     * [withUnsubscribeHeaderFallback] sits INSIDE the batching, not around it: a server that
-     * rejects the two header properties then replays the one batch that met the refusal, not
-     * every batch already answered, and the verdict it records spares the batches that follow.
-     */
+            /**
+             * Split across as many Email/get requests as [JmapSession.getBatchSize] requires. Same
+             * [EMAIL_BODY_PROPERTIES] as [getEmail], so a prefetched body cannot come out poorer than an
+             * opened one. [withUnsubscribeHeaderFallback] sits INSIDE the batching, so a refusal replays
+             * one batch rather than every batch already answered.
+             */
     suspend fun getEmailsWithBody(
         session: JmapSession,
         accountId: String,
@@ -1055,31 +926,13 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Run a body-bearing `Email/get` that asks for the two `header:List-Unsubscribe*` properties,
-     * and — if the server rejects them — run it once more without.
-     *
-     * These two calls are the ONLY ones that ask for them (RFC 8621 §4.1.3 lets any header be
-     * requested by name): a folder page fetches dozens of rows every time it is scrolled and must
-     * not pay for a header only the open message uses.
-     *
-     * **Why this exists at all.** A server that does not know a requested property may reject the
-     * WHOLE `Email/get`. That would not mean "no unsubscribe button": it would mean no message
-     * opens at all, on that account, for as long as the app is installed. Stalwart was measured
-     * to accept them (and to answer null for a header a message does not carry); Cyrus, Fastmail
-     * and James were not. A privacy nicety must not be able to break reading mail.
-     *
-     * **Which refusals count** ([isPropertyRejection]): the method-level `invalidArguments` /
-     * `unknownMethod` of RFC 8620 §3.6.2, and a plain **HTTP 400** — a server that validates the
-     * request before dispatching the method answers the second way, and the first version of this
-     * fallback missed exactly that case. Nothing else. A 401/403 is a credentials problem, a
-     * 429 is a rate limit, a 5xx is the server being ill: replaying any of them would double the
-     * traffic and hide a real failure behind a second one.
-     *
-     * The verdict is remembered per API URL for the life of the process, so the next message does
-     * not spend a round trip rediscovering it — per URL and not globally, because a phone holds
-     * accounts on several servers and one strict server must not cost the others their banner.
-     */
+            /**
+             * Asks for the two `header:List-Unsubscribe*` properties and, if the server rejects them, runs
+             * once more without: a server that does not know a requested property may reject the WHOLE
+             * `Email/get`, i.e. no message opens at all on that account. Stalwart accepts them; Cyrus,
+             * Fastmail and James were never measured. Which refusals count ([isPropertyRejection]):
+             * `invalidArguments`/`unknownMethod`, and a plain HTTP 400. Nothing else. Memoised per API URL.
+             */
     private suspend fun <T> withUnsubscribeHeaderFallback(
         session: JmapSession,
         call: suspend (withUnsubscribeHeaders: Boolean) -> T,
@@ -1089,64 +942,23 @@ class JmapClient internal constructor(
             call(ask)
         } catch (e: JmapException) {
             if (!ask || !isPropertyRejection(e)) throw e
-            // The verdict is recorded only if dropping THESE properties is what made the call
-            // work. Before [withReceiptHeaderFallback] existed, these two were the only optional
-            // thing in the payload, so a rejection could only be about them and recording it up
-            // front cost nothing. It is no longer the only thing: a server that refuses the
-            // receipt property instead would have been written down here as one that refuses the
-            // unsubscribe headers, and the reader's banner would be off on that account for the
-            // life of the process — for a header that server was perfectly happy with. A retry
-            // that also fails now leaves NO verdict behind, which is the truth: the blame lies
-            // elsewhere (the receipt property, or `replyTo`).
+                // The verdict is recorded only if dropping THESE properties is what made the call
+                // work. They are no longer the only optional thing in the payload: a server refusing
+                // the receipt property instead would otherwise be written down as refusing these, and
+                // lose the reader's banner for a header it was happy with.
             val answered = call(false)
             serversRefusingUnsubscribeHeaders.add(session.apiUrl)
             answered
         }
     }
 
-    /**
-     * The twin of [withUnsubscribeHeaderFallback] for [RECEIPT_HEADER_PROPERTY], with its OWN
-     * per-URL memo — and deliberately not one guard covering both.
-     *
-     * **The invariant this shape buys, and the only reason for the duplication:** a server that
-     * refuses the receipt property keeps its unsubscribe banner, and a server that refuses the
-     * unsubscribe headers keeps the receipt reading. One guard over both property groups would
-     * drop all three the moment any one of them is refused, and neither feature could ever come
-     * back for that server.
-     *
-     * **The nesting, and why this one is OUTSIDE.** The two guards wrap the same request, so the
-     * inner one is the first to be retried. The inner one is [withUnsubscribeHeaderFallback], the
-     * measured one (Stalwart accepts those two properties; Cyrus, Fastmail and James were never
-     * measured), so a server that refuses them costs exactly the two requests it cost before this
-     * property existed, and the reader's banner behaviour is unchanged. The new, unmeasured
-     * property is the one that pays the extra probe: refusing it costs three requests once, then
-     * one for the rest of the process.
-     *
-     * What makes the two independent rather than merely nested is that BOTH write their memo only
-     * after a retry that actually succeeded — see the comment in the inner one. A server refusing
-     * only the receipt property therefore ends with only this memo set; one refusing only the
-     * unsubscribe headers ends with only the other; one refusing both ends with both, after four
-     * requests, once.
-     *
-     * **Which failures are replayed: ALL of them, and that is deliberately NOT what the
-     * unsubscribe guard does.** That one replays [isPropertyRejection] only — `invalidArguments`,
-     * `unknownMethod`, HTTP 400 — because those two properties have been measured against a live
-     * server. This one has not: it has been seen to work on Stalwart and nowhere else, and a
-     * server that dislikes it is free to say so as `serverFail`, as a 500 from a validator that
-     * fell over, or in words RFC 8620 never wrote down. Under the narrow rule, every one of those
-     * would mean **no message opens at all on that account** — a mailbox that worked before this
-     * property was ever asked for. Dropping a property that is optional by construction can lose
-     * nothing; refusing to open mail cannot be undone by the user. So: replay anything, once.
-     *
-     * The price, paid in full below: when the replay fails too, the ORIGINAL exception is
-     * rethrown, not the second one. A 401 must reach the reader as the 401 it was — the words are
-     * shown on screen — and a failure that had nothing to do with the property must leave no
-     * verdict behind about it. The cost is one extra request on an open that was failing anyway.
-     *
-     * One exception to "anything": a rate limit ([isRateLimit]) is not replayed. This guard is
-     * outside [postWithRetry]'s backoff ladder, so replaying one would run that ladder twice —
-     * nine requests at a server that has just asked for fewer. See [isRateLimit].
-     */
+            /**
+             * The twin for [RECEIPT_HEADER_PROPERTY], with its OWN per-URL memo: one guard over both
+             * property groups would drop all of them the moment any one is refused. OUTSIDE, so the
+             * measured guard is retried first. ALL failures are replayed here, unlike the narrow rule
+             * next door — this property was seen to work on Stalwart and nowhere else. On a second
+             * failure the ORIGINAL exception is rethrown, and a rate limit ([isRateLimit]) is not replayed.
+             */
     private suspend fun <T> withReceiptHeaderFallback(
         session: JmapSession,
         call: suspend (withReceiptHeader: Boolean) -> T,
@@ -1167,58 +979,22 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Whether [session]'s server was measured to reject [RECEIPT_HEADER_PROPERTY], i.e. whether a
-     * null `dispositionNotificationTo` on a message it returned means anything at all.
-     *
-     * Asked by the draft save, and for one reason: on such a server EVERY message comes back
-     * with that field null, including a draft that does carry the header. Reading that as "this
-     * draft asks for no receipt" would let the save destroy the server copy that holds the
-     * request. The caller turns a `true` here into an UNKNOWN, and an unknown keeps the original
-     * (see `draftReceiptRequestIsCarried`).
-     */
+            /**
+             * Whether [session]'s server was measured to reject [RECEIPT_HEADER_PROPERTY], i.e. whether a
+             * null `dispositionNotificationTo` means anything. Asked by the draft save: on such a server
+             * EVERY message comes back with that field null, and reading it as "this draft asks for no
+             * receipt" would destroy the server copy that holds the request. `true` becomes an UNKNOWN.
+             */
     fun refusesReceiptHeader(session: JmapSession): Boolean =
         session.apiUrl in serversRefusingReceiptHeader
 
-    /**
-     * The THIRD per-URL memo, for [AUTOCRYPT_HEADER_PROPERTY] on [sendEmail] — and a third one, not
-     * a share of either of the other two, for the reason written above [withReceiptHeaderFallback]:
-     * one guard over several property groups drops all of them the moment any one is refused, and
-     * none of them ever comes back for that server.
-     *
-     * **What is at stake here is not a missing banner, it is a message that does not leave.** The
-     * two reading guards protect a header the reader displays; this one sits on the send. A server
-     * that refuses an unknown `header:` property on create would fail every send of a PGP account —
-     * one outbox line stuck, then all of them, for a header nobody asked for.
-     *
-     * **Replayed ONLY when the server named the property AND nothing has been created or
-     * submitted yet, and that narrowness is the safety property, not a style.**
-     * [withReceiptHeaderFallback] replays anything, because retrying a READ costs a request. A send
-     * is not a read: this request creates a message AND submits it, so a replay of a failure that
-     * happened after the create sends the message twice, and a duplicate send cannot be taken back
-     * (the rule: the option that cannot lose or duplicate data wins).
-     *
-     * **Naming the property is NOT on its own evidence that nothing was created.** It reads like
-     * it should be — an unknown create property is refused by `Email/set` before anything exists —
-     * and this KDoc claimed exactly that until a counter-expertise took it apart. The failures of a
-     * send are not all `Email/set` refusals: the delivery check that runs AFTER the submission
-     * (`failIfRecipientsWereRefused`) throws a message built from the RECIPIENT'S ADDRESS and the
-     * server's own SMTP reply, neither of which this app writes. A send refused for
-     * `autocrypt@lists.mayfirst.org` — the Autocrypt project's own list — matched, and the message
-     * went out a second time to everyone who had accepted it. Hardening the searched string does
-     * not fix that: any server may put the word in any refusal.
-     *
-     * **So the replay is gated on progress, not on words.** [SendPointOfNoReturn] is tripped by
-     * the body itself, in the one place that knows: the moment the server's answer shows the
-     * `Email/set` create succeeded. It can only ever be tripped, never cleared, and it is read
-     * BEFORE the message is looked at ([mayReplayWithoutAutocryptHeader]) — so no failure raised
-     * after that point, whatever its text, can reach the replay. The replay gets a FRESH point: it
-     * is a new request, and its own progress is its own.
-     *
-     * The price, taken knowingly: a server that refuses the property WITHOUT naming it fails the
-     * send, and keeps failing it. That is a visible, reported, reversible failure; sending a message
-     * twice is not.
-     */
+            /**
+             * The THIRD per-URL memo, for [AUTOCRYPT_HEADER_PROPERTY] on [sendEmail]. At stake is not a
+             * missing banner but a message that does not leave. Replayed ONLY when the server named the
+             * property AND nothing has been created or submitted yet, a replay after the create sending it
+             * twice. Naming the property is NOT evidence: the delivery check builds its message from the
+             * RECIPIENT'S ADDRESS. So the gate is [SendPointOfNoReturn], tripped when the create succeeds.
+             */
     private suspend fun <T> withAutocryptHeaderFallback(
         session: JmapSession,
         carriesHeader: Boolean,
@@ -1241,37 +1017,19 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Whether [session]'s server was measured to reject [AUTOCRYPT_HEADER_PROPERTY], i.e. whether
-     * its sends are going out without the sender's key attached.
-     *
-     * `internal`, unlike [refusesReceiptHeader] next door, and the difference is not an
-     * oversight: that one is READ by `MailRepository` (core/data) to turn a refused property into
-     * an unknown before a draft is saved, so it has to cross the module. This memo answers nobody
-     * outside [withAutocryptHeaderFallback] — a send that goes out without the header is not a
-     * decision any caller takes — so its only other reader is this module's own tests, and there is
-     * no reason to publish it wider than that.
-     */
+            /** Whether [session]'s server was measured to reject [AUTOCRYPT_HEADER_PROPERTY], i.e. whether
+             * its sends go out without the sender's key. `internal`, unlike [refusesReceiptHeader],
+             *  which `MailRepository` reads across the module: this one answers nobody outside
+             *  [withAutocryptHeaderFallback] and this module's tests. */
     internal fun refusesAutocryptHeader(session: JmapSession): Boolean =
         session.apiUrl in serversRefusingAutocryptHeader
 
-    /**
-     * Every message of a thread (lightweight, no body) — `Thread/get`, then `Email/get` on the ids
-     * it named, split across as many requests as [JmapSession.getBatchSize] requires
-     * ([getInBatches]).
-     *
-     * TWO requests, not one chained pair. This used to back-reference the thread's whole
-     * membership into a single `Email/get` (a `resultOf` path down to each thread's `emailIds`),
-     * which put the id list beyond any reach of ours: past `maxObjectsInGet` the server refuses
-     * the get WHOLE (RFC 8620 §5.1) and
-     * expanding a long conversation returned nothing at all. Splitting a back-reference is
-     * impossible — the ids only exist server-side — so the reference has to go.
-     *
-     * The property set is this path's own, and `mailboxIds` in it is not decoration:
-     * [MailRepository.fetchThreadMembers] files each member under the folder it names and SKIPS
-     * any member without one. Reusing [getEmailsByIds] verbatim would have dropped it, and the
-     * expansion would have fetched every message and persisted none.
-     */
+            /**
+             * `Thread/get`, then `Email/get` on the ids it named. TWO requests, not one chained pair: a
+             * back-reference puts the id list beyond any reach of ours, and past `maxObjectsInGet` the
+             * server refuses the get WHOLE (RFC 8620 §5.1). The property set is this path's own, and
+             * `mailboxIds` is not decoration — `fetchThreadMembers` SKIPS any member without one.
+             */
     suspend fun getThreadEmails(
         session: JmapSession,
         accountId: String,
@@ -1310,12 +1068,11 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * The email ids a thread is made of, in the server's order (RFC 8621 §3) — the first half of
-     * [getThreadEmails]. An unknown thread answers an empty list rather than throwing: a
-     * conversation whose thread the server no longer knows is not an error, and the caller then
-     * simply keeps what the cache gave it.
-     */
+        /**
+         * The email ids a thread is made of, in the server's order (RFC 8621 §3) — the first half of
+         * [getThreadEmails]. An unknown thread answers an empty list rather than throwing, the caller
+         * then keeping what the cache gave it.
+         */
     private suspend fun threadEmailIds(
         session: JmapSession,
         accountId: String,
@@ -1376,18 +1133,12 @@ class JmapClient internal constructor(
     suspend fun setSeen(session: JmapSession, accountId: String, emailId: String, seen: Boolean, auth: JmapAuth): String? =
         setKeyword(session, accountId, emailId, "\$seen", seen, auth)
 
-    /**
-     * Set or clear the \$seen keyword on many emails — over [postWithRetry], like the bulk [move] —
-     * so "Mark all read" doesn't cost one round trip per message. Split into requests of at most
-     * [JmapSession.setBatchSize] ids ([setInBatches]); returns the aggregated per-id outcome (no-op
-     * for an empty list).
-     *
-     * THROWS on a transport failure, like [destroy] and unlike [move]: "Mark all read" dismisses
-     * the notifications of the mail it marked only when this call came back without throwing. Turn
-     * a dead connection into a quiet partial result and it would clear the notifications of mail
-     * that is still unread. The batches already confirmed keep their local effect — the caller
-     * commits per batch.
-     */
+            /**
+             * Split into requests of at most [JmapSession.setBatchSize] ids. THROWS on a transport
+             * failure, like [destroy] and unlike [move]: "Mark all read" dismisses notifications only when
+             * this came back without throwing, so a quiet partial result would clear the notifications of
+             * mail that is still unread.
+             */
     suspend fun setSeenAll(
         session: JmapSession,
         accountId: String,
@@ -1430,17 +1181,12 @@ class JmapClient internal constructor(
         return result.newState
     }
 
-    /**
-     * Move many emails so each belongs to exactly [targetMailboxId] (Codeberg #29) — over
-     * [postWithRetry], so each request still backs off on the server's rate limit. Split into
-     * requests of at most [JmapSession.setBatchSize] ids ([setInBatches]); returns the aggregated
-     * per-id outcome (no-op for an empty list).
-     *
-     * Does NOT surface a transport failure: the ids of the failing batch and of every batch after
-     * it come back in [EmailSetResult.failed] under [Jmap.SET_ERROR_TRANSPORT], so a caller that
-     * used to turn the whole exception into "everything failed" now keeps the credit of the
-     * batches that did go through.
-     */
+            /**
+             * Codeberg #29, over [postWithRetry] so each request still backs off on the rate limit, split
+             * into requests of at most [JmapSession.setBatchSize] ids. Does NOT surface a transport
+             * failure: the failing batch and every batch after it come back in [EmailSetResult.failed]
+             * under [Jmap.SET_ERROR_TRANSPORT], so the batches that went through keep their credit.
+             */
     suspend fun move(
         session: JmapSession,
         accountId: String,
@@ -1458,18 +1204,12 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Permanently delete many emails (Codeberg #29), split into requests of at most
-     * [JmapSession.setBatchSize] ids ([setInBatches]). Returns the aggregated per-id outcome
-     * (no-op for an empty list).
-     *
-     * Unlike [move], this THROWS on a transport failure, including one that hits the third batch
-     * of five: the destroy worker must RETRY a user-confirmed destroy, never abandon it. The
-     * consequence is that the batches already destroyed do not go through the caller's local
-     * bookkeeping on that run — harmless, because the replay is idempotent: the worker resends the
-     * whole list, an already-destroyed id comes back `notFound`, and the caller counts that as a
-     * success.
-     */
+            /**
+             * Codeberg #29, split into requests of at most [JmapSession.setBatchSize] ids. Unlike [move]
+             * this THROWS on a transport failure, including one hitting the third batch of five: the
+             * destroy worker must RETRY a user-confirmed destroy, and the replay is idempotent — an
+             * already-destroyed id comes back `notFound`, counted as a success.
+             */
     suspend fun destroy(
         session: JmapSession,
         accountId: String,
@@ -1504,13 +1244,10 @@ class JmapClient internal constructor(
                         putJsonObject("create") {
                             putJsonObject("new") {
                                 put("name", name)
-                                // ALWAYS, never conditionally: `isSubscribed` is writable at
-                                // create time (RFC 8621 §2), and a create that omits it reads
-                                // back `false` (probed against Stalwart, 2026-08-25) — so with
-                                // "subscribed folders only" on, the folder the user has just
-                                // created would vanish from the drawer at once (#174). This is
-                                // the only subscription Sterna writes: it does not drive
-                                // subscriptions anywhere else, on any other method call.
+                                    // ALWAYS, never conditionally: `isSubscribed` is writable at
+                                    // create time (RFC 8621 §2) and a create that omits it reads back
+                                    // `false`, so with "subscribed folders only" on the new folder
+                                    // would vanish from the drawer at once (#174).
                                 put("isSubscribed", true)
                                 if (role != null) put("role", role)
                                 if (parentId != null) put("parentId", parentId)
@@ -1532,25 +1269,13 @@ class JmapClient internal constructor(
         throw JmapException("Couldn't create the '$name' folder" + (type?.let { " ($it)" } ?: ""))
     }
 
-    /**
-     * Create a sending identity on the server and return its new id (`Identity/set`, RFC 8621
-     * §6.4).
-     *
-     * Sterna only ever read identities, so an alias added in Settings existed on the phone alone
-     * and every send from it was refused (#172). Two details are load-bearing:
-     *  - the SUBMISSION capability, not the mail one: identities live there (same `using` as
-     *    [getIdentities]);
-     *  - both `email` AND `name`, always: a create that omits the name posts an alias the server
-     *    then hands back with no display name, and the composer's From loses it.
-     *
-     * Nothing else is sent. The signature stays local — `StoredAccount.resolvedIdentities` already
-     * lets the manual entry win over the server's — so this writes the least the server needs.
-     *
-     * A refusal is raised as a [JmapException] carrying the SetError `type` in
-     * [JmapException.errorType] (Stalwart answers `invalidProperties` for an address the account
-     * may not send as) and the server's own `description` in the message, since that sentence is
-     * the only thing that says WHY.
-     */
+            /**
+             * `Identity/set`, RFC 8621 §6.4. Sterna only ever read identities, so an alias added in
+             * Settings existed on the phone alone and every send from it was refused (#172). Two
+             * load-bearing details: the SUBMISSION capability, identities living there; and both `email`
+             * AND `name`, a create omitting the name posting an alias with no display name. A refusal
+             * carries the SetError `type` and the server's `description`, the only thing that says WHY.
+             */
     suspend fun createIdentity(
         session: JmapSession,
         accountId: String,
@@ -1588,10 +1313,9 @@ class JmapClient internal constructor(
         val refusal = args["notCreated"]?.jsonObject?.get("new")?.jsonObject
         val type = refusal?.get("type")?.jsonPrimitive?.content
         val description = refusal?.get("description")?.jsonPrimitive?.content
-        // NO address in this message. The screen puts the refused address into its own
-        // translated sentence (`settings_identity_not_created`) and shows this text next to it;
-        // carrying it here too printed it twice, the second time inside an English fragment sitting
-        // in eight translations. What only the server knows is the type and the description.
+            // NO address in this message. The screen puts the refused address into its own
+            // translated sentence and shows this text next to it; carrying it here printed it twice,
+            // the second time inside an English fragment sitting in eight translations.
         val detail = listOfNotNull(type, description).joinToString(": ")
         throw JmapException(
             detail.ifEmpty { "The server refused the identity" },
@@ -1683,10 +1407,8 @@ class JmapClient internal constructor(
             }
         }
 
-    /**
-     * Fetch the account's VacationResponse singleton (RFC 8621 §8), or null if
-     * the server does not advertise the vacationresponse capability.
-     */
+        /** Fetch the account's VacationResponse singleton (RFC 8621 §8), or null if the server does
+         *  not advertise the vacationresponse capability. */
     suspend fun getVacationResponse(session: JmapSession, accountId: String, auth: JmapAuth): VacationResponse? =
         withContext(Dispatchers.IO) {
             if (!session.capabilities.containsKey(Jmap.VACATION_CAPABILITY)) return@withContext null
@@ -1711,11 +1433,9 @@ class JmapClient internal constructor(
                 ?: VacationResponse()
         }
 
-    /**
-     * Update the account's VacationResponse singleton (RFC 8621 §8). Sends all
-     * editable fields, writing explicit nulls to clear the dates / message. The
-     * server keeps the auto-reply server-side, so it works while the phone is off.
-     */
+        /** Update the account's VacationResponse singleton (RFC 8621 §8). Sends all editable fields,
+         *  writing explicit nulls to clear the dates / message. The server keeps the auto-reply
+         *  server-side, so it works while the phone is off. */
     suspend fun setVacationResponse(
         session: JmapSession,
         accountId: String,
@@ -1756,10 +1476,7 @@ class JmapClient internal constructor(
         vacation.copy(id = "singleton")
     }
 
-    /**
-     * Fetch the account's Quota objects (RFC 9425), or an empty list if the
-     * server doesn't advertise the quota capability.
-     */
+        /** Fetch the account's Quota objects (RFC 9425), empty if the server has no quota capability. */
     suspend fun getQuotas(session: JmapSession, accountId: String, auth: JmapAuth): List<Quota> =
         withContext(Dispatchers.IO) {
             if (!session.capabilities.containsKey(Jmap.QUOTA_CAPABILITY)) return@withContext emptyList()
@@ -1782,10 +1499,7 @@ class JmapClient internal constructor(
             decodeList(postJmap(session, auth, payload), "Quota/get", Quota.serializer())
         }
 
-    /**
-     * Fetch the account's Sieve scripts (RFC 9661), or an empty list if the
-     * server doesn't advertise the sieve capability.
-     */
+        /** Fetch the account's Sieve scripts (RFC 9661), empty if the server has no sieve capability. */
     suspend fun getSieveScripts(session: JmapSession, accountId: String, auth: JmapAuth): List<SieveScript> =
         withContext(Dispatchers.IO) {
             if (!session.capabilities.containsKey(Jmap.SIEVE_CAPABILITY)) return@withContext emptyList()
@@ -1836,11 +1550,9 @@ class JmapClient internal constructor(
             }
         }
 
-    /**
-     * Create or update the named Sieve script from an already-uploaded blob and
-     * make it the active script. Pass [existingId] to update in place, or null to
-     * create. Throws [JmapException] if the server rejects the write.
-     */
+        /** Create or update the named Sieve script from an already-uploaded blob and make it the
+         *  active script. Pass [existingId] to update in place, or null to create. Throws
+         *  [JmapException] if the server rejects the write. */
     suspend fun saveSieveScript(
         session: JmapSession,
         accountId: String,
@@ -1892,12 +1604,11 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Send a plain-text email: create a draft (Email/set) and submit it
-     * (EmailSubmission/set) in one request, moving it to Sent on success.
-     * Returns the created message's Email id (null if the server omitted it),
-     * so an on-behalf send can re-file the Sent copy across accounts.
-     */
+        /**
+         * Send a plain-text email: create a draft (Email/set) and submit it (EmailSubmission/set) in
+         * one request, moving it to Sent on success. Returns the created message's Email id (null if
+         * the server omitted it), so an on-behalf send can re-file the Sent copy across accounts.
+         */
     suspend fun sendEmail(
         session: JmapSession,
         accountId: String,
@@ -1917,22 +1628,16 @@ class JmapClient internal constructor(
         attachments: List<EmailBodyPart> = emptyList(),
         /** Ask for a read receipt: writes `Disposition-Notification-To:` naming [from] (RFC 8098). */
         requestReceipt: Boolean = false,
-        /**
-         * An explicit SMTP envelope (RFC 8621 §7.5). null — the ordinary case — lets the server
-         * derive it from [identityId]; non-null is for a [from] the server has no identity for,
-         * where that derivation would put another domain in `MAIL FROM` than the one the reader
-         * sees in `From:` (issue #172).
-         */
+            /**
+             * An explicit SMTP envelope (RFC 8621 §7.5). null — the ordinary case — lets the server
+             * derive it from [identityId]; non-null is for a [from] the server has no identity for,
+             * where that derivation would put another domain in `MAIL FROM` than `From:` (issue #172).
+             */
         envelope: SubmissionEnvelope? = null,
-        /**
-         * This sender's own OpenPGP public key, as the ready value of an `Autocrypt:` header
-         * (Autocrypt Level 1 §2.1), or null to announce nothing. Flat, NOT folded: RFC 8621 hands
-         * the server a value, and the server writes the field — so folding here would put literal
-         * CRLFs inside a JSON string for the server to fold a second time.
-         *
-         * Whether an account may announce its key at all is decided in core/data
-         * (`autocryptHeaderValue`), never here.
-         */
+                /** This sender's own OpenPGP public key as the ready value of an `Autocrypt:` header
+                 *  (Autocrypt Level 1 §2.1), or null. Flat, NOT folded: the server writes the field, so
+                 *  folding here would put literal CRLFs inside a JSON string. Whether an account may
+                 *  announce its key at all is decided in core/data, never here. */
         autocryptHeader: String? = null,
     ): String? = withContext(Dispatchers.IO) {
         withAutocryptHeaderFallback(session, autocryptHeader != null) { withAutocryptHeader, point ->
@@ -1964,28 +1669,20 @@ class JmapClient internal constructor(
                                     if (references.isNotEmpty()) {
                                         putJsonArray("references") { references.forEach { add(it) } }
                                     }
-                                    // Where a read receipt should come back (RFC 8098). No Email
-                                    // property exists for it, so RFC 8621 §4.1.2's `header:<name>:<form>`
-                                    // is set on create; `asAddresses` takes {name, email} objects.
-                                    // The address is `from` — the mailbox the correspondent sees,
-                                    // which for a delegated send is not the submitting identity.
+                                        // Where a read receipt should come back (RFC 8098). No Email
+                                        // property exists, so RFC 8621 §4.1.2's `header:<name>:<form>`
+                                        // is set on create. The address is `from`, which for a
+                                        // delegated send is not the submitting identity.
                                     if (requestReceipt) {
                                         putJsonArray("header:Disposition-Notification-To:asAddresses") {
                                             addJsonObject { addAddress(from) }
                                         }
                                     }
-                                    // The sender's own OpenPGP key (Autocrypt Level 1 §2.1). Same
-                                    // §4.1.2 `header:<name>:<form>` seam as the receipt above, in
-                                    // the `asText` form: the value is a structured string this app
-                                    // assembled, not a list of addresses.
-                                    //
-                                    // Handed over FLAT. The server writes the field and folds it
-                                    // to its own taste; a value folded here would carry literal
-                                    // CRLFs into a JSON string, to be folded twice.
-                                    //
-                                    // [saveDraft] does NOT do this. A draft is not a send: the
-                                    // header announces a key to a correspondent, and a draft has
-                                    // no correspondent yet.
+                                        // The sender's own OpenPGP key (Autocrypt Level 1 §2.1), same
+                                        // §4.1.2 seam as the receipt above, in the `asText` form.
+                                        // Handed over FLAT: the server folds it, and a value folded
+                                        // here would carry literal CRLFs into a JSON string.
+                                        // [saveDraft] does NOT do this — a draft has no correspondent.
                                     if (withAutocryptHeader && autocryptHeader != null) {
                                         put(AUTOCRYPT_HEADER_PROPERTY, autocryptHeader)
                                     }
@@ -2041,11 +1738,9 @@ class JmapClient internal constructor(
                 (emailArgs["notCreated"] as? JsonObject)?.get("draft")?.let {
                     throw JmapException("Could not create the message: $it")
                 }
-                // THE POINT OF NO RETURN, and it is here because this is the first line that
-                // knows: the create was not refused, so a message exists on the server and the
-                // submission attached to it has been handed over. Everything below — a refused
-                // submission, an unreadable body, the delivery check outside this block — may throw
-                // whatever it likes; no replay may follow it ([withAutocryptHeaderFallback]).
+                    // THE POINT OF NO RETURN, here because this is the first line that knows: the
+                    // create was not refused, so a message exists on the server. Everything below may
+                    // throw what it likes; no replay may follow ([withAutocryptHeaderFallback]).
                 point.pass()
                 val subArgs = methodResponseArgs(body, "EmailSubmission/set")
                 (subArgs["notCreated"] as? JsonObject)?.get("sub")?.let {
@@ -2068,18 +1763,12 @@ class JmapClient internal constructor(
         (args["created"] as? JsonObject)?.get(creationId)?.jsonObject
             ?.get("id")?.jsonPrimitive?.contentOrNull
 
-    /**
-     * Turn a blob already uploaded to this account into a message (RFC 8621 §4.8 `Email/import`):
-     * one message in [mailboxIds], carrying [keywords], received at [receivedAt] (an RFC 3339 UTC
-     * date, or null to let the server stamp now). The JMAP half of a move between accounts (#189):
-     * the bytes read from the other account become a message here, under their own date.
-     *
-     * Not [importAndSendEmail], which is the PGP send: Drafts and `$draft`+`$seen` hard-coded,
-     * fused with the submission. This one carries exactly what it is given, and nothing else.
-     *
-     * Answers the id of the created message. Throws [JmapException] when the server refuses
-     * (`notCreated`, the server's reason quoted) or answers without an id.
-     */
+            /**
+             * RFC 8621 §4.8 `Email/import`: one message in [mailboxIds], carrying [keywords], received at
+             * [receivedAt] — the JMAP half of a move between accounts (#189). Not [importAndSendEmail],
+             * the PGP send, which hard-codes Drafts and fuses the submission. Throws [JmapException] when
+             * the server refuses or names no id.
+             */
     suspend fun importEmail(
         session: JmapSession,
         accountId: String,
@@ -2132,36 +1821,13 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Ask the server what it did with the submission it has just created, and FAIL the send if it
-     * refused a recipient (#183).
-     *
-     * Why this exists at all: `notCreated` is not the only way a send can be refused, and on the
-     * commonest refusal of all it is silent. A recipient that does not exist on the server's own
-     * domain is rejected at submission time, BEFORE the message is queued — so the submission is
-     * `created` (it is a valid submission), no bounce will ever be generated (nothing was queued to
-     * bounce), and the client that only reads `notCreated` reports a perfect send. The message
-     * leaves Drafts, lands in Sent, the outbox row is deleted, and nothing anywhere says it was
-     * never delivered.
-     *
-     * Why a SECOND HTTP request and not a back-reference in the first: `EmailSubmission/set`
-     * does not return `deliveryStatus` (measured, 2026-08-30: `created.sub` carries `id`, `sendAt`
-     * and `undoStatus`, nothing more), and an `EmailSubmission/get` back-referenced in the same
-     * request is refused with `invalidResultReference`. That is RFC 8621 §7.5, not a server quirk:
-     * `onSuccessUpdateEmail` inserts an implicit `Email/set` under the same call id, so the result
-     * reference no longer resolves to the submission.
-     *
-     * ONE read, no wait, no polling: the status is complete at t+0.01 s (three runs out of three
-     * on the bench). A message whose delivery has not been decided yet reads "unknown", which is
-     * exactly what this treats as success.
-     *
-     * EVERY doubt is a success, which is why the whole round trip sits in a `runCatching` whose
-     * fallback is "no refusal": an HTTP failure, a method error, unreadable JSON, a submission the
-     * server cannot find, an absent `deliveryStatus` (optional in the RFC) — none of them is
-     * evidence that the message did not go. This code may only ever turn a PROVEN refusal into a
-     * failure; it may never invent one, because by the time it runs the message has already been
-     * handed over and filed in Sent.
-     */
+            /**
+             * FAIL the send if the server refused a recipient (#183). `notCreated` is silent on the
+             * commonest refusal of all: a recipient rejected at submission time leaves a `created`
+             * submission, nothing queued and no bounce. A SECOND HTTP request, not a back-reference:
+             * `EmailSubmission/set` does not return `deliveryStatus` (measured 2026-08-30) and a
+             * back-referenced get is refused. EVERY doubt is a success — the message is already in Sent.
+             */
     private suspend fun failIfRecipientsWereRefused(
         session: JmapSession,
         accountId: String,
@@ -2219,14 +1885,9 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Send a message whose raw RFC 5322 bytes were built CLIENT-side (PGP/MIME:
-     * multipart/signed or multipart/encrypted — the structured Email/set body
-     * assembly cannot carry the protocol=/micalg= parameters). Uploads the raw
-     * message as a blob, then one request: Email/import into Drafts +
-     * EmailSubmission/set referencing it, moving it to Sent on success.
-     * Verified working against Stalwart.
-     */
+            /** Raw RFC 5322 bytes built CLIENT-side (PGP/MIME: the structured Email/set body assembly
+             *  cannot carry the protocol=/micalg= parameters). Uploads the message as a blob, then one
+             *  request: Email/import into Drafts + EmailSubmission/set referencing it. */
     suspend fun importAndSendEmail(
         session: JmapSession,
         accountId: String,
@@ -2306,16 +1967,12 @@ class JmapClient internal constructor(
         emailId
     }
 
-    /**
-     * Re-file a message across accounts of one session: Email/copy it into [toAccountId]'s
-     * [mailboxId], then destroy the original in [fromAccountId]. Used after an on-behalf send
-     * (issue #31) to move the Sent copy from the login's account into the delegated sub-account's
-     * own Sent mailbox. The destroy is an explicit second method call: Stalwart's
-     * `onSuccessDestroyOriginal` targets the creation id instead of the copied id (verified),
-     * so the spec'd one-step form silently leaves the original behind. Throws [JmapException]
-     * if the copy fails; a failed destroy is reported by the same exception AFTER the copy
-     * stands, so callers treating this as best-effort never lose the message.
-     */
+            /**
+             * Email/copy into [toAccountId]'s [mailboxId], then destroy the original (issue #31). The
+             * destroy is an explicit second method call: Stalwart's `onSuccessDestroyOriginal` targets the
+             * creation id instead of the copied id, so the spec'd one-step form silently leaves the
+             * original behind. A failed destroy is reported AFTER the copy stands.
+             */
     suspend fun copyEmailToAccount(
         session: JmapSession,
         auth: JmapAuth,
@@ -2366,10 +2023,9 @@ class JmapClient internal constructor(
         }
     }
 
-    /** Save a plain-text draft in the Drafts mailbox (no submission).
-     *  [attachments] are uploaded blobs referenced by the draft, so re-saving an edited draft
-     *  keeps the files it carried instead of shedding them (#63).
-     *  Returns the created draft's server id, so an edit can later replace it (#63). */
+        /** Save a plain-text draft in the Drafts mailbox (no submission). [attachments] are uploaded
+         *  blobs referenced by the draft, so re-saving an edited draft keeps the files it carried
+         *  (#63). Returns the created draft's server id, so an edit can later replace it. */
     suspend fun saveDraft(
         session: JmapSession,
         accountId: String,
@@ -2380,12 +2036,11 @@ class JmapClient internal constructor(
         bcc: List<EmailAddress> = emptyList(),
         subject: String,
         textBody: String,
-        /**
-         * The `text/html` alternative to store beside [textBody] (#131), or null for a draft with
-         * no styling — and then the create is byte for byte what it was: one `textBody` part, one
-         * `bodyValues` entry. Both halves go out together when it is there: an `htmlBody` part
-         * whose `bodyValues` entry is missing is a create a strict server rejects outright.
-         */
+            /**
+             * The `text/html` alternative to store beside [textBody] (#131), or null for a draft with
+             * no styling — and then the create is byte for byte what it was. Both halves go out
+             * together: an `htmlBody` part whose `bodyValues` entry is missing is rejected outright.
+             */
         htmlBody: String? = null,
         draftMailboxId: String,
         inReplyTo: List<String> = emptyList(),
@@ -2423,10 +2078,9 @@ class JmapClient internal constructor(
                     putJsonArray("textBody") {
                         addJsonObject { put("partId", "body"); put("type", "text/plain") }
                     }
-                    // The styling the composer stored, as the SECOND alternative and never in
-                    // place of the first: the same shape `sendEmail` writes, so a draft and the
-                    // message it becomes are the same two parts. Absent, nothing is emitted at
-                    // all — a plain draft's create is unchanged (#131).
+                        // The styling the composer stored, as the SECOND alternative and never in
+                        // place of the first: the same shape `sendEmail` writes. Absent, nothing is
+                        // emitted at all — a plain draft's create is unchanged (#131).
                     if (htmlBody != null) {
                         putJsonArray("htmlBody") {
                             addJsonObject { put("partId", "html"); put("type", "text/html") }
@@ -2446,13 +2100,9 @@ class JmapClient internal constructor(
             ?.get("id")?.jsonPrimitive?.contentOrNull
     }
 
-    /**
-     * Download a blob (attachment) via the session downloadUrl template, refusing anything past
-     * [maxBytes]. The whole response is buffered — there is no framing to stream against — so the
-     * ceiling is what keeps one message from dictating the app's memory: the announced
-     * Content-Length is checked first, and the read itself stops at the ceiling for a server that
-     * announces nothing (or lies).
-     */
+            /** Refuses anything past [maxBytes]. The whole response is buffered — there is no framing to
+             *  stream against — so the announced Content-Length is checked first and the read itself stops
+             *  at the ceiling for a server that announces nothing, or lies. */
     suspend fun downloadBlob(
         session: JmapSession,
         accountId: String,
@@ -2567,12 +2217,11 @@ class JmapClient internal constructor(
             decodeList(postJmap(session, auth, payload), "PushSubscription/get", PushSubscription.serializer())
         }
 
-    /**
-     * Create a push subscription pointing at [subscription].url (the UnifiedPush
-     * endpoint). Returns it with the server-assigned id and the (possibly capped)
-     * expires. The server then POSTs a PushVerification to the endpoint; confirm it
-     * with [verifyPushSubscription] before any StateChange flows.
-     */
+        /**
+         * Create a push subscription pointing at [subscription].url (the UnifiedPush endpoint).
+         * Returns it with the server-assigned id and the (possibly capped) expires. The server then
+         * POSTs a PushVerification to the endpoint; confirm it with [verifyPushSubscription].
+         */
     suspend fun createPushSubscription(
         session: JmapSession,
         auth: JmapAuth,
@@ -2633,10 +2282,8 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * Push the subscription's expiry out to [expires] (UTCDate). Returns the value the
-     * server applied, which it MAY have capped below the request (RFC 8620 §7.2).
-     */
+        /** Push the subscription's expiry out to [expires] (UTCDate). Returns the value the server
+         *  applied, which it MAY have capped below the request (RFC 8620 §7.2). */
     suspend fun updatePushSubscriptionExpires(
         session: JmapSession,
         auth: JmapAuth,
@@ -2699,10 +2346,8 @@ class JmapClient internal constructor(
         return methodResponseArgs(postJmap(session, auth, payload), "PushSubscription/set")
     }
 
-    /**
-     * Open a long-lived JMAP push connection (EventSource/SSE, RFC 8620 §7.3),
-     * invoking [onStateChange] for each StateChange. Returns a Closeable to stop it.
-     */
+        /** Open a long-lived JMAP push connection (EventSource/SSE, RFC 8620 §7.3), invoking
+         *  [onStateChange] for each StateChange. Returns a Closeable to stop it. */
     fun openEventSource(
         session: JmapSession,
         auth: JmapAuth,
@@ -2725,10 +2370,9 @@ class JmapClient internal constructor(
         val sseClient = httpClient.newBuilder()
             .readTimeout(PING_SECONDS + 30L, TimeUnit.SECONDS)
             .build()
-        // The life of this connection is the one thing a bug report needs and the app cannot
-        // observe from outside: opened, closed, or dead — and why. Three lines, and only the
-        // origin of the URL: what a reporter pastes in public must not carry the credential the
-        // query or the userinfo can hold (the header is never logged at all).
+            // The life of this connection is the one thing a bug report needs and the app cannot
+            // observe from outside. Only the ORIGIN of the URL: what a reporter pastes in public must
+            // not carry the credential the query or the userinfo can hold.
         val origin = eventSourceOrigin(url)
         // Every log call is wrapped: the sink comes from the caller, and a sink that throws must
         // never cost the reconnect below it. Diagnosing a dead push is worth a line, not the push.
@@ -2744,10 +2388,9 @@ class JmapClient internal constructor(
             }
 
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                // A refused connection arrives with no throwable at all, only the response — an
-                // expired token answering 401 on the SSE endpoint is the likeliest of those, and
-                // "failed" with nothing after it would say no more than the silence it replaces.
-                // The status code, and only the status code: headers and body are never touched.
+                    // A refused connection arrives with no throwable at all, only the response — an
+                    // expired token answering 401 on the SSE endpoint is the likeliest. The status
+                    // code, and only the status code: headers and body are never touched.
                 val status = response?.let { " (HTTP ${it.code})" } ?: ""
                 runCatching { log("event source: failed for $origin$status", t) }
                 onClosed()
@@ -2780,18 +2423,12 @@ class JmapClient internal constructor(
         return methodResponseArgs(postWithRetry(session.apiUrl, auth.authorizationHeader(), payload), "Email/set")
     }
 
-    /**
-     * Run [ids] through [oneBatch] in requests of at most [JmapSession.getBatchSize] ids, and
-     * CONCATENATE the answers in order. The read-side twin of [setInBatches] — same reason it
-     * lives here (this layer holds the session, hence the server's `maxObjectsInGet`), and RFC 8620
-     * §5.1 has the server reject the WHOLE call past that limit.
-     *
-     * One deliberate difference: there is NO partial credit here, and no `catch`. A failing batch
-     * propagates, so the caller sees the failure it saw when the call was unsplit. Half an answer
-     * would be worse than none — the callers overwrite the cache with what comes back
-     * ([MailRepository.restoreAll]) or DELETE the rows it names ([missingEmailIds]). Partial credit
-     * is a write-side idea; it does not transfer to a read.
-     */
+            /**
+             * The read-side twin of [setInBatches], here because this layer holds the session and so the
+             * server's `maxObjectsInGet` (RFC 8620 §5.1). NO partial credit and no `catch`: a failing
+             * batch propagates. Half an answer would be worse than none, the callers overwriting the cache
+             * with what comes back or DELETING the rows it names.
+             */
     private suspend fun <T> getInBatches(
         session: JmapSession,
         ids: List<String>,
@@ -2801,32 +2438,14 @@ class JmapClient internal constructor(
         return ids.chunked(session.getBatchSize()).flatMap { oneBatch(it) }
     }
 
-    /**
-     * Run [emailIds] through [oneBatch] in requests of at most [JmapSession.setBatchSize] ids, and
-     * aggregate the answers into ONE [EmailSetResult] — so callers keep the bookkeeping they had
-     * when a bulk action was a single `Email/set`.
-     *
-     * Why this lives here and not in the repository: this is the only layer holding the session,
-     * hence the server's `maxObjectsInSet`, and three call sites ([move]'s bulk form used by an
-     * Undo and by the unarchive-on-reply path, [destroy], [setSeenAll]) reach the client directly.
-     * A server rejects a `Email/set` carrying more ids than it advertises IN ONE BLOCK, so an
-     * unsplit select-all fails wholesale — the very symptom this exists for.
-     *
-     * Aggregation:
-     * - `done` and `failed` are the UNIONS over the batches;
-     * - `newState` is the LAST batch's. Recording an older state is safe (the next delta simply
-     *   re-reads wider); recording one NEWER than our local writes is the bug.
-     *
-     * On a transport failure (HTTP/network — [JmapException], [IOException]) we STOP: on a dead
-     * connection every remaining batch would only grind through [postWithRetry]'s backoff. The
-     * failing batch and every batch never attempted are reported, so nothing disappears silently.
-     * [rethrowTransportFailure] picks which contract the caller has: `false` returns the partial
-     * result with those ids marked [Jmap.SET_ERROR_TRANSPORT]; `true` rethrows (see [destroy]).
-     *
-     * [Jmap.SET_ERROR_TRANSPORT] is deliberately not `"notFound"`: the repository prunes the
-     * local row of a `notFound` id, so labelling an unreachable batch that way would delete live
-     * messages out of the cache.
-     */
+            /**
+             * Aggregates the answers into ONE [EmailSetResult], so callers keep the bookkeeping they had
+             * when a bulk action was a single `Email/set`. It lives here because this is the only layer
+             * holding the session, hence `maxObjectsInSet`. `done` and `failed` are UNIONS; `newState` is
+             * the LAST batch's — an older state is safe, a newer one is the bug. On a transport failure we
+             * STOP and report the failing batch and every batch never attempted. [Jmap.SET_ERROR_TRANSPORT]
+             * is deliberately not `"notFound"`, which the repository prunes the local row for.
+             */
     private suspend fun setInBatches(
         session: JmapSession,
         emailIds: List<String>,
@@ -2876,14 +2495,12 @@ class JmapClient internal constructor(
     private suspend fun postJmap(session: JmapSession, auth: JmapAuth, payload: JsonObject): String =
         postWithRetry(session.apiUrl, auth.authorizationHeader(), payload)
 
-    /**
-     * POST a JMAP request, retrying on the server's transient request-level limit
-     * (`urn:ietf:params:jmap:error:limit`, HTTP 400) or a 429. Stalwart caps concurrent
-     * requests per account (`maxConcurrentRequests`), so a bulk action firing many requests
-     * while push/sync traffic is in flight can be rejected even though each request is valid;
-     * the in-flight slots free up within milliseconds, so a short backoff lets it through
-     * (RFC 8620 §3.6.1 sanctions retrying `error:limit`). Non-limit failures throw immediately.
-     */
+            /**
+             * Retries on the server's transient request-level limit (`error:limit`, HTTP 400) or a 429:
+             * Stalwart caps concurrent requests per account, so a bulk action can be rejected even though
+             * each request is valid, and the slots free up within milliseconds (RFC 8620 §3.6.1 sanctions
+             * the retry). Non-limit failures throw immediately.
+             */
     private suspend fun postWithRetry(url: String, authHeader: String, payload: JsonObject): String {
         var attempt = 0
         while (true) {
@@ -2905,16 +2522,11 @@ class JmapClient internal constructor(
                 delay(LIMIT_RETRY_BASE_MS * attempt)
                 continue
             }
-            // Status only, never a slice of the response: this message reaches logcat, the UI,
-            // and the persisted outbox error, and the body is server-controlled text that can
-            // carry mail content. The HTTP code is the diagnostic; it also travels structured
-            // in [JmapException.httpCode] so callers can act on it without parsing prose.
-            //
-            // The limit error travels structured too, and for a precise reason: RFC 8620 §3.6.1
-            // spells "too many requests" as an HTTP 400, the same status a server uses to reject
-            // a property it does not know. Without this tag the unsubscribe-header fallback would
-            // read a busy minute as "this server refuses the property" and drop the banner for
-            // the rest of the process (see [isPropertyRejection]).
+                // Status only, never a slice of the response: this message reaches logcat, the UI and
+                // the persisted outbox error, and the body is server-controlled text that can carry
+                // mail content. The limit error travels structured too, for a precise reason: RFC 8620
+                // §3.6.1 spells "too many requests" as an HTTP 400, the same status a server uses to
+                // reject an unknown property (see [isPropertyRejection]).
             throw JmapException(
                 "JMAP request failed: HTTP $code $message",
                 httpCode = code,
@@ -2953,13 +2565,10 @@ class JmapClient internal constructor(
         throw JmapException("No $expectedMethod response found")
     }
 
-    /**
-     * Decode the `list` of a method response. A deserialization failure is re-thrown WITHOUT its
-     * cause and without any excerpt: kotlinx.serialization puts a slice of the offending JSON in
-     * its message, which for an `Email/get` is mail content (subject, sender, preview), and that
-     * message ends up in logcat, on screen, and persisted in the outbox error column. The method
-     * name is enough to place the failure.
-     */
+            /** A deserialization failure is re-thrown WITHOUT its cause and without any excerpt:
+             *  kotlinx.serialization puts a slice of the offending JSON in its message, which for an
+             *  `Email/get` is mail content, and that message ends up in logcat, on screen and persisted
+             *  in the outbox error column. */
     private fun <T> decodeList(body: String, method: String, serializer: KSerializer<T>): List<T> {
         val list = methodResponseArgs(body, method)["list"]?.jsonArray ?: return emptyList()
         return try {
@@ -2971,30 +2580,22 @@ class JmapClient internal constructor(
         }
     }
 
-    /**
-     * API URLs whose server rejected the `header:List-Unsubscribe*` properties, so the next
-     * `Email/get` does not spend a round trip discovering it again. Per API URL rather than one
-     * global flag: a phone can hold accounts on several servers, and one strict server must not
-     * cost the others their unsubscribe banner. Memory only — a server that gains support gets it
-     * back at the next app start.
-     */
+        /**
+         * API URLs whose server rejected the `header:List-Unsubscribe*` properties, so the next
+         * `Email/get` does not rediscover it. Per API URL rather than one global flag: a phone can
+         * hold accounts on several servers. Memory only — support is retried at the next app start.
+         */
     private val serversRefusingUnsubscribeHeaders: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
-    /**
-     * API URLs whose server rejected [RECEIPT_HEADER_PROPERTY]. Its OWN set, separate from
-     * [serversRefusingUnsubscribeHeaders] on purpose: the two refusals are independent, and one
-     * shared flag would cost a server that dislikes one of them the other as well. Same lifetime
-     * and same per-URL scope — memory only, one entry per API URL.
-     */
+        /** API URLs whose server rejected [RECEIPT_HEADER_PROPERTY]. Its OWN set, separate from
+         *  [serversRefusingUnsubscribeHeaders] on purpose: the two refusals are independent, and one
+         *  shared flag would cost a server that dislikes one of them the other as well. */
     private val serversRefusingReceiptHeader: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
-    /**
-     * API URLs whose server rejected [AUTOCRYPT_HEADER_PROPERTY] on an `Email/set` create. Its OWN
-     * set again — see [withAutocryptHeaderFallback]. Memory only, one entry per API URL: a server
-     * that gains support gets it back at the next app start.
-     */
+        /** API URLs whose server rejected [AUTOCRYPT_HEADER_PROPERTY] on an `Email/set` create. Its
+         *  OWN set again — see [withAutocryptHeaderFallback]. Memory only, one entry per API URL. */
     private val serversRefusingAutocryptHeader: MutableSet<String> =
         java.util.concurrent.ConcurrentHashMap.newKeySet()
 
@@ -3002,33 +2603,13 @@ class JmapClient internal constructor(
         /** How often the server should ping the EventSource connection, in seconds. */
         private const val PING_SECONDS = 90L
 
-        /**
-         * The properties of a message fetched WITH its body, shared by [getEmail] (opening one)
-         * and [getEmailsWithBody] (prefetching many). One list for the two, so a body served from
-         * the cache can never be poorer than the same body fetched on open — the kind of
-         * difference that shows up as a field that is there on some messages and not others.
-         *
-         * `replyTo` is here because this list feeds the BODY cache (`email_bodies`, which stores
-         * the whole serialised [Email]) and the live open — not the `emails` row. The three
-         * list-view property sets ask for it for the harder reason: `EmailDao.upsertAll` is an
-         * `@Upsert` and replaces the whole row, so a list fetch that omitted the property would
-         * ERASE what another path wrote, silently and only after the next sync. See
-         * [ReplyToOnTheWireTest], which names which paths write which table.
-         *
-         * No fallback for a server that refuses it, deliberately: `replyTo` is a mandatory
-         * property of RFC 8621 §4.1.2, unlike the `header:` forms below. If one ever did refuse
-         * it, the whole `Email/get` would fail and no message would open — the pattern to copy is
-         * [withUnsubscribeHeaderFallback], and it would need its own per-URL memo.
-         *
-         * Adding it narrowed an assumption that guard made: [withUnsubscribeHeaderFallback] read
-         * any property rejection on THIS payload as "the two unsubscribe headers", because they
-         * used to be the only optional thing in it. They no longer are — [RECEIPT_HEADER_PROPERTY]
-         * is optional too — so each guard now records its verdict only when dropping ITS OWN
-         * properties is what made the call succeed. A server refusing `replyTo` (or anything else
-         * mandatory) therefore leaves no verdict behind at all: every attempt fails, the message
-         * does not open, and that larger problem is not disguised as "this server has no
-         * unsubscribe banner" for the life of the process.
-         */
+                /**
+                 * Shared by [getEmail] and [getEmailsWithBody], so a body served from the cache can never
+                 * be poorer than the same body fetched on open. `replyTo` is here because this list feeds
+                 * the BODY cache; the three list-view sets ask for it for the harder reason that
+                 * `EmailDao.upsertAll` replaces the whole row, so a fetch omitting it ERASES what another
+                 * path wrote. No fallback for it: `replyTo` is mandatory in RFC 8621 §4.1.2.
+                 */
         internal val EMAIL_BODY_PROPERTIES = listOf(
             "id", "blobId", "threadId", "subject", "preview", "receivedAt",
             "from", "replyTo", "to", "cc", "bcc", "messageId", "inReplyTo", "references",
@@ -3036,94 +2617,61 @@ class JmapClient internal constructor(
             "htmlBody", "textBody", "attachments", "bodyValues",
         )
 
-        /**
-         * The two header properties the reader's unsubscribe banner is built from (RFC 8621
-         * §4.1.3 header form). Named here once so the request and its fallback cannot disagree.
-         */
+            /** The two header properties the reader's unsubscribe banner is built from (RFC 8621
+             *  §4.1.3 header form). Named here once so the request and its fallback cannot disagree. */
         internal val UNSUBSCRIBE_PROPERTIES = listOf(
             "header:List-Unsubscribe:asText",
             "header:List-Unsubscribe-Post:asText",
         )
 
-        /**
-         * What a RAW-header read asks for (RFC 8621 §4.1.3 `headers`): the id, so the answer can be
-         * keyed, and the header fields themselves. Named here once so the single-id form and the
-         * grouped form cannot disagree — the same reason [UNSUBSCRIBE_PROPERTIES] is named here.
-         *
-         * Nothing else belongs in it. This is the ONE fetch that carries `headers`, and it
-         * carries nothing else: adding a body property here would put whole messages on a call the
-         * prefetch makes for twenty ids at a time.
-         */
+                /** RFC 8621 §4.1.3 `headers`: the id, so the answer can be keyed, and the header fields.
+                 * Named once so the single-id and grouped forms cannot disagree. Nothing else belongs
+                 *  in it — this is the ONE fetch that carries `headers`, and a body property here would put
+                 *  whole messages on a call the prefetch makes for twenty ids at a time. */
         internal val HEADER_FIELDS_PROPERTIES = listOf("id", "headers")
 
-        /**
-         * The header property an opened message's read receipt is read from (RFC 8098, in RFC 8621
-         * §4.1.3's header form). Named here once so the request and its fallback cannot disagree.
-         *
-         * `asText`, not `asAddresses`: the IMAP path can only hand over raw header text, and one
-         * parser for both protocols is worth more than a structured form on one of them. It is
-         * NOT the property [sendEmail] and [saveDraft] write — that one is `asAddresses`, because
-         * a create needs a value the server can re-emit. Reading and writing are two properties
-         * with two forms, deliberately.
-         */
+                /** RFC 8098, in RFC 8621 §4.1.3's header form. `asText`, not `asAddresses`: the IMAP
+                 *  path can only hand over raw header text, and one parser for both protocols is worth
+                 * more. NOT the property [sendEmail] and [saveDraft] write — that one is `asAddresses`,
+                 *  a create needing a value the server can re-emit. */
         internal const val RECEIPT_HEADER_PROPERTY = "header:Disposition-Notification-To:asText"
 
-        /**
-         * The property [sendEmail] writes the sender's own OpenPGP key into (Autocrypt Level 1
-         * §2.1, in RFC 8621 §4.1.2's header form). `asText`: the value is one structured string,
-         * not a list of addresses, and the server must re-emit it verbatim.
-         */
+            /**
+             * The property [sendEmail] writes the sender's own OpenPGP key into (Autocrypt Level 1
+             * §2.1, in RFC 8621 §4.1.2's header form). `asText`: one structured string, not a list of
+             * addresses, and the server must re-emit it verbatim.
+             */
         internal const val AUTOCRYPT_HEADER_PROPERTY = "header:Autocrypt:asText"
 
-        /**
-         * Whether a failure's words name [AUTOCRYPT_HEADER_PROPERTY] — the ONE failure
-         * [withAutocryptHeaderFallback] replays, extracted so it can be run rather than read.
-         *
-         * The refusal a server writes for an unknown property is RFC 8620 §5.3's `invalidProperties`
-         * `SetError`, whose `properties` array names it; that whole object is what
-         * [sendEmail]'s "Could not create the message" carries. Matching on the field NAME rather
-         * than on the exact property string is deliberate: header field names are case-insensitive
-         * (RFC 5322 §1.2.2) and a server is free to echo the property in its own spelling, or to
-         * quote only the header name in a description. Nothing else this app sends says
-         * "autocrypt", so the word can only be about this property.
-         *
-         * Not [isPropertyRejection]. That one answers "the server dislikes SOMETHING here", which
-         * on a send is not enough to justify a replay: the create may already have gone through.
-         */
+                /**
+                 * The ONE failure [withAutocryptHeaderFallback] replays, extracted so it can be run rather
+                 * than read. The refusal for an unknown property is RFC 8620 §5.3's `invalidProperties`,
+                 * whose `properties` array names it; matching on the field NAME is deliberate, header names
+                 * being case-insensitive. Not [isPropertyRejection], too weak to justify a send replay.
+                 */
         internal fun namesAutocryptProperty(text: String?): Boolean =
             text != null && text.contains("Autocrypt", ignoreCase = true)
 
-        /**
-         * The replay decision of [withAutocryptHeaderFallback], whole, as one pure function so a
-         * test can EXECUTE it rather than read the branch that contains it.
-         *
-         * [pastPointOfNoReturn] comes first in the reading for a reason: it is the only term that
-         * is about what HAPPENED rather than about what a server wrote. The message text is the
-         * server's, and any server may put "autocrypt" in any refusal — a recipient address is
-         * enough. So once something has been created or submitted, no text may buy a replay.
-         */
+                /** The replay decision of [withAutocryptHeaderFallback], whole, as one pure function so a
+                 *  test can EXECUTE it. [pastPointOfNoReturn] comes first: it is the only term about what
+                 *  HAPPENED rather than about what a server wrote, and any server may put "autocrypt" in
+                 *  any refusal — a recipient address is enough. */
         internal fun mayReplayWithoutAutocryptHeader(
             asked: Boolean,
             pastPointOfNoReturn: Boolean,
             failure: String?,
         ): Boolean = asked && !pastPointOfNoReturn && namesAutocryptProperty(failure)
 
-        /**
-         * Method-level errors that mean "I do not accept this argument" (RFC 8620 §3.6.2), i.e.
-         * the ones a rejected property arrives as.
-         */
+            /** Method-level errors that mean "I do not accept this argument" (RFC 8620 §3.6.2), i.e.
+             *  the ones a rejected property arrives as. */
         private val PROPERTY_REJECTION_ERRORS = setOf("invalidArguments", "unknownMethod")
 
-        /**
-         * Whether [e] is a server refusing a property we asked for — the only failure the
-         * unsubscribe-header fallback replays (see [withUnsubscribeHeaderFallback]).
-         *
-         * Two shapes, because servers answer in two places: a method-level error inside a
-         * perfectly good HTTP 200, and a flat **HTTP 400** from a request validator that never
-         * reached the method. Not 401/403 (credentials), not 429 (rate limit), not 5xx (the
-         * server is ill) — replaying those doubles the traffic and buries the real reason. Nor
-         * RFC 8620's `error:limit`, which is *also* an HTTP 400 and is likewise a rate limit.
-         */
+                /**
+                 * The only failure the unsubscribe-header fallback replays. Two shapes, servers answering
+                 * in two places: a method-level error inside a perfectly good HTTP 200, and a flat HTTP 400
+                 * from a validator that never reached the method. Not 401/403, not 429, not 5xx, nor RFC
+                 * 8620's `error:limit`, which is also an HTTP 400.
+                 */
         private fun isPropertyRejection(e: JmapException): Boolean = when {
             e.errorType in PROPERTY_REJECTION_ERRORS -> true
             e.errorType == JMAP_ERROR_LIMIT -> false
@@ -3133,17 +2681,12 @@ class JmapClient internal constructor(
         /** RFC 8620 §3.6.1 request-level limit error (e.g. Stalwart's maxConcurrentRequests). */
         private const val JMAP_ERROR_LIMIT = "urn:ietf:params:jmap:error:limit"
 
-        /**
-         * Whether [e] is a server saying "too many requests" — RFC 8620 §3.6.1's `error:limit` or
-         * a plain 429.
-         *
-         * The ONE failure [withReceiptHeaderFallback] does not replay, and the reason is arithmetic
-         * rather than principle: that guard sits OUTSIDE [postWithRetry]'s backoff ladder, so
-         * replaying a rate limit would run the whole ladder a second time — nine requests where
-         * five were already too many, against a server that has just asked for fewer. A limit is
-         * also, by construction, not about a property: it is answered before the method is
-         * dispatched, so the server never looked at what was asked for.
-         */
+                /**
+                 * RFC 8620 §3.6.1's `error:limit` or a plain 429 — the ONE failure
+                 * [withReceiptHeaderFallback] does not replay, for an arithmetic reason: that guard sits
+                 * OUTSIDE [postWithRetry]'s backoff ladder, so replaying would run the ladder twice against
+                 * a server that has just asked for fewer requests.
+                 */
         private fun isRateLimit(e: JmapException): Boolean =
             e.errorType == JMAP_ERROR_LIMIT || e.httpCode == 429
 
@@ -3151,44 +2694,25 @@ class JmapClient internal constructor(
         private const val LIMIT_RETRY_MAX = 4
         private const val LIMIT_RETRY_BASE_MS = 120L
 
-        /**
-         * Whether the redirect that took [requested] to [landedAt] cost us the `Authorization`
-         * header — i.e. whether the request that actually reached the server was anonymous.
-         *
-         * The rule is OkHttp's own (`canReuseConnectionFor`, applied in `followUpRequest`): the
-         * header is stripped when the **origin** changes, and an origin is the triplet
-         * **scheme + host + port**. A different path on the same origin keeps it.
-         *
-         * The port is part of the triplet, and not for the sake of completeness: `host:443` →
-         * `host:8443` is a real deployment, and without it two MockWebServers on `localhost`
-         * would count as the same origin and nothing here would be testable.
-         *
-         * Different schemes answer **false**, so the replay can never resend credentials down
-         * to cleartext after an https→http hop (`followSslRedirects(false)` refuses that hop
-         * already; this keeps the decision from ever asking for it).
-         *
-         * What this deliberately does NOT look at: the response's **status code**, and whether
-         * the session that came back has an account. A Stalwart behind a cross-origin redirect
-         * answers the anonymous request with **200 + an empty session** (`"username":""`,
-         * `"accounts":{}`) rather than 401 (issue #137) — and a user who genuinely has no
-         * mailbox answers exactly the same, so neither signal can decide anything.
-         */
+                /**
+                 * Whether the redirect that took [requested] to [landedAt] cost us the `Authorization`
+                 * header. The rule is OkHttp's own: it is stripped when the ORIGIN changes, an origin being
+                 * scheme + host + port. The port is part of the triplet (`host:443` → `host:8443` is a
+                 * real deployment), different schemes answer false, and it deliberately does NOT look at
+                 * the status code — Stalwart answers anonymously with 200 and an empty session (#137).
+                 */
         internal fun redirectDroppedAuthorization(requested: HttpUrl, landedAt: HttpUrl): Boolean {
             if (requested.scheme != landedAt.scheme) return false
             return requested.host != landedAt.host || requested.port != landedAt.port
         }
 
-        /**
-         * Defensively upgrade the session-advertised URLs from http:// to https:// when the
-         * session itself was fetched over an https [sessionUrl]. A TLS reverse proxy that
-         * doesn't honour X-Forwarded-Proto often advertises http:// apiUrl/downloadUrl/
-         * uploadUrl/eventSourceUrl even though it served the session over https. Since we
-         * reached the same host securely, those URLs are reachable over TLS too, so the
-         * http:// scheme is a proxy artifact, not a real downgrade. Rewriting it keeps the
-         * TLS requirement intact (we never touch cleartext on the wire) and transparently
-         * fixes the common misconfiguration. If the session was somehow fetched over http
-         * (impossible in the https-only autodiscovery flow), leave everything unchanged.
-         */
+            /**
+             * Defensively upgrade the session-advertised URLs from http:// to https:// when the
+             * session itself was fetched over an https [sessionUrl]. A TLS reverse proxy that does not
+             * honour X-Forwarded-Proto often advertises http:// apiUrl/downloadUrl/uploadUrl/
+             * eventSourceUrl even though it served the session over https, so the scheme is a proxy
+             * artifact rather than a real downgrade. A session fetched over http leaves all unchanged.
+             */
         internal fun upgradeSessionUrls(session: JmapSession, sessionUrl: String): JmapSession {
             if (!sessionUrl.startsWith("https://", ignoreCase = true)) return session
             return session.copy(
@@ -3220,33 +2744,24 @@ class JmapClient internal constructor(
         internal fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
-            // Discovery relies on following 3xx redirects, but never across a scheme change,
-            // in either direction (OkHttp compares the two schemes for equality).
-            //
-            // What this refuses is the REQUEST, not a header leak. OkHttp already strips
-            // Authorization on any origin change, scheme included (canReuseConnectionFor
-            // compares scheme, host and port), so the header was never the thing at risk on
-            // this hop. Without this line the client would still reach for a cleartext
-            // endpoint an injected redirect named, and the caller would get the platform's
-            // cleartext refusal instead of the redirect that actually came back.
-            //
-            // Held by JmapClientTest, as behaviour and as the flag's value: deleting this
-            // line used to leave the whole suite green.
+                // Discovery relies on following 3xx redirects, but never across a scheme change, in
+                // either direction. What this refuses is the REQUEST, not a header leak: OkHttp
+                // already strips Authorization on any origin change, scheme included. Without this
+                // line the client would still reach for a cleartext endpoint an injected redirect
+                // named, and the caller would get the platform's cleartext refusal instead of the
+                // redirect that actually came back. Held by JmapClientTest as behaviour and as value.
             .followSslRedirects(false)
             .build()
     }
 }
 
-/**
- * Build the `Email/query` filter for a [SearchQuery] (RFC 8621 §4.4.1): one condition per
- * non-empty field, AND-combined. `recipient` becomes a nested OR over `to` and `cc`, so a
- * message that only carries the address in copy still matches; the OR object is one condition
- * of the outer AND, never flattened into it (that would turn the whole query into an OR).
- * A single condition is emitted on its own, without the AND wrapper.
- *
- * Pure and separate from the request so the combination is unit-testable; callers must have
- * checked [SearchQuery.isEmpty] first (an empty filter would match the whole account).
- */
+    /**
+     * Build the `Email/query` filter for a [SearchQuery] (RFC 8621 §4.4.1): one condition per
+     * non-empty field, AND-combined. `recipient` becomes a nested OR over `to` and `cc`, and that OR
+     * object is one condition of the outer AND, never flattened into it — flattening would turn the
+     * whole query into an OR. Pure and separate from the request so the combination is unit-testable;
+     * callers must have checked [SearchQuery.isEmpty] first.
+     */
 internal fun searchFilter(query: SearchQuery, excludeMailboxIds: List<String> = emptyList()): JsonObject {
     val conditions = mutableListOf<JsonObjectBuilder.() -> Unit>()
     if (query.text.isNotBlank()) conditions.add { put("text", query.text.trim()) }
@@ -3289,16 +2804,13 @@ internal fun searchFilter(query: SearchQuery, excludeMailboxIds: List<String> = 
 /** JMAP UTCDate (RFC 8620 §1.4) from epoch millis. */
 private fun jmapUtcDate(millis: Long): String = java.time.Instant.ofEpochMilli(millis).toString()
 
-/**
- * The `create` argument of the EmailSubmission/set that sends a staged message — ONE builder for
- * both submission paths ([JmapClient.sendEmail] and [JmapClient.importAndSendEmail]), so the
- * structured send and the raw PGP/MIME send cannot drift apart in what they tell the server.
- *
- * With no [envelope] the object is `emailId` + `identityId` and nothing else, which is what the
- * server derives its own envelope from. With one, RFC 8621 §7.5's `envelope` is written out in
- * full: both `mailFrom` and `rcptTo` are mandatory there, so a caller that names an envelope
- * names every recipient in it — the server does not fall back to the message's own To/Cc/Bcc.
- */
+    /**
+     * The `create` argument of the EmailSubmission/set that sends a staged message — ONE builder for
+     * both submission paths, so the structured send and the raw PGP/MIME send cannot drift apart.
+     * With no [envelope] the object is `emailId` + `identityId` and nothing else. With one, RFC 8621
+     * §7.5's `envelope` is written out in full: both `mailFrom` and `rcptTo` are mandatory there, so a
+     * caller naming an envelope names every recipient in it.
+     */
 private fun submissionCreate(identityId: String, envelope: SubmissionEnvelope?): JsonObject =
     buildJsonObject {
         putJsonObject("sub") {
@@ -3321,12 +2833,11 @@ private fun JsonObjectBuilder.addAddress(address: EmailAddress) {
     put("email", address.email)
 }
 
-/**
- * Write the `attachments` array of an Email/set create from already-uploaded blobs. Shared by
- * the send and the draft-save paths, so a draft carries exactly the same parts the same message
- * would carry if it were sent (#63 — a re-saved draft must not silently shed its files).
- * Parts without a blobId are skipped: the server can only reference uploaded blobs.
- */
+    /**
+     * Write the `attachments` array of an Email/set create from already-uploaded blobs. Shared by the
+     * send and the draft-save paths, so a re-saved draft does not silently shed its files (#63).
+     * Parts without a blobId are skipped: the server can only reference uploaded blobs.
+     */
 private fun JsonObjectBuilder.addAttachments(attachments: List<EmailBodyPart>) {
     val blobs = attachments.filter { it.blobId != null }
     if (blobs.isEmpty()) return
@@ -3348,13 +2859,11 @@ private fun JsonObjectBuilder.addAttachments(attachments: List<EmailBodyPart>) {
     }
 }
 
-/**
- * How far a send got, for the ONE question [JmapClient.withAutocryptHeaderFallback] asks before it
- * replays anything: has the server created or submitted a message yet?
- *
- * One-way on purpose — [pass] is the only mutator and there is no way back. A send that is retried
- * without the header is a NEW request and gets a NEW instance; nothing carries progress across.
- */
+    /**
+     * How far a send got, for the ONE question [JmapClient.withAutocryptHeaderFallback] asks before it
+     * replays anything: has the server created or submitted a message yet? One-way on purpose — [pass]
+     * is the only mutator, and a retried send is a NEW request with a NEW instance.
+     */
 internal class SendPointOfNoReturn {
     /** True once the server's answer showed something exists server-side. Never goes back. */
     var passed: Boolean = false
@@ -3365,36 +2874,25 @@ internal class SendPointOfNoReturn {
     }
 }
 
-/**
- * The recipients an `EmailSubmission`'s [deliveryStatus] (RFC 8621 §7.5) says were REFUSED, each
- * rendered as the one line the user will read: `<address>: <smtpReply>`, or the address alone when
- * the server gave no reply text. Empty means "nothing was refused", and that is what every doubt
- * answers.
- *
- * The test is `delivered == "no"`, and nothing else. Measured against the bench's Stalwart on
- * 2026-08-30: a recipient the server ACCEPTED comes back `delivered: "unknown"` with
- * `smtpReply: "250 2.1.5 Queued"` — "unknown" is the NORMAL state of a message on its way, because
- * the submission only knows what the queue has done so far. Written as `!= "yes"` this function
- * would fail every send there is, which is the easy way to break sending while believing #183 is
- * being fixed.
- *
- * And nothing is invented from a missing field: `deliveryStatus` is optional in the RFC, an
- * entry may hold no `delivered` at all, and a null or malformed value is NOT a refusal. Accusing a
- * send that went out of having failed is worse than the silence this exists to break — the message
- * is already in Sent and cannot be unsent.
- *
- * Pure, so a JVM test can execute the decision on the very JSON a server returns.
- */
+    /**
+     * The recipients an `EmailSubmission`'s [deliveryStatus] (RFC 8621 §7.5) says were REFUSED, each
+     * rendered as `<address>: <smtpReply>` or the address alone. Empty means "nothing was refused",
+     * and that is what every doubt answers.
+     *
+     * The test is `delivered == "no"`, and nothing else: measured 2026-08-30, a recipient the server
+     * ACCEPTED comes back `delivered: "unknown"` with `smtpReply: "250 2.1.5 Queued"`, "unknown" being
+     * the NORMAL state of a message on its way. Written `!= "yes"` this would fail every send there
+     * is. A missing or malformed field is NOT a refusal: the message is already in Sent.
+     */
 internal fun deliveryRefusals(deliveryStatus: JsonObject?): List<String> {
     if (deliveryStatus == null) return emptyList()
     return deliveryStatus.entries.mapNotNull { (recipient, status) ->
         val entry = status as? JsonObject ?: return@mapNotNull null
         val delivered = (entry["delivered"] as? JsonPrimitive)?.contentOrNull
         if (delivered != "no") return@mapNotNull null
-        // The address and the server's own reply, and STRICTLY nothing else: this text is thrown as
-        // an exception message, persisted in the outbox row's lastError and printed on screen under
-        // "Failed: %1$s". No subject, no body, no ids, no JSON excerpt — same rule as
-        // `SmtpClient` and `JmapClient`.
+            // The address and the server's own reply, and STRICTLY nothing else: this text is thrown
+            // as an exception message, persisted in the outbox row's lastError and printed on screen.
+            // No subject, no body, no ids, no JSON excerpt.
         val reply = (entry["smtpReply"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
         if (reply == null) recipient else "$recipient: $reply"
     }

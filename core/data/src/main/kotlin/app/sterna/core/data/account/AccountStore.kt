@@ -21,21 +21,18 @@ data class MailEndpoint(
 )
 
 /**
- * How an account authenticates. API_TOKEN is a server-generated Bearer token
- * (e.g. a Fastmail API token), stored encrypted in the password slot; JMAP-only.
+ * How an account authenticates. API_TOKEN is a server-generated Bearer token, stored encrypted in
+ * the password slot; JMAP-only.
  *
- * These three names ARE the stored format: they go by name into every account record
- * ([StoredAccount.authType]), the account list is one blob, and a name this build cannot resolve
- * stops the WHOLE list from decoding — no accounts on screen, and no write until a build that knows
- * the name is installed ([AccountBlobGate], mechanism in full under [SyncWindow.ALL]). Never rename,
- * never remove; retire from the UI instead. Pinned by `StoredAccountReferenceRecordTest`.
+ * These three names ARE the stored format ([StoredAccount.authType]), the account list is one
+ * blob, and a name this build cannot resolve stops the whole list from decoding ([AccountBlobGate],
+ * mechanism under [SyncWindow.ALL]). Never rename, never remove; retire from the UI instead.
  */
 enum class AuthType { BASIC, OAUTH, API_TOKEN }
 
 /**
- * OAuth material for an account (present when [AccountCredentials.oauth] is set).
- * The refresh token is the long-lived secret (stored encrypted); the access token
- * is short-lived and refreshed on demand.
+ * OAuth material for an account (present when [AccountCredentials.oauth] is set). The refresh token
+ * is the long-lived secret (stored encrypted); the access token is refreshed on demand.
  */
 data class OAuthCredentials(
     val accessToken: String,
@@ -45,10 +42,8 @@ data class OAuthCredentials(
     val clientId: String,
 ) {
     /**
-     * Masked on purpose: the synthesised data-class toString() prints both tokens verbatim, so
-     * one day's `Log.w(TAG, "$credentials")` would write bearer material to logcat, which
-     * reporters send us. No call site interpolates this today; keeping it unprintable is what
-     * makes that stay true.
+     * Masked on purpose: the synthesised data-class toString() prints both tokens verbatim, so an
+     * interpolated log line would write bearer material to logcat.
      */
     override fun toString(): String =
         "OAuthCredentials(accessToken=***, refreshToken=***, " +
@@ -63,10 +58,9 @@ data class AccountCredentials(
     val id: String = "",
     val protocol: MailProtocol = MailProtocol.JMAP,
     /**
-     * The server-side JMAP account id to pin API calls to (RFC 8620 §1.6.2). Non-null for a
-     * linked sub-account; null lets [app.sterna.core.data.mail.MailRepository] fall back to the
-     * session's primary mail account. Part of equals so the context cache never confuses two
-     * sub-accounts that share one login/credential.
+     * The server-side JMAP account id to pin API calls to (RFC 8620 §1.6.2). Non-null for a linked
+     * sub-account; null falls back to the session's primary mail account. Part of equals so the
+     * context cache never confuses two sub-accounts sharing one login.
      */
     val jmapAccountId: String? = null,
     val imap: MailEndpoint? = null,
@@ -78,9 +72,7 @@ data class AccountCredentials(
 ) {
     /**
      * Masked on purpose: [password] holds the account password (or an API token), which the
-     * synthesised data-class toString() would print verbatim into any log line or error message
-     * that interpolated the object. No call site does that today; keeping it unprintable is what
-     * makes that stay true.
+     * synthesised toString() would print verbatim into any log line interpolating the object.
      */
     override fun toString(): String =
         "AccountCredentials(id=$id, server=$server, username=$username, password=***, " +
@@ -95,9 +87,8 @@ data class AccountCredentials(
 data class DiscoveredMailAccount(val jmapAccountId: String, val name: String)
 
 /**
- * The pure add/prune decision behind [AccountStore.reconcileLinkedAccounts]: given a login, the
- * sub-accounts currently linked to it, and the mail accounts its session now exposes. Kept free of
- * storage and Android so the revocation prune stays unit-testable.
+ * The pure add/prune decision behind [AccountStore.reconcileLinkedAccounts]. Kept free of storage
+ * and Android so the revocation prune stays unit-testable.
  */
 data class LinkedAccountsDiff(
     /** The login's own JMAP account id, to pin on first discovery; null once already pinned. */
@@ -111,24 +102,14 @@ data class LinkedAccountsDiff(
 }
 
 /**
- * Diff [existingLinked] (the sub-accounts linked to [login]) against [discovered], the session's
- * mail accounts primary-first (see JmapSession.mailAccountIds). A session shrunk back to the
- * login's own account alone prunes every sub-account — that is exactly the all-access-revoked
- * case. An empty [discovered] (a session advertising no mail account at all — a broken or
- * mail-less response) is an empty diff instead: never prune on evidence that weak.
+ * Diff [existingLinked] against [discovered], the session's mail accounts primary-first. A session
+ * shrunk back to the login's own account prunes every sub-account — the all-access-revoked case;
+ * an empty [discovered] is an empty diff, never a prune on evidence that weak.
  *
- * [probes] (the #129 `Mailbox/get` outcomes, see [retainReachableMailAccounts]) governs ADMISSION
- * ONLY, never eviction. A sub-account the server STILL LISTS but whose probe came back `forbidden`
- * for a passing reason — a reloaded ACL, a moment of server-side denial — must stay linked: an
- * account leaves only when the SERVER stops listing it, because pruning deletes a real shared
- * mailbox's StoredAccount and purges its five tables. So `prunedIds` is derived from the RAW
- * [discovered] (#31, unchanged) and only `toAdd` from the probe-filtered list (#129, unchanged).
- *
- * ONE list in, on purpose: a second "already filtered" parameter next to the raw one would let a
- * caller pass the same list twice and silently restore the destruction, so the filter is applied
- * HERE and nowhere else. [probes] carries no default for the same reason — every call site is in
- * this module and names it, and a default `emptyMap()` would let a new call site quietly admit an
- * account the server refuses.
+ * [probes] (#129, see [retainReachableMailAccounts]) governs ADMISSION only, never eviction:
+ * pruning deletes a StoredAccount and purges five tables, so `prunedIds` derives from the RAW
+ * [discovered] and only `toAdd` from the filtered list. The filter is applied here and nowhere
+ * else, and [probes] has no default, so no caller can hand in a list already filtered.
  */
 fun diffLinkedAccounts(
     login: StoredAccount,
@@ -142,10 +123,9 @@ fun diffLinkedAccounts(
     val admissible = retainReachableMailAccounts(discovered, probes).drop(1)
     val trackedJmapIds = existingLinked.mapNotNull { it.jmapAccountId }.toSet()
     val liveSubIds = subs.map { it.jmapAccountId }.toSet()
-    // Self-healing: two linked records tracking the SAME server account under one login are
-    // duplicates (a leftover of the pre-lock reconcile write race) — keep the oldest (records
-    // are appended, so list order is age order) and prune the rest like a revocation, so any
-    // duplicate minted in the race era cleans itself up on the next reconcile.
+    // Self-healing: two linked records tracking the same server account under one login are
+    // duplicates (a leftover of the pre-lock reconcile write race) — keep the oldest (records are
+    // appended, so list order is age order) and prune the rest like a revocation.
     val duplicateIds = existingLinked
         .filter { it.jmapAccountId != null }
         .groupBy { it.jmapAccountId }
@@ -164,37 +144,14 @@ fun diffLinkedAccounts(
 }
 
 /**
- * Codeberg #129: which of a session's [discovered] mail accounts may become accounts at all.
+ * Codeberg #129: which of a session's [discovered] mail accounts may become accounts at all. A
+ * read-only CALENDAR share is enough for the server to list the sharer's account with the mail
+ * capability while refusing every mail request for it, and the sub-account minted from it turns
+ * the sharer's address into a fabricated `delegated` identity.
  *
- * A read-only CALENDAR share is enough for the server to list the sharer's account in the session
- * WITH the mail capability, while refusing every mail request made for it. The sub-account minted
- * from such an entry can never fetch anything, and its name — the sharer's address — is turned into
- * a fabricated `delegated` identity, so someone else's address shows up in the composer's From
- * picker.
- *
- * [probes] is the raw outcome of one `Mailbox/get` per non-primary candidate, keyed by JMAP account
- * id, exactly as the caller's `runCatching` produced it: the failure itself, never a verdict, so
- * that reading "is this a refusal" is done HERE and nowhere else. `Result<*>` on purpose — the
- * success value is deliberately never read, because the number of mailboxes an account returns is
- * exactly the criterion this rule rejects (see below), and a `Result<List<Mailbox>>` would promise
- * the opposite.
- *
- * Discarded on ONE piece of evidence: a [JmapException] whose `errorType` is `forbidden` — the
- * server saying this account is not the caller's to read. Kept in every other case: a probe that
- * succeeded with no mailbox at all, a timeout, a dropped connection, a 429, an unreadable answer,
- * any other `errorType`, or no probe at all. The asymmetry is deliberate — a sub-account wrongly
- * kept shows an empty folder list, while a sub-account wrongly dropped is pruned from the store
- * with its whole cache (see [diffLinkedAccounts]), so every doubt goes to keeping.
- *
- * The head of [discovered] is the login's own primary account (see JmapSession.mailAccountIds). It
- * is kept unconditionally and must never be probed: [diffLinkedAccounts] pins the connection to it,
- * so dropping it would make every real sub-account look revoked.
- *
- * Input order is preserved, primary first, which is what the store's reconcile means by "the head".
- *
- * `internal` on purpose: [diffLinkedAccounts] is the one place allowed to apply it, so that no
- * caller can hand the store a list it has already filtered — which is what turned a passing
- * `forbidden` into the deletion of a live shared mailbox.
+ * [probes] is the raw outcome of one `Mailbox/get` per candidate: the failure itself, never a
+ * verdict, and `Result<*>` because the success value must never be read. Discarded on ONE piece of
+ * evidence, `errorType` `forbidden`; kept otherwise — one wrongly dropped is pruned with its cache.
  */
 internal fun retainReachableMailAccounts(
     discovered: List<DiscoveredMailAccount>,
@@ -207,11 +164,9 @@ internal fun retainReachableMailAccounts(
 
 /**
  * The account list as an observable value, behind [AccountStore.accountsFlow]. Split out of the
- * store — which needs Android's SharedPreferences and Keystore — so the emission rule itself can
- * be unit-tested on the JVM.
- *
- * Conflated by [MutableStateFlow]: republishing a list equal to the current one emits nothing, so
- * the idempotent reconcile that rewrites an unchanged account list costs no recomposition.
+ * store — which needs SharedPreferences and Keystore — so the emission rule is unit-testable.
+ * Conflated by [MutableStateFlow]: republishing an equal list emits nothing, so the idempotent
+ * reconcile costs no recomposition.
  */
 internal class AccountsState(initial: List<StoredAccount>) {
     private val state = MutableStateFlow(initial)
@@ -224,18 +179,13 @@ internal class AccountsState(initial: List<StoredAccount>) {
 }
 
 /**
- * Persists one or more accounts. Account metadata is stored as JSON; each
- * password is encrypted via [KeystoreCrypto] and only the ciphertext is written.
- * The single-account methods (load/hasAccount/saveInboxMeta/…) operate on the
- * currently selected account so existing callers work unchanged.
+ * Persists one or more accounts. Metadata is JSON; each password is encrypted via [KeystoreCrypto]
+ * and only the ciphertext is written.
  *
- * Concurrency: the whole account list lives in ONE prefs JSON blob, and every mutator is a
- * read-modify-write over it. Callers hit this store from several dispatchers at once (ViewModel
- * scope, PushService IO scope, workers — reconcileLinkedAccounts runs on every connect()), and
- * two interleaved read-modify-writes lose one of them — or, for reconcile, mint the same linked
- * sub-account twice, permanently. So every mutating method is [Synchronized] on the store (the
- * app has a single instance). Reads stay lock-free: [saveAccounts] swaps the blob atomically, so
- * an unlocked read sees either the old or the new list, never a torn one.
+ * The whole list lives in ONE prefs blob and every mutator is a read-modify-write over it, called
+ * from several dispatchers at once — two interleaved writes lose one, or mint the same linked
+ * sub-account twice, permanently. Every mutating method is therefore [Synchronized]. Reads stay
+ * lock-free: [saveAccounts] swaps the blob atomically.
  */
 class AccountStore(context: Context) {
     private val prefs = context.applicationContext
@@ -244,8 +194,7 @@ class AccountStore(context: Context) {
 
     // Tells an empty account list apart from a list that would not decode, and blocks writes in the
     // second case. Declared before [live] because the seeding read below already goes through it.
-    // It is handed THIS store's parser and writer: a gate given anything else — a decoder that
-    // never fails, say — is a gate that never refuses, and no test of the gate alone can see that.
+    // Handed THIS store's parser and writer: a gate given a decoder that never fails never refuses.
     private val gate = AccountBlobGate(
         decode = { json.decodeFromString<List<StoredAccount>>(it) },
         encode = { json.encodeToString(it) },
@@ -258,24 +207,17 @@ class AccountStore(context: Context) {
     // ---- accounts ----
 
     /**
-     * The account list as a live value, for screens that DISPLAY it (the drawer's account
-     * selector, Settings > Accounts). The prefs blob is per-process and this store is a
-     * singleton, so a flow re-emitted on every write is enough: no polling, no periodic reload.
-     *
-     * Why it exists: the sub-account reconcile (issue #31) adds an account the moment a mailbox is
-     * shared with the login and prunes it when the share is revoked. A list read once at
-     * composition time then showed a mailbox that was gone, and hid one that had arrived, until
-     * the screen was recreated. Equal lists are not re-emitted, so the reconcile's usual no-op
-     * pass recomposes nothing.
+     * The account list as a live value, for screens that display it. The prefs blob is per-process
+     * and this store is a singleton, so a flow re-emitted on every write is enough. It exists
+     * because the sub-account reconcile (#31) adds and prunes accounts under a composed screen;
+     * equal lists are not re-emitted, so the usual no-op pass recomposes nothing.
      */
     val accountsFlow: StateFlow<List<StoredAccount>> get() = live.flow
 
     /**
-     * The stored accounts, or an empty list — including when the blob could not be decoded, because
-     * this is called from the constructor and from 62 sites that all handle a list and nothing else.
-     * What changed is that the empty is no longer anonymous: [AccountBlobGate.read] records, on
-     * every single call, whether this empty means "nothing stored" or "I could not read it", and
-     * [saveAccounts] refuses to write over the second kind.
+     * The stored accounts, or an empty list — including when the blob could not be decoded. The
+     * empty is not anonymous: [AccountBlobGate.read] records on every call whether it means
+     * "nothing stored" or "could not read it", and [saveAccounts] refuses to write over the second.
      */
     fun accounts(): List<StoredAccount> {
         migrateIfNeeded()
@@ -285,21 +227,10 @@ class AccountStore(context: Context) {
     fun hasAccount(): Boolean = accounts().isNotEmpty()
 
     /**
-     * Whether the stored account list could not be read — the ONE thing [accounts] cannot say,
+     * Whether the stored account list could not be read — the one thing [accounts] cannot say,
      * since it answers both cases with an empty list. Public because the startup routing lives in
-     * the `app` module, and the gate is `internal` to this one.
-     *
-     * Why the UI needs it. With the write refusal in place, an unreadable blob leaves the user on
-     * "Add an account": she adds one, it appears to work, and it is gone at the next launch —
-     * because storing it would have replaced her real accounts. The startup screen has to say what
-     * happened instead of inviting a gesture that cannot land.
-     *
-     * The answer is READ AFRESH, never a flag left over from an earlier moment: [accounts]
-     * recomputes it on every call ([AccountBlobGate.read]), so this reads storage first and then
-     * reports. Nothing re-asks it while a screen is up — there is no observer and no `onResume`
-     * path, and none is wanted here; the verdict is taken when `RootViewModel` is built. Installing
-     * a build that can decode the blob kills the process, so that build's first launch reads a
-     * readable blob and routes normally, with nothing to repair by hand.
+     * the `app` module. With the write refusal in place an unreadable blob would otherwise leave
+     * the user adding an account that is gone at the next launch. Read afresh on every call.
      */
     fun accountsUnreadable(): Boolean {
         accounts()
@@ -322,10 +253,9 @@ class AccountStore(context: Context) {
         if (accounts().any { it.id == id }) prefs.edit().putString(KEY_CURRENT, id).apply()
     }
 
-    /** Add an account (encrypting its password — or, for an API_TOKEN account, its
-     *  token, protected identically) and make it current. Returns its id — the id of the account
-     *  ALREADY stored under the same identity when there is one ([addOrRefresh]), so adding the
-     *  same mailbox twice refreshes one row instead of growing a second. */
+    /** Add an account (encrypting its password, or an API token, identically) and make it current.
+     *  Returns its id — the id of the account ALREADY stored under the same identity when there is
+     *  one ([addOrRefresh]), so adding the same mailbox twice refreshes one row. */
     @Synchronized
     fun add(
         server: String,
@@ -360,22 +290,12 @@ class AccountStore(context: Context) {
     }
 
     /**
-     * Add a JMAP account authenticated via OAuth and make it current. The refresh
-     * token (the long-lived secret) is encrypted into the password slot; the
-     * short-lived access token is cached in the account record. Returns its id — or the id of the
-     * account already stored under the same identity, which it refreshes ([addOrRefresh]).
+     * Add a JMAP account authenticated via OAuth and make it current. The refresh token is encrypted
+     * into the password slot. Returns the id it lives under, possibly an existing account's.
      *
-     * [documentHost] is the host the OAuth document was fetched from, and it is what 1.5.0 and
-     * 1.5.1 wrote into `server`. This version stores the host it RESOLVES instead (#55), so the
-     * account an older version filed is recognised only if that older key is offered too — hence
-     * this parameter, which is looked up AFTER the current one and never instead of it. Blank
-     * means "this route has no earlier key", which is the case of the Microsoft OAuth IMAP path.
-     *
-     * It only means anything for a JMAP add. The inherited key goes through
-     * [accountEndpointOf], which under [MailProtocol.IMAP] keys on [imapHost] and DROPS
-     * [documentHost] without a word — so a non-blank value passed with `protocol = IMAP` builds
-     * the account's own current key over again, not an older one. Harmless today because no call
-     * site passes both, and written down so nobody reads the name as a promise.
+     * [documentHost] is what 1.5.0/1.5.1 wrote into `server`; this version stores the resolved host
+     * (#55), so the older key is offered too — AFTER the current one, never instead of it. It
+     * means nothing for an IMAP add: [accountEndpointOf] keys on [imapHost] and drops it silently.
      */
     @Synchronized
     fun addOAuth(
@@ -415,35 +335,22 @@ class AccountStore(context: Context) {
             smtpPort = smtpPort,
             smtpSecurity = smtpSecurity,
         )
-        // The other key THIS route has filed this address under: 1.5.0 and 1.5.1 stored the host
-        // the OAuth document came from, this version stores the host it resolves. Looked up under
-        // the current key alone, an account added by those versions would take a SECOND line at
-        // the first re-authentication — the fix for #55 manufacturing the duplicate of #55. Blank
-        // (the default) yields no key, which is what leaves addOAuthImapAccount untouched: that
-        // route has no document host to inherit.
+        // The other key THIS route has filed this address under: 1.5.0/1.5.1 stored the host the
+        // OAuth document came from, this version the host it resolves. Under the current key alone
+        // such an account would take a SECOND line at the first re-authentication — the fix for #55
+        // manufacturing the duplicate of #55.
         val inherited = if (documentHost.isBlank()) null else accountKeyOf(protocol, documentHost, imapHost, username)
         return addOrRefresh(account, refreshToken, alsoRecognisedBy = listOfNotNull(inherited))
     }
 
     /**
-     * Store [proven] as a new login, or REFRESH the login that already carries the same identity,
-     * and make it current either way. Returns the id the account lives under — the EXISTING id when
-     * one was found, which is why neither [add] nor [addOAuth] may assume it gets back the UUID it
-     * minted.
+     * Store [proven] as a new login, or refresh the login already carrying the same identity, and
+     * make it current. Returns the id the account lives under — the existing one when found, so
+     * neither [add] nor [addOAuth] may assume it gets back the UUID it minted.
      *
-     * Why here and not in a ViewModel. Six creation routes write an account and only one guarded
-     * itself; worse, a route reads the account list BEFORE its network validation and persists
-     * AFTER it (`ConnectViewModel`), so a guard up there leaves a window in which
-     * two adds both see "not there yet". This is the only atomic floor: [add] and [addOAuth] are
-     * `@Synchronized`, and a seventh route inherits the guard by construction.
-     *
-     * It never throws and never returns null: three of the six routes would show the raw failure on
-     * screen. A re-add is a legitimate gesture (fixing a password, moving to OAuth), so it succeeds
-     * and updates, it does not refuse.
-     *
-     * The secret is written under the id the account will actually be stored as, because that id is
-     * the AAD the password slot is bound to; writing it under the freshly minted UUID would leave
-     * the account borrowing a slot no one wrote.
+     * The only atomic floor: a ViewModel guard leaves a window, since a route reads the list before
+     * its network validation and persists after it. The secret is written under the id the account
+     * will be stored as, because that id is the AAD the password slot is bound to.
      */
     private fun addOrRefresh(
         proven: StoredAccount,
@@ -465,8 +372,8 @@ class AccountStore(context: Context) {
     }
 
     /**
-     * Persist freshly minted OAuth tokens after a refresh. A blank [refreshToken]
-     * keeps the stored one (some servers don't rotate it). No-op for unknown ids.
+     * Persist freshly minted OAuth tokens after a refresh. A blank [refreshToken] keeps the stored
+     * one (some servers don't rotate it). No-op for unknown ids.
      */
     @Synchronized
     fun updateOAuthTokens(id: String, accessToken: String, refreshToken: String, accessExpiresAtMillis: Long) {
@@ -485,8 +392,8 @@ class AccountStore(context: Context) {
     fun account(id: String): StoredAccount? = accounts().firstOrNull { it.id == id }
 
     /**
-     * Update the editable server settings for an account, preserving its id and
-     * inbox metadata (inboxId/inboxName/unread). No-op if the id is unknown.
+     * Update the editable server settings for an account, preserving its id and inbox metadata.
+     * No-op if the id is unknown.
      */
     @Synchronized
     fun updateAccount(
@@ -535,10 +442,9 @@ class AccountStore(context: Context) {
     fun signature(accountId: String?): String =
         (accountId?.let { account(it) } ?: currentAccount())?.signature.orEmpty()
 
-    /** Sending identities for an account (null id = current); never empty (has a default).
-     *  A linked sub-account whose own address is unknown (see [StoredAccount.resolvedIdentities])
-     *  falls back to its LOGIN's identities: sends route through the login's submission anyway
-     *  (issue #31), and offering the login's addresses openly beats a silently wrong From. */
+    /** Sending identities for an account (null id = current); never empty. A linked sub-account
+     *  whose own address is unknown falls back to its LOGIN's identities: sends route through the
+     *  login's submission anyway (#31), and offering them openly beats a silently wrong From. */
     fun identities(accountId: String?): List<StoredIdentity> {
         val account = (accountId?.let { account(it) } ?: currentAccount()) ?: return emptyList()
         return account.resolvedIdentities().ifEmpty {
@@ -553,9 +459,8 @@ class AccountStore(context: Context) {
     }
 
     /**
-     * Persist the identities discovered from the JMAP server (RFC 8621 Identity/get).
-     * No-op if the id is unknown or the list is unchanged (avoids a needless write on
-     * every connect). Manual [identities] are left untouched.
+     * Persist the identities discovered from the JMAP server (RFC 8621 Identity/get). No-op if the
+     * id is unknown or the list is unchanged. Manual [identities] are left untouched.
      */
     @Synchronized
     fun setServerIdentities(accountId: String, identities: List<StoredIdentity>) {
@@ -569,18 +474,16 @@ class AccountStore(context: Context) {
         (accountId?.let { account(it) } ?: currentAccount())?.defaultIdentityId
 
     /** Persist (or clear, with null) the account's default sending identity, keyed by identity id.
-     *  Serialized like every other writer: the sub-account reconcile runs on connect and rewrites
-     *  the same list, so an unsynchronized read-modify-write here could drop it (issue #31). */
+     *  Serialized like every other writer: the sub-account reconcile rewrites the same list (#31). */
     @Synchronized
     fun setDefaultIdentity(accountId: String, identityId: String?) {
         saveAccounts(accounts().map { if (it.id == accountId) it.copy(defaultIdentityId = identityId) else it })
     }
 
     /**
-     * The identity that should be pre-selected when composing for [accountId]: the one whose id
-     * matches the stored [defaultIdentityId], else the account's own address, else the first
-     * resolved identity — when none is set or the stored id no longer exists among the current
-     * (merged manual + server) identities. See [StoredAccount.defaultIdentity].
+     * The identity pre-selected when composing for [accountId]: the stored [defaultIdentityId],
+     * else the account's own address, else the first resolved identity. See
+     * [StoredAccount.defaultIdentity].
      */
     fun defaultIdentity(accountId: String?): StoredIdentity? =
         (accountId?.let { account(it) } ?: currentAccount())?.defaultIdentity()
@@ -620,8 +523,7 @@ class AccountStore(context: Context) {
 
     /**
      * Whether this account's folder lists hide the folders it is not subscribed to on the server
-     * (#174). Defaults to false, including for an id no account carries — see
-     * [showOnlySubscribedFoldersOf].
+     * (#174). Defaults to false, including for an unknown id — see [showOnlySubscribedFoldersOf].
      */
     fun showOnlySubscribedFolders(id: String): Boolean = showOnlySubscribedFoldersOf(account(id))
 
@@ -664,10 +566,8 @@ class AccountStore(context: Context) {
 
     /**
      * Re-key a FOLDED folder after an IMAP rename (ids are folder paths there), the twin of
-     * [replaceWatchedFolder] and called beside it: the entry for [oldId] and everything under
-     * `oldId + delimiter` move onto [newId], values carried across. Without it the user's explicit
-     * "unfolded" stays behind under the old path and the drawer's default folds the renamed folder
-     * on the spot. No-op for JMAP ids, which are stable across renames.
+     * [replaceWatchedFolder]: [oldId] and everything under `oldId + delimiter` move onto [newId].
+     * Without it the user's explicit "unfolded" stays behind under the old path. No-op for JMAP.
      */
     @Synchronized
     fun replaceCollapsedFolder(id: String, oldId: String, newId: String, delimiter: String = "/") {
@@ -675,9 +575,8 @@ class AccountStore(context: Context) {
     }
 
     /**
-     * Re-key a watched folder after an IMAP rename (ids are folder paths there).
-     * Also rewrites watched children of [oldId] (path prefix). No-op for JMAP ids,
-     * which are stable across renames.
+     * Re-key a watched folder after an IMAP rename (ids are folder paths there). Also rewrites
+     * watched children of [oldId]. No-op for JMAP ids, which are stable across renames.
      */
     @Synchronized
     fun replaceWatchedFolder(id: String, oldId: String, newId: String, delimiter: String = "/") {
@@ -703,11 +602,9 @@ class AccountStore(context: Context) {
     /**
      * Persist the account's OpenPGP settings. No-op if the id is unknown.
      *
-     * [publicKey] travels with [signKeyId] and is never optional: the cached public key is a
-     * fact about THAT key id (see [StoredAccount.pgpPublicKey]). A default here would let a caller
-     * change the key and leave the previous key's bytes behind without ever naming them — which is
-     * exactly the mistake this parameter exists to make impossible. Callers that only flip the two
-     * switches pass the account's current value back.
+     * [publicKey] travels with [signKeyId] and is never optional: the cached public key is a fact
+     * about THAT key id (see [StoredAccount.pgpPublicKey]), and a default would let a caller change
+     * the key and leave the previous key's bytes behind.
      */
     @Synchronized
     fun setPgp(
@@ -735,8 +632,8 @@ class AccountStore(context: Context) {
 
     /**
      * Write the public key read back for [signKeyId] into that account's cache, and only while the
-     * account still carries that key id: see [withCachedPgpPublicKey] for why the guard is the
-     * point. No-op if the id is unknown or the key changed under the read.
+     * account still carries that key id — see [withCachedPgpPublicKey]. No-op if the id is unknown
+     * or the key changed under the read.
      */
     @Synchronized
     fun setPgpPublicKey(id: String, signKeyId: Long, publicKey: String) {
@@ -745,8 +642,7 @@ class AccountStore(context: Context) {
 
     /**
      * Drop the stored OpenPGP signing key of EVERY account, keeping their other PGP settings.
-     * Called when the user switches OpenPGP app: see [withoutPgpSignKeys] for why all of them and
-     * why only the key.
+     * Called when the user switches OpenPGP app; see [withoutPgpSignKeys].
      */
     @Synchronized
     fun clearPgpSignKeys() {
@@ -756,20 +652,16 @@ class AccountStore(context: Context) {
     /** Remove an account; if it was current, fall back to another (or none). */
     @Synchronized
     fun remove(id: String) {
-        // Read BEFORE destroying anything. On an unreadable blob the list reads empty, so an id
-        // that really is stored looks unknown — and the encrypted password is the account's only
-        // copy of its secret, which no later write-refusal can bring back. Its two neighbours
-        // ([removeCascading], [convertToBasicAuth]) already bail out on an unknown id, which is why
-        // they never had this hole; this makes the same guard explicit here.
+        // Read BEFORE destroying anything. On an unreadable blob the list reads empty, so a stored
+        // id looks unknown — and the encrypted password is the account's only copy of its secret,
+        // which no later write-refusal can bring back.
         val list = accounts()
         if (list.none { it.id == id }) return
         prefs.edit().remove(passwordKey(id)).apply()
         val remaining = list.filterNot { it.id == id }
-        // The THIRD removal path, and it forgets what it removes exactly like [removeCascading]:
-        // a linked share can reach here (an imported record keeps its loginId, so dismissing it
-        // from "accounts to sign in" lands on this method), and PRIVACY.md promises that removing
-        // an account removes what it left behind. A path that skipped this would let a share the
-        // user dismissed come back wearing its old settings on the server's next offer.
+        // The third removal path, and it forgets what it removes like [removeCascading]: a linked
+        // share can reach here, and PRIVACY.md promises that removing an account removes what it
+        // left behind.
         saveLinkedMemory(forgetRemovedLinked(linkedMemory(), list.filter { it.id == id }))
         saveAccounts(remaining)
         if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
@@ -798,8 +690,8 @@ class AccountStore(context: Context) {
         val list = accounts()
         val account = list.firstOrNull { it.id == id } ?: return null
         // A linked sub-account borrows its login's encrypted secret and OAuth tokens: the secret
-        // lives under the login id only (never duplicated), and a token refresh on the login is
-        // observed by every sub-account. Standalone accounts resolve to themselves (loginKey == id).
+        // lives under the login id only, and a refresh on the login is observed by every
+        // sub-account. Standalone accounts resolve to themselves (loginKey == id).
         val login = list.firstOrNull { it.id == account.loginKey() } ?: account
         // For OAuth accounts the encrypted slot holds the refresh token, not a password.
         val secret = readPassword(login.id) ?: return null
@@ -822,9 +714,8 @@ class AccountStore(context: Context) {
             protocol = account.protocol,
             jmapAccountId = account.jmapAccountId,
             oauth = oauth,
-            // The login's, not the record's: a sub-account authenticates however its login does
-            // (e.g. Bearer for an API-token login), and stays correct if the login's auth type
-            // ever changes after the sub-account was created.
+            // The login's, not the record's: a sub-account authenticates however its login does,
+            // and stays correct if the login's auth type changes later.
             authType = login.authType,
             imap = if (account.protocol == MailProtocol.IMAP) {
                 MailEndpoint(account.imapHost, account.imapPort, account.imapSecurity)
@@ -848,18 +739,12 @@ class AccountStore(context: Context) {
 
     /**
      * Reconcile the sub-accounts linked to [loginId] against the mail accounts its JMAP session
-     * exposes. [discovered] is primary-first (see JmapSession.mailAccountIds): the head is the
-     * login's own mail account, the tail are the extra ones a single credential may reach
-     * (delegated / shared mailboxes). Creates a linked [StoredAccount] for each newly-granted
-     * account and prunes any whose access was revoked, returning the pruned ids so the caller can
-     * purge their caches. Idempotent — writes nothing and returns empty when nothing changed, so it
-     * is safe to call on every session refresh. Never touches a login's inbox metadata or secret.
+     * exposes. [discovered] is primary-first. Creates a linked [StoredAccount] per newly-granted
+     * account, prunes the revoked ones and returns their ids so the caller can purge their caches.
+     * Idempotent; never touches a login's meta or secret.
      *
-     * [discovered] is the RAW session list, never one the caller has already filtered: [probes] (one
-     * `Mailbox/get` outcome per non-primary candidate, keyed by JMAP account id) travels alongside it
-     * and is applied inside [diffLinkedAccounts], where it can gate admission without ever causing an
-     * eviction. Handing this a pre-filtered list is what deleted a real shared mailbox on a passing
-     * `forbidden`.
+     * [discovered] is the RAW session list, never one the caller has filtered: [probes] is applied
+     * inside [diffLinkedAccounts], where it gates admission without causing an eviction.
      */
     @Synchronized
     fun reconcileLinkedAccounts(
@@ -873,10 +758,9 @@ class AccountStore(context: Context) {
         val diff = diffLinkedAccounts(login, existingLinked, discovered, probes)
         if (diff.isEmpty()) return emptyList()
 
-        // The list transformation itself lives in [reconciledAccounts], where it can be executed
-        // by a unit test — this module builds no store. It also carries the pruned/re-granted
-        // memory, so a share the server drops for a moment comes back with the settings the user
-        // gave it instead of the constructor's defaults.
+        // The list transformation lives in [reconciledAccounts], where a unit test can execute it.
+        // It also carries the pruned/re-granted memory, so a share the server drops for a moment
+        // comes back with the settings the user gave it.
         val reconciled = reconciledAccounts(list, login, loginId, diff, linkedMemory()) {
             UUID.randomUUID().toString()
         }
@@ -889,19 +773,18 @@ class AccountStore(context: Context) {
     }
 
     /**
-     * Remove an account and cascade: removing a login also removes the sub-accounts linked to it
-     * (their secret is the login's, so they cannot outlive it); removing a single sub-account leaves
-     * the login and its siblings intact. Returns every removed id so the caller can purge caches and
-     * notification baselines. Falls the current account back to a survivor when it was removed.
+     * Remove an account and cascade: removing a login removes the sub-accounts linked to it (their
+     * secret is the login's), while removing one sub-account leaves the login and its siblings.
+     * Returns every removed id so the caller can purge caches and notification baselines.
      */
     @Synchronized
     fun removeCascading(id: String): List<String> {
         val target = account(id) ?: return emptyList()
         val ids = (listOf(id) + if (target.isLinked) emptyList() else linkedAccounts(id).map { it.id }).distinct()
         prefs.edit().apply { ids.forEach { remove(passwordKey(it)) } }.apply()
-        // Read the removed records from the list BEFORE it is filtered: `remaining` holds what
-        // SURVIVES, so it can never name what is going away. Deleting an account IS the user's
-        // decision, and the memory must not resurrect its settings on a later re-grant.
+        // Read the removed records BEFORE the list is filtered: `remaining` holds what SURVIVES and
+        // can never name what is going away. Deleting an account IS the user's decision, and the
+        // memory must not resurrect its settings on a later re-grant.
         val before = accounts()
         val remaining = before.filterNot { it.id in ids }
         saveLinkedMemory(forgetRemovedLinked(linkedMemory(), before.filter { it.id in ids }))
@@ -915,16 +798,12 @@ class AccountStore(context: Context) {
     // ---- backup export / import (configuration only, never secrets) ----
 
     /**
-     * Accounts as a secret-free snapshot for a settings backup: the encrypted password/refresh
-     * token slot is never touched, and the short-lived OAuth access token plus device/sync state
-     * (inbox id/name, unread) are cleared so the file carries only portable configuration.
+     * Accounts as a secret-free snapshot for a settings backup: the encrypted secret slot is never
+     * touched, and the access token plus device/sync state are cleared.
      */
-    // OAuth accounts are excluded: their only secret (the refresh token) can't be exported, and
-    // there is no password prompt to revive them on restore, so a backed-up OAuth account would be
-    // permanently inert. The user re-adds those via the normal OAuth sign-in on the new device.
-    // API-token accounts are excluded for the same reason (the sign-in prompt asks for a password).
-    // Linked sub-accounts (issue #31) are excluded too: they carry no secret of their own and are
-    // re-discovered from the login's session on the first connect after a restore.
+    // OAuth and API-token accounts are excluded: their only secret cannot be exported and there is
+    // no prompt to revive them on restore, so a backed-up one would be permanently inert. Linked
+    // sub-accounts (#31) are excluded too — they carry no secret and are re-discovered on connect.
     fun accountsForBackup(): List<StoredAccount> = accounts()
         .filter { it.authType == AuthType.BASIC && !it.isLinked }
         .map {
@@ -938,17 +817,16 @@ class AccountStore(context: Context) {
         }
 
     /**
-     * Merge backed-up account configuration in. Each incoming account is added ONLY if no existing
-     * account already has the same protocol + server + username (case-insensitive), gets a fresh id,
-     * and is stored WITHOUT a password — so [credentials] returns null and the account stays inert
-     * until the user signs in. Returns how many were actually added; makes the first added account
-     * current only when there were no accounts before. Never overwrites an existing account.
+     * Merge backed-up account configuration in. An incoming account is added only if no existing
+     * one has the same protocol + server + username, gets a fresh id, and is stored WITHOUT a
+     * password — so [credentials] returns null and it stays inert until the user signs in. Returns
+     * how many were added; makes the first current only when there were no accounts before.
      */
     @Synchronized
     fun importAccounts(incoming: List<StoredAccount>): Int {
         val existing = accounts()
-        // One shared identity, in AccountIdentity.kt: a null key means an incoming record with a
-        // blank endpoint or username, which is skipped rather than merged with anything.
+        // One shared identity, in AccountIdentity.kt: a null key means a blank endpoint or
+        // username, which is skipped rather than merged with anything.
         val seen = existing.mapNotNull(::accountKeyOf).toMutableSet()
         val added = mutableListOf<StoredAccount>()
         for (a in incoming) {
@@ -972,8 +850,8 @@ class AccountStore(context: Context) {
     }
 
     /** Attach freshly granted OAuth material to an existing (imported, inert) account, making it
-     *  live: the refresh token goes into the encrypted slot, the access token is cached. Optionally
-     *  corrects the username to the provider's canonical address. Returns false for an unknown id. */
+     *  live. Optionally corrects the username to the provider's canonical address. Returns false
+     *  for an unknown id. */
     @Synchronized
     fun attachOAuth(
         id: String,
@@ -1039,9 +917,8 @@ class AccountStore(context: Context) {
         )
     }
 
-    // [accountName] is the server-derived name; it is intentionally NOT written back
-    // here so a user-chosen display name (set at add time / in account settings) is
-    // never clobbered by a sync. A blank name falls back to the address via label().
+    // [accountName] is the server-derived name; deliberately NOT written back here so a user-chosen
+    // display name is never clobbered by a sync. A blank name falls back to the address via label().
     @Synchronized
     fun saveInboxMeta(mailboxId: String, mailboxName: String, @Suppress("UNUSED_PARAMETER") accountName: String, unread: Int) {
         val id = currentId() ?: return
@@ -1066,25 +943,19 @@ class AccountStore(context: Context) {
 
     // ---- unified inbox (all accounts) ----
 
-    /** (account id, inbox id) pairs across every account — for reads that must stay
-     *  account-scoped even when same-server accounts' mailbox ids collide. The rule itself is
-     *  [UnifiedInbox.scopes], which this only feeds the stored list: one copy, one place to break.
-     *  There is no bare-id twin of this any more (it was Codeberg #121 waiting for a caller);
-     *  a reader outside this module — the home-screen widget — does not reach [UnifiedInbox] at
-     *  all, since it is `internal` to `core:data`: it asks
-     *  `MailRepository.observeUnifiedInboxUnread()` for the finished number. */
+    /** (account id, inbox id) pairs across every account — for reads that must stay account-scoped
+     *  even when same-server accounts' mailbox ids collide. The rule itself is [UnifiedInbox.scopes].
+     * No bare-id twin exists any more (it was #121 waiting for a caller). */
     fun allInboxScopes(): List<Pair<String, String>> = UnifiedInbox.scopes(accounts())
 
     /** Combined unread count across every account, for the unified-inbox header. */
     fun totalUnreadCount(): Int = accounts().sumOf { it.unread }
 
     /**
-     * Mirror a drawer-count nudge into the stored inbox snapshot: when a local action changes
-     * the unread count of [accountId]'s inbox, move the persisted meta too. The JMAP unified
-     * header no longer reads this (it sums the live per-inbox aggregates), but the mirror keeps
-     * the stored counter honest between refreshes for IMAP accounts — whose meta still feeds
-     * "All inboxes (N)" — and for the offline snapshot. No-op unless [mailboxId] is that
-     * account's inbox; the next refresh restores server truth.
+     * Mirror a drawer-count nudge into the stored inbox snapshot. The JMAP unified header no longer
+     * reads this (it sums the live per-inbox aggregates), but the mirror keeps the stored counter
+     * honest between refreshes for IMAP accounts and for the offline snapshot. No-op unless
+     * [mailboxId] is that account's inbox; the next refresh restores server truth.
      */
     @Synchronized
     fun adjustInboxUnread(accountId: String, mailboxId: String, delta: Int) {
@@ -1129,14 +1000,10 @@ class AccountStore(context: Context) {
     // ---- last drawer view ----
 
     /**
-     * The view the mail list was last showing, as an OPAQUE string this store never interprets.
-     *
-     * Its shape belongs to `app.sterna.ui.inbox.SelectionMemory`, in the :app module, which
-     * :core:data cannot see — and that is the point: the selection type stays where it is used and
-     * the store only carries bytes.
-     *
-     * SharedPreferences and not `SettingsRepository`/DataStore: this is read in a ViewModel's
-     * CONSTRUCTOR, to seed the very first list, and a constructor cannot wait on a Flow.
+     * The view the mail list was last showing, as an OPAQUE string this store never interprets: its
+     * shape belongs to `app.sterna.ui.inbox.SelectionMemory`, in the :app module, which :core:data
+     * cannot see. SharedPreferences and not DataStore because it is read in a ViewModel's
+     * constructor, which cannot wait on a Flow.
      */
     fun storedView(): String? = prefs.getString(KEY_VIEW, null)
 
@@ -1145,16 +1012,10 @@ class AccountStore(context: Context) {
     // ---- refresh freshness (#178) ----
 
     /**
-     * When each (account, folder) pair was last reconciled successfully, as an OPAQUE string this
-     * store never interprets.
-     *
-     * Its shape belongs to `app.sterna.ui.inbox.RefreshFreshness`, in the :app module, which
-     * :core:data cannot see — same arrangement as [storedView], and for the same reason: the
-     * decision stays where it is used and the store only carries bytes.
-     *
-     * SharedPreferences and not `SettingsRepository`/DataStore: this is read in a ViewModel's
-     * CONSTRUCTOR, to decide whether the very first reconcile of a cold start is worth firing, and
-     * a constructor cannot wait on a Flow. The cold start IS the case #178 is about.
+     * When each (account, folder) pair was last reconciled successfully, as an OPAQUE string —
+     * shape owned by `app.sterna.ui.inbox.RefreshFreshness` in the :app module, like [storedView].
+     * SharedPreferences because it is read in a ViewModel's constructor, which cannot wait on a
+     * Flow, and the cold start is what #178 is about.
      */
     fun refreshFreshness(): String? = prefs.getString(KEY_FRESHNESS, null)
 
@@ -1163,14 +1024,9 @@ class AccountStore(context: Context) {
     // ---- internals ----
 
     /**
-     * The one place the account blob is written. It goes through [AccountBlobGate.writeGuarded], so
-     * a list computed from an empty read that was really a decode failure is NOT persisted: that
-     * write is what turned an unreadable blob into permanent account loss. The bytes come from the
-     * gate, so there is nothing to store outside the guarded lambda.
-     *
-     * It does not throw when it refuses. A throw would be fifteen new crash paths through the UI
-     * for something the user cannot act on; the refusal costs the setting change that triggered it
-     * and keeps every account.
+     * The one place the account blob is written, through [AccountBlobGate.writeGuarded]: a list
+     * computed from an empty read that was really a decode failure is not persisted — that write is
+     * what turned an unreadable blob into permanent account loss. It does not throw when it refuses.
      */
     private fun saveAccounts(list: List<StoredAccount>) {
         val written = gate.writeGuarded(list) { encoded ->
@@ -1181,13 +1037,8 @@ class AccountStore(context: Context) {
 
     /**
      * The pruned shared mailboxes' settings, keyed by login (see [rememberPrunedLinked]). Read
-     * DEFENSIVELY: any failure — a blob written by a build the user later downgraded from, a
-     * truncated write, anything — answers an EMPTY map.
-     *
-     * This is decoded inside [reconcileLinkedAccounts], on every connect, which is the code path
-     * that MAINTAINS the account list. A throw here would take that path down with it. An empty
-     * answer costs exactly today's behaviour instead: a re-granted share minted from the
-     * constructor, which is what shipped before this memory existed.
+     * defensively — any failure answers an EMPTY map, because this is decoded inside
+     * [reconcileLinkedAccounts] on every connect and a throw would take that path down.
      */
     private fun linkedMemory(): Map<String, List<StoredAccount>> = runCatching {
         prefs.getString(KEY_LINKED_MEMORY, null)
@@ -1196,16 +1047,10 @@ class AccountStore(context: Context) {
     }.getOrDefault(emptyMap())
 
     /**
-     * Store the memory, under its OWN key and deliberately NOT through [AccountBlobGate].
-     *
-     * The gate exists to protect the ACCOUNT LIST: it refuses to write a list computed from a read
-     * that silently failed to decode. Routing this comfort blob through it would let an unreadable
-     * memory refuse the write of KEY_ACCOUNTS — a convenience feature taking the user's accounts
-     * down with it. The [runCatching] is the other half of the same rule: a failed encode must not
+     * Store the memory under its own key and deliberately NOT through [AccountBlobGate]: routing
+     * this comfort blob through the gate would let an unreadable memory refuse the write of
+     * KEY_ACCOUNTS. The [runCatching] is the other half of the same rule — a failed encode must not
      * throw out of [removeCascading], between the password wipe and [saveAccounts].
-     *
-     * Losing this blob entirely costs today's behaviour and never an account. That asymmetry is
-     * why it is allowed to fail quietly, and why nothing here is worth a crash path.
      */
     private fun saveLinkedMemory(memory: Map<String, List<StoredAccount>>) {
         runCatching {
@@ -1240,10 +1085,9 @@ class AccountStore(context: Context) {
 
     private fun passwordKey(id: String) = "pw_$id"
 
-    /** Migrate a pre-multi-account single account into the accounts list once.
-     *  Writes KEY_ACCOUNTS outside [saveAccounts], but needs no publish: the only call that can
-     *  find anything to migrate is the [live] seeding read in the constructor, whose result
-     *  already includes the migrated account. */
+    /** Migrate a pre-multi-account single account into the accounts list once. Writes KEY_ACCOUNTS
+     *  outside [saveAccounts], but needs no publish: the only call that can find anything to
+     *  migrate is the [live] seeding read in the constructor. */
     @Synchronized
     private fun migrateIfNeeded() {
         if (prefs.contains(KEY_ACCOUNTS)) return
@@ -1283,19 +1127,17 @@ class AccountStore(context: Context) {
         const val KEY_ACCOUNTS = "accounts"
         const val KEY_CURRENT = "current"
 
-        // The drawer view the list was last showing, as an OPAQUE string. Deliberately opaque:
-        // `Sel` lives in the :app module, which :core:data does not see, and this store must not
-        // learn to read it. Written and parsed by app.sterna.ui.inbox.SelectionMemory.
+        // The drawer view the list was last showing, as an OPAQUE string: `Sel` lives in the :app
+        // module, which :core:data does not see. Written and parsed by SelectionMemory.
         const val KEY_VIEW = "current_view"
 
-        // When each (account, folder) pair was last reconciled successfully, as an OPAQUE string.
-        // Deliberately opaque, exactly like KEY_VIEW: written and parsed by
-        // app.sterna.ui.inbox.RefreshFreshness, in the :app module this one does not see.
+        // When each (account, folder) pair was last reconciled successfully, as an OPAQUE string,
+        // exactly like KEY_VIEW: written and parsed by RefreshFreshness in the :app module.
         const val KEY_FRESHNESS = "refresh_freshness"
 
         // The settings of shared mailboxes the server has pruned, keyed by login, so a re-granted
-        // share is not minted factory-fresh (LinkedAccountMemory). Comfort state, on its OWN key:
-        // it is written outside the account blob's gate and may be lost without costing an account.
+        // share is not minted factory-fresh (LinkedAccountMemory). Comfort state on its own key: it
+        // sits outside the account blob's gate and may be lost without costing an account.
         const val KEY_LINKED_MEMORY = "linked_account_memory"
         const val KEY_PUSH_ALL = "push_all_accounts"
         const val KEY_APP_LOCK = "app_lock_enabled"

@@ -63,29 +63,16 @@ import kotlinx.coroutines.delay
 /**
  * The background a message row is painted with — one place, three states, in this order.
  *
- * Selection comes first and beats everything: the row's own colour is the *only* sign that a row is
- * selected (no checkbox, no icon, no state description) and selection is what arms the destructive
- * actions, so it may never be hidden behind another state.
+ * Selection comes first and beats everything: the row's own colour is the ONLY sign that a row is
+ * selected, and selection is what arms the destructive actions. Then [current], the row the reading
+ * pane is showing (#103), ahead of the unread tint since the open message is marked read a moment
+ * later anyway. Then an unread row's [ColorScheme.surfaceContainerHighest] — bold text alone was
+ * too faint in the dark scheme (#141) — against a read row's plain surface.
  *
- * Failing that, an unread row takes [ColorScheme.surfaceContainerHighest] and a read one plain
- * [ColorScheme.surface]: in the dark scheme, bold text alone was too faint a difference to read
- * (#141). surfaceContainerHighest is the role picked because it exists in every Material You
- * scheme, is opaque, is distinct from secondaryContainer, and is *not* surfaceContainerHigh — the
- * resting colour of the swipe reveal drawn underneath the row (InboxScreen).
- *
- * [unreadTint] is the reader's answer to that second state (Settings → Appearance → Message list,
- * on by default). Off, this function gives back exactly what it gave before #141: secondaryContainer
- * when selected, plain surface otherwise, with the flash on top. It governs the BACKGROUND only —
- * the bold weight of an unread row is decided elsewhere and never consults it, so a reader who finds
- * the tint too loud still sees which mail is unread.
- *
- * [current] is the row the reading pane beside the list is showing (#103): [ColorScheme.primaryContainer],
- * behind the selection (which arms the destructive actions and must stay the one colour that says
- * so) and ahead of the unread tint (the open message is marked read on settle a moment later anyway).
- *
- * [flash] is the return-from-message emphasis: it tints whichever base was retained, never a branch
- * of its own, so the flash cannot erase the selected or unread state while it plays — and it is not
- * what [unreadTint] switches off.
+ * [unreadTint] is the reader's answer to that last state; off, this gives back exactly what it gave
+ * before #141. It governs the BACKGROUND only, so a reader who finds it loud still sees which mail
+ * is unread. [flash] tints whichever base was retained rather than branching, so it cannot erase
+ * the selected or unread state while it plays.
  */
 internal fun rowBackground(
     scheme: ColorScheme,
@@ -105,47 +92,25 @@ internal fun rowBackground(
 }
 
 /**
- * The fill behind the small rounded chips a row carries: the account chip of the unified inbox, the
- * [ThreadPill] of a collapsed thread, the [DraftLabel]. Decided once per row, because a row is one
- * state — the chips are painted ON the row and have to know what they sit on.
+ * The fill behind the small rounded chips a row carries. Decided once per row, because the chips
+ * are painted ON the row and have to know what they sit on.
  *
- * Until [rowBackground] grew a state (#141) they did not: every chip was
- * [ColorScheme.surfaceVariant] over plain [ColorScheme.surface] and that was enough. An unread row
- * now carries [ColorScheme.surfaceContainerHighest], and in the light scheme those two roles are
- * 0xFFE0E4E9 and 0xFFE1E5E9 — one step out of 255 per channel. The chips did not fade there, they
- * disappeared and left their labels floating, on unread rows only, right next to read rows where
- * the same chips were perfectly visible.
+ * Until [rowBackground] grew a state (#141) every chip was surfaceVariant over plain surface. An
+ * unread row now carries surfaceContainerHighest, and in the light scheme those two roles are one
+ * step out of 255 per channel apart: the chips did not fade, they disappeared and left their labels
+ * floating. surfaceContainerLowest is what an unread row's chips take instead — opaque, in every
+ * Material You scheme, clear of the unread background in both themes, and carrying the chips' own
+ * onSurfaceVariant ink at 6.5:1 in light.
  *
- * [ColorScheme.surfaceContainerLowest] is what an unread row's chips take instead: opaque, present
- * in every Material You scheme, and the best of the free roles at standing clear of the unread
- * background in BOTH themes (30/255 per channel in light, 35/255 in dark). Not the only one —
- * `surface` itself clears it by 22/255 — but the one that also carries the chips' own
- * [ColorScheme.onSurfaceVariant] ink at 6.5:1 in light, where surfaceVariant gave 5.1:1. That ink
- * ratio is prose: nothing in this repo executes a composable, so no test holds it.
+ * The rule is "a chip steps away from its row", not "a chip is darker": tying it to a fixed
+ * direction is what made the light theme swallow them. [unreadTint] has to be the same answer
+ * [rowBackground] got, or a pale chip lands on a pale row.
  *
- * So a chip is darker than its row when the row is read and lighter when it is unread. The rule is
- * "a chip steps away from its row", not "a chip is darker": tying it to a fixed direction is what
- * made the light theme swallow them.
- *
- * [unreadTint] is the same setting [rowBackground] takes, and it has to be the same answer: with the
- * tint off an unread row is plain `surface` again, so lifting its chips to surfaceContainerLowest
- * would fix a collision that is no longer there and put a pale chip on a pale row.
- *
- * **Two rows this function does NOT rescue, both exactly as [ColorScheme.surface] left them before
- * #141 and both filed rather than fixed here:**
- *
- *  - a **selected** row is [ColorScheme.secondaryContainer], and a surfaceVariant chip sits at
- *    1.02:1 on it in the light scheme — it reads by hue, not by lightness, and under a monochrome
- *    Material You palette the two roles are the same tone and the chip is simply gone. Saying
- *    "no unread tint touches it, so it keeps surfaceVariant" is the reasoning-by-role-name that
- *    produced the defect above; it is true and it is not enough.
- *  - during the **return flash** [rowBackground] lerps a read row toward `primary`, and around the
- *    peak it passes within ~5/255 of surfaceVariant: the chip vanishes for a fraction of a second,
- *    on every return to the list. [flash] is deliberately not a parameter here — adding it would
- *    make a chip change colour mid-animation, which is a bigger change than the defect.
- *
- * Both predate this branch (`main` already lerps a surfaceVariant chip's row under it) and neither
- * is what #141 reported.
+ * Two rows this does NOT rescue, both as surface left them before #141 and both filed rather than
+ * fixed: a SELECTED row, where a surfaceVariant chip reads by hue and vanishes under a monochrome
+ * palette; and the RETURN FLASH, which passes within ~5/255 of surfaceVariant at its peak. [flash]
+ * is deliberately not a parameter — a chip changing colour mid-animation is a bigger change than
+ * the defect.
  */
 internal fun chipFill(
     scheme: ColorScheme,
@@ -158,10 +123,8 @@ internal fun chipFill(
  * One row in a message list: monogram, sender, subject, preview, time + state.
  *
  * [originLabel] is the one chip that says WHERE this row comes from: the owning ACCOUNT in the
- * unified inbox and in search, the row's own FOLDER in the unread view (which pages every folder of
- * one account, so the same object can legitimately appear twice — see `unreadRowFolder`). One
- * slot, and the two never coexist: whichever view is on screen, only one of them is a question the
- * reader is asking. Null draws no chip at all.
+ * unified inbox and in search, the row's own FOLDER in the unread view. One slot, and the two
+ * never coexist. Null draws no chip at all.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -176,33 +139,28 @@ fun EmailListItem(
     // The message open in the reading pane beside the list, on a wide window (#103).
     current: Boolean = false,
     onLongClick: (() -> Unit)? = null,
-    // In conversation view: the thread's unread state and how many of its messages are in
-    // the viewed folder(s) — the pill shows this in-view count.
+    // In conversation view: the thread's unread state and how many of its messages are in the
+    // viewed folder(s) — the pill shows this in-view count.
     unread: Boolean = !email.isSeen,
     threadCount: Int = 1,
-    // Whether the row is a conversation at all (2+ cached messages account-wide). Keeps the
-    // pill — and with it the unfold affordance — visible even when only one of the thread's
-    // messages sits in this view (the rest in Sent, say).
+    // Whether the row is a conversation at all (2+ cached messages account-wide). Keeps the pill
+    // visible even when only one of the thread's messages sits in this view.
     threadExpandable: Boolean = threadCount > 1,
-    // Conversation expand affordance: when the row is a thread and a handler is given, the
-    // count badge becomes a tappable chevron pill that unfolds the thread inline.
-    // [expanded] drives the chevron direction and the accessibility expanded/collapsed state.
+    // Conversation expand affordance: with a handler given, the count badge becomes a tappable
+    // chevron pill. [expanded] drives its direction and the accessibility state.
     onToggleExpand: (() -> Unit)? = null,
     expanded: Boolean = false,
     // Brief emphasis flash when returning to the list from this message.
     highlighted: Boolean = false,
     onHighlightShown: () -> Unit = {},
-    // In Sent/Drafts the sender is yourself, so the row shows who the mail went TO
-    // instead (Codeberg #59). Falls back to the sender while a cached row carries no
-    // recipients (e.g. offline before the folder's first refresh).
+    // In Sent/Drafts the sender is yourself, so the row shows who the mail went TO instead (#59).
+    // Falls back to the sender while a cached row carries no recipients.
     showRecipients: Boolean = false,
-    // Whether to mark the row "(Draft)". The `$draft` keyword is kept in memory only, so it is
-    // gone after process death and never set at all on IMAP; the caller that holds the folder-role
-    // map answers with the message's own folder as well (see showsDraftBadge). The default is the
-    // keyword alone — exactly today's behaviour for the call site that has no role map (search).
+    // Whether to mark the row "(Draft)". The `$draft` keyword is in memory only, so it is gone
+    // after process death and never set at all on IMAP; the caller holding the folder-role map
+    // answers with the message's own folder too. The default is the keyword alone.
     showDraftBadge: Boolean = email.isDraft,
-    // Whether to mark the row as a draft this phone is still holding for the server (#95). Default
-    // false: no other list shows such a row, and no other caller can answer the question.
+    // Whether to mark the row as a draft this phone is still holding for the server (#95).
     showNotUploadedBadge: Boolean = false,
 ) {
     val senderName = email.from.firstOrNull()?.display() ?: stringResource(R.string.message_unknown_sender)
@@ -213,9 +171,9 @@ fun EmailListItem(
         senderName
     }
     val density = LocalListDensity.current
-    // Read once, here: both decisions below take it as an argument, so a row cannot answer the
-    // question "is this row tinted?" twice and differently. Not a remember {} — that would freeze
-    // the row on the value it was first composed with and leave the list half-tinted after a change.
+    // Read once, here, and passed to both decisions below, so a row cannot answer "is this row
+    // tinted?" twice and differently. Not a remember {}, which would freeze the row on its first
+    // value and leave the list half-tinted after a change.
     val unreadTint = LocalUnreadTint.current
     val rowPadding = when (density) {
         ListDensity.COMPACT -> 6.dp
@@ -224,19 +182,18 @@ fun EmailListItem(
     }
     val previewLines = LocalPreviewLines.current.lines
     // Today → the time, this year → day and month, any other year → a short numeric date, so a
-    // 2019 row and a 2026 one can no longer read the same. Numeric on that last step to keep the
-    // stamp narrow: it shares this line with the sender's name, which must not be the field that
-    // yields. Shared with search, the one view that mixes years by construction.
+    // 2019 row and a 2026 one cannot read the same. Numeric on that last step to keep the stamp
+    // narrow: it shares this line with the sender's name.
     val receivedLabel = remember(email.receivedAt) { MailDates.formatListDate(email.receivedAt) }
     val motionOn = rememberMotionEnabled()
-    // Return-from-message emphasis: a soft accent tint that rises then fades over ~1s, so the
-    // eye lands on the row just left. Skipped (and consumed at once) under reduced motion.
+    // Return-from-message emphasis: a soft accent tint that rises then fades, so the eye lands on
+    // the row just left. Skipped, and consumed at once, under reduced motion.
     val highlight = remember { Animatable(0f) }
     LaunchedEffect(highlighted) {
         if (!highlighted) return@LaunchedEffect
         if (motionOn) {
-            // Small lead-in so the flash lands just after the list is back, not the instant
-            // the return transition starts (which read as a touch by mistake).
+            // Small lead-in so the flash lands just after the list is back, rather than at the
+            // start of the return transition, where it read as a touch by mistake.
             delay(100)
             highlight.animateTo(1f, tween(160))
             highlight.animateTo(0f, tween(840, easing = FastOutSlowInEasing))
@@ -244,15 +201,12 @@ fun EmailListItem(
         onHighlightShown()
     }
     // Entering multi-select ticks, the way K-9 and every list built on the old View system do:
-    // there, View.performLongClick() fires the haptic itself. Compose's combinedClickable does
+    // there View.performLongClick() fires the haptic itself, while Compose's combinedClickable does
     // not (foundation 1.7), so a long-press dropped the reader into selection mode with no
-    // confirmation at all — the one gesture in the list that changes what every later tap means.
-    // Kept here rather than at the two call sites so the top-level row and the conversation
-    // child cannot drift apart, and so a row with no selection to enter (search results pass no
-    // onLongClick) stays silent.
+    // confirmation at all. Kept here rather than at the call sites so the top-level row and the
+    // conversation child cannot drift apart.
     // NOTE when Compose is next bumped: foundation 1.8 added `hapticFeedbackEnabled = true` to
-    // combinedClickable, which performs this same tick itself. Drop this wrapper then, or the
-    // long-press buzzes twice.
+    // combinedClickable, which performs this tick itself. Drop this wrapper then, or it buzzes twice.
     val haptics = LocalHapticFeedback.current
     val enterSelection = onLongClick?.let { enter ->
         {
@@ -282,11 +236,9 @@ fun EmailListItem(
             .padding(start = 16.dp, end = 4.dp, top = rowPadding, bottom = rowPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The initials are the reader's to remove (#144): on SimpleLogin-style mail nobody has an
-        // avatar and the column is a stack of identical circles. The Spacer is INSIDE the guard —
-        // left outside, its 12 dp would add to the Row's own padding(start = 16.dp) and leave a
-        // dead band at the start of every row with nothing in it. The setting is read here rather
-        // than passed in, so all three call sites of this row follow it by construction.
+        // The initials are the reader's to remove (#144). The Spacer is INSIDE the guard: left
+        // outside, its 12 dp would add to the Row's own start padding and leave a dead band at the
+        // start of every row. Read here rather than passed in, so all three call sites follow it.
         if (LocalListMonogram.current) {
             Monogram(
                 seed = (recipient ?: email.from.firstOrNull())?.email ?: senderName,
@@ -305,15 +257,15 @@ fun EmailListItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                // A trashed draft now shows its recipient like a sent mail (#69, 1.3.11), so mark
-                // it "(Draft)" wherever it surfaces (Trash especially) to keep the two apart.
+                // A trashed draft shows its recipient like a sent mail (#69), so mark it "(Draft)"
+                // wherever it surfaces to keep the two apart.
                 if (showDraftBadge) {
                     Spacer(Modifier.width(6.dp))
                     DraftLabel(fill = chipBackground)
                 }
-                // A second chip, right of "(Draft)": the phone is still holding this draft for the
-                // server (#95). Two chips rather than one combined label so a draft that HAS been
-                // uploaded and one that has not read the same up to the extra word.
+                // A second chip, right of "(Draft)": the phone is still holding this one for the
+                // server (#95). Two chips rather than one label, so an uploaded draft and a held
+                // one read the same up to the extra word.
                 if (showNotUploadedBadge) {
                     Spacer(Modifier.width(6.dp))
                     NotUploadedLabel(fill = chipBackground)
@@ -336,13 +288,10 @@ fun EmailListItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                // Conversation pill — only when 2+ of the thread's messages are actually in
-                // this view. The pill is gated on both [threadExpandable] (a real thread
-                // account-wide) and [threadCount] > 1: without the count guard a thread whose
-                // other messages sit outside this and the Sent view (e.g. Trash) would show a
-                // bogus "(1)" pill (Codeberg #75). The in-view count plus a chevron that unfolds
-                // the thread inline; tappable when a handler is given (the browse list),
-                // otherwise a static count badge (e.g. search results).
+                // Conversation pill — only when 2+ of the thread's messages are in this view.
+                // Gated on both [threadExpandable] and [threadCount] > 1: without the count guard
+                // a thread whose other messages sit in Trash would show a bogus "(1)" pill (#75).
+                // Tappable when a handler is given, otherwise a static count badge.
                 if (threadExpandable && threadCount > 1) {
                     Spacer(Modifier.width(6.dp))
                     ThreadPill(
@@ -366,8 +315,7 @@ fun EmailListItem(
             }
             originLabel?.takeIf { it.isNotBlank() }?.let { label ->
                 Spacer(Modifier.size(4.dp))
-                // Tint the chip with the account's accent colour when there is one (there is none
-                // to tint a folder with, so the folder name takes the plain chip).
+                // Tint the chip with the account's accent when there is one; a folder has none.
                 val chipColor = originColor ?: MaterialTheme.colorScheme.primary
                 Text(
                     text = label,
@@ -385,8 +333,7 @@ fun EmailListItem(
                 )
             }
         }
-        // A small paperclip flags rows whose message carries an attachment — sits just
-        // left of the favourite star, mirroring the star's muted weight until earned.
+        // A small paperclip flags rows carrying an attachment, left of the favourite star.
         if (email.hasAttachment) {
             Spacer(Modifier.width(4.dp))
             Icon(
@@ -397,13 +344,13 @@ fun EmailListItem(
             )
         }
         if (onToggleFavourite != null) {
-            // The ★/☆ glyph is meaningless to a screen reader, so replace its
-            // semantics with a clear, state-aware label + button role.
+            // The ★/☆ glyph is meaningless to a screen reader, so its semantics are replaced with
+            // a state-aware label and a button role.
             val favLabel = stringResource(
                 if (email.isFlagged) R.string.a11y_unfavourite else R.string.a11y_favourite,
             )
-            // Micro-pop: favouriting springs the star and pops it to coral — the one
-            // place vivid coral is earned (a positive, deliberate action).
+            // Micro-pop: favouriting springs the star and pops it to coral — the one place vivid
+            // coral is earned.
             val pop = remember { Animatable(1f) }
             var firstPass by remember { mutableStateOf(true) }
             LaunchedEffect(email.isFlagged) {
@@ -437,14 +384,11 @@ fun EmailListItem(
 }
 
 /**
- * The conversation pill on a collapsed thread row: a message [count] and a chevron that
- * unfolds the thread inline. Tappable when [onToggleExpand] is given (the browse list);
- * a plain count badge otherwise (e.g. search results, which can't expand in place). The
- * chevron flips on [expanded]; screen readers get a labelled button with an expanded/
- * collapsed state, so the affordance is never conveyed by the glyph alone.
- *
- * [fill] is handed down rather than read from the theme here: the pill's fill depends on the row it
- * sits on, which only the row knows (see [chipFill]).
+ * The conversation pill on a collapsed thread row: a message [count] and a chevron that unfolds the
+ * thread inline. Tappable when [onToggleExpand] is given, a plain count badge otherwise; screen
+ * readers get a labelled button with an expanded/collapsed state, so the affordance is never
+ * conveyed by the glyph alone. [fill] is handed down rather than read from the theme, the pill's
+ * fill depending on the row it sits on (see [chipFill]).
  */
 @Composable
 private fun ThreadPill(
@@ -501,16 +445,12 @@ private fun ThreadPill(
 
 /**
  * A light "(Draft)" chip on a list row whose message is a draft (#69). Matches the static
- * [ThreadPill]'s muted weight so it reads as a marker, not an action; purely informational, so it
- * carries no click or extra semantics (the label text is read out as part of the row).
- *
- * [fill] is handed down rather than read from the theme here, for the reason given on [chipFill]:
- * the chip has to know which row it is painted on.
+ * [ThreadPill]'s muted weight so it reads as a marker, not an action, and carries no click or extra
+ * semantics. [fill] is handed down for the reason given on [chipFill].
  */
 /**
- * The chip next to "(Draft)" on a draft this phone holds and the server has not got yet (#95).
- * Same muted weight as [DraftLabel] and just as informational: the row it sits on has no action of
- * its own until the draft is uploaded.
+ * The chip next to "(Draft)" on a draft this phone holds and the server has not got yet (#95). Just
+ * as informational: the row has no action of its own until the draft is uploaded.
  */
 @Composable
 private fun NotUploadedLabel(fill: Color) {

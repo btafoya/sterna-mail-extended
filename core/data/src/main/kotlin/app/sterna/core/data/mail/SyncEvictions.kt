@@ -5,25 +5,8 @@ import app.sterna.core.data.db.EmailRetentionRow
 import app.sterna.core.data.getOrElseUnlessCancelled
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * Which cached ids a mailbox delta evicts. Pure decision logic of
- * [MailRepository.syncMailbox]'s incremental branch, extracted for unit tests:
- *
- * - A row present in both `removed` and `added` merely changed position (a reorder,
- *   e.g. favouriting pins to the top) — it is NOT evicted (no delete+re-add blink).
- * - `destroyed` ids and genuinely-removed ids are evicted, EXCEPT those under
- *   [isProtected] (the recently-mutated spare): a delta computed from a pre-mutation
- *   query state can report a just-flagged row as `removed` even though it only changed
- *   a keyword, and evicting it would drop a live message (audit C9's protection).
- *
- * The spare can therefore eat a REAL destroy notice while the cursors advance past it —
- * a one-shot loss no later delta repeats. The ghost sweep ([ghostEvictions]) is what heals that,
- * so the protection here stays strict — but NOT necessarily in the same sync cycle: the sweep runs
- * only when [shouldSweepGhosts] lets it, which since Codeberg #107 is at worst one
- * [GHOST_SWEEP_MIN_INTERVAL_MS] later, whatever the deltas do or do not say. Which ids the spare
- * kept, and whether the delta called them destroyed or merely removed, is reported by
- * [sparedEvictions] to the sync log so the two can be told apart on a device instead of inferred.
- */
+/** An id in both `removed` and `added` only changed position. [isProtected]'s spare can swallow a
+ *  real destroy, which [ghostEvictions] heals (#107). */
 internal fun deltaEvictions(
     removed: List<String>,
     added: Set<String>,
@@ -31,106 +14,40 @@ internal fun deltaEvictions(
     isProtected: (String) -> Boolean,
 ): List<String> = ((removed.toSet() - added).toList() + destroyed).filterNot(isProtected)
 
-/**
- * Which of a delta's [candidates] may actually be DELETED from the cache: only those the cache
- * still holds IN THAT MAILBOX ([cachedInMailbox]).
- *
- * [deltaEvictions] answers a question about one folder — "the server says this id is no longer in
- * the query of mailbox X". The delete it feeds answers a wider one: a cached row is keyed
- * `(accountId, id)`, one row per message per account, with the folder written in a COLUMN
- * (`EmailEntity.mailboxId`), and `EmailDao.deleteByIds` names no folder in its `WHERE`. So evicting
- * an id whose row has meanwhile moved to another folder deletes the message from the folder it is
- * actually in — plus its FTS entry — although the server never said it was gone.
- *
- * Measured on the bench, 2026-08-17: unarchive a message (Archive → Inbox), let it settle in the
- * Inbox, then pull to refresh the unread view, which syncs Archive as well. Archive's delta
- * correctly reports the id as removed FROM ARCHIVE; the row, already saying "Inbox", is deleted.
- * The message survives no refresh and no cold start: 10 messages on the server, 5 rows in the app.
- *
- * The gate closes the other direction too, and that is wanted: a message moved Inbox → Archive by
- * another client was lost whenever the Archive delta (which adds it) ran BEFORE the Inbox delta
- * (which removes it) — the order the folders happened to be synced in decided whether mail
- * survived.
- *
- * What this deliberately spares as well: a `destroyed` id whose row has already moved on. The
- * message really is gone server-side, so the row it leaves behind is a ghost — but only a ghost,
- * and the existence sweep of the folder it now sits in ([ghostEvictions]) removes it, whereas
- * telling the two shapes apart here would mean trusting `changes.destroyed` with a folderless
- * delete, which is exactly the statement that lost the mail above. Keeping too much heals; deleting
- * too much does not.
- */
+/** Only ids the cache still holds in that mailbox: `EmailDao.deleteByIds` names no folder, so
+ *  evicting an id whose row has moved meanwhile would delete it from the folder it is now in. */
 internal fun mailboxScopedEvictions(
     candidates: List<String>,
     cachedInMailbox: Set<String>,
 ): List<String> = candidates.filter { it in cachedInMailbox }
 
-/**
- * Which of [candidates] the SERVER confirms have really left [mailboxId] — the gate a notification
- * banner has to pass before it is taken down (Codeberg #134).
- *
- * Why a delta eviction is NOT enough on its own, in [MailRepository]'s own words: "an email stays
- * in its mailbox after a flag change, but the first `Email/queryChanges` run from the pre-change
- * queryState can still report it as `removed` (some servers do this for any changed row under
- * thread-collapsing)". The only spare against that ([MailRepository]'s recently-mutated window)
- * knows about mutations THIS app made. A star, a label or any keyword put on an UNREAD message
- * from another client therefore arrives as a "departure" protected by nothing — and cancelling
- * its banner hides live, unread mail that the user will never see go past. So the delta only ever
- * NAMES candidates; where the message is, is asked.
- *
- * [locate] is the server read (`Email/get` on `mailboxIds`); ids it does not return are ids the
- * server no longer has, and those are gone for real. It is a supplier rather than a client so this
- * decision — including its failure behaviour — can be executed by a JVM test.
- *
- * THE SIGN OF THE ERROR IS THE OPPOSITE OF THE DESTROY PATH'S, and this is the only place in
- * this file where that is true. `MailRepository.idsStillOnlyIn` deliberately lets a failed location
- * read PROPAGATE: it destroys mail, so "the server never answered" may not be read as "go ahead".
- * Here the action is cosmetic and the pass it rides on has new mail to announce, so a failed or
- * unreadable answer must confirm NOTHING and take the whole notification pass down with it even
- * less: an offline pass leaves the banners exactly where they are. That is a caught failure on
- * purpose — not an oversight.
- *
- * A cancellation is not a failure and still propagates ([getOrElseUnlessCancelled]): the pass it
- * belongs to has been called off.
- */
+/** The gate a notification banner passes before it is taken down (#134): a delta alone is not
+ *  enough, a keyword set from another client being reported as `removed`. A failed [locate] confirms
+ *  nothing and is swallowed on purpose, the action being cosmetic. */
 internal suspend fun confirmedDepartures(
     candidates: List<String>,
     mailboxId: String,
     locate: suspend (List<String>) -> Map<String, Set<String>>,
 ): List<String> {
-    // Nothing to confirm, or no folder to confirm against: ask nothing. The common pass — no
-    // departure, or none with a banner left on screen — costs exactly zero requests here.
     if (candidates.isEmpty() || mailboxId.isBlank()) return emptyList()
     val located = runCatching { locate(candidates) }.getOrElseUnlessCancelled { return emptyList() }
     return candidates.filter { id ->
-        // Absent from the answer = `notFound` = the server does not have it at all (the deletion
-        // from another client that #134 is about). Present, but not in this folder = it moved out.
-        // Present and still in this folder = the flag change above: it keeps its banner.
+        // Absent = gone from the server; present but elsewhere = moved out; present here = a flag.
         val folders = located[id] ?: return@filter true
         mailboxId !in folders
     }
 }
 
-/** Why [deltaEvictions] kept a cached id the delta named. Ordered by severity for the log. */
+/** Why [deltaEvictions] kept a cached id, ordered by severity for the log. Only [DESTROY] leaves a
+ *  true ghost; [REMOVAL] is usually a stale keyword change. */
 internal enum class SpareReason(val log: String) {
-    /** The server said the message NO LONGER EXISTS and the spare kept the row anyway — the
-     *  one-shot loss the class doc warns about, and the only shape that leaves a true ghost. */
     DESTROY("destroy"),
 
-    /** The server said the message left this mailbox. Usually benign (a keyword change reported
-     *  off a pre-mutation query state, which is exactly what the spare exists for). */
     REMOVAL("removal"),
 }
 
-/**
- * The ids [deltaEvictions] would have evicted but did not, each with what the delta said about it.
- * Purely for the sync log: it turns the class doc's admission ("the spare can eat a REAL destroy
- * notice") into something readable on a device, so a surviving ghost can be attributed instead of
- * guessed at. Same inputs and same [isProtected] as [deltaEvictions] — pass the SAME predicate
- * instance, or the log can disagree with what was actually evicted.
- *
- * [SpareReason.DESTROY] wins over [SpareReason.REMOVAL] when a delta reports both: an id the server
- * has destroyed is gone whatever the query says about its membership.
- */
+/** The ids [deltaEvictions] would have evicted but did not, for the sync log. Pass the same
+ *  [isProtected] instance, or the log can disagree with what was actually evicted. */
 internal fun sparedEvictions(
     removed: List<String>,
     added: Set<String>,
@@ -144,84 +61,24 @@ internal fun sparedEvictions(
         .map { it to if (it in destroyedIds) SpareReason.DESTROY else SpareReason.REMOVAL }
 }
 
-/**
- * Which cached ids the ghost sweep evicts: exactly the cached ids the server explicitly
- * reported `notFound` on an ids-only `Email/get`. The recently-mutated spare is
- * deliberately NOT consulted: that spare protects live rows from STALE SNAPSHOT queries,
- * whereas `Email/get` by id is an authoritative point lookup — an id in `notFound` cannot
- * belong to a live message, so pruning it can never re-open the spare's bug classes, and
- * a destroyed id can't be "protected back to life".
- *
- * [notFound] is NULL when the check did not answer at all — a transport error, a malformed
- * response, or a chunked sweep whose second request threw after the first had answered. That
- * case must prune NOTHING (an unanswered question is not a "no"), and it is expressed as a
- * distinct value rather than as an empty set so the rule lives in one testable place instead
- * of in a `return` the caller has to remember to write. Deleting less is the safe error here;
- * deleting more destroys mail.
- */
+/** Only ids the server explicitly reported `notFound`. The recently-mutated spare is deliberately
+ *  not consulted, a point lookup being authoritative; a null [notFound] prunes nothing. */
 internal fun ghostEvictions(cachedIds: List<String>, notFound: Set<String>?): List<String> =
     if (notFound.isNullOrEmpty()) emptyList() else cachedIds.filter { it in notFound }
 
-/**
- * What an incremental delta has to FETCH from the server: the ids it reports as `added` that the
- * cache has never held, plus the cached rows it reports as `updated` (a keyword changed, so the
- * row must be re-read). Deduplicated, because an id can be both.
- *
- * Named rather than left inline because of what happens to its result AFTERWARDS: every id here
- * is written to the cache by the end of the sync, so this is also exactly what the retention prune
- * must spare — it is the delta branch's answer to [retentionEvictions]'s `freshIds`. A sync that
- * fetches rows and does not report them lets the prune delete, in the same cycle, mail the server
- * has just handed over (Codeberg #110 on the delta branch: an old message filed into a deep folder
- * by a Sieve rule or another client).
- */
+/** `added` ids the cache has never held, plus cached rows reported `updated`. Every id here lands in
+ *  the cache by the end of the sync, so it is also the delta branch's `freshIds` for
+ *  [retentionEvictions] (#110). */
 internal fun deltaFetches(
     added: Set<String>,
     cachedIds: Set<String>,
     updated: List<String>,
 ): List<String> = ((added - cachedIds) + updated.filter { it in cachedIds }).distinct()
 
-/**
- * Which cached ids the RETENTION window evicts after a refresh landed — the "Messages to sync"
- * setting applied to one mailbox, as opposed to [deltaEvictions]/[ghostEvictions], which act on
- * what the SERVER said. Nothing here is authoritative about the message still existing: every id
- * this returns is a message the server still has and that we are choosing not to keep offline.
- *
- * A row is evicted only when ALL of the following hold:
- * - it is dated (`sortKey > 0`) and older than [cutoffMillis]. An undated row is undated, not
- *   ancient — the old SQL prune already spared those and this keeps it;
- * - it is not in [freshIds], what the sync that triggered this prune just fetched from the
- *   server — a full query's whole page, or a delta's newly-fetched rows;
- * - it is not in [spareIds], the recently-mutated protection set;
- * - it is not among the [keepNewest] newest rows of the mailbox.
- *
- * The [freshIds] clause is Codeberg #110. The window bounds what we keep IN ADDITION to what the
- * server just handed us; it may not delete that. Without it a ten-message folder whose eight
- * oldest predated the window showed all ten (the page had landed) and then dropped to two a
- * moment later (the prune ran) — the flicker the reporter described, and mail the server was
- * still offering. The user's own setting was destroying the folder's real contents rather than
- * bounding them.
- *
- * [spareIds] is the same set `EmailDao.replaceMailbox` hands `deleteNotInSparing`, and it is here
- * because on the refresh paths this prune runs on, the cache is EXACTLY the fresh page plus that
- * spare set — so without this clause the recently-mutated rows are the only reachable victims
- * left, and the prune undoes, a few lines later in the same function, precisely what the reconcile
- * had just protected. The concrete loss: delete a 2019 message in a deep folder, undo, refresh —
- * the restored row is outside the page and outside the window, and it went.
- *
- * [keepNewest] is what an age window was always missing. `SyncWindow` has carried a count next to
- * every age (`DAYS_90` is 200 messages OR 90 days) but the count only ever capped the FETCH, so
- * retention had one number to work with and a quiet folder could be emptied down to whatever
- * happened to be recent. Read as a FLOOR — keep at least the newest N, whatever their age — a
- * ten-message folder keeps its ten and a busy one still keeps only its ninety days. This is not a
- * substitute for the clauses above: on a folder deeper than N, what the server just sent and what
- * the reconcile just spared each still need sparing in their own right.
- *
- * [freshIds] is NULL when the caller cannot say what the sync fetched, and that case prunes
- * NOTHING — the same contract, for the same reason, as [ghostEvictions]'s `notFound`: not knowing
- * is not the same as knowing there was nothing, and only one of the two mistakes destroys mail. A
- * future path that forgets to report its fetches therefore fails by keeping too much, which is the
- * survivable direction; it cannot silently go back to deleting the folder it just filled.
- */
+/** Which cached ids the retention window evicts after a refresh, none of them authoritative: the
+ *  server still has every one. A row goes only when dated (`sortKey > 0`), older than [cutoffMillis],
+ *  and outside [freshIds] (what the sync just fetched, #110), [spareIds] and the [keepNewest] newest
+ *  rows; a null [freshIds] prunes nothing. */
 internal fun retentionEvictions(
     cached: List<EmailRetentionRow>,
     cutoffMillis: Long,
@@ -230,13 +87,9 @@ internal fun retentionEvictions(
     keepNewest: Int,
 ): List<String> {
     if (freshIds == null) return emptyList()
-    // The ordinary case for a mailbox the user never scrolled back through: the whole cache is
-    // inside the floor, so nothing can be evicted and the sort below is not worth doing.
     if (cached.size <= keepNewest) return emptyList()
     val floor = cached
-        // Ties broken on id so the floor is a function of the rows and not of the order SQLite
-        // handed them back: two messages can share a sortKey to the millisecond, and a prune that
-        // kept a different one on each refresh would flicker a row in and out of the list.
+        // Ties broken on id: a floor depending on SQLite's row order flickers a row in and out.
         .sortedWith(compareByDescending<EmailRetentionRow> { it.sortKey }.thenBy { it.id })
         .take(keepNewest)
         .mapTo(HashSet()) { it.id }
@@ -248,26 +101,9 @@ internal fun retentionEvictions(
         .map { it.id }
 }
 
-/**
- * Which cached ids a FULL-QUERY reconcile drops, in batches no single statement can choke on —
- * `EmailDao.replaceMailbox`'s decision, extracted here to be executed in a JVM test.
- *
- * Why a complement and not a `NOT IN (:keepIds)`: SQLite binds at most 999 variables below
- * Android 12 ([MAX_CHANGES] is this file's bound for exactly that reason, Codeberg #29), and a
- * full sync window is up to 10 000 ids (it was 1 000 when this was written, and for a while it was
- * a whole folder) — so the reconcile of a big window bound MORE variables
- * than the engine accepts and threw. The throw landed before the sync cursor was stored, so the
- * next refresh took the same full query again: the closed loop the paging fix had just opened,
- * one layer down. Unreachable before that fix (the request failed earlier), reachable after it.
- *
- * And why the complement is computed ONCE, against the WHOLE [keepIds]: chunking a
- * `NOT IN (:keepIds)` into several statements would delete everything outside each chunk in turn,
- * i.e. the entire folder. The set to delete is decided first and only then cut up; each batch is
- * then a plain list of ids to remove, and cutting it differently can never change what goes.
- *
- * [spareIds] are the recently-mutated ids a stale page must not clobber, exactly as
- * `EmailDao.deleteNotInSparing` spared them.
- */
+/** Which cached ids a full-query reconcile drops, in batches no statement can choke on. Computed as
+ *  a complement against the whole [keepIds] before chunking: SQLite binds at most 999 variables below
+ *  Android 12 (#29), and chunking a `NOT IN` would delete the whole folder. */
 internal fun reconcileEvictions(
     cachedIds: List<String>,
     keepIds: Set<String>,
@@ -276,67 +112,15 @@ internal fun reconcileEvictions(
 ): List<List<String>> =
     cachedIds.filter { it !in keepIds && it !in spareIds }.chunked(chunk)
 
-/**
- * Which of the rows a reconcile just read it is ALLOWED to consider for eviction — the bound that
- * makes a full re-query safe against writes it is racing (Codeberg #165).
- *
- * The problem this exists for, and why it is a filter on the CACHED side rather than one more
- * thing added to the keep set. `EmailDao.reconcileMailboxRows` re-reads the folder itself, inside
- * its transaction, AFTER the walk is over: [cachedIds] is therefore a snapshot from a moment the
- * caller never saw. Everything that landed in the folder between the caller's own reading of it
- * and that re-read — the push socket, the 30-minute worker, a second refresh, none of them locked
- * out — is in [cachedIds], is in no page of the walk, and is in no keep set. It gets deleted, and
- * on JMAP a sync cursor is stored immediately afterwards, so it never comes back. It is the newest
- * mail in the folder, structurally: the walk pages by anchor from the top and never comes back up.
- *
- * [evictableIds] is the folder as it stood BEFORE the walk started. A row that was not there then
- * cannot have been described by the walk, so nothing this reconcile knows can justify deleting it;
- * a row that WAS there and that no page named is stale exactly as it always was, and still goes.
- * Which is why this is one filter and not an addition to the keep set: an addition would have to
- * be computed from a second read, and that read is on the wrong side of the transaction — there is
- * no moment at which the caller can enumerate what the DAO is about to see.
- *
- * NULL means NO BOUND, i.e. exactly the behaviour that shipped before this existed: everything
- * the folder holds is a candidate. It is not the same thing as an empty set, and the difference is
- * the whole risk of this argument — an EMPTY bound means "evict nothing, ever", which silently
- * turns the reconcile off: the cache then grows without limit and a message destroyed on the server
- * never leaves the list. A caller that cannot say which folder it is about to reconcile
- * (`MailRepository.imapWriteThrough` on an unnamed mailbox) must therefore pass null, never
- * `emptySet()`.
- */
+/** The bound making a full re-query safe against writes it races (#165): the DAO re-reads the folder
+ *  after the walk, so [cachedIds] holds whatever landed meanwhile. [evictableIds] is the folder as it
+ *  stood before the walk; null means no bound, an empty set turns the reconcile off. */
 internal fun evictableCachedIds(cachedIds: List<String>, evictableIds: Set<String>?): List<String> =
     if (evictableIds == null) cachedIds else cachedIds.filter { it in evictableIds }
 
-/**
- * Whether this sync cycle should run a mailbox's existence sweep. The sweep costs one
- * `Email/get` per 200 cached rows, so it cannot ride on every incremental sync — and it would,
- * if it keyed off [stateAdvanced] alone: `Email/changes`' state is ACCOUNT-WIDE, so it advances
- * on any activity anywhere in the account (another folder, a flag change, a delivery).
- *
- * The gate keeps both halves of the ghost invariant while cutting the recurring cost:
- * - [firstThisSession]: the once-per-mailbox-per-process sweep. Usually subsumed by the floor for
- *   a mailbox never swept in this process (its elapsed time counts from zero), but not always —
- *   the clock is monotonic-since-boot, so an app started in the first minutes after a reboot has
- *   not "waited" an interval yet. What this clause carries beyond that is the RETRY of a sweep
- *   that failed in transport — see [GhostSweepSchedule.releaseFailed].
- * - [vanishedFromMailbox]: THIS mailbox's delta reported an id genuinely leaving it, which is
- *   the shape of a destroy the recently-mutated spare can eat — sweep at once, no waiting.
- * - [millisSinceLastSweep] ≥ [minIntervalMs]: the floor, and it is UNCONDITIONAL — it does not
- *   sit behind [stateAdvanced] (Codeberg #107).
- *
- * Why the floor may not depend on the state having moved (the #107 fix, measured on the bench):
- * Stalwart reports a delegated account's destroys in NEITHER delta, so the row is lost while the
- * cursors advance past it; every later sync of that quiet account then compares EQUAL. With the
- * floor behind `stateAdvanced` the only door left was "first sync of this session", and since the
- * app holds a push foreground service that process can live for days — the reporter's "even after
- * refreshing… I have to clear the cache". The whole defect is that the delta never moves again, so
- * a gate that waits for the delta to move can never heal it.
- *
- * Cost of making the floor unconditional: a mailbox that syncs while nothing happens now pays one
- * ids-only `Email/get` per [minIntervalMs], where it used to pay none. Bounded per mailbox at one
- * sweep per interval however often the user pulls to refresh, plus one per delta that actually
- * removed something from that mailbox.
- */
+/** On [firstThisSession] (which carries the retry of a sweep that failed in transport), on
+ *  [vanishedFromMailbox], or on the floor, unconditionally: a destroy reported in no delta leaves a
+ *  state that never moves again (#107). */
 internal fun shouldSweepGhosts(
     firstThisSession: Boolean,
     stateAdvanced: Boolean,
@@ -347,24 +131,9 @@ internal fun shouldSweepGhosts(
     (stateAdvanced && vanishedFromMailbox) ||
     millisSinceLastSweep >= minIntervalMs
 
-/**
- * WHICH clause of [shouldSweepGhosts] decided, as a log token. Same inputs, same order of tests, so
- * the sync log says not just whether a mailbox was swept but why it was not — the difference that
- * separates "the sweep ran and found nothing" from "no sweep has run since the notice was lost".
- *
- * A token starting with `skip` means no sweep, and SyncEvictionsTest pins that correspondence over
- * the whole input grid so the two can never drift apart:
- * - `session` — the first sweep of this process for the mailbox, or the retry of a failed one;
- * - `removal` — this mailbox's delta reported something leaving;
- * - `floor` — the recurring sweep's interval elapsed on an account that had moved;
- * - `floor/idle` — the interval elapsed on an account whose deltas said NOTHING. This token is the
- *   #107 fix on the wire: it is the sweep that never used to happen, and the line that heals a
- *   ghost left by a destroy the server never reported;
- * - `skip/idle` — nothing moved and the interval has not elapsed yet (a pull-to-refresh a minute
- *   after the last sweep);
- * - `skip/throttled` — the account moved, but nothing left this mailbox and the interval has not
- *   elapsed.
- */
+/** Which clause of [shouldSweepGhosts] decided, as a log token, in the same order of tests:
+ *  `session`, `removal`, `floor`, `floor/idle` (the interval elapsed on an account whose deltas said
+ *  nothing, #107), `skip/idle`, `skip/throttled`. A `skip` prefix means no sweep. */
 internal fun sweepReason(
     firstThisSession: Boolean,
     stateAdvanced: Boolean,
@@ -379,78 +148,27 @@ internal fun sweepReason(
     else -> "skip/idle"
 }
 
-/**
- * Floor between two recurring existence sweeps of the SAME mailbox. The sweep's trigger can only
- * be an account-wide state (JMAP has no per-mailbox change cursor for it), so without a floor it
- * fires on nearly every incremental sync — one `Email/get` per 200 cached rows per watched folder,
- * every time.
- *
- * Why five minutes, now that the floor also applies to a mailbox whose deltas say nothing (#107):
- * - it bounds how long a ghost can be looked at. A user who pulls to refresh sees the row go on the
- *   first refresh five minutes after the last sweep; a user who does nothing waits for the next
- *   sync of that mailbox, i.e. at most the ~30-min fallback fetch worker;
- * - it costs, per mailbox, one ids-only `Email/get` PER 200 CACHED ROWS (the sweep chunks at
- *   `MAX_CHANGES`, and each chunk is its own POST) per five minutes OF ACTUAL SYNC ACTIVITY — not
- *   per five minutes of wall clock. A freshly synced 50-row inbox is one request; a folder the
- *   user has scrolled to 600 rows is three. The reporter's ten accounts refreshed together
- *   therefore add ten such requests per five minutes in the foreground on fresh caches and around
- *   thirty on deep ones, and in the background the bill is set by the fetch worker's 30-min
- *   period, not by this floor;
- * - a burst of pull-to-refresh is absorbed: ten pulls in a minute still sweep once.
- *
- * Lowering it buys a shorter ghost lifetime at a linear cost in requests; raising it leaves the
- * reporter staring at a row he has already deleted. See [shouldSweepGhosts].
- */
+/** Floor between two recurring existence sweeps of the same mailbox: the other trigger is an
+ *  account-wide state, so without it the sweep fires on nearly every incremental sync. */
 internal const val GHOST_SWEEP_MIN_INTERVAL_MS = 5 * 60_000L
 
-/**
- * When each mailbox may be existence-swept again. Owns the two pieces of process-lifetime
- * bookkeeping the gate needs, so [MailRepository]'s sync path holds none of it and so the schedule
- * can be exercised on the JVM (the repository cannot).
- *
- * Scoped per (account, mailbox), never per mailbox: two accounts on one server share mailbox ids
- * (Stalwart numbers them per account, so every account's Inbox is "a"), and a shared clock would
- * let one account's sweep silence nine others' — issues #31/#92.
- *
- * In-memory only, like the sync cursors' cache: a cold start starts every mailbox eligible, which
- * is what prunes ghosts inherited from a previous process.
- *
- * The clock is MONOTONIC (`elapsedRealtime`, not `currentTimeMillis`). The premise of the whole
- * fix is a process that lives for days, and over days a wall clock moves backwards — NTP
- * corrections, a timezone-less RTC catching up, the user setting the date. A backwards jump makes
- * the elapsed time negative and stalls the floor until the clock catches up, which is exactly the
- * "heals within a bounded time, without restarting" guarantee this class exists to make.
- */
+/** When each mailbox may be existence-swept again. Scoped per (account, mailbox) because two
+ *  accounts on one server share mailbox ids (#31/#92), in memory only so a cold start starts every
+ *  mailbox eligible, and on a monotonic clock: a wall clock moving back would stall the floor. */
 internal class GhostSweepSchedule(
     private val minIntervalMs: Long = GHOST_SWEEP_MIN_INTERVAL_MS,
     private val clock: () -> Long = SystemClock::elapsedRealtime,
 ) {
-    /** When each (account, mailbox) was last swept. Absent (or 0) = never in this process. */
     private val lastSweep = ConcurrentHashMap<String, Long>()
 
-    /** (account, mailbox) pairs that have SPENT their once-per-process credit — `add` returning
-     *  true is what grants it, so membership means the credit is gone, not pending. */
+    /** Pairs whose once-per-process credit is spent: `add` both grants and records it. */
     private val sweptThisSession = ConcurrentHashMap.newKeySet<String>()
 
-    // NUL-separated, unlike MailRepository's sync-state key: "$account$mailbox" is ambiguous
-    // (account "a1" + mailbox "b" collides with account "a" + mailbox "1b"), and this key is
-    // in-memory only, so it costs nothing to make unambiguous.
+    // NUL-separated: "$account$mailbox" is ambiguous ("a1" + "b" collides with "a" + "1b").
     private fun key(accountId: String, mailboxId: String) = "$accountId\u0000$mailboxId"
 
-    /**
-     * Decide whether this sync should sweep [mailboxId] of [accountId], and record the attempt:
-     * a granted claim consumes the floor there and then, so a sync arriving right behind it is
-     * throttled rather than re-checking the same mailbox. A REFUSED claim leaves the clock
-     * untouched — if refusals restamped it, a user pulling to refresh every few seconds would
-     * postpone the sweep for ever and the ghost would outlive the fix.
-     *
-     * Decide and record happen inside one `compute`, i.e. atomically per key: push, the fallback
-     * worker and a pull-to-refresh can all sync the same mailbox at the same moment, and a
-     * read-then-write would grant each of them the same window. Nothing could be over-deleted by
-     * that (two identical existence checks prune the same ids), but the loser's log line would
-     * claim a floor it did not open. Inside `compute` the loser sees the winner's stamp and reads
-     * back as throttled, which is what actually happened.
-     */
+    /** Decides and records the attempt. A granted claim consumes the floor at once, a refused one
+     *  leaves the clock untouched, else refreshing every few seconds postpones the sweep for ever. */
     fun claim(
         accountId: String,
         mailboxId: String,
@@ -462,8 +180,7 @@ internal class GhostSweepSchedule(
         val now = clock()
         var sweep = false
         var reason = ""
-        // Never returns null: "never swept" is stored as 0 rather than as an absent key, so the
-        // mapping function has one shape and the elapsed time is computed the same way either way.
+        // "Never swept" is stored as 0 rather than as an absent key, so `compute` has one shape.
         lastSweep.compute(k) { _, last ->
             val since = now - (last ?: 0L)
             sweep = shouldSweepGhosts(firstThisSession, stateAdvanced, vanishedFromMailbox, since, minIntervalMs)
@@ -473,19 +190,13 @@ internal class GhostSweepSchedule(
         return SweepClaim(sweep = sweep, reason = reason, firstThisSession = firstThisSession)
     }
 
-    /**
-     * The claimed sweep never landed (transport failure — it pruned nothing by construction):
-     * hand back the once-per-process credit so the NEXT sync retries instead of waiting out the
-     * floor. The floor stamp stays consumed, so a claim that was NOT the session's first is
-     * retried one interval later rather than on every sync — a bounded delay, deliberately
-     * preferred to a failing sweep re-firing on every single sync of an unhappy server.
-     */
+    /** The claimed sweep never landed: hand back the once-per-process credit so the next sync
+     *  retries. The floor stamp stays consumed, so a retry waits one interval (#107). */
     fun releaseFailed(accountId: String, mailboxId: String, claim: SweepClaim) {
         if (claim.firstThisSession) sweptThisSession.remove(key(accountId, mailboxId))
     }
 }
 
-/** One [GhostSweepSchedule.claim] verdict: whether to sweep, and the token the sync log prints. */
 internal data class SweepClaim(
     val sweep: Boolean,
     val reason: String,

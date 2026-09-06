@@ -6,18 +6,14 @@ import org.openintents.openpgp.util.OpenPgpApi
  * What Sterna asks an OpenPGP provider for, as a value: an action and the extras that go with it,
  * with no `Intent` and no Android in sight.
  *
- * **Why this exists at all.** The extras of `ACTION_GET_KEY` decide the OCTETS that leave this
- * phone in every message's `Autocrypt:` header, and until this file they were assembled inline in
- * [OpenKeychainPgpEngine] — a class no JVM test can build (it needs a `Context` and a live binder),
- * so nothing anywhere executed that decision. A counter-expertise showed what that costs: turning
- * `EXTRA_MINIMIZE` into `EXTRA_REQUEST_ASCII_ARMOR` left the whole suite green while the announced
- * key became an armored blob that no correspondent's client can import — a dead feature that looks
- * perfect on the wire. Built here, the arguments can be pinned by a test that RUNS them
- * ([app.sterna.pgp.PgpApiRequestTest]).
+ * The extras of `ACTION_GET_KEY` decide the OCTETS that leave this phone in every message's
+ * `Autocrypt:` header, and assembled inline in [OpenKeychainPgpEngine] — a class no JVM test can
+ * build — nothing anywhere executed that decision: turning `EXTRA_MINIMIZE` into
+ * `EXTRA_REQUEST_ASCII_ARMOR` left the whole suite green while the announced key became a blob no
+ * correspondent's client can import. Built here, the arguments are pinned by a test that RUNS them.
  *
- * [extras] values are limited to what `OpenKeychainPgpEngine.putAll` knows how to put on an Intent:
- * [Boolean], [Long], [String] and [PeerUpdateFacts]. That limit is itself pinned by a test — a
- * fourth type added here without a branch there would throw at the provider call.
+ * [extras] values are limited to what `putAll` knows how to put on an Intent, and that limit is
+ * itself pinned by a test: a fourth type added here without a branch there would throw at the call.
  */
 internal data class PgpApiRequest(
     val action: String,
@@ -26,8 +22,8 @@ internal data class PgpApiRequest(
 
 /**
  * The peer update of `ACTION_UPDATE_AUTOCRYPT_PEER`, kept as plain values here and turned into the
- * provider's `AutocryptPeerUpdate` parcelable where the Intent is built. Splitting it that way is
- * what lets [isMutual] be asserted by an executing test instead of a source lint.
+ * provider's parcelable where the Intent is built — which is what lets [isMutual] be asserted by an
+ * executing test instead of a source lint.
  */
 internal data class PeerUpdateFacts(
     val keyData: ByteArray,
@@ -46,23 +42,19 @@ internal data class PeerUpdateFacts(
 
 /**
  * Ask the provider for the public half of [keyId] — this account's OWN key, on its way into an
- * `Autocrypt:` header ([app.sterna.core.data.account.autocryptHeaderValue]).
+ * `Autocrypt:` header.
  *
- * **`EXTRA_MINIMIZE` + `EXTRA_MINIMIZE_USER_ID`, both, exactly as K-9 asks.** Minimize alone
- * strips the third-party signatures, and leaves EVERY user id on the keyring: a private address, a
- * former employer, a pseudonym, all of them broadcast to every correspondent on every message.
- * [ownAddress] narrows the export to the one identity this account is entitled to announce — the
- * same address the header's `addr=` claims.
+ * `EXTRA_MINIMIZE` + `EXTRA_MINIMIZE_USER_ID`, both, exactly as K-9 asks. Minimize alone strips
+ * third-party signatures and leaves EVERY user id on the keyring — a private address, a former
+ * employer, a pseudonym — broadcast to every correspondent. [ownAddress] narrows the export to the
+ * one identity this account is entitled to announce.
  *
- * **No `EXTRA_REQUEST_ASCII_ARMOR`, and its ABSENCE is the request.** The extra is optional and
- * absent means binary, which is what the header needs: the value is base64 of the raw transferable
- * key (`pgpPublicKeyCacheValue`). Asking for armor gets base64 of an armored block — bigger, valid
- * looking, and unreadable to the receiving client.
+ * No `EXTRA_REQUEST_ASCII_ARMOR`, and its ABSENCE is the request: absent means binary, which is
+ * what the header needs. Asking for armor gets base64 of an armored block — bigger, valid looking,
+ * and unreadable to the receiving client.
  *
  * A blank [ownAddress] puts no `EXTRA_MINIMIZE_USER_ID` at all rather than an empty one: what a
- * provider does with an empty filter is nobody's promise, and "no key at all" would kill the
- * announcement outright, where "every user id" merely says too much. Callers hand over the
- * account's address (`StoredAccount.username`), so this is the empty-record case, not the normal one.
+ * provider does with an empty filter is nobody's promise.
  */
 internal fun publicKeyRequest(keyId: Long, ownAddress: String): PgpApiRequest = PgpApiRequest(
     action = OpenPgpApi.ACTION_GET_KEY,
@@ -78,9 +70,9 @@ internal fun publicKeyRequest(keyId: Long, ownAddress: String): PgpApiRequest = 
  * §5.4), as read from a message they sent.
  *
  * `isMutual = false`, always: `prefer-encrypt=mutual` is a standing instruction to start
- * encrypting, and that is not a decision taken from an incoming message.
- * [effectiveDateMillis] is that message's own date, not now: the provider keeps the newest, so
- * the date is what stops an old message overwriting a newer key.
+ * encrypting, and that is not a decision taken from an incoming message. [effectiveDateMillis]
+ * is that message's own date, not now: the provider keeps the newest, so the date is what stops an
+ * old message overwriting a newer key.
  */
 internal fun autocryptPeerRequest(
     peerId: String,

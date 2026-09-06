@@ -35,8 +35,8 @@ interface EmailFtsDao {
     @Query("SELECT DISTINCT accountId FROM email_fts")
     suspend fun accountIds(): List<String>
 
-    // Deletes are scoped by accountId: email ids collide across accounts (issue #31), and an
-    // unscoped delete-by-id would silently drop another account's index rows.
+    // Deletes are scoped by accountId: email ids collide across accounts (#31), and an unscoped delete-by-id would drop
+    // another account's rows.
     @Query("DELETE FROM email_fts WHERE accountId = :accountId AND emailId IN (:ids)")
     suspend fun deleteByIds(accountId: String, ids: List<String>)
 
@@ -71,68 +71,19 @@ interface EmailFtsDao {
     )
     suspend fun insertFromEmails(excludedRoles: Collection<String>)
 
-    /**
-     * Seed the index from the display cache (recent window) without clearing crawled-only rows:
-     * an instant coverage floor while the full index crawl (whole mailbox) runs in the background.
-     * Cached Trash/Junk rows are skipped ([excludedRoles], the same role source the search
-     * excludes), so the index doesn't carry rows a search may never surface. It is only an economy,
-     * NOT a cleanup: [deleteCachedRows] can only clear index rows whose message is STILL cached, so
-     * a row left behind by a message that is gone would survive every re-seed. What removes those
-     * is `EmailDao.deleteById`/`deleteByIds`, at the moment the message leaves; what hides rows
-     * that are merely mislabelled is [search]'s own filter.
-     */
+    /** Seeds the index from the display cache for an instant coverage floor while the full crawl runs in the
+     *  background. Not a cleanup: [deleteCachedRows]
+     *  only clears rows whose message is STILL cached — a row left by a gone message survives re-seeding. */
     @Transaction
     suspend fun seedFromEmails(excludedRoles: Collection<String>) {
         deleteCachedRows()
         insertFromEmails(excludedRoles)
     }
 
-    /**
-     * Prefix full-text search. [match] is a pre-built FTS4 MATCH expression (e.g. `eco* log*`).
-     * Ranked newest-first; [limit] caps the result set.
-     *
-     * Deleted mail is kept out of these results by TWO disjoint defences, and this query is only
-     * one of them. Neither subsumes the other; do not remove either as redundant.
-     *
-     * THIS one drops a hit whose index row is LABELLED with an excluded folder ([excludedRoles],
-     * Trash/Junk/Spam — the same role source the server filter uses). Rows get labelled that way
-     * when they were WRITTEN with the excluded mailbox already on them: the folder cache carried no
-     * role yet when the crawl indexed them, the role arrived from the server afterwards, or the row
-     * came from `MIGRATION_14_15`, which repopulated the index straight `FROM emails` with no
-     * exclusion at all.
-     *
-     * It cannot be relied on for the ordinary "I deleted this and search gave it back" case, and on
-     * JMAP it is blind to it outright: nothing rewrites `email_fts.mailboxId`, and a JMAP id keeps
-     * its value across a move, so a message indexed while it sat in the Inbox still carries the
-     * Inbox here after it is thrown away — the role this looks up is the Inbox's and the hit comes
-     * back. On IMAP the id itself encodes the folder (`ImapMailService.emailId`), so a move writes a
-     * NEW id and the old row goes with the old id down the delete path; an index row that does
-     * survive for a message in the Trash carries the Trash, and THIS filter is what hides it — for
-     * exactly as long as the folder cache still knows that folder's role.
-     *
-     * Either way the case is closed at the other end — `EmailDao.deleteById`/`deleteByIds` delete
-     * the index row along with the cached message, and every path that takes mail out of a folder
-     * funnels through those two.
-     *
-     * In short: this filter catches rows that are still there but mislabelled; the un-indexing on
-     * delete catches messages that are gone.
-     *
-     * The folder is matched by (accountId, mailboxId) against the local `mailboxes` cache, so the
-     * search stays instant and offline. A hit whose folder is NOT cached is KEPT: the index and the
-     * folder list fill in independently, and an unknown folder must not turn "not synced yet" into
-     * "no results" while the user is still typing.
-     *
-     * The ACCOUNT is scoped by [accountIds], a list of ids bound as a parameter rather than joined:
-     * there is no `accounts` table to join against — accounts live in a JSON blob in
-     * `SharedPreferences` (`AccountStore`), so the caller reads them and hands them over. An index
-     * row written under an account that has since been removed is otherwise still searchable, and
-     * came back as a hit belonging to nobody. An EMPTY list filters nothing, deliberately
-     * ([accountScopeCount] is what says so, since Room expands `IN (:accountIds)` into as many `?`
-     * as the list holds): `AccountStore.accounts()` answers with an empty list both for "no
-     * account" and for "the stored blob could not be decoded", and filtering on the second would
-     * turn local search off entirely on a healthy install — the same refusal as the unknown folder
-     * above.
-     */
+    /** Prefix FTS4 search ([match]), newest-first, capped at [limit]. Deleted mail is excluded by two independent
+     *  defenses — this hides mislabelled hits
+     * ([excludedRoles]) but does NOT catch a moved JMAP message. Empty [accountIds] filters nothing on purpose
+     * ([accountScopeCount]). */
     @Query(
         "SELECT emailId, accountId, mailboxId, threadId, subject, preview, receivedAt, " +
             "fromName, fromEmail, seen, flagged, hasAttachment " +

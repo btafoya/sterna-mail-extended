@@ -50,11 +50,8 @@ import app.sterna.core.data.filter.foreignScriptNotice
 import app.sterna.core.data.filter.showsNoRulesNote
 import app.sterna.ui.components.LoadingRing
 
-/**
- * Server-side filter rules (JMAP Sieve) for the current account. Rules are
- * edited as a form and pushed to the server on Save; like the vacation responder
- * this is network-backed, so the screen carries loading / saving / error state.
- */
+/** Server-side filter rules (JMAP Sieve) for the current account: edited as a form and pushed on
+ *  Save. Network-backed, so the screen carries loading / saving / error state. */
 @Composable
 fun FiltersScreen(
     onBack: () -> Unit,
@@ -62,15 +59,14 @@ fun FiltersScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Int?>(null) }
-    // Same confirm-on-back as the account editor: rules edited and left behind used to vanish
-    // without a word (#34). Both doors go through it — the scaffold's arrow and the system gesture.
+    // Confirm-on-back (#34); both doors go through it, the scaffold's arrow and the system gesture.
     // Held above the rule-editor branch below so the early return never straddles a remember.
     var confirmExit by remember { mutableStateOf(false) }
-    // Saving from the dialog is a network round-trip (compile → validate → activate), so the screen
-    // leaves only once the server has taken it; a refusal keeps the screen and its error in view.
+    // Saving from the dialog is a network round-trip (compile → validate → activate), so the
+    // screen leaves only once the server has taken it; a refusal keeps the error in view.
     var leaveAfterSave by remember { mutableStateOf(false) }
-    // The overwrite confirmation, and which gesture is waiting behind it: the exit dialog's Save
-    // still has to leave once the server has taken the write, the button still has to stay.
+    // The overwrite confirmation, and which gesture waits behind it: the exit dialog's Save must
+    // still leave once the write lands, the button must still stay.
     var confirmOverwrite by remember { mutableStateOf(false) }
     var overwriteThenLeave by remember { mutableStateOf(false) }
 
@@ -94,11 +90,9 @@ fun FiltersScreen(
             PendingExit.WAIT -> Unit
         }
     }
-    // ONE door for both gestures that write. Save regenerates the whole server-side script from the
-    // list on screen, and over a script this app could not parse that list is empty because nothing
-    // could be read out of it — so the confirmation belongs to the WRITE, not to the button. Hung on
-    // the button alone it is walked around by the back gesture, which reaches the same write through
-    // the exit dialog below. Which of the two asked travels in `thenLeave`.
+    // One door for both gestures that write: the confirmation belongs to the write, not to the
+    // button. Hung on the button alone it is walked around by the back gesture, which reaches the
+    // same write through the exit dialog below. Which asked travels in `thenLeave`.
     fun requestSave(thenLeave: Boolean) {
         when (filtersSaveStep(scriptUnreadable = state.scriptUnreadable)) {
             FiltersSaveStep.CONFIRM_OVERWRITE -> { overwriteThenLeave = thenLeave; confirmOverwrite = true }
@@ -117,27 +111,22 @@ fun FiltersScreen(
         )
     }
     if (confirmOverwrite) {
-        // Same shape as the block-sender dialog, because it is the same kind of write: server-side,
-        // permanent, no Undo behind it. What only a dialog can say is the body — that the whole
-        // script goes, including the part this app never managed to show. Cancelling leaves both
-        // the screen and the exit alone: the edits stay, unwritten, which is the recoverable side.
+        // Same shape as the block-sender dialog: server-side, permanent, no Undo behind it.
+        // Cancelling leaves both the screen and the exit alone, so the edits stay unwritten.
         AlertDialog(
             onDismissRequest = { confirmOverwrite = false },
             title = { Text(stringResource(R.string.settings_filters_overwrite_title)) },
             text = {
-                // The body SCROLLS. Material's text slot is a height-bounded box with no scrolling
-                // of its own, and a bare Text in it is CLIPPED — not ellipsised, just cut, with
-                // nothing saying more exists. Measured on the block-sender dialog, cut mid-word at
-                // the largest font scale, losing exactly the half that named the cost.
+                // The body must scroll: Material's text slot is a height-bounded box, so a bare
+                // Text in it is cut, not ellipsised, with nothing saying more exists.
                 Text(
                     stringResource(R.string.settings_filters_overwrite_body),
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 )
             },
             confirmButton = {
-                // A verb, not the sentence, and for the reason measured on that same dialog: with a
-                // sentence here the label wrapped and Cancel was drawn INSIDE this button, one tap
-                // landing on both, on a permanent server-side write.
+                // A verb, not a sentence: a sentence wraps and Cancel is then drawn inside this
+                // button, one tap landing on both, on a permanent server-side write.
                 TextButton(onClick = { confirmOverwrite = false; leaveAfterSave = overwriteThenLeave; viewModel.save() }) {
                     Text(stringResource(R.string.settings_filters_overwrite_confirm))
                 }
@@ -181,8 +170,7 @@ private fun BoxScope.FiltersNote(text: String, onRetry: (() -> Unit)? = null) {
     ) {
         Text(text, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (onRetry != null) {
-            // Filled Button to match every other error-recovery "Retry" (inbox,
-            // message load): the same action should read the same everywhere.
+            // Filled Button to match every other error-recovery "Retry" (inbox, message load).
             Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
                 Text(stringResource(R.string.settings_vacation_retry))
             }
@@ -209,8 +197,8 @@ private fun FiltersList(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
-        // Before the "another script is active" line, and independent of it: the rules can be
-        // stopped with no foreign script active at all, which is exactly the state this says.
+        // Before the "another script is active" line and independent of it: the rules can be
+        // stopped with no foreign script active at all.
         if (state.rulesNotRunning) {
             Text(
                 stringResource(R.string.settings_filters_not_running),
@@ -219,10 +207,8 @@ private fun FiltersList(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
-        // ONE line, not two: an unreadable script of our own comes first (Save replaces content
-        // nobody read), then the `vacation` script being the ACTIVE one, which names what the
-        // save costs — the auto-reply — instead of the generic "another filter script is active",
-        // true and useless since nothing in this app calls the auto-reply a filter script.
+        // One line, not two, in priority order: an unreadable script of our own first, then
+        // `vacation` being active, which names what the save costs.
         foreignScriptNotice(
             scriptUnreadable = state.scriptUnreadable,
             foreignActive = state.foreignActive,
@@ -253,10 +239,8 @@ private fun FiltersList(
                 }
                 HorizontalDivider()
             }
-            // …and an empty list is not always "no rules". Over an unreadable script the line
-            // above already says a save would replace content nobody read; "No rules yet" under
-            // it is the same screen contradicting itself, reassuringly and wrongly. Which of the
-            // two speaks is showsNoRulesNote(), executed in FilterStatusRefreshTest.
+            // An empty list is not always "no rules": over an unreadable script the line above
+            // already says a save would replace unread content, which "No rules yet" contradicts.
             showsNoRulesNote(ruleCount = state.rules.size, scriptUnreadable = state.scriptUnreadable) ->
                 Text(
                     stringResource(R.string.settings_filters_empty),
@@ -356,8 +340,7 @@ private fun RuleEditScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                // Keep the rule form scrollable above the keyboard so the focused name/value
-                // field stays visible while typing (#52) — same recipe as the connect screen.
+                // Keeps the rule form scrollable above the keyboard while typing (#52).
                 .imePadding()
                 .verticalScroll(rememberScrollState()),
         ) {
@@ -393,10 +376,9 @@ private fun RuleEditScreen(
             }
             SettingsSection(stringResource(R.string.settings_filter_then)) {
                 val noMove = stringResource(R.string.settings_filter_move_none)
-                // A rule written before targets became whole paths holds a bare folder name,
-                // which is no longer one of the offered options. It is kept in the list, and
-                // kept selected: opening a rule must not quietly retarget it — only the user
-                // picking another folder may.
+                // A rule written before targets became whole paths holds a bare folder name, no
+                // longer an offered option. Kept and kept selected: opening a rule must not
+                // quietly retarget it.
                 val stored = rule.moveTo?.takeIf { it !in folders }
                 SettingChoiceRow(
                     title = stringResource(R.string.settings_filter_move_to),

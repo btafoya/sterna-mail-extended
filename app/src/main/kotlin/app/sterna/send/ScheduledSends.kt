@@ -9,7 +9,6 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
 
-/** Enqueues/cancels the WorkManager job that fires a scheduled send at its time. */
 object ScheduledSends {
     /**
      * One unique work item per scheduled-send id, so everything here books under ONE name and the

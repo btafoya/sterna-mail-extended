@@ -28,11 +28,9 @@ data class EmailBodyPart(
     val encoding: String? = null,
 )
 
-/**
- * A single raw header field of a message (RFC 8621 §4.1.3): its [name] and raw [value], exactly
- * as they appear on the wire. Fetched only for the "view headers" action — order and duplicates
- * are preserved by requesting the `headers` property (an ordered array of these).
- */
+    /** A single raw header field of a message (RFC 8621 §4.1.3): its [name] and raw [value], exactly
+     *  as they appear on the wire. Fetched only for the "view headers" action — order and duplicates
+     *  are preserved by requesting the `headers` property. */
 @Serializable
 data class EmailHeader(
     val name: String = "",
@@ -47,60 +45,41 @@ data class EmailBodyValue(
     val isTruncated: Boolean = false,
 )
 
-/**
- * A JMAP Email (RFC 8621 §4). List views populate the lightweight fields;
- * the detail view additionally fetches recipients and body parts/values.
- */
+    /** A JMAP Email (RFC 8621 §4). List views populate the lightweight fields; the detail view
+     *  additionally fetches recipients and body parts/values. */
 @Serializable
 data class Email(
     val id: String,
-    /**
-     * Owning account, populated when the email comes from the local cache; null
-     * for messages parsed straight from a JMAP response (the account is implicit
-     * in the request). Lets the cross-account unified inbox route each row's
-     * actions back to the right account.
-     */
+        /** Owning account, populated when the email comes from the local cache; null for messages
+         *  parsed straight from a JMAP response. Lets the cross-account unified inbox route each
+         *  row's actions back to the right account. */
     val accountId: String? = null,
-    /**
-     * Blob id of the whole raw RFC 5322 message, requested by the body-fetch calls.
-     * Lets the reader download the exact source, e.g. to decrypt/verify OpenPGP mail.
-     */
+        /** Blob id of the whole raw RFC 5322 message, requested by the body-fetch calls: lets the
+         *  reader download the exact source, e.g. to decrypt/verify OpenPGP mail. */
     val blobId: String? = null,
     /** Source mailbox, populated from the local cache; lets a swipe action be undone (moved back). */
     val mailboxId: String? = null,
-    /**
-     * The set of mailboxes this email belongs to (`{mailboxId: true}`), as returned by JMAP
-     * when requested (e.g. Thread/get → Email/get). Empty unless the call asked for it; used to
-     * file a server-fetched thread member under its real folder when caching it.
-     */
+        /** The set of mailboxes this email belongs to (`{mailboxId: true}`), returned by JMAP when
+         *  requested. Empty unless the call asked for it; used to file a server-fetched thread member
+         *  under its real folder when caching it. */
     val mailboxIds: Map<String, Boolean> = emptyMap(),
     val threadId: String? = null,
     val subject: String? = null,
     val preview: String? = null,
     val receivedAt: String? = null,
     val from: List<EmailAddress> = emptyList(),
-    /**
-     * `Reply-To` (RFC 5322 §3.6.2) — where the sender says an answer must go, when that is not
-     * [from]: a mailing list, a `no-reply@` doubled by a `support@`, a ticketing or forwarding
-     * alias. Ignoring it means answering an address the sender deliberately set aside, often a
-     * mailbox nobody reads, while the reply looks sent.
-     *
-     * Asked of the server by every fetch whose result is cached (`JmapClient`'s
-     * `EMAIL_BODY_PROPERTIES` and the three list property sets — the cache's `@Upsert` replaces
-     * the whole row, so a path that omits it erases what the others wrote). Empty by default and
-     * `DefaultJson` is `ignoreUnknownKeys = true`, so a response without the property — an IMAP
-     * account, or a message that carries no `Reply-To` — simply leaves the list empty instead of
-     * failing to deserialise.
-     */
+        /**
+         * `Reply-To` (RFC 5322 §3.6.2) — where the sender says an answer must go when that is not
+         * [from]. Asked of the server by every fetch whose result is cached, the cache's `@Upsert`
+         * replacing the whole row, so a path that omits it ERASES what the others wrote. Empty by
+         * default, `ignoreUnknownKeys` leaving a response without the property to deserialise.
+         */
     val replyTo: List<EmailAddress> = emptyList(),
     val to: List<EmailAddress> = emptyList(),
     val cc: List<EmailAddress> = emptyList(),
-    /**
-     * The blind copies (needed to reopen a draft for editing, #63). Asked of the server by the
-     * single-message/body fetch AND by the three list property sets, like [cc] and [replyTo]: the
-     * cache's `@Upsert` replaces the row whole, so a list fetch that omitted it would erase the
-     * column the body fetch had filled.
-     */
+        /** The blind copies (needed to reopen a draft for editing, #63). Asked of the server by the
+         *  body fetch AND the three list property sets, like [cc] and [replyTo]: the cache's `@Upsert`
+         *  replaces the row whole, so a list fetch omitting it would erase the body fetch's column. */
     val bcc: List<EmailAddress> = emptyList(),
     val messageId: List<String> = emptyList(),
     /** The In-Reply-To header ids, so an edited reply draft keeps its threading (#63). */
@@ -112,64 +91,39 @@ data class Email(
     val textBody: List<EmailBodyPart> = emptyList(),
     val attachments: List<EmailBodyPart> = emptyList(),
     val bodyValues: Map<String, EmailBodyValue> = emptyMap(),
-    /**
-     * All header fields in their original order (duplicates kept), populated only when the
-     * `headers` property is explicitly requested — i.e. the reader's "view headers" action
-     * (issue #60). Empty for every normal fetch, so the ordinary reader path is unchanged.
-     */
+        /** All header fields in their original order (duplicates kept), populated only when the
+         *  `headers` property is explicitly requested — the reader's "view headers" action (#60).
+         *  Empty for every normal fetch. */
     val headers: List<EmailHeader> = emptyList(),
-    /**
-     * `List-Unsubscribe` (RFC 2369), raw — the way out of a mailing list the sender offers.
-     * Requested only by the two body-bearing fetches, so no list view pays for it.
-     *
-     * The `@SerialName` is what makes this field EXIST: the JMAP property is literally named
-     * `header:List-Unsubscribe:asText`, and `DefaultJson` is `ignoreUnknownKeys = true`, so
-     * without it kotlinx drops the server's answer without a word and the reader silently never
-     * offers the button. Same for [listUnsubscribePost].
-     *
-     * Filled by the IMAP path too, from the message source already in hand (see
-     * `MailRepository.openEmailImap`), so the reader behaves identically on both protocols.
-     */
+        /**
+         * `List-Unsubscribe` (RFC 2369), raw, requested only by the two body-bearing fetches. The
+         * `@SerialName` is what makes this field EXIST: the JMAP property is literally named
+         * `header:List-Unsubscribe:asText` and `DefaultJson` is `ignoreUnknownKeys = true`, so without
+         * it kotlinx drops the answer and the reader silently never offers the button. Filled by the
+         * IMAP path too, from the source already in hand.
+         */
     @SerialName("header:List-Unsubscribe:asText")
     val listUnsubscribe: String? = null,
     /** `List-Unsubscribe-Post` (RFC 8058) — the sender's promise that a bare POST is enough. */
     @SerialName("header:List-Unsubscribe-Post:asText")
     val listUnsubscribePost: String? = null,
-    /**
-     * `Disposition-Notification-To` (RFC 8098), raw — where the sender asked a read receipt to go.
-     * Requested only by the two body-bearing fetches, like [listUnsubscribe]: a folder page must
-     * not pay for a header only an opened message reads.
-     *
-     * Same invariant as [listUnsubscribe], and the same silent failure: the `@SerialName` IS the
-     * field. `DefaultJson` is `ignoreUnknownKeys = true`, so a wrong or missing name makes kotlinx
-     * drop the server's answer without a word, and every message then looks like one asking for
-     * nothing.
-     *
-     * `asText` and not `asAddresses` — deliberately the same type as the IMAP path hands over
-     * (`MimeParser.headerOf`), so ONE parser ([app.sterna.core.data.mail.ReadReceiptHeader])
-     * decides on both protocols and a malformed header cannot be read two different ways
-     * depending on which server the account is on. Not to be confused with the `asAddresses`
-     * property [app.sterna.core.jmap.JmapClient.sendEmail] SETS when composing: that one writes
-     * the header, this one reads it.
-     */
+        /**
+         * `Disposition-Notification-To` (RFC 8098), raw, requested only by the two body-bearing
+         * fetches. Same invariant and same silent failure as [listUnsubscribe]: the `@SerialName` IS
+         * the field. `asText` and not `asAddresses`, deliberately the same type the IMAP path hands
+         * over, so ONE parser decides on both protocols. Not the `asAddresses` property
+         * [app.sterna.core.jmap.JmapClient.sendEmail] SETS: that one writes the header, this reads it.
+         */
     @SerialName("header:Disposition-Notification-To:asText")
     val dispositionNotificationTo: String? = null,
-    /**
-     * Who a forwarding service says really wrote this message, already decoded and filtered —
-     * read off an `X-…-Original-From…` field when the message carries one (#160). Null for very
-     * nearly every message; the `From` above is NEVER replaced by it.
-     *
-     * No `@SerialName`, deliberately, and that is the difference from the three fields above:
-     * this is NOT a JMAP property and is never requested from a server. It is filled by the
-     * repository on both protocols — off the source already in hand on IMAP, off the dedicated
-     * `getEmailHeaders` call on JMAP — so a name matching a wire property would be a claim the
-     * server never made.
-     *
-     * Like [listUnsubscribe] and [dispositionNotificationTo], it is NOT carried by
-     * `EmailMapper.toEmail`: these header fields live only in the body cache, which serialises the
-     * whole `Email` (`MailRepository.persistBody`). No column, no migration, and a folder page
-     * pays nothing for it.
-     */
+        /**
+         * Who a forwarding service says really wrote this message, already decoded and filtered — read
+         * off an `X-…-Original-From…` field when the message carries one (#160). The `From` above is
+         * NEVER replaced by it. No `@SerialName`, deliberately: this is not a JMAP property and is
+         * never requested from a server, so a name matching a wire property would be a claim the
+         * server never made. Like the two fields above it lives only in the body cache, which
+         * serialises the whole `Email` — no column, no migration.
+         */
     val originalSender: String? = null,
 ) {
     /** Whether the message has been read ($seen keyword). */
@@ -178,45 +132,35 @@ data class Email(
     /** Whether the message is flagged/starred ($flagged keyword). */
     val isFlagged: Boolean get() = keywords["\$flagged"] == true
 
-    /**
-     * Whether this is a draft ($draft keyword). A trashed draft keeps the keyword even though it
-     * has left the Drafts folder, so the list row can flag it as a draft anywhere it surfaces —
-     * otherwise, since 1.3.11 shows its recipient, it is indistinguishable from a sent mail (#69).
-     */
+        /** Whether this is a draft ($draft keyword). A trashed draft keeps the keyword even though it
+         *  has left the Drafts folder, so the row can flag it as a draft anywhere it surfaces —
+         *  otherwise it is indistinguishable from a sent mail (#69). */
     val isDraft: Boolean get() = keywords["\$draft"] == true
 
-    /**
-     * The HTML body content, if the message has a genuine `text/html` part.
-     *
-     * JMAP servers (per RFC 8621 §4.1.4) fill `htmlBody` with the `text/plain` part when a
-     * message has no HTML version, so `htmlBody.first()` can be plain text. Treating that as
-     * HTML renders it in normal flow and collapses the paragraph breaks (issue #4). Only
-     * return a part that is actually `text/html`; otherwise the caller falls back to
-     * [textContent], which is rendered in a `<pre>` that preserves line breaks.
-     */
+        /**
+         * The HTML body content, if the message has a genuine `text/html` part. JMAP servers (RFC 8621
+         * §4.1.4) fill `htmlBody` with the `text/plain` part when there is no HTML version, and
+         * treating that as HTML collapses the paragraph breaks (issue #4). Only a part that really is
+         * `text/html` is returned; otherwise the caller falls back to [textContent] and its `<pre>`.
+         */
     fun htmlContent(): String? =
         htmlBody.firstOrNull { it.type.equals("text/html", ignoreCase = true) }
             ?.partId?.let { bodyValues[it]?.value }
 
-    /** The plain-text body content, if present. */
     fun textContent(): String? =
         textBody.firstOrNull()?.partId?.let { bodyValues[it]?.value }
 
-    /**
-     * Image parts referenced inline by a Content-ID (`cid:`), rendered in the body. JMAP parts
-     * carry a blobId, IMAP parts a partId (the MIME section); either is fetchable.
-     */
+        /** Image parts referenced inline by a Content-ID (`cid:`), rendered in the body. JMAP parts
+         *  carry a blobId, IMAP parts a partId (the MIME section); either is fetchable. */
     fun inlineImageParts(): List<EmailBodyPart> =
         attachments.filter {
             (it.blobId != null || it.partId != null) &&
                 !it.cid.isNullOrBlank() && it.type?.startsWith("image/") == true
         }
 
-    /**
-     * Inline images this message carries that are past what we will load automatically
-     * (see [app.sterna.core.jmap.DownloadLimits]). They are not fetched, so the reader has to
-     * say they are missing rather than quietly render a body with holes in it.
-     */
+        /** Inline images past what we will load automatically (see
+         *  [app.sterna.core.jmap.DownloadLimits]). Not fetched, so the reader has to say they are
+         *  missing rather than quietly render a body with holes in it. */
     fun oversizedInlineImageCount(): Int = inlineImageParts().count {
         !app.sterna.core.jmap.DownloadLimits.allows(
             it.size,
@@ -224,11 +168,8 @@ data class Email(
         )
     }
 
-    /**
-     * Calendar invite parts (text/calendar, e.g. a meeting REQUEST) that can be fetched —
-     * JMAP parts carry a blobId, IMAP parts a partId. Surfaced as an event preview card,
-     * not as a plain attachment row (see [fileAttachmentParts]).
-     */
+        /** Calendar invite parts (text/calendar, e.g. a meeting REQUEST) that can be fetched. Surfaced
+         *  as an event preview card, not as a plain attachment row (see [fileAttachmentParts]). */
     fun calendarParts(): List<EmailBodyPart> =
         attachments.filter {
             it.type?.startsWith("text/calendar") == true && (it.blobId != null || it.partId != null)

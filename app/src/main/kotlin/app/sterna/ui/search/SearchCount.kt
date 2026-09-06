@@ -9,33 +9,25 @@ package app.sterna.ui.search
 enum class SearchCount { EXACT, AT_LEAST }
 
 /**
- * The one place both search surfaces decide how to phrase the count, so they can't drift apart.
+ * The one place both search surfaces decide how to phrase the count, so they cannot drift apart. A
+ * firm total may only be stated when the answer is BOTH complete and finished.
  *
- * A firm total may only be stated when the answer is BOTH complete and finished:
+ * [complete] is false when the search stopped short — a server cap, the IMAP attachment scan cap, or
+ * an account whose leg failed. [loading] is true while a leg is still in flight: the inbox's bar
+ * answers in two passes, and on a cold index the first can be a small fraction of the answer, so
+ * reporting it as a total made a partial answer look final (#102).
  *
- * - [complete] is false when the search stopped short — the server's own cap, the IMAP attachment
- *   scan cap, or an account whose leg failed and was dropped. Long-standing behaviour; unchanged.
- * - [loading] is true while a leg is still in flight. The inbox's search bar answers in two passes
- *   (local header index first, server full-text ~a second later, unioned in), and on a cold index
- *   the first pass can be a small fraction of the answer. Reporting it as a total made a partial
- *   answer look final, so the user concluded mail had gone missing (#102). Nothing is missing —
- *   the screen was just claiming more than it knew.
- *
- * Note the two are independent: an in-flight search starts out `complete = true` (nothing has
- * reported stopping short yet), which is exactly why completeness alone can't gate the claim.
+ * The two are independent: an in-flight search starts out `complete = true`, which is why
+ * completeness alone cannot gate the claim.
  */
 fun searchCount(complete: Boolean, loading: Boolean): SearchCount =
     if (complete && !loading) SearchCount.EXACT else SearchCount.AT_LEAST
 
 /**
- * An answer is complete only when EVERY leg ran to the end — the inbox's search bar has two, the
- * local header index and the server's full-text index.
- *
- * Named, and called from the search itself, because the mistake it guards is quiet: the server leg
- * writes its verdict last, so recording `complete = server.complete` alone let a good server answer
- * silently forgive a local index that had already fallen over (a locked or damaged FTS table, the
- * ground of #71) — and with it every hit only that index finds, accent-folded and prefix-matched,
- * gone from a count still calling itself a total.
+ * An answer is complete only when EVERY leg ran to the end — the inbox's bar has two, the local
+ * header index and the server's full-text index. Named, and called from the search itself, because
+ * the mistake it guards is quiet: the server leg writes its verdict last, so `complete =
+ * server.complete` let a good server answer forgive a local index that had already fallen over.
  */
 fun searchComplete(local: Boolean, server: Boolean): Boolean = local && server
 
@@ -50,13 +42,12 @@ enum class SearchDisplay {
 }
 
 /**
- * Results win over the spinner: once there are rows, they stay, because replacing them with a
- * spinner when the second pass starts would take away what the user is already reading.
+ * Results win over the spinner: once there are rows they stay, replacing them when the second pass
+ * starts taking away what the user is already reading.
  *
- * The two empty cases are NOT the same claim, and telling them apart is the same honesty as
- * [searchCount] one step further. "No results" asserts that nothing matches; a search that
- * stopped short (still running, or a leg that failed / hit its cap) has established no such
- * thing, and saying so invites the user to reword a query that was never actually run.
+ * The two empty cases are NOT the same claim: "No results" asserts that nothing matches, while a
+ * search that stopped short has established no such thing, and saying so invites the user to reword
+ * a query that was never actually run.
  */
 fun searchDisplay(resultCount: Int, loading: Boolean, complete: Boolean): SearchDisplay = when {
     resultCount > 0 -> SearchDisplay.RESULTS

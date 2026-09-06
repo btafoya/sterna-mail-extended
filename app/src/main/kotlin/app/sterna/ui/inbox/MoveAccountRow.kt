@@ -28,16 +28,9 @@ import androidx.compose.ui.unit.dp
 import app.sterna.R
 import app.sterna.core.data.account.StoredAccount
 
-/**
- * The account row at the head of the move-to-folder picker (#189): the account whose folders are
- * listed underneath, and a menu to list another's instead. One clickable line and a
- * `DropdownMenu` — no screen, no tabs, no tree (rule 5). Drawn ONLY when there is a choice to
- * make: with a single account configured the picker is exactly what it was.
- *
- * [owner] is the account of what is being moved; [chosen] the id recorded by the ViewModel
- * (null = the owner's). Tapping an entry reports [pickerChoice] — null for the owner, so that
- * coming back to it is the state the picker opened in.
- */
+/** The account row at the head of the move-to-folder picker (#189), drawn only when there is a
+ *  choice to make. [owner] is the account of what is being moved, [chosen] the id recorded by the
+ *  ViewModel (null = the owner's); tapping an entry reports [pickerChoice]. */
 @Composable
 internal fun MoveAccountRow(
     accounts: List<StoredAccount>,

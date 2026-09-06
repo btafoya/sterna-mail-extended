@@ -4,12 +4,10 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 
 /**
- * In-app UI language. [SYSTEM] follows the device language; the others force a
- * specific translation. Applied through [AppCompatDelegate.setApplicationLocales],
- * which persists the choice (platform-stored on Android 13+, AppCompat-stored
- * below), recreates the activity, and updates `Locale.getDefault()` — so dates
- * formatted via [app.sterna.appLocale] follow the chosen language too.
- *
+ * In-app UI language. [SYSTEM] follows the device language; the others force a specific translation.
+ * Applied through [AppCompatDelegate.setApplicationLocales], which persists the choice, recreates
+ * the activity, and updates `Locale.getDefault()` — so dates formatted via [app.sterna.appLocale]
+ * follow the chosen language too.
  * Keep [tag] values in sync with the translations listed in `res/xml/locales_config.xml`.
  */
 enum class AppLanguage(val tag: String) {

@@ -11,27 +11,20 @@ import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
 
 /**
- * What the body field DRAWS in front of a list's lines (#131): `• ` on every line of a bullet
- * block, `1. `, `2. `… on a numbered one, the numbering starting again at 1 for each block.
+ * What the body field DRAWS in front of a list's lines (#131): `• ` on every line of a bullet block,
+ * `1. `, `2. `… on a numbered one, restarting at 1 for each block.
  *
- * NOT A CHARACTER OF THIS ENTERS THE MODEL. `body.text` is what was typed; the markers exist in
- * the TEXT LAYER only, inside the `VisualTransformation` handed to the `BasicTextField`
- * ([bodyTransformation]). That is what
- * makes the dirty check, the save, the send and the HTML see the same text they saw before a list
- * was ever toggled — and it is why an [OffsetMapping] is required: the caret, the selection, the
- * drag handles and the IME all speak in ORIGINAL offsets and must be moved across the markers.
+ * Not a character of this enters the model: the markers exist in the TEXT LAYER only, so the dirty
+ * check, the save, the send and the HTML see the same text as before a list was toggled — hence the
+ * [OffsetMapping], the caret and the IME speaking in ORIGINAL offsets.
  *
- * No `ParagraphStyle` / `TextIndent` (arbitrated, spec § 4): their boundaries fall on the `\n`,
- * which Compose renders as a phantom empty line. A wrapped line coming back to the margin is the
- * price paid, deliberately.
+ * No `ParagraphStyle` / `TextIndent` (arbitrated, spec § 4): their boundaries fall on the `\n`.
  */
 fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
     // FIRST LINE, and that is the whole of it: a body with no list is handed straight back with
-    // the identity mapping, so nothing in the field's caret arithmetic changes and NOTHING is
-    // walked. Placed after `lineStarts`, this "free" path scanned every character of the body and
-    // allocated a list per line on every recomposition — on a 324 kB reply (the body this screen
-    // is sized for, see [ComposerResumeSlot]) that is the frequent path made expensive, in a field
-    // whose smoothness is already the subject of #5, #6 and #26.
+    // the identity mapping, so nothing is walked. Placed after `lineStarts`, this "free" path
+    // scanned every character and allocated a list per line on every recomposition — on a 324 kB
+    // reply, in a field whose smoothness is #5, #6 and #26.
     if (blocks.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
     val starts = lineStarts(text.text)
     val markers = markersOf(starts.size, blocks)
@@ -50,23 +43,14 @@ fun markedText(text: AnnotatedString, blocks: List<Block>): TransformedText {
 }
 
 /**
- * THE body field's one and only `VisualTransformation`, and it carries BOTH halves (#131): the
- * inline styling ([styledBody]) laid on the text, then the list markers ([markedText]) inserted
- * in front of the lines.
+ * THE body field's one and only `VisualTransformation`, carrying BOTH halves (#131): the inline styling
+ * ([styledBody]) laid on the text, then the list markers ([markedText]) in front of the lines.
  *
- * Both halves, because a field has exactly ONE of these and the styling has nowhere else left
- * to go: a span in the field's VALUE destroys the IME's composing region on every keystroke (the
- * mechanism is written out over [styledBody]). So the styling came down here, to the layer the
- * IME never sees.
+ * Both halves, because a field has exactly one of these and a span in the field's VALUE destroys the
+ * IME's composing region on every keystroke (mechanism over [styledBody]).
  *
- * The ORDER is not a taste. The spans are put on first, at the model's own offsets, and
- * [markedText] then rebuilds the text out of `subSequence`s, which carries them across the
- * markers: a bold word inside a bullet item stays bold and stays put. Laid the other way round,
- * every span after the first marker would sit two or three characters to the left of its word.
- *
- * And the styling adds NO arithmetic: a span moves no character, so the [OffsetMapping] is
- * still `MarkerOffsets` (or the identity), untouched — the half that governs the caret, the drag
- * handles and the IME keeps being pinned by exactly the same property test as before.
+ * The ORDER is not a taste: the spans go on first, at the model's own offsets, or every span after
+ * the first marker sits two or three characters to the left.
  */
 fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
     object : VisualTransformation {
@@ -75,13 +59,12 @@ fun bodyTransformation(rich: RichBody, linkColor: Color): VisualTransformation =
     }
 
 /**
- * The list kind covering EVERY line the selection touches, or null — what the two list buttons
- * show as `selected`.
+ * The list kind covering EVERY line the selection touches, or null — what the two list buttons show
+ * as `selected`.
  *
- * Like [app.sterna.core.data.text.toggleBlock] and unlike the inline styles, an EMPTY selection
- * is not "nothing": the cursor's own line is the target, because that is the gesture in Gmail.
- * The two must agree line for line, or the lit button would not be the one that turns the list
- * off; `RichBodyMarkersTest` pins that agreement by running both.
+ * Like `toggleBlock` and unlike the inline styles, an EMPTY selection is not "nothing": the
+ * cursor's own line is the target, as in Gmail. The two must agree line for line or the lit button
+ * would not be the one that turns the list off; `RichBodyMarkersTest` pins that by running both.
  */
 fun listKindAt(body: RichBody, selection: Span): BlockKind? {
     val starts = lineStarts(body.text)
@@ -111,15 +94,12 @@ private fun markersOf(lineCount: Int, blocks: List<Block>): List<String> {
 /**
  * The two halves of the mapping, and the half that breaks everything visible if it is wrong.
  *
- * `originalToTransformed(o)` = `o` plus every marker up to AND INCLUDING the line holding `o`, so
- * an offset at the start of a line lands AFTER that line's marker — the caret sits on the text,
- * never between the bullet and the word.
+ * `originalToTransformed(o)` = `o` plus every marker up to AND INCLUDING the line holding `o`, so an
+ * offset at the start of a line lands after that line's marker. `transformedToOriginal(t)` sends
+ * anything inside a marker back to its line's first character.
  *
- * `transformedToOriginal(t)` sends anything INSIDE a marker back to its line's first character,
- * which is the only original offset that marker stands for.
- *
- * Property, pinned in `RichBodyMarkersTest`: the round trip is the identity for every offset of
- * the text, and both directions are monotonic.
+ * Property, pinned in `RichBodyMarkersTest`: the round trip is the identity for every offset, and
+ * both directions are monotonic.
  */
 private class MarkerOffsets(
     private val starts: List<Int>,

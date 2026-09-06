@@ -4,24 +4,14 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import java.io.File
 
 /**
- * Taking a queued message out of the outbox to edit it (#70).
- *
- * The row is NOT deleted when it is opened for editing: it stays in the queue, marked
- * [OutboxState.EDITING] and held back from the send worker, with its durable attachment dir
- * intact. Closing the composer without sending puts it back to [OutboxState.QUEUED] untouched;
- * sending, saving or deleting consumes it. So nothing ever lives only in RAM, and a process
- * death mid-edit loses the edit, never the message.
- *
- * This stages the item's attachments into the cache the composer sends from, so the composer can
- * show and re-send them. File I/O only, no Android APIs, so it is unit-testable on the JVM.
+ * Taking a queued message out of the outbox to edit it (#70). The row stays QUEUED-adjacent,
+ * marked [OutboxState.EDITING]; closing without sending restores [OutboxState.QUEUED], so a
+ * process death mid-edit loses only the edit, never the message.
  */
 object OutboxEdit {
     /**
-     * Stage [attachments] out of their durable per-item dir into [stagingDir] (the cache the
-     * composer sends from) and return them as composer parts. An attachment whose bytes can no
-     * longer be read makes this THROW rather than drop it silently: reopening an item short of what
-     * it held would let the user unknowingly send an amputated message. The durable dir is left in
-     * place (the row keeps it), so a throw here loses nothing — the queued message is still whole.
+     * Stages [attachments] into [stagingDir] as composer parts. THROWS if bytes can't be read,
+     * rather than dropping silently — the durable dir is untouched, so nothing is lost.
      */
     fun take(attachments: List<OutboxAttachment>, stagingDir: File): List<EmailBodyPart> =
         attachments.map { a ->

@@ -21,35 +21,11 @@ import app.sterna.R
 import app.sterna.ui.PaneSplit
 import app.sterna.ui.message.MessageScreen
 
-/**
- * The reading pane beside the list (#103): the invitation line while nothing is open, otherwise
- * the reader on [ReadingPaneState.anchor], built EXACTLY as the `message/…` destination builds it
- * from the same five arguments (`SternaApp.kt`): the live paged flow for a list tap, a snapshot
- * of the search results or of the unfolded conversation for the other two, nothing for a lone
- * message.
- *
- * `key(session)` is what makes a tap a new reading: it recreates the reader — the per-page
- * ViewModel stores, the frozen snapshots, the pager on its initial page — as pushing a new route
- * would. A swipe in the pane changes the anchor without changing the session, so the pager the
- * finger is on stays, and only the row painted current in the list moves ([ReadingPaneRule]).
- *
- * Every action taken FROM THE PANE (Back, archive, delete, move, and the reader's own
- * unread / snooze / spam, which all call `onBack`) EMPTIES the pane — never "the next message":
- * settling on a page marks it read, and nothing may happen to a message nobody chose to open
- * (`SECURITY.md`). [InboxViewModel.closePane] returns whether there was something to act on, so
- * a second tap on the same action finds the pane already empty and does nothing. The Undo
- * snackbar shows on the list, as it does after the full-screen reader; Undo puts the row back,
- * not the message in the pane.
- *
- * Nothing on the LIST side is one of those actions, and none of it closes the pane: a swipe
- * (`performSwipe`, `performThreadSwipe`, `InboxScreen.kt`) and the bulk actions on a selection
- * ([InboxViewModel.deleteSelected], [InboxViewModel.archiveSelected], [InboxViewModel.moveSelectedTo])
- * all act on the row without ever calling [InboxViewModel.closePane]. Swiping away, or bulk-deleting,
- * the very message the pane is showing leaves the pane on it.
- *
- * No animation around this: no `AnimatedContent`, no `Crossfade`. A fade composites the body
- * WebView through an offscreen layer, which is the door to the native crash of #10.
- */
+/** The reading pane beside the list (#103), built as the `message/…` destination builds it.
+ *  `key(session)` is what makes a tap a new reading; a swipe changes the anchor but not the session.
+ * Every action taken from the pane empties it, never "the next message": settling on a page
+ * marks it read (`SECURITY.md`). No animation: a fade composites the body WebView through an
+ *  offscreen layer (#10). */
 @Composable
 fun ReadingPane(
     state: ReadingPaneState,
@@ -96,9 +72,7 @@ fun ReadingPane(
     }
 }
 
-/**
- * The reading pane while nothing is open in it: one line of invitation, centred (#103).
- */
+/** The reading pane while nothing is open in it: one line of invitation, centred (#103). */
 @Composable
 fun EmptyReadingPane(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -112,11 +86,8 @@ fun EmptyReadingPane(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * The list alone, or the list beside a [detail] pane, on the [split] the host decided from the
- * window width ([app.sterna.ui.paneSplit]). With no split, or nothing to show in the detail, the
- * list is composed exactly as before — a narrow window must not change by a pixel.
- */
+/** The list alone, or the list beside a [detail] pane, on the [split] the host decided from the
+ * window width. With no split the list is composed unwrapped: a narrow window must not move. */
 @Composable
 internal fun ListDetailPanes(
     split: PaneSplit?,

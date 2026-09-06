@@ -40,87 +40,27 @@ enum class SyncWindow(val limit: Int, val maxAgeDays: Int?) {
     DAYS_90(limit = 200, maxAgeDays = 90),
     YEAR_1(limit = 500, maxAgeDays = 365),
 
-    // -- the count scale the picker offers ([syncWindowChoices]) --------------------------------
-    // 100 / 1 000 / 10 000, and 10 000 is only safe because of the plumbing under it: pages are
-    // written as they land, the walk asks the server for one page at a time, and the reconcile
-    // chunks its deletes. Without those, 10 000 would have the memory profile of the unbounded
-    // window this scale replaces.
+    // Count scale ([syncWindowChoices]): 10 000 is safe only because pages land incrementally.
     COUNT_100(limit = 100, maxAgeDays = null),
     COUNT_1000(limit = 1_000, maxAgeDays = null),
     COUNT_10000(limit = 10_000, maxAgeDays = null),
 
-    // -- retired from the picker, ALIVE in the format --------------------------------------------
-    // Nothing below may be removed or renamed, and the reason is the same one written out under
-    // [ALL]: these names are on disk, in the account records of every install that ever chose them,
-    // and an unknown name does not fail loudly — it empties the account list on screen, and the app
-    // then refuses every write until a build that knows the name reads it again ([AccountBlobGate]).
-    // They are not offered any more ([syncWindowChoices]); they still decode, still carry their
-    // number, and still show their label if an account is on one.
+    // Retired from the picker but ALIVE in the format (see [ALL]): never remove or rename.
     COUNT_50(limit = 50, maxAgeDays = null),
     COUNT_200(limit = 200, maxAgeDays = null),
     COUNT_500(limit = 500, maxAgeDays = null),
 
     /**
-     * "Everything" — retired from the picker, and capped again at the largest window that IS
-     * offered (`COUNT_10000`, 10 000 messages). It is also SHOWN under that window's label: a row
-     * reading "Everything" over a cache of ten thousand is the screen lying about what it holds
-     * (`SettingsScreen.syncWindowLabel`).
+     * "Everything" — retired from the picker, capped at 10 000 (largest offered window).
      *
-     * The NAME may not change, and it may not be deleted either, whatever happens to the number:
-     * the reason is worse than a crash. `SyncWindow` is serialized by constant name into every
-     * account record ([StoredAccount.syncWindow]). kotlinx does throw on a name it does not know —
-     * for the whole account list at once, not just for the records that carried it — and
-     * `AccountStore.accounts()` still answers that with an empty list, because its own constructor
-     * and 62 call sites take a list and nothing else. So what the user sees is not an error: it is
-     * **no accounts**, on an install that has several.
-     *
-     * What is no longer true is that the loss is permanent. [AccountBlobGate] records on every read
-     * whether the empty came from an absent blob or from a decode failure, and `saveAccounts` — the
-     * choke point every setter goes through — writes nothing in the second case, so the records stay
-     * on disk untouched and reappear as soon as a build that knows the name is installed. Renaming
-     * or dropping this entry still blanks the account screen of every install that ever chose it,
-     * and still costs a corrective release; it no longer deletes their accounts.
-     *
-     * Why the value comes back down. Caching a whole mailbox buys exactly two things: reading old
-     * mail offline, and scrolling far back without a round trip. It does NOT buy fast search —
-     * search is hybrid (local index on headers, the SERVER for full text), because a server is
-     * better placed for that than a phone. Measured on the bench at 110 000 messages, the price of
-     * the second thing was not worth paying, so the scale tops out at 10 000 instead of at the
-     * folder.
-     *
-     * Why 10 000 and not a third number to explain: an account left on "Everything" by an older
-     * build now behaves exactly like the biggest choice on offer, so the picker has one meaning per
-     * number and no orphan value behind it. Both readers of [limit] treat it like any other count
-     * window — the fetch (`folderSyncSizing`.`windowTarget`, walked one server page at a time) and
-     * the retention floor (`retentionEvictions`.`keepNewest`, "keep at least the newest N whatever
-     * their age", Codeberg #110). The floor is read off the WINDOW and never off a request size;
-     * capping it with the page size is #110 re-opened.
-     *
-     * In service only the FIRST of those two runs for a count window: [maxAgeDays] is null here,
-     * so the caller computes no cutoff and both refresh paths skip the prune. What bounds the cache
-     * on this window is the fetch and the full-query reconcile, not the floor.
-     *
-     * No migration writes over an account that carries this name (or any retired one). The
-     * setting keeps working as it reads; it changes only when the user opens the row and picks,
-     * and then she lands on the new scale.
+     * NAME may not change or be deleted: it's the persisted format
+     * ([StoredAccount.syncWindow]); an unknown name fails the WHOLE list to decode, but not
+     * permanently — [AccountBlobGate] holds records until a build that knows it again.
      */
     ALL(limit = 10_000, maxAgeDays = null),
 }
 
-/**
- * The windows the "Messages to sync" row offers, in the order it shows them — the three age windows
- * and the count scale 100 / 1 000 / 10 000.
- *
- * This is a WHITELIST, deliberately, and not `SyncWindow.entries` minus something: the retired
- * members ([SyncWindow.COUNT_50], [SyncWindow.COUNT_200], [SyncWindow.COUNT_500], [SyncWindow.ALL])
- * must stay in the enum for ever, because their names are the persisted format (see [SyncWindow.ALL]),
- * and the only thing that changes is that nobody can choose them any more. A screen that listed
- * `entries` would put them straight back on the picker the day one is added for another reason.
- *
- * A function, and not a list written inline in `SettingsScreen`, so the choice can be EXECUTED in a
- * JVM test: a Composable cannot be, and a test that re-reads the screen's source only proves the
- * text is what it was.
- */
+/** Windows the row offers, in order. A WHITELIST, not `entries` minus something (see [SyncWindow.ALL]). */
 fun syncWindowChoices(): List<SyncWindow> = listOf(
     SyncWindow.DAYS_30,
     SyncWindow.DAYS_90,
@@ -130,17 +70,5 @@ fun syncWindowChoices(): List<SyncWindow> = listOf(
     SyncWindow.COUNT_10000,
 )
 
-/**
- * Whether picking [chosen] over [current] has to drop the account's JMAP sync cursors
- * (`MailRepository.dropSyncCursors`), so the next refresh re-queries the folder in full and
- * applies the new window. The delta branch of a sync never looks at the window and never fetches
- * backwards, so on a folder that already has a cursor the setting is inert until it falls.
- *
- * Both directions: a narrower window is applied by the same full re-query (which evicts the
- * surplus), so widening and narrowing are one rule, not two.
- *
- * ONLY on a real change. A choice row calls its `onSelect` when the value already in place is
- * tapped again, and that gesture must cost nothing: a full re-query of a folder is a real
- * download, and the answer to "did anything change?" is a comparison, not a state machine.
- */
+/** Whether [chosen] vs [current] drops JMAP sync cursors: the delta path ignores the window. */
 fun syncWindowChanged(current: SyncWindow, chosen: SyncWindow): Boolean = chosen != current

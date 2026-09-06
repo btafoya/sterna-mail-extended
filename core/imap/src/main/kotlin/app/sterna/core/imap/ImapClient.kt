@@ -13,23 +13,11 @@ import java.time.format.DateTimeFormatter
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
-/**
- * A protocol-level IMAP failure. [responseCode] is the server's bracketed response code
- * (RFC 5530) when the failure is a tagged NO/BAD that carried one — `AUTHENTICATIONFAILED`,
- * `UNAVAILABLE`, … — and `null` otherwise (no code on the line, or a local failure such as a
- * closed connection). One field, not a type per code: it is the TYPED half of the failure, the
- * one a caller may branch on, while [message] stays the loggable text and never drives a branch.
- *
- * [taggedStatus] is the completion's status word — `"NO"` or `"BAD"` — when the server was heard
- * REFUSING the command, and `null` when no tagged completion was ever read: a closed connection,
- * a locally built argument this client refuses to send, anything raised without the server having
- * answered. A read that ran out its budget is not in that list because it is not in this class
- * at all: it arrives as a `SocketTimeoutException`, and a caller branching on "the server refused"
- * must exclude it by TYPE first. That distinction is what [ImapSession.move] branches on before it
- * may erase anything, so it is a field for the same reason [responseCode] is, and not a subtype: a
- * subtype would travel through every existing `catch (e: ImapException)` —
- * `ImapMailService.runWithRetry`'s among them — and change what they catch.
- */
+    /**
+     * [responseCode] is the bracketed code (RFC 5530) of a tagged NO/BAD; [taggedStatus] is `"NO"`/
+     * `"BAD"` only when the server was heard refusing. A spent read budget is NOT in this class (it
+     * arrives as `SocketTimeoutException`), so [ImapSession.move] must exclude it by type first.
+     */
 class ImapException(
     message: String,
     val responseCode: String? = null,
@@ -37,13 +25,9 @@ class ImapException(
 ) : Exception(message)
 
 /**
- * The selected mailbox has been renumbered: its UIDVALIDITY is no longer the one the caller's
- * UIDs were read under, so those UIDs mean nothing (RFC 3501 §2.3.1.1).
- *
- * Deliberately NOT an [ImapException]: it is not a protocol error and not a transport failure,
- * and the existing `catch (e: ImapException)` / reconnect-and-retry paths must not absorb it.
- * Retrying cannot help — the folder really was renumbered — and treating it as a failure to be
- * swallowed is how a stale UID gets acted on. See [ImapSession.select].
+ * The selected mailbox has been renumbered: its UIDVALIDITY is no longer the one the caller's UIDs
+ * were read under (RFC 3501 §2.3.1.1). Deliberately NOT an [ImapException]: reconnect-and-retry
+ * paths must not absorb it, since retrying cannot help and swallowing it acts on a stale UID.
  */
 class ImapUidValidityChanged(
     val mailbox: String,
@@ -52,10 +36,8 @@ class ImapUidValidityChanged(
 ) : Exception("UIDVALIDITY of $mailbox changed from $expected to $observed")
 
 /**
- * Turn on RFC 2818 endpoint identification so the TLS handshake verifies the peer
- * certificate's CN/SAN against [host]. A bare [SSLSocket] only validates the chain,
- * not the hostname, so without this an attacker with any CA-valid certificate can
- * MITM the connection and capture credentials. Must be called before the handshake.
+ * Turn on RFC 2818 endpoint identification: a bare [SSLSocket] validates only the chain, so without
+ * this any CA-valid certificate can MITM the connection. Must be called before the handshake.
  */
 internal fun SSLSocket.verifyingHostname(): SSLSocket = apply {
     sslParameters = sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
@@ -63,14 +45,8 @@ internal fun SSLSocket.verifyingHostname(): SSLSocket = apply {
 
 /** Opens authenticated IMAP sessions. The session object carries the live connection. */
 class ImapClient(
-    /**
-     * What this build calls itself on the wire — the `version` field of the RFC 2971 `ID` command
-     * (see [ImapSession.identify]). `null`, the default, sends the name alone.
-     *
-     * A parameter and not a constant because `core/imap` is plain Kotlin/JVM: it has no
-     * `BuildConfig` and must not gain an Android dependency to read one. `:app` hands its
-     * `BuildConfig.VERSION_NAME` down through `DataFactory.create`.
-     */
+    /** What this build calls itself in the RFC 2971 `ID` command; `null` sends the name alone.
+     *  A parameter, `core/imap` being plain Kotlin/JVM with no `BuildConfig` to read. */
     private val clientVersion: String? = null,
 ) {
     suspend fun connect(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession =
@@ -78,12 +54,8 @@ class ImapClient(
 
     /**
      * Blocking connect + login. Use when already on a dedicated IO thread (e.g. IDLE).
-     *
-     * [connectTimeoutMs] bounds the TCP connect AND the greeting/STARTTLS/login reads that
-     * follow, after which the socket goes back to its blocking default so no later operation
-     * inherits a timeout. `0` IS that default — a connect the OS gives up on after minutes —
-     * and is what every caller that passes nothing has always had. Name resolution is not
-     * covered by it (no socket option is), exactly as before.
+     * [connectTimeoutMs] bounds the TCP connect AND the greeting/STARTTLS/login reads, after which
+     * the socket returns to its blocking default so no later operation inherits it.
      */
     fun openSession(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession {
         val timeout = connectTimeoutMs.coerceAtLeast(0)
@@ -106,12 +78,8 @@ class ImapClient(
             } else {
                 session.login(config.username, config.password)
             }
-            // Last thing before the session is handed out: post-authentication (so the capability
-            // list is the real one, RFC 3501 §7.1) and ahead of any SELECT the caller makes, which is the window
-            // NetEase's servers judge (Codeberg #173). Bounded by the connect timeout like every
-            // other read here. Both openers go through this one place — the pooled sessions of
-            // ImapMailService and the IDLE connection — so an account with push sends two IDs,
-            // one per connection, which is what RFC 2971 describes.
+            // Post-authentication, so the capability list is the real one (RFC 3501 §7.1), and
+            // ahead of any SELECT — the window NetEase's servers judge (Codeberg #173).
             session.identify(clientVersion)
         }
         return session
@@ -131,18 +99,12 @@ class ImapSession(private var socket: Socket) : Closeable {
     private var output: OutputStream = socket.outputStream
     private var tagN = 0
 
-    /**
-     * What the server says it supports, learned once and kept for the life of the session,
-     * `null` until then. See [capabilities].
-     */
+    /** What the server says it supports, learned once per session. See [capabilities]. */
     private var advertisedCapabilities: Set<String>? = null
 
     internal fun readGreeting() {
-        // Untagged "* OK [CAPABILITY …] ready". Its capability list is deliberately NOT kept:
-        // it is what the server offers to an anonymous, possibly not-yet-encrypted client, and
-        // RFC 3501 §7.1 says it may differ from what the same server offers once STARTTLS and
-        // authentication have happened — which is the only state this session ever acts in.
-        // [capabilities] learns the post-authentication list instead.
+        // The greeting's capability list is deliberately not kept: RFC 3501 §7.1 lets it differ
+        // from the post-authentication one, which is the only state this session acts in.
         input.readResponse()
     }
 
@@ -159,24 +121,11 @@ class ImapSession(private var socket: Socket) : Closeable {
         rememberCapabilities(command("LOGIN ${quote(username)} ${quote(password)}").tagged)
     }
 
-    /**
-     * What this server supports, as capability names, upper-cased (RFC 3501 §6.1.1 — names are
-     * case-insensitive). Post-authentication and cached: asked at most once per session, and
-     * usually not asked at all, because most servers volunteer the list in the `[CAPABILITY …]`
-     * response code of their LOGIN/AUTHENTICATE completion.
-     *
-     * "At most once" is true OF THIS FUNCTION, not of the session: [identify] puts a `CAPABILITY`
-     * of its own at connect time on a server that volunteered nothing, and throws the answer away
-     * rather than fill this cache — one round trip, knowingly wasted, see its KDoc. Such a session
-     * therefore sends two, and `IdOnTheWireTest.asking for the ID capability leaves the session
-     * cache cold` pins exactly that.
-     *
-     * Deliberately a set of names and not a boolean per feature: the first caller needs UIDPLUS
-     * (whether `UID EXPUNGE` exists, see [delete]), and the next one will need something else
-     * (`UTF8=ACCEPT`, Codeberg #101). A server answering the query with no list at all is taken
-     * at its word — an empty set, i.e. every optional extension absent, which is the reading that
-     * makes each caller take its conservative branch.
-     */
+        /**
+         * Upper-cased capability names (RFC 3501 §6.1.1), asked at most once per session — most servers
+         * volunteer the list in their authentication completion. [identify] puts a `CAPABILITY` of
+         * its own without filling this cache. No list at all is taken at its word: an empty set.
+         */
     fun capabilities(): Set<String> =
         advertisedCapabilities ?: parseCapabilities(command("CAPABILITY").untagged)
             .also { advertisedCapabilities = it }
@@ -184,21 +133,16 @@ class ImapSession(private var socket: Socket) : Closeable {
     /** Whether the server advertises [name], e.g. `UIDPLUS`. Case-insensitive. */
     fun hasCapability(name: String): Boolean = name.uppercase() in capabilities()
 
-    /**
-     * Take the `[CAPABILITY …]` response code of an authentication completion as the session's
-     * capability list. Free — it saves the round trip [capabilities] would otherwise make — and
-     * authoritative: unlike the greeting's, this list is the post-authentication one.
-     */
+    /** Take the `[CAPABILITY …]` code of an authentication completion as the session's list: free,
+     *  and unlike the greeting's it is the post-authentication one. */
     private fun rememberCapabilities(taggedLine: List<Any?>) {
         val advertised = capabilitiesInResponseCode(taggedLine) ?: return
         if (advertised.isNotEmpty()) advertisedCapabilities = advertised
     }
 
     /**
-     * Authenticate with SASL XOAUTH2 (OAuth bearer token) instead of a password.
-     * On a bad token the server sends a "+" base64 error challenge and then waits for an
-     * empty client response before issuing the tagged NO — we acknowledge it so the
-     * failure surfaces as an auth error instead of hanging.
+     * Authenticate with SASL XOAUTH2. On a bad token the server sends a "+" base64 error challenge
+     * and waits for an empty client response before the tagged NO, so we acknowledge it or hang.
      */
     internal fun authenticateXoauth2(username: String, accessToken: String) {
         val tag = "a${++tagN}"
@@ -232,56 +176,16 @@ class ImapSession(private var socket: Socket) : Closeable {
         }
     }
 
-    /**
-     * Tell the server who this client is: `ID ("name" "Sterna Mail" "version" "…")`, RFC 2971.
-     *
-     * Not politeness. NetEase (`imap.163.com`, `126.com`, `188.com`, `yeah.net`) authenticates an
-     * anonymous client and then refuses every SELECT with `NO SELECT Unsafe Login`, so the account
-     * logs in and syncs nothing (Codeberg #173). The reporter's own transcript shows a bare `ID
-     * NIL` accepted and the SELECT still refused: what is demanded is a client that NAMES itself.
-     *
-     * The question is PUT, never presumed: RFC 2971 §3 says a client must not send ID to a server
-     * that has not advertised it. A server that published its list in the authentication
-     * completion (Dovecot, Stalwart, Gmail) is read from that list and costs nothing; a server
-     * that published nothing is asked, and pays one `CAPABILITY` per connection. That round trip
-     * is the accepted price of the rule above.
-     *
-     * Which of those two branches Coremail (163/126/188/yeah) takes, and whether its list even
-     * carries `ID`, is NOT known here: the reporter's transcript goes LOGIN → SELECT → ID and
-     * never puts a `CAPABILITY`. So this guard is where the fix can quietly do nothing, and the
-     * answer costs one question to the reporter rather than a guess in this comment.
-     *
-     * **The question is put BY HAND, and its answer is thrown away** — `parseCapabilities` on a
-     * `CAPABILITY` of our own, never [capabilities] or [hasCapability], which CACHE what they learn.
-     * Debt, deliberately kept, and no longer a guard: [move] used to read "the
-     * capability probe could not be answered" as "the socket is gone, do not copy", so a cache
-     * filled here made that question unfailable and sent a `UID MOVE` cut mid-command into
-     * `UID COPY` + `\Deleted` + purge. That reading is gone — the fallback now needs a tagged
-     * NO/BAD from the server before it may erase anything, and it never needed this coldness on a
-     * server that publishes its list at LOGIN, which was already most of them.
-     *
-     * What is left is a round trip a later reader repeats, against the risk of touching the
-     * capability cache on the deletion path in the same change. The cheaper side was the waste, and
-     * it can be lifted on its own, cold, with `IdOnTheWireTest.asking for the ID capability leaves
-     * the session cache cold` rewritten with it.
-     *
-     * **Best effort, all of it inside one `runCatching`** — the question included, since that
-     * `CAPABILITY` can throw too. A fatal command here would be fatal twice over:
-     * [ImapClient.openSession] has no `try/finally` and `ImapMailService.runWithRetry` connects
-     * OUTSIDE its `try`, so a throw leaks the socket, and it would break every account whose server
-     * answers this command with a NO.
-     *
-     * Every value is [quote]d, keys included — a CR/LF in the version would otherwise inject a
-     * second, authenticated command. `quote` refuses those, the refusal lands in the `runCatching`,
-     * and the session goes on without having said its name.
-     *
-     * Nothing is read back: the server's own `* ID (…)` lands in the untagged lines and is dropped.
-     */
+        /**
+         * `ID ("name" "Sterna Mail" "version" "…")`, RFC 2971. NetEase (163/126/188/yeah.net) refuses
+         * every SELECT with `NO SELECT Unsafe Login` unless the client NAMES itself (#173); RFC 2971 §3
+         * forbids sending ID unadvertised, so a server that published no list at login pays a
+         * `CAPABILITY` whose answer is thrown away. Best effort inside one `runCatching`:
+         * [ImapClient.openSession] has no `try/finally`, so a throw leaks the socket.
+         */
     internal fun identify(clientVersion: String?) {
         runCatching {
             val published = advertisedCapabilities
-            // No `.also { advertisedCapabilities = it }` here — see above: the cache stays cold,
-            // as debt now rather than as a guard.
             val advertised = published ?: parseCapabilities(command("CAPABILITY").untagged)
             if (CAP_ID !in advertised) return@runCatching
             val fields = buildList {
@@ -303,13 +207,8 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 
     /**
-     * Bound every socket read made inside [block] to [millis], then restore the socket's
-     * previous setting — the shape [idle] already uses, so one operation can be given a
-     * deadline without any other inheriting it. `0` means "block forever", the JVM default.
-     *
-     * A per-READ bound, not a total: a server dribbling one byte at a time stays under it
-     * indefinitely. It is what a socket offers, and it is what turns "hangs until the OS gives
-     * up, minutes later" into "gives up on a silent peer in [millis]".
+     * Bound every socket read inside [block] to [millis], then restore the previous setting, so one
+     * operation gets a deadline without any other inheriting it. A per-READ bound, not a total.
      */
     fun <T> withReadTimeout(millis: Int, block: () -> T): T {
         val previous = armReadTimeout(millis)
@@ -321,20 +220,9 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 
     /**
-     * [withReadTimeout] for a block that SUSPENDS — the same wrapper, and the two must stay the
-     * same wrapper. It cannot simply call the other one: a plain function cannot take a suspending
-     * lambda, and making the other one suspend would drag `connect` — which runs before any
-     * coroutine exists — with it.
-     *
-     * So what they share is not a comment but [armReadTimeout]/[disarmReadTimeout]: the thing
-     * that would be silently missing from a copy is the SETTING of the timeout, and there is now
-     * one of those, exercised by the budget tests through the other wrapper. `ImapBudgetSharedTest`
-     * additionally reads both bodies and refuses to let them differ.
-     *
-     * It exists for [walkFolder], whose block writes each page to the database between requests.
-     * The socket setting therefore stands across those suspensions, which is what it is for: the
-     * bound belongs to the reads of this operation, and the reads of this operation are exactly
-     * what happens in between.
+     * [withReadTimeout] for a block that SUSPENDS; a plain function cannot take a suspending lambda
+     * and making the other one suspend would drag `connect` with it. What they share is
+     * [armReadTimeout]/[disarmReadTimeout], and `ImapBudgetSharedTest` refuses to let them differ.
      */
     suspend fun <T> withReadTimeoutSuspending(millis: Int, block: suspend () -> T): T {
         val previous = armReadTimeout(millis)
@@ -346,13 +234,9 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 
     /**
-     * Bound this socket's reads to [millis] and answer with what the bound was — the load-bearing
-     * half of both `withReadTimeout` wrappers, in ONE place.
-     *
-     * It is one place on purpose. Written out in each wrapper, deleting the assignment from the
-     * copy the tests do not reach left every budget test green while `ENUMERATE_BUDGET_MS` — the
-     * bound that stops an "Empty trash" enumeration hanging on a mute server — stopped applying to
-     * everything the pooled session does.
+     * Bound this socket's reads to [millis] and answer with the previous bound — the load-bearing
+     * half of both wrappers, in ONE place: written out twice, dropping the assignment from the copy
+     * no test reaches leaves every budget test green while the bound stops applying.
      */
     private fun armReadTimeout(millis: Int): Int {
         val previous = socket.soTimeout
@@ -367,16 +251,11 @@ class ImapSession(private var socket: Socket) : Closeable {
         runCatching { socket.soTimeout = previous }
     }
 
-    /**
-     * Send a tagged command and collect untagged responses up to the tagged result.
-     *
-     * [maxTokensKept] caps what the WHOLE response retains (see [ImapParser.readResponse]), not
-     * what each line retains: a server free to split its answer over K lines would otherwise be
-     * allowed K times the cap — precisely the case a cap exists for. Exactly: the cap, plus at
-     * most [STATUS_LINE_TOKENS] per line once it is spent, because a status line must stay
-     * readable. The default keeps everything, and only a caller that already knows it will
-     * discard the surplus lowers it.
-     */
+        /**
+         * [maxTokensKept] caps what the WHOLE response retains, not each line: a server free to split
+         * its answer over K lines would otherwise be allowed K times the cap. Plus [STATUS_LINE_TOKENS]
+         * per line once it is spent, so a status line stays readable.
+         */
     internal fun command(line: String, maxTokensKept: Int = Int.MAX_VALUE): ImapResult {
         val tag = "a${++tagN}"
         output.write("$tag $line\r\n".toByteArray(Charsets.UTF_8))
@@ -384,9 +263,8 @@ class ImapSession(private var socket: Socket) : Closeable {
         val untagged = mutableListOf<List<Any?>>()
         var budget = maxTokensKept
         while (true) {
-            // A floor per line, whatever is left of the budget: the tagged status line must stay
-            // recognisable (its tag, its OK/NO) even once the untagged data has spent the lot,
-            // or this loop would no longer recognise its own answer and would read forever.
+            // A floor per line whatever is left of the budget: the tagged status line must stay
+            // recognisable, or this loop would not recognise its own answer and would read forever.
             val resp = input.readResponse(budget.coerceAtLeast(STATUS_LINE_TOKENS))
             if (resp.isEmpty()) {
                 if (socket.isClosed) throw ImapException("Connection closed")
@@ -415,10 +293,8 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 
     /**
-     * Run one IMAP IDLE cycle on the selected mailbox: wait up to [timeoutMs] for the
-     * server to report a change. Returns true if new mail arrived (an untagged EXISTS or
-     * RECENT), false on the keep-alive timeout. Always ends IDLE (DONE) and consumes the
-     * tagged result before returning, so the caller can immediately IDLE again.
+     * Run one IMAP IDLE cycle on the selected mailbox: true on new mail (untagged EXISTS or RECENT),
+     * false on the keep-alive timeout. Always ends IDLE and consumes the tagged result.
      */
     fun idle(timeoutMs: Int): Boolean {
         val tag = "a${++tagN}"
@@ -464,55 +340,20 @@ class ImapSession(private var socket: Socket) : Closeable {
         return changed
     }
 
-    /**
-     * A mailbox name as it must appear in a command: Unicode in, modified UTF-7 out
-     * ([encodeModifiedUtf7]), then quoted.
-     *
-     * EVERY command that names a mailbox goes through this — SELECT, CREATE, RENAME (both
-     * arguments), DELETE, the destination of UID MOVE and of its UID COPY fallback, APPEND —
-     * and it lives here rather than at the callers precisely so that adding a command cannot
-     * quietly skip it. Above this class a mailbox path is Unicode and nothing else (Codeberg
-     * #101): decoding LIST without encoding these seven would make a Cyrillic folder readable
-     * and unopenable.
-     *
-     * Encode BEFORE quote, never after: the encoded form is pure ASCII, so [quote]'s refusal of
-     * CR/LF — the guard against a folder name injecting a second authenticated command — still
-     * holds, and a newline can no longer even reach it.
-     */
+        /**
+         * Unicode in, modified UTF-7 out, then quoted. EVERY command naming a mailbox goes through
+         * this, so adding one cannot quietly skip it (Codeberg #101). Encode BEFORE quote: the encoded
+         * form is ASCII, so [quote]'s CR/LF refusal still holds.
+         */
     private fun mailboxArg(path: String): String = quote(encodeModifiedUtf7(path))
 
-    /**
-     * Create a mailbox (folder) and SUBSCRIBE to it. Succeeds quietly if it already exists.
-     *
-     * The subscription is not decoration: `CREATE` does not touch the subscription list
-     * (RFC 3501 §6.3.3 says nothing of it, and a server measured on 2026-08-25 leaves the new
-     * mailbox unsubscribed), so with "subscribed folders only" on, the folder the user has just
-     * created would vanish from the drawer the instant it appeared (#174).
-     *
-     * This is the ONLY subscription Sterna ever writes. It does not drive subscriptions:
-     * no `UNSUBSCRIBE` anywhere, no `SUBSCRIBE` on any other path, and none on screen. The one
-     * mailbox it subscribes to is the one it created itself.
-     *
-     * Two decisions, written down so they are not undone as tidying:
-     *
-     * 1. **The SUBSCRIBE is sent even when the CREATE failed** — and the two `runCatching` are
-     *    separate for exactly that. The failure this method is DOCUMENTED to swallow is "the
-     *    mailbox already exists", which is precisely the case of a mailbox that is there and
-     *    unsubscribed; skipping the SUBSCRIBE would leave the user's folder hidden with no way
-     *    back inside the app. Telling that failure from a real one would mean reading the
-     *    response code (`ALREADYEXISTS`) and trusting servers to send it — more surface for
-     *    nothing, because a SUBSCRIBE aimed at a mailbox that genuinely does not exist is
-     *    harmless either way: refused (swallowed below), or accepted and inert, since
-     *    [listFolders] intersects LSUB with LIST and a subscription no LIST names adds no folder.
-     * 2. **A refused SUBSCRIBE never fails the creation.** The folder EXISTS by then; returning
-     *    an error on it would tell the user their folder was not created, and could send them
-     *    creating it again. The cost of losing it is one folder hidden until they subscribe
-     *    server-side — never a lost creation.
-     *
-     * Both commands carry the SAME [mailboxArg] value, computed once: a subscription under any
-     * other spelling of the name is a subscription to another mailbox, or to none — and that is
-     * every non-ASCII folder (Codeberg #101), which travels in modified UTF-7.
-     */
+        /**
+         * Also SUBSCRIBEs; succeeds quietly if the mailbox exists. `CREATE` does not touch the
+         * subscription list, so with "subscribed folders only" on the new folder would vanish from the
+         * drawer the instant it appeared (#174). The only subscription Sterna ever writes. The
+         * SUBSCRIBE goes out even when the CREATE failed (the swallowed failure is "already exists"),
+         * a refused SUBSCRIBE never fails the creation, and both carry the SAME [mailboxArg] value.
+         */
     fun createFolder(path: String) {
         val mailbox = mailboxArg(path)
         runCatching { command("CREATE $mailbox") }
@@ -529,128 +370,57 @@ class ImapSession(private var socket: Socket) : Closeable {
         command("DELETE ${mailboxArg(path)}")
     }
 
-    /**
-     * Move a message to another mailbox; the answer carries its new UID in the destination
-     * (`moved.uids[uid]`) and that destination's numbering, both as `COPYUID` reported them.
-     *
-     * Written over the plural below and answering exactly what it answers: the caller of a single
-     * move needs the destination's numbering just as much, because it is the one an Undo of THIS
-     * message will have to oppose — "delete" on an account with a Trash is this call.
-     */
+    /** Move a message to another mailbox; the answer carries its new UID in the destination and
+     *  that destination's numbering, which an Undo of THIS message will have to oppose. */
     fun move(uid: Long, destination: String): ImapMoved = move(listOf(uid), destination)
 
-    /**
-     * Move many messages to [destination] with one `UID MOVE <set> <dest>` per chunk
-     * (falling back to `UID COPY` + `+FLAGS (\Deleted)` + a purge), instead of one
-     * command per message — the bulk-action fix (Codeberg #29). The caller must have
-     * SELECTed the source mailbox. Returns the source-UID → destination-UID mapping parsed
-     * from COPYUID (RFC 4315 / RFC 6851), empty when the server reports none — the move
-     * still happened; only per-message Undo positioning is lost — AND the destination folder's
-     * numbering, which the same COPYUID states and this client used to throw away (see
-     * [ImapMoved]). Chunked to stay well under
-     * command-length limits. The fallback is reserved for a server that ANSWERED with a tagged
-     * NO/BAD and does not advertise MOVE (RFC 6851); every other failure of the UID MOVE travels
-     * up untouched, a read timeout and a lost connection included — neither established that the
-     * server did not carry the move out.
-     *
-     * More than [UID_SET_CHUNK] UIDs is several commands, so several COPYUIDs — all naming one
-     * destination folder, so all stating one numbering, and that one number is kept. When they
-     * DISAGREE the destination was renumbered in the middle of the move and no single number is
-     * true of the whole mapping: [ImapMoved.destinationUidValidity] is null then, which is safe
-     * because null is the REFUSING value ON THE PATH THIS VALUE TAKES — an Undo's move-back, whose
-     * `UidValidity.mayDestroyUnderStatedNumbering` answers false for it. Not a statement about
-     * null everywhere: `onMailbox` reads a null `expectedUidValidity` as "fall back on the folder's
-     * record", which is what every ordinary read and every swipe depend on. An Undo that cannot say
-     * which numbering its UIDs belong to must not move anything under either of them.
-     *
-     * The copy fallback leaves the originals to be erased, and how that is done depends on
-     * UIDPLUS exactly as it does in [delete] — same question, same single answer: see
-     * [purgeWithoutUidPlus]. The capability is consulted BEFORE the first COPY, so a session
-     * that cannot even answer that question fails without having duplicated anything.
-     *
-     * And the SOURCE side of the answer, [ImapMoved.confirmedGone]: which of [uids] this
-     * session can prove are no longer in the selected folder — or, on the copy fallback, which
-     * the server itself stated it copied out of it — decided chunk by chunk by
-     * [confirmedGoneInChunk]. A `UID MOVE` naming a UID that is already gone is a no-op the
-     * server accepts with a plain `OK`, so "the command did not throw" proves nothing per
-     * message. What is not in the set is UNKNOWN, never "did not move".
-     */
+        /**
+         * One `UID MOVE <set> <dest>` per chunk (Codeberg #29), falling back to `UID COPY` + `\Deleted`
+         * + a purge; the caller must have SELECTed the source. That fallback is reserved for a server
+         * that ANSWERED with a tagged NO/BAD and does not advertise MOVE: every other failure travels
+         * up untouched, a read timeout and a lost connection included. Chunks disagreeing on the
+         * destination's numbering leave [ImapMoved.destinationUidValidity] null, its refusing value.
+         */
     fun move(uids: List<Long>, destination: String): ImapMoved {
         val mapping = LinkedHashMap<Long, Long>()
-        // What each chunk's COPYUID said the DESTINATION's numbering is. A set, because the only
-        // question asked of it is whether every chunk said the same thing.
+        // A set, because the only question asked of it is whether every chunk said the same thing.
         val statedNumbering = LinkedHashSet<Long>()
-        // The no-UIDPLUS purge is folder-wide, so it is decided once for the whole move — over
-        // the union of the chunks that actually took the copy fallback, and only those: a chunk
-        // that went out as a UID MOVE flagged nothing.
+        // The no-UIDPLUS purge is folder-wide, so it is decided once for the whole move, over the
+        // union of the chunks that took the copy fallback — a chunk sent as UID MOVE flagged nothing.
         val flaggedByFallback = mutableSetOf<Long>()
         // The source-side verdict, chunk by chunk: see [ImapMoved.confirmedGone].
         val gone = LinkedHashSet<Long>()
         for (chunk in uids.distinct().chunked(UID_SET_CHUNK)) {
             val set = compressUidSet(chunk)
             if (set.isEmpty()) continue
-            // BEFORE the move touches anything: which of this chunk's UIDs the source folder
-            // still answers for. An absence read AFTER the move cannot tell "left because we
-            // moved it" from "left before we asked" — a UID somebody else moved or destroyed
-            // since the list was drawn answers neither probe — and the second reading is the
-            // destructive one upstairs. Only the DIFFERENCE between the two observations is a
-            // departure this session caused. A probe that fails proves no presence at all, so
-            // `emptySet()` is its answer: nothing gets confirmed beyond what COPYUID states.
-            // Not gated on a capability: Stalwart advertises neither MOVE nor UIDPLUS and
-            // returns COPYUID anyway, so a gate would switch this guard off in silence on the
-            // very server the bench runs. The cost — one round trip per chunk, including chunks
-            // whose COPYUID will turn out to cover everything — is accepted, and it is accepted
-            // because losing a row here loses its FTS entry too, which nothing on IMAP rebuilds.
+            // BEFORE the move touches anything: which of this chunk's UIDs the source still answers
+            // for. Only the DIFFERENCE between the two observations is a departure this session
+            // caused; a failed probe proves no presence. Not gated on a capability — Stalwart
+            // advertises neither MOVE nor UIDPLUS and returns COPYUID anyway.
             val presentBefore = runCatching { uidsStillInSource(set) }.getOrElse { emptySet() }
-            // Whether THIS chunk left as a real `UID MOVE`, which decides whether it may be
-            // probed at all: the copy fallback below leaves its originals in the source folder.
+            // Whether THIS chunk left as a real `UID MOVE`, which decides whether it may be probed
+            // at all: the copy fallback below leaves its originals in the source folder.
             var byMove = true
             val result = runCatching { command("UID MOVE $set ${mailboxArg(destination)}") }.getOrElse {
-                // FIRST statement of the block, before anything here can throw, return or be
-                // guarded: from this point on the chunk is a fallback chunk whatever happens to
-                // it, and a probe sent on one is a false negative by construction (see
-                // [confirmedGoneInChunk]). Set at the bottom it would survive as `true` the day
-                // somebody adds an early exit above it.
+                // FIRST statement of the block: from here on the chunk is a fallback chunk whatever
+                // happens to it, and a probe sent on one is a false negative by construction.
                 byMove = false
-                // The fallback answers ONE question — "this server has no MOVE extension" — and it
-                // answers it destructively: copy, flag, purge the SOURCE folder. So it starts on
-                // two conditions, both required:
-                //
-                // 1. the server was HEARD refusing: a tagged NO/BAD completion was read, so the
-                //    command reached it, was understood and was declined. A failure carrying no
-                //    tagged status — a dead socket, a read that ran out its budget, `Connection
-                //    closed` — says nothing about what the server did, and a server that went
-                //    quiet may well have PERFORMED the move: copying then duplicates the mail and
-                //    erases the originals from what, for "delete", is the inbox. Those go up as
-                //    they came.
-                // 2. its capability list does not carry MOVE. A server that advertises MOVE and
-                //    still refuses is reporting a real error (NO [OVERQUOTA], [TRYCREATE]), not an
-                //    extension it lacks.
-                //
-                // Condition 1 is on the TYPE of the failure, never on its response code: a
-                // refusal that reaches here with no MOVE in the list takes the fallback whatever
-                // the code says, which is what a server that has never heard of `UID MOVE` answers
-                // with. Deliberately not a precondition on the UID MOVE itself either: servers
-                // implement it without advertising it, and gating the attempt would send MORE
-                // accounts down the destructive path. The fallback stays the answer to a capability
-                // list that does not carry MOVE — including an EMPTY one, which is how
-                // [capabilities] reads a server that answers the query with no list, and is not the
-                // same as a server proved to lack MOVE.
+                    // Destructive — copy, flag, purge the SOURCE — so it takes two conditions: the
+                    // server was HEARD refusing (a dead socket says nothing, and a server gone quiet
+                    // may have PERFORMED the move), and its capability list does not carry MOVE.
+                    // Condition 1 is on the TYPE of the failure, and deliberately not a precondition
+                    // on the UID MOVE: servers implement it without advertising it.
                 if (it !is ImapException || it.taggedStatus == null) throw it
-                // The probe stays wrapped, and an unanswerable probe still means "rethrow": the
-                // refusal was heard, but a `CAPABILITY` that cannot be answered right behind it
-                // says the socket left in between, and not copying is the right side of that error.
-                // It costs nothing on the common path — the list usually arrived with the
-                // authentication completion, and no command goes out at all.
+                // The probe stays wrapped, and an unanswerable one still means "rethrow": a
+                // `CAPABILITY` that cannot be answered right behind the refusal says the socket left
+                // in between, and not copying is the right side of that error.
                 val announcesMove = runCatching { hasCapability(CAP_MOVE) }.getOrDefault(true)
                 if (announcesMove) throw it
                 val byUid = hasCapability(CAP_UIDPLUS)
                 val copy = command("UID COPY $set ${mailboxArg(destination)}")
                 command("UID STORE $set +FLAGS (\\Deleted)")
                 // Best effort, unlike in [delete]: the copy has already landed, so failing here
-                // would have the caller retry a move that would copy a second time. Leaving the
-                // original flagged is the cheaper error. (`command` is blocking, not suspending —
-                // this catch cannot swallow a coroutine cancellation.)
+                // would have the caller retry a move that would copy a second time.
                 if (byUid) {
                     runCatching { command("UID EXPUNGE $set") }
                 } else {
@@ -667,63 +437,13 @@ class ImapSession(private var socket: Socket) : Closeable {
         return ImapMoved(mapping, statedNumbering.singleOrNull(), gone)
     }
 
-    /**
-     * Which UIDs of one chunk are PROVED to have left the selected source folder, for
-     * [ImapMoved.confirmedGone]. [namedByCopyUid] is what that chunk's `COPYUID` named (empty when
-     * the server stated none), [byMove] whether the chunk went out as a real `UID MOVE`.
-     *
-     * Three cases, in order:
-     *
-     * 1. A `COPYUID` covering the whole chunk is an authoritative per-UID report and the answer
-     *    is complete — no command goes out AFTER the move. This is the common path (Stalwart,
-     *    Dovecot), and there a verdict already in hand costs nothing more to read.
-     *
-     *    It is not free, and the fee is paid one step earlier: [move] takes [presentBefore]
-     *    before every chunk, whatever the server will turn out to say, because nothing can know
-     *    beforehand that a covering `COPYUID` is coming. A move of 200 messages therefore costs
-     *    ONE round trip per chunk, here as everywhere else. That was weighed and accepted: the
-     *    alternative is to gate the observation on a capability, and Stalwart advertises neither
-     *    `MOVE` nor `UIDPLUS` while returning `COPYUID` anyway, so the gate would switch the
-     *    guard off in silence on the very server this is developed against.
-     *
-     * 2. Otherwise, and only for a chunk that went out as a `UID MOVE`: TWO identity probes of
-     *    the source folder, which is still SELECTed and was so throughout — [uidsStillInSource],
-     *    the same command each time. [presentBefore] was taken by [move] BEFORE the `UID MOVE`
-     *    went out; the one taken here reads what the move left. A UID is confirmed gone when it
-     *    was in the FIRST answer and is not in the second, and only then. The `COPYUID` keys are
-     *    added to that verdict rather than replacing it — the server named those messages as
-     *    copied out, in the same breath.
-     *
-     *    The probe AFTER, alone, is not a verdict: a UID somebody else moved or destroyed
-     *    between the drawing of the list and the command answers neither probe, so "absent
-     *    afterwards" covers both "our move took it" and "it was already gone". Upstairs the
-     *    second case drops the row AND its FTS entry, which nothing on IMAP reindexes. What the
-     *    absence after DOES settle is the other ambiguity — "the server states no destination
-     *    UIDs" is not "this message did not move", because a `UID MOVE` naming an already-gone
-     *    UID is a no-op answered with a plain `OK`.
-     *
-     *    [presentBefore] is empty when its own probe failed, and that is deliberate: a probe
-     *    that did not answer proves no presence, so it confirms nothing beyond `COPYUID`.
-     *
-     * 3. A probe that FAILS (NO/BAD, dead socket) confirms nothing for the chunk, and the
-     *    exception stops here. The move itself succeeded; letting it up would have the caller
-     *    retry a move that already happened. Half a verdict is dropped with it: what is not
-     *    confirmed is repaired by the next sync, what is wrongly confirmed is not.
-     *
-     * The copy fallback is never probed AFTER its `UID COPY` ([byMove] false), and its
-     * [presentBefore] — taken before the `UID MOVE` was refused, i.e. before this question could
-     * be asked — is dropped unread. For it the answer is the WEAKER
-     * half of what this field promises: `COPYUID` says the server copied those messages OUT of
-     * the source, not that they have left it. They are still there, flagged `\Deleted`, and
-     * [finishPurgeWithoutUidPlus] deliberately declines to expunge when somebody else's message
-     * is flagged in the folder. Probing them anyway would answer "still there" for mail that has
-     * landed — a false negative on every server without the MOVE extension — so the server's own
-     * statement is taken, and [ImapMoved.confirmedGone] says what it says.
-     *
-     * Per chunk, deliberately, unlike the UIDPLUS question of [move]/[delete]: this asks about
-     * exactly the UIDs of one chunk and nothing folder-wide, so it neither can nor should be
-     * hoisted before the first chunk.
-     */
+        /**
+         * For [ImapMoved.confirmedGone]. A covering `COPYUID` is authoritative; otherwise, and only for
+         * a `UID MOVE` chunk, a UID is confirmed gone when it was in [presentBefore] and is absent from
+         * a second probe; a failed probe confirms nothing. The probe AFTER, alone, is no verdict, and
+         * upstairs a wrong verdict drops the row AND its FTS entry. The copy fallback is never probed —
+         * `COPYUID` says the server copied those messages OUT, not that they have left.
+         */
     private fun confirmedGoneInChunk(
         chunk: List<Long>,
         set: String,
@@ -741,30 +461,12 @@ class ImapSession(private var socket: Socket) : Closeable {
         return stated + ((presentBefore intersect handedIn) - stillThere)
     }
 
-    /**
-     * Which UIDs of [set] the SELECTED folder still answers for — `UID SEARCH UID <set>`, the
-     * identity probe of [confirmedGoneInChunk].
-     *
-     * NO token cap, deliberately, unlike [allUids] and [nothingElseIsFlagged]: the answer is
-     * already bounded BY THE QUESTION — a search over a set of at most [UID_SET_CHUNK] UIDs
-     * cannot name more than those — so a cap buys nothing and costs a truncation. And truncation
-     * here falls the WRONG WAY: a UID dropped from this list drops out of the subtraction in
-     * [confirmedGoneInChunk] and is reported as PROVED GONE, i.e. a message still sitting in the
-     * source folder gets its row destroyed, and on IMAP nothing reindexes it. Where a cap is
-     * right ([nothingElseIsFlagged]) a short answer is a NO, the safe direction; here it would be
-     * a yes. Two things a cap cannot survive, both already documented in this file: a server free
-     * to SPLIT its result over several untagged lines (see [allUids]), and untagged traffic of
-     * its own arriving in the middle of the answer (`* n EXPUNGE` for what a move just removed).
-     *
-     * Every untagged `SEARCH` line is read for the same reason, not just the first — a dropped
-     * tail is a dropped tail whatever dropped it. Same shape as [newestUids], same reason.
-     *
-     * The SAME command serves as the observation [move] takes BEFORE its `UID MOVE`, where
-     * truncation falls the other way: a UID missing from that answer is a presence not observed,
-     * so it drops out of the verdict and is NOT confirmed gone. Under-confirming costs a stale
-     * row the next sync repairs. So the no-cap rule is right for both readings, and for the
-     * probe after it is the only safe one.
-     */
+        /**
+         * The identity probe of [confirmedGoneInChunk]. NO token cap, unlike [allUids]: the answer is
+         * already bounded by the question, and truncation falls the WRONG WAY — a dropped UID is
+         * reported as PROVED GONE, destroying the row of a message still in the folder. Every untagged
+         * `SEARCH` line is read, a server being free to split its result.
+         */
     private fun uidsStillInSource(set: String): Set<Long> =
         command("UID SEARCH UID $set").untagged
             .filter { it.getOrNull(1) == "SEARCH" }
@@ -777,25 +479,12 @@ class ImapSession(private var socket: Socket) : Closeable {
         return result.messages().firstOrNull()
     }
 
-    /**
-     * The messages of a FETCH response — and the ONE place a message flagged `\Deleted` is
-     * dropped, so that it cannot appear in a folder list, a search result, a notification or a
-     * restored batch (Codeberg #99).
-     *
-     * Every fetch in this class funnels through here ([fetchPage], [fetchUids], [fetchByUid],
-     * and the search scan by way of [fetchUids]), which is why the rule is stated once instead of
-     * at each caller. `\Deleted` means the server has been told the message is to go and only an
-     * EXPUNGE will finish the job; until then it is still returned by FETCH, by any client. A
-     * purge that legitimately stops short of the EXPUNGE — no UIDPLUS and somebody else's message
-     * flagged in the folder, see [delete] — would otherwise have its messages walk straight back
-     * into the list on the next sync, which reads as "Empty trash did nothing".
-     *
-     * HIDING IS NOT DELETING, and nothing here makes those messages unreachable: the Empty-trash
-     * snapshot enumerates with `UID SEARCH ALL` ([allUids]) and the purge asks `UID SEARCH
-     * DELETED`, neither of which is a FETCH. The destroy path still sees, and still destroys,
-     * exactly what it did before. Clear the flag from another client and the message comes back
-     * on the next fetch, since nothing about it was cached.
-     */
+        /**
+         * The ONE place a message flagged `\Deleted` is dropped, so it cannot appear in a folder list,
+         * a search result, a notification or a restored batch (Codeberg #99) — every fetch here funnels
+         * through it, so a purge that legitimately stops short of its EXPUNGE does not walk its messages
+         * back into the list. HIDING IS NOT DELETING: the snapshot and the purge use `UID SEARCH`.
+         */
     private fun ImapResult.messages(): List<ImapMessage> =
         untagged.mapNotNull { parseFetch(it) }.filterNot { it.deleted }
 
@@ -808,19 +497,12 @@ class ImapSession(private var socket: Socket) : Closeable {
         return m.groupValues[1].toLongOrNull()
     }
 
-    /**
-     * Parse one `COPYUID <uidvalidity> <source-set> <dest-set>` response (RFC 4315): the ordered
-     * source-UID → destination-UID mapping, and the numbering the server states for the folder
-     * those destination UIDs were just assigned in. Both sets correspond positionally, so they're
-     * expanded preserving order and zipped. [ImapMoved.NONE] if there is no COPYUID; an empty
-     * mapping if the two sets don't line up — the numbering still stands in that case, being a
-     * property of the FOLDER and not of the sets.
-     *
-     * The `<uidvalidity>` is the token this parser used to skip with a non-capturing `\d+`,
-     * which is the whole of Codeberg #99's Undo half: the server had already said what the
-     * destination's numbering was, and the client dropped it on the floor. A value at or below 0
-     * reads as "nothing stated", the convention `UidValidity` applies everywhere else.
-     */
+        /**
+         * RFC 4315: the ordered source→destination mapping and the destination folder's stated
+         * numbering, the two sets corresponding positionally. An empty mapping if they do not line up —
+         * the numbering still stands, being a property of the FOLDER; `<uidvalidity>` at or below 0
+         * states nothing.
+         */
     private fun parseCopyUidReport(result: ImapResult): ImapMoved {
         val text = (result.untagged + listOf(result.tagged)).joinToString(" ") { resp ->
             resp.joinToString(" ") { flatten(it) }
@@ -829,43 +511,18 @@ class ImapSession(private var socket: Socket) : Closeable {
         return ImapMoved(
             uids = copyUidMapping(m.groupValues[2], m.groupValues[3]),
             destinationUidValidity = m.groupValues[1].toLongOrNull()?.takeIf { it > 0L },
-            // Empty here on purpose: this parses ONE response and knows nothing about which
-            // command carried it. Whether a COPYUID amounts to "it left the source folder" is
-            // [move]'s to say — for the copy fallback it does not, the originals are still there.
+            // Empty here on purpose: this parses ONE response and knows nothing about which command
+            // carried it. Whether a COPYUID amounts to "it left the source" is [move]'s to say.
             confirmedGone = emptySet(),
         )
     }
 
-    /**
-     * LIST every mailbox, inferring a role from special-use attributes or the name.
-     *
-     * The attributes are asked for BY NAME (`RETURN (SPECIAL-USE)`, RFC 6154 §5): a server is
-     * entitled to withhold `\Trash`/`\Junk`/`\Sent`/`\Drafts`/`\Archive` from a bare LIST and to
-     * hand them over only when they were requested. A trash that arrives attribute-less falls
-     * through to [roleFromName], which knows the folder names of the nine languages the app
-     * speaks and no others, so on a Turkish or Japanese server it gets no role at all — and a
-     * delete with no trash to move to DESTROYS the message.
-     *
-     * Only from a server that said it knows the extension, though. Ask one that never advertised
-     * it for a return option and it answers BAD: the LIST throws, the folder drawer comes back
-     * empty and the account is unusable — a worse failure than the one being avoided. Servers
-     * that never announced SPECIAL-USE keep exactly the command they have always been sent.
-     *
-     * [onlySubscribed] adds a SECOND round trip, `LSUB "" "*"`, and marks each listed folder by
-     * whether the answer named its path ([withSubscriptions]) — what K-9 does, and the only thing
-     * this panel does: nothing is filtered here, the flag is carried and `:core:data` decides.
-     * Off by default, so every caller that has no use for a subscription (the rename delimiter
-     * lookup, the connection test, the push-wake folder refresh) keeps its single LIST.
-     *
-     * NOT `LIST … RETURN (SUBSCRIBED)`, and above all NOT under a capability guard like the one
-     * above: Stalwart — our own server — advertises neither LIST-EXTENDED nor SPECIAL-USE, so a
-     * guard would switch the feature off exactly where it is used. `LSUB` is IMAP4rev1 core
-     * (RFC 3501 §6.3.9) and every server answers it.
-     *
-     * And a LSUB that FAILS means "unknown", never "subscribed to nothing": the round trip is
-     * wrapped, `getOrNull()` hands `null` to [withSubscriptions], and every folder stays
-     * subscribed. A refusal, a dropped connection or a garbled answer must never empty the drawer.
-     */
+        /**
+         * `RETURN (SPECIAL-USE)` (RFC 6154 §5) is asked only of a server that advertised it: one that
+         * did not answers BAD and the drawer comes back empty. [onlySubscribed] adds a `LSUB "" "*"`
+         * (core IMAP4rev1, so no guard) and only MARKS each folder. A failed LSUB means "unknown",
+         * never "subscribed to nothing": `null` leaves every folder subscribed.
+         */
     fun listFolders(onlySubscribed: Boolean = false): List<ImapFolder> {
         val list = if (hasCapability("SPECIAL-USE")) "LIST \"\" \"*\" RETURN (SPECIAL-USE)" else "LIST \"\" \"*\""
         val folders = parseListFolders(command(list).untagged)
@@ -874,62 +531,37 @@ class ImapSession(private var socket: Socket) : Closeable {
         return withSubscriptions(folders, subscribed)
     }
 
-    /**
-     * SELECT a mailbox and read back its status.
-     *
-     * [expectedUidValidity] is the UIDVALIDITY this caller's UIDs were read under. When the
-     * server now reports a different one, every UID in that folder has been reassigned (RFC 3501
-     * §2.3.1.1) — a UID that used to mean one message now means another, or nothing — and the
-     * call is refused with [ImapUidValidityChanged] BEFORE a single command that names a UID
-     * goes out. That is the whole IMAP side of Codeberg #99: a held-back "Empty trash" that
-     * finds a renumbered folder must destroy nothing, not destroy "whatever holds those numbers
-     * now".
-     *
-     * `null`, the default, asks nothing and is what every discovery path passes: the first
-     * SELECT of a folder has nothing to compare against. A server that reports no UIDVALIDITY at
-     * all (0) cannot be checked either way, and is not turned into a refusal — that would break
-     * the folder outright on a non-conforming server, which is the wrong direction for a guard
-     * whose job is to be conservative about DESTROYING.
-     *
-     * THE ONE RETRY: a mailbox whose wire name is not a valid encoding of itself — a bare `&`,
-     * which some client (including Sterna up to 1.4.3, which sent folder names raw) may have
-     * created — is kept verbatim by [decodeMailboxPath], and encoding it again would turn `R&D`
-     * into `R&-D` and address a mailbox that does not exist. Such a name cannot be told apart
-     * from the legitimate decoding of `R&-D`: the two are the same string, and one encoder cannot
-     * map it to both. So the standard form is tried first, and only when the server refuses it is
-     * the verbatim form tried — at which point the alternative is a folder the user cannot open
-     * at all. SELECT alone gets this: it is read-only and idempotent, and it is the command that
-     * blocks. Retrying a CREATE, a MOVE or an APPEND under a second name could file mail into the
-     * wrong place. Same shape as the `BADCHARSET` retry in [searchUids], and free when the first
-     * form works, which it does for every conformant name.
-     */
+        /**
+         * [expectedUidValidity] is the UIDVALIDITY this caller's UIDs were read under; a different one
+         * means every UID was reassigned (RFC 3501 §2.3.1.1), so the call is refused with
+         * [ImapUidValidityChanged] before any command naming a UID goes out (Codeberg #99). A server
+         * stating no UIDVALIDITY (0) is not refused. THE ONE RETRY: a name that is not a valid encoding
+         * of itself (a bare `&`) cannot be told from the decoding of `R&-D`, so the verbatim form is
+         * tried after the standard one is refused — SELECT alone, being read-only and idempotent.
+         */
     fun select(path: String, expectedUidValidity: Long? = null): ImapMailboxStatus {
         val encoded = mailboxArg(path)
         val result = try {
             command("SELECT $encoded")
         } catch (refused: ImapException) {
             val verbatim = quote(path)
-            // Only where the ambiguity can exist: the path is its own plausible wire form, i.e.
-            // pure ASCII that the encoder would nonetheless have changed. A non-ASCII path has
-            // exactly one wire form, so a refusal there means what it says and putting raw UTF-8
-            // on the wire would only be noise.
+            // Only where the ambiguity can exist: a pure-ASCII path the encoder would nonetheless
+            // have changed. A non-ASCII path has exactly one wire form, so a refusal there means
+            // what it says.
             if (verbatim == encoded || path.any { it.code !in 0x20..0x7E }) throw refused
             command("SELECT $verbatim")
         }
         var exists = 0
         // Zero is also what this holds when the server said NOTHING about the folder's size, and
-        // the two must not read alike: a walk built on an unstated zero fetches no page, brings back
-        // no UID, and the reconcile above takes that for an empty folder and DELETES the cache. So
-        // the count carries whether it was STATED — an `* n EXISTS` line whose n parsed.
+        // the two must not read alike: a walk built on an unstated zero brings back no UID, and the
+        // reconcile takes that for an empty folder and DELETES the cache.
         var existsObserved = false
         var uidValidity = 0L
         var uidNext = 0L
         for (resp in result.untagged) {
             // * <n> EXISTS  |  * OK [UIDVALIDITY n] ...  |  * OK [UIDNEXT n] ...
             if (resp.getOrNull(2) == "EXISTS") {
-                // Same reading as [folderMoved]'s, and deliberately the same strictness: an n that
-                // will not parse is not a count. There it means "assume movement", here "assume
-                // nothing" — both refuse rather than invent a number.
+                // Same strictness as [folderMoved]'s: an n that will not parse is not a count.
                 (resp.getOrNull(1) as? String)?.toIntOrNull()?.let { exists = it; existsObserved = true }
             }
             val flat = resp.joinToString(" ") { it?.toString() ?: "NIL" }
@@ -944,11 +576,8 @@ class ImapSession(private var socket: Socket) : Closeable {
         return ImapMailboxStatus(exists, uidValidity, uidNext, existsObserved)
     }
 
-    /**
-     * Fetch a page of messages by sequence number, newest first. [offset] skips the
-     * newest N messages; up to [limit] are returned. Uses the [exists] count from a
-     * prior SELECT to map "newest" to high sequence numbers.
-     */
+    /** Fetch a page of messages by sequence number, newest first: [offset] skips the newest N, up
+     *  to [limit] come back, mapped onto high sequence numbers via [exists] from a prior SELECT. */
     fun fetchPage(exists: Int, offset: Int, limit: Int): List<ImapMessage> {
         val highest = exists - offset
         if (highest < 1) return emptyList()
@@ -957,49 +586,14 @@ class ImapSession(private var socket: Socket) : Closeable {
         return result.messages().sortedByDescending { it.uid }
     }
 
-    /**
-     * Read the newest [limit] messages of the SELECTed folder in requests of [pageSize] sequence
-     * positions, handing each page to [onPage] AS IT LANDS and keeping only UIDs.
-     *
-     * [status] whole, and not just its count: the walk answers with [ImapFolderWalk.folderStatedEmpty],
-     * which is the difference between a folder the server said holds nothing and a folder whose size
-     * the server never stated ([ImapMailboxStatus.existsObserved]) — and the caller DELETES on that
-     * difference. Taking an `Int` here let the call site pair a count with a provenance of its own.
-     *
-     * Why pages at all: [fetchPage] puts the whole window in one `FETCH`, and everything that
-     * command brings back is parsed and held before a single message is read out of it. At the
-     * window sizes this app offers that is a folder's worth of envelopes on one heap. Paginating is
-     * the only honest fix — capping what the parser keeps ([command]'s `maxTokensKept`) would
-     * TRUNCATE the answer silently, and the messages it dropped would then be missing from the
-     * walk's UIDs and deleted from the cache by the caller's reconcile.
-     *
-     * What the caller owes back: [ImapFolderWalk.moved]. A folder that changed while this read it
-     * must not be reconciled against — [folderMoved] states exactly which messages are at risk, and
-     * it is NOT "one that fell between two pages": the sequence shift is downwards and this walk
-     * descends, so what a renumbering costs is the BOTTOM of the window, plus anything another path
-     * cached meanwhile.
-     *
-     * Movement is asked about in two places, and both are load-bearing:
-     * - a `NOOP` before every request but the first, because that is the only way a server may tell
-     *   us: RFC 3501 §7.4.1 forbids sending `EXPUNGE` while answering a `FETCH`, so it holds the
-     *   news until a command that may carry it — and until it has sent it, it may not renumber
-     *   anything either;
-     * - the untagged lines of every `FETCH` response, which is not belt-and-braces: a walk of ONE
-     *   page (a 50-message window, the unified refresh, a small folder) sends no `NOOP` at all, so
-     *   this is then the only detector there is.
-     *
-     * The walk does NOT stop when it notices movement: the remaining pages are still mail the user
-     * wants cached, writing them deletes nothing, and only the reconcile is unsafe. It carries the
-     * verdict to the end instead.
-     *
-     * [onPage] receives only messages the walk has not already handed over, so an overlapping page
-     * costs one wasted request and nothing else. It runs inside the caller's session — that is
-     * what "write each page as it lands" means — so the account's ONE connection is held for the
-     * length of the walk INCLUDING the caller's writes, and every other IMAP operation on that
-     * account queues behind it. The single `FETCH` this replaces held the connection too, but not
-     * across a database write; on today's windows the difference is noise, on an unbounded one it
-     * would not be.
-     */
+        /**
+         * Each page goes to [onPage] AS IT LANDS. [onPage] runs inside the caller's session, so the
+         * account's ONE connection is held for the whole walk. [status] whole, not just its count:
+         * [ImapFolderWalk.folderStatedEmpty] separates "the server said it holds nothing" from "it never
+         * stated a size", and the caller DELETES on that difference. Movement is detected by a `NOOP`
+         * before every request but the first (RFC 3501 §7.4.1) and by the untagged lines of every
+         * `FETCH`, the only detector a one-page walk has.
+         */
     suspend fun walkFolder(
         status: ImapMailboxStatus,
         limit: Int,
@@ -1016,24 +610,22 @@ class ImapSession(private var socket: Socket) : Closeable {
         while (true) {
             val page = nextFolderPage(lowest, exists, previous, pageSize) ?: break
             // Every request but the first: give the server its chance to say the folder moved,
-            // BEFORE the numbering of the range below is used. `folderMoved(...) || moved` and not
-            // the other way round, so the NOOP goes out whatever the verdict so far.
+            // before the numbering of the range below is used. The NOOP goes out whatever the
+            // verdict so far, hence `folderMoved(...) || moved` and not the other way round.
             if (previous != null) moved = folderMoved(command("NOOP").untagged, exists) || moved
             val result = command("FETCH ${page.first}:${page.last} (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
-            // Not a second opinion: on a one-page walk no NOOP is ever sent, so this line is the
-            // only thing that can notice the folder moving.
+            // On a one-page walk no NOOP is ever sent, so this line is the only thing that can
+            // notice the folder moving.
             moved = folderMoved(result.untagged, exists) || moved
-            // Through messages(), like every other fetch here: it is the one place a `\Deleted`
-            // message is dropped, and a walk that read the untagged lines itself would walk them
-            // straight back into the list (Codeberg #99).
+            // Through messages(), like every other fetch here: the one place a `\Deleted` message
+            // is dropped (Codeberg #99).
             val fresh = result.messages().sortedByDescending { it.uid }.filter { seen.add(it.uid) }
             if (fresh.isNotEmpty()) onPage(fresh)
             previous = page
         }
-        // "Nothing came back" is not "there is nothing": an empty [seen] is what a folder of zero
-        // messages gives, and equally what a SELECT that never said how big the folder is gives, and
-        // what a page whose every FETCH was unreadable gives. Only the first may clear a cache, and
-        // only the SELECT can tell them apart — hence a count the server STATED, and zero.
+        // "Nothing came back" is not "there is nothing": an empty [seen] is equally a folder of
+        // zero messages, a SELECT that never stated a size, and a page whose FETCH was unreadable.
+        // Only the first may clear a cache, and only the SELECT tells them apart.
         return ImapFolderWalk(
             uids = seen.toList(),
             moved = moved,
@@ -1041,13 +633,8 @@ class ImapSession(private var socket: Socket) : Closeable {
         )
     }
 
-    /**
-     * Number of unseen messages in the selected mailbox, `\Deleted` ones excluded.
-     *
-     * `UNDELETED` is not a detail: this count is what the IMAP account badge shows, while the
-     * list it labels drops those same messages ([messages]). Counting them here would put an
-     * unread badge over a folder with nothing in it to open.
-     */
+    /** Unseen messages in the selected mailbox, `\Deleted` ones excluded: this count is the account
+     *  badge while the list it labels drops those same messages ([messages]). */
     fun unseenCount(): Int {
         val result = command("SEARCH UNSEEN UNDELETED")
         val line = result.untagged.firstOrNull { it.getOrNull(1) == "SEARCH" } ?: return 0
@@ -1055,11 +642,9 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 
     /**
-     * UIDs in the SELECTed mailbox matching a built [ImapSearchCommand].
-     *
-     * `CHARSET UTF-8` is declared only when a search value actually needs it; RFC 3501 lets a
-     * server support US-ASCII alone and answer `NO [BADCHARSET]`, so that case retries once
-     * without the declaration rather than turning an accented search into a failed one.
+     * UIDs in the SELECTed mailbox matching a built [ImapSearchCommand]. `CHARSET UTF-8` is declared
+     * only when a value needs it; RFC 3501 lets a server support US-ASCII alone and answer
+     * `NO [BADCHARSET]`, so that case retries once without the declaration.
      */
     fun searchUids(search: ImapSearchCommand): List<Long> {
         val result = try {
@@ -1072,60 +657,22 @@ class ImapSession(private var socket: Socket) : Closeable {
         return line.drop(2).mapNotNull { (it as? String)?.toLongOrNull() }
     }
 
-    /**
-     * At most [cap] UIDs from the SELECTed mailbox, via `UID SEARCH ALL`.
-     *
-     * The whole folder, not the synced window, and without fetching a single envelope: one
-     * command, one line of numbers. `ALL` is the RFC 3501 search key every server implements,
-     * so this is the cheap way to enumerate a folder whose messages were never scrolled to
-     * (used to freeze an "Empty trash", Codeberg #99).
-     *
-     * [cap] is enforced DURING the parse, not after: without ESEARCH the server cannot be asked
-     * for fewer, so a 200 000-message folder is read to the end (the stream must stay in sync)
-     * while only [cap] ids are ever held. The cap spans the whole response, not each line — a
-     * server splitting its answer must not be handed K times the cap — give or take the few
-     * tokens each further line is always allowed so its status stays readable.
-     *
-     * The ids kept are therefore the ones the server listed FIRST, i.e. ascending UID, the
-     * OLDEST. Note that the JMAP snapshot caps at the other end (its query sorts newest first),
-     * so the two protocols keep opposite slices of an over-cap folder; only "the surplus
-     * survives and emptying again clears the next slice" is common to both. Keeping the newest
-     * here would mean building all 200 000 ids to compare them — a running top-K holds only
-     * [cap] of them, but it must still parse every one, which is the work this avoids. Worth
-     * revisiting the day a real Trash exceeds the cap.
-     *
-     * Unlike [searchUids] this reads EVERY untagged `SEARCH` line, not just the first: a server
-     * is free to split a long result across several, and here a dropped tail would silently
-     * shorten the list of what to destroy. No `CHARSET` question either — `ALL` is pure ASCII.
-     */
+        /**
+         * The whole folder, not the synced window, and without fetching an envelope (used to freeze an
+         * "Empty trash", Codeberg #99). [cap] is enforced DURING the parse: without ESEARCH the server
+         * cannot be asked for fewer, so a huge folder is read to the end while only [cap] ids are held
+         * — the ones listed FIRST, i.e. the OLDEST, where the JMAP snapshot caps at the other end.
+         * Every untagged `SEARCH` line is read, unlike [searchUids]: a dropped tail shortens the list.
+         */
     fun allUids(cap: Int): List<Long> = uidSearchCapped("ALL", cap)
 
-    /**
-     * The HIGHEST [cap] UIDs of the SELECTed mailbox, ascending, via `UID SEARCH ALL`.
-     *
-     * The other end of the folder from [allUids], and it is why this exists rather than a `cap`
-     * argument on that one: the caller here is the draft de-duplication of #95, whose copy — if the
-     * server kept it — is the LAST thing `APPEND`ed to Drafts. Keeping the head, as [allUids] does,
-     * would look precisely where the copy is not, on any folder holding more than [cap] drafts.
-     *
-     * `ALL` because it is the one RFC 3501 search key every server implements. `HEADER
-     * "Message-ID"` is not: Stalwart answers an empty `* SEARCH` to every shape of it while
-     * answering `HEADER "Subject"` perfectly, and an empty answer is indistinguishable from "your
-     * draft is not there" — which is how a second copy of the same text got appended.
-     *
-     * Like [allUids] it reads EVERY untagged `SEARCH` line, not just the first ([searchUids] reads
-     * only the first): a server is free to split a long answer, and here a dropped tail is exactly
-     * the newest ids, i.e. the answer. No `CHARSET` question — `ALL` is pure ASCII.
-     *
-     * **No cap during the parse, unlike [allUids], and no way round it**: the ids wanted are at
-     * the END, so they cannot be known before the response is read whole; and the sort is what
-     * makes "the highest" true rather than "the last listed", the RFC promising no order at all.
-     * The cost is a list of the folder's ids held for the length of one call — accepted because
-     * this reads a DRAFTS folder, once per deferred retry, and never a Trash of 200 000.
-     *
-     * An empty answer is an empty list, and a refused search still THROWS — the caller's only
-     * safe reading of "I could not look" is "append it", never "it is already there".
-     */
+        /**
+         * The other end of the folder from [allUids], for the draft de-duplication of #95 whose copy is
+         * the LAST thing `APPEND`ed to Drafts. `ALL` because `HEADER "Message-ID"` is not universal:
+         * Stalwart answers an empty `* SEARCH` to every shape of it, indistinguishable from "your draft
+         * is not there". No cap during the parse, the ids wanted being at the END. A refused search
+         * still THROWS — "I could not look" must read as "append it".
+         */
     fun newestUids(cap: Int): List<Long> {
         if (cap <= 0) return emptyList()
         return command("UID SEARCH ALL").untagged
@@ -1135,27 +682,20 @@ class ImapSession(private var socket: Socket) : Closeable {
             .takeLast(cap)
     }
 
-    /**
-     * At most [cap] UIDs matching one plain search [key] (`ALL`, `DELETED`, …), with the cap
-     * enforced during the parse — the shape [allUids] documents at length, shared with the
-     * "is anything else flagged?" question of [finishPurgeWithoutUidPlus]. Both read EVERY
-     * untagged `SEARCH` line, not just the first: a dropped tail would shorten a list that is
-     * about to decide what gets destroyed. Keys used here are pure ASCII, so no `CHARSET`.
-     */
-    /**
-     * At most [cap] UIDs of the SELECTed mailbox whose header [name] contains [value] (`UID SEARCH
-     * HEADER`, RFC 3501 §6.4.4), name and value quoted through [quote] like every user-supplied
-     * argument. The cap is [uidSearchCapped]'s, enforced during the parse. Two by default: the one
-     * caller ([app.sterna.core.data.mail.ImapMailService.findByMessageId]) asks "exactly one?", and
-     * two is all it needs to hear.
-     *
-     * Not a search the user runs — `ImapSearch.kt` keeps its `HEADER` ban, because Stalwart
-     * answers this key empty. Here that empty answer is READ AS "not found" on purpose, by a
-     * caller whose safe reading of it is a duplicate rather than a loss (#189).
-     */
+        /**
+         * `UID SEARCH HEADER` (RFC 3501 §6.4.4), quoted through [quote]. Not a search the user runs —
+         * `ImapSearch.kt` keeps its `HEADER` ban because Stalwart answers this key empty. Here that
+         * empty answer is READ AS "not found" on purpose, by a caller whose safe reading of it is a
+         * duplicate rather than a loss (#189).
+         */
     fun uidSearchHeader(name: String, value: String, cap: Int = 2): List<Long> =
         uidSearchCapped("HEADER ${quote(name)} ${quote(value)}", cap)
 
+    /**
+     * At most [cap] UIDs matching one plain search [key] (`ALL`, `DELETED`, …), the cap enforced
+     * during the parse as [allUids] describes. Every untagged `SEARCH` line is read: a dropped tail
+     * would shorten a list that is about to decide what gets destroyed.
+     */
     private fun uidSearchCapped(key: String, cap: Int): List<Long> {
         if (cap <= 0) return emptyList()
         // +2 leaves room for the "*" and "SEARCH" that open the first line.
@@ -1177,59 +717,22 @@ class ImapSession(private var socket: Socket) : Closeable {
     fun fetchSection(uid: Long, section: String): String =
         command("UID FETCH $uid (BODY.PEEK[$section])").bodyItem()
 
-    /**
-     * The first [maxBytes] octets of one MIME section, still transfer-encoded — a partial fetch
-     * (RFC 3501 §6.4.5), for a caller that wants an opening and not a message.
-     *
-     * `BODY.PEEK`, like every body fetch in this class, and here it is the load-bearing word: the
-     * caller is a NOTIFICATION, so a bare `BODY[…]` would set `\Seen` on the server the moment the
-     * mail is announced. That is irreversible from here — the message leaves the unread list on
-     * every device the account is open on, and nothing in the app ever asked for it to be read.
-     *
-     * And `<0.[maxBytes]>`, which is the other half: without it the server sends the WHOLE part,
-     * which for a mail carrying a 20 MB inline body is 20 MB pulled through a foreground service on
-     * mobile data, to show two lines of it.
-     *
-     * A short answer is not an error: a part smaller than [maxBytes] comes back whole, and a server
-     * that answers with no body item at all yields "" — see [bodyItem].
-     *
-     * The `take` is what makes "[maxBytes] at most" TRUE rather than merely REQUESTED. `<0.n>` is
-     * a request, and nothing above enforces it: a literal is read up to 32 MiB, and [bodyItem] takes
-     * whatever item begins with `BODY` — so a server that ignores the partial, or answers `BODY[]`,
-     * would have the whole message decoded before anyone could throw it away. Deliberately NOT a
-     * conformance check: the partial fetch is normative and a refusal would be surface for a case
-     * that does not happen; truncating costs one call and makes the property hold client-side.
-     */
+        /**
+         * A partial fetch (RFC 3501 §6.4.5). `BODY.PEEK`: the caller is a NOTIFICATION, so a bare
+         * `BODY[…]` would set `\Seen` the moment the mail is announced, on every device, irreversibly.
+         * And `<0.[maxBytes]>`, without which the server sends the WHOLE part. The `take` is what
+         * makes "[maxBytes] at most" TRUE rather than requested: a literal is read up to 32 MiB.
+         */
     fun fetchSectionPartial(uid: Long, section: String, maxBytes: Int): String =
         command("UID FETCH $uid (BODY.PEEK[$section]<0.$maxBytes>)").bodyItem().take(maxBytes)
 
-    /**
-     * The first [maxBytes] octets of one MIME section of MANY messages, still transfer-encoded,
-     * asked for a page at a time — [fetchSectionPartial] for a caller holding a list rather than a
-     * message. The answer is keyed BY UID; a message the server said nothing about is simply
-     * absent from it.
-     *
-     * Why it exists at all: [fetchSectionPartial] is one round trip per message, and its reader
-     * [bodyItem] keeps the FIRST body of the answer and throws the rest away — so a caller wanting
-     * the opening of two hundred messages had no choice but two hundred sequential round trips,
-     * over the account's single connection, each one a full latency. This asks for a page in one
-     * `UID FETCH` over a compressed sequence set ([compressUidSet]) and reads every `FETCH` line of
-     * the answer, by [bodyItemsByUid].
-     *
-     * `BODY.PEEK`, never a bare `BODY[…]`, and here more than anywhere: a bare fetch sets `\Seen`
-     * on the server (RFC 3501 §6.4.5) for EVERY UID in the set, on every device the account is open
-     * on, irreversibly. The caller of this path reads whole pages of a folder as it syncs, so the
-     * mistake would not mark a message read — it would mark the mailbox read.
-     *
-     * `<0.[maxBytes]>` AND the `take`, exactly as [fetchSectionPartial] states at length: the
-     * partial is a REQUEST, a literal is read up to 32 MiB, and the item is matched by prefix — so
-     * the `take` is what makes "[maxBytes] at most" true, per body and not just for the first one.
-     *
-     * [uids] is de-duplicated and SORTED before it is cut into pages: a chunk of a descending
-     * list (the order a folder walk hands its messages over in) compresses to the same set, but
-     * spread over ranges that no longer line up with the pages, and the first page of a newest-first
-     * list would name the OLDEST message in the batch. Sorting keeps a page contiguous.
-     */
+        /**
+         * [fetchSectionPartial] for a caller holding a list, keyed BY UID — it exists because the
+         * single-message form is one round trip each over the account's single connection.
+         * `BODY.PEEK` and `<0.[maxBytes]>` and the `take`, as [fetchSectionPartial] states: a bare
+         * fetch here would mark the mailbox read. [uids] is de-duplicated and SORTED before it is cut
+         * into pages, or the ranges no longer line up with them.
+         */
     fun fetchSectionPartials(uids: List<Long>, section: String, maxBytes: Int): Map<Long, String> {
         // Not "the loop below does nothing anyway": an empty list must put NO command on the
         // wire at all, and `compressUidSet(emptyList())` would otherwise send `UID FETCH  (…)`.
@@ -1248,24 +751,12 @@ class ImapSession(private var socket: Socket) : Closeable {
     fun fetchSource(uid: Long): String =
         command("UID FETCH $uid (BODY.PEEK[])").bodyItem()
 
-    /**
-     * The SERVER's own timestamp for one message (`INTERNALDATE`, RFC 3501 §2.3.3) in epoch
-     * millis, or `null` when the server answers nothing readable — no FETCH line, no
-     * `INTERNALDATE` item, or a `date-time` [imapDateTimeMillis] refuses.
-     *
-     * Never confused with [ImapMessage.dateMillis], which is the `Date:` HEADER off
-     * `ENVELOPE[0]` and is therefore written by whoever sent the message. This value is the
-     * server's, stamped on delivery, and cannot be forged from the outside. That distinction is
-     * the whole reason this command exists: it dates an Autocrypt key, and a key dated in 2100 by
-     * its own sender can never be beaten by an authentic one afterwards.
-     *
-     * A command of its own, and one round trip, rather than a field on [ImapMessage]: every
-     * caller of the four list fetches would pay a column, a migration and a cache read for a value
-     * one path uses on the rare message that carries an `Autocrypt` header.
-     *
-     * Not `BODY.PEEK` and not `BODY` — `INTERNALDATE` is not a body item and setting `\Seen`
-     * does not arise here.
-     */
+        /**
+         * `INTERNALDATE` (RFC 3501 §2.3.3) in epoch millis, or `null` when the server answers nothing
+         * readable. Never confused with [ImapMessage.dateMillis], the `Date:` HEADER written by
+         * whoever sent the message: this one is stamped on delivery and cannot be forged, which is why
+         * it dates an Autocrypt key — a key dated in 2100 could never be beaten by an authentic one.
+         */
     fun fetchInternalDate(uid: Long): Long? {
         val fetch = command("UID FETCH $uid (INTERNALDATE)").untagged
             .firstOrNull { it.getOrNull(2) == "FETCH" } ?: return null
@@ -1275,24 +766,12 @@ class ImapSession(private var socket: Socket) : Closeable {
         return imapDateTimeMillis(raw)
     }
 
-    /**
-     * The body item of a FETCH answer, still transfer-encoded — the one reading shared by the three
-     * body fetches above, so that a fourth cannot arrive with a reading of its own.
-     *
-     * The empty string when the answer carries NO body item. That is not pedantry: the item list
-     * opens with `UID <n>`, so an `indexOfFirst` that answered -1 and was used as-is handed back the
-     * atom at index 0 — the string "UID" — as though it were the message. On the attachment path
-     * that was 3 bytes written to a file; on the preview path it would be the word UID on a lock
-     * screen, presented as somebody's mail.
-     *
-     * The item is matched by prefix because a partial fetch is answered with the origin octet
-     * attached (`BODY[1]<0>`, RFC 3501 §7.4.2) — one atom, not two, since the IMAP parser breaks
-     * atoms on parentheses and spaces and this form has neither.
-     *
-     * Never the `BODY[HEADER.FIELDS (REFERENCES)]` item. No body fetch asks for it, but the
-     * prefix `BODY` would take it if a server volunteered it first, and a header block would then
-     * be handed over as a message's text.
-     */
+        /**
+         * The one reading shared by the three body fetches above. The empty string when the answer
+         * carries NO body item: the item list opens with `UID <n>`, so an `indexOfFirst` answering -1
+         * and used as-is hands back the atom "UID" as though it were the message. Matched by PREFIX
+         * (`BODY[1]<0>`), but never the `BODY[HEADER.FIELDS (REFERENCES)]` item it would take.
+         */
     private fun ImapResult.bodyItem(): String {
         val fetch = untagged.firstOrNull { it.getOrNull(2) == "FETCH" } ?: return ""
         @Suppress("UNCHECKED_CAST")
@@ -1302,25 +781,11 @@ class ImapSession(private var socket: Socket) : Closeable {
         return (items.getOrNull(idx + 1) as? String).orEmpty()
     }
 
-    /**
-     * EVERY body item of a FETCH answer, each cut to [maxBytes] and filed under the UID of the line
-     * that carried it — the reader of [fetchSectionPartials], beside [bodyItem] and not in place of
-     * it: the three single-message fetches have their own callers and their own reading, which this
-     * does not touch.
-     *
-     * Keyed by the `UID` item of EACH line, never by position. A grouped `UID FETCH` is answered
-     * with one untagged line per message, in whatever order the server likes, numbered by SEQUENCE
-     * — which is not the UID and is not the order asked for. Zipping the answer against the
-     * requested set would hand one message's opening to another message's row.
-     *
-     * No entry rather than an empty one, for the same reason [bodyItem] returns "": the item list
-     * opens with `UID <n>`, so a reader that took index 0 when it found no body item would file the
-     * atom "UID" as somebody's mail. A line with no body item, or an empty one, contributes nothing
-     * and its UID is simply not a key — which is what a caller must handle anyway, since a server
-     * may answer about fewer messages than were named.
-     *
-     * The body item is matched BY PREFIX (`BODY[1]<0>`, RFC 3501 §7.4.2), as [bodyItem] explains.
-     */
+        /**
+         * The reader of [fetchSectionPartials]. Keyed by the `UID` item of EACH line, never by
+         * position: a grouped `UID FETCH` is answered one line per message, in any order, numbered by
+         * SEQUENCE. No entry rather than an empty one, for the reason [bodyItem] returns "".
+         */
     private fun ImapResult.bodyItemsByUid(maxBytes: Int): Map<Long, String> {
         val out = LinkedHashMap<Long, String>()
         for (line in untagged) {
@@ -1346,20 +811,13 @@ class ImapSession(private var socket: Socket) : Closeable {
 
     fun delete(uid: Long) = delete(listOf(uid))
 
-    /**
-     * Permanently delete many messages with one `UID STORE <set> +FLAGS (\Deleted)` per chunk
-     * (Codeberg #29), erased with `UID EXPUNGE <set>` — "erase exactly these" — when the server
-     * implements UIDPLUS (RFC 4315). The caller must have SELECTed the mailbox.
-     *
-     * Whether it does is asked ONCE, before the first chunk is touched, and not chunk by chunk:
-     * the answer cannot change mid-operation, and the alternative it selects is folder-wide, so
-     * asking per chunk would mean applying a folder-wide command up to fifty times over an
-     * "Empty trash" (Codeberg #99). What happens when the answer is no is [purgeWithoutUidPlus]
-     * — one decision, taken in one place, applied once per operation.
-     *
-     * A refused `UID EXPUNGE` on a server that DOES advertise UIDPLUS throws, and the destroy
-     * worker retries: unlike a move, a repeated destroy costs nothing.
-     */
+        /**
+         * One `UID STORE <set> +FLAGS (\Deleted)` per chunk (Codeberg #29), erased with
+         * `UID EXPUNGE <set>` when the server implements UIDPLUS (RFC 4315). Whether it does is asked
+         * ONCE, before the first chunk: the alternative ([purgeWithoutUidPlus]) is folder-wide, so
+         * asking per chunk would apply a folder-wide command fifty times over an "Empty trash" (#99).
+         * A refused `UID EXPUNGE` on a UIDPLUS server throws, and the destroy worker retries.
+         */
     fun delete(uids: List<Long>) {
         val flagged = uids.distinct()
         val sets = flagged.chunked(UID_SET_CHUNK).map { compressUidSet(it) }.filter { it.isNotEmpty() }
@@ -1369,16 +827,13 @@ class ImapSession(private var socket: Socket) : Closeable {
             command("UID STORE $set +FLAGS (\\Deleted)")
             if (byUid) command("UID EXPUNGE $set")
         }
-        // The union of every chunk, not a chunk: the folder-wide question is asked about the
-        // whole operation, once, after the last message has been flagged.
+        // The union of every chunk: the folder-wide question is asked once, about the whole
+        // operation, after the last message has been flagged.
         if (!byUid) finishPurgeWithoutUidPlus(flagged.toSet())
     }
 
-    /**
-     * Close a purge on a server without UIDPLUS, according to [purgeWithoutUidPlus]. Called at
-     * most once per operation, after every message meant to go has been flagged `\Deleted`;
-     * [flagged] is the union of every chunk this operation flagged in the selected mailbox.
-     */
+    /** Close a purge on a server without UIDPLUS, per [purgeWithoutUidPlus]. Called at most once per
+     *  operation; [flagged] is the union of every chunk it flagged in the selected mailbox. */
     private fun finishPurgeWithoutUidPlus(flagged: Set<Long>) {
         if (flagged.isEmpty()) return
         when (purgeWithoutUidPlus) {
@@ -1388,58 +843,32 @@ class ImapSession(private var socket: Socket) : Closeable {
         }
     }
 
-    /**
-     * Ask the server what is flagged `\Deleted` in the selected mailbox and answer whether a
-     * bare `EXPUNGE` would erase [flagged] and nothing besides.
-     *
-     * `UID SEARCH DELETED` is one command and one line of numbers, the same cheap enumeration
-     * [allUids] uses, and it is asked ONCE per operation — never per chunk, which is the whole
-     * point of taking the decision here rather than inside the loop.
-     *
-     * A STRICT SUBSET is a yes, not a no: every id the server reports is one of ours, so the
-     * `EXPUNGE` cannot reach anything else. (It happens when a message has already gone, or when
-     * another client cleared a flag.) An empty answer is a no — there is nothing to erase, so the
-     * command would only be noise. Anything the server reports that we did not flag is a no.
-     *
-     * The list is capped at one more than [flagged]: enough to tell "the same or fewer" from
-     * "more" — one extra id cannot fit inside a set of our size — and never enough for a folder
-     * holding two hundred thousand flagged messages to be held in memory. A truncated answer is
-     * therefore always a no, which is the safe direction.
-     *
-     * THE RACE, stated plainly because this is the design record: another client can flag a
-     * message between this `SEARCH` and the `EXPUNGE` that follows it, and that message would be
-     * destroyed. The window is the round trip between two adjacent commands — milliseconds —
-     * against the unbounded exposure of expunging on no evidence at all, which is what this
-     * replaces. It is narrowed, not closed, and IMAP without UIDPLUS offers no way to close it.
-     */
+        /**
+         * Whether a bare `EXPUNGE` would erase [flagged] and nothing besides. A STRICT SUBSET is a yes;
+         * an empty answer is a no; the list is capped at one more than [flagged], so a truncated answer
+         * is always a no. THE RACE: another client can flag a message between this `SEARCH` and the
+         * `EXPUNGE`, and that message would be destroyed — narrowed to one round trip, and IMAP without
+         * UIDPLUS cannot close it.
+         */
     private fun nothingElseIsFlagged(flagged: Set<Long>): Boolean {
         val onServer = uidSearchCapped("DELETED", cap = flagged.size + 1)
         return onServer.isNotEmpty() && onServer.size <= flagged.size && flagged.containsAll(onServer)
     }
 
     /**
-     * APPEND a message the app COMPOSED into [mailbox] (a sent copy into Sent, a draft into
-     * Drafts), with [flags]. Text, so it is UTF-8 on the wire — [OutgoingMime] builds it that way.
-     * Not for a message FETCHED from a server: a raw source is one char per octet in this app
-     * (ISO-8859-1) and UTF-8-encoding it would double every 8-bit byte; that path takes the
-     * [ByteArray] overload.
+     * APPEND a message the app COMPOSED into [mailbox], with [flags]. Text, so UTF-8 on the wire.
+     * Not for a message FETCHED from a server: a raw source is one char per octet here
+     * (ISO-8859-1) and UTF-8-encoding it would double every 8-bit byte — that path takes [ByteArray].
      */
     fun append(mailbox: String, message: String, flags: String) {
         append(mailbox, message.toByteArray(Charsets.UTF_8), flags)
     }
 
-    /**
-     * APPEND [message] into [mailbox] as it is — the literal is exactly these octets, sized by
-     * them — with [flags], and under [internalDate] (epoch millis, sent as the RFC 3501 `date-time`)
-     * when the caller has one: a message moved from another account keeps the date it was received
-     * under rather than taking the moment of the copy (#189). Without a date the command line is
-     * byte for byte what it was before this overload existed.
-     *
-     * Answers the UID the server gave the copy, read from the `[APPENDUID uidvalidity uid]` code of
-     * RFC 4315, or null on a server that names nothing (no UIDPLUS): that is not a failed append, and
-     * the caller decides what a nameless copy is worth. A NO/BAD completion throws, with the
-     * server's response code on the exception like every other command.
-     */
+        /**
+         * The literal is exactly these octets, under [internalDate] when the caller has one: a message
+         * moved from another account keeps the date it was received under (#189). Answers the UID from
+         * `[APPENDUID …]` (RFC 4315), or null on a server that names nothing, which is not a failure.
+         */
     fun append(mailbox: String, message: ByteArray, flags: String, internalDate: Long? = null): Long? {
         val tag = "a${++tagN}"
         val flagPart = if (flags.isNotBlank()) "($flags) " else ""
@@ -1449,11 +878,9 @@ class ImapSession(private var socket: Socket) : Closeable {
         )
         output.flush()
         val cont = input.readResponse()
-        // Not a "+": the APPEND did not get its go-ahead. This line is not necessarily the
-        // tagged completion — RFC 3501 §7 lets an untagged `* 12 EXISTS` / `* BYE …` land here —
-        // so the status word is taken as a refusal the server PRONOUNCED only when the tag is
-        // actually on it. Anything else leaves [ImapException.taggedStatus] null, which is what
-        // its KDoc promises and what [move] reads before it may erase anything.
+        // Not a "+": the APPEND did not get its go-ahead. This line is not necessarily the tagged
+        // completion — RFC 3501 §7 lets an untagged `* 12 EXISTS` / `* BYE …` land here — so the
+        // status word counts as a refusal the server PRONOUNCED only when the tag is on it.
         if (cont.getOrNull(0) != "+") {
             throw ImapException(
                 "APPEND not accepted: $cont",
@@ -1480,24 +907,12 @@ class ImapSession(private var socket: Socket) : Closeable {
         }
     }
 
-    /**
-     * Say `LOGOUT`, read its completion, and close the socket — with the READ bounded by
-     * [LOGOUT_READ_BUDGET_MS].
-     *
-     * **The LOGOUT is still sent and its answer is still read.** Dropping either would leave the
-     * session open on the server until its own idle timeout, and an account with a small
-     * simultaneous-connection limit then refuses the NEXT upload. What changed is only the bound on
-     * the read — and on a peer that has gone MUTE (no FIN, so `ImapParser`'s end-of-stream check
-     * never fires) that bound does not replace the same thing on the two ways in here:
-     *
-     * - from `ImapMailService.runWithRetry` it replaces NOTHING: `withReadTimeoutSuspending` puts
-     *   `soTimeout` back in its `finally` and the close is made from the `catch`, i.e. outside the
-     *   bounded block, so this read was an unbounded `recvfrom` holding the account mutex for as
-     *   long as the OS took to notice (#95, measured at 9 minutes on the bench);
-     * - from `ImapIdleConnection.close` it replaces 28 MINUTES: [idle] arms `soTimeout` to its
-     *   refresh window and is parked inside it while the close arrives on ANOTHER thread, so the
-     *   socket still carries that value and the goodbye inherited the IDLE window.
-     */
+        /**
+         * The READ is bounded by [LOGOUT_READ_BUDGET_MS]. The LOGOUT is still sent and its answer
+         * still read: dropping either leaves the session open until the server's idle timeout, and an
+         * account with a small connection limit then refuses the NEXT upload. On a mute peer the bound
+         * replaces an unbounded wait on the `runWithRetry` path (#95) and the 28-minute IDLE window.
+         */
     override fun close() {
         runCatching { withReadTimeout(LOGOUT_READ_BUDGET_MS) { command("LOGOUT") } }
         runCatching { socket.close() }
@@ -1522,52 +937,32 @@ class ImapSession(private var socket: Socket) : Closeable {
         @Suppress("UNCHECKED_CAST")
         val fromAddr = (envelope?.getOrNull(2) as? List<Any?>)?.firstOrNull() as? List<Any?>
         val fromName = decodeWords(fromAddr?.getOrNull(0) as? String)
-        // The local part and the domain need [decodeHeaderBytes] just as much as the display
-        // name beside them, and for a sharper reason: an address is not shown and forgotten, it
-        // is PERSISTED (EmailEntity.fromEmail), indexed for search, offered as a contact
-        // suggestion and prefilled as the recipient of a reply. Getting it wrong sends mail to an
-        // address that does not exist.
-        //
-        // Not hypothetical. RFC 3501 forbids 8-bit bytes in a quoted-string, so a conforming
-        // server hands over ANY non-ASCII envelope value as a literal — precisely the token whose
-        // reading changed. An EAI address (RFC 6531, which Stalwart speaks) arrives that way.
+        // The halves of an address need [decodeHeaderBytes] as much as the display name: an address
+        // is PERSISTED, indexed and prefilled as a reply recipient. RFC 3501 forbids 8-bit bytes in
+        // a quoted-string, so an EAI address (RFC 6531) arrives as a literal.
         val mailbox = (fromAddr?.getOrNull(2) as? String)?.let(::decodeHeaderBytes)
         val hostPart = (fromAddr?.getOrNull(3) as? String)?.let(::decodeHeaderBytes)
         val fromEmail = if (mailbox != null && hostPart != null) "$mailbox@$hostPart" else null
-        // Envelope "to" (index 5): every parseable address — Sent-folder rows show the
-        // recipients, not the sender (Codeberg #59). Group-syntax delimiters (no host) are
-        // skipped. The halves of an address get [decodeHeaderBytes], same treatment as the From
-        // address above and for the same reason — see [envelopeAddresses].
+        // Envelope "to" (index 5): every parseable address — Sent-folder rows show the recipients,
+        // not the sender (Codeberg #59). Group-syntax delimiters (no host) are skipped.
         @Suppress("UNCHECKED_CAST")
         val toAddrs = envelopeAddresses(envelope?.getOrNull(5) as? List<Any?>)
-        // Envelope "reply-to" (index 4): where the SENDER said to answer. Read exactly like the
-        // recipients above, decodeHeaderBytes included — this address is not displayed and
-        // forgotten, it is the one a reply is addressed to, so a mangled one sends mail nowhere.
-        //
-        // Index 4, between sender (3) and to (5). Taking its neighbour would answer the copied
-        // parties instead, and the address the sender designated would hear nothing.
+        // Envelope "reply-to" (index 4), where the SENDER said to answer. Index 4, between sender
+        // (3) and to (5): its neighbour would answer the copied parties instead.
         @Suppress("UNCHECKED_CAST")
         val replyToAddrs = envelopeAddresses(envelope?.getOrNull(4) as? List<Any?>)
-        // Envelope "cc" (index 6): the people put in copy. Read exactly like the recipients above,
-        // decodeHeaderBytes on BOTH halves included — a copied address is not displayed and
-        // forgotten, it is prefilled as a recipient of a reply-all and re-sent, so a mangled host
-        // sends the copy to a domain that does not exist while the message looks sent.
+        // Envelope "cc" (index 6): prefilled as a recipient of a reply-all and re-sent, so a mangled
+        // host sends the copy to a domain that does not exist while the message looks sent.
         @Suppress("UNCHECKED_CAST")
         val ccAddrs = envelopeAddresses(envelope?.getOrNull(6) as? List<Any?>)
-        // Envelope "bcc" (index 7): the BLIND copies, and the reason the two slots are read
-        // separately here and stored in separate columns downstream.
-        //
-        // Index 7 is not index 6. Filling `cc` from this slot would publish, on screen and in
-        // the recipient list of a reply-all, addresses the sender chose to hide — the one mistake
-        // in this function that cannot be walked back once the reply is sent.
+        // Envelope "bcc" (index 7): the BLIND copies. Not index 6 — filling `cc` from this slot
+        // would publish addresses the sender chose to hide, and a sent reply cannot be walked back.
         @Suppress("UNCHECKED_CAST")
         val bccAddrs = envelopeAddresses(envelope?.getOrNull(7) as? List<Any?>)
         val messageId = envelope?.getOrNull(9) as? String
         val inReplyTo = envelope?.getOrNull(8) as? String
-        // The one item the ENVELOPE does not carry, asked for by every list fetch as
-        // `BODY.PEEK[HEADER.FIELDS (REFERENCES)]` and answered as a header block under a key the
-        // server spells as it likes — case, quotes around the field name (RFC 3501 §7.4.2 lets
-        // it echo the request back in either form). Hence a match by shape and not by string.
+        // The one item the ENVELOPE does not carry, answered as a header block under a key the
+        // server spells as it likes (RFC 3501 §7.4.2). Hence a match by shape, not by string.
         val references = map.entries.firstOrNull { isReferencesItem(it.key) }
             ?.let { referencesHeader(it.value as? String) }
 
@@ -1589,9 +984,8 @@ class ImapSession(private var socket: Socket) : Closeable {
             messageId = messageId,
             inReplyTo = inReplyTo,
             references = references,
-            // The same structure the line above reduces to a boolean, read a second way and kept:
-            // which section holds the text, and how to decode it. Costs no command — it is here
-            // because every fetch in this class already asks for BODYSTRUCTURE.
+            // The same structure the line above reduces to a boolean, read a second way: which
+            // section holds the text and how to decode it. Costs no command.
             textPart = firstTextPart(map["BODYSTRUCTURE"]),
         )
     }
@@ -1634,31 +1028,18 @@ class ImapSession(private var socket: Socket) : Closeable {
     }
 }
 
-/**
- * IMAP quoted-string. Per RFC 3501 a quoted-string may not contain CR or LF; a raw
- * newline here would terminate the command line and let an attacker-controlled value
- * (folder name, search text) inject a second authenticated IMAP command. Reject it.
- *
- * File-level (not a method) so the SEARCH-command builder in ImapSearch.kt quotes its
- * user-supplied values through the exact same guard.
- */
 /** The FETCH item every list fetch asks for beside the envelope: the `References` header alone. */
 internal const val REFERENCES_ITEM = "BODY[HEADER.FIELDS (REFERENCES)]"
 
-/**
- * Whether a FETCH item key is the `References` header item, however the server spells it:
- * `body[header.fields (references)]`, `BODY[HEADER.FIELDS ("REFERENCES")]` — case, quotes around
- * the field name and the width of the blank all vary from one server to the next, and none of
- * them changes what the item is.
- */
+/** Whether a FETCH item key is the `References` header item, however the server spells it: case,
+ *  quotes around the field name and the width of the blank all vary. */
 internal fun isReferencesItem(key: String): Boolean =
     key.replace("\"", "").replace(Regex("\\s+"), " ").uppercase() == REFERENCES_ITEM
 
 /**
- * The value of the `References` header out of a `HEADER.FIELDS` block (`References: <a>\r\n
- * <b>\r\n\r\n`), unfolded onto one line — RFC 5322 §2.2.3: a line that starts with a space or a
- * tab continues the one before it. Null when the block is NIL, empty, names no `References`, or
- * names one with nothing after the colon. The ids are kept raw and whole; nothing is split here.
+ * The value of the `References` header out of a `HEADER.FIELDS` block, unfolded onto one line
+ * (RFC 5322 §2.2.3). Null when the block is NIL, empty, or names no `References`. The ids are kept
+ * raw and whole; nothing is split here.
  */
 internal fun referencesHeader(block: String?): String? {
     if (block.isNullOrEmpty()) return null
@@ -1673,6 +1054,11 @@ internal fun referencesHeader(block: String?): String? {
     return null
 }
 
+/**
+ * IMAP quoted-string. Per RFC 3501 it may not contain CR or LF: a raw newline would terminate the
+ * command line and let an attacker-controlled value (folder name, search text) inject a second
+ * authenticated command. File-level so ImapSearch.kt's builder uses the exact same guard.
+ */
 internal fun quote(s: String): String {
     if (s.any { it == '\r' || it == '\n' }) throw ImapException("Illegal newline in IMAP argument")
     return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
@@ -1685,32 +1071,21 @@ internal fun flatten(v: Any?): String = when (v) {
     else -> v.toString()
 }
 
-/**
- * The ID extension (RFC 2971): the one that lets a client name itself. Looked for in the
- * post-authentication list — see [ImapSession.identify].
- */
+/** The ID extension (RFC 2971), looked for in the post-authentication list — [ImapSession.identify]. */
 internal const val CAP_ID = "ID"
 
-/** What Sterna calls itself in the RFC 2971 `ID` command. Not a user-visible string: it is a
- *  protocol field, it is never translated, and no `strings.xml` carries it. */
+/** What Sterna calls itself in the RFC 2971 `ID` command. A protocol field, never translated. */
 internal const val CLIENT_NAME = "Sterna Mail"
 
 /** The UIDPLUS extension (RFC 4315): the one that provides `UID EXPUNGE <set>`. */
 internal const val CAP_UIDPLUS = "UIDPLUS"
 
-/**
- * The MOVE extension (RFC 6851): the one that provides `UID MOVE <set> <dest>`. Consulted only to
- * tell "this server has no MOVE" from "this MOVE was refused for another reason" — see
- * [ImapSession.move]; never to decide whether to try the command. It is asked only about a refusal
- * the server was heard pronouncing, so it is now the second of the two questions, not the only one.
- */
+/** The MOVE extension (RFC 6851), consulted only to tell "this server has no MOVE" from "this MOVE
+ *  was refused for another reason" ([ImapSession.move]), never to decide whether to try it. */
 internal const val CAP_MOVE = "MOVE"
 
-/**
- * Capability names from the untagged `* CAPABILITY …` line of a `CAPABILITY` command, upper-cased.
- * Empty when the server answered without one — read as "no optional extension", the conservative
- * reading, rather than as an unknown to be asked about again.
- */
+/** Capability names from the untagged `* CAPABILITY …` line, upper-cased. Empty when the server
+ *  answered without one — read as "no optional extension", the conservative reading. */
 internal fun parseCapabilities(untagged: List<List<Any?>>): Set<String> =
     untagged.firstOrNull { (it.getOrNull(1) as? String)?.equals("CAPABILITY", ignoreCase = true) == true }
         ?.drop(2)
@@ -1719,13 +1094,9 @@ internal fun parseCapabilities(untagged: List<List<Any?>>): Set<String> =
         .orEmpty()
 
 /**
- * Capability names from a `[CAPABILITY …]` response code on [line], or `null` when it carries
- * none — which is not the same as carrying an empty one, hence the nullable return: a login
- * completion without the code leaves the question open for a later `CAPABILITY` command.
- *
- * Matched over the flattened line rather than token by token: `[` and `]` are not IMAP token
- * delimiters, so the parser hands back atoms like `[CAPABILITY` and `UIDPLUS]`. This is the same
- * shape [ImapSession.select] uses to read `[UIDVALIDITY n]`.
+ * Capability names from a `[CAPABILITY …]` response code on [line], or `null` when it carries none —
+ * not the same as an empty one, hence the nullable return. Matched over the flattened line, `[` and
+ * `]` not being IMAP token delimiters.
  */
 internal fun capabilitiesInResponseCode(line: List<Any?>): Set<String>? {
     val flat = line.joinToString(" ") { flatten(it) }
@@ -1734,10 +1105,8 @@ internal fun capabilitiesInResponseCode(line: List<Any?>): Set<String>? {
 }
 
 /**
- * The uid named by an `[APPENDUID uidvalidity uid]` response code (RFC 4315 §3) on [line], or
- * null when the line carries none. Matched over the flattened line for the same reason as
- * [responseCodeIn]: the parser hands `[APPENDUID`, `38505` and `3955]` back as three atoms. Only
- * the single-uid shape of one APPEND: a `uid-set` (MULTIAPPEND) does not match and answers null.
+ * The uid named by an `[APPENDUID uidvalidity uid]` response code (RFC 4315 §3), or null. Matched
+ * over the flattened line. Only the single-uid shape: a `uid-set` (MULTIAPPEND) answers null.
  */
 internal fun appendUidIn(line: List<Any?>): Long? {
     val flat = line.joinToString(" ") { flatten(it) }
@@ -1746,11 +1115,9 @@ internal fun appendUidIn(line: List<Any?>): Long? {
 }
 
 /**
- * [epochMs] as the RFC 3501 §9 `date-time` an APPEND takes for INTERNALDATE, in UTC:
- * `DQUOTE date-day-fixed "-" date-month "-" date-year SP time SP zone DQUOTE`, where
- * `date-day-fixed` is `(SP DIGIT) / 2DIGIT` — the space-padded form, the one servers themselves
- * write in a FETCH. Month names are the RFC's own three-letter English ones, not the locale's:
- * a device set to a language whose CLDR short months differ ("sept.") must not change the wire.
+ * [epochMs] as the RFC 3501 §9 `date-time` an APPEND takes for INTERNALDATE, in UTC. Month names are
+ * the RFC's own English ones and not the locale's: a device whose CLDR short months differ must not
+ * change the wire.
  */
 internal fun imapDateTime(epochMs: Long): String {
     val t = java.time.Instant.ofEpochMilli(epochMs).atOffset(java.time.ZoneOffset.UTC)
@@ -1761,27 +1128,12 @@ internal fun imapDateTime(epochMs: Long): String {
 
 private val IMAP_MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
-/**
- * The inverse of [imapDateTime]: an RFC 3501 §9 `date-time` read back as epoch millis, or `null`
- * when [raw] is not one. What a server answers to `FETCH INTERNALDATE`.
- *
- * [raw] is the value AS THE PARSER HANDS IT OVER, i.e. a quoted-string with its quotes already
- * removed ([ImapParser.readQuoted]) — `01-Jun-2026 10:00:00 +0000`. A value that still carries its
- * `"` is not a `date-time` and answers null rather than being helpfully trimmed: the only way one
- * gets here still quoted is a reader that took the wrong token.
- *
- * `date-day-fixed` is `(SP DIGIT) / 2DIGIT`, so the leading space of a single-digit day is part of
- * the grammar and real servers send it (` 1-Jun-2026 …`); the unpadded `1-Jun-2026 …` is accepted
- * too, since some send that. Month names are matched against [IMAP_MONTHS] under
- * [java.util.Locale.ENGLISH] for the same reason [imapDateTime] writes them from that list: a
- * device in a locale that re-cases ASCII differently must not change what this reads.
- *
- * `null` on everything else — never `0L`, and above all never "now". This dates a correspondent's
- * key: a made-up date lets a key win in the provider forever, and there is nothing in this app that
- * can take it back (`autocryptPeerImportOf`, which refuses an unreadable date outright). An
- * impossible calendar date (`32-Jun`, `25:00:00`) or an impossible zone answers null the same way —
- * `java.time` refuses it and the refusal is kept, not defaulted.
- */
+    /**
+     * `null` when [raw] is not an RFC 3501 §9 `date-time`. [raw] is the value AS THE PARSER HANDS IT
+     * OVER, quotes already removed; the leading space of a single-digit day is part of the grammar and
+     * the unpadded form is accepted too. `null` on everything else — never `0L`, above all never
+     * "now": this dates a correspondent's key, and a made-up date lets a key win in the provider.
+     */
 internal fun imapDateTimeMillis(raw: String): Long? {
     val m = IMAP_DATE_TIME.matchEntire(raw) ?: return null
     val g = m.groupValues
@@ -1799,113 +1151,65 @@ internal fun imapDateTimeMillis(raw: String): Long? {
     }.getOrNull()
 }
 
-/**
- * `date-day-fixed "-" date-month "-" date-year SP time SP zone`, unquoted — see [imapDateTimeMillis].
- * The optional leading space is written `\x20` and not as a literal blank: it is the `(SP DIGIT)`
- * half of `date-day-fixed`, and a space at the start of a pattern is invisible to a reader and to a
- * reformat.
- */
+/** `date-day-fixed "-" date-month "-" date-year SP time SP zone`, unquoted. The optional leading
+ *  space is written `\x20` because a space at the start of a pattern is invisible to a reformat. */
 private val IMAP_DATE_TIME =
     Regex("""\x20?(\d{1,2})-([A-Za-z]{3})-(\d{4}) (\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})""")
 
 /**
- * The response code of [line] (RFC 5530): the first bracketed WORD, upper-cased —
- * `[AUTHENTICATIONFAILED] oops` answers `"AUTHENTICATIONFAILED"`, `[REFERRAL imap://…]` answers
- * `"REFERRAL"` — or `null` when the line carries no bracket at all. Matched over the flattened
- * line for the same reason as [capabilitiesInResponseCode]: `[` and `]` are not IMAP token
- * delimiters, so the parser hands back atoms like `[AUTHENTICATIONFAILED]` whole.
- *
- * On an OK completion, `[CAPABILITY …]` is itself a response code, so this answers
- * `"CAPABILITY"` on such a line. Deliberate and harmless: the throw sites only ask on a
- * tagged NO/BAD, where the bracketed word is the failure's name.
+ * The response code of [line] (RFC 5530): the first bracketed WORD, upper-cased, or `null`. On an OK
+ * completion this answers `"CAPABILITY"`, which is harmless — the throw sites only ask on a tagged
+ * NO/BAD, where the bracketed word is the failure's name.
  */
 internal fun responseCodeIn(line: List<Any?>): String? {
     val flat = line.joinToString(" ") { flatten(it) }
     return Regex("\\[([^\\]\\s]+)").find(flat)?.groupValues?.get(1)?.uppercase()
 }
 
-/**
- * What a permanent purge does on a server that does NOT implement UIDPLUS (RFC 4315), i.e. one
- * where `UID EXPUNGE <set>` — "erase exactly these" — does not exist.
- *
- * The only other way to erase is a bare `EXPUNGE`, which erases EVERY message flagged `\Deleted`
- * in the selected folder: the ones this app just flagged, but equally ones flagged from another
- * client, or flagged long ago and left there. Sent blind it destroys mail nobody designated; not
- * sent at all it leaves the folder un-emptied while the screen says otherwise.
- *
- * What breaks the deadlock is that the server can be ASKED what is flagged, and the answer is
- * one cheap command. So the honest option is not a compromise between the two but a condition on
- * the second: expunge when, and only when, the folder's flagged set is provably ours.
- *
- * This is a product decision, not a technical one, which is why it is a single named value
- * rather than a condition spread over the purge paths.
- */
-internal enum class PurgeWithoutUidPlus {
     /**
-     * Flag `\Deleted` and stop, always. Nothing is ever erased that the user did not designate;
-     * in exchange the folder is never actually emptied on such a server.
+     * On a server without UIDPLUS (RFC 4315) the only way to erase is a bare `EXPUNGE`, which erases
+     * EVERY message flagged `\Deleted` in the folder, ours and another client's alike. A product
+     * decision, hence a single named value rather than a condition spread over the purge paths.
      */
+internal enum class PurgeWithoutUidPlus {
+    /** Flag `\Deleted` and stop, always. Nothing is erased that the user did not designate; in
+     *  exchange the folder is never actually emptied on such a server. */
     LEAVE_FLAGGED,
 
     /**
      * Ask the server what is flagged, and send one bare `EXPUNGE` only if everything flagged is
-     * something this operation flagged (see [ImapSession.nothingElseIsFlagged], which also states
-     * the residual race). Otherwise behave as [LEAVE_FLAGGED]. Costs one extra command per
-     * operation on servers without UIDPLUS, and nothing at all on servers with it.
+     * something this operation flagged ([ImapSession.nothingElseIsFlagged], which states the
+     * residual race). Otherwise behave as [LEAVE_FLAGGED].
      */
     EXPUNGE_WHEN_ONLY_OURS,
 
-    /**
-     * One bare `EXPUNGE` for the whole operation, asking nothing. The folder really is emptied —
-     * including any message flagged `\Deleted` by somebody else, destroyed with no way back.
-     */
+    /** One bare `EXPUNGE` for the whole operation, asking nothing — including any message flagged
+     *  `\Deleted` by somebody else, destroyed with no way back. */
     EXPUNGE_WHOLE_FOLDER,
 }
 
-/**
- * THE policy line. Changing this single assignment switches every purge path in this file
- * ([ImapSession.delete] and the copy fallback of [ImapSession.move]) and nothing else; both
- * extremes stay one word away, so neither has to be reconstructed to be tried.
- *
- * It ships as [PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS]: the Trash is genuinely emptied
- * whenever that can be shown to harm nothing, and destroying less than ordered remains the error
- * it falls back to (Codeberg #99).
- */
+    /**
+     * THE policy line: this single assignment switches every purge path in this file and nothing else.
+     * It ships as [PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS] — the Trash is genuinely emptied when
+     * that can be shown to harm nothing, and destroying less than ordered stays the fallback (#99).
+     */
 internal val purgeWithoutUidPlus = PurgeWithoutUidPlus.EXPUNGE_WHEN_ONLY_OURS
 
-/**
- * Cap on how many UIDs go into one `UID MOVE`/`UID STORE` sequence-set, so an enormous
- * selection is split across a few commands instead of one over-long line. 200 UIDs
- * compress to well under any server's command-length limit.
- */
+/** Cap on how many UIDs go into one `UID MOVE`/`UID STORE` sequence-set, so an enormous selection is
+ *  split across a few commands instead of one over-long line. */
 private const val UID_SET_CHUNK = 200
 
-/**
- * How many messages one grouped preview fetch ([ImapSession.fetchSectionPartials]) asks about at a
- * time.
- *
- * Deliberately NOT [UID_SET_CHUNK], which sizes a `UID STORE`/`UID MOVE` and is bounded only by
- * the length of a command LINE. This one is bounded by the ANSWER: the reply to a preview fetch
- * carries up to [IMAP_PREVIEW_FETCH_BYTES] octets per message, all of it parsed and held before a
- * single body is read out of it, inside a foreground service. At 200 that is ~1.6 MB on one heap —
- * exactly the shape [ImapSession.walkFolder] paginates to avoid, rebuilt on the body side.
- *
- * The rule for changing it: `chunk × IMAP_PREVIEW_FETCH_BYTES` stays in the hundreds of kilobytes.
- * 20 × 8 KiB = 160 KB, against a round trip per page instead of one per message.
- */
+    /**
+     * Deliberately NOT [UID_SET_CHUNK], which is bounded by a command LINE; this one is bounded by
+     * the ANSWER, all of it parsed and held inside a foreground service. The rule for changing it:
+     * `chunk × IMAP_PREVIEW_FETCH_BYTES` stays in the hundreds of kilobytes.
+     */
 internal const val IMAP_PREVIEW_FETCH_CHUNK = 20
 
 /**
- * How long [ImapSession.close] may wait for the answer to its `LOGOUT`.
- *
- * **Why five seconds, and why a number at all**: this is not a read that does work, it is a
- * teardown courtesy. On a live link a `LOGOUT` costs one round trip — under three seconds even on a
- * bad mobile link — and on a dead one waiting buys nothing at all, since the bytes we are waiting
- * for are never coming. So the number only has to be comfortably above a slow round trip.
- *
- * It is also a cost paid under the account mutex, and paid TWICE at worst: `runWithRetry` closes
- * the session on failure and, with `retryOnFailure`, can do so again on the second attempt. Five
- * seconds is therefore ten seconds of worst-case teardown; a minute here would be two.
+ * How long [ImapSession.close] may wait for the answer to its `LOGOUT`. A teardown courtesy: a live
+ * link answers in one round trip and a dead one never will. Paid under the account mutex, and
+ * TWICE at worst — `runWithRetry` can close the session on each of two attempts.
  */
 private const val LOGOUT_READ_BUDGET_MS = 5_000
 
@@ -1920,24 +1224,13 @@ internal class ImapResult(
     val tagged: List<Any?> = emptyList(),
 )
 
-/**
- * Map the untagged responses of a `LIST` command to [ImapFolder]s, dropping
- * non-selectable container mailboxes. A `\Noselect` (or `\NonExistent`) entry can't be
- * opened: Gmail nests its special mailboxes under such a container literally named
- * "[Gmail]", so surfacing it only adds a dead level in the drawer. Its selectable
- * children keep their full path and re-parent to top level (the drawer infers parents
- * from the path, finds the dropped container missing, and promotes them). INBOX is
- * never dropped, even if a server mislabels it.
- *
- * THE ONE PLACE a mailbox name is decoded ([decodeMailboxPath], Codeberg #101): everything
- * above this function holds Unicode, and [ImapSession] encodes again on its way out.
- *
- * [ImapFolder.path] is the FAITHFUL decoding — nothing filtered, and nothing decoded that would
- * not encode back byte for byte — because it is an identifier: it has to reproduce the exact
- * bytes the server sent or the folder stops opening. The anti-spoofing filter therefore applies
- * to [ImapFolder.name], the display leaf, and only there. A path is never displayed and a name
- * is never sent.
- */
+    /**
+     * Non-selectable container mailboxes are dropped (Gmail nests its special mailboxes under one named
+     * "[Gmail]"); their selectable children keep their full path and re-parent to top level, and INBOX
+     * is never dropped. THE ONE PLACE a mailbox name is decoded (Codeberg #101): [ImapFolder.path] is
+     * the FAITHFUL decoding, an identifier that must reproduce the server's exact bytes, so the
+     * anti-spoofing filter applies to [ImapFolder.name] alone.
+     */
 internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> {
     val listed = untagged.mapNotNull { resp ->
         // * LIST (attrs) "delim" "name"
@@ -1948,17 +1241,10 @@ internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> {
         val wire = resp.getOrNull(4) as? String ?: return@mapNotNull null
         val path = decodeMailboxPath(wire)
         val leaf = path.substringAfterLast(delim)
-        // A conforming name is modified UTF-7, i.e. pure ASCII on the wire, and its decoding is
-        // already text — nothing to reinterpret. A name that arrived with 8-bit bytes is not
-        // conforming: some client sent raw UTF-8 (Sterna itself did, up to 1.4.3 — see the
-        // retry in [select]), [decodeMailboxPath] rightly kept it verbatim, and what the parser
-        // hands over is therefore octets. Reading them before displaying them is the difference
-        // between "Помеченные" and a truncated mojibake, since [stripBidiAndControls] eats
-        // U+0080–U+009F. Testing the WIRE form, not the decoded one, is what keeps this free of
-        // false positives: a legitimately decoded name can never trigger it.
-        //
-        // [path] is deliberately NOT touched. It is the identifier, it has to reproduce the
-        // server's exact bytes, and it is the only reason the folder stays addressable.
+        // A conforming name is modified UTF-7, pure ASCII on the wire. One that arrived with 8-bit
+        // bytes is not conforming (Sterna itself sent raw UTF-8 up to 1.4.3), so reading them is the
+        // difference between "Помеченные" and truncated mojibake. Testing the WIRE form keeps this
+        // free of false positives; [path] is deliberately NOT touched, being the identifier.
         val name = stripBidiAndControls(if (wire.any { it.code >= 0x80 }) decodeHeaderBytes(leaf) else leaf)
         val nonSelectable = attrs.any {
             it.equals("\\Noselect", ignoreCase = true) || it.equals("\\NonExistent", ignoreCase = true)
@@ -1978,19 +1264,12 @@ internal fun parseListFolders(untagged: List<List<Any?>>): List<ImapFolder> {
     }
 }
 
-/**
- * The mailbox paths an `LSUB` answer named, decoded EXACTLY as [parseListFolders] decodes a LIST
- * name — [decodeMailboxPath], faithful, nothing filtered — because the two sets are intersected by
- * path. Decode them differently by a single character and every non-ASCII folder falls out of the
- * intersection, is reported unsubscribed, and vanishes from the drawer in silence (#101, #174).
- *
- * The anti-spoofing filter of [ImapFolder.name] has no place here: these are identifiers, never
- * displayed, only compared.
- *
- * A path the LIST did not carry is kept: a subscription may outlive its mailbox (RFC 3501 §6.3.9),
- * and it is the intersection — not this parser — that ignores it. Lines that are not `LSUB`, and
- * `LSUB` lines with no mailbox name, are dropped.
- */
+    /**
+     * Decoded EXACTLY as [parseListFolders] decodes a LIST name, the two sets being intersected by
+     * path: decode them differently by one character and every non-ASCII folder falls out and vanishes
+     * from the drawer (#101, #174). A path the LIST did not carry is kept — a subscription may outlive
+     * its mailbox (RFC 3501 §6.3.9).
+     */
 internal fun parseLsubPaths(untagged: List<List<Any?>>): Set<String> =
     untagged.mapNotNullTo(mutableSetOf()) { resp ->
         // * LSUB (attrs) "delim" "name"
@@ -1998,20 +1277,12 @@ internal fun parseLsubPaths(untagged: List<List<Any?>>): Set<String> =
         (resp.getOrNull(4) as? String)?.let { decodeMailboxPath(it) }
     }
 
-/**
- * [folders] with each entry marked by whether [subscribed] named its path. Adds no folder and
- * removes none: a subscription to a mailbox that is not listed is ignored.
- *
- * [subscribed] `null` — the server was not asked, or its answer never arrived — leaves every
- * folder subscribed, because the unknown may not hide anything.
- *
- * And an EMPTY set is treated as that same unknown, deliberately. "The account is subscribed to
- * nothing" and "the server said nothing usable" are indistinguishable on the wire, one of them is
- * a legitimate state and the other is an accident, and the two possible mistakes are not worth the
- * same: reading an accident as "subscribed to nothing" hides EVERY folder — an empty drawer, with
- * the inbox gone — while reading a genuinely empty subscription as "unknown" shows a few folders
- * the user asked to hide. The second is the one this returns.
- */
+    /**
+     * Adds no folder and removes none. [subscribed] `null` — not asked, or the answer never arrived —
+     * leaves every folder subscribed. And an EMPTY set is treated as that same unknown: the two are
+     * indistinguishable on the wire, and reading an accident as "subscribed to nothing" empties the
+     * whole drawer, inbox included.
+     */
 internal fun withSubscriptions(folders: List<ImapFolder>, subscribed: Set<String>?): List<ImapFolder> {
     if (subscribed.isNullOrEmpty()) return folders
     return folders.map { it.copy(isSubscribed = it.path in subscribed) }
@@ -2026,48 +1297,13 @@ internal data class ListedFolder(
     val attrs: List<String>,
 )
 
-/**
- * The role of each folder of ONE listing, in the order they were listed.
- *
- * This takes the whole list because both rules below are properties of the list, not of a folder,
- * and neither can be decided by looking at one entry:
- *
- * 1. A role the SERVER STATED beats a role guessed from a name, wherever either sits in the
- *    response. Hence two passes rather than "first one wins": the guesser runs only once every
- *    stated role has been handed out. A user folder named "Archives" listed before the mailbox
- *    the server itself marked `\Archive` would otherwise take the role, and archiving would file
- *    mail where the server does not keep its archive.
- *
- *    The rule runs in BOTH directions: a folder that stated a recognised attribute never goes
- *    through the name table, even when the role it stated was already taken. Falling back on its
- *    name would let a second `\Trash` called "Archiv" come back as the ARCHIVE — the app would
- *    file archived mail into a folder the server purges. The server has spoken; where its word
- *    cannot be honoured the folder keeps no role rather than a contradicting guess.
- * 2. A role is carried ONCE. A second candidate is not ELECTED to it, INBOX included — INBOX is
- *    unique by definition (RFC 3501 §5.1), so a second folder whose leaf reads "Inbox" is a user
- *    folder. Two folders sharing a role means two Trashes in the drawer and a `roleMailboxId`
- *    that returns whichever the query hands back first: the delete lands in one of them and the
- *    user empties the other.
- *
- *    A folder that lost its claim stays an ORDINARY folder: listed, under its own name, with no
- *    trash icon, renameable, deletable, and never the destination of a delete. That is not a
- *    property of the marked role `:core:data` stores for it — it holds because the mark is ERASED
- *    at the crossing to the UI model (`MailboxMapper.toMailbox`, and dropped from `folderRoleMap`),
- *    so nothing above `:core:data` reads a ROLE on that folder. The one thing that does cross is
- *    the bare fact of the loss (`Mailbox.lostRoleClaim`), which keeps it LISTED when the account
- *    shows only its subscribed folders — being out of search and out of the drawer at once would
- *    leave it reachable from nowhere. What it does NOT
- *    stay is searchable when what it claimed was the trash or the junk. A mailbox the server
- *    itself marked `\Trash`, or one the name table reads as a trash, holds mail the user threw
- *    away — an account with a personal `Trash` and a shared `Shared/…/Trash` has two of them, and
- *    the loser used to come back in every search result and to be crawled into the local index,
- *    where a cache purge could not clear it. So the loss is REPORTED
- *    ([ImapFolder.unelectedRole]) rather than thrown away. This module states the fact and
- *    decides nothing: `:core:data` is what turns a lost `trash`/`junk` into a marked role
- *    (`~trash`, `~junk` — `MailRepository.UNELECTED_ROLE_MARK`) that its single
- *    `NOT_SEARCHED_ROLES` source excludes from search and from the index. No list of searched or
- *    unsearched roles exists here.
- */
+    /**
+     * The whole list, because both rules are properties of it: a role the SERVER STATED beats a role
+     * guessed from a name wherever either sits, and a folder that stated a recognised attribute never
+     * falls back on the name table even when the role it stated was taken; and a role is carried ONCE,
+     * INBOX included (RFC 3501 §5.1). A folder that lost its claim stays ORDINARY; what crosses to
+     * `:core:data` is the bare fact ([ImapFolder.unelectedRole]), keeping it out of search.
+     */
 internal fun assignRoles(listed: List<ListedFolder>): List<FolderRole> {
     val stated = listed.map { roleFromAttributes(it.attrs) }
     val roles = MutableList<String?>(listed.size) { null }
@@ -2089,10 +1325,8 @@ internal fun assignRoles(listed: List<ListedFolder>): List<FolderRole> {
     return List(listed.size) { FolderRole(elected = roles[it], unelected = unelected[it]) }
 }
 
-/**
- * What [assignRoles] settled for one folder: the role it was ELECTED to, and the role it CLAIMED
- * and lost to another folder of the same listing. At most one of the two is non-null.
- */
+/** What [assignRoles] settled for one folder: the role it was ELECTED to, and the role it CLAIMED
+ *  and lost to another folder of the same listing. At most one of the two is non-null. */
 internal data class FolderRole(val elected: String?, val unelected: String?)
 
 /** The role a server STATED with an RFC 6154 SPECIAL-USE attribute — the only one it did not
@@ -2110,26 +1344,13 @@ internal fun roleFromAttributes(attrs: List<String>): String? =
         }
     }
 
-/**
- * The role GUESSED from a folder's name, for the servers that state nothing.
- *
- * The names below are the ones SERVERS carry — what Dovecot, Roundcube, Thunderbird and the
- * common webmails actually create in each language — never the app's own labels: the mailbox is
- * named once, on the server, and the phone's language has no say in reading it. The app speaks
- * nine languages and its detection used to know one, so a mailbox whose trash is called
- * "Papierkorb", "Kosz" or "Корзина" came back with no trash at all — and with no trash,
- * `MailRepository.deleteWouldDestroy` calls EVERY delete a destruction and the swipe erases mail
- * instead of moving it. That is the whole reason this table is not English-only.
- *
- * ACCEPTED, deliberately: a USER folder named exactly "Papierkorb" on a server that states
- * nothing takes the role, loses its Rename/Delete entries and drops out of search. That class of
- * false positive has always existed in English ("Archive", "Archives"), this widens it and does
- * not create it — and it destroys no mail, which the missing trash does. No heuristic (depth,
- * position, message count) is added to dodge it.
- *
- * [lowercase] with no argument is locale-independent by contract, unlike the `toLowerCase()` it
- * replaced: a phone set to Turkish maps 'I' to 'ı' and would stop recognising "INBOX".
- */
+    /**
+     * The names below are the ones SERVERS carry in each language — what Dovecot, Roundcube and the
+     * common webmails create — never the app's own labels. With no trash recognised,
+     * `MailRepository.deleteWouldDestroy` calls every delete a destruction and the swipe erases mail.
+     * ACCEPTED: a USER folder named exactly "Papierkorb" takes the role and drops out of search.
+     * [lowercase] with no argument is locale-independent: a Turkish phone maps 'I' to 'ı'.
+     */
 internal fun roleFromName(name: String): String? = when (name.lowercase()) {
     "inbox" -> "inbox"
 

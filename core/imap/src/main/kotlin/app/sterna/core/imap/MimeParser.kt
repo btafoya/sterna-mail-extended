@@ -20,41 +20,25 @@ data class MimeBody(
     val html: String?,
     val text: String?,
     val attachments: List<MimeAttachment> = emptyList(),
-    /**
-     * The source was past [MimeParser.MAX_BODY_CHARS] and was not parsed at all. The caller must
-     * say so rather than render an empty message — nothing here was read, nothing is missing
-     * because it wasn't there.
-     */
+        /** The source was past [MimeParser.MAX_BODY_CHARS] and was not parsed at all. The caller must
+         *  say so rather than render an empty message — nothing here was read. */
     val tooLarge: Boolean = false,
 )
 
 /** How a message carries OpenPGP content. */
 enum class CryptoKind { PGP_ENCRYPTED, PGP_SIGNED, PGP_INLINE }
 
-/**
- * Legacy INLINE OpenPGP, recognised on an already-decoded body: the two armour headers a message
- * carries when the ciphertext (or the clearsigned block) sits in the text itself rather than in a
- * PGP/MIME part.
- *
- * It is a confidentiality guard, not a convenience. `MailRepository.cryptoKindOf` answers
- * `MessagePaging.warmable` with it, and the reader's cache warm-up paints a body on a page the
- * finger has NOT reached: answering `null` for an inline-PGP message prints its armour, in clear,
- * on a message nobody opened, with no decrypt offered. The same answer routes the OPENED message
- * to decryption, so a `null` there also means an inline-PGP mail that offers none.
- *
- * It lives here, beside [CryptoKind] and not in `MailRepository`, for one reason: the
- * repository needs Room and an Android context, so nothing inside it can be RUN on a JVM bench —
- * and until `InlineArmorKindTest` existed, deleting either literal below left the whole suite
- * green. `core/data` already declares `api(project(":core:imap"))`.
- *
- * [text] is the DISPLAYED body (`Email.textContent()`), not a raw source — [MimeParser] is
- * where raw sources are read, and [MimeParser.detectCrypto] is the function for those.
- *
- * `contains`, never `startsWith`: real inline armour sits under a greeting and above a signature.
- * And only these two headers — a quoted `-----BEGIN PGP PUBLIC KEY BLOCK-----` is nothing to
- * decrypt or verify, and refusing to warm every message that quotes a key would be a bug of its
- * own.
- */
+    /**
+     * Legacy INLINE OpenPGP, recognised on an already-decoded body: the two armour headers a message
+     * carries when the ciphertext (or clearsigned block) sits in the text itself rather than in a
+     * PGP/MIME part. A confidentiality guard, not a convenience: `MailRepository.cryptoKindOf`
+     * answers `MessagePaging.warmable` with it, so a `null` here prints the armour in clear on a page
+     * the finger never reached, and routes the opened message past decryption.
+     *
+     * It lives here rather than in `MailRepository` because the repository needs Room, so nothing
+     * inside it can be RUN on a JVM bench. [text] is the DISPLAYED body, not a raw source —
+     * [MimeParser.detectCrypto] is the function for those. `contains`, never `startsWith`.
+     */
 fun inlineArmorKind(text: String): CryptoKind? =
     if (text.contains("-----BEGIN PGP MESSAGE-----") ||
         text.contains("-----BEGIN PGP SIGNED MESSAGE-----")
@@ -72,29 +56,23 @@ data class CryptoEnvelope(
     val kind: CryptoKind,
     /** ASCII-armored ciphertext (multipart/encrypted part 2, or the inline block). */
     val encryptedArmor: String? = null,
-    /**
-     * The signed MIME entity of a multipart/signed, as a VERBATIM substring of the
-     * raw source (headers included, boundaries excluded). Signature verification is
-     * byte-exact, so this is never re-flowed or re-encoded.
-     */
+        /** The signed MIME entity of a multipart/signed, as a VERBATIM substring of the raw source
+         *  (headers included, boundaries excluded). Signature verification is byte-exact, so this is
+         *  never re-flowed or re-encoded. */
     val signedEntityRaw: String? = null,
     /** ASCII-armored detached signature (application/pgp-signature part). */
     val signatureArmor: String? = null,
 )
 
-/**
- * Minimal MIME parser: extracts the best body (text/html → text/plain, decoding
- * transfer-encoding + charset) and lists file attachments with their IMAP body
- * section so they can be fetched on demand.
- *
- * INPUT CONVENTION — every `raw`/`content` string reaching this object is a FAITHFUL BYTE
- * CONTAINER: one char per wire byte, ISO-8859-1, exactly what [ImapParser] produces (see its
- * KDoc) and what [decodeBytes] has always assumed. A message is bytes until its own headers say
- * what those bytes mean; this object is where they finally say it. Handing it a string that has
- * already been decoded into text (chars past U+00FF, or a "café" that is really text and not two
- * bytes) makes [decode] mangle it — the PGP read path converts its decrypted entity with
- * ISO-8859-1 for exactly this reason.
- */
+    /**
+     * Minimal MIME parser: extracts the best body (text/html → text/plain, decoding transfer-encoding
+     * + charset) and lists file attachments with their IMAP body section.
+     *
+     * INPUT CONVENTION — every `raw`/`content` string reaching this object is a FAITHFUL BYTE
+     * CONTAINER: one char per wire byte, ISO-8859-1, exactly what [ImapParser] produces. Handing it a
+     * string already decoded into text makes [decode] mangle it, which is why the PGP read path
+     * converts its decrypted entity with ISO-8859-1.
+     */
 object MimeParser {
     /** Bound multipart nesting so a maliciously deep message can't blow the stack. */
     private const val MAX_DEPTH = 24
@@ -103,11 +81,9 @@ object MimeParser {
      *  can't drive quadratic copying / huge allocation. */
     const val MAX_PARTS = 1024
 
-    /**
-     * Largest message source we will parse (25 MiB). Walking a multipart copies the body at
-     * every level, so a bigger source is an out-of-memory risk before it is a message; past
-     * this the parse is refused and the caller reports it (see [MimeBody.tooLarge]).
-     */
+        /** Largest message source we will parse (25 MiB). Walking a multipart copies the body at every
+         *  level, so a bigger source is an out-of-memory risk before it is a message; past this the
+         *  parse is refused and the caller reports it (see [MimeBody.tooLarge]). */
     const val MAX_BODY_CHARS = 25 * 1024 * 1024
 
     fun parseBody(raw: String): MimeBody {
@@ -130,9 +106,9 @@ object MimeParser {
         val mime = contentType.substringBefore(';').trim().lowercase()
         val cte = headers["content-transfer-encoding"]?.substringBefore(';')?.trim()?.lowercase() ?: "7bit"
         val disposition = headers["content-disposition"] ?: ""
-        // Decoded, not raw: an attachment called "Отчёт.pdf" travels as an RFC 2231 parameter or
-        // an RFC 2047 word, and both used to reach the screen verbatim (Codeberg #101). See
-        // [mimeParamValue] — the display name only; what lands on disk is sanitised separately.
+            // Decoded, not raw: an attachment called "Отчёт.pdf" travels as an RFC 2231 parameter or an
+            // RFC 2047 word, and both used to reach the screen verbatim (Codeberg #101). Display name
+            // only — what lands on disk is sanitised separately.
         val filename = mimeParamValue(disposition, "filename") ?: mimeParamValue(contentType, "name")
 
         if (mime.startsWith("multipart/")) {
@@ -173,10 +149,9 @@ object MimeParser {
                 attachments.add(MimeAttachment(section, filename ?: "invite.ics", mime, body.length, cte))
                 null to null
             }
-            // PGP/MIME control parts (version / detached signature) have no filename, so they
-            // would otherwise vanish. Keep them as typed parts: the reader uses their presence
-            // to detect crypto messages uniformly across IMAP and JMAP (they are filtered out
-            // of the visible attachment list).
+                // PGP/MIME control parts (version / detached signature) have no filename, so they would
+                // otherwise vanish. Kept as typed parts: the reader uses their presence to detect crypto
+                // uniformly across IMAP and JMAP, and they are filtered out of the visible list.
             mime == "application/pgp-encrypted" || mime == "application/pgp-signature" -> {
                 attachments.add(
                     MimeAttachment(section, filename ?: mime.substringAfter('/'), mime, body.length, cte),
@@ -191,62 +166,42 @@ object MimeParser {
     fun headerOf(raw: String, name: String): String? =
         parseHeaders(headerBlockOf(raw))[name.lowercase()]
 
-    /**
-     * The header block of [part], and nothing else — exactly what `splitHeaders(part).first`
-     * answers, including the no-blank-line case, where the whole string is the block.
-     *
-     * Separate from [splitHeaders] only to stop allocating the body to throw it away: reading one
-     * header out of a DECRYPTED PGP/MIME entity (`MailRepository.buildDecrypted`, #128) would
-     * otherwise copy the entire entity, attachments included and past the `MAX_BODY_CHARS` cap the
-     * parse next to it respects.
-     */
+        /**
+         * The header block of [part], and nothing else — exactly what `splitHeaders(part).first`
+         * answers, the no-blank-line case included. Separate from [splitHeaders] only to stop
+         * allocating the body to throw it away: reading one header out of a DECRYPTED PGP/MIME entity
+         * (#128) would otherwise copy the whole entity, attachments included.
+         */
     private fun headerBlockOf(part: String): String {
         val sep = Regex("\\r?\\n\\r?\\n").find(part) ?: return part
         return part.substring(0, sep.range.first)
     }
 
-    /**
-     * The same header, READY TO SHOW: [headerOf] put through [decodeWords].
-     *
-     * It lives here and not in the module that needs it because [decodeWords], [decodeHeaderBytes]
-     * and [stripBidiAndControls] are `internal` to `:core:imap` — there is exactly ONE sanitising
-     * chain in this app and a second copy of it would drift.
-     *
-     * This is the SAME door the outer envelope subject goes through (`ImapClient.kt`, line 1042:
-     * `decodeWords(envelope[1])`). That matters for RFC 9788 protected headers: a subject read out
-     * of a decrypted entity is sender-controlled content just like the envelope's, so it must be
-     * filtered identically — RFC 2047 encoded-words decoded, raw 8-bit bytes read as text, bidi
-     * overrides and control characters removed. Reading it raw would open on screen exactly what
-     * the outer path closes.
-     */
+        /**
+         * The same header, READY TO SHOW: [headerOf] put through [decodeWords]. It lives here because
+         * [decodeWords], [decodeHeaderBytes] and [stripBidiAndControls] are `internal` to `:core:imap`
+         * — there is exactly ONE sanitising chain in this app and a second copy would drift. It is the
+         * SAME door the outer envelope subject goes through, which matters for RFC 9788 protected
+         * headers: a subject read out of a decrypted entity is sender-controlled just the same.
+         */
     fun decodedHeaderOf(raw: String, name: String): String? = decodeWords(headerOf(raw, name))
 
-    /**
-     * The SAME door as [decodedHeaderOf], for a value that has already been separated from its
-     * message: the header field's text goes in, what is safe to show comes out.
-     *
-     * It is a second entrance and not a second chain — [decodeWords] is `internal` to `:core:imap`
-     * exactly so that "there is exactly ONE sanitising chain in this app and a second copy of it
-     * would drift" ([decodedHeaderOf]) stays true. [decodedHeaderOf] takes `(raw, name)` and can
-     * only serve a caller holding the message source; a JMAP `headers` answer (RFC 8621 §4.1.3) is
-     * a list of name/value pairs with no source behind it, and a value read out of one is
-     * sender-controlled text bound for the screen just the same.
-     *
-     * Encoded-words decoded, raw 8-bit bytes read as text, bidi overrides and control characters
-     * removed, and the leading space RFC 8621 keeps after the colon trimmed off.
-     */
+        /**
+         * The SAME door as [decodedHeaderOf], for a value already separated from its message. A second
+         * entrance and not a second chain: [decodedHeaderOf] takes `(raw, name)` and can only serve a
+         * caller holding the source, while a JMAP `headers` answer (RFC 8621 §4.1.3) is name/value
+         * pairs with no source behind them. Encoded-words decoded, raw 8-bit bytes read as text, bidi
+         * overrides and control characters removed, and RFC 8621's leading space trimmed off.
+         */
     fun decodedHeaderValue(value: String?): String? = decodeWords(value)
 
-    /**
-     * Every top-level header field of a raw message, in original order with duplicates kept
-     * (folded continuation lines joined) — the IMAP counterpart of JMAP's `headers` property,
-     * for the reader's "view headers" action (issue #60). Values are otherwise unaltered:
-     * encoded-words are NOT decoded here, this screen shows the header as it was sent.
-     *
-     * [decodeHeaderBytes] is the one exception, and it is not a decoding: the source is a byte
-     * container, so a conforming (ASCII) header passes through untouched while one carrying its
-     * bytes raw is shown as the text those bytes are, rather than as one box per octet.
-     */
+        /**
+         * Every top-level header field of a raw message, in original order with duplicates kept
+         * (folded lines joined) — the IMAP counterpart of JMAP's `headers`, for the reader's "view
+         * headers" action (issue #60). Encoded-words are NOT decoded: this screen shows the header as
+         * it was sent. [decodeHeaderBytes] is the one exception and is not a decoding — the source is
+         * a byte container, so raw bytes are shown as the text they are, not one box per octet.
+         */
     fun rawHeaders(raw: String): List<Pair<String, String>> {
         val out = mutableListOf<Pair<String, String>>()
         val sb = StringBuilder()
@@ -271,11 +226,9 @@ object MimeParser {
         return out
     }
 
-    /**
-     * The still-transfer-encoded body + Content-Transfer-Encoding of the part at
-     * [section] ("1", "2.1", …) inside a raw MIME entity — the same section paths
-     * [parseBody] assigns. Used to pull attachments out of a decrypted entity.
-     */
+        /** The still-transfer-encoded body + Content-Transfer-Encoding of the part at [section]
+         *  ("1", "2.1", …) inside a raw MIME entity — the same section paths [parseBody] assigns.
+         *  Used to pull attachments out of a decrypted entity. */
     fun partAt(raw: String, section: String): Pair<String, String>? {
         var current = raw
         val indices = section.split('.').map { it.toIntOrNull() ?: return null }
@@ -297,10 +250,8 @@ object MimeParser {
         return cte to body
     }
 
-    /**
-     * Detect OpenPGP content in a raw RFC 5322 message (RFC 3156 PGP/MIME, plus
-     * legacy inline armor in a plain-text body). Returns null for ordinary mail.
-     */
+        /** Detect OpenPGP content in a raw RFC 5322 message (RFC 3156 PGP/MIME, plus legacy inline
+         *  armor in a plain-text body). Returns null for ordinary mail. */
     fun detectCrypto(raw: String): CryptoEnvelope? {
         val (headerText, body) = splitHeaders(raw)
         val headers = parseHeaders(headerText)
@@ -364,13 +315,12 @@ object MimeParser {
         return decode(body, cte, Charsets.UTF_8)
     }
 
-    /**
-     * The first part of a multipart body as a VERBATIM substring: from just after
-     * the line break that ends the opening boundary line to just before the line
-     * break that precedes the next boundary delimiter (both owned by the boundary
-     * per RFC 2046 §5.1.1). No trimming or re-encoding — verification needs the
-     * exact bytes the signer hashed.
-     */
+        /**
+         * The first part of a multipart body as a VERBATIM substring: from just after the line break
+         * ending the opening boundary line to just before the one preceding the next delimiter (both
+         * owned by the boundary per RFC 2046 §5.1.1). No trimming, no re-encoding — verification needs
+         * the exact bytes the signer hashed.
+         */
     private fun rawFirstPart(body: String, boundary: String): String? {
         val delimiter = "--$boundary"
         var open = body.indexOf(delimiter)
@@ -410,14 +360,12 @@ object MimeParser {
         return null
     }
 
-    /**
-     * Decode a fetched part body (BODY[section]) to raw bytes using its transfer-encoding.
-     *
-     * The `ISO_8859_1` conversions are the byte-container convention (see the object KDoc), not a
-     * guess at a charset: an attachment has no charset, it has octets. This is what a `8bit` or
-     * `binary` attachment lands on disk as, so a parser that could not return the octets wrote
-     * `?` (0x3F) over every one it had lost — silently, since nothing on screen says so.
-     */
+        /**
+         * Decode a fetched part body (BODY[section]) to raw bytes using its transfer-encoding. The
+         * `ISO_8859_1` conversions are the byte-container convention (see the object KDoc), not a guess
+         * at a charset: an attachment has no charset, it has octets. A parser that could not return
+         * them wrote `?` (0x3F) over every one it had lost, silently.
+         */
     fun decodeBytes(content: String, encoding: String?): ByteArray = when (encoding?.lowercase()) {
         "base64" -> runCatching {
             Base64.getMimeDecoder().decode(content.filter { it != '\r' && it != '\n' })
@@ -458,30 +406,25 @@ object MimeParser {
         return m?.groupValues?.get(1)?.trim()
     }
 
-    /**
-     * The charset a part declared, as a [java.nio.charset.Charset]: UTF-8 when it declared none,
-     * and UTF-8 when it declared one this JVM does not know — the fallback that has always been
-     * applied here, in ONE place.
-     *
-     * Public because the same question is asked of a part fetched on its own, from its
-     * BODYSTRUCTURE rather than from its Content-Type header (the notification preview): the same
-     * charset name resolved by a second implementation is a second fallback rule to keep in step,
-     * and the day they disagreed the two readings of one message would differ.
-     */
+        /**
+         * The charset a part declared, as a [java.nio.charset.Charset]: UTF-8 when it declared none,
+         * and UTF-8 when it declared one this JVM does not know — one fallback, in ONE place. Public
+         * because the same question is asked of a part fetched on its own, from its BODYSTRUCTURE
+         * rather than its Content-Type header: a second implementation is a second fallback rule, and
+         * the day they disagreed the two readings of one message would differ.
+         */
     fun charsetNamed(name: String?): java.nio.charset.Charset =
         runCatching { charset(name?.takeIf { it.isNotBlank() } ?: "utf-8") }.getOrDefault(Charsets.UTF_8)
 
     private fun charsetOf(contentType: String): java.nio.charset.Charset =
         charsetNamed(paramOf(contentType, "charset"))
 
-    /**
-     * The children of a multipart body, at most [MAX_PARTS] of them.
-     *
-     * Deliberately not `body.split(delimiter)`: split materialises every segment first, so a
-     * 30 MB body whose boundary repeats a million times allocates a million strings before any
-     * cap can discard them. Here the body is walked with indexOf, a segment only becomes a
-     * String once it is kept, and the walk stops the moment the cap is reached.
-     */
+        /**
+         * The children of a multipart body, at most [MAX_PARTS] of them. Deliberately not
+         * `body.split(delimiter)`: split materialises every segment first, so a 30 MB body whose
+         * boundary repeats a million times allocates a million strings before any cap can discard
+         * them. Here the body is walked with indexOf and the walk stops at the cap.
+         */
     private fun splitMultipart(body: String, boundary: String): List<String> {
         val delimiter = "--$boundary"
         val parts = mutableListOf<String>()
@@ -499,24 +442,15 @@ object MimeParser {
         return parts
     }
 
-    /**
-     * A part's body as text: undo the transfer-encoding, then read the resulting bytes with the
-     * part's declared [charset].
-     *
-     * `base64` and `quoted-printable` are ASCII on the wire, so they survive the parse intact and
-     * have always had their charset applied to the bytes they rebuild. `7bit`/`8bit`/`binary` are
-     * the ones that were missing it: their body IS the bytes, and it used to be returned as-is —
-     * whatever charset the part declared. Under the byte-container convention (see the object
-     * KDoc) those chars are the octets, so recovering them and re-reading them under [charset] is
-     * all it takes. For a UTF-8 part — the overwhelming majority — the round trip reproduces the
-     * same text; for an ISO-8859-1 or KOI8-R one it produces the text instead of mojibake.
-     *
-     * That round trip is two full copies of the part, so the case where it is PROVABLY a no-op
-     * skips it (see [isAsciiUnder]): the ordinary `7bit` ASCII part, which is most mail, went from
-     * returning the body by reference to allocating a byte array plus a second string of it —
-     * ~75 MB of churn on a body near [MAX_BODY_CHARS], on devices that have already made this
-     * project pay for allocation (#71, #99).
-     */
+        /**
+         * A part's body as text: undo the transfer-encoding, then read the resulting bytes with the
+         * part's declared [charset]. `base64` and `quoted-printable` are ASCII on the wire and always
+         * had it applied; `7bit`/`8bit`/`binary` are the ones that were missing it, their body BEING
+         * the bytes. For a UTF-8 part the round trip reproduces the same text; for an ISO-8859-1 or
+         * KOI8-R one it produces the text instead of mojibake. That round trip is two full copies, so
+         * the case where it is PROVABLY a no-op skips it (see [isAsciiUnder]) — the ordinary `7bit`
+         * ASCII part is most mail, and ~75 MB of churn on a body near [MAX_BODY_CHARS] (#71, #99).
+         */
     private fun decode(body: String, cte: String, charset: java.nio.charset.Charset): String = when (cte) {
         "base64" -> runCatching {
             String(Base64.getMimeDecoder().decode(body.filter { it != '\r' && it != '\n' }), charset)
@@ -525,19 +459,13 @@ object MimeParser {
         else -> if (isAsciiUnder(body, charset)) body else String(body.toByteArray(Charsets.ISO_8859_1), charset)
     }
 
-    /**
-     * Whether re-reading [body]'s octets under [charset] is guaranteed to return [body] itself,
-     * so the copy can be skipped.
-     *
-     * The proof, and it is why this is a whitelist of three rather than a guess: in UTF-8,
-     * US-ASCII and ISO-8859-1 alike, every byte 0x00–0x7F decodes to the char of the same value
-     * and to nothing else. So if the body holds only such chars, byte reading then charset
-     * reading is the identity. It says nothing about the other charsets a part may declare —
-     * UTF-16 and ISO-2022-JP, to name two, do not read a lone ASCII byte as itself — and those
-     * take the copy. `charsetOf` resolves both a missing and an unknown charset to UTF-8, and a
-     * plain `7bit` part usually declares `us-ascii` or nothing, so the shortcut covers the case
-     * it is meant to cover.
-     */
+        /**
+         * Whether re-reading [body]'s octets under [charset] is guaranteed to return [body] itself, so
+         * the copy can be skipped. The proof, and why this is a whitelist of three rather than a guess:
+         * in UTF-8, US-ASCII and ISO-8859-1 alike every byte 0x00–0x7F decodes to the char of the same
+         * value and to nothing else. It says nothing about the others — UTF-16 and ISO-2022-JP do not
+         * read a lone ASCII byte as itself — and those take the copy.
+         */
     private fun isAsciiUnder(body: String, charset: java.nio.charset.Charset): Boolean =
         (charset == Charsets.UTF_8 || charset == Charsets.US_ASCII || charset == Charsets.ISO_8859_1) &&
             body.none { it.code >= 0x80 }

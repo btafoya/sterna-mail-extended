@@ -7,16 +7,14 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 /**
- * The UIDVALIDITY last seen for one IMAP folder — the number that says whether the UIDs cached
- * for it still mean what they meant (RFC 3501 §2.3.1.1, Codeberg #99).
+ * The UIDVALIDITY last seen for one IMAP folder — whether cached UIDs still mean what they
+ * meant (RFC 3501 §2.3.1.1, #99).
  *
- * A separate table rather than a column on `mailboxes` for one blunt reason: the folder list is
- * replaced wholesale on every refresh (`MailboxDao.replaceAll` upserts the server's rows), so a
- * column there would be overwritten with whatever the mapper happened to put in it — i.e. reset —
- * several times an hour. This row is written only by the code that actually observed the value.
+ * A separate table, not a `mailboxes` column: the folder list is replaced wholesale on every
+ * refresh, which would reset a column there several times an hour. This row is written only by
+ * code that actually observed the value.
  *
- * Keyed `(accountId, mailboxId)` like everything else here: a mailbox path is meaningless outside
- * its account, and two accounts on one server share folder names (issue #31).
+ * Keyed `(accountId, mailboxId)`: two accounts on one server share folder names (#31).
  */
 @Entity(tableName = "mailbox_uidvalidity", primaryKeys = ["accountId", "mailboxId"])
 data class MailboxUidValidityEntity(

@@ -185,14 +185,10 @@ fun ComposeScreen(
     onDone: () -> Unit,
     onCancel: () -> Unit,
     /**
-     * Send the draft this composer is editing to the Trash, the way the list does it (#127) —
-     * through the inbox's own ViewModel, so it is the same move and the same Undo.
-     *
-     * It receives a TAKER rather than the message: the draft is a one-shot state
-     * ([ComposeViewModel.takeEditingDraft], which also refuses while a send is in flight), and
-     * consuming it before the navigation guard has agreed to run means a tap the guard drops has
-     * thrown the state away for nothing. The reader's delete puts its mutation inside the guard;
-     * this is the same shape, for a value that has to be fetched rather than passed.
+     * Send the draft this composer is editing to the Trash the way the list does it (#127), through the
+     * inbox's own ViewModel, so it is the same move and the same Undo. It receives a TAKER rather than
+     * the message: the draft is a one-shot state, and consuming it before the navigation guard has
+     * agreed to run means a tap the guard drops has thrown the state away for nothing.
      */
     onDeleteDraft: (take: () -> Email?) -> Unit,
     replyTo: String? = null,
@@ -206,9 +202,9 @@ fun ComposeScreen(
     body: String? = null,
     draftId: String? = null,
     /**
-     * The queued row this composer was opened on by Outbox → Edit (#70), from the route — the twin
-     * of [draftId]. Read only by a composer rebuilt after a process death, whose in-memory hand-over
-     * is gone: it takes the row back by this id once the startup sweep has parked it.
+     * The queued row this composer was opened on by Outbox → Edit (#70), from the route — the twin of
+     * [draftId]. Read only by a composer rebuilt after a process death, whose in-memory hand-over is
+     * gone: it takes the row back by this id once the startup sweep has parked it.
      */
     outboxId: Long? = null,
     viewModel: ComposeViewModel = viewModel(),
@@ -228,53 +224,42 @@ fun ComposeScreen(
     val onlyCopy by viewModel.onlyCopy.collectAsStateWithLifecycle()
     val editingOutbox by viewModel.editingOutbox.collectAsStateWithLifecycle()
     val editingDraft by viewModel.editingDraft.collectAsStateWithLifecycle()
-    // The lease on a draft the PHONE is keeping and the server has not got (#95) — non-null only
-    // while this composer really holds the row. Not `draftId` and not the route it belongs to: on a
-    // row the upload worker consumed between the list being drawn and the tap landing, both still
-    // say "local draft" while this screen holds nothing, and the button would do nothing.
+    // The lease on a draft the PHONE is keeping and the server has not got (#95) — non-null only while
+    // this composer really holds the row. Not `draftId` and not the route it belongs to: on a row the
+    // upload worker consumed between the list being drawn and the tap, both still say "local draft"
+    // while this screen holds nothing.
     val editingLocalDraftId by viewModel.editingLocalDraftId.collectAsStateWithLifecycle()
     // Whether deleting that row would LEAVE the server copy it masks behind (#95) — true only when
-    // this phone never read that copy whole, which is when the deletion deliberately spares it. The
-    // confirmation has to say so before the finger lands: the row goes, the mask lifts, and the
-    // draft from before the edit comes back at the top of Drafts.
+    // this phone never read that copy whole. The confirmation has to say so before the finger lands:
+    // the row goes, the mask lifts, and the pre-edit draft comes back at the top of Drafts.
     val deleteKeepsServerCopy by viewModel.deleteKeepsServerCopy.collectAsStateWithLifecycle()
-    // The trash icon's confirmation (#127). Unconditional, unlike the leave dialog: this one is not
-    // about unsaved changes, it is about removing the draft itself — the message the user came here
-    // to edit — and the Undo it leaves behind restores the SERVER copy, not the screen.
-    //
-    // A flag lives where what it acts on lives, so it is the ViewModel's and not a `remember`
-    // here: a rotation recreates MainActivity and a bare `remember` fell back to false, taking the
-    // dialog off screen without a word. And not `rememberSaveable` either — see the field's own
-    // KDoc: that one outlives the process, while the draft this dialog names does not. The flag's
-    // real lifetime is this composer's NAVIGATION ENTRY — see the field's KDoc before quoting it.
+    // The trash icon's confirmation (#127), unconditional unlike the leave dialog: this one is about
+    // removing the draft itself. A flag lives where what it acts on lives, so it is the ViewModel's:
+    // a bare `remember` fell back to false on every rotation and took the dialog off screen without a
+    // word, while `rememberSaveable` outlives the process, which the draft it names does not.
     val pendingDraftDelete by viewModel.pendingDraftDelete.collectAsStateWithLifecycle()
     // The leave dialog (#35, #127) and the two chained pre-send guards. All three are the
-    // ViewModel's for exactly the reason above: a rotation recreates MainActivity, the composition
-    // restarts, and a bare `remember` fell back to false — the question left the screen without a
-    // word, as if it had been answered. Not `rememberSaveable` either; the fields' KDoc says what
-    // their real lifetime is, the composer's NAVIGATION ENTRY. The local names stay what the rest of
-    // this file already calls them.
+    // ViewModel's for the reason above: a rotation restarts the composition and a bare `remember`
+    // fell back to false, so the question left the screen as if it had been answered. Not
+    // `rememberSaveable` either; their real lifetime is the composer's NAVIGATION ENTRY.
     val showDiscard by viewModel.pendingDiscard.collectAsStateWithLifecycle()
     val showForgotAttachment by viewModel.pendingForgotAttachment.collectAsStateWithLifecycle()
     val showManyRecipients by viewModel.pendingManyRecipients.collectAsStateWithLifecycle()
-    // The "pick date and time" pair (#161), the menu's fifth entry: the calendar, then the clock,
-    // and the day already chosen between the two. All three are the ViewModel's for the reason
-    // above — and the DAY especially: a rotation between the two dialogs would otherwise lose it
-    // and bring the clock back over nothing. Not `rememberSaveable` either, same KDoc, same
-    // NAVIGATION-ENTRY lifetime.
+    // The "pick date and time" pair (#161): the calendar, then the clock, and the day chosen between
+    // the two. All three are the ViewModel's for the reason above — and the DAY especially: a
+    // rotation between the two dialogs would lose it and bring the clock back over nothing.
     val pendingScheduleDay by viewModel.pendingScheduleDay.collectAsStateWithLifecycle()
     val pendingScheduleTime by viewModel.pendingScheduleTime.collectAsStateWithLifecycle()
     val scheduleDay by viewModel.scheduleDay.collectAsStateWithLifecycle()
-    // Whether a draft saved on the SERVER survives leaving — what the leave dialog may not announce
-    // as destroyed (#35). Not `draftId != null`: an undone send reopens with restore=true and no
-    // draftId in the route while its draft is still sitting in Drafts.
+    // Whether a draft saved on the SERVER survives leaving — what the leave dialog may not announce as
+    // destroyed (#35). Not `draftId != null`: an undone send reopens with restore=true and no draftId
+    // while its draft is still in Drafts.
     val savedDraftBehind by viewModel.savedDraftBehind.collectAsStateWithLifecycle()
     val attachmentsTouched by viewModel.attachmentsTouched.collectAsStateWithLifecycle()
     // Reopening a saved draft: whether its text is still being fetched, and what to say if it never
-    // arrived. Two flows and not one state, because ComposeState is a single slot that Sending and
-    // Error overwrite. The decision itself is [draftReopenView], out here in ComposeText so a JVM
-    // test can execute it, and it hands back the sentence to show rather than a flag to interpret.
-    // It is taken further down, once `applied` exists — the third thing it needs.
+    // arrived. Two flows and not one state, because ComposeState is a single slot. The decision itself
+    // is [draftReopenView], out in ComposeText so a JVM test can execute it, and it is taken further
+    // down once `applied` exists.
     val draftLoading by viewModel.draftLoading.collectAsStateWithLifecycle()
     val draftLoadFailed by viewModel.draftLoadFailed.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -286,9 +271,8 @@ fun ComposeScreen(
     LaunchedEffect(state) {
         (state as? ComposeState.PgpInteraction)?.let { pgpLauncher(it.pendingIntent) }
     }
-    // Plain-language feedback when the user cycles the lock toggle, so the icon states
-    // (off / sign / encrypt) aren't a mystery to newcomers. Only manual toggles announce; an
-    // automatic opportunistic switch stays silent (#35).
+    // Plain-language feedback when the user cycles the lock toggle, so the icon states are not a
+    // mystery. Only manual toggles announce; an automatic opportunistic switch stays silent (#35).
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
         viewModel.pgpToggleAnnounce.collect { mode ->
@@ -307,24 +291,17 @@ fun ComposeScreen(
         }
     }
 
-    // Outcomes worth reporting after the screen closes (e.g. a draft save that had to keep the
-    // original): a toast, because compose navigates away the moment the save succeeds.
+    // Outcomes worth reporting after the screen closes: a toast, because compose navigates away the
+    // moment the save succeeds.
     LaunchedEffect(Unit) {
         viewModel.notices.collect { res -> Toast.makeText(context, res, Toast.LENGTH_LONG).show() }
     }
 
     // Whether the body ON SCREEN already carries the reply's quoted original.
-    //
-    // Declared HERE, away from the other `rememberSaveable`s further down, because the effect
-    // right below reads it and Kotlin does not read ahead — this position is a compile constraint,
-    // not a preference.
-    //
-    // `rememberSaveable`, and NOT a ViewModel field or flow — same reason as `requestReceipt`
-    // and `applied` below, and the idiom `primingHandled` already follows in this file. The only
-    // case it exists for is the app being KILLED with the composer open: the ViewModel dies with
-    // the process, `prepared` is an ordinary field so `prepare()` runs again on a brand new one,
-    // while this screen comes back with its body, its baseline and its `applied` restored. A
-    // ViewModel-side flag would be false again in exactly that case and close nothing.
+    // Declared HERE because the effect below reads it and Kotlin does not read ahead.
+    // `rememberSaveable`, and NOT a ViewModel field: the only case it exists for is the app being
+    // KILLED with the composer open, where the ViewModel dies while this screen comes back with its
+    // body restored — a ViewModel-side flag would be false again in exactly that case.
     var quoteLanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -333,8 +310,8 @@ fun ComposeScreen(
             quoteAlreadyOnScreen = quoteLanded,
             outboxId = outboxId,
         )
-        // Attach any files shared into the app (ACTION_SEND) — a one-shot handoff we read and
-        // clear, so it only lands on this compose screen (Codeberg #45).
+        // Attach any files shared into the app (ACTION_SEND) — a one-shot handoff we read and clear,
+        // so it only lands on this compose screen (#45).
         val app = context.applicationContext as android.app.Application
         app.container.pendingShareUris.takeIf { it.isNotEmpty() }?.let { shared ->
             app.container.pendingShareUris = emptyList()
@@ -342,12 +319,10 @@ fun ComposeScreen(
         }
     }
 
-    // A picked file is staged in cacheDir, which is not ours to keep: Settings → Apps → Sterna →
-    // Storage → Clear cache empties it on request, and Android evicts it on its own when the phone
-    // runs short of room. Neither closes this screen, so the chip went on being drawn over nothing
-    // and the save was what found out, with a red banner and no draft written. Swept ON_START —
-    // the composer coming back to the front is the only moment it can be noticed, and a
-    // LaunchedEffect(Unit) would have run once, before any of it happened.
+    // A picked file is staged in cacheDir, which is not ours to keep: Clear cache empties it and
+    // Android evicts it under storage pressure. Neither closes this screen, so the chip went on being
+    // drawn over nothing and the save was what found out. Swept ON_START — the composer coming back to
+    // the front is the only moment it can be noticed, and a LaunchedEffect(Unit) would have run once.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -367,8 +342,8 @@ fun ComposeScreen(
     var primingHandled by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(contactsPrimed, contactSuggestionsOn) {
         if (primingHandled) return@LaunchedEffect
-        // Real gate: suggestions off AND permission not granted AND not yet primed. The preview
-        // flag forces the sheet regardless (still wired to the real permission launcher).
+        // Real gate: suggestions off AND permission not granted AND not yet primed. The preview flag
+        // forces the sheet regardless.
         val gateOpen = !contactSuggestionsOn && !AndroidContacts.hasPermission(context) && !contactsPrimed
         if (FORCE_ONBOARDING_PREVIEW || gateOpen) {
             showContactsPriming = true
@@ -376,8 +351,8 @@ fun ComposeScreen(
         }
     }
     if (showContactsPriming) {
-        // Both "Not now" and a swipe-dismiss mark it primed, so it is never offered again. The
-        // toggle still lives in Settings > Privacy.
+        // Both "Not now" and a swipe-dismiss mark it primed, so it is never offered again. The toggle
+        // still lives in Settings > Privacy.
         val dismissPriming = {
             showContactsPriming = false
             viewModel.markContactsPrimed()
@@ -422,44 +397,29 @@ fun ComposeScreen(
         }
     }
 
-    // The body and its baseline are the two big things on this screen, and they are the ONLY two
-    // that do not travel in the activity's saved-state parcel. Replying to a ~324 kB message and
-    // pressing HOME killed the activity on TransactionTooLargeException (a 1 340 240 byte parcel)
-    // and the draft was gone without a word: `Parcel.writeString` writes UTF-16, so each of the two
-    // saveables cost 4 bytes of parcel per character of body. They go through an app-private file
-    // instead, and the parcel carries only its short token. See [ComposerResumeSlot].
-    //
-    // Declared HERE, well above `body` which delegates to it, because the four exits below
-    // close it and Kotlin does not read ahead — this position is a compile constraint, not a
-    // preference. Same reason `quoteLanded` sits where it does.
-    // ONE SLOT PER NAVIGATION ENTRY, named by an id that is itself parcelled (a dozen bytes).
-    // Two composers ARE reachable — MainActivity is singleTask, onNewIntent feeds pendingMailto,
-    // and the host navigates to `compose` unguarded — so a mailto: link or a share arriving with
-    // the composer open stacks a SECOND composer on the first. Sharing one file, closing the one on
-    // top erased the record of the one underneath and the long reply came back blank.
+    // The body and its baseline are the two big things on this screen, and the ONLY two that do not
+    // travel in the activity's saved-state parcel: `Parcel.writeString` writes UTF-16, so a ~324 kB
+    // reply killed the activity on TransactionTooLargeException and the draft was gone without a word.
+    // They go through an app-private file instead ([ComposerResumeSlot]).
+    // Declared HERE, above `body` which delegates to it, because the four exits below close it.
+    // ONE SLOT PER NAVIGATION ENTRY: two composers ARE reachable, and on a shared file closing the
+    // one on top erased the record of the one underneath.
     val slotId = rememberSaveable { newComposerSlotId() }
     val resumeSlot = remember(context, slotId) { ComposerResumeSlot(composerResumeFile(context, slotId)) }
     val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot)) {
         ComposerResumeState(TextFieldValue(), "")
     }
-    // THE BODY DID NOT COME BACK, AND THE SAVE MUST BE TOLD. Above the inline bound a failed
-    // disk write parks nothing, so the saver carries the LOSS instead of the text. Everything else
-    // on this screen comes back from saveables of its own — `applied`, `to`, `cc`, `subject` — so
-    // the editor is redrawn looking like the draft with an empty body, `initialBody` is empty too
-    // (the leave guard sees no change), and the Save icon is lit as soon as one recipient survived.
-    // That save carries `replacesEmailId` and, without this line, a clean verdict:
-    // `draftReplacementIsFaithful` never compares bodies, so the server copy is destroyed and a
-    // bodiless one takes its place. On a rotation. Without a word.
-    //
-    // An EFFECT into the view model, not an argument on `saveDraft`/`send`/`schedule`: FOUR
-    // routes destroy (the interactive save, the deferred upload the worker finishes, the discard,
-    // the send) and all four read one field, `editingDraftLossy`. Threading a per-call argument
-    // through them is four chances to forget one, and the one forgotten is the lost draft.
+    // THE BODY DID NOT COME BACK, AND THE SAVE MUST BE TOLD. Above the inline bound a failed disk
+    // write parks nothing, so the saver carries the LOSS instead of the text — everything else comes
+    // back from saveables of its own, so the editor is redrawn looking like the draft with an empty
+    // body, the leave guard sees no change, and the Save icon lights on the surviving recipient. That
+    // save carries `replacesEmailId` and, without this line, a clean verdict: the server copy is
+    // destroyed and a bodiless one takes its place, on a rotation, without a word.
+    // An EFFECT into the view model, not an argument: FOUR routes destroy and all read one field.
     LaunchedEffect(resume.bodyWasLost) { if (resume.bodyWasLost) viewModel.onComposerBodyLost() }
 
-    // "Takes flight": when the message is queued (Done), play a brief lift-off — the
-    // content rises and fades, a tern arcs off-screen — then navigate back. The send
-    // already fired in viewModel.send(); this is purely cosmetic and must not delay it.
+    // "Takes flight": when the message is queued (Done), play a brief lift-off, then navigate back.
+    // The send already fired; this is purely cosmetic and must not delay it.
     val motionOn = rememberMotionEnabled()
     var flying by remember { mutableStateOf(false) }
     val fly by animateFloatAsState(
@@ -473,21 +433,18 @@ fun ComposeScreen(
                 flying = true
                 delay(320)
             }
-            // Sent, saved as a draft or scheduled: every one of them lands on Done, and the parked
-            // body must go with the screen — see the `closed` flag in [ComposerResumeState] for why
-            // a bare clear() here would be written straight back out at teardown.
+            // Sent, saved as a draft or scheduled: every one lands on Done, and the parked body must
+            // go with the screen — see the `closed` flag in [ComposerResumeState] for why a bare
+            // clear() here would be written straight back out at teardown.
             resume.close(resumeSlot)
             onDone()
         }
     }
 
     // A draft the phone was keeping has just been deleted: leave the way the X leaves — a bare
-    // popBackStack() onto the Drafts list this composer was opened from, which is where the row was
-    // showing. NOT through ComposeState.Done, which this branch used to end on: that plays the
-    // tern's flight above, an animation written for a message that went OUT, and then lands on the
-    // inbox. The signal comes from the ViewModel and not from the tap, because the destroy has to be
-    // durable, the server copy evicted and the row consumed first — a deletion that throws keeps
-    // this screen up, with its error banner.
+    // popBackStack() onto the Drafts list. NOT through ComposeState.Done, which plays the tern's
+    // flight and lands on the inbox. The signal comes from the ViewModel and not from the tap, because
+    // the destroy has to be durable and the row consumed first.
     LaunchedEffect(Unit) {
         viewModel.localDraftDeleted.collect {
             resume.close(resumeSlot)
@@ -495,8 +452,8 @@ fun ComposeScreen(
         }
     }
 
-    // Which field opens focused — decided once, from how this composer was opened, before the
-    // prefill parameters are shadowed by the editable state below. See [initialComposeFocus].
+    // Which field opens focused — decided once, before the prefill parameters are shadowed by the
+    // editable state below. See [initialComposeFocus].
     val initialFocus = remember {
         initialComposeFocus(
             isDraft = draftId != null,
@@ -505,10 +462,9 @@ fun ComposeScreen(
             linkSubject = subject,
         )
     }
-    // How much body the composer was OPENED with — a mailto: link's `body=`, nothing otherwise.
-    // Read here, next to the focus rule and for the same reason: below, the editable state shadows
-    // the parameter. It is what tells the prefilled body's own text from the signature appended
-    // under it, so the caret can start after the former (#83).
+    // How much body the composer was OPENED with — a mailto: link's `body=`, nothing otherwise. Read
+    // here because below, the editable state shadows the parameter. It tells the prefilled body's own
+    // text from the signature appended under it, so the caret can start after the former (#83).
     val linkBodyLength = remember { if (body.isNullOrBlank()) 0 else body.length }
 
     var to by rememberSaveable { mutableStateOf("") }
@@ -520,9 +476,9 @@ fun ComposeScreen(
     // The body carries its caret with it (a TextFieldValue, not a bare String), so a prefilled
     // compose can open with the cursor where writing continues (#63).
     var body by resume.bodyState
-    // The body's inline styling (#131) lives BESIDE the TextFieldValue, not inside it: `body`
-    // holds plain text, and the spans are laid over it at render time, so the ~70 sites that read
-    // `body.text` / `body.selection` see exactly what they saw before.
+    // The body's inline styling (#131) lives BESIDE the TextFieldValue, not inside it: `body` holds
+    // plain text and the spans are laid over it at render time, so the ~70 sites that read
+    // `body.text` see exactly what they saw before.
     var ranges by resume.rangesState
     // …and its list blocks (#131), beside the spans and beside the text for the same reason: a
     // block is a run of LINES, and `body.text` is what the field, the save and the send still read.
@@ -531,25 +487,21 @@ fun ComposeScreen(
     // and a link is a span over it that happens to carry an address.
     var links by resume.linksState
     // What the next keystroke at the caret should carry, once a button was tapped with nothing
-    // selected; `null` = no instruction, the sticky rule of `remapAfterEdit` decides. Transient
-    // on purpose: it is a gesture in flight, not a value worth parking across a rotation.
+    // selected; `null` = no instruction. Transient on purpose: a gesture in flight, not a value worth
+    // parking across a rotation.
     var pending by remember { mutableStateOf<Set<Inline>?>(null) }
-    // Whether the link dialog is up (#131). `rememberSaveable`, like the flags of the composer's
-    // own dialogs: a rotation with it open brings the DIALOG back rather than dropping the gesture.
-    // It says nothing about what was typed INSIDE it: the two fields are plain `remember`s in
-    // `LinkDialog`, so an address half typed is lost to a rotation. Measured and accepted at the
-    // bench pass — the box is reopened and retyped — not claimed here as though it were held.
+    // Whether the link dialog is up (#131). `rememberSaveable`, like the composer's own dialogs: a
+    // rotation with it open brings the DIALOG back. It says nothing about what was typed INSIDE it:
+    // the two fields are plain `remember`s, so an address half typed is lost to a rotation — measured
+    // and accepted, not claimed here as though it were held.
     var linkDialog by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var applied by rememberSaveable { mutableStateOf(false) }
     // "Ask for a read receipt" (RFC 8098), per message, from the overflow menu.
-    //
-    // rememberSaveable, and NOT a ViewModel flow like the padlock beside it. The padlock survives
-    // a process death only because it is re-derived from a default setting; this box has no setting
-    // to be reborn from, so a ViewModel field would come back CLEAR after the app was killed with
-    // the composer open — the screen would then show "not asked for" while the user had asked, and
-    // the send would agree with the screen. It is a field value like the recipients and the body,
-    // it is saved like them, and it is handed to send/save/schedule as an argument like them.
+    // rememberSaveable, and NOT a ViewModel flow like the padlock beside it: the padlock survives a
+    // process death only because it is re-derived from a default setting, while this box has no
+    // setting to be reborn from — a ViewModel field would come back CLEAR after the app was killed,
+    // and the send would agree with the screen.
     var requestReceipt by rememberSaveable { mutableStateOf(false) }
     // Baseline to detect unsaved edits (set from the prefill for replies/forwards).
     var initialTo by rememberSaveable { mutableStateOf("") }
@@ -561,24 +513,22 @@ fun ComposeScreen(
     var baselineBlocks by resume.baselineBlocksState
     var baselineLinks by resume.baselineLinksState
     // …the box included: a reopened outbox message can OPEN ticked, so "ticked" is not an edit while
-    // ticking or clearing it is. Without this baseline the leave guard could not see either, and
-    // clearing the box then leaving sent the message still asking (see [ComposeDirty]).
+    // ticking or clearing it is. Without this baseline, clearing the box then leaving sent the message
+    // still asking (see [ComposeDirty]).
     var initialRequestReceipt by rememberSaveable { mutableStateOf(false) }
     // The body and its styling as one value: derived on every recomposition, never stored twice.
     val rich = RichBody(body.text, ranges, blocks, links)
 
-    // Which compose this is, for the signature rules: a forward carries its original at send time
-    // (so its body holds no quote), while both a reply and a forward obey the "signature in
-    // replies" / "below the quoted text" settings.
+    // Which compose this is, for the signature rules: a forward carries its original at send time, so
+    // its body holds no quote, while both a reply and a forward obey the two settings.
     val isReplyBody = replyTo != null && composeOpening(mode).quotes
     val isReplyOrForward = replyTo != null
     // Changing "From" reads those settings from DataStore, which suspends.
     val scope = rememberCoroutineScope()
 
-    // Land in the recipient field with the keyboard up, unless the recipients are already filled
-    // (a reply, a reopened draft, or a mailto: link) — then the subject or the body takes the
-    // focus, see the prefill below. The To field opens and self-focuses via its `autoFocus` flag
-    // further down.
+    // Land in the recipient field with the keyboard up, unless the recipients are already filled — a
+    // reply, a reopened draft, or a mailto: link — in which case the subject or the body takes the
+    // focus. The To field self-focuses via its `autoFocus` flag further down.
     val toFocus = remember { FocusRequester() }
     val subjectFocus = remember { FocusRequester() }
     val bodyFocus = remember { FocusRequester() }
@@ -597,11 +547,9 @@ fun ComposeScreen(
                 // Caret at the end of the prefilled subject ("Re: …"), which is where an edit
                 // continues; it used to sit at offset 0 by accident of the String field.
                 subject = TextFieldValue(it.subject, TextRange(it.subject.length))
-                // Open with the caret where the writing continues, and the keyboard up: after the
-                // last character of a reopened draft, above the quoted original of a reply (#63),
-                // and for a mailto: link after the body the link supplied — one writes after that
-                // text, not before it, which is also just above the signature the prefill appended
-                // below it. A link with no body of its own still opens above the signature (#83).
+                // Open with the caret where the writing continues: after the last character of a
+                // reopened draft, above the quoted original of a reply (#63), and for a mailto: link
+                // after the body the link supplied — which is also just above the signature (#83).
                 val caret = initialBodyCaret(
                     bodyLength = it.body.length,
                     focus = initialFocus,
@@ -609,44 +557,40 @@ fun ComposeScreen(
                     linkBodyLength = linkBodyLength,
                 )
                 body = TextFieldValue(it.body, TextRange(caret ?: 0))
-                // …with the styling the prefill carried (#131): a reopened draft brings its own
-                // spans, every other opening brings none. `emptyMap()` here, as it was, opens a
-                // styled draft with its bold gone from the screen — and the next save stores that.
+                // …with the styling the prefill carried (#131). `emptyMap()` here opens a styled
+                // draft with its bold gone from the screen — and the next save stores that.
                 ranges = it.bodyRanges
-                // …and its lists, on the same terms: `emptyList()` here opens a draft that HELD a
-                // list without it, and the next save writes that removal.
+                // …and its lists, on the same terms: `emptyList()` here opens a draft that HELD a list
+                // without it, and the next save writes that removal.
                 blocks = it.bodyBlocks
-                // …and its LINKS, the last statement between the four reopen routes and the
-                // screen. `emptyList()` here is not "no link yet": the draft is judged
-                // reproducible because its anchor parsed, so the next save expunges the server
-                // original and stores this removal in its place.
+                // …and its LINKS, the last statement between the four reopen routes and the screen.
+                // `emptyList()` here is not "no link yet": the draft is judged reproducible because
+                // its anchor parsed, so the next save expunges the server original and stores this
+                // removal in its place.
                 links = it.bodyLinks
                 initialTo = prefilledTo
                 initialCc = cc
                 initialBcc = bcc
                 initialSubject = it.subject
                 initialBody = it.body
-                // The baseline is what the prefill LANDED with, styling included: `emptyMap()`
-                // here makes a reopened styled draft look edited the moment it opens, and the
-                // leave guard then asks about changes nobody made.
+                // The baseline is what the prefill LANDED with, styling included: `emptyMap()` here
+                // makes a reopened styled draft look edited the moment it opens.
                 baselineRanges = it.bodyRanges
                 baselineBlocks = it.bodyBlocks
                 baselineLinks = it.bodyLinks
-                // This prefill CARRIED the quote — the original was not cached, so `prepare` built
-                // the whole body with the quoted original inside it and there is no out-of-band
-                // hand-over to raise the flag below. Without this post the flag stays false while
-                // the quote is plainly in the body, and after a process death the rebuilt
-                // ViewModel draws "Couldn't load the original message." straight over it (G6).
+                // This prefill CARRIED the quote — the original was not cached, so `prepare` built the
+                // whole body with it inside and there is no out-of-band hand-over to raise the flag.
+                // Without this post the flag stays false while the quote is plainly in the body, and
+                // after a process death the rebuilt ViewModel draws "Couldn't load…" over it (G6).
                 if (it.quoted) quoteLanded = true
-                // A reopened message that asked for a read receipt still asks (an undone send, a
-                // queued item taken back out of the Outbox): re-editing it enqueues a NEW row, so a
-                // box left clear here cancels the request. Applied with the other prefilled fields,
-                // inside the same `!applied` gate, so nothing overwrites a box the user has ticked.
+                // A reopened message that asked for a read receipt still asks: re-editing it enqueues
+                // a NEW row, so a box left clear here cancels the request. Applied inside the same
+                // `!applied` gate, so nothing overwrites a box the user has ticked.
                 requestReceipt = it.requestReceipt
                 initialRequestReceipt = it.requestReceipt
                 applied = true
-                // The To field self-focuses on first composition; the other two are asked here,
-                // once the prefill they open on is actually in place.
+                // The To field self-focuses on first composition; the other two are asked here, once
+                // the prefill they open on is in place.
                 when (initialFocus) {
                     ComposeFocus.BODY -> runCatching { bodyFocus.requestFocus() }
                     ComposeFocus.SUBJECT -> runCatching { subjectFocus.requestFocus() }
@@ -656,18 +600,14 @@ fun ComposeScreen(
         }
     }
 
-    // A reply/reply-all opens with To/Subject prefilled instantly from the cache; the quoted
-    // original arrives a moment later (it needs the full message fetched, which offline stalls on
-    // the network timeout). Drop it into the body only while the body is still the untouched initial
-    // prefill — never over text the user has started typing — and re-baseline so it isn't seen as an
-    // unsaved edit. The caret stays at the top, above the quote, exactly as a fresh reply opens.
+    // A reply opens with To/Subject prefilled instantly from the cache; the quoted original arrives a
+    // moment later. Drop it into the body only while the body is still the untouched initial prefill,
+    // and re-baseline so it is not seen as an unsaved edit.
     LaunchedEffect(replyQuote) {
-        // THE re-entry guard, and it became load-bearing with the consume below: retiring the
-        // quote writes `null` into the flow, which is a NEW value, so this effect is relaunched
-        // once more with `replyQuote == null`. Drop this `?:` and that second pass carries an
-        // empty quote into the branch below with `applied` true and the body still equal to the
-        // baseline just re-seated — the body and its baseline would both be emptied, the reply
-        // losing its quote AND its signature with nothing left dirty to warn about it.
+        // THE re-entry guard, load-bearing with the consume below: retiring the quote writes `null`
+        // into the flow, which is a NEW value, so this effect is relaunched with `replyQuote == null`.
+        // Drop this `?:` and that second pass carries an empty quote into the branch below — the body
+        // and its baseline would both be emptied, the reply losing its quote AND its signature.
         val quote = replyQuote ?: return@LaunchedEffect
         if (canApplyReplyQuote(applied, body.text, initialBody)) {
             body = TextFieldValue(quote, TextRange(0))
@@ -679,69 +619,56 @@ fun ComposeScreen(
             baselineBlocks = emptyList()
             baselineLinks = emptyList()
             initialBody = quote
-            // Dropped in exactly once, AFTER the write: the activity is recreated by a rotation, a
-            // theme flip, a language change or a multi-window resize while the ViewModel survives,
-            // and an unconsumed quote replays here and puts the caret back at offset 0 over the
-            // selection just restored. The write-then-retire ORDER guards nothing today — no
-            // line between the two suspends, so cancellation cannot land there. It is the repo's
-            // order (`ConnectScreen`) and it is pinned so that a suspending call added
-            // between them later cannot empty the flow before the quote has landed.
+            // Dropped in exactly once, AFTER the write: the activity is recreated by a rotation while
+            // the ViewModel survives, and an unconsumed quote replays here and puts the caret back at
+            // offset 0. The write-then-retire ORDER guards nothing today — no line between the two
+            // suspends — but it is pinned so a suspending call added later cannot empty the flow first.
             viewModel.consumeReplyQuote()
-            // The body now carries the quote, and this is the ONLY place that may say so: the flag
-            // is saved, so after the app is killed and the composer rebuilt it is what tells the
-            // fresh ViewModel to keep quiet about a quote that is already here. Never posted at
-            // the top of this effect nor in the toast branch below — it would then mean "the effect
-            // ran", and a reply that genuinely has no quote would go out without one and without a
-            // word, which is the very thing the B6 toast exists to prevent.
+            // The body now carries the quote, and this is the ONLY place that may say so: the flag is
+            // saved, so after a kill it is what tells the fresh ViewModel to keep quiet. Never
+            // posted at the top of this effect nor in the toast branch — it would then mean "the
+            // effect ran", and a reply that genuinely has no quote would go out without a word.
             quoteLanded = true
         } else if (applied) {
-            // The user started writing before it arrived, so it is not dropped in over their text.
-            // Say so instead of silently sending a reply with no quote (B6).
+            // The user started writing before it arrived, so it is not dropped in over their text. Say
+            // so instead of silently sending a reply with no quote (B6).
             viewModel.noticeQuoteNotAdded()
-            // Said exactly once, AFTER the notice — otherwise each activity recreation posts the
-            // toast again, and they stack up in LENGTH_LONG.
+            // Said exactly once, AFTER the notice — otherwise each activity recreation posts the toast
+            // again, and they stack up in LENGTH_LONG.
             viewModel.consumeReplyQuote()
         }
-        // No consume on the third way out (the quote came back before the header prefill
-        // landed): nothing has posted it and nothing has announced it, so retiring it there would
-        // lose it in silence.
+        // No consume on the third way out (the quote came back before the header prefill landed):
+        // nothing has posted it and nothing has announced it, so retiring it there would lose it.
     }
 
-    // Which of the three screens a reopened draft gets. Taken HERE and not up with the two flows,
-    // because it needs `applied`: once the prefill has landed, the editor is drawn whatever the
-    // fetch is doing. `applied` is a rememberSaveable and survives process death while the
-    // ViewModel does not, so after a kill it is the only thing that knows the text on screen is the
-    // reader's — see [draftReopenView], which explains why hiding it would be the worse lie.
+    // Which of the three screens a reopened draft gets. Taken HERE because it needs `applied`: once
+    // the prefill has landed, the editor is drawn whatever the fetch is doing. `applied` survives
+    // process death while the ViewModel does not, so after a kill it is the only thing that knows the
+    // text on screen is the reader's — see [draftReopenView].
     val reopen = draftReopenView(draftLoading, draftLoadFailed, applied)
 
     val sending = state is ComposeState.Sending
 
-    // The Save-as-draft icon greys out (disabled) while there is nothing worth saving — the same
-    // #69 rule the save itself uses (draftHasContent), so the button's state matches what tapping it
-    // would do. A typed recipient counts, so the icon lights up as soon as an address is entered.
-    // Recomputed on each edit to recipients/subject/body/attachments (all observed state).
+    // The Save-as-draft icon greys out while there is nothing worth saving — the same #69 rule the
+    // save itself uses, so the button's state matches what tapping it would do. A typed recipient
+    // counts, so the icon lights up as soon as an address is entered.
     val canSaveDraft = draftHasContent(to, cc, bcc, subject.text, body.text, attachments.isNotEmpty())
 
     // Leaving without sending or saving. A message reopened from the Outbox goes back to the queue
-    // (#70) — closing its editor is not deleting it, and the queue holds the only copy — unless
-    // this composer LOST its body and holds nothing: then the row is parked in the Outbox instead
-    // of queued, because queued it leaves in under a second, when the screen has just said to
-    // close and reopen it. The editor's raw text is what decides, hence `body.text` here. For
-    // anything else this is a no-op and the screen just closes.
+    // (#70) — closing its editor is not deleting it — unless this composer LOST its body: then the row
+    // is parked instead, because queued it leaves in under a second, when the screen has just said to
+    // close and reopen it. The editor's raw text is what decides, hence `body.text`.
     val cancel = {
         viewModel.abandon(body.text)
         resume.close(resumeSlot)
         onCancel()
     }
 
-    // Unsaved-changes guard: prompt before discarding non-empty, unsent edits. A message the user
-    // pulled back out of a send (Undo) is also guarded even untouched: it lives on this screen only,
-    // so closing would destroy it (#70) — unlike an outbox message, which [cancel] gives back. The
-    // verdict itself is [ComposeDirty]: recipients compared as sets so reordering a chip is not an
-    // "edit" (#94), and a pre-filled Cc/Bcc/attachment not counted as one either (#70). The
-    // read-receipt box is one of its fields: it is what the message will ASK FOR, and both senses of
-    // changing it were being dropped in silence on a reopened outbox message — clearing the box and
-    // leaving let the message go out still asking.
+    // Unsaved-changes guard: prompt before discarding non-empty, unsent edits. A message pulled back
+    // out of a send (Undo) is guarded even untouched: it lives on this screen only (#70). The verdict
+    // is [ComposeDirty] — recipients compared as sets so reordering a chip is not an edit (#94), a
+    // pre-filled Cc/Bcc/attachment not counted as one (#70), and the read-receipt box one of its
+    // fields, since clearing it and leaving let the message go out still asking.
     val dirty = ComposeDirty.isDirty(
         onlyCopy = onlyCopy,
         to = to, initialTo = initialTo,
@@ -754,13 +681,13 @@ fun ComposeScreen(
     )
     val attemptClose = { if (dirty && !sending) viewModel.askDiscard() else cancel() }
 
-    // Pre-send guards, chained: "forgot attachment?" then "many recipients?". Both flags are read
-    // from the ViewModel at the top of this composable, so each gate is opened and closed through it.
+    // Pre-send guards, chained: "forgot attachment?" then "many recipients?". Both flags are read from
+    // the ViewModel, so each gate is opened and closed through it.
     val recipientCount = listOf(to, cc, bcc).sumOf { field -> field.split(',', ';').count { it.isNotBlank() } }
     // Can send only with at least one To recipient and every entered address valid.
     val allRecipients = listOf(to, cc, bcc).flatMap { recipientTokens(it) }
-    // When encrypting, every recipient must have a resolvable key (false = known-missing;
-    // absent = not yet checked, allowed — the send resolves keys and reports precisely).
+    // When encrypting, every recipient must have a resolvable key (false = known-missing; absent = not
+    // yet checked, allowed — the send resolves keys and reports precisely).
     val keysReady = !pgpMode.encrypts || allRecipients.none { recipientKeys[it] == false }
     val canSend = recipientTokens(to).isNotEmpty() && allRecipients.all(::isValidEmail) && keysReady
     val sendNow = { viewModel.send(to, cc, bcc, subject.text, rich, requestReceipt) }
@@ -813,60 +740,26 @@ fun ComposeScreen(
         )
     }
 
-    // The menu's fifth entry, in two steps: a calendar, then a clock (#161). Drawn HERE, at the
-    // top level of the composable with the four other dialogs, and NOT inside the toolbar's Box:
-    // that Box sits under `if (reopen is DraftReopenView.Editor)`, so a reopened draft that fails
-    // its read underneath would take the dialog off screen mid-choice. The reason CHANGED with
-    // #164 and the rule did not: the Box used to sit under `if (draftSaveAllowed(pgpMode))` too,
-    // where closing the padlock was the way it vanished. The padlock no longer removes this Box —
-    // the reopen gate still does, and one gate is enough to keep the dialogs out of here.
-    //
-    // Both locks against a send into the PAST are in this pair, because there is none further
-    // down: `ScheduledSends.enqueue` coerces a negative delay to zero, so a lapsed instant would
-    // fire the message at once, and a send cannot be recalled. No wording says so — a greyed-out
-    // button is the whole message.
+    // The menu's fifth entry, in two steps: a calendar, then a clock (#161). Drawn HERE, at the top
+    // level with the other dialogs, and NOT inside the toolbar's Box, which sits under the reopen gate
+    // and would take the dialog off screen mid-choice.
+    // Both locks against a send into the PAST are in this pair, because there is none further down:
+    // `enqueue` coerces a negative delay to zero. A greyed-out button is the whole message.
     if (pendingScheduleDay) {
-        // In LANDSCAPE the calendar's GRID does not fit. `DatePickerDialog` lays its surface out
-        // at `requiredWidth(ContainerWidth).heightIn(max = ContainerHeight)`, i.e. 360 dp wide and
-        // at most 568 dp tall — a MAX, never a min. Turned, the real ceiling is the SCREEN's
-        // 411 dp, and Material's own content box has no scroll of its own, so whatever the month
-        // grid does not fit into is simply CLIPPED. Measured on `emu` at 914×411 dp, 2026-08-21,
-        // opening "Pick date and time" and THEN turning: August 2026 stopped at Saturday the 29th,
-        // that cell itself truncated, the 30th and the 31st had no node at all, Saturday the 1st
-        // was gone off the top, and Cancel/OK were 37 px tall instead of 53, drawn over the 23–29
-        // row. Nothing scrolled: a swipe up uncovered neither the 30th nor the 31st.
-        // So the typed entry, which is Material's own answer to a constrained height — the very
-        // same decision the clock takes below, on the very same rule.
-        //
-        // And the typed face does not fit inside `DatePickerDialog` EITHER, once the keyboard
-        // is up — which it is on the first touch, the face being a text field. Measured on `emu`
-        // in landscape at 914×411 dp, 2026-08-21: the `ime` inset started at y=502, the Cancel/OK
-        // row was announced at y=492..618, and a tap in the middle of `OK` did nothing at all — it
-        // landed on the numeric keypad drawn there, and the clock never opened.
-        // It is NOT the weight: `DatePickerDialog` already gives its content box a
-        // `weight(1f, fill = false)` and its action row none, so the row is measured FIRST there
-        // just as it is in [SchedulePickerDialog] — that weight is the CLOCK's mechanism, not this
-        // one. What differs is `usePlatformDefaultWidth = false`, which the grid needs for its
-        // 360 dp: at `false`, `DialogLayout.internalOnMeasure` throws away the constraints the
-        // window handed it and re-measures against `AT_MOST(displayWidth) × AT_MOST(displayHeight)`
-        // — the whole display, keyboard included. The chain from there to the 44 dp of overlap
-        // measured is NOT established; what is established is the reading above, and that the
-        // clock's shell, measured green with the keyboard up the same day, does not have it.
-        //
-        // So the two faces take two shells, and neither may be given the other's:
-        //  - the GRID keeps `DatePickerDialog`, whose `requiredWidth(360.dp)` is what makes the
-        //    seven 48 dp columns fit a 360 dp screen at all. A shell of ours there would bring the
-        //    clipping back in PORTRAIT, on the commonest gesture there is.
-        //  - the TYPED face takes [SchedulePickerDialog], the clock's shell, which was measured
-        //    green with the keyboard up. Its `verticalScroll` measures what it holds in INFINITE
-        //    height, which the grid may never be handed — see the guard on the picker slot below.
+        // In LANDSCAPE the calendar's GRID does not fit: `DatePickerDialog` lays its surface out at a
+        // MAX height, never a min, so turned, the ceiling is the SCREEN's 411 dp and Material's content
+        // box has no scroll — the month grid is CLIPPED (measured on `emu`: August 2026 stopped at the
+        // 29th, and nothing scrolled). So the typed entry, Material's own answer.
+        // And the typed face does not fit inside `DatePickerDialog` EITHER once the keyboard is up: a
+        // tap in the middle of `OK` landed on the numeric keypad. What differs is
+        // `usePlatformDefaultWidth = false`, which the grid needs for its 360 dp and which re-measures
+        // against the whole display. The chain from there to the 44 dp of overlap is NOT established.
+        // So the GRID keeps `DatePickerDialog` and the TYPED face takes [SchedulePickerDialog].
         val dayConfiguration = LocalConfiguration.current
         val dayAsInput = schedulePickerAsInput(dayConfiguration.screenHeightDp, dayConfiguration.screenWidthDp)
-        // Two bounds, one apiece, and they are not interchangeable. `yearRange` decides which
-        // years the chevron DRAWS: Material's default is 1900..2100, which put a hundred and
-        // twenty-six dead years in front of this one. `isSelectableDate` is the lock — the only
-        // thing refusing a past DAY. No upper bound of ours: no horizon exists anywhere in the
-        // scheduled-send code and inventing one here would be a limit to carry forever.
+        // Two bounds, one apiece, not interchangeable. `yearRange` decides which years the chevron
+        // DRAWS: Material's default of 1900..2100 put a hundred and twenty-six dead years in front of
+        // this one. `isSelectableDate` is the lock. No upper bound of ours.
         val dayState = rememberDatePickerState(
             yearRange = scheduleFirstYear(System.currentTimeMillis(), ZoneId.systemDefault())..DatePickerDefaults.YearRange.last,
             initialDisplayMode = if (dayAsInput) DisplayMode.Input else DisplayMode.Picker,
@@ -875,22 +768,19 @@ fun ComposeScreen(
                     scheduleDaySelectable(utcTimeMillis, System.currentTimeMillis(), ZoneId.systemDefault())
             },
         )
-        // `rememberDatePickerState` SAVES its displayMode: the restored state comes back on the
-        // face it was opened with, and `initialDisplayMode` above is never consulted again. Without
-        // this effect the defect's OWN gesture survives the fix — open in portrait, then turn, and
-        // the cut-off grid is redrawn. Keyed on the shape of the window and on nothing else: it is
-        // the SHAPE that decides, and nothing else may fight it frame by frame.
+        // `rememberDatePickerState` SAVES its displayMode: the restored state comes back on the face
+        // it was opened with, and `initialDisplayMode` is never consulted again. Without this effect
+        // the defect's OWN gesture survives the fix — open in portrait, then turn. Keyed on the shape
+        // of the window and nothing else.
         LaunchedEffect(dayAsInput) {
             dayState.displayMode = if (dayAsInput) DisplayMode.Input else DisplayMode.Picker
         }
         // Both faces answer with the SAME two buttons, so their bodies exist once and are handed to
-        // whichever shell is drawn. They are `@Composable` slots, not values: each shell calls
-        // them where its own action row is.
+        // whichever shell is drawn. They are `@Composable` slots, not values.
         val dayOk: @Composable () -> Unit = {
             TextButton(
-                // Nothing is scheduled here: the day is kept, this dialog closes and the clock
-                // opens. Until a day is picked the picker hands back null, so there is nothing
-                // to keep and OK stays grey.
+                // Nothing is scheduled here: the day is kept, this dialog closes and the clock opens.
+                // Until a day is picked the picker hands back null, so OK stays grey.
                 enabled = dayState.selectedDateMillis != null,
                 onClick = {
                     viewModel.chooseScheduleDay(dayState.selectedDateMillis ?: 0L)
@@ -908,19 +798,12 @@ fun ComposeScreen(
             SchedulePickerDialog(
                 onDismissRequest = { viewModel.clearScheduleDay() },
                 picker = {
-                    // The calendar is composed here ONLY on the typed face, and this guard is
-                    // not the same test as the branch above. `rememberDatePickerState` restores the
-                    // face it was SAVED on, so the first frame after a rotation taken on the grid
-                    // comes back `DisplayMode.Picker` while the window is already landscape — the
-                    // `LaunchedEffect` only lands after that frame. A grid inside this shell is
-                    // measured in INFINITE height by its `verticalScroll`, and the year chevron's
-                    // `LazyVerticalGrid` THROWS when it is measured that way; Material holds
-                    // `yearPickerVisible` in a `rememberSaveable`, so a rotation taken with the year
-                    // list open brings it back open. Without this guard the app STOPS on that frame
-                    // instead of merely being clipped, and is one tap from it otherwise. One empty
-                    // frame in a rare gesture is the price.
-                    // `showModeToggle = false` is the other half: Material's default of `true`
-                    // draws a pencil that is one tap into that same crash.
+                    // The calendar is composed here ONLY on the typed face, and this guard is not the
+                    // same test as the branch above: `rememberDatePickerState` restores the face it was
+                    // SAVED on, so the first frame after a rotation on the grid comes back `Picker`
+                    // while the window is already landscape. A grid inside this shell is measured in
+                    // INFINITE height, and the year chevron's `LazyVerticalGrid` THROWS — so without
+                    // this guard the app STOPS. `showModeToggle = false` is the other half.
                     if (dayState.displayMode == DisplayMode.Input) {
                         DatePicker(state = dayState, showModeToggle = false)
                     }
@@ -931,21 +814,17 @@ fun ComposeScreen(
             DatePickerDialog(
                 onDismissRequest = { viewModel.clearScheduleDay() },
                 // `usePlatformDefaultWidth = false` is not an addition of ours: it is
-                // `DatePickerDialog`'s OWN default being put back. Handing it a `DialogProperties`
-                // replaces the whole object, and that flag defaults to `true`, which caps the window
-                // at the platform's dialog width — under the 360 dp the surface REQUIRES, so the
-                // grid would be cut sideways on a 360 dp screen in portrait.
-                // `decorFitsSystemWindows = false` and `safeDrawingPadding()` stay on this branch
-                // too: Material's own pencil is up here, so the typed face — a text field, keyboard
-                // and all — can be reached by hand on a screen the grid fits.
+                // `DatePickerDialog`'s OWN default being put back, since handing it a `DialogProperties`
+                // replaces the whole object. `decorFitsSystemWindows = false` and `safeDrawingPadding()`
+                // stay on this branch too: Material's own pencil is up here.
                 modifier = Modifier.safeDrawingPadding(),
                 properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
                 confirmButton = dayOk,
                 dismissButton = dayCancel,
             ) {
-                // Material's own face toggle stays exactly as Material puts it on THIS branch:
-                // the grid fits here, so nothing is taken away on the commonest gesture there is.
-                // It is the shell above that hides it, because there the pencil leads into a crash.
+                // Material's own face toggle stays exactly as Material puts it on THIS branch: the
+                // grid fits here. It is the shell above that hides it, because there the pencil leads
+                // into a crash.
                 DatePicker(state = dayState, showModeToggle = true)
             }
         }
@@ -953,37 +832,31 @@ fun ComposeScreen(
 
     if (pendingScheduleTime) {
         val zone = ZoneId.systemDefault()
-        // 0L is 1970 — a day that is never STRICTLY ahead, so a clock that somehow opened with no
-        // day behind it can only refuse.
+        // 0L is 1970 — a day that is never STRICTLY ahead, so a clock that somehow opened with no day
+        // behind it can only refuse.
         val day = scheduleDay ?: 0L
-        // NOT Material's default of midnight. For TODAY, midnight is an hour long gone, so the
-        // dial would open on precisely the state the OK button below refuses — greyed out, and by
-        // design there is no wording anywhere to explain it. An hour ahead is the answer, EXCEPT
-        // late in the evening on today: past 23:00 an hour ahead has rolled over to tomorrow, and
-        // keeping only its hour and minute pasted them back onto today, which reopened that same
-        // dead dialog roughly a day in the past. The fallback is then the last minute today still
-        // has. In the final minute of the day even that is gone and OK is honestly grey.
+        // NOT Material's default of midnight: for TODAY that is an hour long gone, so the dial would
+        // open on precisely the state the OK button refuses, greyed out with no wording to explain it.
+        // An hour ahead is the answer, EXCEPT late in the evening, where keeping only its hour and
+        // minute pasted them back onto today. The fallback is the last minute today still has. In
+        // the final minute of the day even that is gone and OK is honestly grey.
         val opensAt = scheduleClockOpensAt(day, System.currentTimeMillis(), zone)
-        // The device's own 12/24-hour setting, not a forced 24 h: this dial is read by whoever
-        // set that preference.
+        // The device's own 12/24-hour setting, not a forced 24 h: this dial is read by whoever set
+        // that preference.
         val timeState = rememberTimePickerState(
             initialHour = opensAt.hour,
             initialMinute = opensAt.minute,
             is24Hour = android.text.format.DateFormat.is24HourFormat(context),
         )
-        // In LANDSCAPE Material lays its own dial out BESIDE the time display, wider than the
-        // dialog. Measured on `emu` at 914×411 dp, 2026-08-20: the right half of the dial was off
-        // screen, its digits drew over the AM/PM selector, and `PM` was unreachable. Scrolling is
-        // not the answer and the shell below does not make it one: the cut is HORIZONTAL, and the
-        // vertical scroll added since moves nothing sideways. So the keyboard entry there, which is
-        // Material's own answer to a constrained height, on Material's own threshold.
+        // In LANDSCAPE Material lays its own dial out BESIDE the time display, wider than the dialog.
+        // Measured on `emu` at 914×411 dp: the right half of the dial was off screen, its digits drew
+        // over the AM/PM selector, and `PM` was unreachable. Scrolling is not the answer: the cut is
+        // HORIZONTAL. So the keyboard entry, on Material's own threshold.
         val configuration = LocalConfiguration.current
         val clockAsInput = schedulePickerAsInput(configuration.screenHeightDp, configuration.screenWidthDp)
-        // [SchedulePickerDialog], a shell of ours, and NOT Material's `AlertDialog`: what makes
-        // the difference is the SOFTWARE KEYBOARD, and Material puts the focus in `TimeInput`'s
-        // hour field, so the keys come up on their own — at the rotation and at the first touch
-        // alike. The reading that bought that shell, and what each of its lines does, are written
-        // over the shell itself.
+        // [SchedulePickerDialog], a shell of ours, and NOT Material's `AlertDialog`: what makes the
+        // difference is the SOFTWARE KEYBOARD, and Material puts the focus in `TimeInput`'s hour field
+        // so the keys come up on their own. The reading that bought that shell is written over it.
         SchedulePickerDialog(
             onDismissRequest = { viewModel.clearScheduleTime() },
             picker = {
@@ -994,34 +867,27 @@ fun ComposeScreen(
                     Text(stringResource(R.string.settings_cancel))
                 }
                 TextButton(
-                    // Lock 2, the one the calendar cannot give: "today, at an hour already gone".
-                    // Read from the picker's own state, so the button lights and unlights while the
-                    // dial turns.
+                    // Lock 2, the one the calendar cannot give: "today, at an hour already gone". Read
+                    // from the picker's own state, so the button lights and unlights while the dial
+                    // turns.
                     enabled = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, System.currentTimeMillis()) != null,
                     onClick = {
                         // Asked AGAIN, with a fresh clock. A button lit at composition and tapped
-                        // after the minute turned would otherwise schedule into the past, which is
-                        // to say send at once, irreversibly. Two reads cost one line.
+                        // after the minute turned would otherwise schedule into the past, which is to
+                        // say send at once, irreversibly.
                         val millis = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, System.currentTimeMillis())
-                        // The dialog closes only on the way that SCHEDULES something. When the
-                        // minute turned between composition and the tap, closing here would take
-                        // the clock off screen having scheduled nothing and said nothing. Left up,
-                        // the choice is still there to correct. And it is only correcting it
-                        // that greys the button: `enabled` above reads the wall clock, which is
-                        // not snapshot state, so a tap alone recomposes nothing and the button
-                        // stays lit until the dial or the fields are touched. That window is at
-                        // most the tail of one minute, and never on a day with hours left in it.
+                        // The dialog closes only on the way that SCHEDULES something: closing on a
+                        // refusal would take the clock off screen having scheduled nothing and said
+                        // nothing. And only correcting it greys the button — `enabled` reads the wall
+                        // clock, which is not snapshot state — a window at most the tail of one minute.
                         if (millis != null) {
                             viewModel.clearScheduleTime()
                             // The confirmation belongs to the schedule, not to the tap: the view
-                            // model answers `false` on every refusal it owns (the PGP/attachment
-                            // choke point, and a body this composer LOST, which the two greyed-out
-                            // buttons do not cover once the guard is real). Announced regardless,
-                            // "Scheduled — …" is a sentence about a message that was not scheduled,
-                            // immediately contradicted by the notice saying why.
+                            // model answers `false` on every refusal it owns. Announced regardless,
+                            // "Scheduled — …" is a sentence about a message that was not scheduled.
                             if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)) {
-                                // The INSTANT, formatted exactly as the Scheduled list formats
-                                // it — never a preset label, a sentence about another time.
+                                // The INSTANT, formatted as the Scheduled list formats it — never a
+                                // preset label, a sentence about another time.
                                 val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
                                 Toast.makeText(
                                     context,
@@ -1036,45 +902,31 @@ fun ComposeScreen(
         )
     }
 
-    // The day is dropped once the CLOCK is closed, whichever way out was taken (Cancel, a tap
-    // outside, the system Back, or the confirmed schedule), so the next opening starts clean.
-    // Keyed on the flag rather than written into those ways out: a ROTATION is none of them, and
-    // the day has to survive it — on a recreation this effect restarts with the flag still raised
-    // and forgets nothing.
+    // The day is dropped once the CLOCK is closed, whichever way out was taken, so the next opening
+    // starts clean. Keyed on the flag rather than written into those ways out: a ROTATION is none of
+    // them, and the day has to survive it.
     LaunchedEffect(pendingScheduleTime) { if (!pendingScheduleTime) viewModel.forgetScheduleDay() }
 
     BackHandler(enabled = !showDiscard) { attemptClose() }
 
     if (pendingDraftDelete) {
-        // Same shape as the Outbox's own delete confirmation (title, body, error-coloured action,
-        // Cancel) — but NOT its words: that message has never been sent and exists nowhere else,
-        // while this draft goes to the Trash exactly as it would from the list.
+        // Same shape as the Outbox's own delete confirmation — but NOT its words: that message has
+        // never been sent and exists nowhere else, while this draft goes to the Trash exactly as it
+        // would from the list.
         AlertDialog(
             onDismissRequest = { viewModel.clearDraftDelete() },
             title = { Text(stringResource(R.string.compose_delete_draft_title)) },
-            // Material's text slot is a height-bounded box with no scrolling of its own: a bare
-            // Text in it is CUT, without an ellipsis and without anything on screen saying so. At
-            // font_scale 2.0 in German (Moto G, 720×1280) the body stopped at "…getippt hast,
-            // wird", losing "nicht gespeichert." — the sentence that says what was typed since the
-            // composer opened is not saved (#127). Same modifier, same reason, as the two
-            // per-sender rule dialogs.
+            // Material's text slot is a height-bounded box with no scrolling of its own: a bare Text in
+            // it is CUT, without an ellipsis and without anything saying so. At font_scale 2.0 in
+            // German the body stopped at "…getippt hast, wird", losing the sentence that says what was
+            // typed since the composer opened is not saved (#127).
             text = {
                 Text(
-                    // One title, two BODIES, because the object is not the same one (#95). The
-                    // server draft "goes to the Trash"; a draft the phone is keeping has never
-                    // reached a server, so there is no Trash for it to go to and no Undo behind
-                    // it — it and its files go at once. Saying "goes to the Trash" over it would
-                    // be the app promising a way back that does not exist.
-                    //
-                    // And the local body states ONLY what is true of all three local cases: the
-                    // copy this phone holds, and its attachments, go straight away. It used to add
-                    // "this draft hasn't reached the server … this can't be undone", which is the
-                    // opposite of what happens when the row masks a server copy this phone never
-                    // read whole: that copy is deliberately KEPT (emptiedLocalDraftKeepsServerCopy)
-                    // and the pre-edit draft comes back at the top of Drafts the moment the row
-                    // goes. So that case says so HERE, before the finger — the sentence the empty
-                    // save posts afterwards, which names no gesture precisely because it now serves
-                    // two.
+                    // One title, two BODIES, because the object is not the same one (#95): a draft the
+                    // phone is keeping has never reached a server, so there is no Trash for it and no
+                    // Undo behind it. And the local body states ONLY what is true of all three local
+                    // cases — it used to add "this can't be undone", the opposite of what happens when
+                    // the row masks a server copy this phone never read whole.
                     listOfNotNull(
                         stringResource(
                             if (editingLocalDraftId != null) {
@@ -1096,26 +948,18 @@ fun ComposeScreen(
                 TextButton(onClick = {
                     viewModel.clearDraftDelete()
                     if (editingLocalDraftId != null) {
-                        // A draft the phone is keeping is deleted BY THE COMPOSER: there is no
-                        // server row for the list's move-to-Trash to act on, and the gesture is
-                        // the emptying one (#95 × #69) reached by a button — the server copy this
-                        // row replaced destroyed under its proofs, then the row and its files. The
-                        // screen closes on viewModel.localDraftDeleted above, with a bare pop —
-                        // never on ComposeState.Done, which is a message taking flight.
+                        // A draft the phone is keeping is deleted BY THE COMPOSER: there is no server
+                        // row for the list's move-to-Trash to act on, and the gesture is the emptying
+                        // one (#95 × #69) reached by a button. The screen closes on
+                        // viewModel.localDraftDeleted, with a bare pop — never on ComposeState.Done.
                         viewModel.deleteEditingLocalDraft()
                     } else {
-                        // The message is taken INSIDE the navigation guard (see SternaApp): a tap
-                        // the guard refuses must not have consumed the draft on its way to being
-                        // ignored.
-                        //
-                        // THE FOURTH EXIT, and the one that was missed. A SERVER draft leaves
-                        // through the host's popBackStack(), not through Done, not through
-                        // localDraftDeleted and not through `cancel` — so nothing closed the slot,
-                        // and the entry's teardown wrote the file back out with `closed` still
-                        // false: the body of the draft just DELETED stayed on disk, consumable by
-                        // nobody. The encrypted case takes this same branch. Closed on the TAKER'S
-                        // RESULT so it happens exactly when the deletion really departs: a tap the
-                        // guard drops must neither consume the draft nor throw its text away.
+                        // The message is taken INSIDE the navigation guard: a tap the guard refuses must
+                        // not have consumed the draft on its way to being ignored.
+                        // THE FOURTH EXIT, and the one that was missed: a SERVER draft leaves through
+                        // the host's popBackStack(), so nothing closed the slot and the entry's teardown
+                        // wrote the file back out — the body of the draft just DELETED stayed on disk.
+                        // Closed on the TAKER'S RESULT, so it happens when the deletion really departs.
                         onDeleteDraft { viewModel.takeEditingDraft()?.also { resume.close(resumeSlot) } }
                     }
                 }) {
@@ -1131,24 +975,19 @@ fun ComposeScreen(
     }
 
     if (showDiscard) {
-        // The leave dialog obeys the same TWO rules as the toolbar's Save action (#35): an
-        // encrypted message may not leave a plaintext copy on the server, so when encrypting the
-        // dialog does not offer to save — it says WHY (a draft is stored as typed, unprotected) and
-        // offers only Discard and Cancel. Offering "Save draft" here was the leak: the toolbar hid
-        // the action, this dialog uploaded the same text one tap later. The second rule is
-        // `canSaveDraft` below, handed to discardChoices: over an emptied composer the toolbar
-        // greys its icon and this dialog offered a live button, which deletes the draft it was
-        // opened on rather than saving it.
+        // The leave dialog obeys the same TWO rules as the toolbar's Save action (#35): an encrypted
+        // message may not leave a plaintext copy on the server, so the dialog says WHY instead of
+        // offering to save — offering "Save draft" here was the leak. The second rule is `canSaveDraft`:
+        // over an emptied composer the toolbar greys its icon while this dialog offered a live button,
+        // which deletes the draft it was opened on rather than saving it.
         val mayKeepDraft = draftSaveAllowed(pgpMode)
-        // What the dialog is allowed to CLAIM, decided by [discardWording] (#70): a message pulled
-        // back out of the Outbox is not destroyed by leaving — its row goes back where it was — so
-        // it may not be announced as "Discard message?". Nor may it be promised delivery: a failed
-        // send returns to FAILED and waits for Retry. The buttons on offer are a separate question,
-        // still [mayKeepDraft]'s (#35).
+        // What the dialog is allowed to CLAIM, decided by [discardWording] (#70): a message pulled back
+        // out of the Outbox is not destroyed by leaving, so it may not be announced as "Discard
+        // message?" — nor promised delivery, since a failed send returns to FAILED.
         val wording = discardWording(editingOutbox, mayKeepDraft, editingDraft = savedDraftBehind)
-        // "Discard changes" wherever a copy of the message survives leaving — the outbox row, and
-        // the draft still in Drafts. The DRAFT variant used to say "Discard" beside a title and a
-        // body that both spoke of changes only.
+        // "Discard changes" wherever a copy of the message survives leaving — the outbox row, and the
+        // draft still in Drafts. The DRAFT variant used to say "Discard" beside a title and a body that
+        // both spoke of changes only.
         val discardLabel = stringResource(
             if (wording.keepsMessage) {
                 R.string.compose_discard_changes
@@ -1163,11 +1002,9 @@ fun ComposeScreen(
                     stringResource(
                         when {
                             wording.fromOutbox -> R.string.compose_discard_title_outbox
-                            // A draft already saved on the server is not destroyed by leaving:
-                            // cancel() → abandon() is a no-op outside the outbox, and the draft is
-                            // still in Drafts afterwards. "Discard message?" was literally false —
-                            // the body beside it said "changes" all along (#35, #127). Its own key,
-                            // not the outbox's: the two name different situations.
+                            // A draft already saved on the server is not destroyed by leaving: cancel()
+                            // → abandon() is a no-op outside the outbox. "Discard message?" was
+                            // literally false, while the body beside it said "changes" (#35, #127).
                             wording == DiscardWording.DRAFT ||
                                 wording == DiscardWording.ENCRYPTED_DRAFT ->
                                 R.string.compose_discard_title_changes
@@ -1181,15 +1018,14 @@ fun ComposeScreen(
                     stringResource(
                         when (wording) {
                             // Two outbox wordings, because the body has to be true of BOTH buttons
-                            // beside it: "Save draft" takes the message OUT of the outbox, so it is
-                            // only mentioned where that button exists (#70).
+                            // beside it: "Save draft" takes the message OUT of the outbox (#70).
                             DiscardWording.OUTBOX -> R.string.compose_discard_message_outbox
                             DiscardWording.OUTBOX_ENCRYPTED ->
                                 R.string.compose_discard_message_outbox_encrypted
                             DiscardWording.ENCRYPTED -> R.string.compose_discard_message_encrypted
-                            // Encrypting a draft that is already on the server: it still owes the
-                            // user the reason the Save button is gone, but it may not end on
-                            // "leaving discards the message" — the copy in Drafts survives (#35).
+                            // Encrypting a draft already on the server: it still owes the user the
+                            // reason the Save button is gone, but may not end on "leaving discards the
+                            // message" — the copy in Drafts survives (#35).
                             DiscardWording.ENCRYPTED_DRAFT ->
                                 R.string.compose_discard_message_encrypted_draft
                             // "You haven't saved your changes" is true of both, and of both
@@ -1201,17 +1037,12 @@ fun ComposeScreen(
                     ),
                 )
             },
-            // AlertDialog has two button slots and this exit needs three answers, so all of them go
-            // in the confirm slot as a FlowRow: one line where the labels fit, wrapped where they
-            // don't (German, Russian), never truncated. Same shape and same order as the settings
-            // screens' own three-answer exit (SaveChangesDialog), recopied rather than reused: that
-            // one hard-codes its title and its three labels, and parameterising all four would have
-            // been a new component rather than a shared one.
-            //
-            // WHICH buttons is [discardChoices], where it can be run: that Cancel is never missing
-            // (#35, #127) and that Save draft never appears while encrypting (the 1.4.3 plaintext
-            // leak) are both guarantees somebody has already come looking for, and neither was
-            // reachable from a test while it was the shape of an `if` here.
+            // AlertDialog has two button slots and this exit needs three answers, so all of them go in
+            // the confirm slot as a FlowRow: wrapped where the labels do not fit, never truncated. Same
+            // shape and order as the settings screens' own three-answer exit.
+            // WHICH buttons is [discardChoices], where it can be run: that Cancel is never missing (#35,
+            // #127) and that Save draft never appears while encrypting are both guarantees somebody has
+            // come looking for, and neither was reachable from a test while it was an `if` here.
             confirmButton = {
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -1243,20 +1074,18 @@ fun ComposeScreen(
 
     Scaffold(
         snackbarHost = {
-            // Above the keyboard. What shows here is the security verdict of the lock toggle —
-            // "not encrypted: anyone handling this mail can read it" — and the keyboard is up at
-            // exactly the moment it is tapped (the composer opens focused on the recipients), so
-            // left at the window's bottom edge the warning appeared UNDER the keyboard and was
-            // never seen (#35). Same inset the writing area uses below: whichever of the keyboard
-            // or the navigation bar is taller, never both.
+            // Above the keyboard. What shows here is the security verdict of the lock toggle, and the
+            // keyboard is up at exactly the moment it is tapped, so left at the window's bottom edge
+            // the warning appeared UNDER the keyboard and was never seen (#35). Same inset the writing
+            // area uses: whichever of the keyboard or the navigation bar is taller, never both.
             SnackbarHost(
                 snackbarHostState,
                 Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
             )
         },
-        // Don't reserve a bottom system-bar (nav-bar) inset here: the body already pads the
-        // bottom with max(ime, nav bar) below, and consuming the nav bar twice left a nav-bar-
-        // tall composer-coloured strip between the keyboard and the body text (#26).
+        // Don't reserve a bottom nav-bar inset here: the body already pads with max(ime, nav bar), and
+        // consuming it twice left a nav-bar-tall composer-coloured strip between the keyboard and the
+        // body text (#26).
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
@@ -1283,25 +1112,19 @@ fun ComposeScreen(
                     }
                 },
                 actions = {
-                  // Not one button while a reopened draft is still being read, or once it turned
-                  // out it cannot be. Whole block, not each button disabled one by one: every one
-                  // of them acts on fields that hold nothing, and the padlock, the paperclip and
-                  // the overflow have no meaning on a message that is not on screen. The X in
-                  // navigationIcon deliberately stays — it is the only way out.
+                  // Not one button while a reopened draft is still being read, or once it turned out it
+                  // cannot be. Whole block, not each button disabled one by one: every one acts on
+                  // fields that hold nothing. The X in navigationIcon deliberately stays.
                   if (reopen is DraftReopenView.Editor) {
-                    // OpenPGP lock. SHORT tap keeps the three-stop cycle it always had (off →
-                    // sign → encrypt → off, [nextPgpMode]); LONG press opens the list of all four
-                    // modes, which is the only way to reach ENCRYPT_UNSIGNED — a short tap must
-                    // not walk anyone into sending unsigned mail. The gesture is announced in the
-                    // button's own contentDescription: nothing else on this screen tells anybody
-                    // it exists. Only when the account is set up.
+                    // OpenPGP lock. SHORT tap keeps the three-stop cycle ([nextPgpMode]); LONG press
+                    // opens the list of all four modes, the only way to reach ENCRYPT_UNSIGNED — a
+                    // short tap must not walk anyone into sending unsigned mail. The gesture is
+                    // announced in the button's own contentDescription.
                     if (pgpAvailable) {
                         var pgpMenu by remember { mutableStateOf(false) }
-                        // Box, not IconButton: an IconButton has no long press. The 48 dp size and
-                        // the circular clip are what an IconButton was giving for free — the
-                        // minimum touch target, and a ripple that is round rather than square.
-                        // `enabled = !sending` sits on the clickable, so NEITHER gesture acts
-                        // while a send is in flight, as before.
+                        // Box, not IconButton: an IconButton has no long press. The 48 dp size and the
+                        // circular clip are what it was giving for free. `enabled = !sending` sits on
+                        // the clickable, so NEITHER gesture acts while a send is in flight.
                         Box {
                             Icon(
                                 imageVector = pgpModeIcon(pgpMode),
@@ -1309,9 +1132,9 @@ fun ComposeScreen(
                                     R.string.compose_pgp_toggle_desc,
                                     stringResource(pgpModeLabel(pgpMode)),
                                 ),
-                                // The alpha is what IconButton gave for free. Neither gesture
-                                // acts while a send is in flight, and a padlock at full strength
-                                // would say the opposite (WYSIWYG).
+                                // The alpha is what IconButton gave for free. Neither gesture acts
+                                // while a send is in flight, and a padlock at full strength would say
+                                // the opposite (WYSIWYG).
                                 tint = (
                                     if (pgpMode == PgpMode.OFF) {
                                         LocalContentColor.current
@@ -1366,29 +1189,18 @@ fun ComposeScreen(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.compose_send))
                     }
-                    // FOUR SLOTS AT MOST, AND THE TITLE GETS THE REST (#164). This bar carried
-                    // up to EIGHT 48 dp slots (X, padlock, paperclip, delete, save, schedule, send,
-                    // overflow) and there was nothing left for its own title: on a narrow screen at
-                    // a large font scale it was clipped in the middle of a word. Save, "send later"
-                    // and delete are the three that read as WORDS rather than as glyphs, so they
-                    // moved down here, above the receipt; the padlock, the paperclip and the send
-                    // stay up because they are the gestures one aims at without reading. Each entry
-                    // keeps the exact condition and the exact `enabled` rule its icon had — the
-                    // move is a change of place, not of behaviour ([ComposeBarWiringTest] pins both
-                    // whole-line). The receipt's wording still says what the app DOES (ask), never
-                    // that a receipt will arrive: only the recipient's client decides that.
+                    // FOUR SLOTS AT MOST, AND THE TITLE GETS THE REST (#164). This bar carried up to
+                    // EIGHT 48 dp slots and its title was clipped mid-word on a narrow screen. Save,
+                    // "send later" and delete read as WORDS rather than glyphs, so they moved down here.
+                    // Each entry keeps the exact condition and `enabled` rule its icon had — a change of
+                    // place, not of behaviour (pinned whole-line by [ComposeBarWiringTest]).
                     Box {
                         var moreMenu by remember { mutableStateOf(false) }
                         var scheduleMenu by remember { mutableStateOf(false) }
-                        // The instant the preset list below is DRAWN for, stamped when the PRESETS
-                        // open — NOT when this overflow opens. Stamped at the ⋮, the whole time
-                        // spent reading the menu is added to the presets' expiry: a lapsed entry
-                        // reaches `ScheduledSends.enqueue`, the delay is coerced to zero, and the
-                        // message goes out AT ONCE and irreversibly while the banner announces a
-                        // schedule. State, not a call in the composition: the wall clock is not
-                        // snapshot state, so a tap recomposes nothing on its own (the free picker
-                        // above says the same about its `enabled`). Re-stamping it is what redraws
-                        // the menu after a refused tap and takes the lapsed entry off screen.
+                        // The instant the preset list is DRAWN for, stamped when the PRESETS open — NOT
+                        // at the ⋮, or the time spent reading the menu is added to the presets' expiry.
+                        // State, not a call in the composition: the wall clock is not snapshot state,
+                        // and re-stamping is what redraws the menu after a refused tap.
                         var menuOpenedAt by remember { mutableLongStateOf(0L) }
                         IconButton(onClick = { moreMenu = true }, enabled = !sending) {
                             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
@@ -1406,10 +1218,9 @@ fun ComposeScreen(
                                     onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) },
                                     enabled = !sending && canSaveDraft,
                                 )
-                                // A scheduled send is fired by a headless worker that can't sign,
-                                // and its table carries no attachments: disabled for a SIGN/ENCRYPT
-                                // message or one with attachments, which would otherwise go out
-                                // unsigned or amputated (A2/A3). The tap closes this menu and opens
+                                // A scheduled send is fired by a headless worker that can't sign, and
+                                // its table carries no attachments: disabled for a SIGN/ENCRYPT message
+                                // or one with attachments (A2/A3). The tap closes this menu and opens
                                 // the presets beside it — no submenu nested inside an overflow.
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.compose_schedule_send)) },
@@ -1417,21 +1228,16 @@ fun ComposeScreen(
                                     enabled = !sending && canSend && scheduleSendAllowed(pgpMode, attachments.isNotEmpty()),
                                 )
                             }
-                            // Deleting the draft (#127). OUTSIDE the draftSaveAllowed block above: a
-                            // delete persists nothing, so it has no reason to disappear when the
-                            // padlock closes. When it is offered is [draftDeleteOffered]; the
-                            // message it acts on comes from the ViewModel, which refuses while a
-                            // send is in flight (INV-6).
+                            // Deleting the draft (#127). OUTSIDE the draftSaveAllowed block: a delete
+                            // persists nothing, so it has no reason to disappear when the padlock
+                            // closes. When it is offered is [draftDeleteOffered].
                             if (draftDeleteOffered(restore, draftId, editingDraft != null, editingLocalDraftId != null)) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.compose_delete_draft)) },
-                                    // Asks first (#127): everything typed since this composer opened
-                                    // is unsaved, and on a server draft the delete takes the SERVER
-                                    // copy — so the Undo restores the draft as it was on the server,
-                                    // never the text on screen. On a draft the phone is keeping there
-                                    // is no Undo at all (#95), which is what the dialog's own body
-                                    // says. The composer already asks before dropping those edits
-                                    // when the X is tapped; this entry must never delete outright.
+                                    // Asks first (#127): everything typed since this composer opened is
+                                    // unsaved, and on a server draft the delete takes the SERVER copy —
+                                    // so the Undo restores the draft as it was there, never the text on
+                                    // screen. On a draft the phone is keeping there is no Undo at all.
                                     onClick = { moreMenu = false; viewModel.askDraftDelete() },
                                     enabled = !sending,
                                 )
@@ -1445,44 +1251,33 @@ fun ComposeScreen(
                         // The presets, anchored to this same Box as the overflow: the two menus are
                         // siblings, never one inside the other.
                         DropdownMenu(expanded = scheduleMenu, onDismissRequest = { scheduleMenu = false }, shape = MaterialTheme.shapes.medium) {
-                            // All three fields travel to the tap: the preset says WHICH KIND of
-                            // promise the entry made, and `drawnAt` is the instant it was drawn for
-                            // — which is the answer itself for the three ABSOLUTE entries ("6 PM",
-                            // "tomorrow 8 AM"), and only what the relative one used to be worth.
+                            // All three fields travel to the tap: the preset says WHICH KIND of promise
+                            // the entry made, and `drawnAt` is the instant it was drawn for — the answer
+                            // itself for the three ABSOLUTE entries.
                             schedulePresets(context, menuOpenedAt).forEach { (preset, label, drawnAt) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
                                     onClick = {
-                                        // Decided AGAIN at the tap, against a fresh clock — the
-                                        // same two reads as the free picker above. The composer can
-                                        // sit in the background for minutes with this menu up: an
-                                        // entry drawn at 5:55 PM still reads "This evening, 6 PM"
-                                        // when tapped at 6:05, and that lapsed instant reaching
-                                        // `ScheduledSends.enqueue` is coerced to a zero delay — the
-                                        // message goes out AT ONCE, irreversibly, while the banner
-                                        // announces a schedule. Deciding is not re-computing:
-                                        // only "In 1 hour" is re-read, the three absolute entries
-                                        // keep the instant they were drawn for or are refused —
-                                        // re-computing them would move them a day at midnight. The
-                                        // rule is [presetMillisAtTap], pure and unit-tested.
+                                        // Decided AGAIN at the tap, against a fresh clock: the menu can
+                                        // stand open for minutes, and an entry drawn at 5:55 PM still
+                                        // reads "This evening, 6 PM" at 6:05. Deciding is not
+                                        // re-computing — only "In 1 hour" is re-read, since the absolute
+                                        // entries would move a day at midnight ([presetMillisAtTap]).
                                         val sendAt = presetMillisAtTap(preset, drawnAt, System.currentTimeMillis(), java.time.ZoneId.systemDefault())
-                                        // Closing, scheduling and confirming happen together or
-                                        // not at all. On the refused path the menu STAYS UP and is
-                                        // redrawn from a new stamp: the lapsed entry vanishes under
-                                        // the finger, and that is the message. Deliberately no new
-                                        // string — the free picker refuses silently too, and nine
-                                        // translations do not buy a window a few seconds wide.
+                                        // Closing, scheduling and confirming happen together or not at
+                                        // all. On the refused path the menu STAYS UP and is redrawn from
+                                        // a new stamp: the lapsed entry vanishes under the finger, and
+                                        // that is the message.
                                         if (sendAt != null) {
                                             scheduleMenu = false
                                             // Scheduled AND confirmed, or neither: the view model
-                                            // answers `false` on the refusals it owns (PGP and
-                                            // attachments, and a body this composer LOST), and the
-                                            // banner below is a sentence about a message that would
-                                            // not have been scheduled at all.
+                                            // answers `false` on the refusals it owns, and the banner
+                                            // below is a sentence about a message that would not have
+                                            // been scheduled at all.
                                             if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)) {
                                                 // The LABEL, true of what was just scheduled: "In 1
-                                                // hour" is an hour from this tap, and "6 PM" is the
-                                                // 6 PM the entry was drawn for, or nothing left.
+                                                // hour" is an hour from this tap, and "6 PM" is the 6 PM
+                                                // the entry was drawn for.
                                                 Toast.makeText(
                                                     context,
                                                     context.getString(R.string.compose_scheduled_toast, label),
@@ -1495,9 +1290,8 @@ fun ComposeScreen(
                                     },
                                 )
                             }
-                            // Last, under the presets, as Gmail does it: choose the instant
-                            // yourself (#161). Nothing is decided here — the two dialogs it opens
-                            // hold the refusal of an instant already gone.
+                            // Last, under the presets, as Gmail does it: choose the instant yourself
+                            // (#161). Nothing is decided here — the two dialogs hold the refusal.
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.schedule_pick_date_time)) },
                                 onClick = {
@@ -1513,42 +1307,39 @@ fun ComposeScreen(
         },
     ) { padding ->
       Box(Modifier.fillMaxSize().padding(padding)) {
-        // The editor is drawn or it is not. Every rememberSaveable above (`applied` first of
-        // all), and both LaunchedEffects that apply the prefill, stay OUTSIDE this `when` and
-        // unconditional: the success path must land exactly as it does today, and `applied` must
-        // keep surviving rotation and process death. Only the drawing moves.
+        // The editor is drawn or it is not. Every rememberSaveable above (`applied` first of all),
+        // and both LaunchedEffects that apply the prefill, stay OUTSIDE this `when`: the success path
+        // must land exactly as it does today. Only the drawing moves.
         when (reopen) {
           // Still reading the draft. No sentence: a spinner already says "wait", and a line of text
           // under it would be read as a verdict on a fetch that has not answered.
           DraftReopenView.Waiting -> LoadingRing(Modifier.align(Alignment.Center))
-          // Read and failed. One sentence and the X, nothing else: there is no draft to edit, and
-          // an editor here would invite a save that adds a second draft beside the first.
+          // Read and failed. One sentence and the X, nothing else: there is no draft to edit, and an
+          // editor here would invite a save that adds a second draft beside the first.
           is DraftReopenView.DeadEnd -> Text(
               text = stringResource(reopen.notice),
               style = MaterialTheme.typography.bodyLarge,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               textAlign = TextAlign.Center,
-              // No maxLines: German and Russian run to three or four lines here, and clipping the
-              // sentence would leave the only explanation on the screen half-said.
+              // No maxLines: German and Russian run to three or four lines here, and clipping would
+              // leave the only explanation on the screen half-said.
               modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
           )
           DraftReopenView.Editor ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // The header stays put and the body fills the space above the keyboard; the body
-                // owns its own scroll, so writing a long message keeps the cursor in view (#26).
-                // Pad the bottom by whichever is taller — the keyboard or the nav bar — so the
-                // body sits flush on the keyboard when it's open (the ime inset already spans the
-                // nav-bar area) and above the nav bar when it's closed, with no double inset (#26).
+                // The header stays put and the body fills the space above the keyboard; the body owns
+                // its own scroll, so writing a long message keeps the cursor in view (#26). Pad the
+                // bottom by whichever is taller — the keyboard or the nav bar — with no double inset.
                 .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .graphicsLayer {
                     translationY = -fly * 64.dp.toPx()
                     alpha = 1f - fly
                 },
         ) {
-          // The header (recipients + subject + attachments) sits on a faint tint so the writing
-          // area below reads as a distinct zone; its dividers run full width (edge to edge).
+          // The header sits on a faint tint so the writing area below reads as a distinct zone; its
+          // dividers run full width.
           Column(Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f))) {
             // From — switch sending account / identity (only when there's a choice).
             if (fromOptions.size > 1) {
@@ -1569,8 +1360,8 @@ fun ComposeScreen(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
-                        // An IconButton (not a bare Icon) so this chevron lines up with the To
-                        // field's expand chevron, which is also an IconButton.
+                        // An IconButton (not a bare Icon) so this chevron lines up with the To field's
+                        // expand chevron, which is also an IconButton.
                         IconButton(onClick = { fromMenu = true }) {
                             Icon(Icons.Filled.ExpandMore, contentDescription = stringResource(R.string.compose_choose_sender))
                         }
@@ -1580,18 +1371,14 @@ fun ComposeScreen(
                             DropdownMenuItem(
                                 text = { Text(option.identity.display()) },
                                 onClick = {
-                                    // Changing "From" makes the signature follow the identity (D5):
-                                    // the block is swapped while it is still there verbatim, an
-                                    // edited or deleted one is left as the user made it, and an
-                                    // identity that had none at all gets the new signature inserted
-                                    // where the prefill would have put it — before the quote when
-                                    // there is one. The caret keeps its offset, and the
-                                    // unsaved-changes baseline is rewritten the same way, so
-                                    // switching identity alone never counts as "dirty".
+                                    // Changing "From" makes the signature follow the identity (D5): the
+                                    // block is swapped while still there verbatim, an edited or deleted
+                                    // one is left as the user made it, and an identity that had none gets
+                                    // the new signature inserted. The baseline is rewritten the same way,
+                                    // so switching identity never counts as "dirty".
                                     scope.launch {
                                         // The quoted original this compose opened with: the reply
-                                        // baseline, and nothing for a new mail or a forward (whose
-                                        // original is carried at send time, not in the body).
+                                        // baseline, and nothing for a new mail or a forward.
                                         val quoted = if (isReplyBody) initialBody else ""
                                         val rewrite: (String) -> String? =
                                             when (val change = viewModel.selectFrom(option, isReplyOrForward)) {
@@ -1608,9 +1395,9 @@ fun ComposeScreen(
                                                     )
                                                 }
                                             }
-                                        // The rewrite works on the TEXT; the user's styling is
-                                        // carried across it by diffing (#131), so a bold word
-                                        // above the signature stays bold and stays put.
+                                        // The rewrite works on the TEXT; the user's styling is carried
+                                        // across it by diffing (#131), so a bold word above the
+                                        // signature stays bold and stays put.
                                         rewriteRichBody(RichBody(body.text, ranges, blocks, links), body.selection.start, rewrite)?.let { rewritten ->
                                             body = TextFieldValue(
                                                 rewritten.text,
@@ -1651,9 +1438,9 @@ fun ComposeScreen(
                 onSuggest = viewModel::suggest,
                 onClearSuggestions = viewModel::clearSuggestions,
                 focusRequester = toFocus,
-                // Whenever the recipients still have to be typed: a fresh mail and a forward. A
-                // reply and a reopened draft already have them, and focus the body instead (#63);
-                // a mailto: link has them too, and focuses the first field it left empty (#83).
+                // Whenever the recipients still have to be typed: a fresh mail and a forward. A reply
+                // and a reopened draft already have them and focus the body (#63); a mailto: link
+                // focuses the first field it left empty (#83).
                 autoFocus = initialFocus == ComposeFocus.RECIPIENTS,
                 missingKey = missingKeyFor,
                 trailing = {
@@ -1685,8 +1472,8 @@ fun ComposeScreen(
                 placeholder = stringResource(R.string.compose_subject),
                 focusRequester = subjectFocus,
             )
-            // Only when the body is actually being encrypted to someone (a recipient has a key),
-            // so a fresh encrypt-by-default compose with no recipients doesn't claim it yet (#35).
+            // Only when the body is actually being encrypted to someone, so a fresh encrypt-by-default
+            // compose with no recipients doesn't claim it yet (#35).
             if (pgpMode.encrypts && recipientKeys.values.any { it }) {
                 Text(
                     stringResource(R.string.compose_pgp_subject_note),
@@ -1695,8 +1482,8 @@ fun ComposeScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
-            // Encrypt-by-default couldn't encrypt because these recipients have no key: say so and
-            // name them, so it's clear why the message won't be encrypted (Codeberg #35).
+            // Encrypt-by-default couldn't encrypt because these recipients have no key: say so and name
+            // them (#35).
             if (pgpKeylessRecipients.isNotEmpty()) {
                 Text(
                     stringResource(
@@ -1711,7 +1498,7 @@ fun ComposeScreen(
 
             if (attachments.isNotEmpty()) {
                 // Same as the recipient chips: cap the attachment list and scroll it so many files
-                // don't grow the header without limit (#26 follow-up).
+                // don't grow the header without limit (#26).
                 Column(
                     Modifier
                         .heightIn(max = 132.dp)
@@ -1760,7 +1547,6 @@ fun ComposeScreen(
             }
           }
 
-            // Body — no frame, fills the rest of the width and grows with content.
             // The value handed to the field is FLAT, and it is `body` itself: plain text, its
             // own selection, its own composition. NOT ONE SPAN goes in there. The styling of #131
             // AND the list markers are both drawn one layer down, by `bodyTransformation`.
@@ -1773,21 +1559,16 @@ fun ComposeScreen(
             // end of the message: the suggestion strip blinks, autocorrect stops applying, and a
             // composing IME (CJK, voice input, glide typing) is broken outright.
             // Handing `composition` straight back, which `onValueChange` does below, is
-            // NECESSARY BUT NOT SUFFICIENT: Compose throws that composition away itself, before
-            // the IME ever sees it, as long as the value carries a span. Nothing may be laid on
-            // the value on the way in — `remember` does not help either, `TextFieldValue` equality
-            // is structural.
             BasicTextField(
                 value = body,
                 onValueChange = { next ->
-                    // Read HERE, not `rich`: that one is captured at composition, and two
-                    // callbacks before a recomposition would remap from a stale body.
+                    // Read HERE, not `rich`: that one is captured at composition, and two callbacks
+                    // before a recomposition would remap from a stale body.
                     val current = RichBody(body.text, ranges, blocks, links)
                     if (next.text != body.text) {
-                        // One edit, whatever produced it: the styling follows the text by diffing,
-                        // and so do the lists AND the links — ONE remap, all three parts of its
-                        // answer taken. A second call would diff the same edit twice and could
-                        // answer differently, and the three would drift apart on one keystroke.
+                        // One edit, whatever produced it: the styling follows the text by diffing, and
+                        // so do the lists AND the links — ONE remap, all three parts of its answer
+                        // taken. A second call would diff the same edit twice.
                         val remapped = remapAfterEdit(current, next.text, span(body.selection), span(next.selection), pending)
                         ranges = remapped.ranges
                         blocks = remapped.blocks
@@ -1798,14 +1579,11 @@ fun ComposeScreen(
                     }
                     body = TextFieldValue(next.text, next.selection, next.composition)
                 },
-                // The list markers AND the inline styling are drawn HERE and nowhere else
-                // (#131): in the text layer, by the one transformation a field has, so not one
-                // marker character enters `body.text` and not one span enters the value above.
-                // Fed the live `rich` — text, blocks, spans and links in one object — so the drawn
-                // text and the offsets that go with it are computed from the same body. The
-                // mapping that comes with it is what keeps the caret, the selection and the IME in
-                // step — see [markedText]; the styling adds nothing to it, a span moves no
-                // character.
+                // The list markers AND the inline styling are drawn HERE and nowhere else (#131): in
+                // the text layer, by the one transformation a field has, so not one marker character
+                // enters `body.text` and not one span enters the value above. Fed the live `rich`, so
+                // the drawn text and its offsets are computed from the same body. The mapping is what
+                // keeps the caret, the selection and the IME in step — see [markedText].
                 visualTransformation = bodyTransformation(rich, MaterialTheme.colorScheme.primary),
                 textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -1814,33 +1592,26 @@ fun ComposeScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier
                     .fillMaxWidth()
-                    // Fills all the space below the header (so the whole area under it is the body's
-                    // tap target) with a bounded height, so the field scrolls its own content and
-                    // keeps the cursor in view as you write (#26).
+                    // Fills all the space below the header (so the whole area under it is the body's tap
+                    // target) with a bounded height, so the field scrolls its own content (#26).
                     .weight(1f)
                     .focusRequester(bodyFocus)
                     .onFocusChanged { bodyFocused = it.isFocused },
                 decorationBox = { inner ->
-                    // The margins live INSIDE the field, not around it (#26). The header rows got
-                    // the caret rule in 1.3.13: a tap before the first character of a line means
-                    // "put the cursor at the start of that line", which otherwise takes
-                    // pixel-perfect aim just left of the first glyph. The body needs the same, and
-                    // padding the field from the OUTSIDE kept that margin out of its touch area,
-                    // so the tap did nothing at all. Padding from the inside hands the margin to
-                    // the field, which already resolves such a tap itself: it is coerced into the
-                    // visible text and lands at the start of the tapped line, its own scrolling
-                    // and RTL included. A tap on the text is unchanged, no gesture is intercepted
-                    // and nothing new listens for one, so the body's vertical scrolling (#5, #6,
-                    // #10) is routed exactly as before.
+                    // The margins live INSIDE the field, not around it (#26): padding from the OUTSIDE
+                    // kept the margin out of the field's touch area, so a tap before the first character
+                    // did nothing, while padding from the inside hands it to the field, which resolves
+                    // such a tap itself. No gesture is intercepted, so the body's vertical scrolling
+                    // (#5, #6, #10) is routed as before.
                     Box(
                         Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp)
                             .padding(top = 12.dp, bottom = 16.dp),
                     ) {
-                        // …and no list either: a bullet tapped on an empty composer is drawn
-                        // at the start of the first line, exactly where the placeholder sits, and
-                        // the two overprint each other until the first keystroke.
+                        // …and no list either: a bullet tapped on an empty composer is drawn at the
+                        // start of the first line, exactly where the placeholder sits, and the two
+                        // overprint each other until the first keystroke.
                         if (body.text.isEmpty() && blocks.isEmpty()) {
                             Text(
                                 stringResource(R.string.compose_body_placeholder),
@@ -1852,16 +1623,15 @@ fun ComposeScreen(
                     }
                 },
             )
-            // The formatting bar, only while the body has the focus (#131). No `imePadding()`
-            // and no inset of its own: the Column above already pads for the keyboard or the nav
-            // bar, whichever is taller, and a second inset here would double it (#26).
+            // The formatting bar, only while the body has the focus (#131). No `imePadding()` and no
+            // inset of its own: the Column above already pads for the keyboard or the nav bar, and a
+            // second inset here would double it (#26).
             if (bodyFocused) {
                 FormattingBar(
                     active = pending ?: stylesAt(rich, span(body.selection)),
                     activeList = listKindAt(rich, span(body.selection)),
-                    // Lit when the caret is IN a link — the same answer the dialog opens on
-                    // (`linkDialogFields` asks `linkAt` too), so "the button is on" and "the
-                    // dialog offers to edit it" cannot disagree.
+                    // Lit when the caret is IN a link — the same answer the dialog opens on, so "the
+                    // button is on" and "the dialog offers to edit it" cannot disagree.
                     linkActive = linkAt(rich, span(body.selection)) != null,
                     onLink = { linkDialog = true },
                     onToggle = { kind ->
@@ -1874,9 +1644,9 @@ fun ComposeScreen(
                         }
                     },
                     onToggleList = { kind ->
-                        // No `pending` and no empty-selection branch, unlike the four families
-                        // above: a block is a run of LINES, so the caret alone already names one
-                        // (`toggleBlock`), and the tap applies at once — the gesture in Gmail.
+                        // No `pending` and no empty-selection branch, unlike the four families above:
+                        // a block is a run of LINES, so the caret alone already names one, and the tap
+                        // applies at once — the gesture in Gmail.
                         val current = RichBody(body.text, ranges, blocks, links)
                         blocks = toggleBlock(current, span(body.selection), kind).blocks
                     },
@@ -1888,9 +1658,9 @@ fun ComposeScreen(
                 )
             }
             if (linkDialog) {
-                // The body AND the caret go back into the composer's own state: `setLink` can
-                // INSERT the label, so the text changes here as it does under a keystroke, and the
-                // caret must land after what was inserted or the next letter lands inside the link.
+                // The body AND the caret go back into the composer's own state: `setLink` can INSERT
+                // the label, so the text changes as it does under a keystroke, and the caret must land
+                // after what was inserted or the next letter lands inside the link.
                 LinkDialog(
                     body = rich,
                     selection = span(body.selection),
@@ -1932,41 +1702,13 @@ fun ComposeScreen(
 
 /**
  * The dialog BOTH "pick date and time" pickers wear on their typed face (#161), where the software
- * keyboard is up: the clock always, the calendar in landscape. Material has no dialog that holds
- * with a keyboard over it — `AlertDialogContent` gives its `text` slot neither a scroll nor a
- * weight, so the picker takes the height it wants and the actions spill off the bottom.
- *
- * Measured on `emu` in landscape at 914×411 dp with the CLOCK in Material's `AlertDialog`,
- * 2026-08-21: the `ime` inset covered [132,502][2400,1080], the platform SLID the window 167 px —
- * just enough to clear the focused field — and stopped there, leaving the Cancel/OK row announced
- * at y=531..584, under the top of the keys at y=502. The tap did not miss in silence either:
- * touching `OK` typed a digit into the hour field (02 became 03) instead of confirming. With the
- * keyboard closed everything was correct again.
- *
- * Three lines carry the fix, and none of them works alone:
- *  - `decorFitsSystemWindows = false`: with the default the platform slides the window and stops at
- *    the focused field; at `false` there is no sliding left and the keyboard becomes an INSET.
- *    On Android 12+ this is the only mechanism there is: `DialogWrapper.updateParameters` sets a
- *    `softInputMode` only below API 31.
- *  - `safeDrawingPadding()`: what SUBTRACTS that inset. The window stays `wrap_content` and
- *    CENTRED, so taking the keyboard's height off the bottom lifts the dialog above the keys by
- *    itself.
- *  - `weight(1f, fill = false)` on the picker's box and NOTHING on the action row: in a `Column`,
- *    the children WITHOUT a weight are measured FIRST. The row can therefore no longer be pushed
- *    off screen, whatever height is left over, and it is the picker that scrolls instead of being
- *    cut.
- *
- * ✓ Measured green with the keyboard up, same bench, same day: the action row at y=314..440
- * against keys at y=502, the picker scrolling once the height ran out, and `OK` confirming instead
- * of typing a digit.
- *
- * [picker] is composed inside a `verticalScroll`, i.e. in INFINITE height: nothing lazy and
- * VERTICAL may be handed to it. A `LazyVerticalGrid` measured that way throws, which is why the
- * calendar's grid face keeps `DatePickerDialog` and is guarded out of this shell.
- *
- * The second slot is [buttons] and NOT `actions`: `DraftReopenWiringTest` pins the gate on the
- * top bar by taking the FIRST `actions = {` line of this file, and a second one declared above it
- * makes that lint read this dialog instead — which is exactly what it did, once.
+ * keyboard is up. Material has no dialog that holds with a keyboard over it — `AlertDialogContent`
+ * gives its `text` slot neither a scroll nor a weight, so the actions spill off the bottom, and on the
+ * bench touching `OK` typed a digit into the hour field.
+ * Three lines carry the fix, and none works alone: `decorFitsSystemWindows = false`, so the keyboard
+ * becomes an INSET (on Android 12+ the only mechanism there is); `safeDrawingPadding()`, which
+ * SUBTRACTS it; and `weight(1f, fill = false)` on the picker's box with NOTHING on the action row.
+ * [picker] is composed in INFINITE height: nothing lazy and VERTICAL may be handed to it.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -1994,14 +1736,11 @@ private fun SchedulePickerDialog(
                 ) {
                     picker()
                 }
-                // A FLOW row, not a plain one, because Material's `AlertDialogFlowRow` —
-                // which this shell replaces — wraps its actions onto a second line. At 360 dp
-                // with the font scaled up, "Abbrechen" or "Annuleren" beside "OK" does not fit
-                // on one line, and a plain Row would put OK off the edge instead of under it.
-                // And the SECOND line needs air under the first: `AlertDialogFlowRow` spaces
-                // its rows by 12 dp, a `FlowRow` by nothing at all. Left out, the two buttons
-                // touch on exactly the screens that make them wrap — German or Dutch at 360 dp
-                // with the font scaled up — and read as one block.
+                // A FLOW row, not a plain one, because Material's `AlertDialogFlowRow` — which this
+                // shell replaces — wraps its actions onto a second line. At 360 dp with the font
+                // scaled up, "Abbrechen" beside "OK" does not fit on one line. And the SECOND line
+                // needs air under the first: `AlertDialogFlowRow` spaces its rows by 12 dp, a `FlowRow`
+                // by nothing at all.
                 FlowRow(
                     modifier = Modifier.align(Alignment.End).padding(top = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2016,8 +1755,8 @@ private fun SchedulePickerDialog(
 
 /**
  * A frameless, full-width input with an in-field placeholder (no fixed leading label) and an
- * underline. The placeholder shows only while empty and disappears on the first character, so the
- * subject text starts flush-left, further left than the labelled recipient rows (K-9 style).
+ * underline. The placeholder shows only while empty, so the subject text starts flush-left, further
+ * left than the labelled recipient rows (K-9 style).
  */
 @Composable
 private fun ComposeField(
@@ -2028,8 +1767,8 @@ private fun ComposeField(
     focusRequester: FocusRequester? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    // Tapping anywhere on the row (not just the thin input) focuses the field, so the whole
-    // line is the tap target (#26).
+    // Tapping anywhere on the row (not just the thin input) focuses the field, so the whole line is
+    // the tap target (#26).
     val localFocus = remember { FocusRequester() }
     val focus = focusRequester ?: localFocus
     val geometry = remember { HeaderTapGeometry() }
@@ -2038,8 +1777,8 @@ private fun ComposeField(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .headerTapRow(geometry) {
-                    // Before the first character (here: the row's left inset) the caret goes to the
-                    // very start; anywhere else the field keeps the caret it had (#26).
+                    // Before the first character the caret goes to the very start; anywhere else the
+                    // field keeps the caret it had (#26).
                     geometry.caretFor(value.text.length)?.let { caret ->
                         onValueChange(value.copy(selection = TextRange(caret)))
                     }
@@ -2086,12 +1825,10 @@ private fun ComposeField(
 private const val MANY_RECIPIENTS = 5
 
 /**
- * A recipient line that shows committed addresses as chips (invalid ones flagged in
- * the error colour) plus an inline editor with autocomplete. The field stays backed
- * by a single comma-joined [value] string, so send / draft / schedule are unchanged:
- * everything before the last separator is a committed chip; the trailing token is the
- * still-editing input. A comma, semicolon or space commits the token to a chip;
- * Backspace on an empty input removes the last chip.
+ * A recipient line showing committed addresses as chips (invalid ones in the error colour) plus an
+ * inline editor with autocomplete. The field stays backed by a single comma-joined [value] string, so
+ * send / draft / schedule are unchanged: everything before the last separator is a chip, the trailing
+ * token is the still-editing input.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -2113,32 +1850,28 @@ private fun RecipientChipsField(
 
     fun rebuild(newChips: List<String>, newInput: String) = joinRecipients(newChips, newInput)
 
-    // Expanded shows the editable chip area with the input; collapsed shows chips only (or a
-    // one-line "+N" summary) with no empty input line, so tapping another field leaves no unused
-    // space. Start expanded only for a fresh empty field so it can auto-focus (#26 follow-up).
+    // Expanded shows the editable chip area with the input; collapsed shows chips only (or a one-line
+    // "+N" summary), so tapping another field leaves no unused space. Start expanded only for a fresh
+    // empty field so it can auto-focus (#26).
     var expanded by remember { mutableStateOf(false) }
-    // Guards against the input's initial onFocusChanged(false) collapsing the field before the
-    // focus request lands: only a loss AFTER a real gain collapses it.
+    // Guards against the input's initial onFocusChanged(false) collapsing the field before the focus
+    // request lands: only a loss AFTER a real gain collapses it.
     var wasFocused by remember { mutableStateOf(false) }
     val localFocus = remember { FocusRequester() }
     val focus = focusRequester ?: localFocus
     val geometry = remember { HeaderTapGeometry() }
-    // The inline input carries its caret (a TextFieldValue), so a tap before its first character can
-    // put the cursor at the start (#26). The parent string stays the single source of truth: as soon
-    // as the derived [input] differs, the field is rebuilt around it with the caret at the end.
+    // The inline input carries its caret, so a tap before its first character can put the cursor at the
+    // start (#26). The parent string stays the single source of truth: as soon as the derived [input]
+    // differs, the field is rebuilt around it with the caret at the end.
     var inputState by remember { mutableStateOf(TextFieldValue()) }
     // The field's on-screen width, so the suggestion menu can float directly under it at the same
-    // width, instead of pushing the subject and body down as an inline list did. Its position comes
-    // from the popup's own anchor bounds; only the width has to be measured here.
+    // width, instead of pushing the subject and body down as an inline list did.
     var fieldWidthPx by remember { mutableStateOf(0) }
     // …and its bottom edge inside the compose root, plus the root's own height, so the menu can be
-    // capped at the room actually left below the field once the keyboard is up (#143). On API 30+
-    // the window is NOT resized for the IME (MainActivity goes edge to edge), so the keyboard is
-    // known here only as an inset and nothing else in this field knows it took the bottom half of
-    // a small screen. On API 26-29 that is NOT established: the manifest still carries
-    // adjustResize, the root may shrink as well, and the keyboard would then be counted twice —
-    // no menu at all instead of a short one. The reporter's device is API 27; the bench (Moto G,
-    // API 28) is what settles it. See SuggestionMenuFit.kt.
+    // capped at the room left below the field once the keyboard is up (#143). On API 30+ the window is
+    // NOT resized for the IME, so the keyboard is known here only as an inset; on API 26-29 that is NOT
+    // established — the manifest still carries adjustResize and the keyboard could be counted twice.
+    // The reporter's device is API 27; the bench settles it. See SuggestionMenuFit.kt.
     var fieldBottomPx by remember { mutableStateOf(0) }
     var windowHeightPx by remember { mutableStateOf(0) }
     val inputValue = if (inputState.text == input) {
@@ -2146,10 +1879,9 @@ private fun RecipientChipsField(
     } else {
         TextFieldValue(input, TextRange(input.length))
     }
-    // Enter validates the address being typed, exactly as a comma does, and the field keeps the
-    // focus so the next recipient can follow straight away — the keyboard stays open and nothing
-    // moves on to the next field (#83). An empty input is left alone: Enter only ever commits
-    // what is in front of it, it never grows a second meaning.
+    // Enter validates the address being typed, exactly as a comma does, and the field keeps the focus
+    // so the next recipient can follow (#83). An empty input is left alone: Enter only ever commits
+    // what is in front of it.
     fun commitInput() {
         val token = inputValue.text.trim()
         if (token.isEmpty()) return
@@ -2165,10 +1897,9 @@ private fun RecipientChipsField(
     LaunchedEffect(Unit) { if (autoFocus) expanded = true }
     // The input isn't composed while collapsed, so focus it once the field expands.
     LaunchedEffect(expanded) { if (expanded) runCatching { focus.requestFocus() } }
-    // Follow the growing chip area so the blinking input stays in view as recipients are added.
-    // Instantly, not animated (#94): sliding the chips into place is the one moving part of this
-    // field, it plays whenever an address is committed — including on the way out, when leaving for
-    // the subject commits what was typed — and it shows nothing the jump doesn't.
+    // Follow the growing chip area so the blinking input stays in view. Instantly, not animated (#94):
+    // sliding the chips into place is the one moving part of this field, it plays whenever an address
+    // is committed, and it shows nothing the jump doesn't.
     LaunchedEffect(chipScroll.maxValue) { if (expanded) chipScroll.scrollTo(chipScroll.maxValue) }
     Column {
         Row(
@@ -2180,8 +1911,8 @@ private fun RecipientChipsField(
                     // this is the case where a tap on the label used to do nothing at all (#26).
                     runCatching { focus.requestFocus() }
                     // On the label, or in the empty space left of what is being typed: caret to the
-                    // start of that text. Committed chips aren't text, and an empty input has no
-                    // start to aim at, so both leave the caret alone.
+                    // start of that text. Committed chips aren't text, and an empty input has no start
+                    // to aim at, so both leave the caret alone.
                     geometry.caretFor(inputValue.text.length)?.let { caret ->
                         inputState = inputValue.copy(selection = TextRange(caret))
                     }
@@ -2221,8 +1952,8 @@ private fun RecipientChipsField(
                 }
             } else {
               FlowRow(
-                // Cap the chip area (~2.5 lines) and scroll it, so adding many recipients doesn't
-                // grow the field without limit and eat the message body (#26 follow-up).
+                // Cap the chip area (~2.5 lines) and scroll it, so adding many recipients doesn't grow
+                // the field without limit and eat the message body (#26).
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(max = 104.dp)
@@ -2235,12 +1966,10 @@ private fun RecipientChipsField(
                     val valid = isValidEmail(chip) && !missingKey(chip)
                     InputChip(
                         selected = false,
-                        // A tap hands the address back as plain text (#94): it leaves the chip row
-                        // for the input, where the field opens it with the caret at its end, and a
-                        // second tap puts the caret exactly where the typo is — the way it worked
-                        // before addresses were committed to chips. Two taps, and nothing hidden:
-                        // one gesture, one meaning, no double-tap timing to guess at. Whatever was
-                        // half-typed is committed rather than lost, see [recipientsWithChipEdited].
+                        // A tap hands the address back as plain text (#94): it leaves the chip row for
+                        // the input, where the field opens it with the caret at its end, and a second
+                        // tap puts the caret exactly where the typo is. Two taps, no double-tap timing
+                        // to guess at. Whatever was half-typed is committed rather than lost.
                         onClick = {
                             expanded = true
                             inputState = TextFieldValue()
@@ -2267,15 +1996,14 @@ private fun RecipientChipsField(
                                 trailingIconColor = MaterialTheme.colorScheme.onErrorContainer,
                             )
                         },
-                        // No elevation, and therefore none of Material's interaction-driven
-                        // elevation animation (#94). An input chip's elevations are all 0dp anyway,
-                        // so this changes nothing on screen — it just stops an animated shadow from
-                        // ever being computed for a chip that is a flat outline by design.
+                        // No elevation, and therefore none of Material's interaction-driven elevation
+                        // animation (#94). An input chip's elevations are all 0dp anyway, so this
+                        // changes nothing on screen — it stops an animated shadow being computed.
                         elevation = null,
                     )
                 }
-                // The input exists only while expanded, so an unfocused field shows no empty input
-                // line (and no stray blinking cursor) — it collapses to its chips.
+                // The input exists only while expanded, so an unfocused field shows no empty input line
+                // (and no stray blinking cursor) — it collapses to its chips.
                 if (expanded) {
                   BasicTextField(
                     value = inputValue,
@@ -2296,18 +2024,16 @@ private fun RecipientChipsField(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    // Enter now commits the address instead of merely closing the keyboard, which
-                    // is all it did before (#83). The action is named here rather than left to
-                    // `singleLine`'s implicit one, because a hardware Enter is routed to THIS
-                    // action (the field is single-line, so Enter is no line break) and an unnamed
-                    // one does nothing at all. Not calling the default action is what keeps the
-                    // keyboard up and the focus in the field.
+                    // Enter now commits the address instead of merely closing the keyboard (#83). The
+                    // action is named here rather than left to `singleLine`'s implicit one, because a
+                    // hardware Enter is routed to THIS action and an unnamed one does nothing at all.
+                    // Not calling the default action is what keeps the keyboard up.
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { commitInput() }),
                     modifier = Modifier
                         .headerTapText(geometry)
-                        // Fill the rest of the line so a tap in the empty area past the last chip
-                        // lands the caret at the end; wrap to a new line once space runs short.
+                        // Fill the rest of the line so a tap in the empty area past the last chip lands
+                        // the caret at the end; wrap to a new line once space runs short.
                         .weight(1f)
                         .widthIn(min = 90.dp)
                         .padding(vertical = 6.dp)
@@ -2343,14 +2069,12 @@ private fun RecipientChipsField(
         FieldDivider()
         val density = LocalDensity.current
         // The keyboard is read HERE, in the field's own composition, and never inside the Popup: a
-        // Popup is a separate window and its insets are not the screen's. Reading it as an inset is
-        // the only way to know the keyboard is up at all, since the window itself is not resized
-        // (edge to edge) — the same read ConnectScreen makes to lift its credential block.
+        // Popup is a separate window and its insets are not the screen's. Reading it as an inset is the
+        // only way to know the keyboard is up, since the window is not resized (edge to edge).
         val imeBottomPx = WindowInsets.ime.getBottom(density)
-        // The height the menu may take, or null when there is not even one row of room left under
-        // the field — in which case no menu is drawn at all (#143). Keyed on every quantity that
-        // moves: the keyboard's height changes without any of this composable's own state
-        // changing, and an unkeyed remember would keep serving the pre-keyboard cap.
+        // The height the menu may take, or null when there is not even one row of room left under the
+        // field, in which case no menu is drawn at all (#143). Keyed on every quantity that moves: the
+        // keyboard's height changes without any of this composable's own state changing.
         val menuMaxHeight = remember(windowHeightPx, fieldBottomPx, imeBottomPx, density) {
             suggestionMenuMaxHeight(
                 windowHeightPx = windowHeightPx,
@@ -2361,11 +2085,9 @@ private fun RecipientChipsField(
         }
         if (expanded && suggestions.isNotEmpty() && menuMaxHeight != null) {
             // A floating contextual menu, not an inline list: it hangs under the field and over
-            // whatever is below, so the subject and body never shift as suggestions appear or vanish
-            // (the inline list used to push them down). Positioned at the field's bottom-left by the
-            // popup's own anchor bounds, and sized to the field's measured width. Not focusable, so
-            // the keyboard stays up and each keystroke keeps filtering; it closes when a row is
-            // picked, when the field loses focus (which collapses it), or on a tap outside.
+            // whatever is below, so the subject and body never shift as suggestions appear. Positioned
+            // by the popup's own anchor bounds and sized to the field's measured width. Not focusable,
+            // so the keyboard stays up and each keystroke keeps filtering.
             val below = remember {
                 object : PopupPositionProvider {
                     override fun calculatePosition(
@@ -2392,10 +2114,9 @@ private fun RecipientChipsField(
                     tonalElevation = 3.dp,
                     shadowElevation = 6.dp,
                 ) {
-                    // Cap the menu at the room measured under the field with the keyboard up, and
-                    // let it scroll on its own — a lower cap therefore loses no suggestion, it only
-                    // stops the list from covering the keys that filter it. Items stack with a
-                    // divider so they read as distinct rows.
+                    // Cap the menu at the room measured under the field with the keyboard up, and let it
+                    // scroll on its own — a lower cap therefore loses no suggestion, it only stops the
+                    // list covering the keys that filter it.
                     Column(
                         Modifier
                             .heightIn(max = menuMaxHeight)
@@ -2450,12 +2171,9 @@ private fun RecipientChipsField(
     }
 }
 
-/**
- * Where a header row was last pressed and where its editable text starts — the two things needed to
- * tell a tap on the label (or on the empty space before the first character) from a tap on the text
- * itself. Filled in by [headerTapRow] and [headerTapText], read by the row's click handler, never
- * during composition: plain fields, no snapshot state.
- */
+/** Where a header row was last pressed and where its editable text starts — the two things needed to
+ *  tell a tap on the label (or on the space before the first character) from a tap on the text itself.
+ *  Read by the row's click handler, never during composition: plain fields, no snapshot state. */
 private class HeaderTapGeometry {
     /** Last press, in the row's coordinates. */
     var pressX: Float = Float.NaN
@@ -2468,13 +2186,9 @@ private class HeaderTapGeometry {
     fun caretFor(textLength: Int): Int? = headerTapCaret(pressX, textX - rowX, textLength)
 }
 
-/**
- * The whole header row is the field's tap target (#26). Watches the pointer on the way down
- * WITHOUT consuming it, so a tap that lands on the text is still handled by the field exactly as
- * before (caret under the finger, selection, handles), and records where it landed so [onTap] can
- * put the caret at the start of the text when the tap fell before it. Still a plain `clickable`,
- * so what TalkBack sees of the row is unchanged.
- */
+/** The whole header row is the field's tap target (#26). Watches the pointer on the way down WITHOUT
+ *  consuming it, so a tap on the text is still handled by the field exactly as before, and records
+ *  where it landed. Still a plain `clickable`, so what TalkBack sees is unchanged. */
 @Composable
 private fun Modifier.headerTapRow(geometry: HeaderTapGeometry, onTap: () -> Unit): Modifier = this
     .onGloballyPositioned { geometry.rowX = it.positionInRoot().x }
@@ -2498,9 +2212,8 @@ private fun Modifier.headerTapText(geometry: HeaderTapGeometry): Modifier =
 
 @Composable
 private fun FieldLabel(text: String) {
-    // A fixed, tight width so From / To / Cc / Bcc all line up and the input starts just past
-    // the label (K-9 style). Narrower than before so the label sits closer to the left and the
-    // input follows tightly; still wide enough for the short field labels across locales.
+    // A fixed, tight width so From / To / Cc / Bcc all line up and the input starts just past the label
+    // (K-9 style); still wide enough for the short field labels across locales.
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
@@ -2523,10 +2236,9 @@ private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
 }
 
 /**
- * The eight formatting buttons under the body (#131): the four inline families, the two lists, the
- * link, then "clear". Placed DOWN HERE on purpose: `DraftReopenWiringTest` reads the FIRST `actions = {`
- * line of this file as the top bar (nothing here declares one), and `ScheduleMenuWiringTest` reads
- * `schedulePresets` below to the END of the file, so nothing may follow it. Nothing focusable
+ * The eight formatting buttons under the body (#131). Placed DOWN HERE on purpose:
+ * `DraftReopenWiringTest` reads the FIRST `actions = {` line of this file as the top bar, and
+ * `ScheduleMenuWiringTest` reads `schedulePresets` below to the END of the file. Nothing focusable
  * beyond the buttons themselves: a bar that takes the focus hides itself.
  */
 @Composable
@@ -2540,12 +2252,9 @@ private fun FormattingBar(
     onClear: () -> Unit,
 ) {
     // SCROLLABLE, since the bar went from five buttons to eight: 8 × 48 dp + 8 = 392 dp of fixed
-    // width. It no longer fits even a 360 dp phone, let alone a side-by-side multi-window pane (this
-    // screen is rebuilt by exactly that resize, see the token comment above) nor a large "display
-    // size" setting — where the last button, "clear formatting", would simply be off the screen
-    // with no way to reach it. Scrolling is also what Gmail's own bar does when it runs out of room
-    // (rule 4). A scroll container, not a focusable one: the bar must never take the focus, or it
-    // hides itself.
+    // width. It no longer fits a 360 dp phone, let alone a multi-window pane or a large "display size"
+    // setting — where "clear formatting" would be off the screen with no way to reach it. Scrolling is
+    // what Gmail's own bar does. A scroll container, not a focusable one.
     Row(
         Modifier
             .fillMaxWidth()
@@ -2558,8 +2267,8 @@ private fun FormattingBar(
         FormattingButton(Inline.STRIKE, Icons.Filled.FormatStrikethrough, R.string.compose_format_strikethrough, active, onToggle)
         ListButton(BlockKind.BULLET, Icons.Filled.FormatListBulleted, R.string.compose_format_list_bulleted, activeList, onToggleList)
         ListButton(BlockKind.NUMBER, Icons.Filled.FormatListNumbered, R.string.compose_format_list_numbered, activeList, onToggleList)
-        // The link is not a family: it carries an address, so it opens a dialog instead of
-        // toggling, and it is lit by `linkAt` rather than by the `active` set.
+        // The link is not a family: it carries an address, so it opens a dialog instead of toggling,
+        // and it is lit by `linkAt` rather than by the `active` set.
         IconButton(onClick = onLink, modifier = Modifier.size(48.dp).semantics { selected = linkActive }) {
             Icon(
                 Icons.Filled.Link,
@@ -2573,9 +2282,9 @@ private fun FormattingBar(
     }
 }
 
-/** One list's button, built exactly like [FormattingButton]: same 48 dp, same `selected`, same
- *  tint. `activeList` is the kind covering the whole of the selection (or the caret's line), so at
- *  most one of the two is ever lit — a run of lines is of ONE kind. */
+/** One list's button, built exactly like [FormattingButton]. `activeList` is the kind covering the
+ *  whole of the selection (or the caret's line), so at most one of the two is ever lit — a run of
+ *  lines is of ONE kind. */
 @Composable
 private fun ListButton(
     kind: BlockKind,
@@ -2620,17 +2329,13 @@ private fun FormattingButton(
 }
 
 /**
- * Quick "send later" presets → (preset, label, epoch-millis) for a menu drawn at [nowMillis]. The
- * zone is read here and the decision itself is [schedulePresetsAt]'s, which is pure and unit-tested:
- * this only resolves the labels, so the menu can never show an entry the rule dropped.
+ * Quick "send later" presets → (preset, label, epoch-millis) for a menu drawn at [nowMillis]. The zone
+ * is read here and the decision itself is [schedulePresetsAt]'s, so the menu can never show an entry the
+ * rule dropped.
  *
- * The clock is an ARGUMENT and never read in this body. The caller stamps it when the menu opens
- * and holds it in state, so a refused tap can re-stamp it and have the list redrawn; a clock read
- * here would instead tie the shown list to recomposition, which a tap does not cause.
- *
- * All three fields reach the tap, which decides with [presetMillisAtTap]: the preset says whether
- * the entry promised something RELATIVE or ABSOLUTE, and the millis is the instant it was drawn for
- * — the answer itself for the absolute ones, and what a refusal is measured against.
+ * The clock is an ARGUMENT and never read in this body: the caller stamps it when the menu opens, so
+ * a refused tap can re-stamp it and have the list redrawn. All three fields reach the tap, which decides
+ * with [presetMillisAtTap].
  */
 private fun schedulePresets(context: android.content.Context, nowMillis: Long): List<Triple<SchedulePreset, String, Long>> =
     schedulePresetsAt(nowMillis, java.time.ZoneId.systemDefault())

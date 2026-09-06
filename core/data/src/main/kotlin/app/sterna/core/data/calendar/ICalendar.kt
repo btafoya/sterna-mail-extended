@@ -146,13 +146,10 @@ object ICalendar {
     private data class Dated(val millis: Long, val allDay: Boolean)
 
     /**
-     * RFC 5545 unfolding: a CRLF/LF immediately followed by a space or tab continues the
-     * previous logical line, so join it back (dropping the break and the one leading space).
-     *
-     * Each logical line is accumulated in one [StringBuilder] and materialised once. Rebuilding
-     * the string per continuation instead is quadratic, and a .ics made of hundreds of thousands
-     * of one-character continuations then freezes the reader for minutes with no exception to
-     * catch — it is a hang, not a failure.
+     * RFC 5545 unfolding: join a continuation line (CRLF/LF followed by space/tab) back onto the
+     * previous one, dropping the break and leading space. Accumulated in one [StringBuilder] and
+     * materialised once — per-continuation string rebuilding is quadratic and can freeze the
+     * reader for minutes on a hostile .ics, with no exception to catch.
      */
     private fun unfold(raw: String): List<String> {
         val out = ArrayList<String>()
@@ -312,11 +309,9 @@ object ICalendar {
         DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC)
 
     /**
-     * Build a minimal, valid iTIP REPLY (RFC 5546) VCALENDAR for [event]. The reply echoes the
-     * invite's UID, ORGANIZER, DTSTART, SEQUENCE and SUMMARY verbatim where possible (safest for
-     * time-zone correctness) and carries the replying [attendeeEmail] with the chosen [partstat]
-     * (ACCEPTED / DECLINED / TENTATIVE). [nowMillis] supplies DTSTAMP as UTC; it is passed in so
-     * this stays pure and testable. Output uses CRLF line endings and RFC 5545 75-octet folding.
+     * Build a minimal iTIP REPLY (RFC 5546) VCALENDAR for [event], echoing UID/ORGANIZER/DTSTART/
+     * SEQUENCE/SUMMARY verbatim where possible, with [attendeeEmail] and [partstat]. [nowMillis]
+     * supplies DTSTAMP so this stays pure and testable. CRLF endings, RFC 5545 75-octet folding.
      */
     fun buildReply(
         event: ParsedEvent,

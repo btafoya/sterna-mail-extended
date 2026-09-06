@@ -18,10 +18,9 @@ sealed interface SearchState {
     data object Idle : SearchState
     data object Searching : SearchState
     /**
-     * [query] is the query these results came from — NOT the one being edited. The folded panel
-     * summarises this one, so what is on screen always describes what is in the list.
-     * [complete] is false when the search stopped short (server cap, IMAP attachment scan cap,
-     * or an account that failed), so the count says "at least" instead of claiming a total.
+     * [query] is the query these results came from — NOT the one being edited, so the folded panel
+     * always describes what is in the list. [complete] is false when the search stopped short, and
+     * the count then says "at least" instead of claiming a total.
      */
     data class Results(
         val query: SearchQuery,
@@ -32,9 +31,9 @@ sealed interface SearchState {
 }
 
 /**
- * Lazy-list key for a result row. Account + id, never the id alone: search spans every account
- * and deduplicates by (accountId, id) on purpose, so the same JMAP id legitimately appears twice
- * and a duplicate key in a lazy list throws (#92). Same form as the inbox lists.
+ * Lazy-list key for a result row. Account + id, never the id alone: search spans every account and
+ * deduplicates by (accountId, id), so the same JMAP id legitimately appears twice and a duplicate
+ * key in a lazy list throws (#92).
  */
 internal fun searchResultKey(email: Email): String = "${email.accountId}|${email.id}"
 
@@ -45,13 +44,10 @@ internal fun searchResultKey(email: Email): String = "${email.accountId}|${email
 private const val SEARCH_LIMIT = 200
 
 /**
- * One criterion as the screen opens: what was [saved] — a value the user has since typed into
- * the field — wins over the [argument] the caller navigated with.
- *
- * The precedence is the whole rule, and it is only visible after a process death: the caller's
- * argument is still attached to the entry for ever, so preferring it would overwrite whatever
- * the user had edited every time the process came back. An absent saved value is not the same as
- * an empty one — a field cleared on purpose is a saved "" and must stay cleared.
+ * One criterion as the screen opens: what was [saved] wins over the [argument] the caller navigated
+ * with. The precedence is only visible after a process death — the caller's argument stays attached
+ * to the entry for ever, so preferring it would overwrite the user's edit each time the process came
+ * back. An absent saved value is not an empty one: a field cleared on purpose must stay cleared.
  */
 internal fun initialCriterion(saved: String?, argument: String?): String = saved ?: argument.orEmpty()
 
@@ -59,12 +55,9 @@ internal fun initialCriterion(saved: String?, argument: String?): String = saved
 const val SEARCH_QUERY_ARG = "q"
 
 /**
- * Nav argument: the address the screen opens on, so "search this sender" from the per-sender
- * screen lands on a search that is already about that sender.
- *
- * It behaves EXACTLY like [SEARCH_QUERY_ARG] and deliberately not one step further: it fills the
- * criterion and stops there. Neither argument runs the search on arrival — that only happens for
- * a form restored after a process death, which is a search the user had already submitted.
+ * Nav argument: the address the screen opens on, so "search this sender" lands on a search that is
+ * already about that sender. It behaves exactly like [SEARCH_QUERY_ARG] and deliberately not one
+ * step further: it fills the criterion and stops there.
  */
 const val SEARCH_FROM_ARG = "from"
 
@@ -87,10 +80,8 @@ class SearchViewModel(
     private val repo = application.container.mailRepository
 
     /**
-     * The query lives HERE, next to the results, not in the screen's `remember`s. Split between
-     * the two, a process death restored a folded panel with no criteria and no results — a screen
-     * describing a search that no longer existed. Kept in the [SavedStateHandle] so the criteria
-     * survive that death, and re-run below so the list matches them again.
+     * The query lives HERE, next to the results, not in the screen's `remember`s: split between the
+     * two, a process death restored a folded panel with no criteria and no results.
      */
     private val _form = MutableStateFlow(restoreForm())
     val form: StateFlow<SearchForm> = _form.asStateFlow()
@@ -121,9 +112,8 @@ class SearchViewModel(
     }
 
     /**
-     * The drag handle's end-state: the swipe decides open or closed and sets it outright, rather
-     * than flipping like [togglePanel]. Keeps [SearchForm.expanded] the single source of truth the
-     * summary and keyboard folding still read, so the overlay's snap animation only follows it.
+     * The drag handle's end-state: the swipe decides open or closed and sets it outright rather than
+     * flipping, keeping [SearchForm.expanded] the single source of truth.
      */
     fun setExpanded(expanded: Boolean) {
         if (_form.value.expanded == expanded) return
@@ -164,9 +154,7 @@ class SearchViewModel(
     private fun restoreForm(): SearchForm = SearchForm(
         query = SearchQuery(
             // The inbox's search bar hands its words over as a nav argument; a value saved here
-            // (the user has since edited the field) wins over it after a process death. Both
-            // criteria that can arrive by navigation go through the SAME decision, so they
-            // cannot come to differ — see initialCriterion.
+            // wins over it after a process death. Both criteria go through the SAME decision.
             text = initialCriterion(handle[KEY_TEXT], handle[SEARCH_QUERY_ARG]),
             from = initialCriterion(handle[KEY_FROM], handle[SEARCH_FROM_ARG]),
             recipient = handle[KEY_RECIPIENT] ?: "",
