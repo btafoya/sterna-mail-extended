@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * SOURCE AND RESOURCE LINT, NOT A BEHAVIOUR TEST — same instrument and same disclaimer as
+ * SOURCE AND RESOURCE LINT, NOT A BEHAVIOUR TEST — it reads files as text and proves nothing about what is drawn.
  */
 class RelayAddressRowWiringTest {
 
@@ -150,6 +150,75 @@ class RelayAddressRowWiringTest {
         )
     }
 
+    /** SOURCE LINT for the OTHER 500 ms loop, the status line's: the rule above reads the relay
+     *  block's and nothing else. It does not judge what the line says, only where the distributor
+     *  is read and that the tick asks the package manager nothing. */
+    @Test fun `the status line's 500 ms loop asks the package manager nothing`() {
+        val lines = screenLines()
+        val loop = blockBody(lines, STATUS_LOOP)
+        assertEquals(
+            "nothing inside the status line's 500 ms loop may read the distributor. " +
+                "AccountsViewModel.distributorInstalled() reaches " +
+                "packageManager.queryBroadcastReceivers() through the connector: a binder round " +
+                "trip, twice a second, for as long as this screen is open. Lines found:\n" +
+                loop.joinToString("\n"),
+            emptyList<String>(),
+            loop.filter { "distributorInstalled" in it || "Distributor" in it },
+        )
+        val read = lines.indexOfFirst { it == STATUS_DISTRIBUTOR_READ }
+        val at = lines.indexOfFirst { it == STATUS_LOOP }
+        assertTrue(
+            "the status line must read the distributor ONCE per visit, in a remember above its " +
+                "own loop, whole line: \"$STATUS_DISTRIBUTOR_READ\". It is what separates the two " +
+                "sentences a qualified direct connection can carry, and whether a UnifiedPush app " +
+                "is installed cannot change while this screen is on top; the next visit sees it " +
+                "if it does. Read at line $read of the code lines, loop opens at $at.",
+            read in 0 until at,
+        )
+        assertTrue(
+            "and it must be re-read when the screen comes back, whole line: " +
+                "\"$STATUS_RESUME_READ\". The no-distributor sentence sends its reader out to " +
+                "install a UnifiedPush app and they return to THIS screen, which was stopped, not " +
+                "destroyed: a value remembered once per composition would go on telling them to " +
+                "install what they have just installed. Re-reading is not the tick — it is one " +
+                "binder call per resume, and the rule above still holds inside the loop.",
+            STATUS_RESUME_READ in lines,
+        )
+    }
+
+    @Test fun `the manager hands the decision a dossier, and these four reads are it`() {
+        assertEquals(
+            "UnifiedPushManager.unifiedPushMissing must be exactly these lines, arguments and " +
+                "all. It gathers the record ONCE and delegates to RelayPush.unifiedPushMissing, " +
+                "where the rule is EXECUTED by tests; this manager needs a Context, so no JVM " +
+                "test can call it and nothing else would see an argument slip. Two reads are " +
+                "load-bearing on their own: isPending keeps a healthy bring-up silent (#53), and " +
+                "status keeps PUBLISHED out — an IMAP address that exists and is drawn right " +
+                "below the line must not be announced as UnifiedPush being unavailable.",
+            EXPECTED_UP_MISSING,
+            managerFunctionBody(UP_MISSING),
+        )
+    }
+
+    @Test fun `the status line spends the decision on three sentences and no fourth`() {
+        val lines = screenLines()
+        val at = lines.indexOfFirst { it == DIRECT_ARM }
+        check(at >= 0) {
+            "no '$DIRECT_ARM' in SettingsScreen.kt — the only surface of this decision was renamed " +
+                "or reshaped, and this lint must be taught where it went"
+        }
+        assertEquals(
+            "the direct-connection arm is pinned WHOLE: the three string keys, and the two " +
+                "arguments handed to PushController.directLine. It is the only place any of this " +
+                "reaches a reader, and the failure it screens for is silent — an arm that drops " +
+                "back to settings_push_status_direct for all three states leaves every other test " +
+                "of this volet green. The first fact stays in all three sentences: delivery IS " +
+                "direct and mail does arrive; only the second one is added.",
+            EXPECTED_DIRECT_ARM,
+            lines.subList(at, minOf(at + EXPECTED_DIRECT_ARM.size, lines.size)),
+        )
+    }
+
     @Test fun `an armed relay is one record and three facts`() {
         val body = managerFunctionBody("fun relayArmed(accountId: String): Boolean {")
         assertEquals(
@@ -256,15 +325,18 @@ class RelayAddressRowWiringTest {
 
     // -- reading the sources ---------------------------------------------------------------------
 
-    /**
-     * The lines that open the blocks the call to [RELAY_CALL] is written inside, outermost first —
-     */
+    /** The lines that open the blocks [call] is written inside, outermost first. */
     private fun ancestorsOf(call: String): List<String> {
         val stack = ArrayDeque<String>()
         for (line in screenLines()) {
             if (line == call) return stack.toList()
-            repeat(line.count { it == '}' }) { stack.removeLastOrNull() }
-            repeat(line.count { it == '{' }) { stack.addLast(line) }
+            // A brace pair opened AND closed on one line encloses nothing: counted, it pops the
+            // block the call really sits in and stands in its place. `} else {` is not that.
+            val opens = line.count { it == '{' }
+            val closes = line.count { it == '}' }
+            if (opens == closes && line.indexOf('{') < line.indexOf('}')) continue
+            repeat(closes) { stack.removeLastOrNull() }
+            repeat(opens) { stack.addLast(line) }
         }
         error(
             "no '$call' in SettingsScreen.kt — the relay address block was renamed or moved, and " +
@@ -273,9 +345,7 @@ class RelayAddressRowWiringTest {
         )
     }
 
-    /**
-     * The branch condition lines of `statusFor`'s `when`, in source order.
-     */
+    /** The branch condition lines of `statusFor`'s `when`, in source order. */
     private fun statusForBranches(): List<String> {
         val lines = codeLinesOf(PUSH_CONTROLLER)
         val fn = lines.indexOfFirst { it == STATUS_FOR }
@@ -368,6 +438,14 @@ class RelayAddressRowWiringTest {
         const val RELAY_FUN =
             "private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel) {"
         const val RELAY_ADDRESS_READ = "fun relayAddress(id: String): RelayAddress {"
+        const val UP_MISSING =
+            "fun unifiedPushMissing(accountId: String, protocol: MailProtocol?): Boolean {"
+        const val DIRECT_ARM = "is PushStatus.Direct -> stringResource("
+        const val STATUS_LOOP = "LaunchedEffect(accountId, notificationsEnabled) {"
+        const val STATUS_DISTRIBUTOR_READ =
+            "var distributorInstalled by remember(accountId) { mutableStateOf(viewModel.distributorInstalled()) }"
+        const val STATUS_RESUME_READ =
+            "if (event == Lifecycle.Event.ON_RESUME) distributorInstalled = viewModel.distributorInstalled()"
         val REQUIRED_GUARDS = listOf("if (notificationsEnabled) {", "if (isImap) {")
 
         val EXPECTED_EXPLAIN_LINES = listOf(
@@ -394,15 +472,35 @@ class RelayAddressRowWiringTest {
         )
 
         val EXPECTED_STATUS_BRANCHES = listOf(
-            "store.account(accountId)?.isLinked == true -> PushStatus.Periodic",
+            "account?.isLinked == true -> PushStatus.Periodic",
             "up.relayArmed(accountId) -> PushStatus.ViaRelay(up.relayLastDeliveryMillis(accountId))",
             "!isWatched(accountId, store.currentId(), store.pushAllAccounts()) -> PushStatus.NotWatched",
             "up.isActive(accountId) -> PushStatus.ViaUnifiedPush(up.distributorLabel())",
             "isBatterySaver(context) -> PushStatus.Periodic",
-            "PushService.isConnected(accountId) -> PushStatus.Direct",
+            "PushService.isConnected(accountId) -> PushStatus.Direct(up.unifiedPushMissing(accountId, account?.protocol))",
             "up.isPending(accountId) -> PushStatus.Connecting",
             "PushService.isRunning -> PushStatus.Connecting",
             "else -> PushStatus.Periodic",
+        )
+
+        val EXPECTED_UP_MISSING = listOf(
+            "val state = store.load(accountId)",
+            "return RelayPush.unifiedPushMissing(",
+            "protocol,",
+            "state?.relayRequested == true,",
+            "state?.status ?: UpStatus.NONE,",
+            "isPending(accountId),",
+            ")",
+        )
+
+        val EXPECTED_DIRECT_ARM = listOf(
+            "is PushStatus.Direct -> stringResource(",
+            "when (PushController.directLine(s.unifiedPushMissing, distributorInstalled)) {",
+            "DirectLine.PLAIN -> R.string.settings_push_status_direct",
+            "DirectLine.UNIFIED_PUSH_ABSENT -> R.string.settings_push_status_direct_up_absent",
+            "DirectLine.NO_DISTRIBUTOR -> R.string.settings_push_status_direct_no_distributor",
+            "},",
+            ")",
         )
 
         val EXPECTED_RELAY_ARMED = listOf(
@@ -421,9 +519,7 @@ class RelayAddressRowWiringTest {
             "settings_push_status_relay",
         )
 
-        /**
-         * The words that would turn the dated fact into a verdict, per shipped language. Compared
-         */
+        /** The words that would turn the dated fact into a verdict, per shipped language. */
         val HEALTH_WORDS = mapOf(
             "values" to listOf("active", "alive", "healthy", "connected"),
             "values-de" to listOf("aktiv", "verbunden"),

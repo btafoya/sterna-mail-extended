@@ -90,6 +90,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -112,6 +113,9 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -132,6 +136,7 @@ import app.sterna.core.data.settings.ThemeMode
 import app.sterna.core.data.settings.DeliveryMode
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.text.htmlToText
+import app.sterna.push.DirectLine
 import app.sterna.push.PushController
 import app.sterna.push.PushStatus
 import app.sterna.ui.SCREEN_SLIDE_MS
@@ -1569,6 +1574,17 @@ private fun AccountDetailScreen(
                 // Read-only delivery status (#17) — transparency, never a control.
                 if (notificationsEnabled) {
                     val appContext = LocalContext.current
+                    // Off the tick: a binder call through the connector. Re-read on resume, since
+                    // a sentence below asks for an install and its reader comes back to this screen.
+                    var distributorInstalled by remember(accountId) { mutableStateOf(viewModel.distributorInstalled()) }
+                    val lifecycleOwner = LocalLifecycleOwner.current
+                    DisposableEffect(lifecycleOwner, accountId) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (event == Lifecycle.Event.ON_RESUME) distributorInstalled = viewModel.distributorInstalled()
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                    }
                     // statusFor is a plain snapshot, but re-enabling notifications re-arms push
                     // asynchronously: a one-shot read taken during the toggle's recomposition still
                     // sees the old transport (#53), so it is re-read while the line is visible.
@@ -1591,7 +1607,15 @@ private fun AccountDetailScreen(
                             R.string.settings_push_status_relay,
                             DateUtils.getRelativeTimeSpanString(s.lastDeliveryMillis),
                         )
-                        PushStatus.Direct -> stringResource(R.string.settings_push_status_direct)
+                        // The line keeps its first fact whatever happens: delivery IS direct, and
+                        // mail does arrive. What is added is the second fact, never a failure.
+                        is PushStatus.Direct -> stringResource(
+                            when (PushController.directLine(s.unifiedPushMissing, distributorInstalled)) {
+                                DirectLine.PLAIN -> R.string.settings_push_status_direct
+                                DirectLine.UNIFIED_PUSH_ABSENT -> R.string.settings_push_status_direct_up_absent
+                                DirectLine.NO_DISTRIBUTOR -> R.string.settings_push_status_direct_no_distributor
+                            },
+                        )
                         PushStatus.Connecting -> stringResource(R.string.settings_push_status_connecting)
                         PushStatus.Periodic -> stringResource(R.string.settings_push_status_periodic)
                         PushStatus.NotWatched -> stringResource(R.string.settings_push_status_not_watched)
@@ -2176,9 +2200,7 @@ private fun AccountDetailScreen(
     }
 }
 
-/**
- * The relay push address block (#177). Sterna runs no relay: it publishes an address the user hands
- */
+/** The relay push address block (#177). Sterna runs no relay: it publishes an address to hand out. */
 @Composable
 private fun RelayAddressSection(accountId: String, viewModel: AccountsViewModel) {
     // Read once per visit, never on the tick below: it is a binder call
@@ -2454,9 +2476,7 @@ private fun pgpProviderLabel(context: Context, packageName: String): String =
         packageName,
     )
 
-/**
- * What an OpenPGP app is called on screen when it declares no name of its own: its package name.
- */
+/** What an OpenPGP app is called on screen when it declares no name of its own: its package name. */
 internal fun pgpProviderDisplayName(declaredName: String?, packageName: String): String =
     declaredName ?: packageName
 

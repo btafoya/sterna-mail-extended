@@ -8,9 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * An IMAP account could never obtain a UnifiedPush address: [UnifiedPushManager.ensureRegistered]
- */
+/** The pure UnifiedPush decisions, executed: who may register, what an endpoint means, what arms. */
 class RelayPushTest {
 
     private val now = 1_700_000_000_000L
@@ -487,6 +485,58 @@ class RelayPushTest {
             "an IMAP account nobody asked a relay for must leave before the distributor picker",
             RelayPush.mayUsePush(MailProtocol.IMAP, false),
         )
+    }
+
+    // ── unifiedPushMissing: what the direct-connection line adds, and what it must not ───
+    // Expected values are written out, never recomputed from the function's own expression.
+
+    @Test fun `a JMAP account that is not registering is missing the push it should have`() {
+        assertTrue(
+            "JMAP may always use push, so a JMAP account that is not in flight has none",
+            RelayPush.unifiedPushMissing(MailProtocol.JMAP, false, UpStatus.FAILED, pending = false),
+        )
+        assertTrue(RelayPush.unifiedPushMissing(MailProtocol.JMAP, false, UpStatus.NONE, pending = false))
+        assertTrue(RelayPush.unifiedPushMissing(MailProtocol.JMAP, false, UpStatus.VERIFYING, pending = false))
+    }
+
+    @Test fun `a healthy bring-up says nothing, which is the whole of issue 53`() {
+        assertFalse(
+            "while registration or verification is in flight the line stays bare",
+            RelayPush.unifiedPushMissing(MailProtocol.JMAP, false, UpStatus.REGISTERING, pending = true),
+        )
+        assertFalse(RelayPush.unifiedPushMissing(MailProtocol.JMAP, false, UpStatus.VERIFYING, pending = true))
+    }
+
+    @Test fun `an IMAP account nobody asked a relay for earns no warning, ever`() {
+        assertFalse(
+            "it is legitimately direct: it never asked for UnifiedPush and nothing is missing",
+            RelayPush.unifiedPushMissing(MailProtocol.IMAP, false, UpStatus.NONE, pending = false),
+        )
+        assertFalse(RelayPush.unifiedPushMissing(MailProtocol.IMAP, false, UpStatus.FAILED, pending = false))
+    }
+
+    @Test fun `an IMAP account whose owner asked for an address is missing it too`() {
+        assertTrue(RelayPush.unifiedPushMissing(MailProtocol.IMAP, true, UpStatus.FAILED, pending = false))
+        assertTrue(RelayPush.unifiedPushMissing(MailProtocol.IMAP, true, UpStatus.NONE, pending = false))
+    }
+
+    @Test fun `a published relay address is not a missing push, it is an address awaiting a post`() {
+        assertFalse(
+            "PUBLISHED reaches the direct branch because relayArmed wants ACTIVE, and the screen " +
+                "draws that very address below this line: nothing is missing, nobody has posted yet",
+            RelayPush.unifiedPushMissing(MailProtocol.IMAP, true, UpStatus.PUBLISHED, pending = false),
+        )
+    }
+
+    @Test fun `an account whose record cannot be read claims nothing`() {
+        assertFalse(RelayPush.unifiedPushMissing(null, true, UpStatus.FAILED, pending = false))
+        assertFalse(RelayPush.unifiedPushMissing(null, false, UpStatus.NONE, pending = false))
+    }
+
+    @Test fun `the missing-push question reads its arguments in the declared order`() {
+        assertTrue(RelayPush.unifiedPushMissing(MailProtocol.IMAP, true, UpStatus.FAILED, false))
+        assertFalse(RelayPush.unifiedPushMissing(MailProtocol.IMAP, false, UpStatus.FAILED, true))
+        assertFalse(RelayPush.unifiedPushMissing(MailProtocol.IMAP, true, UpStatus.PUBLISHED, false))
     }
 
     // ── onRelayRequested: a tap is not an automatic loop ─────────────────────────────────

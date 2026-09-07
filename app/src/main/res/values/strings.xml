@@ -119,6 +119,8 @@
     <string name="settings_delivery_saver_desc">Checks for mail every 30 minutes. No background connection.</string>
     <string name="settings_push_status_up">Push: UnifiedPush (%1$s)</string>
     <string name="settings_push_status_direct">Push: direct connection</string>
+    <string name="settings_push_status_direct_up_absent">Push: direct connection (UnifiedPush unavailable)</string>
+    <string name="settings_push_status_direct_no_distributor">Push: direct connection (no UnifiedPush app installed)</string>
     <string name="settings_push_status_connecting">Push: connecting…</string>
     <string name="settings_push_status_periodic">Checked every 30 minutes</string>
     <string name="settings_push_status_not_watched">Checked when you open the app</string>

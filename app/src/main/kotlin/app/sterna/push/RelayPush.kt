@@ -14,15 +14,14 @@ object RelayPush {
      *  the failing account (14 min 35 between two creations, no verification) — the cap below does. */
     const val VERIFYING_GRACE_MS = 10 * 60 * 1000L
 
-    /** Creations for one endpoint before giving up. FAILED stops the hammering and makes the state
-     *  nameable; it does not show yet — `PushController.statusFor` has no FAILED arm. */
+    /** Creations for one endpoint before giving up. FAILED stops the hammering and is nameable on
+     *  screen: it makes `unifiedPushMissing` true, which qualifies the direct-connection line. */
     const val MAX_CREATE_ATTEMPTS = 3
 
     /** Cooldown before a FAILED account may re-register (worker cycles retry for us). */
     const val FAILED_RETRY_MS = 15 * 60 * 1000L
 
-    /** May this account register right now? Never registered, a failure past its cooldown, or a
-     *  pending state older than its own window. */
+    /** May this account register right now? Never registered, a stale pending state, or a failure past its cooldown. */
     fun shouldRegister(
         protocol: MailProtocol,
         relayRequested: Boolean,
@@ -41,6 +40,17 @@ object RelayPush {
      *  only once its owner asked for a relay address. */
     fun mayUsePush(protocol: MailProtocol, relayRequested: Boolean): Boolean =
         protocol == MailProtocol.JMAP || relayRequested
+
+    /** Should this account be riding UnifiedPush right now, and is not? [pending] keeps a healthy
+     *  bring-up silent (#53), [mayUsePush] an account that never asked, PUBLISHED a live address. */
+    fun unifiedPushMissing(
+        protocol: MailProtocol?,
+        relayRequested: Boolean,
+        status: UpStatus,
+        pending: Boolean,
+    ): Boolean =
+        protocol != null && mayUsePush(protocol, relayRequested) && !pending &&
+            status != UpStatus.PUBLISHED
 
     /** How long [status] counts as in flight. One window for both waits recreated a subscription
      *  under its own pending verification, on every apply, for as long as the account existed. */
@@ -112,8 +122,7 @@ object RelayPush {
         return EndpointOutcome.Subscribe
     }
 
-    /** A payload really arrived through this account's endpoint: what to persist, or null when
-     *  nothing changes. */
+    /** A payload really arrived through this endpoint: what to persist, or null when nothing changes. */
     fun onDelivery(prev: UpAccountState, now: Long): DeliveryUpdate? {
         if (!prev.relayRequested || prev.subscriptionId != null) return null
         return when (prev.status) {

@@ -7,9 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/**
- * Issue A8: the per-account new-mail toggle and its status line must be honest about which accounts
- */
+/** Issue A8: the per-account new-mail toggle and its status line must say which accounts are watched. */
 class PushWatchTest {
 
     @Test fun `the current account is watched`() {
@@ -79,18 +77,51 @@ class PushWatchTest {
         )
     }
 
-    /**
-     * The parameter ORDER, which the named calls above are blind to: three arguments of the same
-     */
+    /** The parameter ORDER, which the named calls above are blind to: three arguments of one type. */
     @Test fun `the unwatched note reads its arguments in the declared order`() {
         assertTrue(PushController.shouldShowUnwatchedNote(false, false, true))
         assertFalse(PushController.shouldShowUnwatchedNote(false, true, false))
         assertFalse(PushController.shouldShowUnwatchedNote(true, false, false))
     }
 
-    /**
-     * SOURCE RULE, and the weakest test of this section — same reason as the [PushService] ones far
-     */
+    // --- the direct-connection line carries a second fact, and only one of them is actionable ---
+
+    /** Nothing is missing: the line stays the bare sentence it has always been. */
+    @Test fun `a direct connection with nothing missing keeps its plain sentence`() {
+        assertEquals(
+            DirectLine.PLAIN,
+            PushController.directLine(unifiedPushMissing = false, distributorInstalled = true),
+        )
+        assertEquals(
+            DirectLine.PLAIN,
+            PushController.directLine(unifiedPushMissing = false, distributorInstalled = false),
+        )
+    }
+
+    /** A distributor is installed, so nothing here is the reader's to do: one sentence for both
+     *  the failed registration and the one still in flight past its window. */
+    @Test fun `a distributor that is installed but brought nothing says only that`() {
+        assertEquals(
+            DirectLine.UNIFIED_PUSH_ABSENT,
+            PushController.directLine(unifiedPushMissing = true, distributorInstalled = true),
+        )
+    }
+
+    /** The one case the reader can act on, and the only reason the two sentences differ. */
+    @Test fun `no distributor at all names the app that is not installed`() {
+        assertEquals(
+            DirectLine.NO_DISTRIBUTOR,
+            PushController.directLine(unifiedPushMissing = true, distributorInstalled = false),
+        )
+    }
+
+    /** The parameter ORDER, which the named calls above are blind to: two booleans of one type. */
+    @Test fun `the direct line reads its arguments in the declared order`() {
+        assertEquals(DirectLine.NO_DISTRIBUTOR, PushController.directLine(true, false))
+        assertEquals(DirectLine.PLAIN, PushController.directLine(false, true))
+    }
+
+    /** SOURCE RULE, and the weakest test of this section: it reads the screen as text, not as code. */
     @Test fun `the notifications section leaves the toggle live and asks the note for all three`() {
         assertEquals(
             listOf(
@@ -111,9 +142,7 @@ class PushWatchTest {
         )
     }
 
-    /**
-     * The first [count] statements of the account screen's Notifications section, trimmed, with
-     */
+    /** The first [count] statements of the account screen's Notifications section, comments dropped. */
     private fun notificationsSectionStatements(count: Int): List<String> {
         val marker = "SettingsSection(stringResource(R.string.settings_account_notifications_section)) {"
         val lines = File(
@@ -205,7 +234,7 @@ class PushWatchTest {
     // --- the silent reseed is per account, not per arm --------------------------------------------
     //
     // A user-initiated arm (app open, account switch, a settings toggle, ticking one watched folder)
-    // may swallow an inbox's backlog into the baseline instead of announcing it, because the user is
+    // may swallow an inbox's backlog into the baseline instead of announcing it, because the user is looking at it.
     //
     // The witnesses matter as much as the case: without them these tests would also pass with the
     // reseed deleted outright, which is the opposite defect (a fresh install or a baseline version
@@ -333,7 +362,7 @@ class PushWatchTest {
     }
 
     /**
-     * SOURCE RULE, and the weakest test here: the three arguments the service hands to
+     * SOURCE RULE, and the weakest test here: the three arguments the service hands to [PushController.armSummary].
      */
     @Test fun `the service logs the arm summary with accounts, groups and open connections`() {
         val source = File(
@@ -351,7 +380,7 @@ class PushWatchTest {
     // --- an arm that gives up says so, instead of dying without a word --------------------------
     //
     // Three places in the service could drop an armament on the floor in silence: the generation
-    // guard at the top of watch(), the same guard inside the delayed reconnect, and an arm that
+    // guard at the top of watch(), the same guard inside the delayed reconnect, and an arm that finds nothing to watch.
     //
     // Not claimed to be exhaustive, and one nearby path is deliberately left silent: the generation
     // check inside onClosed, which fires on every arm (reconnectAll closes every socket first) and
@@ -377,7 +406,7 @@ class PushWatchTest {
     }
 
     /**
-     * The two renouncements are different events — one never opened anything, the other gave up a
+     * The two renouncements are different events — one never opened anything, the other gave up a scheduled retry.
      */
     @Test fun `the two abandonments do not print the same sentence`() {
         assertNotEquals(
@@ -510,7 +539,7 @@ class PushWatchTest {
     }
 
     /**
-     * The same "nothing stored" case with an EMPTY slot, which is the common one in production: the
+     * The same "nothing stored" case with an EMPTY slot, the common one in production: the arm has not stored its handle yet.
      */
     @Test fun `nothing stored and nothing under the key reports nothing removed`() {
         val connections = mutableMapOf<String, Handle>()

@@ -106,6 +106,8 @@
     <string name="settings_delivery_saver_desc">Controlla la posta ogni 30 minuti. Nessuna connessione in background.</string>
     <string name="settings_push_status_up">Push: UnifiedPush (%1$s)</string>
     <string name="settings_push_status_direct">Push: connessione diretta</string>
+    <string name="settings_push_status_direct_up_absent">Push: connessione diretta (UnifiedPush non disponibile)</string>
+    <string name="settings_push_status_direct_no_distributor">Push: connessione diretta (nessuna app UnifiedPush installata)</string>
     <string name="settings_push_status_connecting">Push: connessione in corso…</string>
     <string name="settings_push_status_periodic">Controllo ogni 30 minuti</string>
     <string name="settings_push_status_not_watched">Controllato all’apertura dell’app</string>

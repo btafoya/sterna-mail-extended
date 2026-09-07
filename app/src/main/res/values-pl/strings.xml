@@ -106,6 +106,8 @@
     <string name="settings_delivery_saver_desc">Sprawdza pocztę co 30 minut. Bez połączenia w tle.</string>
     <string name="settings_push_status_up">Push: UnifiedPush (%1$s)</string>
     <string name="settings_push_status_direct">Push: połączenie bezpośrednie</string>
+    <string name="settings_push_status_direct_up_absent">Push: połączenie bezpośrednie (UnifiedPush niedostępny)</string>
+    <string name="settings_push_status_direct_no_distributor">Push: połączenie bezpośrednie (brak zainstalowanej aplikacji UnifiedPush)</string>
     <string name="settings_push_status_connecting">Push: łączenie…</string>
     <string name="settings_push_status_periodic">Sprawdzanie co 30 minut</string>
     <string name="settings_push_status_not_watched">Sprawdzane przy otwarciu aplikacji</string>

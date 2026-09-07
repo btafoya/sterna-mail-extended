@@ -23,9 +23,7 @@ import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
 import java.time.Instant
 
-/**
- * The UnifiedPush transport state machine (#17), one instance per app. Instance ids ARE local
- */
+/** The UnifiedPush transport state machine (#17), one instance per app. */
 class UnifiedPushManager(
     private val context: Context,
     private val accountStore: AccountStore,
@@ -122,6 +120,18 @@ class UnifiedPushManager(
         val state = store.load(accountId) ?: return false
         return (state.status == UpStatus.REGISTERING || state.status == UpStatus.VERIFYING) &&
             System.currentTimeMillis() - state.statusSinceMillis < RelayPush.pendingGraceMs(state.status)
+    }
+
+    /** Read-only dossier for [RelayPush.unifiedPushMissing]: the account should be on UnifiedPush
+     *  and is not. Asks the connector nothing — the status line reads this twice a second. */
+    fun unifiedPushMissing(accountId: String, protocol: MailProtocol?): Boolean {
+        val state = store.load(accountId)
+        return RelayPush.unifiedPushMissing(
+            protocol,
+            state?.relayRequested == true,
+            state?.status ?: UpStatus.NONE,
+            isPending(accountId),
+        )
     }
 
     /** Saved distributor's package name while this account rides UnifiedPush (status line). */

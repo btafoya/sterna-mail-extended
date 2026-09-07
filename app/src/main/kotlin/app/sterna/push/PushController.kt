@@ -12,6 +12,10 @@ import kotlinx.coroutines.runBlocking
 /** How one account's new mail arrives. */
 enum class Transport { UNIFIED_PUSH, EVENT_SOURCE, IMAP_IDLE, PERIODIC }
 
+/** Which sentence a direct connection is described by. [NO_DISTRIBUTOR] is the only one its reader
+ *  can act on, by installing a UnifiedPush app. */
+enum class DirectLine { PLAIN, UNIFIED_PUSH_ABSENT, NO_DISTRIBUTOR }
+
 /** Read-only per-account delivery status, for the account detail screen (UX rule 3). */
 sealed interface PushStatus {
     /** Instant via UnifiedPush; [distributorPackage] resolves to an app label in UI. */
@@ -21,8 +25,9 @@ sealed interface PushStatus {
      *  verdict: nothing here can tell a dead relay from a quiet one. */
     data class ViaRelay(val lastDeliveryMillis: Long) : PushStatus
 
-    /** Instant via a direct connection we hold, open right now (JMAP EventSource or IMAP IDLE). */
-    data object Direct : PushStatus
+    /** Instant via a direct connection we hold, open right now (JMAP EventSource or IMAP IDLE).
+     *  [unifiedPushMissing] is the second true fact: this account should be on UnifiedPush and is not. */
+    data class Direct(val unifiedPushMissing: Boolean) : PushStatus
 
     /** Bring-up in flight — UnifiedPush registration, or the direct connection (re)opening. */
     data object Connecting : PushStatus
@@ -35,14 +40,10 @@ sealed interface PushStatus {
     data object NotWatched : PushStatus
 }
 
-/**
- * Single decision point for push transports (#17): [apply] kicks the UnifiedPush state machine and
- */
+/** Single decision point for push transports (#17): [apply] kicks the UnifiedPush state machine. */
 object PushController {
 
-    /**
-     * The last selection the inbox list made: true if that was the unified inbox. Read by
-     */
+    /** The last selection the inbox list made: true if that was the unified inbox. */
     @Volatile
     var unifiedInboxVisible: Boolean = false
 
@@ -81,6 +82,14 @@ object PushController {
      *  that is the whole action only while [notificationsEnabled] is still on. */
     fun shouldShowUnwatchedNote(isLinked: Boolean, isWatched: Boolean, notificationsEnabled: Boolean): Boolean =
         !isLinked && !isWatched && notificationsEnabled
+
+    /** Which sentence the direct-connection line carries. A missing distributor is folded apart
+     *  because it is the actionable one; a failed and a stalled registration are not, so they merge. */
+    fun directLine(unifiedPushMissing: Boolean, distributorInstalled: Boolean): DirectLine = when {
+        !unifiedPushMissing -> DirectLine.PLAIN
+        distributorInstalled -> DirectLine.UNIFIED_PUSH_ABSENT
+        else -> DirectLine.NO_DISTRIBUTOR
+    }
 
     /** What an arm ASKED FOR and what it came away with. [held], never "open": a handle is
      *  recorded before the server has answered, so what it rules out is an arm that never got that
@@ -145,10 +154,12 @@ object PushController {
         val container = (context.applicationContext as Application).container
         val store = container.accountStore
         val up = container.unifiedPushManager
+        // Read once: the whole record decodes from JSON on every call, and this runs on a tick.
+        val account = store.account(accountId)
         return when {
             // A linked sub-account inherits the login's transport state, but the server never
             // pushes its changes there (#31).
-            store.account(accountId)?.isLinked == true -> PushStatus.Periodic
+            account?.isLinked == true -> PushStatus.Periodic
             // An armed relay (#177) is tested ABOVE the UnifiedPush branch and above NotWatched:
             // a POST on the relay address enqueues [PushFetchWorker], which gates on
             // notificationsEnabled alone, so an unwatched account with a relay really is woken.
@@ -159,7 +170,7 @@ object PushController {
             isBatterySaver(context) -> PushStatus.Periodic
             // An open connection wins over a pending UnifiedPush bring-up: the EventSource stays up
             // through REGISTERING/VERIFYING, so delivery is direct right now (#53).
-            PushService.isConnected(accountId) -> PushStatus.Direct
+            PushService.isConnected(accountId) -> PushStatus.Direct(up.unifiedPushMissing(accountId, account?.protocol))
             up.isPending(accountId) -> PushStatus.Connecting
             // Watched by the running service but not open yet: bring-up, or a retry loop.
             PushService.isRunning -> PushStatus.Connecting
@@ -167,9 +178,7 @@ object PushController {
         }
     }
 
-    /**
-     * Recompute every account's transport and (re)arm accordingly. [userInitiated] silently reseeds
-     */
+    /** Recompute every account's transport and (re)arm accordingly. */
     fun apply(context: Context, userInitiated: Boolean) {
         val appContext = context.applicationContext as Application
         val container = appContext.container
@@ -216,7 +225,7 @@ object PushController {
 }
 
 /**
- * May a user-initiated arm swallow this account's inbox backlog into the baseline instead of
+ * May a user-initiated arm swallow this account's inbox backlog into the baseline instead of announcing it?
  */
 internal fun shouldResetBaseline(
     accountId: String,

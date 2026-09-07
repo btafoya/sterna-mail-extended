@@ -52,8 +52,11 @@ permanent notification.
   after the mail does.
 
 You can always see what an account is actually using in Settings, Accounts, under
-the notifications switch: "Push: UnifiedPush (ntfy)", "Push: direct connection", or
-"Checked every 30 minutes". Changing the setting takes effect immediately.
+the notifications switch: "Push: UnifiedPush (ntfy)", "Push: direct connection",
+"Push: direct connection (UnifiedPush unavailable)", "Push: direct connection (no
+UnifiedPush app installed)", "Push: connecting…", "Push: last wake …", "Checked
+every 30 minutes", or "Checked when you open the app". Changing the setting takes
+effect immediately.
 
 ## UX ground rules (decided, non-negotiable)
 
@@ -513,7 +516,10 @@ cleared by `resetSyncState()`. Every UP wakeup is then a true delta.
 Account detail screen, under the notifications switch: read-only text from
 `PushController.statusFor(account)`: "Push: UnifiedPush (ntfy)" (distributor app
 label) / "Push: direct connection" (EventSource and IDLE alike, the protocol
-distinction is not user-relevant) / "Push: connecting…" / "Push: unavailable, checking every 30 min".
+distinction is not user-relevant) / "Push: direct connection (UnifiedPush
+unavailable)" / "Push: direct connection (no UnifiedPush app installed)" /
+"Push: connecting…" / "Push: last wake …" / "Checked every 30 minutes" /
+"Checked when you open the app".
 
 ## B8. Files touched (Phase B)
 
@@ -600,9 +606,10 @@ Final worker coverage matrix:
 
 ## C3. Status line, final wording
 
-"Push: UnifiedPush (ntfy)" · "Push: direct connection" · "Checked every 30
-minutes (battery saver)" · "Push: connecting…" · "Push: unavailable, checking
-every 30 min".
+"Push: UnifiedPush (ntfy)" · "Push: direct connection" · "Push: direct connection
+(UnifiedPush unavailable)" · "Push: direct connection (no UnifiedPush app
+installed)" · "Push: connecting…" · "Push: last wake …" · "Checked every 30
+minutes" · "Checked when you open the app".
 
 ## C4. Files touched (Phase C)
 
