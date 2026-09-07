@@ -50,17 +50,19 @@ internal fun draftReplacementIsFaithful(
     receiptRequestIsCarried
 
 /**
- * Whether reopening a saved draft lost something the server copy still holds; `true` keeps the
+ * Whether a reopened draft must be spared: content was lost on the way in, or the server flags no draft.
  */
 fun reopenedDraftIsLossy(
     hasHtmlBody: Boolean,
     inlineImageCount: Int,
     calendarPartCount: Int,
     receiptHeader: String?,
+    carriesDraftFlag: Boolean,
 ): Boolean = hasHtmlBody ||
     inlineImageCount > 0 ||
     calendarPartCount > 0 ||
-    !receiptHeader.isNullOrBlank()
+    !receiptHeader.isNullOrBlank() ||
+    !carriesDraftFlag
 
 /**
  * The draft id a send may destroy once delivered, or null (#63). `receiptRequestIsCarried = true` is

@@ -1247,7 +1247,7 @@ class MailRepository(
     ): String? = imap.fetchPreview(credentials, mailboxId, source.uid, source.part, budgetMs)
 
     /**
-     * The UIDVALIDITY this folder was last observed under, or null — for the notification pre-pass, which
+     * The UIDVALIDITY this folder was last observed under, or null when none was ever recorded for it.
      */
     suspend fun recordedNumbering(accountId: String, mailboxId: String): Long? =
         imap.recordedUidValidity(accountId, mailboxId)
@@ -1501,7 +1501,7 @@ class MailRepository(
             .map { EmailKey(it.accountId, it.id) }
 
     /**
-     * The keys of the unread messages this phone HOLDS in the given scopes — what "mark all read" patches on
+     * The keys of the unread messages this phone HOLDS in the given scopes, capped by UNREAD_RESOLVE_MAX.
      */
     suspend fun cachedUnreadKeys(scopes: List<Pair<String, String>>): List<EmailKey> {
         return scopes.flatMap { (accountId, mailboxId) ->
@@ -1510,7 +1510,7 @@ class MailRepository(
     }
 
     /**
-     * What one new-mail notification pass over [mailboxId] reads: the rows it may announce, and the ids it
+     * What one new-mail notification pass over [mailboxId] reads: the rows it may announce, and a baseline.
      */
     suspend fun notifyRead(accountId: String, mailboxId: String): NotifyRead {
         val since = notifyCandidateFloor(System.currentTimeMillis())
@@ -1785,7 +1785,7 @@ class MailRepository(
     }
 
     /**
-     * OAuth metadata for a host, or null if it advertises none. One that advertises OAuth without a
+     * OAuth metadata for a host, or null when it advertises none.
      */
     suspend fun discoverOAuth(host: String, addressDomain: String): OAuthMetadata? =
         oauthClient.discoverMetadata(host, addressDomain)
@@ -1892,7 +1892,7 @@ class MailRepository(
         oauthClient.pollDeviceToken(provider.metadata, deviceCode, provider.clientId)
 
     /**
-     * Run a provider device flow to completion: start it, hand the user code to [onCode], then poll until the
+     * Run a provider device flow to completion: start it, hand the code to [onCode], then poll to its deadline.
      */
     suspend fun runProviderDeviceFlow(
         provider: OAuthProvider,
@@ -1915,7 +1915,7 @@ class MailRepository(
     }
 
     /**
-     * Validate freshly granted OAuth [tokens] against [provider]'s IMAP server with XOAUTH2, then persist an
+     * Validate freshly granted OAuth [tokens] against [provider]'s IMAP server with XOAUTH2, then store them.
      */
     suspend fun addOAuthImapAccount(
         provider: OAuthProvider,
@@ -2161,7 +2161,7 @@ class MailRepository(
     }
 
     /**
-     * The outcome of ONE best-effort origin read (#160): [header] is what was found, [succeeded] whether the
+     * The outcome of ONE best-effort origin read (#160): [header] is what was found, [succeeded] the read.
      */
     private class OriginRead(val header: String?, val succeeded: Boolean)
 
@@ -3919,6 +3919,16 @@ class MailRepository(
         return client.getEmail(ctx.session, ctx.accountId, emailId, ctx.auth)
     }
 
+    suspend fun carriesDraftFlag(credentials: AccountCredentials, draft: Email, uidValidity: Long?): Boolean {
+        return draftFlagIsCarried(credentials.protocol, draft.isDraft) { imapDraftFlag(credentials, draft, uidValidity) }
+    }
+
+    private suspend fun imapDraftFlag(credentials: AccountCredentials, draft: Email, uidValidity: Long?): Boolean? {
+        val uid = ImapMailService.uidOf(draft.id) ?: return null
+        val mailboxId = draft.mailboxId ?: return null
+        return imap.fetchIsDraft(credentials, mailboxId, uid, uidValidity)
+    }
+
     /** All emails in a conversation (lightweight, no body). */
     suspend fun threadEmails(credentials: AccountCredentials, threadId: String): List<Email> {
         val ctx = connect(credentials)
@@ -4956,7 +4966,7 @@ class MailRepository(
     }
 
     /**
-     * Park a row taken out with [takeOutboxForEdit] in [state] instead of giving it back to the
+     * Park a row taken out with [takeOutboxForEdit] in [state] instead of giving it back to the queue.
      */
     suspend fun parkOutboxEdit(id: Long, state: OutboxState) {
         val row = outboxDao.byId(id) ?: return
@@ -4965,7 +4975,7 @@ class MailRepository(
     }
 
     /**
-     * Park a row whose edit was INTERRUPTED: the composer closed over a body it had lost, on the
+     * Park a row whose edit was INTERRUPTED, or FAIL it once its attempts are exhausted.
      */
     suspend fun parkInterruptedOutboxEdit(id: Long) {
         val row = outboxDao.byId(id) ?: return
@@ -4975,7 +4985,7 @@ class MailRepository(
     }
 
     /**
-     * Startup recovery (#70): PARK every row stranded in EDITING by a process death — FAILED at the
+     * Startup recovery (#70): PARK every row stranded in EDITING by a process death, FAILED past its attempts.
      */
     suspend fun parkInterruptedOutboxEdits() {
         outboxDao.revertEditingExhaustedToFailed(OutboxLogic.MAX_ATTEMPTS)

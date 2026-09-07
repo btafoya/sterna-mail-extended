@@ -766,6 +766,20 @@ class ImapSession(private var socket: Socket) : Closeable {
         return imapDateTimeMillis(raw)
     }
 
+    fun fetchIsDraft(uid: Long): Boolean? {
+        for (line in command("UID FETCH $uid (FLAGS)").untagged) {
+            if (line.getOrNull(2) != "FETCH") continue
+            @Suppress("UNCHECKED_CAST")
+            val items = line.getOrNull(3) as? List<Any?> ?: continue
+            val map = pairUp(items)
+            if ((map["UID"] as? String)?.toLongOrNull() != uid) continue
+            @Suppress("UNCHECKED_CAST")
+            val flags = map["FLAGS"] as? List<Any?> ?: return null
+            return flags.any { it is String && it.equals("\\Draft", true) }
+        }
+        return null
+    }
+
         /**
          * The one reading shared by the three body fetches above. The empty string when the answer
          * carries NO body item: the item list opens with `UID <n>`, so an `indexOfFirst` answering -1

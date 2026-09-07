@@ -424,7 +424,7 @@ class ImapMailService(
         }
 
     /**
-     * Connect, list folders, and WALK the newest [limit] of the target folder, handing each page to
+     * Connect, list folders, and WALK the newest [limit] of the target folder, page by page to [onPage].
      */
     suspend fun loadFolder(
         credentials: AccountCredentials,
@@ -728,6 +728,14 @@ class ImapMailService(
     suspend fun fetchInternalDate(credentials: AccountCredentials, mailboxId: String, uid: Long): Long? =
         onMailbox(credentials, mailboxId) { session, _ -> session.fetchInternalDate(uid) }
 
+    suspend fun fetchIsDraft(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        expectedUidValidity: Long? = null,
+    ): Boolean? =
+        onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity) { session, _ -> session.fetchIsDraft(uid) }
+
     /**
      * The opening line of every message of [page] with no CACHED one, read on the session that has
      * just SELECTed the folder (#99, #187). NOTHING ESCAPES: a throw would fail the folder read.
@@ -842,7 +850,7 @@ class ImapMailService(
 }
 
 /**
- * The ONE place a listed IMAP folder becomes a cache row. A folder that CLAIMED trash or junk and
+ * The ONE place a listed IMAP folder becomes a cache row, role and subscription state included.
  */
 internal fun imapMailboxEntity(accountId: String, folder: ImapFolder, index: Int): MailboxEntity {
     val role = folder.role

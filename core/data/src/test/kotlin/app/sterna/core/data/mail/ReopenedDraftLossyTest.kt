@@ -20,6 +20,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -32,6 +33,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -43,6 +45,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 1,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -54,6 +57,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 1,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -70,6 +74,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "<ann@example.org>",
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -82,6 +87,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "Ann Lee <ann@example.org>, ops@example.org",
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -94,6 +100,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -105,6 +112,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "",
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -118,12 +126,13 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "   ",
+                carriesDraftFlag = true,
             ),
         )
     }
 
     /**
-     * A header that is THERE but names no address (`<>`, the shape a server hands back for a
+     * A header that is THERE but names no address, the shape `<>` a server hands back for a stripped one.
      */
     @Test fun aReceiptHeaderNamingNoAddressIsLossy() {
         assertTrue(
@@ -134,6 +143,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "<>",
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -148,15 +158,73 @@ class ReopenedDraftLossyTest {
                     inlineImageCount = 0,
                     calendarPartCount = 0,
                     receiptHeader = header,
+                    carriesDraftFlag = true,
                 ),
             )
+        }
+    }
+
+    @Test fun aMessageTheServerDoesNotFlagADraftIsLossyWithEveryOtherLegClean() {
+        assertTrue(
+            "a message another client MOVED into Drafts is a received mail, not a draft: reopened " +
+                "and sent, it goes to the addresses ITS sender chose, and destroying the original " +
+                "afterwards takes the only copy this account holds. Every other leg is clean here.",
+            reopenedDraftIsLossy(
+                hasHtmlBody = false,
+                inlineImageCount = 0,
+                calendarPartCount = 0,
+                receiptHeader = null,
+                carriesDraftFlag = false,
+            ),
+        )
+    }
+
+    @Test fun theDraftFlagDecidesOnItsOwnBesideAnOtherwiseCleanDraft() {
+        assertFalse(
+            "the same clean draft, flagged a draft by the server, is replaceable — without this " +
+                "side the leg would answer lossy for every reopen and no draft would ever be " +
+                "replaced, which is the duplicate-in-Drafts defect and not a witness",
+            reopenedDraftIsLossy(
+                hasHtmlBody = false,
+                inlineImageCount = 0,
+                calendarPartCount = 0,
+                receiptHeader = null,
+                carriesDraftFlag = true,
+            ),
+        )
+        assertTrue(
+            reopenedDraftIsLossy(
+                hasHtmlBody = false,
+                inlineImageCount = 0,
+                calendarPartCount = 0,
+                receiptHeader = null,
+                carriesDraftFlag = false,
+            ),
+        )
+    }
+
+    @Test fun anUnflaggedMessageStaysLossyWhateverTheOtherLegsSay() {
+        for (html in listOf(false, true)) {
+            for (inline in listOf(0, 2)) {
+                assertTrue(
+                    "hasHtmlBody = $html, inlineImageCount = $inline: no leg rescues a message " +
+                        "the server does not flag a draft",
+                    reopenedDraftIsLossy(
+                        hasHtmlBody = html,
+                        inlineImageCount = inline,
+                        calendarPartCount = 0,
+                        receiptHeader = null,
+                        carriesDraftFlag = false,
+                    ),
+                )
+            }
         }
     }
 
     // --- the html leg, as the composer now feeds it (#131) --------------------------------------
 
     /**
-     * Since #131 the composer does not hand this leg "there is an html part": it hands it
+     * Since #131 the composer does not hand this leg "there is an html part", but "this editor cannot read it back".
      */
     @Test fun anHtmlThisEditorCanGiveBackIsNotLossy() {
         assertFalse(
@@ -166,6 +234,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -179,6 +248,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -203,6 +273,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -215,6 +286,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -227,6 +299,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 1,
                 calendarPartCount = 0,
                 receiptHeader = null,
+                carriesDraftFlag = true,
             ),
         )
         assertTrue(
@@ -235,6 +308,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "ann@example.org",
+                carriesDraftFlag = true,
             ),
         )
     }
@@ -247,6 +321,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 2,
                 calendarPartCount = 1,
                 receiptHeader = "ann@example.org",
+                carriesDraftFlag = true,
             ),
         )
         // …and a clean body does not rescue an unreadable header: the leg alone decides.
@@ -256,6 +331,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "not-an-address",
+                carriesDraftFlag = true,
             ),
         )
         // The witness on the other side, so this is not a test that only ever says "lossy":
@@ -265,6 +341,7 @@ class ReopenedDraftLossyTest {
                 inlineImageCount = 0,
                 calendarPartCount = 0,
                 receiptHeader = "\t \n ",
+                carriesDraftFlag = true,
             ),
         )
     }

@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The fidelity verdict of an edited draft ([ComposeViewModel.editingDraftLossy]) on its way from
+ * The fidelity verdict of an edited draft ([ComposeViewModel.editingDraftLossy]), pinned where it rides.
  */
 class DraftVerdictWiringTest {
 
@@ -75,28 +75,36 @@ class DraftVerdictWiringTest {
                 "keeps a duplicate in Drafts on every re-save of a styled draft, and a bare " +
                 "`false` destroys the original of one written elsewhere), inline images and " +
                 "calendar parts (never carried), and the read-receipt request the draft's header " +
-                "holds (the checkbox comes back clear — D1). Any leg dropped is that content, or " +
-                "that request, silently destroyed on the next send.",
+                "holds (the checkbox comes back clear — D1), and whether the SERVER still flags " +
+                "this message a draft at all — without that fifth leg, a received message " +
+                "another client filed in Drafts reopens as a draft and the send destroys the " +
+                "original after delivering a copy to its first sender's recipients. Any leg " +
+                "dropped is that content, that request, or that message, silently destroyed " +
+                "on the next send.",
             listOf(
                 "val lossy = reopenedDraftIsLossy(",
                 "hasHtmlBody = draftHtmlIsLossy(draft.htmlContent()),",
                 "inlineImageCount = draft.inlineImageParts().size,",
                 "calendarPartCount = draft.calendarParts().size,",
                 "receiptHeader = draft.dispositionNotificationTo,",
+                "carriesDraftFlag = flaggedDraft,",
                 ")",
             ),
-            lines.subList(at, at + 6),
+            lines.subList(at, at + 7),
         )
         assertEquals(
             "each leg must be read off the DRAFT that was just fetched, never off this screen's " +
                 "own state: the composer's receipt checkbox (`args.requestReceipt`) comes back " +
                 "clear on a reopen, so feeding it here would make the receipt leg answer " +
-                "\"nothing asked\" every single time and stop nothing at all",
+                "\"nothing asked\" every single time and stop nothing at all. The draft flag " +
+                "is the one leg the draft cannot answer for on IMAP, which is why it is read " +
+                "separately and handed over as a value, never as a literal true",
             mapOf(
                 "hasHtmlBody" to "draftHtmlIsLossy(draft.htmlContent())",
                 "inlineImageCount" to "draft.inlineImageParts().size",
                 "calendarPartCount" to "draft.calendarParts().size",
                 "receiptHeader" to "draft.dispositionNotificationTo",
+                "carriesDraftFlag" to "flaggedDraft",
             ),
             callsOf(body, "reopenedDraftIsLossy(").single(),
         )
@@ -140,6 +148,39 @@ class DraftVerdictWiringTest {
         )
     }
 
+    @Test fun `the fifth leg is a value read from the server, between the fetch and the verdict`() {
+        val code = bodyOf(COMPOSE_VIEW_MODEL, "prepare").lines().map { it.trim() }.filter { it.isNotEmpty() }
+        assertEquals(
+            "the draft flag must be READ, once, off the repository, for the draft just fetched — " +
+                "a literal, or `draft.isDraft` inlined at the call site, answers `true` for every " +
+                "IMAP message, since an IMAP row carries no keywords: exactly the message the " +
+                "whole leg exists to spare. Body was:\n" + code.joinToString("\n"),
+            listOf("val flaggedDraft = repo.carriesDraftFlag(credentials, draft, editingDraftUidValidity)"),
+            code.filter { "carriesDraftFlag" in it && it.startsWith("val ") },
+        )
+        val fetched = code.indexOf("val draft = repo.fetchEmail(credentials, draftId)")
+        val read = code.indexOf("val flaggedDraft = repo.carriesDraftFlag(credentials, draft, editingDraftUidValidity)")
+        val computed = code.indexOf("val lossy = reopenedDraftIsLossy(")
+        assertTrue(
+            "…after the draft has been read, so the read is put about a message that exists, and " +
+                "before the verdict, which is the only thing that consumes it. Body was:\n" +
+                code.joinToString("\n"),
+            fetched >= 0 && fetched < read && read < computed,
+        )
+        val frozen = code.indexOf("editingDraftUidValidity = repo.recordedUidValidityForDraft(credentials, draftId)")
+        assertTrue(
+            "⛔ AND THE NUMBERING MUST BE FROZEN BEFORE THE READ CONSUMES IT. Slide this one line " +
+                "below the read and the field is still its `null` default, so `fetchIsDraft` is " +
+                "handed null and `onMailbox` falls back to whatever numbering the cache last " +
+                "recorded: the SELECT is then opposed to nothing. On a folder renumbered since, " +
+                "that uid names a DIFFERENT message, and its \\Draft licenses the destruction of " +
+                "the received mail this leg exists to spare. Nothing else pins this order — the " +
+                "freeze rules only oppose it to the id and the carry. Body was:\n" +
+                code.joinToString("\n"),
+            frozen >= 0 && frozen < read,
+        )
+    }
+
     @Test fun `the reopened draft's id and a pessimistic verdict are armed together, before the coroutine`() {
         // THIS INVARIANT IS THE INVERSE OF THE ONE THIS TEST USED TO PIN, and the old race is why
         // it existed: editingDraftId was once set BEFORE carryDraftAttachments, so sending while
@@ -148,7 +189,7 @@ class DraftVerdictWiringTest {
         // ComposeScreen) survives process death, so a draft reopened before the process was killed
         //
         // So the id no longer buys the safety; the VERDICT does, and the invariant moved WITH it:
-        // it is not "the id is laid last", it is "the LICENCE TO DESTROY is laid last". The pair is
+        // it is not "the id is laid last", it is "the LICENCE TO DESTROY is laid last".
         val lines = bodyOf(COMPOSE_VIEW_MODEL, "prepare").lines().map { it.trim() }
         val assignments = lines.withIndex()
             .filter { Regex("""\beditingDraftId\s*=""").containsMatchIn(it.value) }
@@ -242,7 +283,7 @@ class DraftVerdictWiringTest {
     }
 
     /**
-     * AND THE ANSWER THE WHOLE THING NOW RESTS ON. Since the verdict is lowered from
+     * AND THE ANSWER THE WHOLE THING NOW RESTS ON, since the verdict is lowered from what it says.
      */
     @Test fun `the attachment carry answers whether EVERY part came across`() {
         val body = bodyOf(COMPOSE_VIEW_MODEL, "carryDraftAttachments")
